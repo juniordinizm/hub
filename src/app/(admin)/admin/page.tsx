@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -356,11 +357,14 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                           <FieldLabel>URL segura do embed</FieldLabel>
                           <Input name="videoEmbedUrl" />
                         </Field>
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <input
+                        <label
+                          className="inline-flex items-center gap-2 text-sm"
+                          htmlFor="lesson-is-published"
+                        >
+                          <Checkbox
                             defaultChecked
+                            id="lesson-is-published"
                             name="isPublished"
-                            type="checkbox"
                           />
                           Publicada
                         </label>
@@ -577,8 +581,15 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                       <Input name="sortOrder" type="number" />
                     </Field>
                   </div>
-                  <label className="inline-flex items-center gap-2 text-sm">
-                    <input defaultChecked name="isPublished" type="checkbox" />
+                  <label
+                    className="inline-flex items-center gap-2 text-sm"
+                    htmlFor="faq-is-published"
+                  >
+                    <Checkbox
+                      defaultChecked
+                      id="faq-is-published"
+                      name="isPublished"
+                    />
                     Publicado
                   </label>
                   <Button type="submit">Salvar FAQ</Button>

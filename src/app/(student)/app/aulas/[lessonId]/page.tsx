@@ -6,29 +6,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 import { getStudentLessonData } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-
-const getLessonLinkClassName = ({
-  isActive,
-  isAvailable,
-}: {
-  isActive: boolean;
-  isAvailable: boolean;
-}): string => {
-  if (isActive) {
-    return "bg-primary text-primary-foreground";
-  }
-
-  if (isAvailable) {
-    return "text-foreground hover:bg-muted";
-  }
-
-  return "pointer-events-none text-muted-foreground/50";
-};
 
 export default async function LessonPage({
   params,
@@ -110,8 +103,12 @@ export default async function LessonPage({
           ) : null}
         </div>
       </section>
-      <aside className="border-l bg-card px-4 py-5">
-        <div className="mb-5">
+      <Sidebar
+        className="w-full border-l bg-card px-4 py-5 text-card-foreground lg:w-[360px]"
+        collapsible="none"
+        side="right"
+      >
+        <SidebarHeader className="px-0">
           <p className="font-semibold text-sm">Conteudo do curso</p>
           <Progress className="mt-3" value={data.progressPercent} />
           <form className="mt-4" method="get">
@@ -121,36 +118,45 @@ export default async function LessonPage({
               placeholder="Buscar aula"
             />
           </form>
-        </div>
-        <div className="grid gap-4">
+        </SidebarHeader>
+        <SidebarContent className="px-0">
           {visibleModules.map((module) => (
-            <section key={module.id}>
-              <h2 className="mb-2 font-semibold text-muted-foreground text-xs uppercase">
+            <SidebarGroup className="px-0" key={module.id}>
+              <SidebarGroupLabel className="px-0">
                 Modulo {module.sortOrder}
-              </h2>
-              <div className="grid gap-1">
-                {module.lessons.map((lesson) => (
-                  <Link
-                    aria-disabled={!lesson.isAvailable}
-                    className={`rounded-3xl px-3 py-2 text-sm ${getLessonLinkClassName(
-                      {
-                        isActive: lesson.id === data.lesson.id,
-                        isAvailable: lesson.isAvailable,
-                      }
-                    )}`}
-                    href={route(
-                      lesson.isAvailable ? `/app/aulas/${lesson.id}` : "#"
-                    )}
-                    key={lesson.id}
-                  >
-                    {lesson.isCompleted ? "Concluida - " : ""}
-                    {lesson.title}
-                  </Link>
-                ))}
-              </div>
-            </section>
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {module.lessons.map((lesson) => (
+                    <SidebarMenuItem key={lesson.id}>
+                      <SidebarMenuButton
+                        asChild
+                        className={
+                          lesson.isAvailable
+                            ? undefined
+                            : "pointer-events-none opacity-50"
+                        }
+                        isActive={lesson.id === data.lesson.id}
+                      >
+                        <Link
+                          aria-disabled={!lesson.isAvailable}
+                          href={route(
+                            lesson.isAvailable ? `/app/aulas/${lesson.id}` : "#"
+                          )}
+                        >
+                          <span>
+                            {lesson.isCompleted ? "Concluida - " : ""}
+                            {lesson.title}
+                          </span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
           ))}
-        </div>
+        </SidebarContent>
         {data.course.supportWhatsappUrl ? (
           <Button asChild className="mt-6 w-full" variant="outline">
             <a
@@ -162,7 +168,7 @@ export default async function LessonPage({
             </a>
           </Button>
         ) : null}
-      </aside>
+      </Sidebar>
     </div>
   );
 }
