@@ -1,6 +1,7 @@
 import "server-only";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { withVerifiedSslMode } from "@/db/connection-url";
 import { getServerEnv } from "@/lib/env";
 import {
   accounts,
@@ -54,7 +55,7 @@ export const getPool = (): Pool => {
     throw new Error("DATABASE_URL is required for database access.");
   }
 
-  pool = new Pool({ connectionString: DATABASE_URL });
+  pool = new Pool({ connectionString: withVerifiedSslMode(DATABASE_URL) });
   return pool;
 };
 

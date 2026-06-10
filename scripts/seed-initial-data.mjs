@@ -12,9 +12,24 @@ if (!rawDatabaseUrl) {
   throw new Error("DATABASE_URL or DATABASE_URL_DIRECT is required.");
 }
 
-const databaseUrl = rawDatabaseUrl.includes("sslmode=")
-  ? rawDatabaseUrl
-  : `${rawDatabaseUrl}?sslmode=require`;
+const withVerifiedSslMode = (connectionString) => {
+  try {
+    const url = new URL(connectionString);
+    const sslMode = url.searchParams.get("sslmode");
+    const warningModes = new Set(["prefer", "require", "verify-ca"]);
+
+    if (!(sslMode && !warningModes.has(sslMode))) {
+      url.searchParams.set("sslmode", "verify-full");
+    }
+
+    return url.toString();
+  } catch {
+    const separator = connectionString.includes("?") ? "&" : "?";
+    return `${connectionString}${separator}sslmode=verify-full`;
+  }
+};
+
+const databaseUrl = withVerifiedSslMode(rawDatabaseUrl);
 
 const pool = new Pool({ connectionString: databaseUrl });
 

@@ -4,6 +4,7 @@ import { config } from "dotenv";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
+import { withVerifiedSslMode } from "../src/db/connection-url";
 import {
   accounts,
   profiles,
@@ -32,9 +33,7 @@ if (!rawDatabaseUrl) {
   throw new Error("DATABASE_URL or DATABASE_URL_DIRECT is required.");
 }
 
-const databaseUrl = rawDatabaseUrl.includes("sslmode=")
-  ? rawDatabaseUrl
-  : `${rawDatabaseUrl}?sslmode=require`;
+const databaseUrl = withVerifiedSslMode(rawDatabaseUrl);
 const pool = new Pool({ connectionString: databaseUrl });
 const db = drizzle(pool, {
   schema: { accounts, profiles, sessions, users, verifications },
