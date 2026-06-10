@@ -43,35 +43,35 @@ O repositório atual ainda é basicamente um starter; a maior parte do produto s
    - Rodar POC JMV vs Panda com 2 aulas reais: embed, mobile, domínio/token, watermark, analytics, API, suporte e custo.
    - Definir provedor final de vídeo antes da implementação do player definitivo.
 
-2. **Fase 1: Fundação Técnica**
+2. **(IMPLEMENTADO) Fase 1: Fundação Técnica**
    - Instalar dependências de auth, banco, validação, testes, e-mail e observabilidade.
    - Criar env validation, conexão Drizzle, migrations iniciais, seed do curso PROTEA-R e estrutura de testes.
    - Implementar layouts protegidos, guards por papel, páginas de erro, loading states e audit logs.
 
-3. **Fase 2: Auth e Operação**
+3. **(IMPLEMENTADO) Fase 2: Auth e Operação**
    - Implementar login, convite para definir senha, reset de senha e sessão.
    - Criar perfis `admin`, `support` e `student`.
    - Implementar envio Resend para convite, acesso liberado, redefinição de senha, certificado e avisos de expiração.
 
-4. **Fase 3: Admin/CMS Próprio**
+4. **(IMPLEMENTADO) Fase 3: Admin/CMS Próprio**
    - CRUD de cursos, módulos e aulas.
    - Campos de vídeo por aula conforme provider escolhido.
    - Gestão de alunas, matrículas, expiração, renovação, reenvio de convite e certificados.
    - Gestão de FAQ, WhatsApp de suporte, dados do certificado e configurações AbacatePay.
 
-5. **Fase 4: Pagamentos e Acesso**
+5. **(IMPLEMENTADO) Fase 4: Pagamentos e Acesso**
    - Mapear produtos/checkouts externos AbacatePay para cursos.
    - Processar pagamento aprovado criando/reativando usuária, criando pedido e matrícula de 12 meses.
    - Processar reembolso/cancelamento revogando matrícula automaticamente.
    - Registrar todos os webhooks, falhas e reprocessamentos no admin.
 
-6. **Fase 5: Área da Aluna**
+6. **(IMPLEMENTADO) Fase 5: Área da Aluna**
    - Dashboard com progresso geral, continuar assistindo e módulos.
    - Página de aula com player, sidebar de conteúdo, busca simples e botão concluir.
    - Bloqueio real de acesso direto a aulas fora de sequência, curso expirado ou matrícula revogada.
    - FAQ e CTA WhatsApp, sem comentários no MVP.
 
-7. **Fase 6: Certificados**
+7. **(IMPLEMENTADO) Fase 6: Certificados**
    - Emitir certificado ao concluir 100% do curso.
    - Gerar PDF com nome, curso, carga horária, data, código único e QR.
    - Criar página pública de validação do certificado sem expor dados sensíveis além do necessário.

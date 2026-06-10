@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import { createCertificateCode } from "@/features/certificates/rules";
+import { sendCertificateIssuedEmail } from "@/features/email/server";
 import {
   calculateCourseProgress,
   getNextAvailableLessonId,
@@ -18,6 +19,13 @@ export interface StudentCourseCard {
   subtitle: string | null;
   title: string;
   totalCount: number;
+}
+
+export interface FaqItem {
+  answer: string;
+  category: string;
+  id: string;
+  question: string;
 }
 
 export interface ModuleWithLessons {
@@ -191,6 +199,44 @@ export const getStudentCourses = async (
   });
 };
 
+export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
+  const { rows } = await getPool().query<{
+    answer: string;
+    category: string;
+    id: string;
+    question: string;
+  }>(
+    `
+      select id, question, answer, category
+      from faq_items
+      where is_published = true
+      order by sort_order asc, question asc
+    `
+  );
+
+  return rows.map((row) => ({
+    answer: row.answer,
+    category: row.category,
+    id: row.id,
+    question: row.question,
+  }));
+};
+
+export const getSupportWhatsappUrl = async (): Promise<string | null> => {
+  const { rows } = await getPool().query<{
+    support_whatsapp_url: string | null;
+  }>(
+    `
+      select support_whatsapp_url
+      from app_settings
+      where id = 'global'
+      limit 1
+    `
+  );
+
+  return rows[0]?.support_whatsapp_url ?? null;
+};
+
 export const getStudentLessonData = async ({
   userId,
   lessonId,
@@ -314,6 +360,7 @@ export const completeLesson = async ({
       student_name: string;
       course_title: string;
       workload_hours: number;
+      student_email: string;
     }>(
       `
         select
@@ -321,6 +368,7 @@ export const completeLesson = async ({
           count(lp.id)::int as completed_lessons,
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
+          max(u.email) as student_email,
           max(c.title) as course_title,
           max(c.workload_hours)::int as workload_hours
         from courses c
@@ -338,6 +386,7 @@ export const completeLesson = async ({
 
     const summary = rows[0];
     let certificateIssued = false;
+    let certificateCode: string | null = null;
 
     if (
       summary &&
@@ -345,6 +394,7 @@ export const completeLesson = async ({
       summary.completed_lessons >= summary.total_lessons &&
       !summary.certificate_id
     ) {
+      certificateCode = createCertificateCode(randomUUID());
       await client.query(
         `
           insert into certificates (
@@ -361,7 +411,7 @@ export const completeLesson = async ({
         [
           userId,
           data.course.id,
-          createCertificateCode(randomUUID()),
+          certificateCode,
           summary.student_name,
           summary.course_title,
           summary.workload_hours,
@@ -371,6 +421,19 @@ export const completeLesson = async ({
     }
 
     await client.query("commit");
+
+    if (certificateIssued && certificateCode && summary) {
+      try {
+        await sendCertificateIssuedEmail({
+          certificateCode,
+          courseTitle: summary.course_title,
+          to: summary.student_email,
+          userName: summary.student_name,
+        });
+      } catch {
+        // E-mail failure must not block certificate issuance.
+      }
+    }
 
     return {
       nextLessonId: data.nextLessonId,

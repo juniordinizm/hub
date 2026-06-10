@@ -1,90 +1,96 @@
 "use client";
 
-import Link from "next/link";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { route } from "@/lib/routes";
 
-export function SignInForm(): React.JSX.Element {
-  const [error, setError] = useState<string | null>(null);
+export function ResetPasswordForm({
+  token,
+}: Readonly<{ token: string }>): React.JSX.Element {
+  const [message, setMessage] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError(null);
+    setMessage(null);
     setIsPending(true);
 
     const formData = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/sign-in/email", {
-      body: JSON.stringify({
-        email: formData.get("email"),
-        password: formData.get("password"),
-      }),
+    const password = String(formData.get("password") ?? "");
+    const confirmation = String(formData.get("confirmation") ?? "");
+
+    if (password !== confirmation) {
+      setIsPending(false);
+      setMessage("As senhas precisam ser iguais.");
+      return;
+    }
+
+    const response = await fetch("/api/auth/reset-password", {
+      body: JSON.stringify({ newPassword: password, token }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
 
     setIsPending(false);
-
-    if (!response.ok) {
-      setError("E-mail ou senha incorretos.");
-      return;
-    }
-
-    window.location.assign("/app");
+    setMessage(
+      response.ok
+        ? "Senha definida. Voce ja pode entrar."
+        : "Link invalido ou expirado."
+    );
   };
+
+  if (!token) {
+    return (
+      <p className="rounded-md border border-orange-200/20 bg-orange-500/10 p-4 text-orange-100 text-sm">
+        Link invalido ou expirado. Solicite uma nova recuperacao de senha.
+      </p>
+    );
+  }
 
   return (
     <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="space-y-2">
         <label
           className="font-semibold text-[0.7rem] text-teal-100/70 uppercase tracking-[0.14em]"
-          htmlFor="email"
+          htmlFor="password"
         >
-          E-mail
+          Nova senha
         </label>
         <input
-          autoComplete="email"
+          autoComplete="new-password"
           className="h-12 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-4 text-teal-50 outline-none transition focus:border-teal-300/50 focus:ring-4 focus:ring-teal-400/10"
-          id="email"
-          name="email"
-          placeholder="aluna@exemplo.com"
+          id="password"
+          minLength={10}
+          name="password"
           required
-          type="email"
+          type="password"
         />
       </div>
       <div className="space-y-2">
         <label
           className="font-semibold text-[0.7rem] text-teal-100/70 uppercase tracking-[0.14em]"
-          htmlFor="password"
+          htmlFor="confirmation"
         >
-          Senha
+          Confirmar senha
         </label>
         <input
-          autoComplete="current-password"
+          autoComplete="new-password"
           className="h-12 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-4 text-teal-50 outline-none transition focus:border-teal-300/50 focus:ring-4 focus:ring-teal-400/10"
-          id="password"
-          name="password"
-          placeholder="Digite sua senha"
+          id="confirmation"
+          minLength={10}
+          name="confirmation"
           required
           type="password"
         />
       </div>
-      {error ? <p className="text-orange-200 text-sm">{error}</p> : null}
+      {message ? <p className="text-orange-200 text-sm">{message}</p> : null}
       <Button
         className="h-12 w-full rounded-md bg-[#326c71] font-bold hover:bg-[#28595d]"
         disabled={isPending}
         type="submit"
       >
-        {isPending ? "Entrando..." : "Entrar na area do aluno"}
+        {isPending ? "Salvando..." : "Salvar senha"}
       </Button>
-      <Link
-        className="inline-flex text-sm text-teal-100/60 hover:text-teal-50"
-        href={route("/recuperar-senha")}
-      >
-        Esqueci minha senha
-      </Link>
     </form>
   );
 }

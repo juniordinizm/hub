@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { getStudentCourses } from "@/features/courses/server";
+import {
+  getPublishedFaqItems,
+  getStudentCourses,
+  getSupportWhatsappUrl,
+} from "@/features/courses/server";
 import { formatDate, formatPercent } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -8,7 +12,11 @@ export const dynamic = "force-dynamic";
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
-  const courses = await getStudentCourses(session.user.id);
+  const [courses, faqs, supportWhatsappUrl] = await Promise.all([
+    getStudentCourses(session.user.id),
+    getPublishedFaqItems(),
+    getSupportWhatsappUrl(),
+  ]);
 
   return (
     <div className="min-h-screen px-5 py-6 sm:px-8 lg:px-10">
@@ -70,6 +78,35 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
             </article>
           ))
         )}
+      </section>
+      <section className="mx-auto mt-10 grid max-w-6xl gap-5 lg:grid-cols-[1fr_280px]">
+        <div className="rounded-md border border-teal-200/10 bg-[#162b2d] p-6">
+          <h2 className="font-bold text-xl">Perguntas frequentes</h2>
+          <div className="mt-5 grid gap-4">
+            {faqs.map((faq) => (
+              <article
+                className="border-teal-200/10 border-t pt-4"
+                key={faq.id}
+              >
+                <p className="font-semibold">{faq.question}</p>
+                <p className="mt-2 text-sm text-teal-100/60">{faq.answer}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+        {supportWhatsappUrl ? (
+          <a
+            className="flex min-h-44 flex-col justify-between rounded-md border border-teal-200/10 bg-[#326c71] p-6 text-white hover:bg-[#28595d]"
+            href={supportWhatsappUrl}
+            rel="noopener"
+            target="_blank"
+          >
+            <span className="font-bold text-xl">Precisa de ajuda?</span>
+            <span className="text-sm text-white/75">
+              Fale com o suporte pelo WhatsApp.
+            </span>
+          </a>
+        ) : null}
       </section>
     </div>
   );

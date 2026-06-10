@@ -28,10 +28,16 @@ const getLessonLinkClassName = ({
 
 export default async function LessonPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ lessonId: string }>;
+  searchParams: Promise<{ busca?: string }>;
 }): Promise<React.JSX.Element> {
-  const [{ lessonId }, session] = await Promise.all([params, requireSession()]);
+  const [{ lessonId }, { busca }, session] = await Promise.all([
+    params,
+    searchParams,
+    requireSession(),
+  ]);
   const data = await getStudentLessonData({
     userId: session.user.id,
     lessonId,
@@ -40,6 +46,18 @@ export default async function LessonPage({
   if (!data) {
     notFound();
   }
+
+  const searchQuery = busca?.trim().toLowerCase() ?? "";
+  const visibleModules = searchQuery
+    ? data.modules
+        .map((module) => ({
+          ...module,
+          lessons: module.lessons.filter((lesson) =>
+            lesson.title.toLowerCase().includes(searchQuery)
+          ),
+        }))
+        .filter((module) => module.lessons.length > 0)
+    : data.modules;
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1fr_360px]">
@@ -99,9 +117,17 @@ export default async function LessonPage({
               style={{ width: `${data.progressPercent}%` }}
             />
           </div>
+          <form className="mt-4" method="get">
+            <input
+              className="h-10 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-3 text-sm text-teal-50 outline-none placeholder:text-teal-100/30"
+              defaultValue={busca ?? ""}
+              name="busca"
+              placeholder="Buscar aula"
+            />
+          </form>
         </div>
         <div className="grid gap-4">
-          {data.modules.map((module) => (
+          {visibleModules.map((module) => (
             <section key={module.id}>
               <h2 className="mb-2 font-semibold text-teal-100 text-xs uppercase tracking-[0.13em]">
                 Modulo {module.sortOrder}

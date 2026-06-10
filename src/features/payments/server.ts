@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { getPool } from "@/db";
+import { sendAccessReleasedEmail } from "@/features/email/server";
 import { addMonths } from "@/features/enrollments/rules";
 import {
   getAbacatePayEventKey,
@@ -13,6 +14,24 @@ interface WebhookResult {
   eventKey: string;
   status: "processed" | "ignored" | "duplicate";
 }
+
+const notifyAccessReleased = async (
+  payload: {
+    courseTitle: string;
+    to: string;
+    userName: string;
+  } | null
+): Promise<void> => {
+  if (!payload) {
+    return;
+  }
+
+  try {
+    await sendAccessReleasedEmail(payload);
+  } catch {
+    // E-mail failure must not block paid webhook processing.
+  }
+};
 
 const getSignatureParts = (
   signature: string
@@ -73,6 +92,11 @@ export const processAbacatePayWebhook = async (
   const orderStatus = mapAbacatePayEventToOrderStatus(eventName);
   const pool = getPool();
   const client = await pool.connect();
+  let accessEmailPayload: {
+    courseTitle: string;
+    to: string;
+    userName: string;
+  } | null = null;
 
   try {
     await client.query("begin");
@@ -112,11 +136,12 @@ export const processAbacatePayWebhook = async (
     }
 
     const courseResult = await client.query<{
+      title: string;
       id: string;
       access_duration_months: number;
     }>(
       `
-        select id, access_duration_months
+        select id, title, access_duration_months
         from courses
         where payment_provider_product_id = $1
         limit 1
@@ -226,6 +251,11 @@ export const processAbacatePayWebhook = async (
         `,
         [userId, course.id, now, expiresAt]
       );
+      accessEmailPayload = {
+        courseTitle: course.title,
+        to: orderPayload.customerEmail,
+        userName: orderPayload.customerName,
+      };
     }
 
     if (orderStatus === "refunded") {
@@ -252,6 +282,9 @@ export const processAbacatePayWebhook = async (
     );
 
     await client.query("commit");
+
+    await notifyAccessReleased(accessEmailPayload);
+
     return { status: "processed", eventKey };
   } catch (error) {
     await client.query("rollback");
