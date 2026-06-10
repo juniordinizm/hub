@@ -2,7 +2,10 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 export function RequestPasswordResetForm(): React.JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
@@ -32,29 +35,25 @@ export function RequestPasswordResetForm(): React.JSX.Element {
   };
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="space-y-2">
-        <label
-          className="font-semibold text-[0.7rem] text-teal-100/70 uppercase tracking-[0.14em]"
-          htmlFor="email"
-        >
-          E-mail
-        </label>
-        <input
-          autoComplete="email"
-          className="h-12 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-4 text-teal-50 outline-none transition focus:border-teal-300/50 focus:ring-4 focus:ring-teal-400/10"
-          id="email"
-          name="email"
-          required
-          type="email"
-        />
-      </div>
-      {message ? <p className="text-orange-200 text-sm">{message}</p> : null}
-      <Button
-        className="h-12 w-full rounded-md bg-[#326c71] font-bold hover:bg-[#28595d]"
-        disabled={isPending}
-        type="submit"
-      >
+    <form onSubmit={handleSubmit}>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="email">E-mail</FieldLabel>
+          <Input
+            autoComplete="email"
+            id="email"
+            name="email"
+            required
+            type="email"
+          />
+        </Field>
+      </FieldGroup>
+      {message ? (
+        <Alert className="mt-5">
+          <AlertDescription>{message}</AlertDescription>
+        </Alert>
+      ) : null}
+      <Button className="mt-5 h-12 w-full" disabled={isPending} type="submit">
         {isPending ? "Enviando..." : "Enviar link"}
       </Button>
     </form>

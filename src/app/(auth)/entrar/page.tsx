@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = {
@@ -19,20 +26,18 @@ export default function SignInPage(): React.JSX.Element {
         />
       </section>
       <section className="flex min-h-screen items-center px-6 py-10 sm:px-10">
-        <div className="mx-auto w-full max-w-sm">
-          <p className="font-semibold text-[#d97b34] text-xs uppercase tracking-[0.18em]">
-            PROTEA-R Hub
-          </p>
-          <h1 className="mt-4 font-bold text-3xl tracking-tight">
-            Bem-vinda de volta
-          </h1>
-          <p className="mt-2 text-sm text-teal-100/60">
-            Acesse sua conta para continuar seus estudos.
-          </p>
-          <div className="mt-10">
+        <Card className="mx-auto w-full max-w-sm bg-card/95">
+          <CardHeader>
+            <CardDescription>PROTEA-R Hub</CardDescription>
+            <CardTitle className="text-3xl">Bem-vinda de volta</CardTitle>
+            <CardDescription>
+              Acesse sua conta para continuar seus estudos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <SignInForm />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
     </main>
   );

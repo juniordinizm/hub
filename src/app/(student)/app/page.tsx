@@ -1,4 +1,14 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   getPublishedFaqItems,
   getStudentCourses,
@@ -19,93 +29,95 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
   ]);
 
   return (
-    <div className="min-h-screen px-5 py-6 sm:px-8 lg:px-10">
+    <div className="min-h-screen bg-background px-5 py-6 text-foreground sm:px-8 lg:px-10">
       <header className="mx-auto max-w-6xl">
-        <p className="font-semibold text-[#d97b34] text-xs uppercase tracking-[0.18em]">
-          Seus cursos
-        </p>
+        <Badge variant="outline">Seus cursos</Badge>
         <h1 className="mt-3 font-bold text-3xl tracking-tight">
           Continue de onde parou
         </h1>
       </header>
       <section className="mx-auto mt-8 grid max-w-6xl gap-5">
         {courses.length === 0 ? (
-          <div className="rounded-md border border-teal-200/10 bg-[#162b2d] p-8">
-            <h2 className="font-semibold text-xl">Nenhum curso ativo</h2>
-            <p className="mt-2 text-sm text-teal-100/60">
-              Sua conta existe, mas nao ha uma matricula ativa no momento.
-            </p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Nenhum curso ativo</CardTitle>
+              <CardDescription>
+                Sua conta existe, mas nao ha uma matricula ativa no momento.
+              </CardDescription>
+            </CardHeader>
+          </Card>
         ) : (
           courses.map((course) => (
-            <article
-              className="overflow-hidden rounded-md border border-teal-200/10 bg-[#162b2d]"
-              key={course.courseId}
-            >
-              <div className="grid gap-6 p-6 md:grid-cols-[1fr_220px] md:items-center">
-                <div>
-                  <p className="text-[#9aad7c] text-xs uppercase tracking-[0.16em]">
-                    Acesso ate {formatDate(course.expiresAt)}
-                  </p>
-                  <h2 className="mt-3 font-bold text-2xl">{course.title}</h2>
-                  <p className="mt-2 text-sm text-teal-100/60">
-                    {course.subtitle ?? "Curso liberado na sua area de aluna."}
-                  </p>
-                  <div className="mt-5 h-2 rounded-full bg-teal-950">
-                    <div
-                      className="h-full rounded-full bg-[#d97b34]"
-                      style={{ width: `${course.progressPercent}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-teal-100/50 text-xs">
-                    {course.completedCount} de {course.totalCount} aulas
-                    concluidas · {formatPercent(course.progressPercent)}
-                  </p>
-                </div>
-                <Link
-                  className="inline-flex h-11 items-center justify-center rounded-md bg-[#326c71] px-4 font-bold text-sm text-white hover:bg-[#28595d]"
-                  href={route(
-                    course.nextLessonId
-                      ? `/app/aulas/${course.nextLessonId}`
-                      : "/app/certificados"
-                  )}
-                >
-                  {course.nextLessonId
-                    ? "Continuar assistindo"
-                    : "Ver certificado"}
-                </Link>
-              </div>
-            </article>
+            <Card key={course.courseId}>
+              <CardHeader>
+                <CardDescription>
+                  Acesso ate {formatDate(course.expiresAt)}
+                </CardDescription>
+                <CardTitle className="text-2xl">{course.title}</CardTitle>
+                <CardDescription>
+                  {course.subtitle ?? "Curso liberado na sua area de aluna."}
+                </CardDescription>
+                <CardAction>
+                  <Link
+                    className="inline-flex h-10 items-center justify-center rounded-3xl bg-primary px-4 font-medium text-primary-foreground text-sm hover:bg-primary/90"
+                    href={route(
+                      course.nextLessonId
+                        ? `/app/aulas/${course.nextLessonId}`
+                        : "/app/certificados"
+                    )}
+                  >
+                    {course.nextLessonId
+                      ? "Continuar assistindo"
+                      : "Ver certificado"}
+                  </Link>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                <Progress value={course.progressPercent} />
+                <p className="mt-2 text-muted-foreground text-xs">
+                  {course.completedCount} de {course.totalCount} aulas
+                  concluidas - {formatPercent(course.progressPercent)}
+                </p>
+              </CardContent>
+            </Card>
           ))
         )}
       </section>
       <section className="mx-auto mt-10 grid max-w-6xl gap-5 lg:grid-cols-[1fr_280px]">
-        <div className="rounded-md border border-teal-200/10 bg-[#162b2d] p-6">
-          <h2 className="font-bold text-xl">Perguntas frequentes</h2>
-          <div className="mt-5 grid gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Perguntas frequentes</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
             {faqs.map((faq) => (
-              <article
-                className="border-teal-200/10 border-t pt-4"
-                key={faq.id}
-              >
+              <article className="border-t pt-4" key={faq.id}>
                 <p className="font-semibold">{faq.question}</p>
-                <p className="mt-2 text-sm text-teal-100/60">{faq.answer}</p>
+                <p className="mt-2 text-muted-foreground text-sm">
+                  {faq.answer}
+                </p>
               </article>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
         {supportWhatsappUrl ? (
-          <a
-            className="flex min-h-44 flex-col justify-between rounded-md border border-teal-200/10 bg-[#326c71] p-6 text-white hover:bg-[#28595d]"
-            href={supportWhatsappUrl}
-            rel="noopener"
-            target="_blank"
-          >
-            <span className="font-bold text-xl">Precisa de ajuda?</span>
-            <span className="text-sm text-white/75">
-              Fale com o suporte pelo WhatsApp.
-            </span>
-          </a>
+          <Card>
+            <CardHeader>
+              <CardTitle>Precisa de ajuda?</CardTitle>
+              <CardDescription>
+                Fale com o suporte pelo WhatsApp.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <a
+                className="inline-flex h-10 items-center justify-center rounded-3xl bg-primary px-4 font-medium text-primary-foreground text-sm hover:bg-primary/90"
+                href={supportWhatsappUrl}
+                rel="noopener"
+                target="_blank"
+              >
+                Falar com suporte
+              </a>
+            </CardContent>
+          </Card>
         ) : null}
       </section>
     </div>

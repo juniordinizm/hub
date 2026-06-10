@@ -3,7 +3,10 @@
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { route } from "@/lib/routes";
 
 export function SignInForm(): React.JSX.Element {
@@ -36,51 +39,41 @@ export function SignInForm(): React.JSX.Element {
   };
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
-      <div className="space-y-2">
-        <label
-          className="font-semibold text-[0.7rem] text-teal-100/70 uppercase tracking-[0.14em]"
-          htmlFor="email"
-        >
-          E-mail
-        </label>
-        <input
-          autoComplete="email"
-          className="h-12 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-4 text-teal-50 outline-none transition focus:border-teal-300/50 focus:ring-4 focus:ring-teal-400/10"
-          id="email"
-          name="email"
-          placeholder="aluna@exemplo.com"
-          required
-          type="email"
-        />
-      </div>
-      <div className="space-y-2">
-        <label
-          className="font-semibold text-[0.7rem] text-teal-100/70 uppercase tracking-[0.14em]"
-          htmlFor="password"
-        >
-          Senha
-        </label>
-        <input
-          autoComplete="current-password"
-          className="h-12 w-full rounded-md border border-teal-200/10 bg-[#162b2d] px-4 text-teal-50 outline-none transition focus:border-teal-300/50 focus:ring-4 focus:ring-teal-400/10"
-          id="password"
-          name="password"
-          placeholder="Digite sua senha"
-          required
-          type="password"
-        />
-      </div>
-      {error ? <p className="text-orange-200 text-sm">{error}</p> : null}
-      <Button
-        className="h-12 w-full rounded-md bg-[#326c71] font-bold hover:bg-[#28595d]"
-        disabled={isPending}
-        type="submit"
-      >
+    <form onSubmit={handleSubmit}>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="email">E-mail</FieldLabel>
+          <Input
+            autoComplete="email"
+            id="email"
+            name="email"
+            placeholder="aluna@exemplo.com"
+            required
+            type="email"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="password">Senha</FieldLabel>
+          <Input
+            autoComplete="current-password"
+            id="password"
+            name="password"
+            placeholder="Digite sua senha"
+            required
+            type="password"
+          />
+        </Field>
+      </FieldGroup>
+      {error ? (
+        <Alert className="mt-5" variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <Button className="mt-5 h-12 w-full" disabled={isPending} type="submit">
         {isPending ? "Entrando..." : "Entrar na area do aluno"}
       </Button>
       <Link
-        className="inline-flex text-sm text-teal-100/60 hover:text-teal-50"
+        className="mt-5 inline-flex text-muted-foreground text-sm hover:text-foreground"
         href={route("/recuperar-senha")}
       >
         Esqueci minha senha
