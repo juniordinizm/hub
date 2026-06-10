@@ -13,10 +13,22 @@ export interface StudentCourseCard {
   completedCount: number;
   courseId: string;
   expiresAt: Date;
+  modules: StudentCourseModule[];
   nextLessonId: string | null;
   progressPercent: number;
   slug: string;
   subtitle: string | null;
+  title: string;
+  totalCount: number;
+}
+
+export interface StudentCourseModule {
+  color: string;
+  completedCount: number;
+  id: string;
+  nextLessonId: string | null;
+  progressPercent: number;
+  sortOrder: number;
   title: string;
   totalCount: number;
 }
@@ -81,6 +93,17 @@ interface LessonRow {
   video_provider: string | null;
 }
 
+type StudentCourseModuleAggregate = StudentCourseModule & {
+  completedLessonIds: string[];
+  lessonIds: string[];
+};
+
+type StudentCourseAggregate = StudentCourseCard & {
+  completedLessonIds: string[];
+  lessonIds: string[];
+  modulesById: Map<string, StudentCourseModuleAggregate>;
+};
+
 const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
   const lessonIds = rows.map((row) => row.lesson_id);
   const completedLessonIds = rows
@@ -121,13 +144,17 @@ export const getStudentCourses = async (
   userId: string
 ): Promise<StudentCourseCard[]> => {
   const { rows } = await getPool().query<{
+    completed_at: Date | null;
     course_id: string;
-    slug: string;
-    title: string;
-    subtitle: string | null;
     expires_at: Date;
     lesson_id: string | null;
-    completed_at: Date | null;
+    module_color: string | null;
+    module_id: string | null;
+    module_sort_order: number | null;
+    module_title: string | null;
+    slug: string;
+    subtitle: string | null;
+    title: string;
   }>(
     `
       select
@@ -136,6 +163,10 @@ export const getStudentCourses = async (
         c.title,
         c.subtitle,
         e.expires_at,
+        m.id as module_id,
+        m.title as module_title,
+        m.sort_order as module_sort_order,
+        m.color as module_color,
         l.id as lesson_id,
         lp.completed_at
       from enrollments e
@@ -153,24 +184,23 @@ export const getStudentCourses = async (
     [userId]
   );
 
-  const byCourse = new Map<
-    string,
-    StudentCourseCard & { lessonIds: string[]; completedLessonIds: string[] }
-  >();
+  const byCourse = new Map<string, StudentCourseAggregate>();
 
   for (const row of rows) {
-    const course = byCourse.get(row.course_id) ?? {
+    const course: StudentCourseAggregate = byCourse.get(row.course_id) ?? {
       courseId: row.course_id,
       slug: row.slug,
       title: row.title,
       subtitle: row.subtitle,
       expiresAt: row.expires_at,
+      modules: [],
       progressPercent: 0,
       completedCount: 0,
       totalCount: 0,
       nextLessonId: null,
       lessonIds: [],
       completedLessonIds: [],
+      modulesById: new Map<string, StudentCourseModuleAggregate>(),
     };
 
     if (row.lesson_id) {
@@ -180,17 +210,59 @@ export const getStudentCourses = async (
       }
     }
 
+    if (row.module_id && row.module_sort_order && row.module_title) {
+      const moduleData = course.modulesById.get(row.module_id) ?? {
+        id: row.module_id,
+        title: row.module_title,
+        sortOrder: row.module_sort_order,
+        color: row.module_color ?? "#326c71",
+        totalCount: 0,
+        completedCount: 0,
+        progressPercent: 0,
+        nextLessonId: null,
+        lessonIds: [],
+        completedLessonIds: [],
+      };
+
+      if (row.lesson_id) {
+        moduleData.lessonIds.push(row.lesson_id);
+        if (row.completed_at) {
+          moduleData.completedLessonIds.push(row.lesson_id);
+        }
+      }
+
+      course.modulesById.set(row.module_id, moduleData);
+    }
+
     byCourse.set(row.course_id, course);
   }
 
   return [...byCourse.values()].map((course) => {
     const progress = calculateCourseProgress(course);
+    const modules = [...course.modulesById.values()]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((moduleData) => {
+        const moduleProgress = calculateCourseProgress(moduleData);
+
+        return {
+          id: moduleData.id,
+          title: moduleData.title,
+          sortOrder: moduleData.sortOrder,
+          color: moduleData.color,
+          totalCount: moduleProgress.totalCount,
+          completedCount: moduleProgress.completedCount,
+          progressPercent: moduleProgress.percent,
+          nextLessonId: getNextAvailableLessonId(moduleData),
+        };
+      });
+
     return {
       courseId: course.courseId,
       slug: course.slug,
       title: course.title,
       subtitle: course.subtitle,
       expiresAt: course.expiresAt,
+      modules,
       progressPercent: progress.percent,
       completedCount: progress.completedCount,
       totalCount: progress.totalCount,

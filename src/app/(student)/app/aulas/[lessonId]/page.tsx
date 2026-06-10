@@ -57,24 +57,26 @@ export default async function LessonPage({
     : data.modules;
 
   return (
-    <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[1fr_360px]">
-      <section className="min-w-0 px-5 py-5 sm:px-8">
-        <div className="mb-5 flex items-center justify-between gap-4">
+    <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="min-w-0 overflow-y-auto">
+        <div className="sticky top-0 z-10 flex h-13 items-center justify-between gap-4 border-b bg-sidebar px-5 sm:px-8">
           <Link
             className="text-muted-foreground text-sm hover:text-foreground"
             href={route("/app")}
           >
             Voltar ao inicio
           </Link>
+          <p className="hidden truncate font-semibold text-sm sm:block">
+            {data.course.title}
+          </p>
           <form action={completeLessonAction}>
             <input name="lessonId" type="hidden" value={data.lesson.id} />
-            <Button type="submit">Concluir aula</Button>
+            <Button size="sm" type="submit" variant="secondary">
+              Concluir
+            </Button>
           </form>
         </div>
-        <AspectRatio
-          className="overflow-hidden rounded-3xl border bg-black"
-          ratio={16 / 9}
-        >
+        <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
           {data.lesson.videoEmbedUrl ? (
             <iframe
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
@@ -89,42 +91,65 @@ export default async function LessonPage({
             </div>
           )}
         </AspectRatio>
-        <div className="mt-6">
-          <Badge variant="outline">
+        <div className="px-5 py-7 sm:px-9">
+          <Badge
+            className="border-primary/30 bg-primary/15 text-primary"
+            variant="outline"
+          >
             {data.course.title} - {data.lesson.durationMinutes} min
           </Badge>
-          <h1 className="mt-3 font-bold text-3xl tracking-tight">
+          <h1 className="mt-3 max-w-3xl font-bold text-2xl text-white tracking-tight">
             {data.lesson.title}
           </h1>
           {data.lesson.description ? (
-            <p className="mt-4 max-w-3xl text-muted-foreground leading-7">
+            <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7">
               {data.lesson.description}
             </p>
           ) : null}
+          <div className="mt-7 flex flex-wrap gap-3">
+            {data.nextLessonId ? (
+              <Button asChild>
+                <Link href={route(`/app/aulas/${data.nextLessonId}`)}>
+                  Proxima aula
+                </Link>
+              </Button>
+            ) : null}
+            <form action={completeLessonAction}>
+              <input name="lessonId" type="hidden" value={data.lesson.id} />
+              <Button type="submit" variant="outline">
+                Concluir aula
+              </Button>
+            </form>
+          </div>
         </div>
       </section>
       <Sidebar
-        className="w-full border-l bg-card px-4 py-5 text-card-foreground lg:w-[360px]"
+        className="w-full border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:w-[320px]"
         collapsible="none"
         side="right"
       >
-        <SidebarHeader className="px-0">
+        <SidebarHeader className="border-sidebar-border border-b px-5 py-5">
           <p className="font-semibold text-sm">Conteudo do curso</p>
-          <Progress className="mt-3" value={data.progressPercent} />
+          <p className="mt-1 text-sidebar-foreground/55 text-xs">
+            {data.progressPercent}% concluido
+          </p>
+          <Progress
+            className="mt-3 h-1 bg-primary/20"
+            value={data.progressPercent}
+          />
           <form className="mt-4" method="get">
             <Input
+              className="bg-primary/10"
               defaultValue={busca ?? ""}
               name="busca"
-              placeholder="Buscar aula"
+              placeholder="Buscar conteudo"
             />
           </form>
         </SidebarHeader>
-        <SidebarContent className="px-0">
+        <SidebarContent className="px-2 py-2">
           {visibleModules.map((module) => (
-            <SidebarGroup className="px-0" key={module.id}>
-              <SidebarGroupLabel className="px-0">
-                Modulo {module.sortOrder}
-              </SidebarGroupLabel>
+            <SidebarGroup key={module.id}>
+              <SidebarGroupLabel>Modulo {module.sortOrder}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {module.lessons.map((lesson) => (
@@ -148,6 +173,9 @@ export default async function LessonPage({
                             {lesson.isCompleted ? "Concluida - " : ""}
                             {lesson.title}
                           </span>
+                          <span className="ml-auto text-sidebar-foreground/40 text-xs">
+                            {lesson.durationMinutes}m
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -158,7 +186,7 @@ export default async function LessonPage({
           ))}
         </SidebarContent>
         {data.course.supportWhatsappUrl ? (
-          <Button asChild className="mt-6 w-full" variant="outline">
+          <Button asChild className="m-4 mt-2" variant="outline">
             <a
               href={data.course.supportWhatsappUrl}
               rel="noopener"
