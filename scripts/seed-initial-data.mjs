@@ -5,11 +5,16 @@ config({ path: ".env.local" });
 config({ path: ".env" });
 
 const { Pool } = pg;
-const databaseUrl = process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL;
+const rawDatabaseUrl =
+  process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL;
 
-if (!databaseUrl) {
+if (!rawDatabaseUrl) {
   throw new Error("DATABASE_URL or DATABASE_URL_DIRECT is required.");
 }
+
+const databaseUrl = rawDatabaseUrl.includes("sslmode=")
+  ? rawDatabaseUrl
+  : `${rawDatabaseUrl}?sslmode=require`;
 
 const pool = new Pool({ connectionString: databaseUrl });
 
