@@ -14,12 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Hub",
-    template: "%s | Hub",
+    default: "PROTEA-R Hub",
+    template: "%s | PROTEA-R Hub",
   },
-  description:
-    "A modern Next.js foundation with strict TypeScript, React Compiler, and a polished App Router setup.",
-  applicationName: "Hub",
+  description: "Plataforma de cursos PROTEA-R para alunas e equipe.",
+  applicationName: "PROTEA-R Hub",
   metadataBase: new URL("https://example.com"),
 };
 
@@ -31,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      lang="en"
+      lang="pt-BR"
     >
       <body className="flex min-h-full flex-col">{children}</body>
     </html>

@@ -1,0 +1,46 @@
+import "server-only";
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
+import { getDb } from "@/db";
+import { accounts, sessions, users, verifications } from "@/db/schema";
+import { getServerEnv } from "@/lib/env";
+
+const createAuth = () => {
+  const env = getServerEnv();
+
+  return betterAuth({
+    secret: env.BETTER_AUTH_SECRET,
+    baseURL: env.BETTER_AUTH_URL,
+    basePath: "/api/auth",
+    trustedOrigins: [
+      new URL(env.BETTER_AUTH_URL).origin,
+      new URL(env.NEXT_PUBLIC_APP_URL).origin,
+    ],
+    database: drizzleAdapter(getDb(), {
+      provider: "pg",
+      schema: {
+        accounts,
+        sessions,
+        users,
+        verifications,
+      },
+      usePlural: true,
+    }),
+    emailAndPassword: {
+      enabled: true,
+      minPasswordLength: 10,
+    },
+    plugins: [nextCookies()],
+  });
+};
+
+let authInstance: ReturnType<typeof createAuth> | null = null;
+
+export const getAuth = (): ReturnType<typeof createAuth> => {
+  if (!authInstance) {
+    authInstance = createAuth();
+  }
+
+  return authInstance;
+};
