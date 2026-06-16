@@ -24,6 +24,7 @@
 .DS_Store
 *.pem
 /.0ref/
+/.agents/
 
 # debug
 npm-debug.log*
