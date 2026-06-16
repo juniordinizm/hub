@@ -44,10 +44,11 @@ export default async function AdminLayout({
 
   return (
     <SidebarProvider
+      className="h-svh overflow-hidden"
       style={{ "--sidebar-width": "230px" } as React.CSSProperties}
     >
       <Sidebar
-        className="min-h-svh border-sidebar-border border-r bg-sidebar"
+        className="border-sidebar-border border-r bg-sidebar"
         collapsible="none"
       >
         <SidebarHeader className="px-5 pt-5 pb-0">
@@ -96,8 +97,8 @@ export default async function AdminLayout({
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 items-center border-b bg-background/90 px-4 backdrop-blur">
+      <SidebarInset className="overflow-y-auto">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-b bg-background/90 px-4 backdrop-blur">
           <span className="font-semibold text-sm">PROTEA-R Admin</span>
         </header>
         <main className="mx-auto w-full max-w-6xl px-5 py-8">{children}</main>

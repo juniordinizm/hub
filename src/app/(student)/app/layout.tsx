@@ -64,7 +64,7 @@ export default async function StudentLayout({
   const initials = getInitials(session.user.name);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-hidden">
       <Sidebar
         className="border-sidebar-border bg-sidebar"
         collapsible="offcanvas"
@@ -167,8 +167,8 @@ export default async function StudentLayout({
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 items-center border-b bg-background/90 px-4 backdrop-blur md:hidden">
+      <SidebarInset className="overflow-y-auto">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-b bg-background/90 px-4 backdrop-blur md:hidden">
           <SidebarTrigger />
           <span className="ml-3 font-semibold text-sm">PROTEA-R</span>
         </header>

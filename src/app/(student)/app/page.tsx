@@ -1,13 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+
 import { Progress } from "@/components/ui/progress";
 import { getStudentCourses } from "@/features/courses/server";
 import { formatDate } from "@/lib/formatters";
@@ -77,14 +71,12 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
 
       <div className="px-6 py-9 sm:px-10 lg:px-12">
         {courses.length === 0 ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Nenhum curso ativo</CardTitle>
-              <CardDescription>
-                Sua conta existe, mas nao ha uma matricula ativa no momento.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <div className="border-border/50 border-b pb-8">
+            <h2 className="font-bold text-xl">Nenhum curso ativo</h2>
+            <p className="mt-2 text-muted-foreground text-sm">
+              Sua conta existe, mas nao ha uma matricula ativa no momento.
+            </p>
+          </div>
         ) : (
           <section>
             <div className="mb-5">
@@ -104,7 +96,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                   )}
                   key={courseData.courseId}
                 >
-                  <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-card transition-transform group-hover:-translate-y-1">
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-border/40 transition-opacity group-hover:opacity-90">
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/70 to-sidebar" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                       <span
@@ -143,13 +135,11 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                 {course?.totalCount ?? 0} aulas
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {modules.map((moduleData) => (
-                <Card
-                  className="group py-0 transition-transform hover:-translate-y-1 hover:ring-primary/40"
-                  key={moduleData.id}
-                >
+                <div className="group relative" key={moduleData.id}>
                   <Link
+                    className="block"
                     href={route(
                       getModuleHref({
                         courseNextLessonId: moduleData.courseNextLessonId,
@@ -158,37 +148,37 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                     )}
                   >
                     <div
-                      className="relative aspect-video overflow-hidden rounded-t-4xl"
+                      className="relative aspect-video overflow-hidden rounded-lg border border-border/40 transition-opacity group-hover:opacity-90"
                       style={{ backgroundColor: moduleData.color }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/45" />
-                      <span className="absolute top-3 left-3 rounded-md bg-primary px-2 py-1 font-bold text-[0.65rem] text-primary-foreground uppercase tracking-[0.08em]">
+                      <span className="absolute top-3 left-3 rounded-md bg-background/80 px-2 py-1 font-bold text-[0.65rem] text-foreground uppercase tracking-[0.08em] backdrop-blur">
                         Modulo {moduleData.sortOrder}
                       </span>
                       <span className="absolute inset-0 flex items-center justify-center font-bold text-sm text-white/45 uppercase tracking-[0.14em]">
                         M{moduleData.sortOrder}
                       </span>
                     </div>
-                    <CardHeader>
-                      <CardDescription>
-                        {moduleData.totalCount} aulas
-                      </CardDescription>
-                      <CardTitle className="line-clamp-2 text-sm">
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <p className="text-muted-foreground text-xs">
+                          {moduleData.totalCount} aulas
+                        </p>
+                        <p className="text-[0.65rem] text-muted-foreground">
+                          {moduleData.completedCount} de {moduleData.totalCount}{" "}
+                          concluidas
+                        </p>
+                      </div>
+                      <h3 className="line-clamp-2 font-semibold text-sm">
                         {moduleData.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pb-5">
-                      <p className="mb-2 text-muted-foreground text-xs">
-                        {moduleData.completedCount} de {moduleData.totalCount}{" "}
-                        aulas concluidas
-                      </p>
+                      </h3>
                       <Progress
-                        className="h-1"
+                        className="mt-3 h-1"
                         value={moduleData.progressPercent}
                       />
-                    </CardContent>
+                    </div>
                   </Link>
-                </Card>
+                </div>
               ))}
             </div>
           </section>
