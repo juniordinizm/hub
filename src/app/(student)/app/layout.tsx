@@ -1,3 +1,10 @@
+import {
+  BookOpen01Icon,
+  Certificate01Icon,
+  HelpCircleIcon,
+  Home01Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/sign-out-button";
@@ -124,18 +131,37 @@ export default async function StudentLayout({
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <Link href={route("/app")}>Inicio</Link>
+                    <Link href={route("/app")}>
+                      <HugeiconsIcon
+                        icon={Home01Icon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Inicio</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <Link href={route("/app/certificados")}>Certificados</Link>
+                    <Link href={route("/app/certificados")}>
+                      <HugeiconsIcon
+                        icon={Certificate01Icon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Certificados</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <Link href={route("/app/perguntas-frequentes")}>
-                      Perguntas frequentes
+                      <HugeiconsIcon
+                        icon={HelpCircleIcon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Perguntas frequentes</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -158,6 +184,11 @@ export default async function StudentLayout({
                             })
                           )}
                         >
+                          <HugeiconsIcon
+                            icon={BookOpen01Icon}
+                            size={18}
+                            strokeWidth={1.5}
+                          />
                           <span>Modulo {moduleData.sortOrder}</span>
                         </Link>
                       </SidebarMenuButton>

@@ -1,3 +1,13 @@
+import {
+  AccountSetting01Icon,
+  Analytics01Icon,
+  Book01Icon,
+  HelpCircleIcon,
+  HistoryIcon,
+  Invoice01Icon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,13 +30,13 @@ import { route } from "@/lib/routes";
 import { requireRole } from "@/lib/session";
 
 const navItems = [
-  ["Painel", "/admin"],
-  ["Catalogo", "/admin/cursos"],
-  ["Alunas", "/admin/alunas"],
-  ["Financeiro", "/admin/financeiro"],
-  ["FAQ", "/admin/faq"],
-  ["Configuracoes", "/admin/configuracoes"],
-  ["Auditoria", "/admin/auditoria"],
+  ["Painel", "/admin", Analytics01Icon],
+  ["Catalogo", "/admin/cursos", Book01Icon],
+  ["Alunas", "/admin/alunas", UserGroupIcon],
+  ["Financeiro", "/admin/financeiro", Invoice01Icon],
+  ["FAQ", "/admin/faq", HelpCircleIcon],
+  ["Configuracoes", "/admin/configuracoes", AccountSetting01Icon],
+  ["Auditoria", "/admin/auditoria", HistoryIcon],
 ] as const;
 
 const NAME_PARTS_PATTERN = /\s+/;
@@ -86,16 +96,23 @@ export default async function AdminLayout({
             </div>
           </div>
         </SidebarHeader>
-        <SidebarContent className="px-3 py-3">
+        <SidebarContent>
           <ScrollArea className="h-full w-full">
             <SidebarGroup>
               <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {navItems.map(([label, href]) => (
+                  {navItems.map(([label, href, icon]) => (
                     <SidebarMenuItem key={href}>
                       <SidebarMenuButton asChild>
-                        <Link href={route(href)}>{label}</Link>
+                        <Link href={route(href)}>
+                          <HugeiconsIcon
+                            icon={icon}
+                            size={18}
+                            strokeWidth={1.5}
+                          />
+                          <span>{label}</span>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}

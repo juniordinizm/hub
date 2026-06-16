@@ -1,3 +1,9 @@
+import {
+  Add01Icon,
+  ArrowRight01Icon,
+  Menu01Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,7 +59,10 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           </div>
           <Dialog>
             <DialogTrigger asChild>
-              <Button>Novo curso</Button>
+              <Button>
+                <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                Novo curso
+              </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -100,11 +109,22 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                   <Button asChild variant="outline">
                     <Link href={route(`/admin/cursos/${course.id}`)}>
                       Gerenciar
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        size={16}
+                        strokeWidth={2}
+                      />
                     </Link>
                   </Button>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="secondary">Acoes</Button>
+                      <Button size="icon" variant="secondary">
+                        <HugeiconsIcon
+                          icon={Menu01Icon}
+                          size={18}
+                          strokeWidth={2}
+                        />
+                      </Button>
                     </PopoverTrigger>
                     <PopoverContent
                       align="end"

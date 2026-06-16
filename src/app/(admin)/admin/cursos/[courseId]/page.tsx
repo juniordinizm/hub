@@ -1,3 +1,5 @@
+import { Add01Icon, ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +80,10 @@ export default async function AdminCourseDetailPage({
     <div className="space-y-8">
       <header className="border-b pb-6">
         <Button asChild size="sm" variant="ghost">
-          <Link href={route("/admin/cursos")}>Voltar para cursos</Link>
+          <Link href={route("/admin/cursos")}>
+            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
+            Voltar para cursos
+          </Link>
         </Button>
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -100,7 +105,10 @@ export default async function AdminCourseDetailPage({
       <section className="flex flex-wrap gap-3">
         <Dialog>
           <DialogTrigger asChild>
-            <Button>Novo modulo</Button>
+            <Button>
+              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+              Novo modulo
+            </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -115,7 +123,10 @@ export default async function AdminCourseDetailPage({
 
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="secondary">Nova aula</Button>
+            <Button variant="secondary">
+              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+              Nova aula
+            </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
