@@ -11,7 +11,6 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { saveSettingsAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
-import { formatDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +29,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
         </p>
       </header>
 
-      <section className="grid gap-6 lg:grid-cols-[420px_1fr]">
+      <section className="grid gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Dados operacionais</CardTitle>
@@ -74,33 +73,6 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                 <Button type="submit">Salvar configuracoes</Button>
               </FieldGroup>
             </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Auditoria</CardTitle>
-            <CardDescription>Últimas ações administrativas.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {data.auditLogs.length ? (
-              data.auditLogs.map((log) => (
-                <div
-                  className="rounded-lg border p-3"
-                  key={`${log.action}-${log.createdAt.toISOString()}`}
-                >
-                  <p className="font-medium text-sm">{log.action}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {log.actorEmail ?? "sistema"} - {log.targetType} -{" "}
-                    {formatDate(log.createdAt)}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                Nenhum registro de auditoria ainda.
-              </p>
-            )}
           </CardContent>
         </Card>
       </section>

@@ -97,32 +97,36 @@ export default async function AdminCourseDetailPage({
         </div>
       </header>
 
-      <section className="space-y-3">
-        <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer list-none px-5 py-4">
-            <p className="font-semibold">Novo modulo</p>
-            <p className="text-muted-foreground text-sm">
-              Adicione uma unidade ao curso.
-            </p>
-          </summary>
-          <Separator />
-          <div className="p-5">
+      <section className="flex flex-wrap gap-3">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button>Novo modulo</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo modulo</DialogTitle>
+              <DialogDescription>
+                Adicione uma unidade ao curso.
+              </DialogDescription>
+            </DialogHeader>
             <ModuleForm course={course} />
-          </div>
-        </details>
+          </DialogContent>
+        </Dialog>
 
-        <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer list-none px-5 py-4">
-            <p className="font-semibold">Nova aula</p>
-            <p className="text-muted-foreground text-sm">
-              Cadastre uma aula em um dos módulos do curso.
-            </p>
-          </summary>
-          <Separator />
-          <div className="p-5">
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button variant="secondary">Nova aula</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nova aula</DialogTitle>
+              <DialogDescription>
+                Cadastre uma aula em um dos modulos do curso.
+              </DialogDescription>
+            </DialogHeader>
             <LessonForm modules={modules} />
-          </div>
-        </details>
+          </DialogContent>
+        </Dialog>
       </section>
 
       <section className="space-y-4">
@@ -145,59 +149,81 @@ export default async function AdminCourseDetailPage({
                 className="rounded-lg border bg-card"
                 key={moduleData.id}
               >
-                <details>
-                  <summary className="cursor-pointer list-none px-5 py-4">
-                    <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-                      <div>
-                        <p className="text-muted-foreground text-xs">
-                          Modulo {moduleData.sortOrder}
-                        </p>
-                        <h3 className="font-semibold">{moduleData.title}</h3>
-                      </div>
-                      <Badge variant="outline">
-                        {moduleLessons.length} aulas
-                      </Badge>
-                    </div>
-                  </summary>
-                  <Separator />
-                  <div className="bg-background/30 p-5">
-                    <ModuleForm course={course} moduleData={moduleData} />
+                <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-muted-foreground text-xs">
+                      Modulo {moduleData.sortOrder}
+                    </p>
+                    <h3 className="font-semibold">{moduleData.title}</h3>
                   </div>
-                </details>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline">
+                      {moduleLessons.length} aulas
+                    </Badge>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="secondary">
+                          Editar
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Editar modulo</DialogTitle>
+                          <DialogDescription>
+                            Atualize os dados deste modulo.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <ModuleForm course={course} moduleData={moduleData} />
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
                 <Separator />
                 <div className="divide-y">
                   {moduleLessons.length ? (
                     moduleLessons.map((lesson) => (
-                      <details key={lesson.id}>
-                        <summary className="cursor-pointer list-none px-5 py-4">
-                          <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
-                            <span className="font-mono text-muted-foreground text-xs">
-                              Aula {lesson.sortOrder}
-                            </span>
-                            <div>
-                              <p className="font-medium">{lesson.title}</p>
-                              <p className="text-muted-foreground text-xs">
-                                {lesson.durationMinutes} min -{" "}
-                                {lesson.videoProvider ?? "sem video"}
-                              </p>
-                            </div>
-                            <span className="truncate font-mono text-muted-foreground text-xs">
-                              {lesson.videoExternalId ?? "sem hash"}
-                            </span>
-                            <Badge
-                              className="w-fit"
-                              variant={
-                                lesson.isPublished ? "default" : "outline"
-                              }
-                            >
-                              {lesson.isPublished ? "publicada" : "rascunho"}
-                            </Badge>
+                      <div
+                        className="flex flex-col gap-3 bg-background/20 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+                        key={lesson.id}
+                      >
+                        <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
+                          <span className="font-mono text-muted-foreground text-xs">
+                            Aula {lesson.sortOrder}
+                          </span>
+                          <div>
+                            <p className="font-medium">{lesson.title}</p>
+                            <p className="text-muted-foreground text-xs">
+                              {lesson.durationMinutes} min -{" "}
+                              {lesson.videoProvider ?? "sem video"}
+                            </p>
                           </div>
-                        </summary>
-                        <div className="border-t bg-background/35 p-5">
-                          <LessonForm lesson={lesson} modules={modules} />
+                          <span className="truncate font-mono text-muted-foreground text-xs">
+                            {lesson.videoExternalId ?? "sem hash"}
+                          </span>
+                          <Badge
+                            className="w-fit"
+                            variant={lesson.isPublished ? "default" : "outline"}
+                          >
+                            {lesson.isPublished ? "publicada" : "rascunho"}
+                          </Badge>
                         </div>
-                      </details>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="ghost">
+                              Editar
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Editar aula</DialogTitle>
+                              <DialogDescription>
+                                Altere video, ordem ou publique.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <LessonForm lesson={lesson} modules={modules} />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
                     ))
                   ) : (
                     <p className="px-5 py-4 text-muted-foreground text-sm">

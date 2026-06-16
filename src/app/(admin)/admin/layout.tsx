@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +26,7 @@ const navItems = [
   ["Financeiro", "/admin/financeiro"],
   ["FAQ", "/admin/faq"],
   ["Configuracoes", "/admin/configuracoes"],
+  ["Auditoria", "/admin/auditoria"],
 ] as const;
 
 const NAME_PARTS_PATTERN = /\s+/;
@@ -78,30 +80,34 @@ export default async function AdminLayout({
           </div>
         </SidebarHeader>
         <SidebarContent className="px-3 py-3">
-          <SidebarGroup>
-            <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {navItems.map(([label, href]) => (
-                  <SidebarMenuItem key={href}>
-                    <SidebarMenuButton asChild>
-                      <Link href={route(href)}>{label}</Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <ScrollArea className="h-full w-full">
+            <SidebarGroup>
+              <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {navItems.map(([label, href]) => (
+                    <SidebarMenuItem key={href}>
+                      <SidebarMenuButton asChild>
+                        <Link href={route(href)}>{label}</Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </ScrollArea>
         </SidebarContent>
         <SidebarFooter className="border-sidebar-border border-t px-5 pt-4 pb-5">
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="overflow-y-auto">
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-b bg-background/90 px-4 backdrop-blur">
+      <SidebarInset className="overflow-hidden">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-border/40 border-b bg-background px-4">
           <span className="font-semibold text-sm">PROTEA-R Admin</span>
         </header>
-        <main className="mx-auto w-full max-w-6xl px-5 py-8">{children}</main>
+        <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
+          <main className="mx-auto w-full max-w-6xl px-5 py-8">{children}</main>
+        </ScrollArea>
       </SidebarInset>
     </SidebarProvider>
   );

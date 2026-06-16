@@ -1,12 +1,13 @@
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-
 import {
-  getAdminManagementData,
-  getAdminOverview,
-} from "@/features/admin/server";
-import { formatDate } from "@/lib/formatters";
-import { route } from "@/lib/routes";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import { getAdminOverview } from "@/features/admin/server";
 
 export const dynamic = "force-dynamic";
 
@@ -17,23 +18,8 @@ const metrics = [
   ["Pedidos pagos", "paidOrders"],
 ] as const;
 
-const quickLinks = [
-  ["Catalogo", "Cursos, modulos, aulas e videos JMVStream.", "/admin/cursos"],
-  ["Alunas", "Convites, acessos e matriculas.", "/admin/alunas"],
-  ["Financeiro", "Pedidos, webhooks e certificados.", "/admin/financeiro"],
-  ["FAQ", "Perguntas frequentes exibidas para alunas.", "/admin/faq"],
-  [
-    "Configuracoes",
-    "WhatsApp, certificado e AbacatePay.",
-    "/admin/configuracoes",
-  ],
-] as const;
-
 export default async function AdminPage(): Promise<React.JSX.Element> {
-  const [overview, data] = await Promise.all([
-    getAdminOverview(),
-    getAdminManagementData(),
-  ]);
+  const overview = await getAdminOverview();
 
   return (
     <div className="space-y-8">
@@ -48,53 +34,44 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
         </p>
       </header>
 
-      <section className="grid gap-6 border-y py-6 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {metrics.map(([label, key]) => (
-          <div className="flex flex-col gap-1" key={key}>
-            <p className="font-medium text-muted-foreground text-sm">{label}</p>
-            <p className="font-bold text-4xl tracking-tight">{overview[key]}</p>
-          </div>
+          <Card
+            className="border-border/40 bg-background/50 shadow-sm"
+            key={key}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="font-medium text-muted-foreground text-sm">
+                {label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="font-bold text-4xl tracking-tight">
+                {overview[key]}
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </section>
 
-      <section>
-        <h2 className="mb-4 font-semibold text-lg">Acesso rapido</h2>
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-          {quickLinks.map(([title, description, href]) => (
-            <div
-              className="group relative border-border/50 border-b py-3"
-              key={href}
-            >
-              <Link className="absolute inset-0 z-10" href={route(href)}>
-                <span className="sr-only">Abrir {title}</span>
-              </Link>
-              <p className="font-semibold text-foreground transition-colors group-hover:text-primary">
-                {title}
-              </p>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-10 lg:grid-cols-2">
-        <div>
-          <div className="mb-4">
-            <h2 className="font-semibold text-lg">Webhooks recentes</h2>
-            <p className="text-muted-foreground text-sm">
-              Ultimos eventos recebidos.
-            </p>
-          </div>
-          <div className="grid gap-3">
+      <section className="grid gap-8">
+        <Card className="border-border/40 bg-background/50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="font-semibold text-lg">
+              Webhooks recentes
+            </CardTitle>
+            <CardDescription>Ultimos eventos recebidos.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
             {overview.recentWebhooks.length ? (
               overview.recentWebhooks.map((event) => (
                 <div
-                  className="flex flex-col justify-center border-border/50 border-l-2 py-1 pl-4"
+                  className="flex flex-col justify-center border-border/50 border-l-2 py-1 pl-4 transition-colors hover:border-primary/50"
                   key={event.eventKey}
                 >
-                  <p className="font-mono text-xs">{event.eventKey}</p>
+                  <p className="font-mono text-muted-foreground text-xs">
+                    {event.eventKey}
+                  </p>
                   <p className="mt-1 font-medium text-foreground text-sm">
                     {event.eventName}{" "}
                     <span className="ml-1 font-normal text-muted-foreground">
@@ -108,41 +85,8 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                 Nenhum webhook recebido ainda.
               </p>
             )}
-          </div>
-        </div>
-
-        <div>
-          <div className="mb-4">
-            <h2 className="font-semibold text-lg">Auditoria recente</h2>
-            <p className="text-muted-foreground text-sm">
-              Ultimas alteracoes administrativas.
-            </p>
-          </div>
-          <div className="grid gap-3">
-            {data.auditLogs.length ? (
-              data.auditLogs.slice(0, 8).map((log) => (
-                <div
-                  className="flex flex-col justify-center border-border/50 border-l-2 py-1 pl-4"
-                  key={`${log.action}-${log.createdAt.toISOString()}`}
-                >
-                  <p className="font-medium text-foreground text-sm">
-                    {log.action}
-                  </p>
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    {log.actorEmail ?? "sistema"}{" "}
-                    <span className="mx-1">&middot;</span> {log.targetType}{" "}
-                    <span className="mx-1">&middot;</span>{" "}
-                    {formatDate(log.createdAt)}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                Nenhum registro de auditoria ainda.
-              </p>
-            )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

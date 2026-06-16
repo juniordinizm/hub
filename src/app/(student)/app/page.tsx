@@ -41,7 +41,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="relative h-[220px] overflow-hidden bg-muted">
+      <header className="relative h-[240px] overflow-hidden bg-muted">
         <Image
           alt="Sistema PROTEA-R"
           className="object-cover object-right"
@@ -49,23 +49,25 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           priority
           src="/protear/dash-banner.png"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-sidebar via-sidebar/80 to-sidebar/10" />
-        <div className="relative z-10 px-6 py-10 sm:px-10 lg:px-12">
-          <Badge
-            className="border-accent/40 bg-accent/20 text-accent"
-            variant="outline"
-          >
-            Seu Curso
-          </Badge>
-          <h1 className="mt-3 max-w-xl font-extrabold text-3xl text-white tracking-tight">
-            Sistema <span className="text-accent">PROTEA-R</span>
-          </h1>
-          <p className="mt-2 text-sm text-white/60">
-            Avaliacao de suspeita de TEA
-            {course
-              ? ` - ${course.modules.length} modulos - ${course.totalCount} aulas`
-              : ""}
-          </p>
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/20" />
+        <div className="relative z-10 flex h-full flex-col justify-center px-6 sm:px-10 lg:px-12">
+          <div className="w-fit rounded-xl border border-border/30 bg-background/40 p-6 shadow-2xl backdrop-blur-md">
+            <Badge
+              className="border-accent/40 bg-accent/20 text-accent shadow-sm"
+              variant="outline"
+            >
+              Seu Curso
+            </Badge>
+            <h1 className="mt-3 max-w-xl font-extrabold text-3xl text-foreground tracking-tight drop-shadow-sm">
+              Sistema <span className="text-accent">PROTEA-R</span>
+            </h1>
+            <p className="mt-2 text-muted-foreground text-sm">
+              Avaliacao de suspeita de TEA
+              {course
+                ? ` - ${course.modules.length} modulos - ${course.totalCount} aulas`
+                : ""}
+            </p>
+          </div>
         </div>
       </header>
 
@@ -96,7 +98,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                   )}
                   key={courseData.courseId}
                 >
-                  <div className="relative aspect-[16/10] overflow-hidden rounded-lg border border-border/40 transition-opacity group-hover:opacity-90">
+                  <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-border/40 transition-opacity hover:opacity-90">
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/70 to-sidebar" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                       <span
@@ -148,7 +150,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                     )}
                   >
                     <div
-                      className="relative aspect-video overflow-hidden rounded-lg border border-border/40 transition-opacity group-hover:opacity-90"
+                      className="relative aspect-video overflow-hidden rounded-xl border border-border/40 transition-opacity hover:opacity-90"
                       style={{ backgroundColor: moduleData.color }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/45" />

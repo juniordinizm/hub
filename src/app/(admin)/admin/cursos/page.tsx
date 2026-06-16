@@ -14,6 +14,11 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -92,26 +97,41 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline">Editar</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Editar curso</DialogTitle>
-                        <DialogDescription>
-                          Atualize os dados principais do curso.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <CourseForm course={course} />
-                    </DialogContent>
-                  </Dialog>
-                  <Button asChild>
+                  <Button asChild variant="outline">
                     <Link href={route(`/admin/cursos/${course.id}`)}>
                       Gerenciar
                     </Link>
                   </Button>
-                  <DeleteCourseDialog course={course} />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="secondary">Acoes</Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="flex w-40 flex-col gap-2 p-2"
+                    >
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button
+                            className="w-full justify-start"
+                            variant="ghost"
+                          >
+                            Editar
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Editar curso</DialogTitle>
+                            <DialogDescription>
+                              Atualize os dados principais do curso.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <CourseForm course={course} />
+                        </DialogContent>
+                      </Dialog>
+                      <DeleteCourseDialog course={course} />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </article>

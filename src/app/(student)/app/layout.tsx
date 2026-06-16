@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
@@ -167,12 +168,14 @@ export default async function StudentLayout({
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset className="overflow-y-auto">
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-b bg-background/90 px-4 backdrop-blur md:hidden">
+      <SidebarInset className="overflow-hidden">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-border/40 border-b bg-background px-4 md:hidden">
           <SidebarTrigger />
           <span className="ml-3 font-semibold text-sm">PROTEA-R</span>
         </header>
-        {children}
+        <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
+          <main className="flex-1">{children}</main>
+        </ScrollArea>
       </SidebarInset>
     </SidebarProvider>
   );
