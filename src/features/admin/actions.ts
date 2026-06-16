@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
 import { addMonths } from "@/features/enrollments/rules";
+import {
+  resolveLessonVideoEmbedUrl,
+  toVideoProvider,
+} from "@/features/videos/jmvstream";
 import { getAuth } from "@/lib/auth";
 import { getServerEnv } from "@/lib/env";
 import { requireRole } from "@/lib/session";
@@ -140,14 +144,19 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const lessonId = readString(formData, "lessonId");
+  const videoProvider = toVideoProvider(readString(formData, "videoProvider"));
+  const videoEmbedUrl = resolveLessonVideoEmbedUrl({
+    embedUrl: readString(formData, "videoEmbedUrl") || null,
+    provider: videoProvider,
+  });
   const values = [
     readString(formData, "moduleId"),
     readString(formData, "title"),
     readString(formData, "description") || null,
     readString(formData, "lessonType") || "video",
-    readString(formData, "videoProvider") || null,
+    videoProvider,
     readString(formData, "videoExternalId") || null,
-    readString(formData, "videoEmbedUrl") || null,
+    videoEmbedUrl,
     readNumber(formData, "durationMinutes"),
     readNumber(formData, "sortOrder", 1),
     formData.get("isPublished") === "on",

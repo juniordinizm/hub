@@ -341,21 +341,28 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                             <FieldLabel>Provider</FieldLabel>
                             <NativeSelect
                               className="w-full"
+                              defaultValue="jmvstream"
                               name="videoProvider"
                             >
+                              <option value="jmvstream">JMVStream</option>
                               <option value="external">Externo</option>
                               <option value="panda">Panda</option>
-                              <option value="jmvstream">JMVStream</option>
                             </NativeSelect>
                           </Field>
                           <Field>
-                            <FieldLabel>ID do video</FieldLabel>
-                            <Input name="videoExternalId" />
+                            <FieldLabel>Hash ou ID do video</FieldLabel>
+                            <Input
+                              name="videoExternalId"
+                              placeholder="video_hash da JMVStream"
+                            />
                           </Field>
                         </div>
                         <Field>
-                          <FieldLabel>URL segura do embed</FieldLabel>
-                          <Input name="videoEmbedUrl" />
+                          <FieldLabel>URL ou iframe do player</FieldLabel>
+                          <Input
+                            name="videoEmbedUrl"
+                            placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                          />
                         </Field>
                         <label
                           className="inline-flex items-center gap-2 text-sm"

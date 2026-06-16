@@ -20,6 +20,12 @@ const serverEnvSchema = z.object({
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
   INTERNAL_BOOTSTRAP_SECRET: optionalNonEmptyString,
+  JMVSTREAM_API_BASE_URL: z
+    .string()
+    .url()
+    .default("https://api.jmvstream.com/v1"),
+  JMVSTREAM_API_TOKEN: optionalNonEmptyString,
+  JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -41,6 +47,9 @@ export const getServerEnv = () =>
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
     INTERNAL_BOOTSTRAP_SECRET: process.env.INTERNAL_BOOTSTRAP_SECRET,
+    JMVSTREAM_API_BASE_URL: process.env.JMVSTREAM_API_BASE_URL,
+    JMVSTREAM_API_TOKEN: process.env.JMVSTREAM_API_TOKEN,
+    JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,

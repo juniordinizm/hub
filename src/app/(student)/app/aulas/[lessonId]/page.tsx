@@ -18,6 +18,10 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { getStudentLessonData } from "@/features/courses/server";
+import {
+  resolveLessonVideoEmbedUrl,
+  toVideoProvider,
+} from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -55,6 +59,10 @@ export default async function LessonPage({
         }))
         .filter((module) => module.lessons.length > 0)
     : data.modules;
+  const videoEmbedUrl = resolveLessonVideoEmbedUrl({
+    embedUrl: data.lesson.videoEmbedUrl,
+    provider: toVideoProvider(data.lesson.videoProvider),
+  });
 
   return (
     <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -77,12 +85,13 @@ export default async function LessonPage({
           </form>
         </div>
         <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
-          {data.lesson.videoEmbedUrl ? (
+          {videoEmbedUrl ? (
             <iframe
               allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
               className="h-full w-full"
-              src={data.lesson.videoEmbedUrl}
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={videoEmbedUrl}
               title={data.lesson.title}
             />
           ) : (

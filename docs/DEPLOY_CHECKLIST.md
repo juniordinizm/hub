@@ -22,7 +22,10 @@
 - Dominio de envio validado no Resend.
 - Webhook AbacatePay configurado para `POST /api/webhooks/abacatepay`.
 - Segredo do webhook registrado no AbacatePay e em `ABACATEPAY_WEBHOOK_SECRET`.
-- Provedor de video final escolhido entre JMVStream e Panda antes do cadastro definitivo das aulas.
+- JMVStream configurado como provedor de video final.
+- Dominios da plataforma liberados na JMVStream quando usar protecao por dominio/hotlink.
+- Videos das aulas enviados para a JMVStream e cada aula cadastrada com `video_hash` e URL/iframe oficial do player.
+- Opcional para automacao futura: `JMVSTREAM_API_BASE_URL`, `JMVSTREAM_API_TOKEN` e `JMVSTREAM_PLAN_ID`.
 
 ## Smoke pos-deploy
 - `GET /api/health` retorna `ok: true`.
