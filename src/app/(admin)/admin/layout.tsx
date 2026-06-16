@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SignOutButton } from "@/components/sign-out-button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -26,21 +27,56 @@ const navItems = [
   ["Configuracoes", "/admin/configuracoes"],
 ] as const;
 
+const NAME_PARTS_PATTERN = /\s+/;
+
+const getInitials = (name: string): string => {
+  const [first = "", second = ""] = name.trim().split(NAME_PARTS_PATTERN);
+  return `${first.slice(0, 1)}${second.slice(0, 1) || first.slice(1, 2)}`
+    .toUpperCase()
+    .slice(0, 2);
+};
+
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {
-  await requireRole(["admin", "support"]);
+  const session = await requireRole(["admin", "support"]);
+  const initials = getInitials(session.user.name);
 
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="none">
-        <SidebarHeader>
-          <div className="px-3 py-2">
-            <p className="font-black text-lg">PROTEA-R Admin</p>
-            <p className="text-muted-foreground text-xs">Operacao do curso</p>
+    <SidebarProvider
+      style={{ "--sidebar-width": "230px" } as React.CSSProperties}
+    >
+      <Sidebar
+        className="min-h-svh border-sidebar-border border-r bg-sidebar"
+        collapsible="none"
+      >
+        <SidebarHeader className="px-5 pt-5 pb-0">
+          <div className="border-sidebar-border border-b pb-4">
+            <p className="font-black text-lg text-sidebar-foreground">
+              PROTEA-R
+            </p>
+            <p className="text-sidebar-foreground/55 text-xs">
+              Painel administrativo
+            </p>
+          </div>
+          <div className="border-sidebar-border border-b py-4">
+            <Avatar className="mb-3 size-11">
+              <AvatarFallback className="bg-primary text-primary-foreground">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <p className="truncate font-semibold text-sidebar-foreground text-sm">
+              {session.user.name}
+            </p>
+            <p className="truncate text-sidebar-foreground/55 text-xs">
+              {session.user.email}
+            </p>
+            <p className="mt-1 text-sidebar-foreground/45 text-xs uppercase">
+              {session.role === "admin" ? "Administrador" : "Suporte"}
+            </p>
           </div>
         </SidebarHeader>
-        <SidebarContent>
+        <SidebarContent className="px-3 py-3">
           <SidebarGroup>
             <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
             <SidebarGroupContent>
@@ -56,7 +92,7 @@ export default async function AdminLayout({
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter className="px-3 pb-4">
+        <SidebarFooter className="border-sidebar-border border-t px-5 pt-4 pb-5">
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
