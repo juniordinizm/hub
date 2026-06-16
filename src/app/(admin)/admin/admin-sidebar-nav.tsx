@@ -20,11 +20,11 @@ import { route } from "@/lib/routes";
 
 const navItems = [
   ["Painel", "/admin", Analytics01Icon],
-  ["Catalogo", "/admin/cursos", Book01Icon],
+  ["Catálogo", "/admin/cursos", Book01Icon],
   ["Alunos", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
   ["FAQ", "/admin/faq", HelpCircleIcon],
-  ["Configuracoes", "/admin/configuracoes", AccountSetting01Icon],
+  ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
 ] as const;
 
@@ -33,12 +33,14 @@ export function AdminSidebarNav(): React.JSX.Element {
     <SidebarMenu>
       {navItems.map(([label, href, icon]) => (
         <SidebarMenuItem key={href}>
-          <SidebarMenuButton asChild>
-            <Link href={route(href)}>
-              <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
-              <span>{label}</span>
-            </Link>
-          </SidebarMenuButton>
+          <Link href={route(href)} legacyBehavior passHref>
+            <SidebarMenuButton asChild>
+              <a href={route(href)}>
+                <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
+                <span>{label}</span>
+              </a>
+            </SidebarMenuButton>
+          </Link>
         </SidebarMenuItem>
       ))}
     </SidebarMenu>

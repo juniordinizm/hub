@@ -369,11 +369,15 @@ function LessonSidebarItem({
     );
   }
 
+  const href = route(`/app/aulas/${lesson.id}`);
+
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={lesson.id === activeLessonId}>
-        <Link href={route(`/app/aulas/${lesson.id}`)}>{content}</Link>
-      </SidebarMenuButton>
+      <Link href={href} legacyBehavior passHref>
+        <SidebarMenuButton asChild isActive={lesson.id === activeLessonId}>
+          <a href={href}>{content}</a>
+        </SidebarMenuButton>
+      </Link>
     </SidebarMenuItem>
   );
 }
