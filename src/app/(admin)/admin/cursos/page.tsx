@@ -115,8 +115,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     </Link>
                   </h2>
                   <p className="mt-1 text-muted-foreground text-sm">
-                    {course.slug} - acesso de {course.accessDurationMonths}{" "}
-                    meses
+                    Acesso de {course.accessDurationMonths} meses
                   </p>
                 </div>
                 <div className="relative z-10 flex flex-wrap gap-2">
@@ -190,16 +189,10 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
     <form action={saveCourseAction}>
       <FieldGroup>
         <input name="courseId" type="hidden" value={course?.id ?? ""} />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Field>
-            <FieldLabel>Titulo</FieldLabel>
-            <Input defaultValue={course?.title ?? ""} name="title" required />
-          </Field>
-          <Field>
-            <FieldLabel>Slug</FieldLabel>
-            <Input defaultValue={course?.slug ?? ""} name="slug" required />
-          </Field>
-        </div>
+        <Field>
+          <FieldLabel>Titulo</FieldLabel>
+          <Input defaultValue={course?.title ?? ""} name="title" required />
+        </Field>
         <Field>
           <FieldLabel>Subtitulo</FieldLabel>
           <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
@@ -306,7 +299,9 @@ function DeleteCourseDialog({
         </DialogHeader>
         <div className="rounded-lg border bg-background/40 p-3">
           <p className="font-semibold">{course.title}</p>
-          <p className="text-muted-foreground text-sm">{course.slug}</p>
+          <p className="text-muted-foreground text-sm">
+            O identificador interno sera preservado apenas no sistema.
+          </p>
         </div>
         <DialogFooter>
           <DialogClose asChild>

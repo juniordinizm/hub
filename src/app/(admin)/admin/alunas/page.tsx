@@ -1,4 +1,4 @@
-import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { DatePickerField } from "@/components/date-picker-field";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -19,10 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  inviteStudentAction,
-  updateEnrollmentAction,
-} from "@/features/admin/actions";
+import { updateEnrollmentAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +26,6 @@ const dateInputValue = (date: Date): string => date.toISOString().slice(0, 10);
 
 export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
-  const firstCourse = data.courses[0];
 
   return (
     <div className="space-y-8">
@@ -41,75 +35,17 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
           Alunas e matriculas
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-          Crie acessos, renove expiração e revogue matrícula quando necessário.
+          As alunas entram pelo cadastro e checkout. Use esta tela para
+          acompanhar, renovar, expirar ou revogar acessos existentes.
         </p>
       </header>
 
-      <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <section>
         <Card>
           <CardHeader>
-            <CardTitle>Convidar aluna</CardTitle>
+            <CardTitle>Matriculas existentes</CardTitle>
             <CardDescription>
-              Cria matrícula ativa e envia as orientações por e-mail.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={inviteStudentAction}>
-              <FieldGroup>
-                <Field>
-                  <FieldLabel>Nome</FieldLabel>
-                  <Input name="name" required />
-                </Field>
-                <Field>
-                  <FieldLabel>E-mail</FieldLabel>
-                  <Input name="email" required type="email" />
-                </Field>
-                <Field>
-                  <FieldLabel>Curso</FieldLabel>
-                  <Select
-                    defaultValue={data.courses[0]?.id ?? ""}
-                    name="courseId"
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o curso" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {data.courses.map((course) => (
-                        <SelectItem key={course.id} value={course.id}>
-                          {course.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <input
-                  name="courseTitle"
-                  type="hidden"
-                  value={firstCourse?.title ?? "PROTEA-R Hub"}
-                />
-                <Field>
-                  <FieldLabel>Meses de acesso</FieldLabel>
-                  <Input
-                    defaultValue={12}
-                    min={1}
-                    name="months"
-                    type="number"
-                  />
-                </Field>
-                <Button type="submit">
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Criar matricula e enviar convite
-                </Button>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Matriculas</CardTitle>
-            <CardDescription>
-              Atualize status e expiração sem alterar histórico da aluna.
+              Atualize status e expiracao sem alterar o historico da aluna.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">

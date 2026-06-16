@@ -49,7 +49,7 @@ export function DatePickerField({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-0">
         <Calendar
-          initialFocus
+          autoFocus
           locale={ptBR}
           mode="single"
           onSelect={(date) => {

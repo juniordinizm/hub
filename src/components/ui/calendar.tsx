@@ -14,10 +14,10 @@ import {
   useRef,
 } from "react";
 import {
+  type ChevronProps,
   type DayButton,
   DayPicker,
   getDefaultClassNames,
-  useDayPicker,
 } from "react-day-picker";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -40,38 +40,26 @@ function CalendarRoot({
 function CalendarChevron({
   className,
   orientation,
-  ...props
-}: ComponentProps<typeof HugeiconsIcon> & {
-  orientation?: "left" | "right" | "up" | "down" | "none";
-}) {
+  size = 16,
+  style,
+}: ChevronProps) {
+  let icon = ArrowDownIcon;
+
   if (orientation === "left") {
-    return (
-      <HugeiconsIcon
-        className={cn("size-4", className)}
-        icon={ArrowLeftIcon}
-        strokeWidth={2}
-        {...props}
-      />
-    );
+    icon = ArrowLeftIcon;
   }
 
   if (orientation === "right") {
-    return (
-      <HugeiconsIcon
-        className={cn("size-4", className)}
-        icon={ArrowRightIcon}
-        strokeWidth={2}
-        {...props}
-      />
-    );
+    icon = ArrowRightIcon;
   }
 
   return (
     <HugeiconsIcon
       className={cn("size-4", className)}
-      icon={ArrowDownIcon}
+      icon={icon}
+      size={size}
       strokeWidth={2}
-      {...props}
+      style={style}
     />
   );
 }
@@ -95,7 +83,6 @@ function CalendarDayButton({
   modifiers,
   ...props
 }: ComponentProps<typeof DayButton>) {
-  const { locale } = useDayPicker();
   const defaultClassNames = getDefaultClassNames();
 
   const ref = useRef<HTMLButtonElement>(null);
@@ -112,7 +99,7 @@ function CalendarDayButton({
         defaultClassNames.day,
         className
       )}
-      data-day={day.date.toLocaleDateString(locale?.code)}
+      data-day={day.date.toISOString()}
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       data-range-start={modifiers.range_start}
@@ -198,7 +185,7 @@ function Calendar({
             : "flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
           defaultClassNames.caption_label
         ),
-        table: "w-full border-collapse",
+        month_grid: "w-full border-collapse",
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
           "flex-1 select-none rounded-(--cell-radius) font-normal text-[0.8rem] text-muted-foreground",

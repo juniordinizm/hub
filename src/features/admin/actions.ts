@@ -1,16 +1,12 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getPool } from "@/db";
-import { sendAccessReleasedEmail } from "@/features/email/server";
-import { addMonths } from "@/features/enrollments/rules";
+import { createCourseSlug } from "@/features/courses/slug";
 import {
   resolveLessonVideoEmbedUrl,
   toVideoProvider,
 } from "@/features/videos/jmvstream";
-import { getAuth } from "@/lib/auth";
-import { getServerEnv } from "@/lib/env";
 import { requireRole } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
@@ -54,12 +50,32 @@ const audit = async ({
   );
 };
 
+const resolveUniqueCourseSlug = async (title: string): Promise<string> => {
+  const baseSlug = createCourseSlug(title);
+  let candidate = baseSlug;
+  let suffix = 2;
+
+  while (true) {
+    const existing = await getPool().query<{ id: string }>(
+      "select id from courses where slug = $1 limit 1",
+      [candidate]
+    );
+
+    if (!existing.rows[0]) {
+      return candidate;
+    }
+
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+};
+
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
+  const title = readString(formData, "title");
   const values = [
-    readString(formData, "slug"),
-    readString(formData, "title"),
+    title,
     readString(formData, "subtitle") || null,
     readString(formData, "description") || null,
     readString(formData, "instructorName") || null,
@@ -74,18 +90,17 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     await getPool().query(
       `
         update courses
-        set slug = $1,
-            title = $2,
-            subtitle = $3,
-            description = $4,
-            instructor_name = $5,
-            workload_hours = $6,
-            support_whatsapp_url = $7,
-            payment_provider_product_id = $8,
-            access_duration_months = $9,
-            status = $10,
+        set title = $1,
+            subtitle = $2,
+            description = $3,
+            instructor_name = $4,
+            workload_hours = $5,
+            support_whatsapp_url = $6,
+            payment_provider_product_id = $7,
+            access_duration_months = $8,
+            status = $9,
             updated_at = now()
-        where id = $11
+        where id = $10
       `,
       [...values, courseId]
     );
@@ -96,6 +111,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       targetType: "course",
     });
   } else {
+    const slug = await resolveUniqueCourseSlug(title);
     const inserted = await getPool().query<{ id: string }>(
       `
         insert into courses (
@@ -113,7 +129,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         returning id
       `,
-      values
+      [slug, ...values]
     );
     await audit({
       action: "course.created",
@@ -309,77 +325,6 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     });
   }
 
-  revalidateAdmin();
-};
-
-export const inviteStudentAction = async (
-  formData: FormData
-): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
-  const email = readString(formData, "email").toLowerCase();
-  const name = readString(formData, "name");
-  const courseId = readString(formData, "courseId");
-  const months = readNumber(formData, "months", 12);
-  const temporaryPassword = `${randomUUID()}Aa1!`;
-  let userId: string | null = null;
-
-  try {
-    const result = await getAuth().api.signUpEmail({
-      body: { email, name, password: temporaryPassword },
-    });
-    userId = result.user.id;
-  } catch {
-    const existing = await getPool().query<{ id: string }>(
-      "select id from users where email = $1 limit 1",
-      [email]
-    );
-    userId = existing.rows[0]?.id ?? null;
-  }
-
-  if (!userId) {
-    throw new Error("Nao foi possivel criar ou localizar a aluna.");
-  }
-
-  const expiresAt = addMonths(new Date(), months);
-  await getPool().query(
-    `
-      insert into profiles (user_id, role, invited_at)
-      values ($1, 'student', now())
-      on conflict (user_id) do update set invited_at = now()
-    `,
-    [userId]
-  );
-  await getPool().query(
-    `
-      insert into enrollments (user_id, course_id, status, starts_at, expires_at)
-      values ($1, $2, 'active', now(), $3)
-      on conflict (user_id, course_id) do update set
-        status = 'active',
-        expires_at = excluded.expires_at,
-        revoked_at = null,
-        revoked_reason = null,
-        updated_at = now()
-    `,
-    [userId, courseId, expiresAt]
-  );
-
-  await sendAccessReleasedEmail({
-    courseTitle: readString(formData, "courseTitle") || "PROTEA-R Hub",
-    to: email,
-    userName: name,
-  });
-  await getAuth().api.requestPasswordReset({
-    body: {
-      email,
-      redirectTo: `${getServerEnv().NEXT_PUBLIC_APP_URL}/redefinir-senha`,
-    },
-  });
-  await audit({
-    action: "student.invited",
-    actorUserId: session.user.id,
-    targetId: userId,
-    targetType: "user",
-  });
   revalidateAdmin();
 };
 
