@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     default: "PROTEA-R Hub",
     template: "%s | PROTEA-R Hub",
   },
-  description: "Plataforma de cursos PROTEA-R para alunas e equipe.",
+  description: "Plataforma de cursos PROTEA-R para alunos e equipe.",
   applicationName: "PROTEA-R Hub",
   metadataBase: new URL("https://example.com"),
 };

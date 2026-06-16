@@ -30,7 +30,7 @@ export default async function CertificateValidationPage({
         <CardContent>
           <dl className="grid gap-4 text-sm">
             <div>
-              <dt className="text-muted-foreground">Aluna</dt>
+              <dt className="text-muted-foreground">Aluno</dt>
               <dd className="font-semibold">{certificate.studentName}</dd>
             </div>
             <div>

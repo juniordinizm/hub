@@ -82,7 +82,7 @@ export default async function StudentLayout({
             <p className="font-black text-lg text-sidebar-foreground">
               PROTEA-R
             </p>
-            <p className="text-sidebar-foreground/55 text-xs">Area da aluna</p>
+            <p className="text-sidebar-foreground/55 text-xs">Area do aluno</p>
           </div>
           <div className="border-sidebar-border border-b py-4">
             <div className="flex items-center gap-3">

@@ -29,7 +29,7 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
           Perguntas frequentes
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-          Conteúdo exibido na área da aluna para reduzir dúvidas operacionais.
+          Conteudo exibido na area do aluno para reduzir duvidas operacionais.
         </p>
       </header>
 

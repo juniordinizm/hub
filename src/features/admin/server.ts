@@ -1,5 +1,9 @@
 import "server-only";
 import { getPool } from "@/db";
+import {
+  type AdminStudentSummary,
+  summarizeAdminStudents,
+} from "@/features/admin/students";
 
 export interface AdminOverview {
   activeEnrollments: number;
@@ -95,6 +99,7 @@ export interface AdminManagementData {
     id: string;
     name: string;
     status: string;
+    userId: string;
   }>;
   faqs: Array<{
     answer: string;
@@ -144,6 +149,20 @@ export interface AdminManagementData {
     certificateSignerRole: string | null;
     supportWhatsappUrl: string | null;
   };
+  students: AdminStudentSummary[];
+}
+
+export interface AdminStudentDetail {
+  email: string;
+  enrollments: Array<{
+    courseTitle: string;
+    expiresAt: Date;
+    id: string;
+    startedAt: Date;
+    status: string;
+  }>;
+  name: string;
+  userId: string;
 }
 
 export const getAdminManagementData =
@@ -224,9 +243,10 @@ export const getAdminManagementData =
         id: string;
         name: string;
         status: string;
+        user_id: string;
       }>(
         `
-          select e.id, u.name, u.email, c.title as course_title, e.status, e.expires_at
+          select e.id, e.user_id, u.name, u.email, c.title as course_title, e.status, e.expires_at
           from enrollments e
           join users u on u.id = e.user_id
           join courses c on c.id = e.course_id
@@ -298,6 +318,16 @@ export const getAdminManagementData =
 
     const settingsRow = settings.rows[0];
 
+    const enrollmentRows = enrollments.rows.map((row) => ({
+      courseTitle: row.course_title,
+      email: row.email,
+      expiresAt: row.expires_at,
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      userId: row.user_id,
+    }));
+
     return {
       auditLogs: auditLogs.rows.map((row) => ({
         action: row.action,
@@ -325,14 +355,7 @@ export const getAdminManagementData =
         title: row.title,
         workloadHours: row.workload_hours,
       })),
-      enrollments: enrollments.rows.map((row) => ({
-        courseTitle: row.course_title,
-        email: row.email,
-        expiresAt: row.expires_at,
-        id: row.id,
-        name: row.name,
-        status: row.status,
-      })),
+      enrollments: enrollmentRows,
       faqs: faqs.rows.map((row) => ({
         answer: row.answer,
         category: row.category,
@@ -382,5 +405,52 @@ export const getAdminManagementData =
         certificateSignerRole: settingsRow?.certificate_signer_role ?? null,
         supportWhatsappUrl: settingsRow?.support_whatsapp_url ?? null,
       },
+      students: summarizeAdminStudents(enrollmentRows),
     };
   };
+
+export const getAdminStudentDetail = async (
+  userId: string
+): Promise<AdminStudentDetail | null> => {
+  const pool = getPool();
+  const result = await pool.query<{
+    course_title: string;
+    email: string;
+    expires_at: Date;
+    id: string;
+    name: string;
+    starts_at: Date;
+    status: string;
+    user_id: string;
+  }>(
+    `
+      select e.id, e.user_id, u.name, u.email, c.title as course_title,
+             e.status, e.starts_at, e.expires_at
+      from enrollments e
+      join users u on u.id = e.user_id
+      join courses c on c.id = e.course_id
+      where e.user_id = $1
+      order by c.title
+    `,
+    [userId]
+  );
+
+  const firstRow = result.rows[0];
+
+  if (!firstRow) {
+    return null;
+  }
+
+  return {
+    email: firstRow.email,
+    enrollments: result.rows.map((row) => ({
+      courseTitle: row.course_title,
+      expiresAt: row.expires_at,
+      id: row.id,
+      startedAt: row.starts_at,
+      status: row.status,
+    })),
+    name: firstRow.name,
+    userId: firstRow.user_id,
+  };
+};

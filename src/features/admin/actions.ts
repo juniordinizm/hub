@@ -22,6 +22,7 @@ const revalidateAdmin = (): void => {
     "/admin",
     "/admin/cursos",
     "/admin/alunas",
+    "/admin/alunos",
     "/admin/financeiro",
     "/admin/faq",
     "/admin/configuracoes",
@@ -335,6 +336,7 @@ export const updateEnrollmentAction = async (
   const enrollmentId = readString(formData, "enrollmentId");
   const status = readString(formData, "status");
   const expiresAt = readString(formData, "expiresAt");
+  const userId = readString(formData, "userId");
 
   await getPool().query(
     `
@@ -355,6 +357,10 @@ export const updateEnrollmentAction = async (
     targetType: "enrollment",
   });
   revalidateAdmin();
+
+  if (userId) {
+    revalidatePath(`/admin/alunos/${userId}`);
+  }
 };
 
 export const saveFaqAction = async (formData: FormData): Promise<void> => {

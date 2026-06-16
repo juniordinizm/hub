@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 const metrics = [
   ["Cursos", "courses"],
-  ["Alunas", "students"],
+  ["Alunos", "students"],
   ["Matriculas ativas", "activeEnrollments"],
   ["Pedidos pagos", "paidOrders"],
 ] as const;
@@ -30,7 +30,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
           Visao geral do Hub. Use o menu lateral para administrar catalogo,
-          alunas, financeiro, FAQ e configuracoes separadamente.
+          alunos, financeiro, FAQ e configuracoes separadamente.
         </p>
       </header>
 
