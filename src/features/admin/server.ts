@@ -97,7 +97,9 @@ export interface AdminManagementData {
     email: string;
     expiresAt: Date;
     id: string;
+    lastAccessAt: Date | null;
     name: string;
+    startsAt: Date;
     status: string;
     userId: string;
   }>;
@@ -241,14 +243,18 @@ export const getAdminManagementData =
         email: string;
         expires_at: Date;
         id: string;
+        last_access_at: Date | null;
         name: string;
+        starts_at: Date;
         status: string;
         user_id: string;
       }>(
         `
-          select e.id, e.user_id, u.name, u.email, c.title as course_title, e.status, e.expires_at
+          select e.id, e.user_id, u.name, u.email, c.title as course_title,
+                 e.status, e.starts_at, e.expires_at, p.last_access_at
           from enrollments e
           join users u on u.id = e.user_id
+          left join profiles p on p.user_id = u.id
           join courses c on c.id = e.course_id
           order by e.updated_at desc
           limit 60
@@ -323,7 +329,9 @@ export const getAdminManagementData =
       email: row.email,
       expiresAt: row.expires_at,
       id: row.id,
+      lastAccessAt: row.last_access_at,
       name: row.name,
+      startsAt: row.starts_at,
       status: row.status,
       userId: row.user_id,
     }));

@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
+import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -186,7 +187,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
 function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
   return (
-    <form action={saveCourseAction}>
+    <AutoCloseDialogForm action={saveCourseAction}>
       <FieldGroup>
         <input name="courseId" type="hidden" value={course?.id ?? ""} />
         <Field>
@@ -269,7 +270,7 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           {course ? "Salvar curso" : "Criar curso"}
         </Button>
       </FieldGroup>
-    </form>
+    </AutoCloseDialogForm>
   );
 }
 

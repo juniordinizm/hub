@@ -9,6 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -277,7 +278,7 @@ function ModuleForm({
 }): React.JSX.Element {
   return (
     <div className="space-y-4">
-      <form action={saveModuleAction}>
+      <AutoCloseDialogForm action={saveModuleAction}>
         <FieldGroup>
           <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
           <input name="courseId" type="hidden" value={course.id} />
@@ -328,7 +329,7 @@ function ModuleForm({
             {moduleData ? "Salvar modulo" : "Criar modulo"}
           </Button>
         </FieldGroup>
-      </form>
+      </AutoCloseDialogForm>
       {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
     </div>
   );
@@ -345,7 +346,7 @@ function LessonForm({
 
   return (
     <div className="space-y-4">
-      <form action={saveLessonAction}>
+      <AutoCloseDialogForm action={saveLessonAction}>
         <FieldGroup>
           <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
           <div className="grid gap-4 lg:grid-cols-[1fr_120px_120px_120px]">
@@ -475,7 +476,7 @@ function LessonForm({
             </Button>
           </div>
         </FieldGroup>
-      </form>
+      </AutoCloseDialogForm>
       {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
     </div>
   );

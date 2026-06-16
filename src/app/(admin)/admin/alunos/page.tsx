@@ -1,8 +1,4 @@
-import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,15 +7,42 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAdminManagementData } from "@/features/admin/server";
-import { route } from "@/lib/routes";
+import {
+  type StudentEnrollmentRow,
+  StudentsTable,
+  type StudentTableRow,
+} from "./students-table";
 
 export const dynamic = "force-dynamic";
 
-const dateLabel = (date: Date): string =>
-  new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(date);
+const dateInputValue = (date: Date): string => date.toISOString().slice(0, 10);
 
 export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
+  const enrollmentsByUserId = new Map<string, StudentEnrollmentRow[]>();
+
+  for (const enrollment of data.enrollments) {
+    const current = enrollmentsByUserId.get(enrollment.userId) ?? [];
+    current.push({
+      courseTitle: enrollment.courseTitle,
+      expiresAt: dateInputValue(enrollment.expiresAt),
+      id: enrollment.id,
+      startedAt: dateInputValue(enrollment.startsAt),
+      status: enrollment.status,
+      userId: enrollment.userId,
+    });
+    enrollmentsByUserId.set(enrollment.userId, current);
+  }
+
+  const students: StudentTableRow[] = data.students.map((student) => ({
+    courseCount: student.courseCount,
+    email: student.email,
+    enrollments: enrollmentsByUserId.get(student.userId) ?? [],
+    firstEnrollmentAt: student.firstEnrollmentAt.toISOString(),
+    lastAccessAt: student.lastAccessAt?.toISOString() ?? null,
+    name: student.name,
+    userId: student.userId,
+  }));
 
   return (
     <div className="space-y-8">
@@ -29,8 +52,8 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
           Alunos e matriculas
         </h1>
         <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-          Cada pessoa aparece uma vez. Entre no cadastro para gerenciar as
-          matriculas de cada curso.
+          Lista centralizada por aluno, com consulta rapida e gestao das
+          matriculas por curso no dialog.
         </p>
       </header>
 
@@ -38,57 +61,12 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
         <CardHeader>
           <CardTitle>Alunos cadastrados</CardTitle>
           <CardDescription>
-            Visao centralizada por pessoa, mesmo quando ha varios cursos.
+            Nome, email, status geral de matricula, cursos, primeira matricula e
+            ultimo acesso.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-2">
-          {data.students.map((student) => (
-            <article
-              className="grid gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50 md:grid-cols-[1fr_auto]"
-              key={student.userId}
-            >
-              <div>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  <Badge variant="secondary">
-                    {student.courseCount} curso
-                    {student.courseCount === 1 ? "" : "s"}
-                  </Badge>
-                  <Badge variant="outline">
-                    {student.activeEnrollments} ativa
-                    {student.activeEnrollments === 1 ? "" : "s"}
-                  </Badge>
-                  {student.revokedEnrollments ? (
-                    <Badge variant="destructive">
-                      {student.revokedEnrollments} revogada
-                      {student.revokedEnrollments === 1 ? "" : "s"}
-                    </Badge>
-                  ) : null}
-                </div>
-                <h2 className="font-semibold text-lg">{student.name}</h2>
-                <p className="text-muted-foreground text-sm">{student.email}</p>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Expiracao mais recente: {dateLabel(student.latestExpiration)}
-                </p>
-              </div>
-              <div className="flex items-center">
-                <Button asChild variant="outline">
-                  <Link href={route(`/admin/alunos/${student.userId}`)}>
-                    Ver matriculas
-                    <HugeiconsIcon
-                      icon={ArrowRight01Icon}
-                      size={16}
-                      strokeWidth={2}
-                    />
-                  </Link>
-                </Button>
-              </div>
-            </article>
-          ))}
-          {data.students.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Nenhum aluno com matricula encontrado.
-            </p>
-          ) : null}
+        <CardContent>
+          <StudentsTable students={students} />
         </CardContent>
       </Card>
     </div>
