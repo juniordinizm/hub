@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { SignOutButton } from "@/components/sign-out-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -52,6 +54,11 @@ export default async function StudentLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {
   const session = await requireSession();
+
+  if (session.role !== "student") {
+    redirect(route("/admin"));
+  }
+
   const courses = await getStudentCourses(session.user.id);
   const currentCourse = courses[0];
   const initials = getInitials(session.user.name);
@@ -114,13 +121,13 @@ export default async function StudentLayout({
                     <Link href={route("/app/certificados")}>Certificados</Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                {session.role === "student" ? null : (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href={route("/admin")}>Admin</Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href={route("/app/perguntas-frequentes")}>
+                      Perguntas frequentes
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -149,26 +156,15 @@ export default async function StudentLayout({
               </SidebarGroupContent>
             </SidebarGroup>
           ) : null}
-          <SidebarGroup>
-            <SidebarGroupLabel>Suporte</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/app")}>Perguntas frequentes</Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
         </SidebarContent>
         <SidebarSeparator />
-        <SidebarFooter className="px-5 pb-5">
+        <SidebarFooter className="gap-3 px-5 pb-5">
           <div className="min-w-0 rounded-xl bg-sidebar-accent p-3">
             <p className="truncate text-sidebar-foreground/70 text-xs">
               {session.user.email}
             </p>
           </div>
+          <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>

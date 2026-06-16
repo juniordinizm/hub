@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { SignOutButton } from "@/components/sign-out-button";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -15,6 +17,15 @@ import {
 } from "@/components/ui/sidebar";
 import { route } from "@/lib/routes";
 import { requireRole } from "@/lib/session";
+
+const navItems = [
+  ["Painel", "/admin"],
+  ["Catalogo", "/admin/cursos"],
+  ["Alunas", "/admin/alunas"],
+  ["Financeiro", "/admin/financeiro"],
+  ["FAQ", "/admin/faq"],
+  ["Configuracoes", "/admin/configuracoes"],
+] as const;
 
 export default async function AdminLayout({
   children,
@@ -35,20 +46,20 @@ export default async function AdminLayout({
             <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/admin")}>Painel</Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/app")}>Area da aluna</Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {navItems.map(([label, href]) => (
+                  <SidebarMenuItem key={href}>
+                    <SidebarMenuButton asChild>
+                      <Link href={route(href)}>{label}</Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter className="px-3 pb-4">
+          <SignOutButton className="w-full" variant="secondary" />
+        </SidebarFooter>
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center border-b bg-background/90 px-4 backdrop-blur">

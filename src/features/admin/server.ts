@@ -77,10 +77,13 @@ export interface AdminManagementData {
   }>;
   courses: Array<{
     accessDurationMonths: number;
+    description: string | null;
     id: string;
+    instructorName: string | null;
     paymentProviderProductId: string | null;
     slug: string;
     status: string;
+    subtitle: string | null;
     supportWhatsappUrl: string | null;
     title: string;
     workloadHours: number;
@@ -106,11 +109,14 @@ export interface AdminManagementData {
     durationMinutes: number;
     id: string;
     isPublished: boolean;
+    lessonType: string;
     moduleId: string;
     moduleTitle: string;
+    description: string | null;
     sortOrder: number;
     title: string;
     videoEmbedUrl: string | null;
+    videoExternalId: string | null;
     videoProvider: string | null;
   }>;
   modules: Array<{
@@ -155,15 +161,18 @@ export const getAdminManagementData =
     ] = await Promise.all([
       pool.query<{
         access_duration_months: number;
+        description: string | null;
         id: string;
+        instructor_name: string | null;
         payment_provider_product_id: string | null;
         slug: string;
         status: string;
+        subtitle: string | null;
         support_whatsapp_url: string | null;
         title: string;
         workload_hours: number;
       }>(
-        "select id, slug, title, workload_hours, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+        "select id, slug, title, subtitle, description, instructor_name, workload_hours, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
         color: string;
@@ -185,17 +194,21 @@ export const getAdminManagementData =
         duration_minutes: number;
         id: string;
         is_published: boolean;
+        lesson_description: string | null;
+        lesson_type: string;
         module_id: string;
         module_title: string;
         sort_order: number;
         title: string;
         video_embed_url: string | null;
+        video_external_id: string | null;
         video_provider: string | null;
       }>(
         `
           select l.id, l.module_id, m.title as module_title, c.title as course_title,
-                 l.title, l.duration_minutes, l.sort_order, l.video_provider,
-                 l.video_embed_url, l.is_published
+                 l.title, l.description as lesson_description, l.lesson_type,
+                 l.duration_minutes, l.sort_order, l.video_provider,
+                 l.video_external_id, l.video_embed_url, l.is_published
           from lessons l
           join modules m on m.id = l.module_id
           join courses c on c.id = m.course_id
@@ -299,10 +312,13 @@ export const getAdminManagementData =
       })),
       courses: courses.rows.map((row) => ({
         accessDurationMonths: row.access_duration_months,
+        description: row.description,
         id: row.id,
+        instructorName: row.instructor_name,
         paymentProviderProductId: row.payment_provider_product_id,
         slug: row.slug,
         status: row.status,
+        subtitle: row.subtitle,
         supportWhatsappUrl: row.support_whatsapp_url,
         title: row.title,
         workloadHours: row.workload_hours,
@@ -328,11 +344,14 @@ export const getAdminManagementData =
         durationMinutes: row.duration_minutes,
         id: row.id,
         isPublished: row.is_published,
+        lessonType: row.lesson_type,
         moduleId: row.module_id,
         moduleTitle: row.module_title,
+        description: row.lesson_description,
         sortOrder: row.sort_order,
         title: row.title,
         videoEmbedUrl: row.video_embed_url,
+        videoExternalId: row.video_external_id,
         videoProvider: row.video_provider,
       })),
       modules: modules.rows.map((row) => ({

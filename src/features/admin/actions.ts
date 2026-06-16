@@ -21,6 +21,19 @@ const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+const revalidateAdmin = (): void => {
+  for (const path of [
+    "/admin",
+    "/admin/cursos",
+    "/admin/alunas",
+    "/admin/financeiro",
+    "/admin/faq",
+    "/admin/configuracoes",
+  ]) {
+    revalidatePath(path);
+  }
+};
+
 const audit = async ({
   action,
   actorUserId,
@@ -110,7 +123,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     });
   }
 
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const saveModuleAction = async (formData: FormData): Promise<void> => {
@@ -138,7 +151,7 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
     targetId: inserted.rows[0]?.id,
     targetType: "module",
   });
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
@@ -215,7 +228,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     });
   }
 
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const inviteStudentAction = async (
@@ -286,7 +299,7 @@ export const inviteStudentAction = async (
     targetId: userId,
     targetType: "user",
   });
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const updateEnrollmentAction = async (
@@ -315,7 +328,7 @@ export const updateEnrollmentAction = async (
     targetId: enrollmentId,
     targetType: "enrollment",
   });
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const saveFaqAction = async (formData: FormData): Promise<void> => {
@@ -359,7 +372,7 @@ export const saveFaqAction = async (formData: FormData): Promise<void> => {
     targetId: faqId || undefined,
     targetType: "faq",
   });
-  revalidatePath("/admin");
+  revalidateAdmin();
 };
 
 export const saveSettingsAction = async (formData: FormData): Promise<void> => {
@@ -394,5 +407,5 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
     targetId: "global",
     targetType: "settings",
   });
-  revalidatePath("/admin");
+  revalidateAdmin();
 };

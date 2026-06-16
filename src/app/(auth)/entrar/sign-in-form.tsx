@@ -35,7 +35,10 @@ export function SignInForm(): React.JSX.Element {
       return;
     }
 
-    window.location.assign("/app");
+    const redirectResponse = await fetch("/api/auth/redirect");
+    const data = (await redirectResponse.json()) as { redirectTo?: string };
+
+    window.location.assign(data.redirectTo ?? "/app");
   };
 
   return (
@@ -70,7 +73,7 @@ export function SignInForm(): React.JSX.Element {
         </Alert>
       ) : null}
       <Button className="mt-5 h-12 w-full" disabled={isPending} type="submit">
-        {isPending ? "Entrando..." : "Entrar na area do aluno"}
+        {isPending ? "Entrando..." : "Entrar"}
       </Button>
       <Link
         className="mt-5 inline-flex text-muted-foreground text-sm hover:text-foreground"

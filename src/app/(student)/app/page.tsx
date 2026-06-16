@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,11 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  getPublishedFaqItems,
-  getStudentCourses,
-  getSupportWhatsappUrl,
-} from "@/features/courses/server";
+import { getStudentCourses } from "@/features/courses/server";
 import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -41,11 +36,7 @@ const getModuleHref = ({
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
-  const [courses, faqs, supportWhatsappUrl] = await Promise.all([
-    getStudentCourses(session.user.id),
-    getPublishedFaqItems(),
-    getSupportWhatsappUrl(),
-  ]);
+  const courses = await getStudentCourses(session.user.id);
   const course = courses[0];
   const modules = courses.flatMap((courseData) =>
     courseData.modules.map((moduleData) => ({
@@ -202,41 +193,6 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
             </div>
           </section>
         ) : null}
-
-        <section className="mt-10 grid gap-5 lg:grid-cols-[1fr_280px]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Perguntas frequentes</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {faqs.map((faq) => (
-                <article className="border-t pt-4" key={faq.id}>
-                  <p className="font-semibold">{faq.question}</p>
-                  <p className="mt-2 text-muted-foreground text-sm">
-                    {faq.answer}
-                  </p>
-                </article>
-              ))}
-            </CardContent>
-          </Card>
-          {supportWhatsappUrl ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Precisa de ajuda?</CardTitle>
-                <CardDescription>
-                  Fale com o suporte pelo WhatsApp.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button asChild>
-                  <a href={supportWhatsappUrl} rel="noopener" target="_blank">
-                    Falar com suporte
-                  </a>
-                </Button>
-              </CardContent>
-            </Card>
-          ) : null}
-        </section>
       </div>
     </div>
   );

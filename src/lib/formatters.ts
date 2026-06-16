@@ -9,3 +9,9 @@ export const formatPercent = (value: number): string =>
     maximumFractionDigits: 0,
     style: "percent",
   }).format(value / 100);
+
+export const formatCurrencyInCents = (value: number): string =>
+  new Intl.NumberFormat("pt-BR", {
+    currency: "BRL",
+    style: "currency",
+  }).format(value / 100);
