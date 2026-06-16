@@ -1,14 +1,4 @@
-import {
-  AccountSetting01Icon,
-  Analytics01Icon,
-  Book01Icon,
-  HelpCircleIcon,
-  HistoryIcon,
-  Invoice01Icon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
+import { AdminSidebarNav } from "@/app/(admin)/admin/admin-sidebar-nav";
 import { SignOutButton } from "@/components/sign-out-button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,23 +11,9 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { route } from "@/lib/routes";
 import { requireRole } from "@/lib/session";
-
-const navItems = [
-  ["Painel", "/admin", Analytics01Icon],
-  ["Catalogo", "/admin/cursos", Book01Icon],
-  ["Alunas", "/admin/alunas", UserGroupIcon],
-  ["Financeiro", "/admin/financeiro", Invoice01Icon],
-  ["FAQ", "/admin/faq", HelpCircleIcon],
-  ["Configuracoes", "/admin/configuracoes", AccountSetting01Icon],
-  ["Auditoria", "/admin/auditoria", HistoryIcon],
-] as const;
 
 const NAME_PARTS_PATTERN = /\s+/;
 
@@ -101,22 +77,7 @@ export default async function AdminLayout({
             <SidebarGroup>
               <SidebarGroupLabel>Navegacao</SidebarGroupLabel>
               <SidebarGroupContent>
-                <SidebarMenu>
-                  {navItems.map(([label, href, icon]) => (
-                    <SidebarMenuItem key={href}>
-                      <SidebarMenuButton asChild>
-                        <Link href={route(href)}>
-                          <HugeiconsIcon
-                            icon={icon}
-                            size={18}
-                            strokeWidth={1.5}
-                          />
-                          <span>{label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
+                <AdminSidebarNav />
               </SidebarGroupContent>
             </SidebarGroup>
           </ScrollArea>
@@ -130,7 +91,7 @@ export default async function AdminLayout({
           <span className="font-semibold text-sm">PROTEA-R Admin</span>
         </header>
         <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
-          <main className="mx-auto w-full max-w-6xl px-5 py-8">{children}</main>
+          <div className="mx-auto w-full max-w-6xl px-5 py-8">{children}</div>
         </ScrollArea>
       </SidebarInset>
     </SidebarProvider>

@@ -339,10 +339,10 @@ export const updateEnrollmentAction = async (
   await getPool().query(
     `
       update enrollments
-      set status = $1,
+      set status = $1::enrollment_status,
           expires_at = $2::timestamptz,
-          revoked_at = case when $1 = 'revoked' then now() else null end,
-          revoked_reason = case when $1 = 'revoked' then 'admin_manual' else null end,
+          revoked_at = case when $1::text = 'revoked' then now() else null end,
+          revoked_reason = case when $1::text = 'revoked' then 'admin_manual' else null end,
           updated_at = now()
       where id = $3
     `,

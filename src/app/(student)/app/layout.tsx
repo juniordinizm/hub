@@ -227,7 +227,7 @@ export default async function StudentLayout({
           <span className="ml-3 font-semibold text-sm">PROTEA-R</span>
         </header>
         <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
-          <main className="flex-1">{children}</main>
+          <div className="flex-1">{children}</div>
         </ScrollArea>
       </SidebarInset>
     </SidebarProvider>
