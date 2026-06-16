@@ -1,12 +1,4 @@
-import {
-  Add01Icon,
-  ArrowRight01Icon,
-  Cancel01Icon,
-  Delete02Icon,
-  Edit01Icon,
-  FloppyDiskIcon,
-  Menu01Icon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
@@ -14,21 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -37,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { deleteCourseAction, saveCourseAction } from "@/features/admin/actions";
+import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
 import { route } from "@/lib/routes";
 
@@ -46,6 +31,50 @@ export const dynamic = "force-dynamic";
 type CourseData = Awaited<
   ReturnType<typeof getAdminManagementData>
 >["courses"][number];
+
+const STATUS_MAP: Record<string, { label: string; color: string }> = {
+  active: {
+    label: "Ativo",
+    color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  },
+  draft: {
+    label: "Rascunho",
+    color: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  archived: {
+    label: "Arquivado",
+    color: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+  },
+};
+
+const WHITESPACE_RE = /\s+/;
+
+function getInitials(title: string): string {
+  return title
+    .split(WHITESPACE_RE)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+const THUMB_GRADIENTS = [
+  "from-violet-600 to-indigo-700",
+  "from-rose-600 to-pink-700",
+  "from-sky-600 to-cyan-700",
+  "from-amber-600 to-orange-700",
+  "from-emerald-600 to-teal-700",
+  "from-fuchsia-600 to-purple-700",
+];
+
+function getGradient(id: string): string {
+  let sum = 0;
+  for (const char of id) {
+    sum += char.charCodeAt(0);
+  }
+  const index = sum % THUMB_GRADIENTS.length;
+  return THUMB_GRADIENTS[index] ?? "from-violet-600 to-indigo-700";
+}
 
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
@@ -82,7 +111,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
         </div>
       </header>
 
-      <section className="space-y-3">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {data.courses.map((course) => {
           const modulesCount = data.modules.filter(
             (moduleData) => moduleData.courseId === course.id
@@ -95,89 +124,55 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
             )
           ).length;
 
+          const statusInfo = STATUS_MAP[course.status] ?? {
+            label: course.status,
+            color: "bg-zinc-500/15 text-zinc-600",
+          };
+
           return (
-            <article
-              className="relative rounded-lg border bg-card transition-colors hover:bg-muted"
+            <Link
+              className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
+              href={route(`/admin/cursos/${course.id}`)}
               key={course.id}
             >
-              <div className="grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
-                <div>
-                  <div className="relative z-10 mb-2 flex flex-wrap gap-2">
-                    <Badge variant="secondary">{course.status}</Badge>
-                    <Badge variant="outline">{modulesCount} modulos</Badge>
-                    <Badge variant="outline">{lessonsCount} aulas</Badge>
-                  </div>
-                  <h2 className="font-semibold text-xl">
-                    <Link
-                      className="z-0 before:absolute before:inset-0"
-                      href={route(`/admin/cursos/${course.id}`)}
-                    >
-                      {course.title}
-                    </Link>
+              {/* Thumbnail */}
+              <div
+                className={`relative flex aspect-[16/9] items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+              >
+                <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
+                  {getInitials(course.title)}
+                </span>
+                <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/5" />
+              </div>
+
+              {/* Conteudo */}
+              <div className="flex flex-1 flex-col gap-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h2 className="line-clamp-2 font-semibold text-base leading-snug">
+                    {course.title}
                   </h2>
-                  <p className="mt-1 text-muted-foreground text-sm">
-                    Acesso de {course.accessDurationMonths} meses
-                  </p>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 font-medium text-[11px] ${statusInfo.color}`}
+                  >
+                    {statusInfo.label}
+                  </span>
                 </div>
-                <div className="relative z-10 flex flex-wrap gap-2">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button size="icon" variant="secondary">
-                        <HugeiconsIcon
-                          icon={Menu01Icon}
-                          size={18}
-                          strokeWidth={2}
-                        />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="end"
-                      className="flex w-40 flex-col gap-1 p-1"
-                    >
-                      <Button
-                        asChild
-                        className="w-full justify-start gap-2"
-                        variant="ghost"
-                      >
-                        <Link href={route(`/admin/cursos/${course.id}`)}>
-                          <HugeiconsIcon
-                            icon={ArrowRight01Icon}
-                            size={16}
-                            strokeWidth={2}
-                          />
-                          Gerenciar
-                        </Link>
-                      </Button>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            className="w-full justify-start gap-2"
-                            variant="ghost"
-                          >
-                            <HugeiconsIcon
-                              icon={Edit01Icon}
-                              size={16}
-                              strokeWidth={2}
-                            />
-                            Editar
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Editar curso</DialogTitle>
-                            <DialogDescription>
-                              Atualize os dados principais do curso.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <CourseForm course={course} />
-                        </DialogContent>
-                      </Dialog>
-                      <DeleteCourseDialog course={course} />
-                    </PopoverContent>
-                  </Popover>
+
+                {course.subtitle ? (
+                  <p className="line-clamp-2 text-muted-foreground text-sm leading-relaxed">
+                    {course.subtitle}
+                  </p>
+                ) : null}
+
+                <div className="mt-auto flex items-center gap-3 border-t pt-3 text-muted-foreground text-xs">
+                  <span>{modulesCount} modulos</span>
+                  <span className="text-foreground/20">·</span>
+                  <span>{lessonsCount} aulas</span>
+                  <span className="text-foreground/20">·</span>
+                  <span>{course.accessDurationMonths}m acesso</span>
                 </div>
               </div>
-            </article>
+            </Link>
           );
         })}
       </section>
@@ -271,55 +266,5 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
         </Button>
       </FieldGroup>
     </AutoCloseDialogForm>
-  );
-}
-
-function DeleteCourseDialog({
-  course,
-}: {
-  course: CourseData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button
-          className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-          variant="ghost"
-        >
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Excluir curso?</DialogTitle>
-          <DialogDescription>
-            Esta acao remove o curso e, em cascata, seus modulos, aulas,
-            matriculas, pedidos e certificados vinculados.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="rounded-lg border bg-background/40 p-3">
-          <p className="font-semibold">{course.title}</p>
-          <p className="text-muted-foreground text-sm">
-            O identificador interno sera preservado apenas no sistema.
-          </p>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteCourseAction}>
-            <input name="courseId" type="hidden" value={course.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusao
-            </Button>
-          </form>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

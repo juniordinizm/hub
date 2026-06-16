@@ -35,8 +35,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  deleteCourseAction,
   deleteLessonAction,
   deleteModuleAction,
+  saveCourseAction,
   saveLessonAction,
   saveModuleAction,
 } from "@/features/admin/actions";
@@ -103,9 +105,35 @@ export default async function AdminCourseDetailPage({
               Organize módulos e aulas deste curso específico.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <StatPill label="Modulos" value={modules.length} />
-            <StatPill label="Aulas" value={lessons.length} />
+          <div className="flex items-center gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <StatPill label="Modulos" value={modules.length} />
+              <StatPill label="Aulas" value={lessons.length} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <HugeiconsIcon
+                      icon={Edit01Icon}
+                      size={16}
+                      strokeWidth={2}
+                    />
+                    Editar curso
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Editar curso</DialogTitle>
+                    <DialogDescription>
+                      Atualize os dados principais do curso.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <CourseForm course={course} />
+                </DialogContent>
+              </Dialog>
+              <DeleteCourseDialog course={course} />
+            </div>
           </div>
         </div>
       </header>
@@ -565,6 +593,138 @@ function DeleteLessonDialog({
           </DialogClose>
           <form action={deleteLessonAction}>
             <input name="lessonId" type="hidden" value={lesson.id} />
+            <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+              Confirmar exclusao
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
+  return (
+    <AutoCloseDialogForm action={saveCourseAction}>
+      <FieldGroup>
+        <input name="courseId" type="hidden" value={course.id} />
+        <Field>
+          <FieldLabel>Titulo</FieldLabel>
+          <Input defaultValue={course.title} name="title" required />
+        </Field>
+        <Field>
+          <FieldLabel>Subtitulo</FieldLabel>
+          <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
+        </Field>
+        <Field>
+          <FieldLabel>Descricao</FieldLabel>
+          <Textarea
+            defaultValue={course.description ?? ""}
+            name="description"
+          />
+        </Field>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Field>
+            <FieldLabel>Instrutora</FieldLabel>
+            <Input
+              defaultValue={course.instructorName ?? ""}
+              name="instructorName"
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Carga horaria</FieldLabel>
+            <Input
+              defaultValue={course.workloadHours ?? 0}
+              min={0}
+              name="workloadHours"
+              type="number"
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Meses de acesso</FieldLabel>
+            <Input
+              defaultValue={course.accessDurationMonths ?? 12}
+              min={1}
+              name="accessDurationMonths"
+              type="number"
+            />
+          </Field>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Field>
+            <FieldLabel>WhatsApp do curso</FieldLabel>
+            <Input
+              defaultValue={course.supportWhatsappUrl ?? ""}
+              name="supportWhatsappUrl"
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Produto AbacatePay</FieldLabel>
+            <Input
+              defaultValue={course.paymentProviderProductId ?? ""}
+              name="paymentProviderProductId"
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Status</FieldLabel>
+            <Select defaultValue={course.status ?? "draft"} name="status">
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Rascunho</SelectItem>
+                <SelectItem value="active">Ativo</SelectItem>
+                <SelectItem value="archived">Arquivado</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <Button className="w-fit" type="submit">
+          <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+          Salvar curso
+        </Button>
+      </FieldGroup>
+    </AutoCloseDialogForm>
+  );
+}
+
+function DeleteCourseDialog({
+  course,
+}: {
+  course: CourseData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="destructive">
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+          Excluir curso
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excluir curso?</DialogTitle>
+          <DialogDescription>
+            Esta acao remove o curso e, em cascata, seus modulos, aulas,
+            matriculas, pedidos e certificados vinculados.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-lg border bg-background/40 p-3">
+          <p className="font-semibold">{course.title}</p>
+          <p className="text-muted-foreground text-sm">
+            O identificador interno sera preservado apenas no sistema.
+          </p>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+              Cancelar
+            </Button>
+          </DialogClose>
+          <form action={deleteCourseAction}>
+            <input name="courseId" type="hidden" value={course.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusao
