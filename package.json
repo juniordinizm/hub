@@ -63,6 +63,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "node scripts/seed-initial-data.mjs",
+    "db:seed:student": "bun scripts/bootstrap-student.ts",
     "db:studio": "drizzle-kit studio",
     "prepare": "lefthook install"
   },

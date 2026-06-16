@@ -6,7 +6,7 @@ Este projeto usa JMVStream como provedor padrao de video das aulas.
 
 1. Contrate ou habilite um plano com acesso a video hosting e API.
 2. Entre no painel da JMVStream.
-3. Envie os videos finais das aulas.
+3. Envie os videos finais das aulas pelo painel da JMVStream. No MVP, o upload de arquivos nao acontece no admin do Hub.
 4. Para cada video, copie:
    - o `video_hash` ou identificador do video;
    - o link de compartilhamento do player ou o iframe oficial.
@@ -17,7 +17,7 @@ Este projeto usa JMVStream como provedor padrao de video das aulas.
 
 ## Como cadastrar uma aula no admin
 
-Em `Admin > Catalogo > Nova aula`:
+Depois do upload no painel JMVStream, cadastre o player em `Admin > Catalogo > Nova aula`:
 
 1. Em `Provider`, selecione `JMVStream`.
 2. Em `Hash ou ID do video`, cole o `video_hash`.
@@ -25,6 +25,10 @@ Em `Admin > Catalogo > Nova aula`:
 4. Salve a aula.
 
 O sistema normaliza o iframe e salva apenas a URL segura do player. Para aulas com provider `JMVStream`, URLs fora de `https://player.jmvstream.com` sao recusadas e a aula fica como "Video em configuracao".
+
+## Decisao operacional do MVP
+
+O Hub nao recebe arquivos de video diretamente. A cliente sobe e organiza os videos no painel da JMVStream, e o admin do Hub cadastra apenas o `video_hash` e o iframe/link oficial do player. Essa decisao evita expor token secreto da API no navegador, evita proxy de arquivos grandes pela Vercel e mantem o fluxo de transcodificacao/protecao dentro da plataforma especializada de video.
 
 ## Variaveis de ambiente
 

@@ -116,8 +116,11 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                   <div className="relative aspect-[16/10] overflow-hidden rounded-xl bg-card transition-transform group-hover:-translate-y-1">
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/70 to-sidebar" />
                     <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                      <span className="flex size-9 items-center justify-center rounded-full bg-white/90 font-bold text-primary text-xs">
-                        ▶
+                      <span
+                        aria-hidden="true"
+                        className="flex size-9 items-center justify-center rounded-full bg-white/90"
+                      >
+                        <span className="ml-0.5 size-0 border-y-[6px] border-y-transparent border-l-[9px] border-l-primary" />
                       </span>
                     </div>
                     <span className="absolute bottom-2 left-2 rounded-md bg-primary px-2 py-0.5 font-bold text-[0.6rem] text-primary-foreground uppercase tracking-[0.08em]">

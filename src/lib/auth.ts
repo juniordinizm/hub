@@ -30,7 +30,7 @@ const createAuth = () => {
     }),
     emailAndPassword: {
       enabled: true,
-      minPasswordLength: 10,
+      minPasswordLength: 8,
       resetPasswordTokenExpiresIn: 3600,
       revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ url, user }) => {

@@ -53,7 +53,7 @@ const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 10,
+    minPasswordLength: 8,
   },
   secret: process.env.BETTER_AUTH_SECRET ?? "development-secret-change-me",
 });
