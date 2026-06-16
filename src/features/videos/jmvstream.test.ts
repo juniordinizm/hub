@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractJmvstreamEmbedUrl,
+  getJmvstreamDurationMinutesFromMessage,
   resolveLessonVideoEmbedUrl,
 } from "./jmvstream";
 
@@ -35,5 +36,36 @@ describe("JMVStream video embeds", () => {
         provider: "external",
       })
     ).toBe("https://example.com/video");
+  });
+
+  it("extracts rounded minutes from player status messages", () => {
+    expect(
+      getJmvstreamDurationMinutesFromMessage(
+        JSON.stringify({
+          event: "jmvplayerout-status",
+          duration: 733,
+          currentTime: 12,
+        })
+      )
+    ).toBe(13);
+  });
+
+  it("accepts documented eventName player messages", () => {
+    expect(
+      getJmvstreamDurationMinutesFromMessage({
+        eventName: "jmvplayerout-play",
+        duration: 120,
+      })
+    ).toBe(2);
+  });
+
+  it("ignores malformed player messages and missing durations", () => {
+    expect(getJmvstreamDurationMinutesFromMessage("not-json")).toBeNull();
+    expect(
+      getJmvstreamDurationMinutesFromMessage({
+        event: "jmvplayerout-status",
+        currentTime: 12,
+      })
+    ).toBeNull();
   });
 });

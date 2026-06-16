@@ -1,6 +1,7 @@
 const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
 const IFRAME_SRC_PATTERN = /\bsrc=(["'])(.*?)\1/i;
 const VIDEO_PROVIDERS = new Set(["external", "jmvstream", "panda"]);
+const JMVSTREAM_OUT_EVENT_PATTERN = /^jmvplayerout-/;
 
 export type VideoProvider = "external" | "jmvstream" | "panda" | null;
 
@@ -50,4 +51,45 @@ export const resolveLessonVideoEmbedUrl = ({
   }
 
   return embedUrl.trim() || null;
+};
+
+export const getJmvstreamDurationMinutesFromMessage = (
+  message: unknown
+): number | null => {
+  const payload =
+    typeof message === "string" ? parseJmvstreamMessage(message) : message;
+
+  if (!isJmvstreamDurationPayload(payload)) {
+    return null;
+  }
+
+  return Math.ceil(payload.duration / 60);
+};
+
+const parseJmvstreamMessage = (message: string): unknown => {
+  try {
+    return JSON.parse(message);
+  } catch {
+    return null;
+  }
+};
+
+const isJmvstreamDurationPayload = (
+  payload: unknown
+): payload is { duration: number; event?: string; eventName?: string } => {
+  if (!payload || typeof payload !== "object") {
+    return false;
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  const eventName =
+    typeof candidate.event === "string" ? candidate.event : candidate.eventName;
+
+  return (
+    typeof eventName === "string" &&
+    JMVSTREAM_OUT_EVENT_PATTERN.test(eventName) &&
+    typeof candidate.duration === "number" &&
+    Number.isFinite(candidate.duration) &&
+    candidate.duration > 0
+  );
 };

@@ -10,6 +10,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -697,6 +698,11 @@ function LessonForm({
               placeholder="https://player.jmvstream.com/... ou iframe oficial"
             />
           </Field>
+          <JmvstreamDurationDetector
+            defaultDurationMinutes={lesson?.durationMinutes ?? 0}
+            defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
+            defaultProvider={lesson?.videoProvider ?? "jmvstream"}
+          />
           <div className="flex flex-wrap items-center gap-4">
             <label
               className="inline-flex items-center gap-2 text-sm"
