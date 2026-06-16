@@ -8,6 +8,13 @@
       "when": 1781087724460,
       "tag": "0000_fast_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781589599109,
+      "tag": "0001_cascade_course_deletes",
+      "breakpoints": true
     }
   ]
 }

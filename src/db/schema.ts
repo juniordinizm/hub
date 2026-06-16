@@ -216,7 +216,7 @@ export const enrollments = pgTable(
       .references(() => users.id),
     courseId: uuid("course_id")
       .notNull()
-      .references(() => courses.id),
+      .references(() => courses.id, { onDelete: "cascade" }),
     status: enrollmentStatusEnum("status").default("active").notNull(),
     startsAt: timestamp("starts_at", tz).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", tz).notNull(),
@@ -262,7 +262,7 @@ export const orders = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     courseId: uuid("course_id")
       .notNull()
-      .references(() => courses.id),
+      .references(() => courses.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id),
     provider: text("provider").default("abacatepay").notNull(),
     providerOrderId: text("provider_order_id").notNull(),
@@ -319,7 +319,7 @@ export const certificates = pgTable(
       .references(() => users.id),
     courseId: uuid("course_id")
       .notNull()
-      .references(() => courses.id),
+      .references(() => courses.id, { onDelete: "cascade" }),
     code: text("code").notNull().unique(),
     studentNameSnapshot: text("student_name_snapshot").notNull(),
     courseTitleSnapshot: text("course_title_snapshot").notNull(),

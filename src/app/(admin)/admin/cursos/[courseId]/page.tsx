@@ -3,6 +3,16 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -260,14 +270,7 @@ function ModuleForm({
           </Button>
         </FieldGroup>
       </form>
-      {moduleData ? (
-        <form action={deleteModuleAction}>
-          <input name="moduleId" type="hidden" value={moduleData.id} />
-          <Button size="sm" type="submit" variant="destructive">
-            Excluir modulo
-          </Button>
-        </form>
-      ) : null}
+      {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
     </div>
   );
 }
@@ -409,15 +412,96 @@ function LessonForm({
           </div>
         </FieldGroup>
       </form>
-      {lesson ? (
-        <form action={deleteLessonAction}>
-          <input name="lessonId" type="hidden" value={lesson.id} />
-          <Button size="sm" type="submit" variant="destructive">
-            Excluir aula
-          </Button>
-        </form>
-      ) : null}
+      {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
     </div>
+  );
+}
+
+function DeleteModuleDialog({
+  moduleData,
+}: {
+  moduleData: ModuleData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="destructive">
+          Excluir modulo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excluir modulo?</DialogTitle>
+          <DialogDescription>
+            Esta acao remove o modulo e, em cascata, todas as aulas e progressos
+            vinculados a elas.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-lg border bg-background/40 p-3">
+          <p className="font-semibold">{moduleData.title}</p>
+          <p className="text-muted-foreground text-sm">
+            Modulo {moduleData.sortOrder}
+          </p>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancelar
+            </Button>
+          </DialogClose>
+          <form action={deleteModuleAction}>
+            <input name="moduleId" type="hidden" value={moduleData.id} />
+            <Button type="submit" variant="destructive">
+              Confirmar exclusao
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLessonDialog({
+  lesson,
+}: {
+  lesson: LessonData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="destructive">
+          Excluir aula
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excluir aula?</DialogTitle>
+          <DialogDescription>
+            Esta acao remove a aula e, em cascata, os progressos vinculados a
+            ela.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-lg border bg-background/40 p-3">
+          <p className="font-semibold">{lesson.title}</p>
+          <p className="text-muted-foreground text-sm">
+            Aula {lesson.sortOrder}
+          </p>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancelar
+            </Button>
+          </DialogClose>
+          <form action={deleteLessonAction}>
+            <input name="lessonId" type="hidden" value={lesson.id} />
+            <Button type="submit" variant="destructive">
+              Confirmar exclusao
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
