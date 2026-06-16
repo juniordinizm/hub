@@ -20,8 +20,8 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuLink,
 } from "@/components/ui/sidebar";
 import { getStudentLessonData } from "@/features/courses/server";
 import {
@@ -373,11 +373,9 @@ function LessonSidebarItem({
 
   return (
     <SidebarMenuItem>
-      <Link href={href} legacyBehavior passHref>
-        <SidebarMenuButton asChild isActive={lesson.id === activeLessonId}>
-          <a href={href}>{content}</a>
-        </SidebarMenuButton>
-      </Link>
+      <SidebarMenuLink href={href} isActive={lesson.id === activeLessonId}>
+        {content}
+      </SidebarMenuLink>
     </SidebarMenuItem>
   );
 }

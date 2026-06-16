@@ -14,7 +14,6 @@ export interface StudentCourseCard {
   courseId: string;
   description: string | null;
   expiresAt: Date;
-  instructorName: string | null;
   modules: StudentCourseModule[];
   nextLessonId: string | null;
   progressPercent: number;
@@ -67,7 +66,6 @@ export interface StudentCourseOverviewData {
     description: string | null;
     expiresAt: Date;
     id: string;
-    instructorName: string | null;
     slug: string;
     subtitle: string | null;
     supportWhatsappUrl: string | null;
@@ -156,7 +154,6 @@ interface CourseOverviewRow {
   course_title: string;
   duration_minutes: number | null;
   expires_at: Date;
-  instructor_name: string | null;
   lesson_id: string | null;
   lesson_sort_order: number | null;
   lesson_title: string | null;
@@ -215,7 +212,6 @@ export const getStudentCourses = async (
     course_description: string | null;
     course_id: string;
     expires_at: Date;
-    instructor_name: string | null;
     lesson_id: string | null;
     module_color: string | null;
     module_id: string | null;
@@ -235,7 +231,6 @@ export const getStudentCourses = async (
         c.title,
         c.subtitle,
         c.description as course_description,
-        c.instructor_name,
         c.workload_hours,
         c.thumbnail_url,
         coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
@@ -271,7 +266,6 @@ export const getStudentCourses = async (
       title: row.title,
       subtitle: row.subtitle,
       description: row.course_description,
-      instructorName: row.instructor_name,
       workloadHours: row.workload_hours,
       thumbnailUrl: row.thumbnail_url,
       supportWhatsappUrl: row.support_whatsapp_url,
@@ -345,7 +339,6 @@ export const getStudentCourses = async (
       title: course.title,
       subtitle: course.subtitle,
       description: course.description,
-      instructorName: course.instructorName,
       workloadHours: course.workloadHours,
       thumbnailUrl: course.thumbnailUrl,
       supportWhatsappUrl: course.supportWhatsappUrl,
@@ -374,7 +367,6 @@ export const getStudentCourseOverviewData = async ({
         c.title as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        c.instructor_name,
         c.workload_hours,
         c.thumbnail_url,
         coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
@@ -474,7 +466,6 @@ export const getStudentCourseOverviewData = async ({
       title: firstRow.course_title,
       subtitle: firstRow.course_subtitle,
       description: firstRow.course_description,
-      instructorName: firstRow.instructor_name,
       workloadHours: firstRow.workload_hours,
       thumbnailUrl: firstRow.thumbnail_url,
       supportWhatsappUrl: firstRow.support_whatsapp_url,

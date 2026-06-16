@@ -183,10 +183,6 @@ export default async function StudentCourseOverviewPage({
           )}
           <div className="mt-5 space-y-3 border-t pt-5 text-sm">
             <InfoRow
-              label="Instrutora"
-              value={data.course.instructorName ?? "Equipe PROTEA-R"}
-            />
-            <InfoRow
               label="Concluídas"
               value={`${data.completedCount} de ${data.totalCount}`}
             />

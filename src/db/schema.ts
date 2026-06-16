@@ -134,7 +134,6 @@ export const courses = pgTable(
     title: text("title").notNull(),
     subtitle: text("subtitle"),
     description: text("description"),
-    instructorName: text("instructor_name"),
     workloadHours: integer("workload_hours").default(0).notNull(),
     thumbnailUrl: text("thumbnail_url"),
     supportWhatsappUrl: text("support_whatsapp_url"),

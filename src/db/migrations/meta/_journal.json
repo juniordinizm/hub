@@ -15,6 +15,13 @@
       "when": 1781589599109,
       "tag": "0001_cascade_course_deletes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781622811226,
+      "tag": "0002_drop_course_instructor",
+      "breakpoints": true
     }
   ]
 }

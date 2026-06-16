@@ -10,11 +10,10 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
 import {
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuLink,
 } from "@/components/ui/sidebar";
 import { route } from "@/lib/routes";
 
@@ -33,14 +32,10 @@ export function AdminSidebarNav(): React.JSX.Element {
     <SidebarMenu>
       {navItems.map(([label, href, icon]) => (
         <SidebarMenuItem key={href}>
-          <Link href={route(href)} legacyBehavior passHref>
-            <SidebarMenuButton asChild>
-              <a href={route(href)}>
-                <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
-                <span>{label}</span>
-              </a>
-            </SidebarMenuButton>
-          </Link>
+          <SidebarMenuLink href={route(href)}>
+            <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
+            <span>{label}</span>
+          </SidebarMenuLink>
         </SidebarMenuItem>
       ))}
     </SidebarMenu>

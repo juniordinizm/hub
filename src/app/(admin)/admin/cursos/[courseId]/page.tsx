@@ -745,14 +745,7 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             name="description"
           />
         </Field>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Field>
-            <FieldLabel>Instrutora</FieldLabel>
-            <Input
-              defaultValue={course.instructorName ?? ""}
-              name="instructorName"
-            />
-          </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel>Carga horária</FieldLabel>
             <Input

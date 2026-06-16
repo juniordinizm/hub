@@ -84,7 +84,6 @@ export interface AdminManagementData {
     accessDurationMonths: number;
     description: string | null;
     id: string;
-    instructorName: string | null;
     paymentProviderProductId: string | null;
     slug: string;
     status: string;
@@ -189,7 +188,6 @@ export const getAdminManagementData =
         access_duration_months: number;
         description: string | null;
         id: string;
-        instructor_name: string | null;
         payment_provider_product_id: string | null;
         slug: string;
         status: string;
@@ -199,7 +197,7 @@ export const getAdminManagementData =
         title: string;
         workload_hours: number;
       }>(
-        "select id, slug, title, subtitle, description, instructor_name, workload_hours, thumbnail_url, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+        "select id, slug, title, subtitle, description, workload_hours, thumbnail_url, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
         color: string;
@@ -364,7 +362,6 @@ export const getAdminManagementData =
         accessDurationMonths: row.access_duration_months,
         description: row.description,
         id: row.id,
-        instructorName: row.instructor_name,
         paymentProviderProductId: row.payment_provider_product_id,
         slug: row.slug,
         status: row.status,
