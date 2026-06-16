@@ -63,20 +63,27 @@ export default async function AdminLayout({
             </p>
           </div>
           <div className="border-sidebar-border border-b py-4">
-            <Avatar className="mb-3 size-11">
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <p className="truncate font-semibold text-sidebar-foreground text-sm">
-              {session.user.name}
-            </p>
-            <p className="truncate text-sidebar-foreground/55 text-xs">
-              {session.user.email}
-            </p>
-            <p className="mt-1 text-sidebar-foreground/45 text-xs uppercase">
-              {session.role === "admin" ? "Administrador" : "Suporte"}
-            </p>
+            <div className="flex items-center gap-3">
+              <Avatar className="size-9 shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate font-semibold text-sidebar-foreground text-sm"
+                  title={session.user.name}
+                >
+                  {session.user.name}
+                </p>
+                <p
+                  className="truncate text-sidebar-foreground/55 text-xs"
+                  title={session.user.email}
+                >
+                  {session.user.email}
+                </p>
+              </div>
+            </div>
           </div>
         </SidebarHeader>
         <SidebarContent className="px-3 py-3">

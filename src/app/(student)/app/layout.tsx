@@ -78,19 +78,29 @@ export default async function StudentLayout({
             <p className="text-sidebar-foreground/55 text-xs">Area da aluna</p>
           </div>
           <div className="border-sidebar-border border-b py-4">
-            <Avatar className="mb-3 size-11">
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <p className="truncate font-semibold text-sidebar-foreground text-sm">
-              {session.user.name}
-            </p>
-            <p className="text-sidebar-foreground/55 text-xs">
-              Psicologa participante
-            </p>
+            <div className="flex items-center gap-3">
+              <Avatar className="size-9 shrink-0">
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p
+                  className="truncate font-semibold text-sidebar-foreground text-sm"
+                  title={session.user.name}
+                >
+                  {session.user.name}
+                </p>
+                <p
+                  className="truncate text-sidebar-foreground/55 text-xs"
+                  title={session.user.email}
+                >
+                  {session.user.email}
+                </p>
+              </div>
+            </div>
             {currentCourse ? (
-              <div className="mt-3">
+              <div className="mt-4">
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span className="font-semibold text-[0.65rem] text-sidebar-foreground/45 uppercase tracking-[0.12em]">
                     Progresso
@@ -160,11 +170,6 @@ export default async function StudentLayout({
         </SidebarContent>
         <SidebarSeparator />
         <SidebarFooter className="gap-3 px-5 pb-5">
-          <div className="min-w-0 rounded-xl bg-sidebar-accent p-3">
-            <p className="truncate text-sidebar-foreground/70 text-xs">
-              {session.user.email}
-            </p>
-          </div>
           <SignOutButton className="w-full" variant="secondary" />
         </SidebarFooter>
       </Sidebar>
