@@ -95,31 +95,31 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           ).length;
 
           return (
-            <article className="rounded-lg border bg-card" key={course.id}>
+            <article
+              className="relative rounded-lg border bg-card transition-colors hover:bg-muted"
+              key={course.id}
+            >
               <div className="grid gap-4 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                 <div>
-                  <div className="mb-2 flex flex-wrap gap-2">
+                  <div className="relative z-10 mb-2 flex flex-wrap gap-2">
                     <Badge variant="secondary">{course.status}</Badge>
                     <Badge variant="outline">{modulesCount} modulos</Badge>
                     <Badge variant="outline">{lessonsCount} aulas</Badge>
                   </div>
-                  <h2 className="font-semibold text-xl">{course.title}</h2>
+                  <h2 className="font-semibold text-xl">
+                    <Link
+                      className="z-0 before:absolute before:inset-0"
+                      href={route(`/admin/cursos/${course.id}`)}
+                    >
+                      {course.title}
+                    </Link>
+                  </h2>
                   <p className="mt-1 text-muted-foreground text-sm">
                     {course.slug} - acesso de {course.accessDurationMonths}{" "}
                     meses
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline">
-                    <Link href={route(`/admin/cursos/${course.id}`)}>
-                      Gerenciar
-                      <HugeiconsIcon
-                        icon={ArrowRight01Icon}
-                        size={16}
-                        strokeWidth={2}
-                      />
-                    </Link>
-                  </Button>
+                <div className="relative z-10 flex flex-wrap gap-2">
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button size="icon" variant="secondary">
@@ -132,8 +132,22 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     </PopoverTrigger>
                     <PopoverContent
                       align="end"
-                      className="flex w-40 flex-col gap-2 p-2"
+                      className="flex w-40 flex-col gap-1 p-1"
                     >
+                      <Button
+                        asChild
+                        className="w-full justify-start gap-2"
+                        variant="ghost"
+                      >
+                        <Link href={route(`/admin/cursos/${course.id}`)}>
+                          <HugeiconsIcon
+                            icon={ArrowRight01Icon}
+                            size={16}
+                            strokeWidth={2}
+                          />
+                          Gerenciar
+                        </Link>
+                      </Button>
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button
@@ -275,8 +289,8 @@ function DeleteCourseDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button
-          className="w-full justify-start gap-2 lg:w-auto lg:justify-center"
-          variant="destructive"
+          className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          variant="ghost"
         >
           <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
           Excluir
