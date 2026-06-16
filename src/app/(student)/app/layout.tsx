@@ -124,46 +124,60 @@ export default async function StudentLayout({
             ) : null}
           </div>
         </SidebarHeader>
-        <SidebarContent className="px-3">
+        <SidebarContent>
           <SidebarGroup>
             <SidebarGroupLabel>Menu</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/app")}>
-                      <HugeiconsIcon
-                        icon={Home01Icon}
-                        size={18}
-                        strokeWidth={1.5}
-                      />
-                      <span>Inicio</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <Link href={route("/app")} legacyBehavior passHref>
+                    <SidebarMenuButton asChild>
+                      <a href={route("/app")}>
+                        <HugeiconsIcon
+                          icon={Home01Icon}
+                          size={18}
+                          strokeWidth={1.5}
+                        />
+                        <span>Inicio</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/app/certificados")}>
-                      <HugeiconsIcon
-                        icon={Certificate01Icon}
-                        size={18}
-                        strokeWidth={1.5}
-                      />
-                      <span>Certificados</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <Link
+                    href={route("/app/certificados")}
+                    legacyBehavior
+                    passHref
+                  >
+                    <SidebarMenuButton asChild>
+                      <a href={route("/app/certificados")}>
+                        <HugeiconsIcon
+                          icon={Certificate01Icon}
+                          size={18}
+                          strokeWidth={1.5}
+                        />
+                        <span>Certificados</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <Link href={route("/app/perguntas-frequentes")}>
-                      <HugeiconsIcon
-                        icon={HelpCircleIcon}
-                        size={18}
-                        strokeWidth={1.5}
-                      />
-                      <span>Perguntas frequentes</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <Link
+                    href={route("/app/perguntas-frequentes")}
+                    legacyBehavior
+                    passHref
+                  >
+                    <SidebarMenuButton asChild>
+                      <a href={route("/app/perguntas-frequentes")}>
+                        <HugeiconsIcon
+                          icon={HelpCircleIcon}
+                          size={18}
+                          strokeWidth={1.5}
+                        />
+                        <span>Perguntas frequentes</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
@@ -173,27 +187,30 @@ export default async function StudentLayout({
               <SidebarGroupLabel>Modulos</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {currentCourse.modules.map((moduleData) => (
-                    <SidebarMenuItem key={moduleData.id}>
-                      <SidebarMenuButton asChild>
-                        <Link
-                          href={route(
-                            getModuleHref({
-                              courseNextLessonId: currentCourse.nextLessonId,
-                              moduleNextLessonId: moduleData.nextLessonId,
-                            })
-                          )}
-                        >
-                          <HugeiconsIcon
-                            icon={BookOpen01Icon}
-                            size={18}
-                            strokeWidth={1.5}
-                          />
-                          <span>Modulo {moduleData.sortOrder}</span>
+                  {currentCourse.modules.map((moduleData) => {
+                    const moduleHref = route(
+                      getModuleHref({
+                        courseNextLessonId: currentCourse.nextLessonId,
+                        moduleNextLessonId: moduleData.nextLessonId,
+                      })
+                    );
+                    return (
+                      <SidebarMenuItem key={moduleData.id}>
+                        <Link href={moduleHref} legacyBehavior passHref>
+                          <SidebarMenuButton asChild>
+                            <a href={moduleHref}>
+                              <HugeiconsIcon
+                                icon={BookOpen01Icon}
+                                size={18}
+                                strokeWidth={1.5}
+                              />
+                              <span>Modulo {moduleData.sortOrder}</span>
+                            </a>
+                          </SidebarMenuButton>
                         </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

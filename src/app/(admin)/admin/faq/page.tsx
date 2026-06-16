@@ -1,3 +1,5 @@
+import { Delete02Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,7 +74,14 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
                   />
                   Publicado
                 </label>
-                <Button type="submit">Salvar FAQ</Button>
+                <Button type="submit">
+                  <HugeiconsIcon
+                    icon={FloppyDiskIcon}
+                    size={18}
+                    strokeWidth={2}
+                  />
+                  Salvar FAQ
+                </Button>
               </FieldGroup>
             </form>
           </CardContent>
@@ -141,6 +150,11 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
                         Publicado
                       </label>
                       <Button className="w-fit" type="submit">
+                        <HugeiconsIcon
+                          icon={FloppyDiskIcon}
+                          size={18}
+                          strokeWidth={2}
+                        />
                         Salvar pergunta
                       </Button>
                     </FieldGroup>
@@ -148,7 +162,12 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
                   <form action={deleteFaqAction}>
                     <input name="faqId" type="hidden" value={faq.id} />
                     <Button size="sm" type="submit" variant="destructive">
-                      Excluir pergunta
+                      <HugeiconsIcon
+                        icon={Delete02Icon}
+                        size={18}
+                        strokeWidth={2}
+                      />
+                      Excluir
                     </Button>
                   </form>
                 </div>

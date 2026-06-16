@@ -1,3 +1,5 @@
+import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,7 +72,14 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     name="abacatepayWebhookSecretLast4"
                   />
                 </Field>
-                <Button type="submit">Salvar configuracoes</Button>
+                <Button type="submit">
+                  <HugeiconsIcon
+                    icon={FloppyDiskIcon}
+                    size={18}
+                    strokeWidth={2}
+                  />
+                  Salvar configuracoes
+                </Button>
               </FieldGroup>
             </form>
           </CardContent>

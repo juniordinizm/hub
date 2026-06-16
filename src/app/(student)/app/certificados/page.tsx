@@ -1,3 +1,5 @@
+import { Download01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,7 +47,15 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
                 </CardDescription>
                 <CardAction className="flex gap-2">
                   <Button asChild>
-                    <Link href={route(`/certificados/${certificate.code}/pdf`)}>
+                    <Link
+                      className="gap-2"
+                      href={route(`/certificados/${certificate.code}/pdf`)}
+                    >
+                      <HugeiconsIcon
+                        icon={Download01Icon}
+                        size={16}
+                        strokeWidth={2}
+                      />
                       Baixar PDF
                     </Link>
                   </Button>

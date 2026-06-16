@@ -1,6 +1,10 @@
 import {
   Add01Icon,
   ArrowRight01Icon,
+  Cancel01Icon,
+  Delete02Icon,
+  Edit01Icon,
+  FloppyDiskIcon,
   Menu01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -133,9 +137,14 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button
-                            className="w-full justify-start"
+                            className="w-full justify-start gap-2"
                             variant="ghost"
                           >
+                            <HugeiconsIcon
+                              icon={Edit01Icon}
+                              size={16}
+                              strokeWidth={2}
+                            />
                             Editar
                           </Button>
                         </DialogTrigger>
@@ -245,6 +254,11 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           </Field>
         </div>
         <Button className="w-fit" type="submit">
+          <HugeiconsIcon
+            icon={course ? FloppyDiskIcon : Add01Icon}
+            size={18}
+            strokeWidth={2}
+          />
           {course ? "Salvar curso" : "Criar curso"}
         </Button>
       </FieldGroup>
@@ -260,7 +274,13 @@ function DeleteCourseDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="destructive">Excluir</Button>
+        <Button
+          className="w-full justify-start gap-2 lg:w-auto lg:justify-center"
+          variant="destructive"
+        >
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+          Excluir
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -277,12 +297,14 @@ function DeleteCourseDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
               Cancelar
             </Button>
           </DialogClose>
           <form action={deleteCourseAction}>
             <input name="courseId" type="hidden" value={course.id} />
             <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusao
             </Button>
           </form>

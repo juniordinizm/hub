@@ -1,3 +1,5 @@
+import { WhatsappIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -61,7 +63,17 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
             </CardHeader>
             <CardContent>
               <Button asChild>
-                <a href={supportWhatsappUrl} rel="noopener" target="_blank">
+                <a
+                  className="gap-2"
+                  href={supportWhatsappUrl}
+                  rel="noopener"
+                  target="_blank"
+                >
+                  <HugeiconsIcon
+                    icon={WhatsappIcon}
+                    size={18}
+                    strokeWidth={2}
+                  />
                   Falar com suporte
                 </a>
               </Button>

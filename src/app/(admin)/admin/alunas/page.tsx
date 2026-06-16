@@ -1,3 +1,5 @@
+import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { DatePickerField } from "@/components/date-picker-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,7 +96,10 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
                     type="number"
                   />
                 </Field>
-                <Button type="submit">Criar matricula e enviar convite</Button>
+                <Button type="submit">
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Criar matricula e enviar convite
+                </Button>
               </FieldGroup>
             </form>
           </CardContent>
@@ -139,7 +144,14 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
                   defaultValue={dateInputValue(enrollment.expiresAt)}
                   name="expiresAt"
                 />
-                <Button type="submit">Atualizar</Button>
+                <Button type="submit">
+                  <HugeiconsIcon
+                    icon={FloppyDiskIcon}
+                    size={18}
+                    strokeWidth={2}
+                  />
+                  Atualizar
+                </Button>
               </form>
             ))}
           </CardContent>

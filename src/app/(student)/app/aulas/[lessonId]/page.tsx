@@ -1,3 +1,5 @@
+import { ArrowRight01Icon, TaskEdit01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
@@ -79,7 +81,13 @@ export default async function LessonPage({
           </p>
           <form action={completeLessonAction}>
             <input name="lessonId" type="hidden" value={data.lesson.id} />
-            <Button size="sm" type="submit" variant="secondary">
+            <Button
+              className="gap-2"
+              size="sm"
+              type="submit"
+              variant="secondary"
+            >
+              <HugeiconsIcon icon={TaskEdit01Icon} size={16} strokeWidth={2} />
               Concluir
             </Button>
           </form>
@@ -118,14 +126,27 @@ export default async function LessonPage({
           <div className="mt-7 flex flex-wrap gap-3">
             {data.nextLessonId ? (
               <Button asChild>
-                <Link href={route(`/app/aulas/${data.nextLessonId}`)}>
+                <Link
+                  className="gap-2"
+                  href={route(`/app/aulas/${data.nextLessonId}`)}
+                >
                   Proxima aula
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    size={16}
+                    strokeWidth={2}
+                  />
                 </Link>
               </Button>
             ) : null}
             <form action={completeLessonAction}>
               <input name="lessonId" type="hidden" value={data.lesson.id} />
-              <Button type="submit" variant="outline">
+              <Button className="gap-2" type="submit" variant="outline">
+                <HugeiconsIcon
+                  icon={TaskEdit01Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
                 Concluir aula
               </Button>
             </form>

@@ -1,4 +1,11 @@
-import { Add01Icon, ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  ArrowLeft01Icon,
+  Cancel01Icon,
+  Delete02Icon,
+  Edit01Icon,
+  FloppyDiskIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -174,6 +181,11 @@ export default async function AdminCourseDetailPage({
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button size="sm" variant="secondary">
+                          <HugeiconsIcon
+                            icon={Edit01Icon}
+                            size={16}
+                            strokeWidth={2}
+                          />
                           Editar
                         </Button>
                       </DialogTrigger>
@@ -221,6 +233,11 @@ export default async function AdminCourseDetailPage({
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button size="sm" variant="ghost">
+                              <HugeiconsIcon
+                                icon={Edit01Icon}
+                                size={16}
+                                strokeWidth={2}
+                              />
                               Editar
                             </Button>
                           </DialogTrigger>
@@ -303,6 +320,11 @@ function ModuleForm({
             />
           </Field>
           <Button className="w-fit" type="submit">
+            <HugeiconsIcon
+              icon={moduleData ? FloppyDiskIcon : Add01Icon}
+              size={18}
+              strokeWidth={2}
+            />
             {moduleData ? "Salvar modulo" : "Criar modulo"}
           </Button>
         </FieldGroup>
@@ -444,6 +466,11 @@ function LessonForm({
               Publicada
             </label>
             <Button type="submit">
+              <HugeiconsIcon
+                icon={lesson ? FloppyDiskIcon : Add01Icon}
+                size={18}
+                strokeWidth={2}
+              />
               {lesson ? "Salvar aula" : "Criar aula"}
             </Button>
           </div>
@@ -463,6 +490,7 @@ function DeleteModuleDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button size="sm" type="button" variant="destructive">
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
           Excluir modulo
         </Button>
       </DialogTrigger>
@@ -483,12 +511,14 @@ function DeleteModuleDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
               Cancelar
             </Button>
           </DialogClose>
           <form action={deleteModuleAction}>
             <input name="moduleId" type="hidden" value={moduleData.id} />
             <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusao
             </Button>
           </form>
@@ -507,6 +537,7 @@ function DeleteLessonDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button size="sm" type="button" variant="destructive">
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
           Excluir aula
         </Button>
       </DialogTrigger>
@@ -527,12 +558,14 @@ function DeleteLessonDialog({
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
               Cancelar
             </Button>
           </DialogClose>
           <form action={deleteLessonAction}>
             <input name="lessonId" type="hidden" value={lesson.id} />
             <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusao
             </Button>
           </form>
