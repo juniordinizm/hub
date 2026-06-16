@@ -104,18 +104,16 @@ export default async function AdminLayout({
                 <SidebarMenu>
                   {navItems.map(([label, href, icon]) => (
                     <SidebarMenuItem key={href}>
-                      <Link href={route(href)} legacyBehavior passHref>
-                        <SidebarMenuButton asChild>
-                          <a href={route(href)}>
-                            <HugeiconsIcon
-                              icon={icon}
-                              size={18}
-                              strokeWidth={1.5}
-                            />
-                            <span>{label}</span>
-                          </a>
-                        </SidebarMenuButton>
-                      </Link>
+                      <SidebarMenuButton asChild>
+                        <Link href={route(href)}>
+                          <HugeiconsIcon
+                            icon={icon}
+                            size={18}
+                            strokeWidth={1.5}
+                          />
+                          <span>{label}</span>
+                        </Link>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
