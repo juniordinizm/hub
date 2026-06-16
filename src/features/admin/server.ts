@@ -123,6 +123,7 @@ export interface AdminManagementData {
     color: string;
     courseId: string;
     courseTitle: string;
+    description: string | null;
     id: string;
     sortOrder: number;
     title: string;
@@ -178,12 +179,13 @@ export const getAdminManagementData =
         color: string;
         course_id: string;
         course_title: string;
+        description: string | null;
         id: string;
         sort_order: number;
         title: string;
       }>(
         `
-          select m.id, m.course_id, c.title as course_title, m.title, m.sort_order, m.color
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.color
           from modules m
           join courses c on c.id = m.course_id
           order by c.title, m.sort_order
@@ -358,6 +360,7 @@ export const getAdminManagementData =
         color: row.color,
         courseId: row.course_id,
         courseTitle: row.course_title,
+        description: row.description,
         id: row.id,
         sortOrder: row.sort_order,
         title: row.title,

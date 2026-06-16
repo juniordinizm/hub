@@ -1,3 +1,4 @@
+import { DatePickerField } from "@/components/date-picker-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +10,13 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   inviteStudentAction,
   updateEnrollmentAction,
@@ -57,13 +64,21 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
                 </Field>
                 <Field>
                   <FieldLabel>Curso</FieldLabel>
-                  <NativeSelect className="w-full" name="courseId" required>
-                    {data.courses.map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.title}
-                      </option>
-                    ))}
-                  </NativeSelect>
+                  <Select
+                    defaultValue={data.courses[0]?.id ?? ""}
+                    name="courseId"
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {data.courses.map((course) => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <input
                   name="courseTitle"
@@ -110,19 +125,19 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
                     {enrollment.email} - {enrollment.courseTitle}
                   </p>
                 </div>
-                <NativeSelect
-                  className="w-full"
-                  defaultValue={enrollment.status}
-                  name="status"
-                >
-                  <option value="active">Ativa</option>
-                  <option value="expired">Expirada</option>
-                  <option value="revoked">Revogada</option>
-                </NativeSelect>
-                <Input
+                <Select defaultValue={enrollment.status} name="status">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativa</SelectItem>
+                    <SelectItem value="expired">Expirada</SelectItem>
+                    <SelectItem value="revoked">Revogada</SelectItem>
+                  </SelectContent>
+                </Select>
+                <DatePickerField
                   defaultValue={dateInputValue(enrollment.expiresAt)}
                   name="expiresAt"
-                  type="date"
                 />
                 <Button type="submit">Atualizar</Button>
               </form>

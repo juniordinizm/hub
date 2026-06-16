@@ -128,28 +128,109 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
 
 export const saveModuleAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
+  const moduleId = readString(formData, "moduleId");
   const courseId = readString(formData, "courseId");
   const title = readString(formData, "title");
+  const description = readString(formData, "description") || null;
   const sortOrder = readNumber(formData, "sortOrder", 1);
   const color = readString(formData, "color") || "#326c71";
 
+  if (moduleId) {
+    await getPool().query(
+      `
+        update modules
+        set course_id = $1,
+            title = $2,
+            description = $3,
+            sort_order = $4,
+            color = $5,
+            updated_at = now()
+        where id = $6
+      `,
+      [courseId, title, description, sortOrder, color, moduleId]
+    );
+    await audit({
+      action: "module.updated",
+      actorUserId: session.user.id,
+      targetId: moduleId,
+      targetType: "module",
+    });
+    revalidateAdmin();
+    return;
+  }
+
   const inserted = await getPool().query<{ id: string }>(
     `
-      insert into modules (course_id, title, sort_order, color)
-      values ($1, $2, $3, $4)
+      insert into modules (course_id, title, description, sort_order, color)
+      values ($1, $2, $3, $4, $5)
       on conflict (course_id, sort_order) do update set
         title = excluded.title,
+        description = excluded.description,
         color = excluded.color,
         updated_at = now()
       returning id
     `,
-    [courseId, title, sortOrder, color]
+    [courseId, title, description, sortOrder, color]
   );
   await audit({
     action: "module.upserted",
     actorUserId: session.user.id,
     targetId: inserted.rows[0]?.id,
     targetType: "module",
+  });
+  revalidateAdmin();
+};
+
+export const deleteCourseAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const courseId = readString(formData, "courseId");
+
+  if (!courseId) {
+    throw new Error("Curso invalido.");
+  }
+
+  await getPool().query("delete from courses where id = $1", [courseId]);
+  await audit({
+    action: "course.deleted",
+    actorUserId: session.user.id,
+    targetId: courseId,
+    targetType: "course",
+  });
+  revalidateAdmin();
+};
+
+export const deleteModuleAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const moduleId = readString(formData, "moduleId");
+
+  if (!moduleId) {
+    throw new Error("Modulo invalido.");
+  }
+
+  await getPool().query("delete from modules where id = $1", [moduleId]);
+  await audit({
+    action: "module.deleted",
+    actorUserId: session.user.id,
+    targetId: moduleId,
+    targetType: "module",
+  });
+  revalidateAdmin();
+};
+
+export const deleteLessonAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const lessonId = readString(formData, "lessonId");
+
+  if (!lessonId) {
+    throw new Error("Aula invalida.");
+  }
+
+  await getPool().query("delete from lessons where id = $1", [lessonId]);
+  await audit({
+    action: "lesson.deleted",
+    actorUserId: session.user.id,
+    targetId: lessonId,
+    targetType: "lesson",
   });
   revalidateAdmin();
 };
@@ -370,6 +451,24 @@ export const saveFaqAction = async (formData: FormData): Promise<void> => {
     action: "faq.saved",
     actorUserId: session.user.id,
     targetId: faqId || undefined,
+    targetType: "faq",
+  });
+  revalidateAdmin();
+};
+
+export const deleteFaqAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const faqId = readString(formData, "faqId");
+
+  if (!faqId) {
+    throw new Error("FAQ invalido.");
+  }
+
+  await getPool().query("delete from faq_items where id = $1", [faqId]);
+  await audit({
+    action: "faq.deleted",
+    actorUserId: session.user.id,
+    targetId: faqId,
     targetType: "faq",
   });
   revalidateAdmin();

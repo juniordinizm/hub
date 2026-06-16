@@ -1,7 +1,10 @@
 "use client";
 
+import { createAuthClient } from "better-auth/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+
+const authClient = createAuthClient();
 
 export function SignOutButton({
   className,
@@ -14,7 +17,7 @@ export function SignOutButton({
 
   const handleSignOut = async () => {
     setIsPending(true);
-    await fetch("/api/auth/sign-out", { method: "POST" });
+    await authClient.signOut();
     window.location.assign("/entrar");
   };
 

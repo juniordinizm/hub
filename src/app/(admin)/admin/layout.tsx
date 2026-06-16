@@ -13,7 +13,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { route } from "@/lib/routes";
 import { requireRole } from "@/lib/session";
@@ -34,7 +33,7 @@ export default async function AdminLayout({
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="offcanvas">
+      <Sidebar collapsible="none">
         <SidebarHeader>
           <div className="px-3 py-2">
             <p className="font-black text-lg">PROTEA-R Admin</p>
@@ -63,8 +62,7 @@ export default async function AdminLayout({
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center border-b bg-background/90 px-4 backdrop-blur">
-          <SidebarTrigger />
-          <span className="ml-3 font-semibold text-sm">PROTEA-R Admin</span>
+          <span className="font-semibold text-sm">PROTEA-R Admin</span>
         </header>
         <main className="mx-auto w-full max-w-6xl px-5 py-8">{children}</main>
       </SidebarInset>
