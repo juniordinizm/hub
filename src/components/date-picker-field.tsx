@@ -5,13 +5,14 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMemo, useState } from "react";
-import { DayPicker } from "react-day-picker";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -35,7 +36,10 @@ export function DatePickerField({
       <input name={name} type="hidden" value={value} />
       <PopoverTrigger asChild>
         <Button
-          className="w-full justify-start"
+          className={cn(
+            "w-full justify-start text-left font-normal",
+            !selected && "text-muted-foreground"
+          )}
           type="button"
           variant="outline"
         >
@@ -43,9 +47,9 @@ export function DatePickerField({
           {selected ? format(selected, "dd/MM/yyyy") : "Selecionar data"}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto">
-        <DayPicker
-          captionLayout="dropdown"
+      <PopoverContent align="start" className="w-auto p-0">
+        <Calendar
+          initialFocus
           locale={ptBR}
           mode="single"
           onSelect={(date) => {
