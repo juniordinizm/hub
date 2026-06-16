@@ -32,7 +32,7 @@ type CourseData = Awaited<
   ReturnType<typeof getAdminManagementData>
 >["courses"][number];
 
-const STATUS_MAP: Record<string, { label: string; color: string }> = {
+const STATUS_MAP: Record<string, { color: string; label: string }> = {
   active: {
     label: "Ativo",
     color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
@@ -48,33 +48,29 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 const WHITESPACE_RE = /\s+/;
+const THUMB_GRADIENTS = [
+  "from-primary to-sidebar",
+  "from-accent to-primary",
+  "from-emerald-700 to-primary",
+  "from-sky-700 to-primary",
+  "from-rose-700 to-accent",
+] as const;
 
-function getInitials(title: string): string {
-  return title
+const getInitials = (title: string): string =>
+  title
     .split(WHITESPACE_RE)
     .filter(Boolean)
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
-}
 
-const THUMB_GRADIENTS = [
-  "from-violet-600 to-indigo-700",
-  "from-rose-600 to-pink-700",
-  "from-sky-600 to-cyan-700",
-  "from-amber-600 to-orange-700",
-  "from-emerald-600 to-teal-700",
-  "from-fuchsia-600 to-purple-700",
-];
-
-function getGradient(id: string): string {
+const getGradient = (id: string): string => {
   let sum = 0;
   for (const char of id) {
     sum += char.charCodeAt(0);
   }
-  const index = sum % THUMB_GRADIENTS.length;
-  return THUMB_GRADIENTS[index] ?? "from-violet-600 to-indigo-700";
-}
+  return THUMB_GRADIENTS[sum % THUMB_GRADIENTS.length] ?? THUMB_GRADIENTS[0];
+};
 
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
@@ -82,13 +78,13 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   return (
     <div className="space-y-8">
       <header className="border-b pb-6">
-        <Badge variant="outline">Catalogo</Badge>
+        <Badge variant="outline">Catálogo</Badge>
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>
             <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-              Gerencie cursos em uma visao limpa. Entre em um curso para
-              organizar modulos e aulas.
+              Gerencie cursos em uma visão limpa. Entre em um curso para
+              organizar módulos, aulas, alunos e publicação.
             </p>
           </div>
           <Dialog>
@@ -102,7 +98,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
               <DialogHeader>
                 <DialogTitle>Novo curso</DialogTitle>
                 <DialogDescription>
-                  Crie o curso antes de cadastrar seus modulos e aulas.
+                  Crie o curso antes de cadastrar seus módulos e aulas.
                 </DialogDescription>
               </DialogHeader>
               <CourseForm />
@@ -113,17 +109,14 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {data.courses.map((course) => {
-          const modulesCount = data.modules.filter(
+          const courseModules = data.modules.filter(
             (moduleData) => moduleData.courseId === course.id
-          ).length;
+          );
           const lessonsCount = data.lessons.filter((lesson) =>
-            data.modules.some(
-              (moduleData) =>
-                moduleData.courseId === course.id &&
-                moduleData.id === lesson.moduleId
+            courseModules.some(
+              (moduleData) => moduleData.id === lesson.moduleId
             )
           ).length;
-
           const statusInfo = STATUS_MAP[course.status] ?? {
             label: course.status,
             color: "bg-zinc-500/15 text-zinc-600",
@@ -131,11 +124,10 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
           return (
             <Link
-              className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
+              className="group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
               href={route(`/admin/cursos/${course.id}`)}
               key={course.id}
             >
-              {/* Thumbnail */}
               <div
                 className={`relative flex aspect-[16/9] items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
               >
@@ -145,7 +137,6 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/5" />
               </div>
 
-              {/* Conteudo */}
               <div className="flex flex-1 flex-col gap-3 p-4">
                 <div className="flex items-start justify-between gap-2">
                   <h2 className="line-clamp-2 font-semibold text-base leading-snug">
@@ -165,7 +156,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 ) : null}
 
                 <div className="mt-auto flex items-center gap-3 border-t pt-3 text-muted-foreground text-xs">
-                  <span>{modulesCount} modulos</span>
+                  <span>{courseModules.length} módulos</span>
                   <span className="text-foreground/20">·</span>
                   <span>{lessonsCount} aulas</span>
                   <span className="text-foreground/20">·</span>
@@ -186,15 +177,15 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
       <FieldGroup>
         <input name="courseId" type="hidden" value={course?.id ?? ""} />
         <Field>
-          <FieldLabel>Titulo</FieldLabel>
+          <FieldLabel>Título</FieldLabel>
           <Input defaultValue={course?.title ?? ""} name="title" required />
         </Field>
         <Field>
-          <FieldLabel>Subtitulo</FieldLabel>
+          <FieldLabel>Subtítulo</FieldLabel>
           <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
         </Field>
         <Field>
-          <FieldLabel>Descricao</FieldLabel>
+          <FieldLabel>Descrição</FieldLabel>
           <Textarea
             defaultValue={course?.description ?? ""}
             name="description"
@@ -209,7 +200,7 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
             />
           </Field>
           <Field>
-            <FieldLabel>Carga horaria</FieldLabel>
+            <FieldLabel>Carga horária</FieldLabel>
             <Input
               defaultValue={course?.workloadHours ?? 0}
               min={0}
@@ -227,6 +218,14 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
             />
           </Field>
         </div>
+        <Field>
+          <FieldLabel>Capa do curso</FieldLabel>
+          <Input
+            defaultValue={course?.thumbnailUrl ?? ""}
+            name="thumbnailUrl"
+            placeholder="/protear/dash-banner.png"
+          />
+        </Field>
         <div className="grid gap-4 lg:grid-cols-3">
           <Field>
             <FieldLabel>WhatsApp do curso</FieldLabel>

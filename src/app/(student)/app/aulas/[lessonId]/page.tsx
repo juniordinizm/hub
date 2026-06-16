@@ -1,4 +1,8 @@
-import { ArrowRight01Icon, TaskEdit01Icon } from "@hugeicons/core-free-icons";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  TaskEdit01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -61,37 +65,46 @@ export default async function LessonPage({
         }))
         .filter((module) => module.lessons.length > 0)
     : data.modules;
+  const lessons = data.modules.flatMap((module) =>
+    module.lessons.map((lesson) => ({
+      ...lesson,
+      moduleTitle: module.title,
+    }))
+  );
+  const previousLesson = lessons.find(
+    (lesson) => lesson.id === data.previousLessonId
+  );
+  const nextLesson = lessons.find((lesson) => lesson.id === data.nextLessonId);
   const videoEmbedUrl = resolveLessonVideoEmbedUrl({
     embedUrl: data.lesson.videoEmbedUrl,
     provider: toVideoProvider(data.lesson.videoProvider),
   });
 
   return (
-    <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid min-h-screen bg-background text-foreground lg:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex h-13 items-center justify-between gap-4 border-b bg-sidebar px-5 sm:px-8">
-          <Link
-            className="text-muted-foreground text-sm hover:text-foreground"
-            href={route("/app")}
-          >
-            Voltar ao inicio
-          </Link>
+        <div className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-4 border-b bg-sidebar px-5 py-2 sm:px-8">
+          <Button asChild size="sm" variant="ghost">
+            <Link href={route(`/app/cursos/${data.course.id}`)}>
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
+              Curso
+            </Link>
+          </Button>
           <p className="hidden truncate font-semibold text-sm sm:block">
             {data.course.title}
           </p>
-          <form action={completeLessonAction}>
-            <input name="lessonId" type="hidden" value={data.lesson.id} />
-            <Button
-              className="gap-2"
-              size="sm"
-              type="submit"
-              variant="secondary"
+          {data.lesson.isCompleted ? (
+            <Badge
+              className="border-emerald-400/35 bg-emerald-400/15 text-emerald-200"
+              variant="outline"
             >
-              <HugeiconsIcon icon={TaskEdit01Icon} size={16} strokeWidth={2} />
-              Concluir
-            </Button>
-          </form>
+              Aula concluída
+            </Badge>
+          ) : (
+            <CompleteLessonButton lessonId={data.lesson.id} size="sm" />
+          )}
         </div>
+
         <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
           {videoEmbedUrl ? (
             <iframe
@@ -103,17 +116,18 @@ export default async function LessonPage({
               title={data.lesson.title}
             />
           ) : (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              Video em configuracao
+            <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+              Vídeo em configuração
             </div>
           )}
         </AspectRatio>
+
         <div className="px-5 py-7 sm:px-9">
           <Badge
             className="border-primary/30 bg-primary/15 text-primary"
             variant="outline"
           >
-            {data.course.title} - {data.lesson.durationMinutes} min
+            {data.lesson.durationMinutes} min · {data.progressPercent}% do curso
           </Badge>
           <h1 className="mt-3 max-w-3xl font-bold text-2xl text-white tracking-tight">
             {data.lesson.title}
@@ -123,97 +137,116 @@ export default async function LessonPage({
               {data.lesson.description}
             </p>
           ) : null}
-          <div className="mt-7 flex flex-wrap gap-3">
+
+          <div className="mt-7 grid gap-3 md:grid-cols-2">
+            <NavigationCard lesson={previousLesson} type="previous" />
+            <NavigationCard lesson={nextLesson} type="next" />
+          </div>
+
+          <div className="mt-7 rounded-lg border bg-card p-5">
             {data.nextLessonId ? (
-              <Button asChild>
-                <Link
-                  className="gap-2"
-                  href={route(`/app/aulas/${data.nextLessonId}`)}
-                >
-                  Proxima aula
-                  <HugeiconsIcon
-                    icon={ArrowRight01Icon}
-                    size={16}
-                    strokeWidth={2}
-                  />
-                </Link>
-              </Button>
-            ) : null}
-            <form action={completeLessonAction}>
-              <input name="lessonId" type="hidden" value={data.lesson.id} />
-              <Button className="gap-2" type="submit" variant="outline">
-                <HugeiconsIcon
-                  icon={TaskEdit01Icon}
-                  size={16}
-                  strokeWidth={2}
-                />
-                Concluir aula
-              </Button>
-            </form>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-semibold">Próximo passo</h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Conclua esta aula para liberar a próxima etapa da trilha.
+                  </p>
+                </div>
+                {data.lesson.isCompleted ? (
+                  <Button asChild>
+                    <Link href={route(`/app/aulas/${data.nextLessonId}`)}>
+                      Ir para próxima aula
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        size={16}
+                        strokeWidth={2}
+                      />
+                    </Link>
+                  </Button>
+                ) : (
+                  <CompleteLessonButton lessonId={data.lesson.id} />
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-semibold">
+                    {data.lesson.isCompleted
+                      ? "Curso finalizado"
+                      : "Última aula da trilha"}
+                  </h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    {data.lesson.isCompleted
+                      ? "Seu progresso está completo. Confira a página do curso e o certificado."
+                      : "Conclua esta aula para fechar o curso e emitir o certificado."}
+                  </p>
+                </div>
+                {data.lesson.isCompleted ? (
+                  <Button asChild>
+                    <Link href={route(`/app/cursos/${data.course.id}`)}>
+                      Ver conclusão
+                    </Link>
+                  </Button>
+                ) : (
+                  <CompleteLessonButton lessonId={data.lesson.id} />
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
+
       <Sidebar
-        className="w-full border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:w-[320px]"
+        className="w-full border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:w-[340px]"
         collapsible="none"
         side="right"
       >
         <SidebarHeader className="border-sidebar-border border-b px-5 py-5">
-          <p className="font-semibold text-sm">Conteudo do curso</p>
-          <p className="mt-1 text-sidebar-foreground/55 text-xs">
-            {data.progressPercent}% concluido
-          </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold text-sm">Conteúdo do curso</p>
+              <p className="mt-1 text-sidebar-foreground/55 text-xs">
+                {data.progressPercent}% concluído
+              </p>
+            </div>
+            <Badge variant="outline">{lessons.length} aulas</Badge>
+          </div>
           <Progress
             className="mt-3 h-1 bg-primary/20"
             value={data.progressPercent}
           />
           <form className="mt-4" method="get">
             <Input
+              aria-label="Buscar aula no curso"
               className="bg-primary/10"
               defaultValue={busca ?? ""}
               name="busca"
-              placeholder="Buscar conteudo"
+              placeholder="Buscar conteúdo..."
             />
           </form>
         </SidebarHeader>
         <SidebarContent className="px-2 py-2">
           {visibleModules.map((module) => (
             <SidebarGroup key={module.id}>
-              <SidebarGroupLabel>Modulo {module.sortOrder}</SidebarGroupLabel>
+              <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {module.lessons.map((lesson) => (
-                    <SidebarMenuItem key={lesson.id}>
-                      <SidebarMenuButton
-                        asChild
-                        className={
-                          lesson.isAvailable
-                            ? undefined
-                            : "pointer-events-none opacity-50"
-                        }
-                        isActive={lesson.id === data.lesson.id}
-                      >
-                        <Link
-                          aria-disabled={!lesson.isAvailable}
-                          href={route(
-                            lesson.isAvailable ? `/app/aulas/${lesson.id}` : "#"
-                          )}
-                        >
-                          <span>
-                            {lesson.isCompleted ? "Concluida - " : ""}
-                            {lesson.title}
-                          </span>
-                          <span className="ml-auto text-sidebar-foreground/40 text-xs">
-                            {lesson.durationMinutes}m
-                          </span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <LessonSidebarItem
+                      activeLessonId={data.lesson.id}
+                      key={lesson.id}
+                      lesson={lesson}
+                    />
                   ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
           ))}
+          {visibleModules.length === 0 ? (
+            <p className="px-4 py-5 text-sidebar-foreground/55 text-sm">
+              Nenhuma aula encontrada para essa busca.
+            </p>
+          ) : null}
         </SidebarContent>
         {data.course.supportWhatsappUrl ? (
           <Button asChild className="m-4 mt-2" variant="outline">
@@ -229,4 +262,136 @@ export default async function LessonPage({
       </Sidebar>
     </div>
   );
+}
+
+function CompleteLessonButton({
+  lessonId,
+  size,
+}: {
+  lessonId: string;
+  size?: "default" | "sm";
+}): React.JSX.Element {
+  return (
+    <form action={completeLessonAction}>
+      <input name="lessonId" type="hidden" value={lessonId} />
+      <Button className="gap-2" size={size} type="submit" variant="secondary">
+        <HugeiconsIcon icon={TaskEdit01Icon} size={16} strokeWidth={2} />
+        Concluir aula
+      </Button>
+    </form>
+  );
+}
+
+function NavigationCard({
+  lesson,
+  type,
+}: {
+  lesson:
+    | {
+        id: string;
+        moduleTitle: string;
+        title: string;
+      }
+    | undefined;
+  type: "next" | "previous";
+}): React.JSX.Element {
+  const label = type === "previous" ? "Aula anterior" : "Próxima aula";
+
+  if (!lesson) {
+    return (
+      <div className="rounded-lg border bg-card/55 p-4 text-muted-foreground">
+        <p className="text-xs">{label}</p>
+        <p className="mt-1 font-medium text-sm">
+          {type === "previous" ? "Você está no início" : "Fim da trilha"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <Button asChild className="h-auto justify-start p-4" variant="outline">
+      <Link href={route(`/app/aulas/${lesson.id}`)}>
+        <span className="min-w-0 text-left">
+          <span className="block text-muted-foreground text-xs">{label}</span>
+          <span className="mt-1 block truncate font-semibold">
+            {lesson.title}
+          </span>
+          <span className="mt-1 block truncate text-muted-foreground text-xs">
+            {lesson.moduleTitle}
+          </span>
+        </span>
+      </Link>
+    </Button>
+  );
+}
+
+function LessonSidebarItem({
+  activeLessonId,
+  lesson,
+}: {
+  activeLessonId: string;
+  lesson: {
+    durationMinutes: number;
+    id: string;
+    isAvailable: boolean;
+    isCompleted: boolean;
+    title: string;
+  };
+}): React.JSX.Element {
+  const marker = getLessonMarker(lesson);
+  const content = (
+    <>
+      <span className="w-4 text-sidebar-foreground/50 text-xs">{marker}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">
+          {lesson.isCompleted ? "Concluída · " : ""}
+          {lesson.title}
+        </span>
+        {lesson.isAvailable ? null : (
+          <span className="block text-sidebar-foreground/40 text-xs">
+            Libere concluindo a aula anterior
+          </span>
+        )}
+      </span>
+      <span className="ml-auto text-sidebar-foreground/40 text-xs">
+        {lesson.durationMinutes}m
+      </span>
+    </>
+  );
+
+  if (!lesson.isAvailable) {
+    return (
+      <SidebarMenuItem>
+        <div className="flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/45 text-sm">
+          {content}
+        </div>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild isActive={lesson.id === activeLessonId}>
+        <Link href={route(`/app/aulas/${lesson.id}`)}>{content}</Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function getLessonMarker({
+  isAvailable,
+  isCompleted,
+}: {
+  isAvailable: boolean;
+  isCompleted: boolean;
+}): string {
+  if (isCompleted) {
+    return "✓";
+  }
+
+  if (isAvailable) {
+    return "•";
+  }
+
+  return "–";
 }

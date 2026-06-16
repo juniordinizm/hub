@@ -22,5 +22,5 @@ export const completeLessonAction = async (formData: FormData) => {
     redirect(route(`/app/aulas/${result.nextLessonId}`));
   }
 
-  redirect(route("/app"));
+  redirect(route(`/app/cursos/${result.courseId}`));
 };

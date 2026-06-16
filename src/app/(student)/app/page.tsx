@@ -1,8 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import {
+  getCourseAccessPresentation,
+  getStudentCoursePrimaryHref,
+} from "@/features/courses/presentation";
+import type { StudentCourseCard } from "@/features/courses/server";
 import { getStudentCourses } from "@/features/courses/server";
 import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
@@ -10,182 +15,265 @@ import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-const getModuleHref = ({
-  courseNextLessonId,
-  moduleNextLessonId,
-}: {
-  courseNextLessonId: string | null;
-  moduleNextLessonId: string | null;
-}): string => {
-  if (moduleNextLessonId) {
-    return `/app/aulas/${moduleNextLessonId}`;
-  }
+const isLocalImage = (value: string | null): value is string =>
+  Boolean(value?.startsWith("/"));
 
-  if (courseNextLessonId) {
-    return `/app/aulas/${courseNextLessonId}`;
-  }
-
-  return "/app/certificados";
-};
+const toneClasses = {
+  active: "border-primary/30 bg-primary/15 text-primary",
+  completed: "border-emerald-400/35 bg-emerald-400/15 text-emerald-200",
+  expiring: "border-accent/40 bg-accent/20 text-accent",
+} as const;
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
   const courses = await getStudentCourses(session.user.id);
-  const course = courses[0];
-  const modules = courses.flatMap((courseData) =>
-    courseData.modules.map((moduleData) => ({
-      ...moduleData,
-      courseNextLessonId: courseData.nextLessonId,
-    }))
+  const completedLessons = courses.reduce(
+    (total, course) => total + course.completedCount,
+    0
   );
+  const totalLessons = courses.reduce(
+    (total, course) => total + course.totalCount,
+    0
+  );
+  const overallProgress =
+    totalLessons === 0
+      ? 0
+      : Math.round((completedLessons / totalLessons) * 100);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="relative h-[240px] overflow-hidden bg-muted">
-        <Image
-          alt="Sistema PROTEA-R"
-          className="object-cover object-right"
-          fill
-          priority
-          src="/protear/dash-banner.png"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/20" />
-        <div className="relative z-10 flex h-full flex-col justify-center px-6 sm:px-10 lg:px-12">
-          <div className="w-fit rounded-xl border border-border/30 bg-background/40 p-6 shadow-2xl backdrop-blur-md">
-            <Badge
-              className="border-accent/40 bg-accent/20 text-accent shadow-sm"
-              variant="outline"
-            >
-              Seu Curso
-            </Badge>
-            <h1 className="mt-3 max-w-xl font-extrabold text-3xl text-foreground tracking-tight drop-shadow-sm">
-              Sistema <span className="text-accent">PROTEA-R</span>
+    <main className="min-h-screen bg-background text-foreground">
+      <section className="border-border/50 border-b px-6 py-8 sm:px-10 lg:px-12">
+        <Badge
+          className="border-accent/35 bg-accent/15 text-accent"
+          variant="outline"
+        >
+          Plataforma privada
+        </Badge>
+        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+          <div>
+            <h1 className="max-w-3xl font-extrabold text-3xl tracking-tight md:text-4xl">
+              Meus cursos
             </h1>
-            <p className="mt-2 text-muted-foreground text-sm">
-              Avaliacao de suspeita de TEA
-              {course
-                ? ` - ${course.modules.length} modulos - ${course.totalCount} aulas`
-                : ""}
+            <p className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6">
+              Acompanhe seus acessos ativos, continue de onde parou e veja a
+              trilha de cada curso separadamente.
             </p>
           </div>
+          <div className="rounded-lg border bg-card/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-muted-foreground text-xs">Progresso geral</p>
+                <p className="mt-1 font-semibold text-2xl">
+                  {overallProgress}%
+                </p>
+              </div>
+              <p className="text-right text-muted-foreground text-xs">
+                {completedLessons} de {totalLessons} aulas concluídas
+              </p>
+            </div>
+            <Progress className="mt-4 h-1.5" value={overallProgress} />
+          </div>
         </div>
-      </header>
+      </section>
 
       <div className="px-6 py-9 sm:px-10 lg:px-12">
         {courses.length === 0 ? (
-          <div className="border-border/50 border-b pb-8">
-            <h2 className="font-bold text-xl">Nenhum curso ativo</h2>
-            <p className="mt-2 text-muted-foreground text-sm">
-              Sua conta existe, mas nao ha uma matricula ativa no momento.
+          <EmptyCoursesState />
+        ) : (
+          <div className="space-y-10">
+            <section>
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="font-bold text-xl">Cursos disponíveis</h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Cada curso tem acesso, progresso e certificado próprios.
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={route("/app/certificados")}>
+                    Ver certificados
+                  </Link>
+                </Button>
+              </div>
+              <div className="grid gap-5 xl:grid-cols-3">
+                {courses.map((course) => (
+                  <CourseCard course={course} key={course.courseId} />
+                ))}
+              </div>
+            </section>
+
+            <section className="grid gap-5 lg:grid-cols-2">
+              {courses.map((course) => (
+                <CourseModulesPanel course={course} key={course.courseId} />
+              ))}
+            </section>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function EmptyCoursesState(): React.JSX.Element {
+  return (
+    <section className="rounded-lg border bg-card p-6">
+      <Badge variant="outline">Sem matrícula ativa</Badge>
+      <h2 className="mt-4 font-bold text-xl">Nenhum curso ativo</h2>
+      <p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6">
+        Sua conta já existe, mas ainda não há uma matrícula ativa. Quando um
+        acesso for liberado, seus cursos aparecerão aqui.
+      </p>
+    </section>
+  );
+}
+
+function CourseCard({
+  course,
+}: {
+  course: StudentCourseCard;
+}): React.JSX.Element {
+  const access = getCourseAccessPresentation({
+    expiresAt: course.expiresAt,
+    progressPercent: course.progressPercent,
+  });
+  const primaryHref = route(
+    getStudentCoursePrimaryHref({
+      courseId: course.courseId,
+      nextLessonId: course.nextLessonId,
+    })
+  );
+
+  return (
+    <article className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <Link
+        className="group block"
+        href={route(`/app/cursos/${course.courseId}`)}
+      >
+        <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+          {isLocalImage(course.thumbnailUrl) ? (
+            <Image
+              alt={course.title}
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              fill
+              sizes="(min-width: 1280px) 33vw, 100vw"
+              src={course.thumbnailUrl}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(217,123,52,0.5),transparent_28%),linear-gradient(135deg,#326c71,#162b2d_60%,#0f2224)]" />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent" />
+          <Badge
+            className={`absolute top-3 left-3 ${toneClasses[access.tone]}`}
+            variant="outline"
+          >
+            {access.label}
+          </Badge>
+          <div className="absolute right-3 bottom-3 left-3">
+            <p className="line-clamp-2 font-bold text-lg text-white">
+              {course.title}
             </p>
           </div>
-        ) : (
-          <section>
-            <div className="mb-5">
-              <h2 className="font-bold text-base">Continuar assistindo</h2>
-              <p className="mt-1 text-muted-foreground text-xs">
-                Retome de onde voce parou
-              </p>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {courses.map((courseData) => (
-                <Link
-                  className="group w-[180px] shrink-0"
-                  href={route(
-                    courseData.nextLessonId
-                      ? `/app/aulas/${courseData.nextLessonId}`
-                      : "/app/certificados"
-                  )}
-                  key={courseData.courseId}
-                >
-                  <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-border/40 transition-opacity hover:opacity-90">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/70 to-sidebar" />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/25">
-                      <span
-                        aria-hidden="true"
-                        className="flex size-9 items-center justify-center rounded-full bg-white/90"
-                      >
-                        <span className="ml-0.5 size-0 border-y-[6px] border-y-transparent border-l-[9px] border-l-primary" />
-                      </span>
-                    </div>
-                    <span className="absolute bottom-2 left-2 rounded-md bg-primary px-2 py-0.5 font-bold text-[0.6rem] text-primary-foreground uppercase tracking-[0.08em]">
-                      {courseData.nextLessonId ? "Em andamento" : "Concluido"}
-                    </span>
-                  </div>
-                  <p className="mt-2 line-clamp-2 font-semibold text-sm">
-                    {courseData.title}
-                  </p>
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    Acesso ate {formatDate(courseData.expiresAt)}
-                  </p>
-                  <Progress
-                    className="mt-2 h-1"
-                    value={courseData.progressPercent}
-                  />
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {modules.length ? (
-          <section className="mt-10">
-            <div className="mb-5">
-              <h2 className="font-bold text-base">Conteudo do Curso</h2>
-              <p className="mt-1 text-muted-foreground text-xs">
-                {course?.modules.length ?? 0} modulos -{" "}
-                {course?.totalCount ?? 0} aulas
-              </p>
-            </div>
-            <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {modules.map((moduleData) => (
-                <div className="group relative" key={moduleData.id}>
-                  <Link
-                    className="block"
-                    href={route(
-                      getModuleHref({
-                        courseNextLessonId: moduleData.courseNextLessonId,
-                        moduleNextLessonId: moduleData.nextLessonId,
-                      })
-                    )}
-                  >
-                    <div
-                      className="relative aspect-video overflow-hidden rounded-xl border border-border/40 transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: moduleData.color }}
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-black/45" />
-                      <span className="absolute top-3 left-3 rounded-md bg-background/80 px-2 py-1 font-bold text-[0.65rem] text-foreground uppercase tracking-[0.08em] backdrop-blur">
-                        Modulo {moduleData.sortOrder}
-                      </span>
-                      <span className="absolute inset-0 flex items-center justify-center font-bold text-sm text-white/45 uppercase tracking-[0.14em]">
-                        M{moduleData.sortOrder}
-                      </span>
-                    </div>
-                    <div className="mt-3">
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <p className="text-muted-foreground text-xs">
-                          {moduleData.totalCount} aulas
-                        </p>
-                        <p className="text-[0.65rem] text-muted-foreground">
-                          {moduleData.completedCount} de {moduleData.totalCount}{" "}
-                          concluidas
-                        </p>
-                      </div>
-                      <h3 className="line-clamp-2 font-semibold text-sm">
-                        {moduleData.title}
-                      </h3>
-                      <Progress
-                        className="mt-3 h-1"
-                        value={moduleData.progressPercent}
-                      />
-                    </div>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </section>
+        </div>
+      </Link>
+      <div className="space-y-4 p-5">
+        {course.subtitle ? (
+          <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
+            {course.subtitle}
+          </p>
         ) : null}
+        <div className="grid grid-cols-3 gap-2 text-xs">
+          <Metric label="Aulas" value={course.totalCount.toString()} />
+          <Metric label="Carga" value={`${course.workloadHours}h`} />
+          <Metric label="Acesso" value={formatDate(course.expiresAt)} />
+        </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{access.helper}</span>
+            <span className="font-semibold">{course.progressPercent}%</span>
+          </div>
+          <Progress className="h-1.5" value={course.progressPercent} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href={primaryHref}>
+              {course.nextLessonId ? "Continuar curso" : "Ver conclusão"}
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={route(`/app/cursos/${course.courseId}`)}>
+              Ver trilha
+            </Link>
+          </Button>
+        </div>
       </div>
+    </article>
+  );
+}
+
+function CourseModulesPanel({
+  course,
+}: {
+  course: StudentCourseCard;
+}): React.JSX.Element {
+  return (
+    <section className="rounded-lg border bg-card p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-muted-foreground text-xs">Trilha do curso</p>
+          <h3 className="mt-1 line-clamp-2 font-semibold">{course.title}</h3>
+        </div>
+        <Badge variant="outline">{course.modules.length} módulos</Badge>
+      </div>
+      <div className="mt-5 space-y-3">
+        {course.modules.map((moduleData) => (
+          <Link
+            className="flex items-center gap-3 rounded-md border bg-background/35 p-3 transition-colors hover:bg-background/60"
+            href={route(
+              moduleData.nextLessonId
+                ? `/app/aulas/${moduleData.nextLessonId}`
+                : `/app/cursos/${course.courseId}`
+            )}
+            key={moduleData.id}
+          >
+            <span
+              aria-hidden="true"
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: moduleData.color }}
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium text-sm">
+                Módulo {moduleData.sortOrder}: {moduleData.title}
+              </span>
+              <span className="mt-1 block text-muted-foreground text-xs">
+                {moduleData.completedCount} de {moduleData.totalCount} aulas
+                concluídas
+              </span>
+            </span>
+            <span className="font-semibold text-xs">
+              {moduleData.progressPercent}%
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-md border bg-background/35 px-3 py-2">
+      <p className="text-[0.65rem] text-muted-foreground uppercase tracking-[0.08em]">
+        {label}
+      </p>
+      <p className="mt-1 truncate font-semibold text-xs" title={value}>
+        {value}
+      </p>
     </div>
   );
 }

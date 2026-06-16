@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Lexend_Deca } from "next/font/google";
+import { getServerEnv } from "@/lib/env";
 import "./globals.css";
 
 const lexendDeca = Lexend_Deca({
@@ -12,6 +13,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+const env = getServerEnv();
 
 export const metadata: Metadata = {
   title: {
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
   },
   description: "Plataforma de cursos PROTEA-R para alunos e equipe.",
   applicationName: "PROTEA-R Hub",
-  metadataBase: new URL("https://example.com"),
+  metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
 };
 
 export default function RootLayout({

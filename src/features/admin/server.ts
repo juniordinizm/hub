@@ -75,6 +75,7 @@ export interface AdminManagementData {
   }>;
   certificates: Array<{
     code: string;
+    courseId: string;
     courseTitle: string;
     issuedAt: Date;
     studentName: string;
@@ -89,10 +90,12 @@ export interface AdminManagementData {
     status: string;
     subtitle: string | null;
     supportWhatsappUrl: string | null;
+    thumbnailUrl: string | null;
     title: string;
     workloadHours: number;
   }>;
   enrollments: Array<{
+    courseId: string;
     courseTitle: string;
     email: string;
     expiresAt: Date;
@@ -137,6 +140,7 @@ export interface AdminManagementData {
   }>;
   orders: Array<{
     amountInCents: number;
+    courseId: string;
     courseTitle: string;
     customerEmail: string | null;
     customerName: string | null;
@@ -191,10 +195,11 @@ export const getAdminManagementData =
         status: string;
         subtitle: string | null;
         support_whatsapp_url: string | null;
+        thumbnail_url: string | null;
         title: string;
         workload_hours: number;
       }>(
-        "select id, slug, title, subtitle, description, instructor_name, workload_hours, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+        "select id, slug, title, subtitle, description, instructor_name, workload_hours, thumbnail_url, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
         color: string;
@@ -239,6 +244,7 @@ export const getAdminManagementData =
         `
       ),
       pool.query<{
+        course_id: string;
         course_title: string;
         email: string;
         expires_at: Date;
@@ -251,7 +257,7 @@ export const getAdminManagementData =
       }>(
         `
           select e.id, e.user_id, u.name, u.email, c.title as course_title,
-                 e.status, e.starts_at, e.expires_at, p.last_access_at
+                 c.id as course_id, e.status, e.starts_at, e.expires_at, p.last_access_at
           from enrollments e
           join users u on u.id = e.user_id
           left join profiles p on p.user_id = u.id
@@ -262,6 +268,7 @@ export const getAdminManagementData =
       ),
       pool.query<{
         amount_in_cents: number;
+        course_id: string;
         course_title: string;
         customer_email: string | null;
         customer_name: string | null;
@@ -271,7 +278,7 @@ export const getAdminManagementData =
         status: string;
       }>(
         `
-          select o.id, c.title as course_title, o.provider_order_id, o.status,
+          select o.id, c.id as course_id, c.title as course_title, o.provider_order_id, o.status,
                  o.amount_in_cents, o.customer_email, o.customer_name, o.paid_at
           from orders o
           join courses c on c.id = o.course_id
@@ -281,11 +288,12 @@ export const getAdminManagementData =
       ),
       pool.query<{
         code: string;
+        course_id: string;
         course_title_snapshot: string;
         issued_at: Date;
         student_name_snapshot: string;
       }>(
-        "select code, student_name_snapshot, course_title_snapshot, issued_at from certificates order by issued_at desc limit 40"
+        "select code, course_id, student_name_snapshot, course_title_snapshot, issued_at from certificates order by issued_at desc limit 40"
       ),
       pool.query<{
         answer: string;
@@ -325,6 +333,7 @@ export const getAdminManagementData =
     const settingsRow = settings.rows[0];
 
     const enrollmentRows = enrollments.rows.map((row) => ({
+      courseId: row.course_id,
       courseTitle: row.course_title,
       email: row.email,
       expiresAt: row.expires_at,
@@ -346,6 +355,7 @@ export const getAdminManagementData =
       })),
       certificates: certificates.rows.map((row) => ({
         code: row.code,
+        courseId: row.course_id,
         courseTitle: row.course_title_snapshot,
         issuedAt: row.issued_at,
         studentName: row.student_name_snapshot,
@@ -360,6 +370,7 @@ export const getAdminManagementData =
         status: row.status,
         subtitle: row.subtitle,
         supportWhatsappUrl: row.support_whatsapp_url,
+        thumbnailUrl: row.thumbnail_url,
         title: row.title,
         workloadHours: row.workload_hours,
       })),
@@ -398,6 +409,7 @@ export const getAdminManagementData =
       })),
       orders: orders.rows.map((row) => ({
         amountInCents: row.amount_in_cents,
+        courseId: row.course_id,
         courseTitle: row.course_title,
         customerEmail: row.customer_email,
         customerName: row.customer_name,

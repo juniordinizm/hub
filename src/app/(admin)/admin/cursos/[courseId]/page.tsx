@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   deleteCourseAction,
@@ -43,14 +45,16 @@ import {
   saveModuleAction,
 } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
+import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
+import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
 const lessonTypeOptions = [
-  ["video", "Video"],
-  ["presentation", "Apresentacao"],
-  ["bonus", "Bonus"],
+  ["video", "Vídeo"],
+  ["presentation", "Apresentação"],
+  ["bonus", "Bônus"],
 ] as const;
 
 const providerOptions = [
@@ -79,12 +83,32 @@ export default async function AdminCourseDetailPage({
     notFound();
   }
 
-  const modules = data.modules.filter(
-    (moduleData) => moduleData.courseId === course.id
-  );
+  const modules = data.modules.filter((item) => item.courseId === course.id);
   const lessons = data.lessons.filter((lesson) =>
     modules.some((moduleData) => moduleData.id === lesson.moduleId)
   );
+  const publishedLessons = lessons.filter((lesson) => lesson.isPublished);
+  const enrollments = data.enrollments.filter(
+    (enrollment) => enrollment.courseId === course.id
+  );
+  const activeEnrollments = enrollments.filter(
+    (enrollment) => enrollment.status === "active"
+  );
+  const orders = data.orders.filter((order) => order.courseId === course.id);
+  const paidRevenueInCents = orders
+    .filter((order) => order.status === "paid")
+    .reduce((total, order) => total + order.amountInCents, 0);
+  const certificates = data.certificates.filter(
+    (certificate) => certificate.courseId === course.id
+  );
+  const readiness = summarizeCoursePublicationReadiness({
+    hasDescription: Boolean(course.description?.trim()),
+    hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
+    hasThumbnail: Boolean(course.thumbnailUrl),
+    moduleCount: modules.length,
+    publishedLessonCount: publishedLessons.length,
+    totalLessonCount: lessons.length,
+  });
 
   return (
     <div className="space-y-8">
@@ -95,205 +119,396 @@ export default async function AdminCourseDetailPage({
             Voltar para cursos
           </Link>
         </Button>
-        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <Badge variant="outline">Curso</Badge>
             <h1 className="mt-3 font-bold text-3xl tracking-tight">
               {course.title}
             </h1>
             <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-              Organize módulos e aulas deste curso específico.
+              Organize conteúdo, acompanhe alunos e prepare a publicação deste
+              curso.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="grid grid-cols-2 gap-3">
-              <StatPill label="Modulos" value={modules.length} />
-              <StatPill label="Aulas" value={lessons.length} />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatPill label="Módulos" value={modules.length.toString()} />
+              <StatPill label="Aulas" value={lessons.length.toString()} />
+              <StatPill
+                label="Alunos"
+                value={activeEnrollments.length.toString()}
+              />
+              <StatPill
+                label="Receita"
+                value={formatCurrencyInCents(paidRevenueInCents)}
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline">
-                    <HugeiconsIcon
-                      icon={Edit01Icon}
-                      size={16}
-                      strokeWidth={2}
-                    />
-                    Editar curso
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Editar curso</DialogTitle>
-                    <DialogDescription>
-                      Atualize os dados principais do curso.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CourseForm course={course} />
-                </DialogContent>
-              </Dialog>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href={route(`/app/cursos/${course.id}`)}>
+                  Preview aluno
+                </Link>
+              </Button>
+              <CourseEditDialog course={course} />
               <DeleteCourseDialog course={course} />
             </div>
           </div>
         </div>
       </header>
 
-      <section className="flex flex-wrap gap-3">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button>
-              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-              Novo modulo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Novo modulo</DialogTitle>
-              <DialogDescription>
-                Adicione uma unidade ao curso.
-              </DialogDescription>
-            </DialogHeader>
-            <ModuleForm course={course} />
-          </DialogContent>
-        </Dialog>
+      <Tabs defaultValue="overview">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="content">Conteúdo</TabsTrigger>
+          <TabsTrigger value="students">Alunos</TabsTrigger>
+          <TabsTrigger value="settings">Configurações</TabsTrigger>
+        </TabsList>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="secondary">
-              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-              Nova aula
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nova aula</DialogTitle>
-              <DialogDescription>
-                Cadastre uma aula em um dos modulos do curso.
-              </DialogDescription>
-            </DialogHeader>
-            <LessonForm modules={modules} />
-          </DialogContent>
-        </Dialog>
-      </section>
+        <TabsContent className="space-y-6" value="overview">
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="rounded-lg border bg-card p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-semibold text-xl">
+                    Prontidão de publicação
+                  </h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Checklist mínimo para o curso parecer vendável e completo.
+                  </p>
+                </div>
+                <Badge
+                  variant={course.status === "active" ? "default" : "outline"}
+                >
+                  {course.status}
+                </Badge>
+              </div>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <span className="text-muted-foreground text-sm">
+                  {readiness.completedCount} de {readiness.totalCount} itens
+                </span>
+                <span className="font-semibold">{readiness.percent}%</span>
+              </div>
+              <Progress className="mt-3 h-2" value={readiness.percent} />
+              <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                {readiness.missingItems.length ? (
+                  readiness.missingItems.map((item) => (
+                    <p
+                      className="rounded-md border bg-background/35 px-3 py-2 text-sm"
+                      key={item}
+                    >
+                      {item}
+                    </p>
+                  ))
+                ) : (
+                  <p className="rounded-md border bg-background/35 px-3 py-2 text-sm">
+                    Curso pronto para venda e consumo.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg border bg-card p-5">
+              <h2 className="font-semibold">Indicadores do curso</h2>
+              <div className="mt-4 space-y-3 text-sm">
+                <InfoRow
+                  label="Aulas publicadas"
+                  value={`${publishedLessons.length} de ${lessons.length}`}
+                />
+                <InfoRow
+                  label="Matrículas ativas"
+                  value={activeEnrollments.length.toString()}
+                />
+                <InfoRow
+                  label="Certificados"
+                  value={certificates.length.toString()}
+                />
+                <InfoRow label="Pedidos" value={orders.length.toString()} />
+              </div>
+            </div>
+          </section>
+        </TabsContent>
 
-      <section className="space-y-4">
-        <div className="border-b pb-3">
-          <h2 className="font-semibold text-xl">Estrutura do curso</h2>
-          <p className="mt-1 text-muted-foreground text-sm">
-            Abra um módulo para editar seus dados. Abra uma aula para editar
-            vídeo, ordem e publicação.
+        <TabsContent className="space-y-6" value="content">
+          <section className="flex flex-wrap gap-3">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Novo módulo
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Novo módulo</DialogTitle>
+                  <DialogDescription>
+                    Adicione uma unidade ao curso.
+                  </DialogDescription>
+                </DialogHeader>
+                <ModuleForm course={course} />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="secondary">
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Nova aula
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Nova aula</DialogTitle>
+                  <DialogDescription>
+                    Cadastre uma aula em um dos módulos do curso.
+                  </DialogDescription>
+                </DialogHeader>
+                <LessonForm modules={modules} />
+              </DialogContent>
+            </Dialog>
+          </section>
+
+          <section className="space-y-4">
+            <div className="border-b pb-3">
+              <h2 className="font-semibold text-xl">Estrutura do curso</h2>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Abra um módulo para editar seus dados. Abra uma aula para editar
+                vídeo, ordem e publicação.
+              </p>
+            </div>
+            <div className="space-y-4">
+              {modules.map((moduleData) => (
+                <ModuleSection
+                  course={course}
+                  key={moduleData.id}
+                  lessons={lessons}
+                  moduleData={moduleData}
+                  modules={modules}
+                />
+              ))}
+              {modules.length === 0 ? (
+                <p className="rounded-lg border bg-card p-5 text-muted-foreground text-sm">
+                  Nenhum módulo cadastrado. Comece criando a primeira unidade do
+                  curso.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent className="space-y-5" value="students">
+          <section className="rounded-lg border bg-card">
+            <div className="border-b px-5 py-4">
+              <h2 className="font-semibold text-xl">Alunos deste curso</h2>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Últimas matrículas e situação de acesso.
+              </p>
+            </div>
+            <div className="divide-y">
+              {enrollments.map((enrollment) => (
+                <div
+                  className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_130px_170px]"
+                  key={enrollment.id}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{enrollment.name}</p>
+                    <p className="truncate text-muted-foreground text-sm">
+                      {enrollment.email}
+                    </p>
+                  </div>
+                  <Badge className="w-fit" variant="outline">
+                    {enrollment.status}
+                  </Badge>
+                  <p className="text-muted-foreground text-sm">
+                    Expira em {formatDate(enrollment.expiresAt)}
+                  </p>
+                </div>
+              ))}
+              {enrollments.length === 0 ? (
+                <p className="px-5 py-4 text-muted-foreground text-sm">
+                  Nenhuma matrícula encontrada para este curso.
+                </p>
+              ) : null}
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent className="space-y-5" value="settings">
+          <section className="rounded-lg border bg-card p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-xl">
+                  Configurações do curso
+                </h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Dados que aparecem para o aluno e conectam o curso ao checkout
+                  externo.
+                </p>
+              </div>
+              <CourseEditDialog course={course} />
+            </div>
+            <div className="mt-5 grid gap-3 lg:grid-cols-2">
+              <InfoTile
+                label="Capa"
+                value={course.thumbnailUrl ?? "Não cadastrada"}
+              />
+              <InfoTile
+                label="Produto AbacatePay"
+                value={course.paymentProviderProductId ?? "Não vinculado"}
+              />
+              <InfoTile
+                label="WhatsApp"
+                value={course.supportWhatsappUrl ?? "Padrão global"}
+              />
+              <InfoTile
+                label="Meses de acesso"
+                value={`${course.accessDurationMonths} meses`}
+              />
+            </div>
+          </section>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ModuleSection({
+  course,
+  lessons,
+  moduleData,
+  modules,
+}: {
+  course: CourseData;
+  lessons: LessonData[];
+  moduleData: ModuleData;
+  modules: ModuleData[];
+}): React.JSX.Element {
+  const moduleLessons = lessons.filter(
+    (lesson) => lesson.moduleId === moduleData.id
+  );
+
+  return (
+    <section className="rounded-lg border bg-card">
+      <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-muted-foreground text-xs">
+            Módulo {moduleData.sortOrder}
+          </p>
+          <h3 className="font-semibold">{moduleData.title}</h3>
+          {moduleData.description ? (
+            <p className="mt-1 text-muted-foreground text-sm">
+              {moduleData.description}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline">{moduleLessons.length} aulas</Badge>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="secondary">
+                <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+                Editar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Editar módulo</DialogTitle>
+                <DialogDescription>
+                  Atualize os dados deste módulo.
+                </DialogDescription>
+              </DialogHeader>
+              <ModuleForm course={course} moduleData={moduleData} />
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+      <Separator />
+      <div className="divide-y">
+        {moduleLessons.length ? (
+          moduleLessons.map((lesson) => (
+            <LessonRow key={lesson.id} lesson={lesson} modules={modules} />
+          ))
+        ) : (
+          <p className="px-5 py-4 text-muted-foreground text-sm">
+            Nenhuma aula cadastrada neste módulo.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function LessonRow({
+  lesson,
+  modules,
+}: {
+  lesson: LessonData;
+  modules: ModuleData[];
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col gap-3 bg-background/20 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
+        <span className="font-mono text-muted-foreground text-xs">
+          Aula {lesson.sortOrder}
+        </span>
+        <div>
+          <p className="font-medium">{lesson.title}</p>
+          <p className="text-muted-foreground text-xs">
+            {lesson.durationMinutes} min · {lesson.videoProvider ?? "sem vídeo"}
           </p>
         </div>
-
-        <div className="space-y-4">
-          {modules.map((moduleData) => {
-            const moduleLessons = lessons.filter(
-              (lesson) => lesson.moduleId === moduleData.id
-            );
-
-            return (
-              <section
-                className="rounded-lg border bg-card"
-                key={moduleData.id}
-              >
-                <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-muted-foreground text-xs">
-                      Modulo {moduleData.sortOrder}
-                    </p>
-                    <h3 className="font-semibold">{moduleData.title}</h3>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant="outline">
-                      {moduleLessons.length} aulas
-                    </Badge>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button size="sm" variant="secondary">
-                          <HugeiconsIcon
-                            icon={Edit01Icon}
-                            size={16}
-                            strokeWidth={2}
-                          />
-                          Editar
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Editar modulo</DialogTitle>
-                          <DialogDescription>
-                            Atualize os dados deste modulo.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <ModuleForm course={course} moduleData={moduleData} />
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-                <Separator />
-                <div className="divide-y">
-                  {moduleLessons.length ? (
-                    moduleLessons.map((lesson) => (
-                      <div
-                        className="flex flex-col gap-3 bg-background/20 px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
-                        key={lesson.id}
-                      >
-                        <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
-                          <span className="font-mono text-muted-foreground text-xs">
-                            Aula {lesson.sortOrder}
-                          </span>
-                          <div>
-                            <p className="font-medium">{lesson.title}</p>
-                            <p className="text-muted-foreground text-xs">
-                              {lesson.durationMinutes} min -{" "}
-                              {lesson.videoProvider ?? "sem video"}
-                            </p>
-                          </div>
-                          <span className="truncate font-mono text-muted-foreground text-xs">
-                            {lesson.videoExternalId ?? "sem hash"}
-                          </span>
-                          <Badge
-                            className="w-fit"
-                            variant={lesson.isPublished ? "default" : "outline"}
-                          >
-                            {lesson.isPublished ? "publicada" : "rascunho"}
-                          </Badge>
-                        </div>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button size="sm" variant="ghost">
-                              <HugeiconsIcon
-                                icon={Edit01Icon}
-                                size={16}
-                                strokeWidth={2}
-                              />
-                              Editar
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Editar aula</DialogTitle>
-                              <DialogDescription>
-                                Altere video, ordem ou publique.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <LessonForm lesson={lesson} modules={modules} />
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="px-5 py-4 text-muted-foreground text-sm">
-                      Nenhuma aula cadastrada neste módulo.
-                    </p>
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      </section>
+        <span className="truncate font-mono text-muted-foreground text-xs">
+          {lesson.videoExternalId ?? "sem hash"}
+        </span>
+        <Badge
+          className="w-fit"
+          variant={lesson.isPublished ? "default" : "outline"}
+        >
+          {lesson.isPublished ? "publicada" : "rascunho"}
+        </Badge>
+      </div>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button size="sm" variant="ghost">
+            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+            Editar
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar aula</DialogTitle>
+            <DialogDescription>
+              Altere vídeo, ordem ou publicação.
+            </DialogDescription>
+          </DialogHeader>
+          <LessonForm lesson={lesson} modules={modules} />
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+function CourseEditDialog({
+  course,
+}: {
+  course: CourseData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+          Editar curso
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar curso</DialogTitle>
+          <DialogDescription>
+            Atualize os dados principais do curso.
+          </DialogDescription>
+        </DialogHeader>
+        <CourseForm course={course} />
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -334,7 +549,7 @@ function ModuleForm({
             </Field>
           </div>
           <Field>
-            <FieldLabel>Titulo</FieldLabel>
+            <FieldLabel>Título</FieldLabel>
             <Input
               defaultValue={moduleData?.title ?? ""}
               name="title"
@@ -342,7 +557,7 @@ function ModuleForm({
             />
           </Field>
           <Field>
-            <FieldLabel>Descricao</FieldLabel>
+            <FieldLabel>Descrição</FieldLabel>
             <Textarea
               defaultValue={moduleData?.description ?? ""}
               name="description"
@@ -354,7 +569,7 @@ function ModuleForm({
               size={18}
               strokeWidth={2}
             />
-            {moduleData ? "Salvar modulo" : "Criar modulo"}
+            {moduleData ? "Salvar módulo" : "Criar módulo"}
           </Button>
         </FieldGroup>
       </AutoCloseDialogForm>
@@ -379,14 +594,14 @@ function LessonForm({
           <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
           <div className="grid gap-4 lg:grid-cols-[1fr_120px_120px_120px]">
             <Field>
-              <FieldLabel>Modulo</FieldLabel>
+              <FieldLabel>Módulo</FieldLabel>
               <Select
                 defaultValue={lesson?.moduleId ?? modules[0]?.id ?? ""}
                 name="moduleId"
                 required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o modulo" />
+                  <SelectValue placeholder="Selecione o módulo" />
                 </SelectTrigger>
                 <SelectContent>
                   {modules.map((module) => (
@@ -436,11 +651,11 @@ function LessonForm({
             </Field>
           </div>
           <Field>
-            <FieldLabel>Titulo</FieldLabel>
+            <FieldLabel>Título</FieldLabel>
             <Input defaultValue={lesson?.title ?? ""} name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Descricao</FieldLabel>
+            <FieldLabel>Descrição</FieldLabel>
             <Textarea
               defaultValue={lesson?.description ?? ""}
               name="description"
@@ -466,7 +681,7 @@ function LessonForm({
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Hash ou ID do video</FieldLabel>
+              <FieldLabel>Hash ou ID do vídeo</FieldLabel>
               <Input
                 defaultValue={lesson?.videoExternalId ?? ""}
                 name="videoExternalId"
@@ -510,115 +725,21 @@ function LessonForm({
   );
 }
 
-function DeleteModuleDialog({
-  moduleData,
-}: {
-  moduleData: ModuleData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir modulo
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Excluir modulo?</DialogTitle>
-          <DialogDescription>
-            Esta acao remove o modulo e, em cascata, todas as aulas e progressos
-            vinculados a elas.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="rounded-lg border bg-background/40 p-3">
-          <p className="font-semibold">{moduleData.title}</p>
-          <p className="text-muted-foreground text-sm">
-            Modulo {moduleData.sortOrder}
-          </p>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteModuleAction}>
-            <input name="moduleId" type="hidden" value={moduleData.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusao
-            </Button>
-          </form>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeleteLessonDialog({
-  lesson,
-}: {
-  lesson: LessonData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir aula
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Excluir aula?</DialogTitle>
-          <DialogDescription>
-            Esta acao remove a aula e, em cascata, os progressos vinculados a
-            ela.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="rounded-lg border bg-background/40 p-3">
-          <p className="font-semibold">{lesson.title}</p>
-          <p className="text-muted-foreground text-sm">
-            Aula {lesson.sortOrder}
-          </p>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteLessonAction}>
-            <input name="lessonId" type="hidden" value={lesson.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusao
-            </Button>
-          </form>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
   return (
     <AutoCloseDialogForm action={saveCourseAction}>
       <FieldGroup>
         <input name="courseId" type="hidden" value={course.id} />
         <Field>
-          <FieldLabel>Titulo</FieldLabel>
+          <FieldLabel>Título</FieldLabel>
           <Input defaultValue={course.title} name="title" required />
         </Field>
         <Field>
-          <FieldLabel>Subtitulo</FieldLabel>
+          <FieldLabel>Subtítulo</FieldLabel>
           <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
         </Field>
         <Field>
-          <FieldLabel>Descricao</FieldLabel>
+          <FieldLabel>Descrição</FieldLabel>
           <Textarea
             defaultValue={course.description ?? ""}
             name="description"
@@ -633,7 +754,7 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             />
           </Field>
           <Field>
-            <FieldLabel>Carga horaria</FieldLabel>
+            <FieldLabel>Carga horária</FieldLabel>
             <Input
               defaultValue={course.workloadHours ?? 0}
               min={0}
@@ -651,6 +772,14 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             />
           </Field>
         </div>
+        <Field>
+          <FieldLabel>Capa do curso</FieldLabel>
+          <Input
+            defaultValue={course.thumbnailUrl ?? ""}
+            name="thumbnailUrl"
+            placeholder="/protear/dash-banner.png"
+          />
+        </Field>
         <div className="grid gap-4 lg:grid-cols-3">
           <Field>
             <FieldLabel>WhatsApp do curso</FieldLabel>
@@ -689,6 +818,96 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
   );
 }
 
+function DeleteModuleDialog({
+  moduleData,
+}: {
+  moduleData: ModuleData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="destructive">
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+          Excluir módulo
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excluir módulo?</DialogTitle>
+          <DialogDescription>
+            Esta ação remove o módulo e, em cascata, todas as aulas e progressos
+            vinculados a elas.
+          </DialogDescription>
+        </DialogHeader>
+        <DeleteSummary
+          detail={`Módulo ${moduleData.sortOrder}`}
+          title={moduleData.title}
+        />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+              Cancelar
+            </Button>
+          </DialogClose>
+          <form action={deleteModuleAction}>
+            <input name="moduleId" type="hidden" value={moduleData.id} />
+            <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+              Confirmar exclusão
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteLessonDialog({
+  lesson,
+}: {
+  lesson: LessonData;
+}): React.JSX.Element {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" type="button" variant="destructive">
+          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+          Excluir aula
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excluir aula?</DialogTitle>
+          <DialogDescription>
+            Esta ação remove a aula e, em cascata, os progressos vinculados a
+            ela.
+          </DialogDescription>
+        </DialogHeader>
+        <DeleteSummary
+          detail={`Aula ${lesson.sortOrder}`}
+          title={lesson.title}
+        />
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+              Cancelar
+            </Button>
+          </DialogClose>
+          <form action={deleteLessonAction}>
+            <input name="lessonId" type="hidden" value={lesson.id} />
+            <Button type="submit" variant="destructive">
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+              Confirmar exclusão
+            </Button>
+          </form>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeleteCourseDialog({
   course,
 }: {
@@ -706,16 +925,14 @@ function DeleteCourseDialog({
         <DialogHeader>
           <DialogTitle>Excluir curso?</DialogTitle>
           <DialogDescription>
-            Esta acao remove o curso e, em cascata, seus modulos, aulas,
-            matriculas, pedidos e certificados vinculados.
+            Esta ação remove o curso e, em cascata, seus módulos, aulas,
+            matrículas, pedidos e certificados vinculados.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-lg border bg-background/40 p-3">
-          <p className="font-semibold">{course.title}</p>
-          <p className="text-muted-foreground text-sm">
-            O identificador interno sera preservado apenas no sistema.
-          </p>
-        </div>
+        <DeleteSummary
+          detail="O identificador interno será preservado apenas no sistema."
+          title={course.title}
+        />
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">
@@ -727,7 +944,7 @@ function DeleteCourseDialog({
             <input name="courseId" type="hidden" value={course.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusao
+              Confirmar exclusão
             </Button>
           </form>
         </DialogFooter>
@@ -736,17 +953,62 @@ function DeleteCourseDialog({
   );
 }
 
+function DeleteSummary({
+  detail,
+  title,
+}: {
+  detail: string;
+  title: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border bg-background/40 p-3">
+      <p className="font-semibold">{title}</p>
+      <p className="text-muted-foreground text-sm">{detail}</p>
+    </div>
+  );
+}
+
 function StatPill({
   label,
   value,
 }: {
   label: string;
-  value: number;
+  value: string;
 }): React.JSX.Element {
   return (
     <div className="rounded-lg border bg-card px-4 py-3">
       <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="font-semibold text-xl">{value}</p>
+      <p className="font-semibold text-lg">{value}</p>
+    </div>
+  );
+}
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value}</span>
+    </div>
+  );
+}
+
+function InfoTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border bg-background/35 p-4">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="mt-1 break-words font-medium text-sm">{value}</p>
     </div>
   );
 }

@@ -12,14 +12,19 @@ import {
 export interface StudentCourseCard {
   completedCount: number;
   courseId: string;
+  description: string | null;
   expiresAt: Date;
+  instructorName: string | null;
   modules: StudentCourseModule[];
   nextLessonId: string | null;
   progressPercent: number;
   slug: string;
   subtitle: string | null;
+  supportWhatsappUrl: string | null;
+  thumbnailUrl: string | null;
   title: string;
   totalCount: number;
+  workloadHours: number;
 }
 
 export interface StudentCourseModule {
@@ -55,6 +60,42 @@ export interface ModuleWithLessons {
   title: string;
 }
 
+export interface StudentCourseOverviewData {
+  certificateCode: string | null;
+  completedCount: number;
+  course: {
+    description: string | null;
+    expiresAt: Date;
+    id: string;
+    instructorName: string | null;
+    slug: string;
+    subtitle: string | null;
+    supportWhatsappUrl: string | null;
+    thumbnailUrl: string | null;
+    title: string;
+    workloadHours: number;
+  };
+  modules: Array<{
+    color: string;
+    description: string | null;
+    id: string;
+    lessons: Array<{
+      durationMinutes: number;
+      id: string;
+      isAvailable: boolean;
+      isCompleted: boolean;
+      lessonType: string;
+      sortOrder: number;
+      title: string;
+    }>;
+    sortOrder: number;
+    title: string;
+  }>;
+  nextLessonId: string | null;
+  progressPercent: number;
+  totalCount: number;
+}
+
 export interface StudentLessonData {
   course: {
     id: string;
@@ -66,6 +107,7 @@ export interface StudentLessonData {
     title: string;
     description: string | null;
     durationMinutes: number;
+    isCompleted: boolean;
     videoEmbedUrl: string | null;
     videoProvider: string | null;
   };
@@ -103,6 +145,31 @@ type StudentCourseAggregate = StudentCourseCard & {
   lessonIds: string[];
   modulesById: Map<string, StudentCourseModuleAggregate>;
 };
+
+interface CourseOverviewRow {
+  certificate_code: string | null;
+  completed_at: Date | null;
+  course_description: string | null;
+  course_id: string;
+  course_slug: string;
+  course_subtitle: string | null;
+  course_title: string;
+  duration_minutes: number | null;
+  expires_at: Date;
+  instructor_name: string | null;
+  lesson_id: string | null;
+  lesson_sort_order: number | null;
+  lesson_title: string | null;
+  lesson_type: string | null;
+  module_color: string | null;
+  module_description: string | null;
+  module_id: string | null;
+  module_sort_order: number | null;
+  module_title: string | null;
+  support_whatsapp_url: string | null;
+  thumbnail_url: string | null;
+  workload_hours: number;
+}
 
 const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
   const lessonIds = rows.map((row) => row.lesson_id);
@@ -145,8 +212,10 @@ export const getStudentCourses = async (
 ): Promise<StudentCourseCard[]> => {
   const { rows } = await getPool().query<{
     completed_at: Date | null;
+    course_description: string | null;
     course_id: string;
     expires_at: Date;
+    instructor_name: string | null;
     lesson_id: string | null;
     module_color: string | null;
     module_id: string | null;
@@ -154,7 +223,10 @@ export const getStudentCourses = async (
     module_title: string | null;
     slug: string;
     subtitle: string | null;
+    support_whatsapp_url: string | null;
+    thumbnail_url: string | null;
     title: string;
+    workload_hours: number;
   }>(
     `
       select
@@ -162,6 +234,11 @@ export const getStudentCourses = async (
         c.slug,
         c.title,
         c.subtitle,
+        c.description as course_description,
+        c.instructor_name,
+        c.workload_hours,
+        c.thumbnail_url,
+        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         e.expires_at,
         m.id as module_id,
         m.title as module_title,
@@ -171,6 +248,7 @@ export const getStudentCourses = async (
         lp.completed_at
       from enrollments e
       join courses c on c.id = e.course_id
+      left join app_settings s on s.id = 'global'
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
@@ -192,6 +270,11 @@ export const getStudentCourses = async (
       slug: row.slug,
       title: row.title,
       subtitle: row.subtitle,
+      description: row.course_description,
+      instructorName: row.instructor_name,
+      workloadHours: row.workload_hours,
+      thumbnailUrl: row.thumbnail_url,
+      supportWhatsappUrl: row.support_whatsapp_url,
       expiresAt: row.expires_at,
       modules: [],
       progressPercent: 0,
@@ -261,6 +344,11 @@ export const getStudentCourses = async (
       slug: course.slug,
       title: course.title,
       subtitle: course.subtitle,
+      description: course.description,
+      instructorName: course.instructorName,
+      workloadHours: course.workloadHours,
+      thumbnailUrl: course.thumbnailUrl,
+      supportWhatsappUrl: course.supportWhatsappUrl,
       expiresAt: course.expiresAt,
       modules,
       progressPercent: progress.percent,
@@ -269,6 +357,134 @@ export const getStudentCourses = async (
       nextLessonId: getNextAvailableLessonId(course),
     };
   });
+};
+
+export const getStudentCourseOverviewData = async ({
+  courseId,
+  userId,
+}: {
+  courseId: string;
+  userId: string;
+}): Promise<StudentCourseOverviewData | null> => {
+  const { rows } = await getPool().query<CourseOverviewRow>(
+    `
+      select
+        c.id as course_id,
+        c.slug as course_slug,
+        c.title as course_title,
+        c.subtitle as course_subtitle,
+        c.description as course_description,
+        c.instructor_name,
+        c.workload_hours,
+        c.thumbnail_url,
+        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
+        e.expires_at,
+        cert.code as certificate_code,
+        m.id as module_id,
+        m.title as module_title,
+        m.description as module_description,
+        m.sort_order as module_sort_order,
+        m.color as module_color,
+        l.id as lesson_id,
+        l.title as lesson_title,
+        l.lesson_type,
+        l.duration_minutes,
+        l.sort_order as lesson_sort_order,
+        lp.completed_at
+      from enrollments e
+      join courses c on c.id = e.course_id
+      left join app_settings s on s.id = 'global'
+      left join certificates cert on cert.course_id = c.id and cert.user_id = e.user_id
+      left join modules m on m.course_id = c.id
+      left join lessons l on l.module_id = m.id and l.is_published = true
+      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      where e.user_id = $1
+        and c.id = $2
+        and e.status = 'active'
+        and e.starts_at <= now()
+        and e.expires_at >= now()
+        and c.status = 'active'
+      order by m.sort_order asc, l.sort_order asc
+    `,
+    [userId, courseId]
+  );
+
+  const firstRow = rows[0];
+
+  if (!firstRow) {
+    return null;
+  }
+
+  const lessonIds = rows
+    .map((row) => row.lesson_id)
+    .filter((lessonId): lessonId is string => Boolean(lessonId));
+  const completedLessonIds = rows
+    .filter((row) => row.completed_at && row.lesson_id)
+    .map((row) => row.lesson_id as string);
+  const progress = calculateCourseProgress({ lessonIds, completedLessonIds });
+  const modules = new Map<
+    string,
+    StudentCourseOverviewData["modules"][number]
+  >();
+
+  for (const row of rows) {
+    if (!(row.module_id && row.module_title && row.module_sort_order)) {
+      continue;
+    }
+
+    const moduleData = modules.get(row.module_id) ?? {
+      id: row.module_id,
+      title: row.module_title,
+      description: row.module_description,
+      sortOrder: row.module_sort_order,
+      color: row.module_color ?? "#326c71",
+      lessons: [],
+    };
+
+    if (
+      row.lesson_id &&
+      row.lesson_title &&
+      row.lesson_sort_order !== null &&
+      row.duration_minutes !== null
+    ) {
+      moduleData.lessons.push({
+        id: row.lesson_id,
+        title: row.lesson_title,
+        lessonType: row.lesson_type ?? "video",
+        durationMinutes: row.duration_minutes,
+        sortOrder: row.lesson_sort_order,
+        isCompleted: Boolean(row.completed_at),
+        isAvailable: isLessonAvailable({
+          lessonIds,
+          completedLessonIds,
+          lessonId: row.lesson_id,
+        }),
+      });
+    }
+
+    modules.set(row.module_id, moduleData);
+  }
+
+  return {
+    certificateCode: firstRow.certificate_code,
+    completedCount: progress.completedCount,
+    course: {
+      id: firstRow.course_id,
+      slug: firstRow.course_slug,
+      title: firstRow.course_title,
+      subtitle: firstRow.course_subtitle,
+      description: firstRow.course_description,
+      instructorName: firstRow.instructor_name,
+      workloadHours: firstRow.workload_hours,
+      thumbnailUrl: firstRow.thumbnail_url,
+      supportWhatsappUrl: firstRow.support_whatsapp_url,
+      expiresAt: firstRow.expires_at,
+    },
+    modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+    nextLessonId: getNextAvailableLessonId({ lessonIds, completedLessonIds }),
+    progressPercent: progress.percent,
+    totalCount: progress.totalCount,
+  };
 };
 
 export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
@@ -389,6 +605,7 @@ export const getStudentLessonData = async ({
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
       durationMinutes: activeLesson.duration_minutes,
+      isCompleted: Boolean(activeLesson.completed_at),
       videoEmbedUrl: activeLesson.video_embed_url,
       videoProvider: activeLesson.video_provider,
     },
@@ -405,7 +622,11 @@ export const completeLesson = async ({
 }: {
   userId: string;
   lessonId: string;
-}): Promise<{ nextLessonId: string | null; certificateIssued: boolean }> => {
+}): Promise<{
+  certificateIssued: boolean;
+  courseId: string;
+  nextLessonId: string | null;
+}> => {
   const data = await getStudentLessonData({ userId, lessonId });
 
   if (!data) {
@@ -508,8 +729,9 @@ export const completeLesson = async ({
     }
 
     return {
-      nextLessonId: data.nextLessonId,
       certificateIssued,
+      courseId: data.course.id,
+      nextLessonId: data.nextLessonId,
     };
   } catch (error) {
     await client.query("rollback");

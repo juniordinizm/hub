@@ -40,24 +40,6 @@ const getInitials = (name: string): string => {
     .slice(0, 2);
 };
 
-const getModuleHref = ({
-  courseNextLessonId,
-  moduleNextLessonId,
-}: {
-  courseNextLessonId: string | null;
-  moduleNextLessonId: string | null;
-}): string => {
-  if (moduleNextLessonId) {
-    return `/app/aulas/${moduleNextLessonId}`;
-  }
-
-  if (courseNextLessonId) {
-    return `/app/aulas/${courseNextLessonId}`;
-  }
-
-  return "/app/certificados";
-};
-
 export default async function StudentLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {
@@ -68,8 +50,19 @@ export default async function StudentLayout({
   }
 
   const courses = await getStudentCourses(session.user.id);
-  const currentCourse = courses[0];
   const initials = getInitials(session.user.name);
+  const completedLessons = courses.reduce(
+    (total, course) => total + course.completedCount,
+    0
+  );
+  const totalLessons = courses.reduce(
+    (total, course) => total + course.totalCount,
+    0
+  );
+  const overallProgress =
+    totalLessons === 0
+      ? 0
+      : Math.round((completedLessons / totalLessons) * 100);
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -82,7 +75,7 @@ export default async function StudentLayout({
             <p className="font-black text-lg text-sidebar-foreground">
               PROTEA-R
             </p>
-            <p className="text-sidebar-foreground/55 text-xs">Area do aluno</p>
+            <p className="text-sidebar-foreground/55 text-xs">Área do aluno</p>
           </div>
           <div className="border-sidebar-border border-b py-4">
             <div className="flex items-center gap-3">
@@ -106,19 +99,19 @@ export default async function StudentLayout({
                 </p>
               </div>
             </div>
-            {currentCourse ? (
+            {courses.length ? (
               <div className="mt-4">
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span className="font-semibold text-[0.65rem] text-sidebar-foreground/45 uppercase tracking-[0.12em]">
-                    Progresso
+                    Progresso geral
                   </span>
                   <span className="font-bold text-primary text-xs">
-                    {currentCourse.progressPercent}%
+                    {overallProgress}%
                   </span>
                 </div>
                 <Progress
                   className="h-1 bg-primary/20"
-                  value={currentCourse.progressPercent}
+                  value={overallProgress}
                 />
               </div>
             ) : null}
@@ -130,87 +123,70 @@ export default async function StudentLayout({
             <SidebarGroupContent>
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <Link href={route("/app")} legacyBehavior passHref>
-                    <SidebarMenuButton asChild>
-                      <a href={route("/app")}>
-                        <HugeiconsIcon
-                          icon={Home01Icon}
-                          size={18}
-                          strokeWidth={1.5}
-                        />
-                        <span>Inicio</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild>
+                    <Link href={route("/app")}>
+                      <HugeiconsIcon
+                        icon={Home01Icon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Início</span>
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <Link
-                    href={route("/app/certificados")}
-                    legacyBehavior
-                    passHref
-                  >
-                    <SidebarMenuButton asChild>
-                      <a href={route("/app/certificados")}>
-                        <HugeiconsIcon
-                          icon={Certificate01Icon}
-                          size={18}
-                          strokeWidth={1.5}
-                        />
-                        <span>Certificados</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild>
+                    <Link href={route("/app/certificados")}>
+                      <HugeiconsIcon
+                        icon={Certificate01Icon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Certificados</span>
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <Link
-                    href={route("/app/perguntas-frequentes")}
-                    legacyBehavior
-                    passHref
-                  >
-                    <SidebarMenuButton asChild>
-                      <a href={route("/app/perguntas-frequentes")}>
-                        <HugeiconsIcon
-                          icon={HelpCircleIcon}
-                          size={18}
-                          strokeWidth={1.5}
-                        />
-                        <span>Perguntas frequentes</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </Link>
+                  <SidebarMenuButton asChild>
+                    <Link href={route("/app/perguntas-frequentes")}>
+                      <HugeiconsIcon
+                        icon={HelpCircleIcon}
+                        size={18}
+                        strokeWidth={1.5}
+                      />
+                      <span>Perguntas frequentes</span>
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {currentCourse?.modules.length ? (
+          {courses.length ? (
             <SidebarGroup>
-              <SidebarGroupLabel>Modulos</SidebarGroupLabel>
+              <SidebarGroupLabel>Meus cursos</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {currentCourse.modules.map((moduleData) => {
-                    const moduleHref = route(
-                      getModuleHref({
-                        courseNextLessonId: currentCourse.nextLessonId,
-                        moduleNextLessonId: moduleData.nextLessonId,
-                      })
-                    );
-                    return (
-                      <SidebarMenuItem key={moduleData.id}>
-                        <Link href={moduleHref} legacyBehavior passHref>
-                          <SidebarMenuButton asChild>
-                            <a href={moduleHref}>
-                              <HugeiconsIcon
-                                icon={BookOpen01Icon}
-                                size={18}
-                                strokeWidth={1.5}
-                              />
-                              <span>Modulo {moduleData.sortOrder}</span>
-                            </a>
-                          </SidebarMenuButton>
+                  {courses.map((course) => (
+                    <SidebarMenuItem key={course.courseId}>
+                      <SidebarMenuButton asChild className="h-auto py-2">
+                        <Link href={route(`/app/cursos/${course.courseId}`)}>
+                          <HugeiconsIcon
+                            icon={BookOpen01Icon}
+                            size={18}
+                            strokeWidth={1.5}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">
+                              {course.title}
+                            </span>
+                            <span className="block text-sidebar-foreground/45 text-xs">
+                              {course.progressPercent}% concluído
+                            </span>
+                          </span>
                         </Link>
-                      </SidebarMenuItem>
-                    );
-                  })}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

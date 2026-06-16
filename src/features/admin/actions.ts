@@ -81,6 +81,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     readString(formData, "description") || null,
     readString(formData, "instructorName") || null,
     readNumber(formData, "workloadHours"),
+    readString(formData, "thumbnailUrl") || null,
     readString(formData, "supportWhatsappUrl") || null,
     readString(formData, "paymentProviderProductId") || null,
     readNumber(formData, "accessDurationMonths", 12),
@@ -96,12 +97,13 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             description = $3,
             instructor_name = $4,
             workload_hours = $5,
-            support_whatsapp_url = $6,
-            payment_provider_product_id = $7,
-            access_duration_months = $8,
-            status = $9,
+            thumbnail_url = $6,
+            support_whatsapp_url = $7,
+            payment_provider_product_id = $8,
+            access_duration_months = $9,
+            status = $10,
             updated_at = now()
-        where id = $10
+        where id = $11
       `,
       [...values, courseId]
     );
@@ -122,12 +124,13 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
           description,
           instructor_name,
           workload_hours,
+          thumbnail_url,
           support_whatsapp_url,
           payment_provider_product_id,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         returning id
       `,
       [slug, ...values]
