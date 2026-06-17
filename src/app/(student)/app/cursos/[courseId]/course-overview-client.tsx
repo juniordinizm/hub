@@ -12,9 +12,9 @@ interface LessonData {
   id: string;
   isAvailable: boolean;
   isCompleted: boolean;
-  lessonType: string;
   thumbnailUrl?: string | null;
   title: string;
+  watchedPercent: number;
 }
 
 interface ModuleData {
@@ -35,10 +35,7 @@ export function CourseOverviewClient({
   nextLessonId,
 }: CourseOverviewClientProps): React.JSX.Element {
   const flatLessons = useMemo(
-    () =>
-      modules.flatMap((m) =>
-        m.lessons.map((l) => ({ ...l, moduleName: `Módulo ${m.sortOrder}` }))
-      ),
+    () => modules.flatMap((m) => m.lessons),
     [modules]
   );
 
@@ -51,7 +48,7 @@ export function CourseOverviewClient({
       return [];
     }
 
-    const lessons: (LessonData & { moduleName: string })[] = [];
+    const lessons: LessonData[] = [];
     const current = flatLessons[index];
     if (current) {
       lessons.push(current);
@@ -78,17 +75,17 @@ export function CourseOverviewClient({
     return "available";
   }
 
-  function renderLessonCard(lesson: LessonData & { moduleName: string }) {
+  function renderLessonCard(lesson: LessonData) {
     const status = getLessonStatus(lesson);
     const card = (
       <LessonCard
         className="snap-start"
         durationText={formatLessonDuration(lesson.durationSeconds)}
         key={lesson.id}
-        moduleName={lesson.moduleName}
         status={status}
         thumbnailUrl={lesson.thumbnailUrl ?? null}
         title={lesson.title}
+        watchedPercent={lesson.watchedPercent}
       />
     );
 
@@ -182,12 +179,7 @@ export function CourseOverviewClient({
 
                 <div className="custom-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pt-2 pb-4">
                   {moduleData.lessons.length > 0 ? (
-                    moduleData.lessons.map((lesson) =>
-                      renderLessonCard({
-                        ...lesson,
-                        moduleName: `Módulo ${moduleData.sortOrder}`,
-                      })
-                    )
+                    moduleData.lessons.map((lesson) => renderLessonCard(lesson))
                   ) : (
                     <p className="w-full rounded-lg border-2 border-border/50 border-dashed py-8 text-center text-muted-foreground text-sm">
                       Nenhuma aula cadastrada neste módulo.

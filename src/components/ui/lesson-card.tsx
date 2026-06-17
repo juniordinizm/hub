@@ -14,19 +14,19 @@ export type LessonStatus =
 export interface LessonCardProps {
   className?: string;
   durationText: string;
-  moduleName: string;
   status: LessonStatus;
   thumbnailUrl?: string | null;
   title: string;
+  watchedPercent?: number;
 }
 
 export function LessonCard({
   title,
-  moduleName,
   durationText,
   status,
   thumbnailUrl,
   className,
+  watchedPercent,
 }: LessonCardProps): React.JSX.Element {
   const isLocked = status === "locked";
 
@@ -83,6 +83,17 @@ export function LessonCard({
 
         <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
 
+        {status !== "completed" && watchedPercent && watchedPercent > 0 ? (
+          <div className="absolute bottom-0 left-0 z-10 h-1.5 w-full bg-background/40 backdrop-blur-sm">
+            <div
+              className="h-full bg-primary transition-all duration-500 ease-in-out"
+              style={{
+                width: `${Math.min(100, Math.max(0, watchedPercent))}%`,
+              }}
+            />
+          </div>
+        ) : null}
+
         <div className="absolute inset-0 flex items-center justify-center">
           <div
             className={cn(
@@ -111,9 +122,7 @@ export function LessonCard({
         <h4 className="line-clamp-2 font-semibold text-sm leading-tight transition-colors group-hover:text-primary">
           {title}
         </h4>
-        <p className="text-muted-foreground text-xs">
-          {moduleName} · {durationText}
-        </p>
+        <p className="text-muted-foreground text-xs">{durationText}</p>
       </div>
     </div>
   );

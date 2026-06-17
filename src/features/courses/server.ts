@@ -113,6 +113,7 @@ export interface StudentCourseOverviewData {
       lessonType: string;
       sortOrder: number;
       title: string;
+      watchedPercent: number;
     }>;
     sortOrder: number;
     title: string;
@@ -220,6 +221,7 @@ interface CourseOverviewRow {
   module_title: string | null;
   support_whatsapp_url: string | null;
   thumbnail_url: string | null;
+  watched_percent: number | null;
   workload_hours: number;
 }
 
@@ -616,7 +618,8 @@ export const getStudentCourseOverviewData = async ({
         l.lesson_type,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
-        lp.completed_at
+        lp.completed_at,
+        lwp.watched_percent
       from enrollments e
       join courses c on c.id = e.course_id
       left join app_settings s on s.id = 'global'
@@ -624,6 +627,7 @@ export const getStudentCourseOverviewData = async ({
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.user_id = $1
         and c.id = $2
         and e.status = 'active'
@@ -680,6 +684,7 @@ export const getStudentCourseOverviewData = async ({
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: Boolean(row.completed_at),
+        watchedPercent: row.watched_percent ?? 0,
         isAvailable: isLessonAvailable({
           lessonIds,
           completedLessonIds,
