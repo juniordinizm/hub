@@ -7,7 +7,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -106,31 +106,14 @@ export default async function LessonPage({
           )}
         </div>
 
-        <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
-          {videoEmbedUrl ? (
-            <iframe
-              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="h-full w-full"
-              referrerPolicy="strict-origin-when-cross-origin"
-              src={videoEmbedUrl}
-              title={data.lesson.title}
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-              Vídeo em configuração
-            </div>
-          )}
-        </AspectRatio>
-
-        <div className="px-5 py-7 sm:px-9">
-          <Badge
-            className="border-primary/30 bg-primary/15 text-primary"
-            variant="outline"
-          >
-            {formatLessonDuration(data.lesson.durationSeconds)} ·{" "}
-            {data.progressPercent}% do curso
-          </Badge>
+        <LessonVideoPlayer
+          durationSeconds={data.lesson.durationSeconds}
+          lessonId={data.lesson.id}
+          progressPercent={data.progressPercent}
+          title={data.lesson.title}
+          videoEmbedUrl={videoEmbedUrl}
+          videoProvider={data.lesson.videoProvider}
+        >
           <h1 className="mt-3 max-w-3xl font-bold text-2xl text-white tracking-tight">
             {data.lesson.title}
           </h1>
@@ -195,7 +178,7 @@ export default async function LessonPage({
               </div>
             )}
           </div>
-        </div>
+        </LessonVideoPlayer>
       </section>
 
       <Sidebar

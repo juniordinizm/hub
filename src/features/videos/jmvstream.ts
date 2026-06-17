@@ -82,6 +82,20 @@ export const formatLessonDuration = (durationSeconds: number): string => {
   return `${seconds} s`;
 };
 
+export const shouldApplyDetectedDuration = ({
+  currentSeconds,
+  detectedSeconds,
+  userEdited,
+}: {
+  currentSeconds: number;
+  detectedSeconds: number;
+  userEdited: boolean;
+}): boolean =>
+  !userEdited &&
+  Number.isFinite(detectedSeconds) &&
+  detectedSeconds > 0 &&
+  Math.round(currentSeconds) !== Math.round(detectedSeconds);
+
 const parseJmvstreamMessage = (message: string): unknown => {
   try {
     return JSON.parse(message);

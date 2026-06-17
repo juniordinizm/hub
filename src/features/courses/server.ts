@@ -8,6 +8,9 @@ import {
   getNextAvailableLessonId,
   isLessonAvailable,
 } from "@/features/progress/rules";
+import { shouldApplyDetectedDuration } from "@/features/videos/jmvstream";
+
+const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
 
 export interface StudentCourseCard {
   completedCount: number;
@@ -730,4 +733,50 @@ export const completeLesson = async ({
   } finally {
     client.release();
   }
+};
+
+export const syncJmvstreamLessonDuration = async ({
+  durationSeconds,
+  lessonId,
+  userId,
+}: {
+  durationSeconds: number;
+  lessonId: string;
+  userId: string;
+}): Promise<void> => {
+  if (
+    !Number.isFinite(durationSeconds) ||
+    durationSeconds <= 0 ||
+    durationSeconds > MAX_LESSON_DURATION_SECONDS
+  ) {
+    throw new Error("Duracao de aula invalida.");
+  }
+
+  const data = await getStudentLessonData({ userId, lessonId });
+
+  if (!data || data.lesson.videoProvider !== "jmvstream") {
+    return;
+  }
+
+  const roundedDurationSeconds = Math.round(durationSeconds);
+
+  if (
+    !shouldApplyDetectedDuration({
+      currentSeconds: data.lesson.durationSeconds,
+      detectedSeconds: roundedDurationSeconds,
+      userEdited: false,
+    })
+  ) {
+    return;
+  }
+
+  await getPool().query(
+    `
+      update lessons
+      set duration_seconds = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [roundedDurationSeconds, lessonId]
+  );
 };

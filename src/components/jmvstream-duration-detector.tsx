@@ -5,17 +5,16 @@ import {
   extractJmvstreamEmbedUrl,
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
+  shouldApplyDetectedDuration,
 } from "@/features/videos/jmvstream";
 
 const SYNC_MESSAGE = JSON.stringify({ public_event: "jmvplayer-sync" });
 const SYNC_INTERVAL_MS = 1500;
 
 export function JmvstreamDurationDetector({
-  defaultDurationSeconds,
   defaultEmbedUrl,
   defaultProvider,
 }: {
-  defaultDurationSeconds: number;
   defaultEmbedUrl: string;
   defaultProvider: string;
 }): React.JSX.Element | null {
@@ -24,9 +23,7 @@ export function JmvstreamDurationDetector({
   const [embedUrl, setEmbedUrl] = useState(defaultEmbedUrl);
   const [provider, setProvider] = useState(defaultProvider);
   const [detectedSeconds, setDetectedSeconds] = useState<number | null>(null);
-  const [durationWasEdited, setDurationWasEdited] = useState(
-    () => defaultDurationSeconds > 0
-  );
+  const [durationWasEdited, setDurationWasEdited] = useState(false);
 
   const playerUrl = useMemo(() => {
     if (provider !== "jmvstream") {
@@ -61,7 +58,7 @@ export function JmvstreamDurationDetector({
       }
 
       if (target.name === "durationSeconds") {
-        setDurationWasEdited(Number(target.value) > 0);
+        setDurationWasEdited(true);
       }
 
       if (target.name === "videoEmbedUrl" || target.name === "videoProvider") {
@@ -107,7 +104,19 @@ export function JmvstreamDurationDetector({
       const form = rootRef.current?.closest("form");
       const durationInput = form?.elements.namedItem("durationSeconds");
 
-      if (!(durationInput instanceof HTMLInputElement) || durationWasEdited) {
+      if (!(durationInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const currentSeconds = Number(durationInput.value);
+
+      if (
+        !shouldApplyDetectedDuration({
+          currentSeconds,
+          detectedSeconds: seconds,
+          userEdited: durationWasEdited,
+        })
+      ) {
         return;
       }
 

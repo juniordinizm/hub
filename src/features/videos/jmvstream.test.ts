@@ -4,6 +4,7 @@ import {
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
   resolveLessonVideoEmbedUrl,
+  shouldApplyDetectedDuration,
 } from "./jmvstream";
 
 describe("JMVStream video embeds", () => {
@@ -74,5 +75,25 @@ describe("JMVStream video embeds", () => {
     expect(formatLessonDuration(733)).toBe("12 min 13 s");
     expect(formatLessonDuration(120)).toBe("2 min");
     expect(formatLessonDuration(45)).toBe("45 s");
+  });
+
+  it("applies detected duration when stored duration is stale and user did not edit", () => {
+    expect(
+      shouldApplyDetectedDuration({
+        currentSeconds: 120,
+        detectedSeconds: 113,
+        userEdited: false,
+      })
+    ).toBe(true);
+  });
+
+  it("keeps manual duration edits even when player reports another value", () => {
+    expect(
+      shouldApplyDetectedDuration({
+        currentSeconds: 120,
+        detectedSeconds: 113,
+        userEdited: true,
+      })
+    ).toBe(false);
   });
 });

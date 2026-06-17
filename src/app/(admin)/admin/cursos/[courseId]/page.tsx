@@ -702,7 +702,6 @@ function LessonForm({
             />
           </Field>
           <JmvstreamDurationDetector
-            defaultDurationSeconds={lesson?.durationSeconds ?? 0}
             defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
             defaultProvider={lesson?.videoProvider ?? "jmvstream"}
           />
