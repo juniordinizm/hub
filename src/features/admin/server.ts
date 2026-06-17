@@ -164,7 +164,6 @@ export interface AdminManagementData {
     status: string;
   }>;
   settings: {
-    abacatepayWebhookSecretLast4: string | null;
     certificateSignerName: string | null;
     certificateSignerRole: string | null;
     supportWhatsappUrl: string | null;
@@ -199,6 +198,7 @@ export const getAdminManagementData =
       settings,
       auditLogs,
       jmvstreamAssets,
+      studentProfiles,
     ] = await Promise.all([
       pool.query<{
         access_duration_months: number;
@@ -321,12 +321,11 @@ export const getAdminManagementData =
         "select id, question, answer, category, sort_order, is_published from faq_items order by sort_order, question"
       ),
       pool.query<{
-        abacatepay_webhook_secret_last4: string | null;
         certificate_signer_name: string | null;
         certificate_signer_role: string | null;
         support_whatsapp_url: string | null;
       }>(
-        "select support_whatsapp_url, certificate_signer_name, certificate_signer_role, abacatepay_webhook_secret_last4 from app_settings where id = 'global' limit 1"
+        "select support_whatsapp_url, certificate_signer_name, certificate_signer_role from app_settings where id = 'global' limit 1"
       ),
       pool.query<{
         action: string;
@@ -344,6 +343,20 @@ export const getAdminManagementData =
         `
       ),
       getJmvstreamAssets(),
+      pool.query<{
+        email: string;
+        last_access_at: Date | null;
+        name: string;
+        user_id: string;
+      }>(
+        `
+          select u.id as user_id, u.name, u.email, p.last_access_at
+          from profiles p
+          join users u on u.id = p.user_id
+          where p.role = 'student'
+          order by u.name asc
+        `
+      ),
     ]);
 
     const settingsRow = settings.rows[0];
@@ -436,13 +449,19 @@ export const getAdminManagementData =
         status: row.status,
       })),
       settings: {
-        abacatepayWebhookSecretLast4:
-          settingsRow?.abacatepay_webhook_secret_last4 ?? null,
         certificateSignerName: settingsRow?.certificate_signer_name ?? null,
         certificateSignerRole: settingsRow?.certificate_signer_role ?? null,
         supportWhatsappUrl: settingsRow?.support_whatsapp_url ?? null,
       },
-      students: summarizeAdminStudents(enrollmentRows),
+      students: summarizeAdminStudents(
+        enrollmentRows,
+        studentProfiles.rows.map((row) => ({
+          email: row.email,
+          lastAccessAt: row.last_access_at,
+          name: row.name,
+          userId: row.user_id,
+        }))
+      ),
     };
   };
 

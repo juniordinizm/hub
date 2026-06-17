@@ -10,18 +10,40 @@ export interface AdminEnrollmentSummaryInput {
   userId: string;
 }
 
+export interface AdminStudentProfileInput {
+  email: string;
+  lastAccessAt: Date | null;
+  name: string;
+  userId: string;
+}
+
 export interface AdminStudentSummary {
   activeEnrollments: number;
   courseCount: number;
   email: string;
-  firstEnrollmentAt: Date;
+  firstEnrollmentAt: Date | null;
   lastAccessAt: Date | null;
-  latestExpiration: Date;
+  latestExpiration: Date | null;
   name: string;
   revokedEnrollments: number;
   status: string;
   userId: string;
 }
+
+const createEmptyStudentSummary = (
+  student: AdminStudentProfileInput
+): AdminStudentSummary => ({
+  activeEnrollments: 0,
+  courseCount: 0,
+  email: student.email,
+  firstEnrollmentAt: null,
+  lastAccessAt: student.lastAccessAt,
+  latestExpiration: null,
+  name: student.name,
+  revokedEnrollments: 0,
+  status: "not_enrolled",
+  userId: student.userId,
+});
 
 const createStudentSummary = (
   enrollment: AdminEnrollmentSummaryInput
@@ -62,11 +84,17 @@ const mergeEnrollmentIntoSummary = (
   current.revokedEnrollments += enrollment.status === "revoked" ? 1 : 0;
   current.status = resolveAggregateStatus(current.status, enrollment.status);
 
-  if (enrollment.expiresAt > current.latestExpiration) {
+  if (
+    !current.latestExpiration ||
+    enrollment.expiresAt > current.latestExpiration
+  ) {
     current.latestExpiration = enrollment.expiresAt;
   }
 
-  if (enrollment.startsAt < current.firstEnrollmentAt) {
+  if (
+    !current.firstEnrollmentAt ||
+    enrollment.startsAt < current.firstEnrollmentAt
+  ) {
     current.firstEnrollmentAt = enrollment.startsAt;
   }
 
@@ -79,9 +107,14 @@ const mergeEnrollmentIntoSummary = (
 };
 
 export const summarizeAdminStudents = (
-  enrollments: AdminEnrollmentSummaryInput[]
+  enrollments: AdminEnrollmentSummaryInput[],
+  studentProfiles: AdminStudentProfileInput[] = []
 ): AdminStudentSummary[] => {
   const byUserId = new Map<string, AdminStudentSummary>();
+
+  for (const student of studentProfiles) {
+    byUserId.set(student.userId, createEmptyStudentSummary(student));
+  }
 
   for (const enrollment of enrollments) {
     const current = byUserId.get(enrollment.userId);

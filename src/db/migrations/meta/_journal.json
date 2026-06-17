@@ -57,6 +57,13 @@
       "when": 1781710000000,
       "tag": "0007_payment_access_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781712000000,
+      "tag": "0008_drop_abacatepay_webhook_secret_last4",
+      "breakpoints": true
     }
   ]
 }

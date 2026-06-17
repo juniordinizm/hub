@@ -23,9 +23,9 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="space-y-8">
         <header>
-          <Badge variant="outline">Configuracoes</Badge>
+          <Badge variant="outline">Configurações</Badge>
           <h1 className="mt-3 font-bold text-3xl tracking-tight">
-            Configuracoes globais
+            Configurações globais
           </h1>
           <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
             Ajustes operacionais compartilhados por todo o Hub.
@@ -37,7 +37,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
             <CardHeader>
               <CardTitle>Dados operacionais</CardTitle>
               <CardDescription>
-                WhatsApp, assinatura de certificado e referência AbacatePay.
+                WhatsApp global e assinatura de certificado.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -64,22 +64,13 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                       name="certificateSignerRole"
                     />
                   </Field>
-                  <Field>
-                    <FieldLabel>Ultimos 4 caracteres AbacatePay</FieldLabel>
-                    <Input
-                      defaultValue={
-                        data.settings.abacatepayWebhookSecretLast4 ?? ""
-                      }
-                      name="abacatepayWebhookSecretLast4"
-                    />
-                  </Field>
                   <Button type="submit">
                     <HugeiconsIcon
                       icon={FloppyDiskIcon}
                       size={18}
                       strokeWidth={2}
                     />
-                    Salvar configuracoes
+                    Salvar configurações
                   </Button>
                 </FieldGroup>
               </form>

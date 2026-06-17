@@ -478,6 +478,5 @@ export const appSettings = pgTable("app_settings", {
   supportWhatsappUrl: text("support_whatsapp_url"),
   certificateSignerName: text("certificate_signer_name"),
   certificateSignerRole: text("certificate_signer_role"),
-  abacatepayWebhookSecretLast4: text("abacatepay_webhook_secret_last4"),
   ...timestamps,
 });

@@ -41,6 +41,7 @@ const revalidateAdmin = (): void => {
   ]) {
     revalidatePath(path);
   }
+  revalidatePath("/admin", "layout");
 };
 
 const audit = async ({
@@ -636,22 +637,19 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
         id,
         support_whatsapp_url,
         certificate_signer_name,
-        certificate_signer_role,
-        abacatepay_webhook_secret_last4
+        certificate_signer_role
       )
-      values ('global', $1, $2, $3, $4)
+      values ('global', $1, $2, $3)
       on conflict (id) do update set
         support_whatsapp_url = excluded.support_whatsapp_url,
         certificate_signer_name = excluded.certificate_signer_name,
         certificate_signer_role = excluded.certificate_signer_role,
-        abacatepay_webhook_secret_last4 = excluded.abacatepay_webhook_secret_last4,
         updated_at = now()
     `,
     [
       readString(formData, "supportWhatsappUrl") || null,
       readString(formData, "certificateSignerName") || null,
       readString(formData, "certificateSignerRole") || null,
-      readString(formData, "abacatepayWebhookSecretLast4") || null,
     ]
   );
   await audit({

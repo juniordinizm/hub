@@ -29,6 +29,8 @@ import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 type CourseData = Awaited<
   ReturnType<typeof getAdminManagementData>

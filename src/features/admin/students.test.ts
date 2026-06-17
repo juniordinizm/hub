@@ -2,6 +2,35 @@ import { describe, expect, it } from "vitest";
 import { summarizeAdminStudents } from "./students";
 
 describe("admin students summary", () => {
+  it("includes student profiles without enrollments", () => {
+    const students = summarizeAdminStudents(
+      [],
+      [
+        {
+          email: "aluno@example.com",
+          lastAccessAt: null,
+          name: "Aluno Sem Curso",
+          userId: "user-1",
+        },
+      ]
+    );
+
+    expect(students).toEqual([
+      {
+        activeEnrollments: 0,
+        courseCount: 0,
+        email: "aluno@example.com",
+        firstEnrollmentAt: null,
+        lastAccessAt: null,
+        latestExpiration: null,
+        name: "Aluno Sem Curso",
+        revokedEnrollments: 0,
+        status: "not_enrolled",
+        userId: "user-1",
+      },
+    ]);
+  });
+
   it("groups multiple enrollments from the same user into one student row", () => {
     const students = summarizeAdminStudents([
       {
