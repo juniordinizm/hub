@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getPool } from "@/db";
+import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import {
   resolveLessonVideoEmbedUrl,
@@ -71,6 +72,34 @@ const resolveUniqueCourseSlug = async (title: string): Promise<string> => {
   }
 };
 
+const getCourseIdForModule = async (
+  moduleId: string
+): Promise<string | null> => {
+  const { rows } = await getPool().query<{ course_id: string }>(
+    "select course_id from modules where id = $1 limit 1",
+    [moduleId]
+  );
+
+  return rows[0]?.course_id ?? null;
+};
+
+const getCourseIdForLesson = async (
+  lessonId: string
+): Promise<string | null> => {
+  const { rows } = await getPool().query<{ course_id: string }>(
+    `
+      select m.course_id
+      from lessons l
+      join modules m on m.id = l.module_id
+      where l.id = $1
+      limit 1
+    `,
+    [lessonId]
+  );
+
+  return rows[0]?.course_id ?? null;
+};
+
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
@@ -79,7 +108,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     title,
     readString(formData, "subtitle") || null,
     readString(formData, "description") || null,
-    readNumber(formData, "workloadHours"),
     readString(formData, "thumbnailUrl") || null,
     readString(formData, "supportWhatsappUrl") || null,
     readString(formData, "paymentProviderProductId") || null,
@@ -94,14 +122,13 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         set title = $1,
             subtitle = $2,
             description = $3,
-            workload_hours = $4,
-            thumbnail_url = $5,
-            support_whatsapp_url = $6,
-            payment_provider_product_id = $7,
-            access_duration_months = $8,
-            status = $9,
+            thumbnail_url = $4,
+            support_whatsapp_url = $5,
+            payment_provider_product_id = $6,
+            access_duration_months = $7,
+            status = $8,
             updated_at = now()
-        where id = $10
+        where id = $9
       `,
       [...values, courseId]
     );
@@ -130,7 +157,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         returning id
       `,
-      [slug, ...values]
+      [slug, ...values.slice(0, 3), 0, ...values.slice(3)]
     );
     await audit({
       action: "course.created",
@@ -153,6 +180,7 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   const color = readString(formData, "color") || "#326c71";
 
   if (moduleId) {
+    const previousCourseId = await getCourseIdForModule(moduleId);
     await getPool().query(
       `
         update modules
@@ -172,6 +200,10 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
       targetId: moduleId,
       targetType: "module",
     });
+    await recalculateCourseWorkloadHours(courseId);
+    if (previousCourseId && previousCourseId !== courseId) {
+      await recalculateCourseWorkloadHours(previousCourseId);
+    }
     revalidateAdmin();
     return;
   }
@@ -195,6 +227,7 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
     targetId: inserted.rows[0]?.id,
     targetType: "module",
   });
+  await recalculateCourseWorkloadHours(courseId);
   revalidateAdmin();
 };
 
@@ -224,6 +257,7 @@ export const deleteModuleAction = async (formData: FormData): Promise<void> => {
     throw new Error("Modulo invalido.");
   }
 
+  const courseId = await getCourseIdForModule(moduleId);
   await getPool().query("delete from modules where id = $1", [moduleId]);
   await audit({
     action: "module.deleted",
@@ -231,6 +265,9 @@ export const deleteModuleAction = async (formData: FormData): Promise<void> => {
     targetId: moduleId,
     targetType: "module",
   });
+  if (courseId) {
+    await recalculateCourseWorkloadHours(courseId);
+  }
   revalidateAdmin();
 };
 
@@ -242,6 +279,7 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
     throw new Error("Aula invalida.");
   }
 
+  const courseId = await getCourseIdForLesson(lessonId);
   await getPool().query("delete from lessons where id = $1", [lessonId]);
   await audit({
     action: "lesson.deleted",
@@ -249,6 +287,9 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
     targetId: lessonId,
     targetType: "lesson",
   });
+  if (courseId) {
+    await recalculateCourseWorkloadHours(courseId);
+  }
   revalidateAdmin();
 };
 
@@ -272,8 +313,10 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     readNumber(formData, "sortOrder", 1),
     formData.get("isPublished") === "on",
   ];
+  const moduleCourseId = await getCourseIdForModule(String(values[0]));
 
   if (lessonId) {
+    const previousCourseId = await getCourseIdForLesson(lessonId);
     await getPool().query(
       `
         update lessons
@@ -298,6 +341,12 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
       targetId: lessonId,
       targetType: "lesson",
     });
+    if (moduleCourseId) {
+      await recalculateCourseWorkloadHours(moduleCourseId);
+    }
+    if (previousCourseId && previousCourseId !== moduleCourseId) {
+      await recalculateCourseWorkloadHours(previousCourseId);
+    }
   } else {
     const inserted = await getPool().query<{ id: string }>(
       `
@@ -324,6 +373,9 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
       targetId: inserted.rows[0]?.id,
       targetType: "lesson",
     });
+    if (moduleCourseId) {
+      await recalculateCourseWorkloadHours(moduleCourseId);
+    }
   }
 
   revalidateAdmin();

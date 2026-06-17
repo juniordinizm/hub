@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  deriveCourseWorkloadHours,
   getCourseAccessPresentation,
   getStudentCoursePrimaryHref,
   summarizeCoursePublicationReadiness,
@@ -70,5 +71,11 @@ describe("course presentation helpers", () => {
         "Vincular produto AbacatePay",
       ],
     });
+  });
+
+  it("derives course workload from total lesson seconds rounded up to hours", () => {
+    expect(deriveCourseWorkloadHours([1800, 1801])).toBe(2);
+    expect(deriveCourseWorkloadHours([1800, 1799])).toBe(1);
+    expect(deriveCourseWorkloadHours([])).toBe(0);
   });
 });

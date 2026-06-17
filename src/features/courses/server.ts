@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import { createCertificateCode } from "@/features/certificates/rules";
+import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
 import {
   calculateCourseProgress,
@@ -353,6 +354,35 @@ export const getStudentCourses = async (
       nextLessonId: getNextAvailableLessonId(course),
     };
   });
+};
+
+export const recalculateCourseWorkloadHours = async (
+  courseId: string
+): Promise<number> => {
+  const { rows } = await getPool().query<{ duration_seconds: number }>(
+    `
+      select l.duration_seconds
+      from lessons l
+      join modules m on m.id = l.module_id
+      where m.course_id = $1
+    `,
+    [courseId]
+  );
+  const workloadHours = deriveCourseWorkloadHours(
+    rows.map((row) => row.duration_seconds)
+  );
+
+  await getPool().query(
+    `
+      update courses
+      set workload_hours = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [workloadHours, courseId]
+  );
+
+  return workloadHours;
 };
 
 export const getStudentCourseOverviewData = async ({
@@ -779,4 +809,5 @@ export const syncJmvstreamLessonDuration = async ({
     `,
     [roundedDurationSeconds, lessonId]
   );
+  await recalculateCourseWorkloadHours(data.course.id);
 };

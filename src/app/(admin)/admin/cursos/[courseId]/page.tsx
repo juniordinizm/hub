@@ -758,8 +758,8 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             <FieldLabel>Carga horária</FieldLabel>
             <Input
               defaultValue={course.workloadHours ?? 0}
+              disabled
               min={0}
-              name="workloadHours"
               type="number"
             />
           </Field>

@@ -1,5 +1,6 @@
 const EXPIRING_SOON_DAYS = 30;
 const MILLISECONDS_PER_DAY = 86_400_000;
+const SECONDS_PER_HOUR = 3600;
 
 export type CourseAccessTone = "active" | "completed" | "expiring";
 
@@ -125,4 +126,18 @@ export const summarizeCoursePublicationReadiness = ({
     percent: Math.round((completedCount / totalCount) * 100),
     missingItems,
   };
+};
+
+export const deriveCourseWorkloadHours = (
+  lessonDurationsSeconds: number[]
+): number => {
+  const totalSeconds = lessonDurationsSeconds.reduce(
+    (sum, durationSeconds) =>
+      Number.isFinite(durationSeconds)
+        ? sum + Math.max(0, Math.round(durationSeconds))
+        : sum,
+    0
+  );
+
+  return totalSeconds > 0 ? Math.ceil(totalSeconds / SECONDS_PER_HOUR) : 0;
 };

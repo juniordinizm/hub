@@ -100,6 +100,12 @@ const modules = [
   },
 ];
 
+const workloadHours = Math.ceil(
+  modules
+    .flatMap((moduleData) => moduleData.lessons)
+    .reduce((total, lesson) => total + lesson[1] * 60, 0) / 3600
+);
+
 const client = await pool.connect();
 
 try {
@@ -117,7 +123,6 @@ try {
         title,
         subtitle,
         description,
-        instructor_name,
         workload_hours,
         status,
         payment_provider_product_id
@@ -127,13 +132,13 @@ try {
         'Sistema PROTEA-R',
         'Avaliacao de suspeita de TEA',
         'Curso para psicologas e neuropsicologas com progressao por modulos.',
-        'Angelica Brandao Santos',
-        10,
+        ${workloadHours},
         'active',
         'prod_protea_r'
       )
       on conflict (slug) do update set
         title = excluded.title,
+        workload_hours = excluded.workload_hours,
         status = excluded.status,
         payment_provider_product_id = excluded.payment_provider_product_id
       returning id
