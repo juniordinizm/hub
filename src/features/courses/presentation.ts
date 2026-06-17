@@ -130,7 +130,7 @@ export const getStudentCatalogAccessPresentation = ({
 
   return {
     tone: "locked",
-    label: "Acesso bloqueado",
+    label: "Disponível",
     helper: "Compre o acesso para iniciar este curso.",
   };
 };

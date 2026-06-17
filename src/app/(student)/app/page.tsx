@@ -1,7 +1,7 @@
 import { LockIcon, ShoppingBag03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
-import Image from "next/image";
+
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,26 +13,28 @@ import {
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
 import { startCourseCheckoutAction } from "@/features/payments/actions";
-import { formatCurrencyInCents } from "@/lib/formatters";
+
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
+function getInitials(title: string): string {
+  return (
+    title
+      .split(" ")
+      .filter((word) => word.length > 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || title.slice(0, 2).toUpperCase()
+  );
+}
+
 export const dynamic = "force-dynamic";
-
-const isLocalImage = (value: string | null): value is string =>
-  Boolean(value?.startsWith("/"));
-
-const toneClasses = {
-  active: "border-primary/30 bg-primary/15 text-primary",
-  completed: "border-emerald-400/35 bg-emerald-400/15 text-emerald-200",
-  expiring: "border-accent/40 bg-accent/20 text-accent",
-  locked: "border-white/25 bg-background/80 text-foreground",
-  revoked: "border-destructive/35 bg-destructive/15 text-destructive",
-} as const;
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
   const courses = await getStudentCourseCatalog(session.user.id);
+  const myCourses = courses.filter((c) => c.accessStatus === "active");
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -50,25 +52,56 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
         {courses.length === 0 ? (
           <EmptyCoursesState />
         ) : (
-          <section>
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="font-bold text-xl">Cursos disponíveis</h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  Cada curso tem compra, acesso, progresso e certificado
-                  próprios.
-                </p>
+          <div className="flex flex-col gap-12">
+            {myCourses.length > 0 && (
+              <section>
+                <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="font-bold text-xl">
+                      Continue de onde parou
+                    </h2>
+                    <p className="mt-1 text-muted-foreground text-sm">
+                      Acesse seus cursos ativos e continue sua trilha de
+                      aprendizado.
+                    </p>
+                  </div>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={route("/app/certificados")}>
+                      Ver certificados
+                    </Link>
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {myCourses.map((course) => (
+                    <CourseCard course={course} key={course.courseId} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section>
+              <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="font-bold text-xl">Cursos disponíveis</h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Explore nosso catálogo completo e descubra novos conteúdos.
+                  </p>
+                </div>
+                {myCourses.length === 0 && (
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={route("/app/certificados")}>
+                      Ver certificados
+                    </Link>
+                  </Button>
+                )}
               </div>
-              <Button asChild size="sm" variant="outline">
-                <Link href={route("/app/certificados")}>Ver certificados</Link>
-              </Button>
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {courses.map((course) => (
-                <CourseCard course={course} key={course.courseId} />
-              ))}
-            </div>
-          </section>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {courses.map((course) => (
+                  <CourseCard course={course} key={course.courseId} />
+                ))}
+              </div>
+            </section>
+          </div>
         )}
       </div>
     </main>
@@ -116,33 +149,60 @@ function CourseCard({
   });
 
   return (
-    <article className="overflow-hidden rounded-lg border bg-card shadow-sm">
-      {hasActiveAccess ? (
-        <Link className="group block" href={cardHref}>
-          <CourseCover access={access} course={course} />
-        </Link>
-      ) : (
-        <div className="relative">
-          <CourseCover access={access} course={course} />
-          <div className="absolute top-3 right-3 grid size-9 place-items-center rounded-full border border-white/20 bg-background/85 text-foreground shadow-sm">
-            <HugeiconsIcon icon={LockIcon} size={18} strokeWidth={2} />
+    <article className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/50">
+      {/* Top Cover */}
+      <div className="relative flex min-h-[220px] flex-col overflow-hidden bg-[#122425] p-5 pb-6">
+        <div className="absolute right-0 bottom-4 -mr-4 select-none opacity-[0.03] transition-opacity group-hover:opacity-[0.05]">
+          <span className="font-black text-[8rem] leading-none">
+            {getInitials(course.title)}
+          </span>
+        </div>
+
+        <div className="relative z-10 mb-8 flex items-center justify-between">
+          <Badge
+            className="w-fit border-transparent bg-white/10 text-white backdrop-blur-sm"
+            variant="outline"
+          >
+            {access.label === "Acesso ativo" || access.label === "Ativo"
+              ? "Matriculado"
+              : access.label}
+          </Badge>
+          {!hasActiveAccess && (
+            <div className="grid size-7 place-items-center rounded-full bg-white/10 text-white backdrop-blur-sm">
+              <HugeiconsIcon icon={LockIcon} size={14} strokeWidth={2} />
+            </div>
+          )}
+        </div>
+
+        <div className="relative z-10">
+          <h3 className="line-clamp-2 font-bold text-white text-xl">
+            {course.title}
+          </h3>
+          <div className="mt-2 flex flex-wrap items-center gap-2 font-medium text-white/70 text-xs">
+            <span>{course.totalCount} aulas</span>
+            <span className="text-white/30">·</span>
+            <span>{course.workloadHours}h de carga</span>
           </div>
         </div>
-      )}
-      <div className="space-y-4 p-5">
-        {course.subtitle ? (
-          <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
-            {course.subtitle}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-xs">
-          <span>{course.totalCount} aulas</span>
-          <span className="text-foreground/20">·</span>
-          <span>{course.workloadHours}h de carga</span>
-          <span className="text-foreground/20">·</span>
-          <span>{formatCurrencyInCents(course.priceInCents)}</span>
-        </div>
-        {accessControls}
+      </div>
+
+      {/* Bottom Body */}
+      <div className="flex flex-1 flex-col justify-between p-5">
+        {hasActiveAccess && (
+          <div className="mb-5">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-medium text-muted-foreground text-xs">
+                Progresso
+              </span>
+              <span className="font-bold text-primary text-xs">
+                {course.progressPercent}%
+              </span>
+            </div>
+            <Progress className="h-1.5 w-full" value={course.progressPercent} />
+          </div>
+        )}
+
+        <div className="mt-auto">{accessControls}</div>
       </div>
     </article>
   );
@@ -163,24 +223,16 @@ function getCourseAccessControls({
 }): React.ReactNode {
   if (hasActiveAccess) {
     return (
-      <>
-        <div className="flex items-center gap-3">
-          <Progress className="h-1.5 flex-1" value={course.progressPercent} />
-          <span className="font-semibold text-xs">
-            {course.progressPercent}%
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild>
-            <Link href={primaryHref}>
-              {course.nextLessonId ? "Continuar curso" : "Ver conclusão"}
-            </Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={cardHref}>Ver trilha</Link>
-          </Button>
-        </div>
-      </>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild className="flex-1" size="sm">
+          <Link href={primaryHref}>
+            {course.nextLessonId ? "Continuar" : "Concluído"}
+          </Link>
+        </Button>
+        <Button asChild className="flex-1" size="sm" variant="outline">
+          <Link href={cardHref}>Ver trilha</Link>
+        </Button>
+      </div>
     );
   }
 
@@ -191,13 +243,13 @@ function getCourseAccessControls({
           {accessHelper}
         </p>
         {course.supportWhatsappUrl ? (
-          <Button asChild className="w-full" variant="outline">
+          <Button asChild className="w-full" size="sm" variant="outline">
             <a href={course.supportWhatsappUrl} rel="noopener" target="_blank">
               Falar com suporte
             </a>
           </Button>
         ) : (
-          <Button className="w-full" disabled type="button">
+          <Button className="w-full" disabled size="sm" type="button">
             Fale com o suporte
           </Button>
         )}
@@ -208,48 +260,12 @@ function getCourseAccessControls({
   return (
     <form action={startCourseCheckoutAction}>
       <input name="courseId" type="hidden" value={course.courseId} />
-      <Button className="w-full" type="submit">
-        <HugeiconsIcon icon={ShoppingBag03Icon} size={18} strokeWidth={2} />
+      <Button className="w-full" size="sm" type="submit">
+        <HugeiconsIcon icon={ShoppingBag03Icon} size={16} strokeWidth={2} />
         {course.accessStatus === "expired"
           ? "Renovar acesso"
           : "Comprar acesso"}
       </Button>
     </form>
-  );
-}
-
-function CourseCover({
-  access,
-  course,
-}: {
-  access: { label: string; tone: keyof typeof toneClasses };
-  course: StudentCatalogCourseCard;
-}): React.JSX.Element {
-  return (
-    <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-      {isLocalImage(course.thumbnailUrl) ? (
-        <Image
-          alt={course.title}
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-          fill
-          sizes="(min-width: 1280px) 33vw, 100vw"
-          src={course.thumbnailUrl}
-        />
-      ) : (
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_20%,rgba(217,123,52,0.5),transparent_28%),linear-gradient(135deg,#326c71,#162b2d_60%,#0f2224)]" />
-      )}
-      <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent" />
-      <Badge
-        className={`absolute top-3 left-3 ${toneClasses[access.tone]}`}
-        variant="outline"
-      >
-        {access.label}
-      </Badge>
-      <div className="absolute right-3 bottom-3 left-3">
-        <p className="line-clamp-2 font-bold text-lg text-white">
-          {course.title}
-        </p>
-      </div>
-    </div>
   );
 }
