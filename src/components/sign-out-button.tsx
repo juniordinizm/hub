@@ -1,5 +1,7 @@
 "use client";
 
+import { Logout01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { createAuthClient } from "better-auth/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,12 +25,13 @@ export function SignOutButton({
 
   return (
     <Button
-      className={className}
+      className={`gap-2 ${className ?? ""}`}
       disabled={isPending}
       onClick={handleSignOut}
       type="button"
       variant={variant}
     >
+      <HugeiconsIcon icon={Logout01Icon} size={18} strokeWidth={1.5} />
       {isPending ? "Saindo..." : "Sair"}
     </Button>
   );

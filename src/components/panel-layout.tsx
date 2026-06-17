@@ -80,7 +80,7 @@ export function PanelLayout({
         </SidebarContent>
         <SidebarSeparator />
         <SidebarFooter className="gap-3 px-5 pb-5">
-          <SignOutButton className="w-full" variant="secondary" />
+          <SignOutButton className="w-full" variant="ghost" />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="overflow-hidden">
