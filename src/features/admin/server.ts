@@ -4,6 +4,7 @@ import {
   type AdminStudentSummary,
   summarizeAdminStudents,
 } from "@/features/admin/students";
+import { getJmvstreamAssets } from "@/features/jmvstream/server";
 
 export interface AdminOverview {
   activeEnrollments: number;
@@ -113,6 +114,16 @@ export interface AdminManagementData {
     question: string;
     sortOrder: number;
   }>;
+  jmvstreamAssets: Array<{
+    deleteStatus: string;
+    filename: string;
+    galleryUuid: string | null;
+    id: string;
+    lastError: string | null;
+    lessonId: string | null;
+    uploadStatus: string;
+    videoHash: string;
+  }>;
   lessons: Array<{
     courseTitle: string;
     durationSeconds: number;
@@ -183,6 +194,7 @@ export const getAdminManagementData =
       faqs,
       settings,
       auditLogs,
+      jmvstreamAssets,
     ] = await Promise.all([
       pool.query<{
         access_duration_months: number;
@@ -326,6 +338,7 @@ export const getAdminManagementData =
           limit 30
         `
       ),
+      getJmvstreamAssets(),
     ]);
 
     const settingsRow = settings.rows[0];
@@ -380,6 +393,7 @@ export const getAdminManagementData =
         question: row.question,
         sortOrder: row.sort_order,
       })),
+      jmvstreamAssets,
       lessons: lessons.rows.map((row) => ({
         courseTitle: row.course_title,
         durationSeconds: row.duration_seconds,

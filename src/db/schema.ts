@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   index,
@@ -54,6 +55,26 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
   "processed",
   "ignored",
+  "failed",
+]);
+export const jmvstreamFolderTypeEnum = pgEnum("jmvstream_folder_type", [
+  "course",
+  "module",
+]);
+export const jmvstreamFolderStatusEnum = pgEnum("jmvstream_folder_status", [
+  "active",
+  "failed",
+  "needs_review",
+]);
+export const jmvstreamUploadStatusEnum = pgEnum("jmvstream_upload_status", [
+  "uploading",
+  "processing",
+  "ready",
+]);
+export const jmvstreamDeleteStatusEnum = pgEnum("jmvstream_delete_status", [
+  "none",
+  "pending",
+  "deleted",
   "failed",
 ]);
 
@@ -206,6 +227,80 @@ export const lessons = pgTable(
       table.moduleId,
       table.sortOrder
     ),
+  ]
+);
+
+export const jmvstreamFolders = pgTable(
+  "jmvstream_folders",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    moduleId: uuid("module_id").references(() => modules.id, {
+      onDelete: "cascade",
+    }),
+    folderUuid: text("folder_uuid"),
+    folderType: jmvstreamFolderTypeEnum("folder_type").notNull(),
+    name: text("name").notNull(),
+    parentFolderUuid: text("parent_folder_uuid"),
+    status: jmvstreamFolderStatusEnum("status").default("active").notNull(),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("jmvstream_folders_folder_uuid_unique_idx").on(
+      table.folderUuid
+    ),
+    uniqueIndex("jmvstream_folders_course_unique_idx")
+      .on(table.courseId)
+      .where(sql`${table.folderType} = 'course'`),
+    uniqueIndex("jmvstream_folders_module_unique_idx")
+      .on(table.moduleId)
+      .where(sql`${table.moduleId} is not null`),
+    index("jmvstream_folders_status_idx").on(table.status),
+  ]
+);
+
+export const jmvstreamVideoAssets = pgTable(
+  "jmvstream_video_assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id").references(() => courses.id, {
+      onDelete: "set null",
+    }),
+    moduleId: uuid("module_id").references(() => modules.id, {
+      onDelete: "set null",
+    }),
+    lessonId: uuid("lesson_id").references(() => lessons.id, {
+      onDelete: "set null",
+    }),
+    videoHash: text("video_hash").notNull(),
+    galleryUuid: text("gallery_uuid"),
+    filename: text("filename").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    objectName: text("object_name"),
+    uploadId: text("upload_id"),
+    jobId: text("job_id"),
+    uploadStatus: jmvstreamUploadStatusEnum("upload_status")
+      .default("processing")
+      .notNull(),
+    deleteStatus: jmvstreamDeleteStatusEnum("delete_status")
+      .default("none")
+      .notNull(),
+    deleteAttempts: integer("delete_attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("jmvstream_video_assets_hash_unique_idx").on(table.videoHash),
+    uniqueIndex("jmvstream_video_assets_active_lesson_unique_idx")
+      .on(table.lessonId)
+      .where(
+        sql`${table.lessonId} is not null and ${table.deleteStatus} = 'none'`
+      ),
+    index("jmvstream_video_assets_lesson_idx").on(table.lessonId),
+    index("jmvstream_video_assets_delete_status_idx").on(table.deleteStatus),
   ]
 );
 

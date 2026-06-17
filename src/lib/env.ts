@@ -20,10 +20,7 @@ const serverEnvSchema = z.object({
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
   INTERNAL_BOOTSTRAP_SECRET: optionalNonEmptyString,
-  JMVSTREAM_API_BASE_URL: z
-    .string()
-    .url()
-    .default("https://api.jmvstream.com/v1"),
+  JMVSTREAM_API_BASE_URL: z.string().url().default("https://api.jmvstream.com"),
   JMVSTREAM_API_TOKEN: optionalNonEmptyString,
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),

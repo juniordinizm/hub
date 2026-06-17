@@ -36,6 +36,13 @@
       "when": 1781657734447,
       "tag": "0004_recalculate_course_workloads",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781671925909,
+      "tag": "0005_purple_ink",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
+import {
+  type JmvstreamUploadAsset,
+  JmvstreamUploadPanel,
+} from "@/components/jmvstream-upload-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -67,6 +71,7 @@ const providerOptions = [
 
 type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
 type CourseData = AdminData["courses"][number];
+type JmvstreamAssetData = AdminData["jmvstreamAssets"][number];
 type ModuleData = AdminData["modules"][number];
 type LessonData = AdminData["lessons"][number];
 
@@ -239,7 +244,7 @@ export default async function AdminCourseDetailPage({
                     Novo módulo
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Novo módulo</DialogTitle>
                     <DialogDescription>
@@ -257,7 +262,7 @@ export default async function AdminCourseDetailPage({
                     Nova aula
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Nova aula</DialogTitle>
                     <DialogDescription>
@@ -281,6 +286,7 @@ export default async function AdminCourseDetailPage({
                 {modules.map((moduleData) => (
                   <ModuleSection
                     course={course}
+                    jmvstreamAssets={data.jmvstreamAssets}
                     key={moduleData.id}
                     lessons={lessons}
                     moduleData={moduleData}
@@ -376,11 +382,13 @@ export default async function AdminCourseDetailPage({
 
 function ModuleSection({
   course,
+  jmvstreamAssets,
   lessons,
   moduleData,
   modules,
 }: {
   course: CourseData;
+  jmvstreamAssets: JmvstreamAssetData[];
   lessons: LessonData[];
   moduleData: ModuleData;
   modules: ModuleData[];
@@ -428,7 +436,14 @@ function ModuleSection({
       <div className="divide-y">
         {moduleLessons.length ? (
           moduleLessons.map((lesson) => (
-            <LessonRow key={lesson.id} lesson={lesson} modules={modules} />
+            <LessonRow
+              asset={jmvstreamAssets.find(
+                (asset) => asset.lessonId === lesson.id
+              )}
+              key={lesson.id}
+              lesson={lesson}
+              modules={modules}
+            />
           ))
         ) : (
           <p className="px-5 py-4 text-muted-foreground text-sm">
@@ -441,9 +456,11 @@ function ModuleSection({
 }
 
 function LessonRow({
+  asset,
   lesson,
   modules,
 }: {
+  asset?: JmvstreamAssetData | undefined;
   lesson: LessonData;
   modules: ModuleData[];
 }): React.JSX.Element {
@@ -477,14 +494,18 @@ function LessonRow({
             Editar
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Editar aula</DialogTitle>
             <DialogDescription>
               Altere vídeo, ordem ou publicação.
             </DialogDescription>
           </DialogHeader>
-          <LessonForm lesson={lesson} modules={modules} />
+          <LessonForm
+            asset={asset ? toUploadAsset(asset) : undefined}
+            lesson={lesson}
+            modules={modules}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -584,9 +605,11 @@ function ModuleForm({
 }
 
 function LessonForm({
+  asset,
   lesson,
   modules,
 }: {
+  asset?: JmvstreamUploadAsset | undefined;
   lesson?: LessonData;
   modules: ModuleData[];
 }): React.JSX.Element {
@@ -706,6 +729,11 @@ function LessonForm({
           <JmvstreamDurationDetector
             defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
             defaultProvider={lesson?.videoProvider ?? "jmvstream"}
+          />
+          <JmvstreamUploadPanel
+            asset={asset}
+            currentVideoHash={lesson?.videoExternalId ?? null}
+            lessonId={lesson?.id}
           />
           <div className="flex flex-wrap items-center gap-4">
             <label
@@ -1015,3 +1043,13 @@ function InfoTile({
     </div>
   );
 }
+
+const toUploadAsset = (asset: JmvstreamAssetData): JmvstreamUploadAsset => ({
+  deleteStatus: asset.deleteStatus,
+  filename: asset.filename,
+  galleryUuid: asset.galleryUuid,
+  id: asset.id,
+  lastError: asset.lastError,
+  uploadStatus: asset.uploadStatus,
+  videoHash: asset.videoHash,
+});
