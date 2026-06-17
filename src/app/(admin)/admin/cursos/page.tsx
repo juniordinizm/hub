@@ -1,5 +1,6 @@
 import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Image from "next/image";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Badge } from "@/components/ui/badge";
@@ -35,17 +36,22 @@ type CourseData = Awaited<
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   active: {
     label: "Ativo",
-    color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+    color:
+      "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   },
   draft: {
     label: "Rascunho",
-    color: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    color:
+      "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
   },
   archived: {
     label: "Arquivado",
-    color: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+    color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
   },
 };
+
+const isLocalImage = (value: string | null): value is string =>
+  Boolean(value?.startsWith("/"));
 
 const WHITESPACE_RE = /\s+/;
 const THUMB_GRADIENTS = [
@@ -119,7 +125,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           ).length;
           const statusInfo = STATUS_MAP[course.status] ?? {
             label: course.status,
-            color: "bg-zinc-500/15 text-zinc-600",
+            color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
           };
 
           return (
@@ -128,34 +134,46 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
               href={route(`/admin/cursos/${course.id}`)}
               key={course.id}
             >
-              <div
-                className={`relative flex aspect-[16/9] items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
-              >
-                <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
-                  {getInitials(course.title)}
-                </span>
-                <div className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover:bg-black/5" />
+              <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+                {isLocalImage(course.thumbnailUrl) ? (
+                  <Image
+                    alt={course.title}
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    fill
+                    sizes="(min-width: 1280px) 33vw, 100vw"
+                    src={course.thumbnailUrl}
+                  />
+                ) : (
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+                  >
+                    <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
+                      {getInitials(course.title)}
+                    </span>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
+                <Badge
+                  className={`absolute top-3 left-3 ${statusInfo.color}`}
+                  variant="outline"
+                >
+                  {statusInfo.label}
+                </Badge>
+                <div className="absolute right-3 bottom-3 left-3">
+                  <p className="line-clamp-2 font-bold text-lg text-white">
+                    {course.title}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-1 flex-col gap-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="line-clamp-2 font-semibold text-base leading-snug">
-                    {course.title}
-                  </h2>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 font-medium text-[11px] ${statusInfo.color}`}
-                  >
-                    {statusInfo.label}
-                  </span>
-                </div>
-
+              <div className="flex flex-1 flex-col gap-3 p-5">
                 {course.subtitle ? (
-                  <p className="line-clamp-2 text-muted-foreground text-sm leading-relaxed">
+                  <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
                     {course.subtitle}
                   </p>
                 ) : null}
 
-                <div className="mt-auto flex items-center gap-3 border-t pt-3 text-muted-foreground text-xs">
+                <div className="mt-auto flex items-center gap-3 text-muted-foreground text-xs">
                   <span>{courseModules.length} módulos</span>
                   <span className="text-foreground/20">·</span>
                   <span>{lessonsCount} aulas</span>
