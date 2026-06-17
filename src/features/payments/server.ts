@@ -5,11 +5,14 @@ import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
 import { addMonths } from "@/features/enrollments/rules";
 import {
+  type AbacatePayOrderPayload,
   buildAbacatePayCheckoutRequest,
   buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
   mapAbacatePayEventToOrderStatus,
+  type PersistedOrderStatus,
+  resolveAbacatePayOrderStatus,
 } from "@/features/payments/abacatepay";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
 import { getServerEnv } from "@/lib/env";
@@ -25,6 +28,20 @@ interface CreatedCourseProduct {
 
 interface CourseCheckoutResult {
   redirectUrl: string;
+}
+
+interface WebhookCourse {
+  access_duration_months: number;
+  id: string;
+  payment_provider_product_id: string | null;
+  title: string;
+}
+
+interface WebhookTransition {
+  finalOrderStatus: PersistedOrderStatus;
+  shouldApplyDisputeRevocation: boolean;
+  shouldApplyPaidAccess: boolean;
+  shouldApplyRefundRevocation: boolean;
 }
 
 const getAbacatePayClient = (): AbacatePayClient => {
@@ -107,6 +124,276 @@ const resolveWebhookUserId = async ({
   }
 
   return userId;
+};
+
+const resolveWebhookCourse = async ({
+  client,
+  metadataCourseId,
+  providerProductId,
+  warnings,
+}: {
+  client: PoolClient;
+  metadataCourseId: string | null;
+  providerProductId: string | null;
+  warnings: string[];
+}): Promise<WebhookCourse> => {
+  if (metadataCourseId) {
+    const courseResult = await client.query<{
+      access_duration_months: number;
+      id: string;
+      payment_provider_product_id: string | null;
+      title: string;
+    }>(
+      `
+        select id, title, access_duration_months, payment_provider_product_id
+        from courses
+        where id = $1
+        limit 1
+      `,
+      [metadataCourseId]
+    );
+    const course = courseResult.rows[0];
+
+    if (!course) {
+      throw new Error("Curso informado no checkout nao foi localizado.");
+    }
+
+    if (
+      providerProductId &&
+      course.payment_provider_product_id !== providerProductId
+    ) {
+      throw new Error(
+        "Produto AbacatePay nao confere com o curso informado no checkout."
+      );
+    }
+
+    if (!providerProductId) {
+      warnings.push(
+        "Webhook AbacatePay sem item de produto; curso resolvido pela metadata."
+      );
+    }
+
+    return course;
+  }
+
+  if (!providerProductId) {
+    throw new Error("Webhook AbacatePay sem produto mapeavel.");
+  }
+
+  warnings.push(
+    "Webhook AbacatePay sem metadata.courseId; curso resolvido pelo produto."
+  );
+
+  const courseResult = await client.query<{
+    title: string;
+    id: string;
+    access_duration_months: number;
+    payment_provider_product_id: string | null;
+  }>(
+    `
+      select id, title, access_duration_months, payment_provider_product_id
+      from courses
+      where payment_provider_product_id = $1
+      limit 1
+    `,
+    [providerProductId]
+  );
+  const course = courseResult.rows[0];
+
+  if (!course) {
+    throw new Error("Produto AbacatePay nao esta mapeado para nenhum curso.");
+  }
+
+  return course;
+};
+
+const getWebhookTransition = async ({
+  client,
+  incomingOrderStatus,
+  providerOrderId,
+}: {
+  client: PoolClient;
+  incomingOrderStatus: PersistedOrderStatus;
+  providerOrderId: string;
+}): Promise<WebhookTransition> => {
+  const existingOrder = await client.query<{
+    status: PersistedOrderStatus;
+  }>(
+    `
+      select status
+      from orders
+      where provider = 'abacatepay'
+        and provider_order_id = $1
+      limit 1
+    `,
+    [providerOrderId]
+  );
+  const finalOrderStatus = resolveAbacatePayOrderStatus({
+    currentStatus: existingOrder.rows[0]?.status ?? null,
+    incomingStatus: incomingOrderStatus,
+  });
+
+  return {
+    finalOrderStatus,
+    shouldApplyPaidAccess:
+      incomingOrderStatus === "paid" && finalOrderStatus === "paid",
+    shouldApplyRefundRevocation:
+      incomingOrderStatus === "refunded" && finalOrderStatus === "refunded",
+    shouldApplyDisputeRevocation:
+      incomingOrderStatus === "disputed" && finalOrderStatus === "disputed",
+  };
+};
+
+const upsertWebhookOrder = async ({
+  client,
+  courseId,
+  finalOrderStatus,
+  now,
+  orderPayload,
+  shouldApplyPaidAccess,
+  shouldApplyRefundRevocation,
+  userId,
+}: {
+  client: PoolClient;
+  courseId: string;
+  finalOrderStatus: PersistedOrderStatus;
+  now: Date;
+  orderPayload: AbacatePayOrderPayload;
+  shouldApplyPaidAccess: boolean;
+  shouldApplyRefundRevocation: boolean;
+  userId: string;
+}): Promise<void> => {
+  await client.query(
+    `
+      insert into orders (
+        course_id,
+        user_id,
+        provider_order_id,
+        external_id,
+        status,
+        amount_in_cents,
+        paid_amount_in_cents,
+        payment_method,
+        receipt_url,
+        paid_at,
+        refunded_at,
+        customer_email,
+        customer_name
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      on conflict (provider, provider_order_id) do update set
+        user_id = excluded.user_id,
+        status = excluded.status,
+        amount_in_cents = excluded.amount_in_cents,
+        paid_amount_in_cents = excluded.paid_amount_in_cents,
+        payment_method = excluded.payment_method,
+        receipt_url = excluded.receipt_url,
+        paid_at = coalesce(orders.paid_at, excluded.paid_at),
+        refunded_at = coalesce(excluded.refunded_at, orders.refunded_at),
+        customer_email = excluded.customer_email,
+        customer_name = excluded.customer_name,
+        updated_at = now()
+    `,
+    [
+      courseId,
+      userId,
+      orderPayload.providerOrderId,
+      orderPayload.externalId,
+      finalOrderStatus,
+      orderPayload.amountInCents,
+      orderPayload.paidAmountInCents,
+      orderPayload.paymentMethod,
+      orderPayload.receiptUrl,
+      shouldApplyPaidAccess ? now : null,
+      shouldApplyRefundRevocation ? now : null,
+      orderPayload.customerEmail,
+      orderPayload.customerName,
+    ]
+  );
+};
+
+const applyWebhookEnrollmentTransition = async ({
+  client,
+  course,
+  now,
+  orderPayload,
+  shouldApplyDisputeRevocation,
+  shouldApplyPaidAccess,
+  shouldApplyRefundRevocation,
+  userId,
+}: {
+  client: PoolClient;
+  course: WebhookCourse;
+  now: Date;
+  orderPayload: AbacatePayOrderPayload;
+  shouldApplyDisputeRevocation: boolean;
+  shouldApplyPaidAccess: boolean;
+  shouldApplyRefundRevocation: boolean;
+  userId: string;
+}): Promise<{
+  courseTitle: string;
+  to: string;
+  userName: string;
+} | null> => {
+  if (shouldApplyPaidAccess) {
+    const enrollment = await client.query<{ expires_at: Date | null }>(
+      `
+        select expires_at
+        from enrollments
+        where user_id = $1 and course_id = $2
+        limit 1
+      `,
+      [userId, course.id]
+    );
+    const currentExpiresAt = enrollment.rows[0]?.expires_at ?? null;
+    const renewalBase =
+      currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
+    const expiresAt = addMonths(renewalBase, course.access_duration_months);
+
+    await client.query(
+      `
+        insert into enrollments (user_id, course_id, status, starts_at, expires_at)
+        values ($1, $2, 'active', $3, $4)
+        on conflict (user_id, course_id) do update set
+          status = 'active',
+          expires_at = excluded.expires_at,
+          revoked_at = null,
+          revoked_reason = null,
+          expiry_warning_7d_sent_at = null,
+          expiry_warning_1d_sent_at = null,
+          updated_at = now()
+      `,
+      [userId, course.id, now, expiresAt]
+    );
+
+    return {
+      courseTitle: course.title,
+      to: orderPayload.customerEmail,
+      userName: orderPayload.customerName,
+    };
+  }
+
+  if (shouldApplyRefundRevocation || shouldApplyDisputeRevocation) {
+    await client.query(
+      `
+        update enrollments
+        set status = 'revoked',
+            revoked_at = now(),
+            revoked_reason = $3,
+            updated_at = now()
+        where user_id = $1 and course_id = $2
+      `,
+      [
+        userId,
+        course.id,
+        shouldApplyDisputeRevocation
+          ? "abacatepay_dispute"
+          : "abacatepay_refund",
+      ]
+    );
+  }
+
+  return null;
 };
 
 export const createAbacatePayCourseProduct = async (
@@ -230,9 +517,10 @@ export const processAbacatePayWebhook = async (
   const eventName =
     typeof payload.event === "string" ? payload.event : "unknown";
   const eventKey = getAbacatePayEventKey(payload);
-  const orderStatus = mapAbacatePayEventToOrderStatus(eventName);
+  const incomingOrderStatus = mapAbacatePayEventToOrderStatus(eventName);
   const pool = getPool();
   const client = await pool.connect();
+  const warnings: string[] = [];
   let accessEmailPayload: {
     courseTitle: string;
     to: string;
@@ -257,11 +545,13 @@ export const processAbacatePayWebhook = async (
       return { status: "duplicate", eventKey };
     }
 
-    if (orderStatus === "ignored") {
+    if (incomingOrderStatus === "ignored") {
       await client.query(
         `
           update webhook_events
-          set status = 'ignored', processed_at = now()
+          set status = 'ignored',
+              error_message = 'Evento AbacatePay nao mapeado para pedido.',
+              processed_at = now()
           where provider = 'abacatepay' and event_key = $1
         `,
         [eventKey]
@@ -272,29 +562,22 @@ export const processAbacatePayWebhook = async (
 
     const orderPayload = getAbacatePayOrderPayload(payload);
 
-    if (!orderPayload?.providerProductId) {
-      throw new Error("Webhook AbacatePay sem produto mapeavel.");
+    if (!orderPayload) {
+      throw new Error("Webhook AbacatePay sem pedido mapeavel.");
     }
 
-    const courseResult = await client.query<{
-      title: string;
-      id: string;
-      access_duration_months: number;
-    }>(
-      `
-        select id, title, access_duration_months
-        from courses
-        where payment_provider_product_id = $1
-        limit 1
-      `,
-      [orderPayload.providerProductId]
-    );
-    const course = courseResult.rows[0];
-
-    if (!course) {
-      throw new Error("Produto AbacatePay nao esta mapeado para nenhum curso.");
+    if (!orderPayload.userId) {
+      warnings.push(
+        "Webhook AbacatePay sem metadata.userId; aluna resolvida pelo e-mail do pagador."
+      );
     }
 
+    const course = await resolveWebhookCourse({
+      client,
+      metadataCourseId: orderPayload.courseId,
+      providerProductId: orderPayload.providerProductId,
+      warnings,
+    });
     const now = new Date();
     const userId = await resolveWebhookUserId({
       client,
@@ -312,110 +595,48 @@ export const processAbacatePayWebhook = async (
       [userId]
     );
 
-    await client.query(
-      `
-        insert into orders (
-          course_id,
-          user_id,
-          provider_order_id,
-          external_id,
-          status,
-          amount_in_cents,
-          paid_amount_in_cents,
-          payment_method,
-          receipt_url,
-          paid_at,
-          refunded_at,
-          customer_email,
-          customer_name
-        )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        on conflict (provider, provider_order_id) do update set
-          user_id = excluded.user_id,
-          status = excluded.status,
-          amount_in_cents = excluded.amount_in_cents,
-          paid_amount_in_cents = excluded.paid_amount_in_cents,
-          payment_method = excluded.payment_method,
-          receipt_url = excluded.receipt_url,
-          paid_at = coalesce(orders.paid_at, excluded.paid_at),
-          refunded_at = excluded.refunded_at,
-          customer_email = excluded.customer_email,
-          customer_name = excluded.customer_name,
-          updated_at = now()
-      `,
-      [
-        course.id,
-        userId,
-        orderPayload.providerOrderId,
-        orderPayload.externalId,
-        orderStatus,
-        orderPayload.amountInCents,
-        orderPayload.paidAmountInCents,
-        orderPayload.paymentMethod,
-        orderPayload.receiptUrl,
-        orderStatus === "paid" ? now : null,
-        orderStatus === "refunded" ? now : null,
-        orderPayload.customerEmail,
-        orderPayload.customerName,
-      ]
-    );
+    const transition = await getWebhookTransition({
+      client,
+      incomingOrderStatus,
+      providerOrderId: orderPayload.providerOrderId,
+    });
 
-    if (orderStatus === "paid") {
-      const enrollment = await client.query<{ expires_at: Date | null }>(
-        `
-          select expires_at
-          from enrollments
-          where user_id = $1 and course_id = $2
-          limit 1
-        `,
-        [userId, course.id]
-      );
-      const currentExpiresAt = enrollment.rows[0]?.expires_at ?? null;
-      const renewalBase =
-        currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
-      const expiresAt = addMonths(renewalBase, course.access_duration_months);
-
-      await client.query(
-        `
-          insert into enrollments (user_id, course_id, status, starts_at, expires_at)
-          values ($1, $2, 'active', $3, $4)
-          on conflict (user_id, course_id) do update set
-            status = 'active',
-            expires_at = excluded.expires_at,
-            revoked_at = null,
-            revoked_reason = null,
-            updated_at = now()
-        `,
-        [userId, course.id, now, expiresAt]
-      );
-      accessEmailPayload = {
-        courseTitle: course.title,
-        to: orderPayload.customerEmail,
-        userName: orderPayload.customerName,
-      };
-    }
-
-    if (orderStatus === "refunded") {
-      await client.query(
-        `
-          update enrollments
-          set status = 'revoked',
-              revoked_at = now(),
-              revoked_reason = 'abacatepay_refund',
-              updated_at = now()
-          where user_id = $1 and course_id = $2
-        `,
-        [userId, course.id]
+    if (incomingOrderStatus !== transition.finalOrderStatus) {
+      warnings.push(
+        `Evento ${incomingOrderStatus} preservou status terminal ${transition.finalOrderStatus}.`
       );
     }
+
+    await upsertWebhookOrder({
+      client,
+      courseId: course.id,
+      finalOrderStatus: transition.finalOrderStatus,
+      now,
+      orderPayload,
+      shouldApplyPaidAccess: transition.shouldApplyPaidAccess,
+      shouldApplyRefundRevocation: transition.shouldApplyRefundRevocation,
+      userId,
+    });
+    accessEmailPayload = await applyWebhookEnrollmentTransition({
+      client,
+      course,
+      now,
+      orderPayload,
+      shouldApplyDisputeRevocation: transition.shouldApplyDisputeRevocation,
+      shouldApplyPaidAccess: transition.shouldApplyPaidAccess,
+      shouldApplyRefundRevocation: transition.shouldApplyRefundRevocation,
+      userId,
+    });
 
     await client.query(
       `
         update webhook_events
-        set status = 'processed', processed_at = now()
+        set status = 'processed',
+            error_message = $2,
+            processed_at = now()
         where provider = 'abacatepay' and event_key = $1
       `,
-      [eventKey]
+      [eventKey, warnings.length ? warnings.join(" ") : null]
     );
 
     await client.query("commit");

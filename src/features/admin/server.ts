@@ -13,6 +13,7 @@ export interface AdminOverview {
   recentWebhooks: Array<{
     eventKey: string;
     eventName: string;
+    errorMessage: string | null;
     status: string;
     createdAt: Date;
   }>;
@@ -39,11 +40,12 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
     pool.query<{
       event_key: string;
       event_name: string;
+      error_message: string | null;
       status: string;
       created_at: Date;
     }>(
       `
-        select event_key, event_name, status, created_at
+        select event_key, event_name, status, error_message, created_at
         from webhook_events
         order by created_at desc
         limit 8
@@ -60,6 +62,7 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
     recentWebhooks: webhooks.rows.map((row) => ({
       eventKey: row.event_key,
       eventName: row.event_name,
+      errorMessage: row.error_message,
       status: row.status,
       createdAt: row.created_at,
     })),

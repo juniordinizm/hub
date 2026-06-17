@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveCourseWorkloadHours,
   getCourseAccessPresentation,
+  getStudentCatalogAccessPresentation,
   getStudentCoursePrimaryHref,
   summarizeCoursePublicationReadiness,
 } from "./presentation";
@@ -32,6 +33,36 @@ describe("course presentation helpers", () => {
       tone: "expiring",
       label: "Acesso expira em 15 dias",
       helper: "Priorize as próximas aulas deste curso.",
+    });
+  });
+
+  it("presents expired and revoked catalog access distinctly", () => {
+    expect(
+      getStudentCatalogAccessPresentation({
+        accessStatus: "expired",
+        expiresAt: new Date("2026-06-01T12:00:00.000Z"),
+        now: new Date("2026-06-17T12:00:00.000Z"),
+        progressPercent: 40,
+        revokedReason: null,
+      })
+    ).toEqual({
+      tone: "locked",
+      label: "Acesso expirado",
+      helper: "Renove o acesso para voltar as aulas.",
+    });
+
+    expect(
+      getStudentCatalogAccessPresentation({
+        accessStatus: "revoked",
+        expiresAt: new Date("2027-06-01T12:00:00.000Z"),
+        now: new Date("2026-06-17T12:00:00.000Z"),
+        progressPercent: 40,
+        revokedReason: "abacatepay_dispute",
+      })
+    ).toEqual({
+      tone: "revoked",
+      label: "Acesso em analise",
+      helper: "Fale com o suporte para regularizar este acesso.",
     });
   });
 

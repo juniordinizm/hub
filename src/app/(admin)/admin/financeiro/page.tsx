@@ -16,6 +16,21 @@ import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
+const orderStatusLabels: Record<string, string> = {
+  cancelled: "Cancelado",
+  disputed: "Em disputa",
+  paid: "Pago",
+  pending: "Pendente",
+  refunded: "Reembolsado",
+};
+
+const webhookStatusLabels: Record<string, string> = {
+  failed: "Falha",
+  ignored: "Ignorado",
+  processed: "Processado",
+  received: "Recebido",
+};
+
 export default async function AdminFinancePage(): Promise<React.JSX.Element> {
   const [overview, data] = await Promise.all([
     getAdminOverview(),
@@ -50,7 +65,9 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                       <p className="font-semibold">
                         {order.customerName ?? "-"}
                       </p>
-                      <Badge variant="secondary">{order.status}</Badge>
+                      <Badge variant="secondary">
+                        {orderStatusLabels[order.status] ?? order.status}
+                      </Badge>
                     </div>
                     <p className="mt-1 text-muted-foreground text-xs">
                       {order.customerEmail ?? "-"} - {order.courseTitle}
@@ -82,9 +99,16 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                   <div className="rounded-lg border p-3" key={event.eventKey}>
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-mono text-xs">{event.eventKey}</p>
-                      <Badge variant="outline">{event.status}</Badge>
+                      <Badge variant="outline">
+                        {webhookStatusLabels[event.status] ?? event.status}
+                      </Badge>
                     </div>
                     <p className="mt-2 text-sm">{event.eventName}</p>
+                    {event.errorMessage ? (
+                      <p className="mt-1 text-destructive text-xs">
+                        {event.errorMessage}
+                      </p>
+                    ) : null}
                     <p className="text-muted-foreground text-xs">
                       {formatDate(event.createdAt)}
                     </p>

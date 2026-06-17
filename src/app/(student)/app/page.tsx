@@ -1,12 +1,13 @@
 import { LockIcon, ShoppingBag03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
-  getCourseAccessPresentation,
+  getStudentCatalogAccessPresentation,
   getStudentCoursePrimaryHref,
 } from "@/features/courses/presentation";
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
@@ -25,6 +26,8 @@ const toneClasses = {
   active: "border-primary/30 bg-primary/15 text-primary",
   completed: "border-emerald-400/35 bg-emerald-400/15 text-emerald-200",
   expiring: "border-accent/40 bg-accent/20 text-accent",
+  locked: "border-white/25 bg-background/80 text-foreground",
+  revoked: "border-destructive/35 bg-destructive/15 text-destructive",
 } as const;
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
@@ -90,12 +93,13 @@ function CourseCard({
 }: {
   course: StudentCatalogCourseCard;
 }): React.JSX.Element {
-  const access = course.isEnrolled
-    ? getCourseAccessPresentation({
-        expiresAt: course.expiresAt ?? new Date(),
-        progressPercent: course.progressPercent,
-      })
-    : { label: "Acesso bloqueado", tone: "expiring" as const };
+  const hasActiveAccess = course.accessStatus === "active";
+  const access = getStudentCatalogAccessPresentation({
+    accessStatus: course.accessStatus,
+    expiresAt: course.expiresAt ?? new Date(),
+    progressPercent: course.progressPercent,
+    revokedReason: course.revokedReason,
+  });
   const primaryHref = route(
     getStudentCoursePrimaryHref({
       courseId: course.courseId,
@@ -103,10 +107,17 @@ function CourseCard({
     })
   );
   const cardHref = route(`/app/cursos/${course.courseId}`);
+  const accessControls = getCourseAccessControls({
+    accessHelper: access.helper,
+    cardHref,
+    course,
+    hasActiveAccess,
+    primaryHref,
+  });
 
   return (
     <article className="overflow-hidden rounded-lg border bg-card shadow-sm">
-      {course.isEnrolled ? (
+      {hasActiveAccess ? (
         <Link className="group block" href={cardHref}>
           <CourseCover access={access} course={course} />
         </Link>
@@ -131,43 +142,79 @@ function CourseCard({
           <span className="text-foreground/20">·</span>
           <span>{formatCurrencyInCents(course.priceInCents)}</span>
         </div>
-        {course.isEnrolled ? (
-          <>
-            <div className="flex items-center gap-3">
-              <Progress
-                className="h-1.5 flex-1"
-                value={course.progressPercent}
-              />
-              <span className="font-semibold text-xs">
-                {course.progressPercent}%
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button asChild>
-                <Link href={primaryHref}>
-                  {course.nextLessonId ? "Continuar curso" : "Ver conclusão"}
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link href={cardHref}>Ver trilha</Link>
-              </Button>
-            </div>
-          </>
-        ) : (
-          <form action={startCourseCheckoutAction}>
-            <input name="courseId" type="hidden" value={course.courseId} />
-            <Button className="w-full" type="submit">
-              <HugeiconsIcon
-                icon={ShoppingBag03Icon}
-                size={18}
-                strokeWidth={2}
-              />
-              Comprar acesso
-            </Button>
-          </form>
-        )}
+        {accessControls}
       </div>
     </article>
+  );
+}
+
+function getCourseAccessControls({
+  accessHelper,
+  cardHref,
+  course,
+  hasActiveAccess,
+  primaryHref,
+}: {
+  accessHelper: string;
+  cardHref: Route;
+  course: StudentCatalogCourseCard;
+  hasActiveAccess: boolean;
+  primaryHref: Route;
+}): React.ReactNode {
+  if (hasActiveAccess) {
+    return (
+      <>
+        <div className="flex items-center gap-3">
+          <Progress className="h-1.5 flex-1" value={course.progressPercent} />
+          <span className="font-semibold text-xs">
+            {course.progressPercent}%
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href={primaryHref}>
+              {course.nextLessonId ? "Continuar curso" : "Ver conclusão"}
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={cardHref}>Ver trilha</Link>
+          </Button>
+        </div>
+      </>
+    );
+  }
+
+  if (course.accessStatus === "revoked") {
+    return (
+      <div className="space-y-3">
+        <p className="text-muted-foreground text-sm leading-6">
+          {accessHelper}
+        </p>
+        {course.supportWhatsappUrl ? (
+          <Button asChild className="w-full" variant="outline">
+            <a href={course.supportWhatsappUrl} rel="noopener" target="_blank">
+              Falar com suporte
+            </a>
+          </Button>
+        ) : (
+          <Button className="w-full" disabled type="button">
+            Fale com o suporte
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form action={startCourseCheckoutAction}>
+      <input name="courseId" type="hidden" value={course.courseId} />
+      <Button className="w-full" type="submit">
+        <HugeiconsIcon icon={ShoppingBag03Icon} size={18} strokeWidth={2} />
+        {course.accessStatus === "expired"
+          ? "Renovar acesso"
+          : "Comprar acesso"}
+      </Button>
+    </form>
   );
 }
 

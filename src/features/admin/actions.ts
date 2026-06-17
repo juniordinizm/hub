@@ -540,6 +540,14 @@ export const updateEnrollmentAction = async (
           expires_at = $2::timestamptz,
           revoked_at = case when $1::text = 'revoked' then now() else null end,
           revoked_reason = case when $1::text = 'revoked' then 'admin_manual' else null end,
+          expiry_warning_7d_sent_at = case
+            when $1::text = 'active' then null
+            else expiry_warning_7d_sent_at
+          end,
+          expiry_warning_1d_sent_at = case
+            when $1::text = 'active' then null
+            else expiry_warning_1d_sent_at
+          end,
           updated_at = now()
       where id = $3
     `,

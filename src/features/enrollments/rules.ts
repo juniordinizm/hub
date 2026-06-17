@@ -11,6 +11,9 @@ export type EnrollmentAccessState =
     };
 
 const DEFAULT_ACCESS_MONTHS = 12;
+const MILLISECONDS_PER_DAY = 86_400_000;
+
+export type EnrollmentExpiryWarningKind = "7d" | "1d";
 
 export const addMonths = (date: Date, months: number): Date => {
   const nextDate = new Date(date);
@@ -42,6 +45,46 @@ export const getEnrollmentAccessState = ({
   }
 
   return { canAccessLessons: true, reason: "active" };
+};
+
+export const shouldExpireEnrollment = ({
+  expiresAt,
+  now,
+  status,
+}: {
+  expiresAt: Date;
+  now: Date;
+  status: EnrollmentStatus;
+}): boolean => status === "active" && now > expiresAt;
+
+export const getEnrollmentExpiryWarningKind = ({
+  expiresAt,
+  now,
+  warning1dSentAt,
+  warning7dSentAt,
+}: {
+  expiresAt: Date;
+  now: Date;
+  warning1dSentAt: Date | null;
+  warning7dSentAt: Date | null;
+}): EnrollmentExpiryWarningKind | null => {
+  const daysUntilExpiration = Math.ceil(
+    (expiresAt.getTime() - now.getTime()) / MILLISECONDS_PER_DAY
+  );
+
+  if (daysUntilExpiration < 0) {
+    return null;
+  }
+
+  if (daysUntilExpiration <= 1) {
+    return warning1dSentAt ? null : "1d";
+  }
+
+  if (daysUntilExpiration <= 7) {
+    return warning7dSentAt ? null : "7d";
+  }
+
+  return null;
 };
 
 export const getRenewedAccessWindow = ({

@@ -2,12 +2,28 @@ const EXPIRING_SOON_DAYS = 30;
 const MILLISECONDS_PER_DAY = 86_400_000;
 const SECONDS_PER_HOUR = 3600;
 
-export type CourseAccessTone = "active" | "completed" | "expiring";
+export type CourseAccessTone =
+  | "active"
+  | "completed"
+  | "expiring"
+  | "locked"
+  | "revoked";
+export type StudentCatalogAccessStatus =
+  | "active"
+  | "expired"
+  | "none"
+  | "revoked";
 
 export interface CourseAccessPresentationInput {
   expiresAt: Date;
   now?: Date;
   progressPercent: number;
+}
+
+export interface StudentCatalogAccessPresentationInput
+  extends CourseAccessPresentationInput {
+  accessStatus: StudentCatalogAccessStatus;
+  revokedReason: string | null;
 }
 
 export interface CourseAccessPresentation {
@@ -75,6 +91,47 @@ export const getCourseAccessPresentation = ({
     tone: "active",
     label: "Acesso ativo",
     helper: "Continue no seu ritmo dentro do período de acesso.",
+  };
+};
+
+export const getStudentCatalogAccessPresentation = ({
+  accessStatus,
+  expiresAt,
+  now,
+  progressPercent,
+  revokedReason,
+}: StudentCatalogAccessPresentationInput): CourseAccessPresentation => {
+  if (accessStatus === "active") {
+    return getCourseAccessPresentation({
+      expiresAt,
+      progressPercent,
+      ...(now ? { now } : {}),
+    });
+  }
+
+  if (accessStatus === "expired") {
+    return {
+      tone: "locked",
+      label: "Acesso expirado",
+      helper: "Renove o acesso para voltar as aulas.",
+    };
+  }
+
+  if (accessStatus === "revoked") {
+    return {
+      tone: "revoked",
+      label:
+        revokedReason === "abacatepay_dispute"
+          ? "Acesso em analise"
+          : "Acesso encerrado",
+      helper: "Fale com o suporte para regularizar este acesso.",
+    };
+  }
+
+  return {
+    tone: "locked",
+    label: "Acesso bloqueado",
+    helper: "Compre o acesso para iniciar este curso.",
   };
 };
 

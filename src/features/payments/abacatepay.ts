@@ -1,6 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type OrderStatus = "pending" | "paid" | "refunded" | "ignored";
+export type PersistedOrderStatus =
+  | "pending"
+  | "paid"
+  | "refunded"
+  | "disputed"
+  | "cancelled";
+export type OrderStatus = PersistedOrderStatus | "ignored";
 
 const ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY =
   "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
@@ -36,6 +42,7 @@ interface AbacatePayWebhookPayload {
 
 export interface AbacatePayOrderPayload {
   amountInCents: number;
+  courseId: string | null;
   customerEmail: string;
   customerName: string;
   externalId: string;
@@ -78,6 +85,11 @@ const paidEvents = new Set([
   "billing.paid",
 ]);
 const refundedEvents = new Set(["checkout.refunded", "transparent.refunded"]);
+const disputedEvents = new Set(["checkout.disputed"]);
+const terminalOrderStatuses = new Set<PersistedOrderStatus>([
+  "refunded",
+  "disputed",
+]);
 const DECIMAL_PRICE_RE = /^\d+(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:\.\d{1,2})?$/;
 const THOUSANDS_ONLY_RE = /^\d{1,3}(?:\.\d{3})+$/;
 
@@ -174,7 +186,29 @@ export const mapAbacatePayEventToOrderStatus = (event: string): OrderStatus => {
     return "refunded";
   }
 
+  if (disputedEvents.has(event)) {
+    return "disputed";
+  }
+
   return "ignored";
+};
+
+export const resolveAbacatePayOrderStatus = ({
+  currentStatus,
+  incomingStatus,
+}: {
+  currentStatus: PersistedOrderStatus | null;
+  incomingStatus: PersistedOrderStatus;
+}): PersistedOrderStatus => {
+  if (
+    currentStatus &&
+    terminalOrderStatuses.has(currentStatus) &&
+    incomingStatus === "paid"
+  ) {
+    return currentStatus;
+  }
+
+  return incomingStatus;
 };
 
 export const parsePriceToCents = (value: string): number => {
@@ -307,7 +341,7 @@ export const getAbacatePayOrderPayload = (
     : [];
   const metadata =
     typeof order.metadata === "object" && order.metadata !== null
-      ? (order.metadata as { userId?: unknown })
+      ? (order.metadata as { courseId?: unknown; userId?: unknown })
       : null;
   const firstItem = rawItems.find(
     (item): item is { id: string } =>
@@ -326,6 +360,7 @@ export const getAbacatePayOrderPayload = (
     receiptUrl: isString(order.receiptUrl) ? order.receiptUrl : null,
     customerEmail: customer.email,
     customerName: customer.name,
+    courseId: isString(metadata?.courseId) ? metadata.courseId : null,
     userId: isString(metadata?.userId) ? metadata.userId : null,
   };
 };

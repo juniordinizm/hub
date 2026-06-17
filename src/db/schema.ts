@@ -49,6 +49,7 @@ export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "paid",
   "refunded",
+  "disputed",
   "cancelled",
 ]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
@@ -324,6 +325,8 @@ export const enrollments = pgTable(
     expiresAt: timestamp("expires_at", tz).notNull(),
     revokedAt: timestamp("revoked_at", tz),
     revokedReason: text("revoked_reason"),
+    expiryWarning7dSentAt: timestamp("expiry_warning_7d_sent_at", tz),
+    expiryWarning1dSentAt: timestamp("expiry_warning_1d_sent_at", tz),
     ...timestamps,
   },
   (table) => [

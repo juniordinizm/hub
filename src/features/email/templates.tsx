@@ -20,6 +20,10 @@ interface CertificateEmailProps extends CourseEmailProps {
   certificateCode: string;
 }
 
+interface AccessExpiryWarningEmailProps extends CourseEmailProps {
+  daysRemaining: number;
+}
+
 const styles = {
   body: {
     backgroundColor: "#f7f3ef",
@@ -150,6 +154,33 @@ export const AccessReleasedEmail = ({
     <Text style={styles.text}>
       Confirmamos sua matricula em {courseTitle ?? "PROTEA-R Hub"}. Ja e
       possivel acessar as aulas disponiveis.
+    </Text>
+    {actionUrl ? (
+      <Section>
+        <Button href={actionUrl} style={styles.button}>
+          Acessar curso
+        </Button>
+      </Section>
+    ) : null}
+  </EmailShell>
+);
+
+export const AccessExpiryWarningEmail = ({
+  actionUrl,
+  courseTitle,
+  daysRemaining,
+  name,
+}: AccessExpiryWarningEmailProps): React.JSX.Element => (
+  <EmailShell preview="Seu acesso ao curso esta perto de vencer.">
+    <Heading>Acesso perto do vencimento</Heading>
+    <Text style={styles.text}>Ola, {name}.</Text>
+    <Text style={styles.text}>
+      Seu acesso ao curso {courseTitle ?? "PROTEA-R Hub"} vence em{" "}
+      {daysRemaining} {daysRemaining === 1 ? "dia" : "dias"}.
+    </Text>
+    <Text style={styles.text}>
+      Entre na plataforma para concluir as aulas pendentes ou renovar seu
+      acesso, se precisar de mais tempo.
     </Text>
     {actionUrl ? (
       <Section>

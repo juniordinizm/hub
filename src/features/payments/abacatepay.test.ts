@@ -6,6 +6,7 @@ import {
   getAbacatePayOrderPayload,
   mapAbacatePayEventToOrderStatus,
   parsePriceToCents,
+  resolveAbacatePayOrderStatus,
   verifyAbacatePaySignature,
   verifyAbacatePayWebhookSecret,
 } from "./abacatepay";
@@ -29,6 +30,33 @@ describe("AbacatePay webhook mapping", () => {
     );
   });
 
+  it("maps disputed checkout events to disputed orders", () => {
+    expect(mapAbacatePayEventToOrderStatus("checkout.disputed")).toBe(
+      "disputed"
+    );
+  });
+
+  it("does not reopen refunded or disputed orders with late paid events", () => {
+    expect(
+      resolveAbacatePayOrderStatus({
+        currentStatus: "refunded",
+        incomingStatus: "paid",
+      })
+    ).toBe("refunded");
+    expect(
+      resolveAbacatePayOrderStatus({
+        currentStatus: "disputed",
+        incomingStatus: "paid",
+      })
+    ).toBe("disputed");
+    expect(
+      resolveAbacatePayOrderStatus({
+        currentStatus: "paid",
+        incomingStatus: "disputed",
+      })
+    ).toBe("disputed");
+  });
+
   it("builds an idempotency key from event id when present", () => {
     expect(
       getAbacatePayEventKey({ id: "evt_123", event: "checkout.paid" })
@@ -48,7 +76,7 @@ describe("AbacatePay webhook mapping", () => {
             paidAmount: 10_000,
             methods: ["PIX"],
             receiptUrl: "https://example.com/receipt",
-            metadata: { userId: "user_123" },
+            metadata: { courseId: "course_123", userId: "user_123" },
           },
           customer: {
             email: "aluna@example.com",
@@ -66,6 +94,7 @@ describe("AbacatePay webhook mapping", () => {
       receiptUrl: "https://example.com/receipt",
       customerEmail: "aluna@example.com",
       customerName: "Aluna Teste",
+      courseId: "course_123",
       userId: "user_123",
     });
   });

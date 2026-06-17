@@ -31,6 +31,7 @@ export interface StudentCourseCard {
 }
 
 export interface StudentCatalogCourseCard {
+  accessStatus: "active" | "expired" | "none" | "revoked";
   completedCount: number;
   courseId: string;
   description: string | null;
@@ -39,8 +40,10 @@ export interface StudentCatalogCourseCard {
   nextLessonId: string | null;
   priceInCents: number;
   progressPercent: number;
+  revokedReason: string | null;
   slug: string;
   subtitle: string | null;
+  supportWhatsappUrl: string | null;
   thumbnailUrl: string | null;
   title: string;
   totalCount: number;
@@ -382,6 +385,7 @@ export const getStudentCourseCatalog = async (
   userId: string
 ): Promise<StudentCatalogCourseCard[]> => {
   const { rows } = await getPool().query<{
+    access_status: "active" | "expired" | "none" | "revoked";
     completed_at: Date | null;
     course_description: string | null;
     course_id: string;
@@ -389,8 +393,10 @@ export const getStudentCourseCatalog = async (
     is_enrolled: boolean;
     lesson_id: string | null;
     price_in_cents: number;
+    revoked_reason: string | null;
     slug: string;
     subtitle: string | null;
+    support_whatsapp_url: string | null;
     thumbnail_url: string | null;
     title: string;
     workload_hours: number;
@@ -405,16 +411,27 @@ export const getStudentCourseCatalog = async (
         c.workload_hours,
         c.price_in_cents,
         c.thumbnail_url,
+        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         e.expires_at,
-        (e.id is not null) as is_enrolled,
+        e.revoked_reason,
+        case
+          when e.id is null then 'none'
+          when e.status = 'revoked' then 'revoked'
+          when e.status = 'expired' or e.expires_at < now() then 'expired'
+          when e.status = 'active' and e.starts_at <= now() and e.expires_at >= now() then 'active'
+          else 'none'
+        end as access_status,
+        (
+          e.status = 'active'
+          and e.starts_at <= now()
+          and e.expires_at >= now()
+        ) as is_enrolled,
         l.id as lesson_id,
         lp.completed_at
       from courses c
+      left join app_settings s on s.id = 'global'
       left join enrollments e on e.course_id = c.id
         and e.user_id = $1
-        and e.status = 'active'
-        and e.starts_at <= now()
-        and e.expires_at >= now()
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
@@ -435,8 +452,11 @@ export const getStudentCourseCatalog = async (
       workloadHours: row.workload_hours,
       priceInCents: row.price_in_cents,
       thumbnailUrl: row.thumbnail_url,
+      supportWhatsappUrl: row.support_whatsapp_url,
       expiresAt: row.expires_at,
       isEnrolled: row.is_enrolled,
+      accessStatus: row.access_status,
+      revokedReason: row.revoked_reason,
       progressPercent: 0,
       completedCount: 0,
       totalCount: 0,
@@ -469,8 +489,11 @@ export const getStudentCourseCatalog = async (
       workloadHours: course.workloadHours,
       priceInCents: course.priceInCents,
       thumbnailUrl: course.thumbnailUrl,
+      supportWhatsappUrl: course.supportWhatsappUrl,
       expiresAt: course.expiresAt,
       isEnrolled: course.isEnrolled,
+      accessStatus: course.accessStatus,
+      revokedReason: course.revokedReason,
       progressPercent: progress.percent,
       completedCount: progress.completedCount,
       totalCount: progress.totalCount,

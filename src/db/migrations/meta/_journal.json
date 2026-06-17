@@ -50,6 +50,13 @@
       "when": 1781680000000,
       "tag": "0006_course_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781710000000,
+      "tag": "0007_payment_access_hardening",
+      "breakpoints": true
     }
   ]
 }

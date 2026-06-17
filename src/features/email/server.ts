@@ -1,6 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import {
+  AccessExpiryWarningEmail,
   AccessReleasedEmail,
   CertificateIssuedEmail,
   InviteEmail,
@@ -97,6 +98,30 @@ export const sendAccessReleasedEmail = async ({
       name: userName,
     }),
     subject: "Acesso liberado no PROTEA-R Hub",
+    to,
+  });
+
+export const sendAccessExpiryWarningEmail = async ({
+  courseId,
+  courseTitle,
+  daysRemaining,
+  to,
+  userName,
+}: {
+  courseId: string;
+  courseTitle: string;
+  daysRemaining: number;
+  to: string;
+  userName: string;
+}): Promise<void> =>
+  sendTransactionalEmail({
+    react: AccessExpiryWarningEmail({
+      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/cursos/${courseId}`,
+      courseTitle,
+      daysRemaining,
+      name: userName,
+    }),
+    subject: `Seu acesso vence em ${daysRemaining} ${daysRemaining === 1 ? "dia" : "dias"}`,
     to,
   });
 
