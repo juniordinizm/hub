@@ -82,122 +82,124 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
 
   return (
-    <div className="space-y-8">
-      <header className="border-b pb-6">
-        <Badge variant="outline">Catálogo</Badge>
-        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-              Gerencie cursos em uma visão limpa. Entre em um curso para
-              organizar módulos, aulas, alunos e publicação.
-            </p>
+    <main className="px-6 py-8 sm:px-10 lg:px-12">
+      <div className="space-y-8">
+        <header className="border-b pb-6">
+          <Badge variant="outline">Catálogo</Badge>
+          <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>
+              <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
+                Gerencie cursos em uma visão limpa. Entre em um curso para
+                organizar módulos, aulas, alunos e publicação.
+              </p>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Novo curso
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Novo curso</DialogTitle>
+                  <DialogDescription>
+                    Crie o curso antes de cadastrar seus módulos e aulas.
+                  </DialogDescription>
+                </DialogHeader>
+                <CourseForm />
+              </DialogContent>
+            </Dialog>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                Novo curso
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Novo curso</DialogTitle>
-                <DialogDescription>
-                  Crie o curso antes de cadastrar seus módulos e aulas.
-                </DialogDescription>
-              </DialogHeader>
-              <CourseForm />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </header>
+        </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {data.courses.map((course) => {
-          const courseModules = data.modules.filter(
-            (moduleData) => moduleData.courseId === course.id
-          );
-          const lessonsCount = data.lessons.filter((lesson) =>
-            courseModules.some(
-              (moduleData) => moduleData.id === lesson.moduleId
-            )
-          ).length;
-          const statusInfo = STATUS_MAP[course.status] ?? {
-            label: course.status,
-            color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
-          };
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {data.courses.map((course) => {
+            const courseModules = data.modules.filter(
+              (moduleData) => moduleData.courseId === course.id
+            );
+            const lessonsCount = data.lessons.filter((lesson) =>
+              courseModules.some(
+                (moduleData) => moduleData.id === lesson.moduleId
+              )
+            ).length;
+            const statusInfo = STATUS_MAP[course.status] ?? {
+              label: course.status,
+              color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
+            };
 
-          return (
-            <article
-              className="group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
-              key={course.id}
-            >
-              <Link
-                className="block"
-                href={route(`/admin/cursos/${course.id}`)}
+            return (
+              <article
+                className="group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
+                key={course.id}
               >
-                <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-                  {isLocalImage(course.thumbnailUrl) ? (
-                    <Image
-                      alt={course.title}
-                      className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                      fill
-                      sizes="(min-width: 1280px) 33vw, 100vw"
-                      src={course.thumbnailUrl}
-                    />
-                  ) : (
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+                <Link
+                  className="block"
+                  href={route(`/admin/cursos/${course.id}`)}
+                >
+                  <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+                    {isLocalImage(course.thumbnailUrl) ? (
+                      <Image
+                        alt={course.title}
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        fill
+                        sizes="(min-width: 1280px) 33vw, 100vw"
+                        src={course.thumbnailUrl}
+                      />
+                    ) : (
+                      <div
+                        className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+                      >
+                        <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
+                          {getInitials(course.title)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
+                    <Badge
+                      className={`absolute top-3 left-3 ${statusInfo.color}`}
+                      variant="outline"
                     >
-                      <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
-                        {getInitials(course.title)}
-                      </span>
+                      {statusInfo.label}
+                    </Badge>
+                    <div className="absolute right-3 bottom-3 left-3">
+                      <p className="line-clamp-2 font-bold text-lg text-white">
+                        {course.title}
+                      </p>
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
-                  <Badge
-                    className={`absolute top-3 left-3 ${statusInfo.color}`}
-                    variant="outline"
-                  >
-                    {statusInfo.label}
-                  </Badge>
-                  <div className="absolute right-3 bottom-3 left-3">
-                    <p className="line-clamp-2 font-bold text-lg text-white">
-                      {course.title}
+                  </div>
+                </Link>
+
+                <div className="flex flex-1 flex-col gap-3 p-5">
+                  {course.subtitle ? (
+                    <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
+                      {course.subtitle}
                     </p>
+                  ) : null}
+
+                  <div className="flex items-center gap-3 text-muted-foreground text-xs">
+                    <span>{courseModules.length} módulos</span>
+                    <span className="text-foreground/20">·</span>
+                    <span>{lessonsCount} aulas</span>
+                    <span className="text-foreground/20">·</span>
+                    <span>{course.accessDurationMonths}m acesso</span>
+                  </div>
+
+                  <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                    <Button asChild>
+                      <Link href={route(`/admin/cursos/${course.id}`)}>
+                        Gerenciar
+                      </Link>
+                    </Button>
                   </div>
                 </div>
-              </Link>
-
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                {course.subtitle ? (
-                  <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
-                    {course.subtitle}
-                  </p>
-                ) : null}
-
-                <div className="flex items-center gap-3 text-muted-foreground text-xs">
-                  <span>{courseModules.length} módulos</span>
-                  <span className="text-foreground/20">·</span>
-                  <span>{lessonsCount} aulas</span>
-                  <span className="text-foreground/20">·</span>
-                  <span>{course.accessDurationMonths}m acesso</span>
-                </div>
-
-                <div className="mt-auto flex flex-wrap gap-2 pt-2">
-                  <Button asChild>
-                    <Link href={route(`/admin/cursos/${course.id}`)}>
-                      Gerenciar
-                    </Link>
-                  </Button>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-    </div>
+              </article>
+            );
+          })}
+        </section>
+      </div>
+    </main>
   );
 }
 

@@ -45,30 +45,32 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
   }));
 
   return (
-    <div className="space-y-8">
-      <header className="border-b pb-6">
-        <Badge variant="outline">Alunos</Badge>
-        <h1 className="mt-3 font-bold text-3xl tracking-tight">
-          Alunos e matriculas
-        </h1>
-        <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-          Lista centralizada por aluno, com consulta rapida e gestao das
-          matriculas por curso no dialog.
-        </p>
-      </header>
+    <main className="px-6 py-8 sm:px-10 lg:px-12">
+      <div className="space-y-8">
+        <header className="border-b pb-6">
+          <Badge variant="outline">Alunos</Badge>
+          <h1 className="mt-3 font-bold text-3xl tracking-tight">
+            Alunos e matriculas
+          </h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
+            Lista centralizada por aluno, com consulta rapida e gestao das
+            matriculas por curso no dialog.
+          </p>
+        </header>
 
-      <Card className="border-border/40 bg-background/50 shadow-sm">
-        <CardHeader>
-          <CardTitle>Alunos cadastrados</CardTitle>
-          <CardDescription>
-            Nome, email, status geral de matricula, cursos, primeira matricula e
-            ultimo acesso.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <StudentsTable students={students} />
-        </CardContent>
-      </Card>
-    </div>
+        <Card className="border-border/40 bg-background/50 shadow-sm">
+          <CardHeader>
+            <CardTitle>Alunos cadastrados</CardTitle>
+            <CardDescription>
+              Nome, email, status geral de matricula, cursos, primeira matricula
+              e ultimo acesso.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <StudentsTable students={students} />
+          </CardContent>
+        </Card>
+      </div>
+    </main>
   );
 }

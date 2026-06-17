@@ -113,262 +113,264 @@ export default async function AdminCourseDetailPage({
   });
 
   return (
-    <div className="space-y-8">
-      <header className="border-b pb-6">
-        <Button asChild size="sm" variant="ghost">
-          <Link href={route("/admin/cursos")}>
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
-            Voltar para cursos
-          </Link>
-        </Button>
-        <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <Badge variant="outline">Curso</Badge>
-            <h1 className="mt-3 font-bold text-3xl tracking-tight">
-              {course.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-              Organize conteúdo, acompanhe alunos e prepare a publicação deste
-              curso.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatPill label="Módulos" value={modules.length.toString()} />
-              <StatPill label="Aulas" value={lessons.length.toString()} />
-              <StatPill
-                label="Alunos"
-                value={activeEnrollments.length.toString()}
-              />
-              <StatPill
-                label="Receita"
-                value={formatCurrencyInCents(paidRevenueInCents)}
-              />
+    <main className="px-6 py-8 sm:px-10 lg:px-12">
+      <div className="space-y-8">
+        <header className="border-b pb-6">
+          <Button asChild size="sm" variant="ghost">
+            <Link href={route("/admin/cursos")}>
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
+              Voltar para cursos
+            </Link>
+          </Button>
+          <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <Badge variant="outline">Curso</Badge>
+              <h1 className="mt-3 font-bold text-3xl tracking-tight">
+                {course.title}
+              </h1>
+              <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
+                Organize conteúdo, acompanhe alunos e prepare a publicação deste
+                curso.
+              </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button asChild size="sm" variant="outline">
-                <Link href={route(`/app/cursos/${course.id}`)}>
-                  Preview aluno
-                </Link>
-              </Button>
-              <CourseEditDialog course={course} />
-              <DeleteCourseDialog course={course} />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatPill label="Módulos" value={modules.length.toString()} />
+                <StatPill label="Aulas" value={lessons.length.toString()} />
+                <StatPill
+                  label="Alunos"
+                  value={activeEnrollments.length.toString()}
+                />
+                <StatPill
+                  label="Receita"
+                  value={formatCurrencyInCents(paidRevenueInCents)}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button asChild size="sm" variant="outline">
+                  <Link href={route(`/app/cursos/${course.id}`)}>
+                    Preview aluno
+                  </Link>
+                </Button>
+                <CourseEditDialog course={course} />
+                <DeleteCourseDialog course={course} />
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">Visão geral</TabsTrigger>
-          <TabsTrigger value="content">Conteúdo</TabsTrigger>
-          <TabsTrigger value="students">Alunos</TabsTrigger>
-          <TabsTrigger value="settings">Configurações</TabsTrigger>
-        </TabsList>
+        <Tabs defaultValue="overview">
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="overview">Visão geral</TabsTrigger>
+            <TabsTrigger value="content">Conteúdo</TabsTrigger>
+            <TabsTrigger value="students">Alunos</TabsTrigger>
+            <TabsTrigger value="settings">Configurações</TabsTrigger>
+          </TabsList>
 
-        <TabsContent className="space-y-6" value="overview">
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="rounded-lg border bg-card p-5">
+          <TabsContent className="space-y-6" value="overview">
+            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div className="rounded-lg border bg-card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="font-semibold text-xl">
+                      Prontidão de publicação
+                    </h2>
+                    <p className="mt-1 text-muted-foreground text-sm">
+                      Checklist mínimo para o curso parecer vendável e completo.
+                    </p>
+                  </div>
+                  <Badge
+                    variant={course.status === "active" ? "default" : "outline"}
+                  >
+                    {course.status}
+                  </Badge>
+                </div>
+                <div className="mt-5 flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground text-sm">
+                    {readiness.completedCount} de {readiness.totalCount} itens
+                  </span>
+                  <span className="font-semibold">{readiness.percent}%</span>
+                </div>
+                <Progress className="mt-3 h-2" value={readiness.percent} />
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                  {readiness.missingItems.length ? (
+                    readiness.missingItems.map((item) => (
+                      <p
+                        className="rounded-md border bg-background/35 px-3 py-2 text-sm"
+                        key={item}
+                      >
+                        {item}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="rounded-md border bg-background/35 px-3 py-2 text-sm">
+                      Curso pronto para venda e consumo.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-lg border bg-card p-5">
+                <h2 className="font-semibold">Indicadores do curso</h2>
+                <div className="mt-4 space-y-3 text-sm">
+                  <InfoRow
+                    label="Aulas publicadas"
+                    value={`${publishedLessons.length} de ${lessons.length}`}
+                  />
+                  <InfoRow
+                    label="Matrículas ativas"
+                    value={activeEnrollments.length.toString()}
+                  />
+                  <InfoRow
+                    label="Certificados"
+                    value={certificates.length.toString()}
+                  />
+                  <InfoRow label="Pedidos" value={orders.length.toString()} />
+                </div>
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent className="space-y-6" value="content">
+            <section className="flex flex-wrap gap-3">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>
+                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                    Novo módulo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Novo módulo</DialogTitle>
+                    <DialogDescription>
+                      Adicione uma unidade ao curso.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ModuleForm course={course} />
+                </DialogContent>
+              </Dialog>
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="secondary">
+                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                    Nova aula
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Nova aula</DialogTitle>
+                    <DialogDescription>
+                      Cadastre uma aula em um dos módulos do curso.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <LessonForm modules={modules} />
+                </DialogContent>
+              </Dialog>
+            </section>
+
+            <section className="space-y-4">
+              <div className="border-b pb-3">
+                <h2 className="font-semibold text-xl">Estrutura do curso</h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Abra um módulo para editar seus dados. Abra uma aula para
+                  editar vídeo, ordem e publicação.
+                </p>
+              </div>
+              <div className="space-y-4">
+                {modules.map((moduleData) => (
+                  <ModuleSection
+                    course={course}
+                    key={moduleData.id}
+                    lessons={lessons}
+                    moduleData={moduleData}
+                    modules={modules}
+                  />
+                ))}
+                {modules.length === 0 ? (
+                  <p className="rounded-lg border bg-card p-5 text-muted-foreground text-sm">
+                    Nenhum módulo cadastrado. Comece criando a primeira unidade
+                    do curso.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent className="space-y-5" value="students">
+            <section className="rounded-lg border bg-card">
+              <div className="border-b px-5 py-4">
+                <h2 className="font-semibold text-xl">Alunos deste curso</h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Últimas matrículas e situação de acesso.
+                </p>
+              </div>
+              <div className="divide-y">
+                {enrollments.map((enrollment) => (
+                  <div
+                    className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_130px_170px]"
+                    key={enrollment.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{enrollment.name}</p>
+                      <p className="truncate text-muted-foreground text-sm">
+                        {enrollment.email}
+                      </p>
+                    </div>
+                    <Badge className="w-fit" variant="outline">
+                      {enrollment.status}
+                    </Badge>
+                    <p className="text-muted-foreground text-sm">
+                      Expira em {formatDate(enrollment.expiresAt)}
+                    </p>
+                  </div>
+                ))}
+                {enrollments.length === 0 ? (
+                  <p className="px-5 py-4 text-muted-foreground text-sm">
+                    Nenhuma matrícula encontrada para este curso.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+          </TabsContent>
+
+          <TabsContent className="space-y-5" value="settings">
+            <section className="rounded-lg border bg-card p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-semibold text-xl">
-                    Prontidão de publicação
+                    Configurações do curso
                   </h2>
                   <p className="mt-1 text-muted-foreground text-sm">
-                    Checklist mínimo para o curso parecer vendável e completo.
+                    Dados que aparecem para o aluno e conectam o curso ao
+                    checkout externo.
                   </p>
                 </div>
-                <Badge
-                  variant={course.status === "active" ? "default" : "outline"}
-                >
-                  {course.status}
-                </Badge>
+                <CourseEditDialog course={course} />
               </div>
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <span className="text-muted-foreground text-sm">
-                  {readiness.completedCount} de {readiness.totalCount} itens
-                </span>
-                <span className="font-semibold">{readiness.percent}%</span>
-              </div>
-              <Progress className="mt-3 h-2" value={readiness.percent} />
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                {readiness.missingItems.length ? (
-                  readiness.missingItems.map((item) => (
-                    <p
-                      className="rounded-md border bg-background/35 px-3 py-2 text-sm"
-                      key={item}
-                    >
-                      {item}
-                    </p>
-                  ))
-                ) : (
-                  <p className="rounded-md border bg-background/35 px-3 py-2 text-sm">
-                    Curso pronto para venda e consumo.
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="rounded-lg border bg-card p-5">
-              <h2 className="font-semibold">Indicadores do curso</h2>
-              <div className="mt-4 space-y-3 text-sm">
-                <InfoRow
-                  label="Aulas publicadas"
-                  value={`${publishedLessons.length} de ${lessons.length}`}
+              <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                <InfoTile
+                  label="Capa"
+                  value={course.thumbnailUrl ?? "Não cadastrada"}
                 />
-                <InfoRow
-                  label="Matrículas ativas"
-                  value={activeEnrollments.length.toString()}
+                <InfoTile
+                  label="Produto AbacatePay"
+                  value={course.paymentProviderProductId ?? "Não vinculado"}
                 />
-                <InfoRow
-                  label="Certificados"
-                  value={certificates.length.toString()}
+                <InfoTile
+                  label="WhatsApp"
+                  value={course.supportWhatsappUrl ?? "Padrão global"}
                 />
-                <InfoRow label="Pedidos" value={orders.length.toString()} />
+                <InfoTile
+                  label="Meses de acesso"
+                  value={`${course.accessDurationMonths} meses`}
+                />
               </div>
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent className="space-y-6" value="content">
-          <section className="flex flex-wrap gap-3">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Novo módulo
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Novo módulo</DialogTitle>
-                  <DialogDescription>
-                    Adicione uma unidade ao curso.
-                  </DialogDescription>
-                </DialogHeader>
-                <ModuleForm course={course} />
-              </DialogContent>
-            </Dialog>
-
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="secondary">
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Nova aula
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nova aula</DialogTitle>
-                  <DialogDescription>
-                    Cadastre uma aula em um dos módulos do curso.
-                  </DialogDescription>
-                </DialogHeader>
-                <LessonForm modules={modules} />
-              </DialogContent>
-            </Dialog>
-          </section>
-
-          <section className="space-y-4">
-            <div className="border-b pb-3">
-              <h2 className="font-semibold text-xl">Estrutura do curso</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Abra um módulo para editar seus dados. Abra uma aula para editar
-                vídeo, ordem e publicação.
-              </p>
-            </div>
-            <div className="space-y-4">
-              {modules.map((moduleData) => (
-                <ModuleSection
-                  course={course}
-                  key={moduleData.id}
-                  lessons={lessons}
-                  moduleData={moduleData}
-                  modules={modules}
-                />
-              ))}
-              {modules.length === 0 ? (
-                <p className="rounded-lg border bg-card p-5 text-muted-foreground text-sm">
-                  Nenhum módulo cadastrado. Comece criando a primeira unidade do
-                  curso.
-                </p>
-              ) : null}
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent className="space-y-5" value="students">
-          <section className="rounded-lg border bg-card">
-            <div className="border-b px-5 py-4">
-              <h2 className="font-semibold text-xl">Alunos deste curso</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
-                Últimas matrículas e situação de acesso.
-              </p>
-            </div>
-            <div className="divide-y">
-              {enrollments.map((enrollment) => (
-                <div
-                  className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_130px_170px]"
-                  key={enrollment.id}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{enrollment.name}</p>
-                    <p className="truncate text-muted-foreground text-sm">
-                      {enrollment.email}
-                    </p>
-                  </div>
-                  <Badge className="w-fit" variant="outline">
-                    {enrollment.status}
-                  </Badge>
-                  <p className="text-muted-foreground text-sm">
-                    Expira em {formatDate(enrollment.expiresAt)}
-                  </p>
-                </div>
-              ))}
-              {enrollments.length === 0 ? (
-                <p className="px-5 py-4 text-muted-foreground text-sm">
-                  Nenhuma matrícula encontrada para este curso.
-                </p>
-              ) : null}
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent className="space-y-5" value="settings">
-          <section className="rounded-lg border bg-card p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="font-semibold text-xl">
-                  Configurações do curso
-                </h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  Dados que aparecem para o aluno e conectam o curso ao checkout
-                  externo.
-                </p>
-              </div>
-              <CourseEditDialog course={course} />
-            </div>
-            <div className="mt-5 grid gap-3 lg:grid-cols-2">
-              <InfoTile
-                label="Capa"
-                value={course.thumbnailUrl ?? "Não cadastrada"}
-              />
-              <InfoTile
-                label="Produto AbacatePay"
-                value={course.paymentProviderProductId ?? "Não vinculado"}
-              />
-              <InfoTile
-                label="WhatsApp"
-                value={course.supportWhatsappUrl ?? "Padrão global"}
-              />
-              <InfoTile
-                label="Meses de acesso"
-                value={`${course.accessDurationMonths} meses`}
-              />
-            </div>
-          </section>
-        </TabsContent>
-      </Tabs>
-    </div>
+            </section>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </main>
   );
 }
 
