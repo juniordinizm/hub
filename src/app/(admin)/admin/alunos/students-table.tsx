@@ -20,7 +20,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTriggerButton,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
@@ -247,12 +247,10 @@ function StudentEnrollmentsDialog({
 }): React.JSX.Element {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <HugeiconsIcon icon={ViewIcon} size={16} strokeWidth={2} />
-          Ver
-        </Button>
-      </DialogTrigger>
+      <DialogTriggerButton size="sm" variant="outline">
+        <HugeiconsIcon icon={ViewIcon} size={16} strokeWidth={2} />
+        Ver
+      </DialogTriggerButton>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{student.name}</DialogTitle>

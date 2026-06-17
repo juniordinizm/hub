@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTriggerButton,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -98,12 +98,10 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
               </p>
             </div>
             <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Novo curso
-                </Button>
-              </DialogTrigger>
+              <DialogTriggerButton>
+                <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                Novo curso
+              </DialogTriggerButton>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Novo curso</DialogTitle>

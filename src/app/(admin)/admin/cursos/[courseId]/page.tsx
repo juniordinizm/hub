@@ -23,7 +23,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  DialogTriggerButton,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -223,12 +223,10 @@ export default async function AdminCourseDetailPage({
           <TabsContent className="space-y-6" value="content">
             <section className="flex flex-wrap gap-3">
               <Dialog>
-                <DialogTrigger asChild>
-                  <Button>
-                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                    Novo módulo
-                  </Button>
-                </DialogTrigger>
+                <DialogTriggerButton>
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Novo módulo
+                </DialogTriggerButton>
                 <DialogContent className="sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Novo módulo</DialogTitle>
@@ -241,12 +239,10 @@ export default async function AdminCourseDetailPage({
               </Dialog>
 
               <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="secondary">
-                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                    Nova aula
-                  </Button>
-                </DialogTrigger>
+                <DialogTriggerButton variant="secondary">
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Nova aula
+                </DialogTriggerButton>
                 <DialogContent className="sm:max-w-3xl">
                   <DialogHeader>
                     <DialogTitle>Nova aula</DialogTitle>
@@ -403,12 +399,10 @@ function ModuleSection({
         <div className="flex items-center gap-3">
           <Badge variant="outline">{moduleLessons.length} aulas</Badge>
           <Dialog>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="secondary">
-                <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-                Editar
-              </Button>
-            </DialogTrigger>
+            <DialogTriggerButton size="sm" variant="secondary">
+              <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+              Editar
+            </DialogTriggerButton>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Editar módulo</DialogTitle>
@@ -477,12 +471,10 @@ function LessonRow({
         </Badge>
       </div>
       <Dialog>
-        <DialogTrigger asChild>
-          <Button size="sm" variant="ghost">
-            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-            Editar
-          </Button>
-        </DialogTrigger>
+        <DialogTriggerButton size="sm" variant="ghost">
+          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+          Editar
+        </DialogTriggerButton>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Editar aula</DialogTitle>
@@ -508,12 +500,10 @@ function CourseEditDialog({
 }): React.JSX.Element {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-          Editar curso
-        </Button>
-      </DialogTrigger>
+      <DialogTriggerButton size="sm" variant="outline">
+        <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+        Editar curso
+      </DialogTriggerButton>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar curso</DialogTitle>
@@ -777,12 +767,10 @@ function DeleteModuleDialog({
 }): React.JSX.Element {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir módulo
-        </Button>
-      </DialogTrigger>
+      <DialogTriggerButton size="sm" type="button" variant="destructive">
+        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+        Excluir módulo
+      </DialogTriggerButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Excluir módulo?</DialogTitle>
@@ -822,12 +810,10 @@ function DeleteLessonDialog({
 }): React.JSX.Element {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir aula
-        </Button>
-      </DialogTrigger>
+      <DialogTriggerButton size="sm" type="button" variant="destructive">
+        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+        Excluir aula
+      </DialogTriggerButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Excluir aula?</DialogTitle>
@@ -867,12 +853,10 @@ function DeleteCourseDialog({
 }): React.JSX.Element {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir curso
-        </Button>
-      </DialogTrigger>
+      <DialogTriggerButton size="sm" variant="destructive">
+        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+        Excluir curso
+      </DialogTriggerButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Excluir curso?</DialogTitle>
