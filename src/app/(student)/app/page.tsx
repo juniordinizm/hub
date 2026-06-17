@@ -9,7 +9,6 @@ import {
 } from "@/features/courses/presentation";
 import type { StudentCourseCard } from "@/features/courses/server";
 import { getStudentCourses } from "@/features/courses/server";
-import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -58,7 +57,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
                   </Link>
                 </Button>
               </div>
-              <div className="grid gap-5 xl:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {courses.map((course) => (
                   <CourseCard course={course} key={course.courseId} />
                 ))}
@@ -138,10 +137,9 @@ function CourseCard({
             {course.subtitle}
           </p>
         ) : null}
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="grid grid-cols-2 gap-2 text-xs">
           <Metric label="Aulas" value={course.totalCount.toString()} />
           <Metric label="Carga" value={`${course.workloadHours}h`} />
-          <Metric label="Acesso" value={formatDate(course.expiresAt)} />
         </div>
         <div>
           <div className="mb-2 flex items-center justify-between text-xs">
