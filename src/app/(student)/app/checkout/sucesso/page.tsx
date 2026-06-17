@@ -12,14 +12,14 @@ export default async function CheckoutSuccessPage(): Promise<React.JSX.Element> 
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-foreground sm:px-10 lg:px-12">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <Badge variant="outline">Pagamento recebido</Badge>
+        <Badge variant="outline">Compra confirmada</Badge>
         <h1 className="mt-4 font-bold text-2xl tracking-tight">
-          Estamos liberando seu acesso
+          Seu acesso está quase pronto
         </h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
-          O AbacatePay confirmou o retorno do checkout. Assim que o webhook de
-          pagamento for processado, o curso aparecerá como liberado na sua
-          vitrine.
+          Obrigado pela compra. Em instantes o curso aparecerá liberado na sua
+          área de cursos. Se isso não acontecer automaticamente, aguarde um
+          momento e atualize a página.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>

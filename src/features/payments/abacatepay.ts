@@ -66,7 +66,11 @@ export interface AbacatePayCheckoutRequest {
   returnUrl: string;
 }
 
-const paidEvents = new Set(["checkout.paid", "billing.paid"]);
+const paidEvents = new Set([
+  "checkout.completed",
+  "checkout.paid",
+  "billing.paid",
+]);
 const refundedEvents = new Set(["checkout.refunded", "transparent.refunded"]);
 const DECIMAL_PRICE_RE = /^\d+(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:\.\d{1,2})?$/;
 const THOUSANDS_ONLY_RE = /^\d{1,3}(?:\.\d{3})+$/;

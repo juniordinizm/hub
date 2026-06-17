@@ -10,6 +10,7 @@ import {
 
 describe("AbacatePay webhook mapping", () => {
   it("maps paid checkout events to paid orders", () => {
+    expect(mapAbacatePayEventToOrderStatus("checkout.completed")).toBe("paid");
     expect(mapAbacatePayEventToOrderStatus("checkout.paid")).toBe("paid");
     expect(mapAbacatePayEventToOrderStatus("billing.paid")).toBe("paid");
   });
