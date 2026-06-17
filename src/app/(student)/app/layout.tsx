@@ -1,6 +1,7 @@
 import {
   BookOpen01Icon,
   Certificate01Icon,
+  CustomerService01Icon,
   HelpCircleIcon,
   Home01Icon,
 } from "@hugeicons/core-free-icons";
@@ -12,10 +13,15 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
-import { getStudentCourses } from "@/features/courses/server";
+import {
+  getStudentCourses,
+  getSupportWhatsappUrl,
+} from "@/features/courses/server";
+import { formatWhatsappUrl } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -28,11 +34,19 @@ export default async function StudentLayout({
     redirect(route("/admin"));
   }
 
-  const courses = await getStudentCourses(session.user.id);
+  const [courses, rawWhatsappUrl] = await Promise.all([
+    getStudentCourses(session.user.id),
+    getSupportWhatsappUrl(),
+  ]);
+  const supportWhatsappUrl = rawWhatsappUrl
+    ? formatWhatsappUrl(rawWhatsappUrl)
+    : null;
 
   return (
     <PanelLayout
-      navContent={<StudentNav courses={courses} />}
+      navContent={
+        <StudentNav courses={courses} supportWhatsappUrl={supportWhatsappUrl} />
+      }
       panelLabel="Área do aluno"
       userEmail={session.user.email}
       userName={session.user.name}
@@ -44,8 +58,10 @@ export default async function StudentLayout({
 
 function StudentNav({
   courses,
+  supportWhatsappUrl,
 }: {
   courses: Awaited<ReturnType<typeof getStudentCourses>>;
+  supportWhatsappUrl: string | null;
 }): React.JSX.Element {
   return (
     <>
@@ -64,12 +80,6 @@ function StudentNav({
               strokeWidth={1.5}
             />
             <span>Certificados</span>
-          </SidebarMenuLink>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuLink href={route("/app/perguntas-frequentes")}>
-            <HugeiconsIcon icon={HelpCircleIcon} size={18} strokeWidth={1.5} />
-            <span>Perguntas frequentes</span>
           </SidebarMenuLink>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -102,6 +112,37 @@ function StudentNav({
           </SidebarGroupContent>
         </SidebarGroup>
       ) : null}
+      <SidebarGroup>
+        <SidebarGroupLabel>Suporte</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {supportWhatsappUrl ? (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a href={supportWhatsappUrl} rel="noopener" target="_blank">
+                    <HugeiconsIcon
+                      icon={CustomerService01Icon}
+                      size={18}
+                      strokeWidth={1.5}
+                    />
+                    <span>Suporte ao aluno</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ) : null}
+            <SidebarMenuItem>
+              <SidebarMenuLink href={route("/app/perguntas-frequentes")}>
+                <HugeiconsIcon
+                  icon={HelpCircleIcon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
+                <span>Perguntas frequentes</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
     </>
   );
 }

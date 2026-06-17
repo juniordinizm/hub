@@ -12,14 +12,19 @@ import {
   getPublishedFaqItems,
   getSupportWhatsappUrl,
 } from "@/features/courses/server";
+import { formatWhatsappUrl } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentFaqPage(): Promise<React.JSX.Element> {
-  const [faqs, supportWhatsappUrl] = await Promise.all([
+  const [faqs, rawSupportWhatsappUrl] = await Promise.all([
     getPublishedFaqItems(),
     getSupportWhatsappUrl(),
   ]);
+
+  const supportWhatsappUrl = rawSupportWhatsappUrl
+    ? formatWhatsappUrl(rawSupportWhatsappUrl)
+    : null;
 
   return (
     <main className="min-h-screen px-6 py-9 sm:px-10 lg:px-12">
