@@ -13,6 +13,7 @@ import {
 } from "@/features/admin/server";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
+import { CoursesRevenueTable } from "./courses-revenue-table";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,18 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
             emitidos.
           </p>
         </header>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Receita por Curso</CardTitle>
+            <CardDescription>
+              Faturamento consolidado real e conversão de checkouts por curso.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CoursesRevenueTable data={data.coursesRevenue} />
+          </CardContent>
+        </Card>
 
         <section className="grid gap-6 xl:grid-cols-3">
           <Card>

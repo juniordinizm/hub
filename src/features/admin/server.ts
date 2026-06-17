@@ -69,6 +69,14 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
   };
 };
 
+export interface CourseRevenueSummary {
+  courseId: string;
+  courseTitle: string;
+  paidOrders: number;
+  totalOrders: number;
+  totalRevenueInCents: number;
+}
+
 export interface AdminManagementData {
   auditLogs: Array<{
     action: string;
@@ -98,6 +106,7 @@ export interface AdminManagementData {
     title: string;
     workloadHours: number;
   }>;
+  coursesRevenue: CourseRevenueSummary[];
   enrollments: Array<{
     courseId: string;
     courseTitle: string;
@@ -199,6 +208,7 @@ export const getAdminManagementData =
       auditLogs,
       jmvstreamAssets,
       studentProfiles,
+      coursesRevenue,
     ] = await Promise.all([
       pool.query<{
         access_duration_months: number;
@@ -357,6 +367,24 @@ export const getAdminManagementData =
           order by u.name asc
         `
       ),
+      pool.query<{
+        course_id: string;
+        course_title: string;
+        total_orders: number;
+        paid_orders: number;
+        total_revenue_in_cents: number;
+      }>(
+        `
+          select c.id as course_id, c.title as course_title,
+                 count(o.id)::int as total_orders,
+                 count(case when o.status = 'paid' then 1 end)::int as paid_orders,
+                 coalesce(sum(case when o.status = 'paid' then o.amount_in_cents else 0 end), 0)::bigint as total_revenue_in_cents
+          from courses c
+          left join orders o on o.course_id = c.id
+          group by c.id, c.title
+          order by total_revenue_in_cents desc
+        `
+      ),
     ]);
 
     const settingsRow = settings.rows[0];
@@ -462,6 +490,13 @@ export const getAdminManagementData =
           userId: row.user_id,
         }))
       ),
+      coursesRevenue: coursesRevenue.rows.map((row) => ({
+        courseId: row.course_id,
+        courseTitle: row.course_title,
+        totalOrders: row.total_orders,
+        paidOrders: row.paid_orders,
+        totalRevenueInCents: Number(row.total_revenue_in_cents),
+      })),
     };
   };
 

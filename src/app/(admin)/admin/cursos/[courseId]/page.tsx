@@ -39,10 +39,8 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  deleteCourseAction,
   deleteLessonAction,
   deleteModuleAction,
-  saveCourseAction,
   saveLessonAction,
   saveModuleAction,
 } from "@/features/admin/actions";
@@ -51,6 +49,8 @@ import { summarizeCoursePublicationReadiness } from "@/features/courses/presenta
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
+import { CourseActionsDropdown } from "./course-actions-dropdown";
+import { CourseEditDialog } from "./course-dialogs-client";
 
 export const dynamic = "force-dynamic";
 
@@ -87,9 +87,6 @@ export default async function AdminCourseDetailPage({
     (enrollment) => enrollment.status === "active"
   );
   const orders = data.orders.filter((order) => order.courseId === course.id);
-  const paidRevenueInCents = orders
-    .filter((order) => order.status === "paid")
-    .reduce((total, order) => total + order.amountInCents, 0);
   const certificates = data.certificates.filter(
     (certificate) => certificate.courseId === course.id
   );
@@ -123,27 +120,25 @@ export default async function AdminCourseDetailPage({
                 curso.
               </p>
             </div>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatPill label="Módulos" value={modules.length.toString()} />
-                <StatPill label="Aulas" value={lessons.length.toString()} />
-                <StatPill
-                  label="Alunos"
-                  value={activeEnrollments.length.toString()}
-                />
-                <StatPill
-                  label="Receita"
-                  value={formatCurrencyInCents(paidRevenueInCents)}
-                />
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground text-sm">
+                <span>
+                  {modules.length} {modules.length === 1 ? "módulo" : "módulos"}
+                </span>
+                <span>·</span>
+                <span>
+                  {lessons.length} {lessons.length === 1 ? "aula" : "aulas"}
+                </span>
+                <span>·</span>
+                <span>
+                  {activeEnrollments.length}{" "}
+                  {activeEnrollments.length === 1
+                    ? "aluno ativo"
+                    : "alunos ativos"}
+                </span>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={route(`/app/cursos/${course.id}`)}>
-                    Preview aluno
-                  </Link>
-                </Button>
-                <CourseEditDialog course={course} />
-                <DeleteCourseDialog course={course} />
+              <div className="flex items-center gap-2">
+                <CourseActionsDropdown course={course} />
               </div>
             </div>
           </div>
@@ -493,30 +488,6 @@ function LessonRow({
   );
 }
 
-function CourseEditDialog({
-  course,
-}: {
-  course: CourseData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTriggerButton size="sm" variant="outline">
-        <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-        Editar curso
-      </DialogTriggerButton>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Editar curso</DialogTitle>
-          <DialogDescription>
-            Atualize os dados principais do curso.
-          </DialogDescription>
-        </DialogHeader>
-        <CourseForm course={course} />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function ModuleForm({
   course,
   moduleData,
@@ -667,99 +638,6 @@ function LessonForm({
   );
 }
 
-function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
-  return (
-    <AutoCloseDialogForm action={saveCourseAction}>
-      <FieldGroup>
-        <input name="courseId" type="hidden" value={course.id} />
-        <Field>
-          <FieldLabel>Título</FieldLabel>
-          <Input defaultValue={course.title} name="title" required />
-        </Field>
-        <Field>
-          <FieldLabel>Subtítulo</FieldLabel>
-          <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-        </Field>
-        <Field>
-          <FieldLabel>Descrição</FieldLabel>
-          <Textarea
-            defaultValue={course.description ?? ""}
-            name="description"
-          />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field>
-            <FieldLabel>Carga horária</FieldLabel>
-            <Input
-              defaultValue={course.workloadHours ?? 0}
-              disabled
-              min={0}
-              type="number"
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Meses de acesso</FieldLabel>
-            <Input
-              defaultValue={course.accessDurationMonths ?? 12}
-              min={1}
-              name="accessDurationMonths"
-              type="number"
-            />
-          </Field>
-        </div>
-        <Field>
-          <FieldLabel>Preço do curso</FieldLabel>
-          <Input
-            defaultValue={formatCurrencyInCents(course.priceInCents)}
-            disabled
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Capa do curso</FieldLabel>
-          <Input
-            defaultValue={course.thumbnailUrl ?? ""}
-            name="thumbnailUrl"
-            placeholder="/protear/dash-banner.png"
-          />
-        </Field>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <Field>
-            <FieldLabel>WhatsApp do curso</FieldLabel>
-            <Input
-              defaultValue={course.supportWhatsappUrl ?? ""}
-              name="supportWhatsappUrl"
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Produto AbacatePay</FieldLabel>
-            <Input
-              defaultValue={course.paymentProviderProductId ?? ""}
-              disabled
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Status</FieldLabel>
-            <Select defaultValue={course.status ?? "draft"} name="status">
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Rascunho</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="archived">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-        <Button className="w-fit" type="submit">
-          <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-          Salvar curso
-        </Button>
-      </FieldGroup>
-    </AutoCloseDialogForm>
-  );
-}
-
 function DeleteModuleDialog({
   moduleData,
 }: {
@@ -846,49 +724,6 @@ function DeleteLessonDialog({
   );
 }
 
-function DeleteCourseDialog({
-  course,
-}: {
-  course: CourseData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTriggerButton size="sm" variant="destructive">
-        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-        Excluir curso
-      </DialogTriggerButton>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Excluir curso?</DialogTitle>
-          <DialogDescription>
-            Esta ação remove o curso e, em cascata, seus módulos, aulas,
-            matrículas, pedidos e certificados vinculados.
-          </DialogDescription>
-        </DialogHeader>
-        <DeleteSummary
-          detail="O identificador interno será preservado apenas no sistema."
-          title={course.title}
-        />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteCourseAction}>
-            <input name="courseId" type="hidden" value={course.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusão
-            </Button>
-          </form>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function DeleteSummary({
   detail,
   title,
@@ -900,21 +735,6 @@ function DeleteSummary({
     <div className="rounded-lg border bg-background/40 p-3">
       <p className="font-semibold">{title}</p>
       <p className="text-muted-foreground text-sm">{detail}</p>
-    </div>
-  );
-}
-
-function StatPill({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-lg border bg-card px-4 py-3">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="font-semibold text-lg">{value}</p>
     </div>
   );
 }
