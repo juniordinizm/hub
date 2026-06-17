@@ -3,16 +3,17 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
-import { addMonths } from "@/features/enrollments/rules";
+import { getRenewedAccessWindow } from "@/features/enrollments/rules";
 import {
   type AbacatePayOrderPayload,
+  type AbacatePayOrderTransition,
   buildAbacatePayCheckoutRequest,
   buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
+  getAbacatePayOrderTransition,
   mapAbacatePayEventToOrderStatus,
   type PersistedOrderStatus,
-  resolveAbacatePayOrderStatus,
 } from "@/features/payments/abacatepay";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
 import { getServerEnv } from "@/lib/env";
@@ -35,13 +36,6 @@ interface WebhookCourse {
   id: string;
   payment_provider_product_id: string | null;
   title: string;
-}
-
-interface WebhookTransition {
-  finalOrderStatus: PersistedOrderStatus;
-  shouldApplyDisputeRevocation: boolean;
-  shouldApplyPaidAccess: boolean;
-  shouldApplyRefundRevocation: boolean;
 }
 
 const getAbacatePayClient = (): AbacatePayClient => {
@@ -215,7 +209,7 @@ const getWebhookTransition = async ({
   client: PoolClient;
   incomingOrderStatus: PersistedOrderStatus;
   providerOrderId: string;
-}): Promise<WebhookTransition> => {
+}): Promise<AbacatePayOrderTransition> => {
   const existingOrder = await client.query<{
     status: PersistedOrderStatus;
   }>(
@@ -228,23 +222,14 @@ const getWebhookTransition = async ({
     `,
     [providerOrderId]
   );
-  const finalOrderStatus = resolveAbacatePayOrderStatus({
+  return getAbacatePayOrderTransition({
     currentStatus: existingOrder.rows[0]?.status ?? null,
     incomingStatus: incomingOrderStatus,
   });
-
-  return {
-    finalOrderStatus,
-    shouldApplyPaidAccess:
-      incomingOrderStatus === "paid" && finalOrderStatus === "paid",
-    shouldApplyRefundRevocation:
-      incomingOrderStatus === "refunded" && finalOrderStatus === "refunded",
-    shouldApplyDisputeRevocation:
-      incomingOrderStatus === "disputed" && finalOrderStatus === "disputed",
-  };
 };
 
 const upsertWebhookOrder = async ({
+  accessDurationMonths,
   client,
   courseId,
   finalOrderStatus,
@@ -254,6 +239,7 @@ const upsertWebhookOrder = async ({
   shouldApplyRefundRevocation,
   userId,
 }: {
+  accessDurationMonths: number;
   client: PoolClient;
   courseId: string;
   finalOrderStatus: PersistedOrderStatus;
@@ -262,8 +248,8 @@ const upsertWebhookOrder = async ({
   shouldApplyPaidAccess: boolean;
   shouldApplyRefundRevocation: boolean;
   userId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<number> => {
+  const result = await client.query<{ access_duration_months: number | null }>(
     `
       insert into orders (
         course_id,
@@ -278,9 +264,10 @@ const upsertWebhookOrder = async ({
         paid_at,
         refunded_at,
         customer_email,
-        customer_name
+        customer_name,
+        access_duration_months
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       on conflict (provider, provider_order_id) do update set
         user_id = excluded.user_id,
         status = excluded.status,
@@ -292,7 +279,12 @@ const upsertWebhookOrder = async ({
         refunded_at = coalesce(excluded.refunded_at, orders.refunded_at),
         customer_email = excluded.customer_email,
         customer_name = excluded.customer_name,
+        access_duration_months = coalesce(
+          orders.access_duration_months,
+          excluded.access_duration_months
+        ),
         updated_at = now()
+      returning access_duration_months
     `,
     [
       courseId,
@@ -308,11 +300,15 @@ const upsertWebhookOrder = async ({
       shouldApplyRefundRevocation ? now : null,
       orderPayload.customerEmail,
       orderPayload.customerName,
+      accessDurationMonths,
     ]
   );
+
+  return result.rows[0]?.access_duration_months ?? accessDurationMonths;
 };
 
 const applyWebhookEnrollmentTransition = async ({
+  accessDurationMonths,
   client,
   course,
   now,
@@ -322,6 +318,7 @@ const applyWebhookEnrollmentTransition = async ({
   shouldApplyRefundRevocation,
   userId,
 }: {
+  accessDurationMonths: number;
   client: PoolClient;
   course: WebhookCourse;
   now: Date;
@@ -346,9 +343,11 @@ const applyWebhookEnrollmentTransition = async ({
       [userId, course.id]
     );
     const currentExpiresAt = enrollment.rows[0]?.expires_at ?? null;
-    const renewalBase =
-      currentExpiresAt && currentExpiresAt > now ? currentExpiresAt : now;
-    const expiresAt = addMonths(renewalBase, course.access_duration_months);
+    const { expiresAt } = getRenewedAccessWindow({
+      accessDurationMonths,
+      currentExpiresAt,
+      paidAt: now,
+    });
 
     await client.query(
       `
@@ -417,13 +416,14 @@ export const createCourseCheckout = async ({
   };
 }): Promise<CourseCheckoutResult> => {
   const { rows } = await getPool().query<{
+    access_duration_months: number;
     id: string;
     payment_provider_product_id: string | null;
     price_in_cents: number;
     status: string;
   }>(
     `
-      select id, payment_provider_product_id, price_in_cents, status
+      select id, payment_provider_product_id, price_in_cents, access_duration_months, status
       from courses
       where id = $1
       limit 1
@@ -465,6 +465,7 @@ export const createCourseCheckout = async ({
   const externalId = `order_${randomUUID()}`;
   const checkout = await getAbacatePayClient().createCheckout(
     buildAbacatePayCheckoutRequest({
+      accessDurationMonths: course.access_duration_months,
       completionUrl: appUrl(
         `/app/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
       ),
@@ -486,15 +487,17 @@ export const createCourseCheckout = async ({
         status,
         amount_in_cents,
         customer_email,
-        customer_name
+        customer_name,
+        access_duration_months
       )
-      values ($1, $2, $3, $4, 'pending', $5, $6, $7)
+      values ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
       on conflict (provider, provider_order_id) do update set
         user_id = excluded.user_id,
         external_id = excluded.external_id,
         amount_in_cents = excluded.amount_in_cents,
         customer_email = excluded.customer_email,
         customer_name = excluded.customer_name,
+        access_duration_months = excluded.access_duration_months,
         updated_at = now()
     `,
     [
@@ -505,6 +508,7 @@ export const createCourseCheckout = async ({
       course.price_in_cents,
       user.email,
       user.name,
+      course.access_duration_months,
     ]
   );
 
@@ -607,7 +611,8 @@ export const processAbacatePayWebhook = async (
       );
     }
 
-    await upsertWebhookOrder({
+    const accessDurationMonths = await upsertWebhookOrder({
+      accessDurationMonths: course.access_duration_months,
       client,
       courseId: course.id,
       finalOrderStatus: transition.finalOrderStatus,
@@ -618,6 +623,7 @@ export const processAbacatePayWebhook = async (
       userId,
     });
     accessEmailPayload = await applyWebhookEnrollmentTransition({
+      accessDurationMonths,
       client,
       course,
       now,

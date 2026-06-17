@@ -4,6 +4,7 @@ import {
   buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
+  getAbacatePayOrderTransition,
   mapAbacatePayEventToOrderStatus,
   parsePriceToCents,
   resolveAbacatePayOrderStatus,
@@ -55,6 +56,20 @@ describe("AbacatePay webhook mapping", () => {
         incomingStatus: "disputed",
       })
     ).toBe("disputed");
+  });
+
+  it("does not apply paid access twice for the same already paid checkout", () => {
+    expect(
+      getAbacatePayOrderTransition({
+        currentStatus: "paid",
+        incomingStatus: "paid",
+      })
+    ).toEqual({
+      finalOrderStatus: "paid",
+      shouldApplyDisputeRevocation: false,
+      shouldApplyPaidAccess: false,
+      shouldApplyRefundRevocation: false,
+    });
   });
 
   it("builds an idempotency key from event id when present", () => {
@@ -225,6 +240,7 @@ describe("AbacatePay v2 requests", () => {
   it("builds a checkout payload for a single course purchase", () => {
     expect(
       buildAbacatePayCheckoutRequest({
+        accessDurationMonths: 6,
         completionUrl: "https://example.com/app/checkout/sucesso",
         courseId: "course_123",
         externalId: "order_123",
@@ -238,6 +254,7 @@ describe("AbacatePay v2 requests", () => {
       frequency: "ONE_TIME",
       items: [{ id: "prod_123", quantity: 1 }],
       metadata: {
+        accessDurationMonths: 6,
         courseId: "course_123",
         userId: "user_123",
       },

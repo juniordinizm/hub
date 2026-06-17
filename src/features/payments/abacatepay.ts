@@ -7,6 +7,12 @@ export type PersistedOrderStatus =
   | "disputed"
   | "cancelled";
 export type OrderStatus = PersistedOrderStatus | "ignored";
+export interface AbacatePayOrderTransition {
+  finalOrderStatus: PersistedOrderStatus;
+  shouldApplyDisputeRevocation: boolean;
+  shouldApplyPaidAccess: boolean;
+  shouldApplyRefundRevocation: boolean;
+}
 
 const ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY =
   "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
@@ -72,6 +78,7 @@ export interface AbacatePayCheckoutRequest {
     quantity: number;
   }>;
   metadata: {
+    accessDurationMonths: number;
     courseId: string;
     userId: string;
   };
@@ -211,6 +218,35 @@ export const resolveAbacatePayOrderStatus = ({
   return incomingStatus;
 };
 
+export const getAbacatePayOrderTransition = ({
+  currentStatus,
+  incomingStatus,
+}: {
+  currentStatus: PersistedOrderStatus | null;
+  incomingStatus: PersistedOrderStatus;
+}): AbacatePayOrderTransition => {
+  const finalOrderStatus = resolveAbacatePayOrderStatus({
+    currentStatus,
+    incomingStatus,
+  });
+
+  return {
+    finalOrderStatus,
+    shouldApplyPaidAccess:
+      incomingStatus === "paid" &&
+      finalOrderStatus === "paid" &&
+      currentStatus !== "paid",
+    shouldApplyRefundRevocation:
+      incomingStatus === "refunded" &&
+      finalOrderStatus === "refunded" &&
+      currentStatus !== "refunded",
+    shouldApplyDisputeRevocation:
+      incomingStatus === "disputed" &&
+      finalOrderStatus === "disputed" &&
+      currentStatus !== "disputed",
+  };
+};
+
 export const parsePriceToCents = (value: string): number => {
   const normalized = value.replace(/[R$\s]/g, "").trim();
 
@@ -274,6 +310,7 @@ export const buildAbacatePayProductRequest = ({
 };
 
 export const buildAbacatePayCheckoutRequest = ({
+  accessDurationMonths,
   completionUrl,
   courseId,
   externalId,
@@ -281,6 +318,7 @@ export const buildAbacatePayCheckoutRequest = ({
   returnUrl,
   userId,
 }: {
+  accessDurationMonths: number;
   completionUrl: string;
   courseId: string;
   externalId: string;
@@ -293,6 +331,7 @@ export const buildAbacatePayCheckoutRequest = ({
   frequency: "ONE_TIME",
   items: [{ id: productId, quantity: 1 }],
   metadata: {
+    accessDurationMonths,
     courseId,
     userId,
   },

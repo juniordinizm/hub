@@ -78,7 +78,11 @@ describe("AbacatePayClient", () => {
         externalId: "order_123",
         frequency: "ONE_TIME",
         items: [{ id: "prod_123", quantity: 1 }],
-        metadata: { courseId: "course_123", userId: "user_123" },
+        metadata: {
+          accessDurationMonths: 6,
+          courseId: "course_123",
+          userId: "user_123",
+        },
         methods: ["PIX", "CARD"],
         returnUrl: "https://example.com/app",
       })

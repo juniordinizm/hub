@@ -10,7 +10,6 @@ export type EnrollmentAccessState =
       reason: "expired" | "not_started" | "revoked";
     };
 
-const DEFAULT_ACCESS_MONTHS = 12;
 const MILLISECONDS_PER_DAY = 86_400_000;
 
 export type EnrollmentExpiryWarningKind = "7d" | "1d";
@@ -88,9 +87,11 @@ export const getEnrollmentExpiryWarningKind = ({
 };
 
 export const getRenewedAccessWindow = ({
+  accessDurationMonths,
   currentExpiresAt,
   paidAt,
 }: {
+  accessDurationMonths: number;
   currentExpiresAt: Date | null;
   paidAt: Date;
 }): {
@@ -102,6 +103,6 @@ export const getRenewedAccessWindow = ({
 
   return {
     startsAt: paidAt,
-    expiresAt: addMonths(renewalBase, DEFAULT_ACCESS_MONTHS),
+    expiresAt: addMonths(renewalBase, accessDurationMonths),
   };
 };

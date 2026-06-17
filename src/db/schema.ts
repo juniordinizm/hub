@@ -419,6 +419,7 @@ export const orders = pgTable(
     externalId: text("external_id").notNull(),
     status: orderStatusEnum("status").default("pending").notNull(),
     amountInCents: integer("amount_in_cents").default(0).notNull(),
+    accessDurationMonths: integer("access_duration_months"),
     paidAmountInCents: integer("paid_amount_in_cents"),
     paymentMethod: text("payment_method"),
     receiptUrl: text("receipt_url"),
@@ -435,6 +436,10 @@ export const orders = pgTable(
     ),
     uniqueIndex("orders_external_unique_idx").on(table.externalId),
     index("orders_course_status_idx").on(table.courseId, table.status),
+    check(
+      "orders_access_duration_positive",
+      sql`${table.accessDurationMonths} is null or ${table.accessDurationMonths} > 0`
+    ),
   ]
 );
 
