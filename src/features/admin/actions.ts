@@ -489,6 +489,71 @@ export const initJmvstreamUploadAction = async (input: {
   return initJmvstreamUpload(input);
 };
 
+export const createLessonForJmvstreamUploadAction = async (
+  formData: FormData
+): Promise<string> => {
+  const session = await requireRole(["admin"]);
+  const lessonId = readString(formData, "lessonId");
+
+  if (lessonId) {
+    return lessonId;
+  }
+
+  const moduleId = readString(formData, "moduleId");
+  const values = [
+    moduleId,
+    readString(formData, "title"),
+    readString(formData, "description") || null,
+    readString(formData, "lessonType") || "video",
+    "jmvstream",
+    null,
+    null,
+    readNumber(formData, "durationSeconds"),
+    readNumber(formData, "sortOrder", 1),
+    formData.get("isPublished") === "on",
+  ];
+  const inserted = await getPool().query<{ id: string }>(
+    `
+      insert into lessons (
+        module_id,
+        title,
+        description,
+        lesson_type,
+        video_provider,
+        video_external_id,
+        video_embed_url,
+        duration_seconds,
+        sort_order,
+        is_published
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      returning id
+    `,
+    values
+  );
+  const insertedLessonId = inserted.rows[0]?.id;
+
+  if (!insertedLessonId) {
+    throw new Error("Nao foi possivel criar a aula para upload.");
+  }
+
+  await audit({
+    action: "lesson.created",
+    actorUserId: session.user.id,
+    targetId: insertedLessonId,
+    targetType: "lesson",
+  });
+
+  const moduleCourseId = await getCourseIdForModule(moduleId);
+
+  if (moduleCourseId) {
+    await recalculateCourseWorkloadHours(moduleCourseId);
+  }
+
+  revalidateAdmin();
+  return insertedLessonId;
+};
+
 export const completeJmvstreamUploadAction = async (input: {
   filename: string;
   lessonId: string;

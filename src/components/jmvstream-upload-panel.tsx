@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   completeJmvstreamUploadAction,
+  createLessonForJmvstreamUploadAction,
   initJmvstreamUploadAction,
   retryJmvstreamDeleteAction,
 } from "@/features/admin/actions";
@@ -46,8 +47,8 @@ export function JmvstreamUploadPanel({
   const uploadSelectedFile = (): void => {
     const file = inputRef.current?.files?.[0];
 
-    if (!(lessonId && file)) {
-      setError("Salve a aula e selecione um arquivo de video.");
+    if (!file) {
+      setError("Selecione um arquivo de video.");
       return;
     }
 
@@ -55,11 +56,15 @@ export function JmvstreamUploadPanel({
       try {
         setError(null);
         setProgress(2);
+        setStatus(
+          lessonId ? "Preparando upload na JMVStream..." : "Criando aula..."
+        );
+        const targetLessonId = lessonId ?? (await createLessonForUpload());
         setStatus("Preparando upload na JMVStream...");
         const init = await initJmvstreamUploadAction({
           fileName: file.name,
           fileSize: file.size,
-          lessonId,
+          lessonId: targetLessonId,
           uploadType: "multipart",
         });
         const urls = normalizePresignedUrls(init.presignedUrls);
@@ -89,7 +94,7 @@ export function JmvstreamUploadPanel({
         setStatus("Finalizando processamento...");
         await completeJmvstreamUploadAction({
           filename: file.name,
-          lessonId,
+          lessonId: targetLessonId,
           objectName: init.objectName,
           parts,
           size: file.size,
@@ -108,6 +113,16 @@ export function JmvstreamUploadPanel({
         setStatus(null);
       }
     });
+  };
+
+  const createLessonForUpload = async (): Promise<string> => {
+    const form = inputRef.current?.form;
+
+    if (!form) {
+      throw new Error("Formulario da aula nao encontrado.");
+    }
+
+    return await createLessonForJmvstreamUploadAction(new FormData(form));
   };
 
   const retryDelete = (): void => {
@@ -166,12 +181,12 @@ export function JmvstreamUploadPanel({
         <div className="flex flex-col gap-2 sm:flex-row">
           <Input
             accept="video/*"
-            disabled={isPending || !lessonId}
+            disabled={isPending}
             ref={inputRef}
             type="file"
           />
           <Button
-            disabled={isPending || !lessonId}
+            disabled={isPending}
             onClick={uploadSelectedFile}
             type="button"
           >
