@@ -137,16 +137,16 @@ function CourseCard({
             {course.subtitle}
           </p>
         ) : null}
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <Metric label="Aulas" value={course.totalCount.toString()} />
-          <Metric label="Carga" value={`${course.workloadHours}h`} />
+        <div className="flex items-center gap-3 text-muted-foreground text-xs">
+          <span>{course.totalCount} aulas</span>
+          <span className="text-foreground/20">·</span>
+          <span>{course.workloadHours}h de carga</span>
         </div>
-        <div>
-          <div className="mb-2 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">{access.helper}</span>
-            <span className="font-semibold">{course.progressPercent}%</span>
-          </div>
-          <Progress className="h-1.5" value={course.progressPercent} />
+        <div className="flex items-center gap-3">
+          <Progress className="h-1.5 flex-1" value={course.progressPercent} />
+          <span className="font-semibold text-xs">
+            {course.progressPercent}%
+          </span>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild>
@@ -162,24 +162,5 @@ function CourseCard({
         </div>
       </div>
     </article>
-  );
-}
-
-function Metric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-md border bg-background/35 px-3 py-2">
-      <p className="text-[0.65rem] text-muted-foreground uppercase tracking-[0.08em]">
-        {label}
-      </p>
-      <p className="mt-1 truncate font-semibold text-xs" title={value}>
-        {value}
-      </p>
-    </div>
   );
 }
