@@ -118,6 +118,11 @@ export interface StudentCourseOverviewData {
   totalCount: number;
 }
 
+export interface StudentCourseAccessStatus {
+  canAccess: boolean;
+  redirectTo: string;
+}
+
 export interface StudentLessonData {
   course: {
     id: string;
@@ -500,6 +505,35 @@ export const getStudentCourseCatalog = async (
       nextLessonId: course.isEnrolled ? getNextAvailableLessonId(course) : null,
     };
   });
+};
+
+export const getStudentCourseAccessStatus = async ({
+  courseId,
+  userId,
+}: {
+  courseId: string;
+  userId: string;
+}): Promise<StudentCourseAccessStatus> => {
+  const { rows } = await getPool().query<{ id: string }>(
+    `
+      select e.id
+      from enrollments e
+      join courses c on c.id = e.course_id
+      where e.user_id = $1
+        and e.course_id = $2
+        and e.status = 'active'
+        and e.starts_at <= now()
+        and e.expires_at >= now()
+        and c.status = 'active'
+      limit 1
+    `,
+    [userId, courseId]
+  );
+
+  return {
+    canAccess: Boolean(rows[0]),
+    redirectTo: `/app/cursos/${courseId}`,
+  };
 };
 
 export const recalculateCourseWorkloadHours = async (
