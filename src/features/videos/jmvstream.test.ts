@@ -119,19 +119,25 @@ describe("JMVStream video embeds", () => {
     expect(
       shouldCompleteLessonFromJmvstreamEvent({
         eventName: "jmvplayerout-end",
-        watchedPercent: 98,
+        watchedPercent: 20,
       })
     ).toBe(true);
     expect(
       shouldCompleteLessonFromJmvstreamEvent({
-        eventName: "jmvplayerout-end",
-        watchedPercent: 70,
+        eventName: "jmvplayerout-status",
+        watchedPercent: 95,
+      })
+    ).toBe(true);
+    expect(
+      shouldCompleteLessonFromJmvstreamEvent({
+        eventName: "jmvplayerout-status",
+        watchedPercent: 80,
       })
     ).toBe(false);
     expect(
       shouldCompleteLessonFromJmvstreamEvent({
-        eventName: "jmvplayerout-status",
-        watchedPercent: 100,
+        eventName: "jmvplayerout-skip",
+        watchedPercent: 80,
       })
     ).toBe(false);
   });

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateCourseProgress,
+  calculateVideoPositionProgress,
   getNextAvailableLessonId,
   isLessonAvailable,
-  mergeWatchedRange,
 } from "./rules";
 
 const lessonIds = ["l1", "l2", "l3", "l4"] as const;
@@ -57,34 +57,29 @@ describe("course progress rules", () => {
     ).toBe("l3");
   });
 
-  it("merges watched ranges and returns the watched percentage", () => {
+  it("calculates watched percentage from the highest reached video position", () => {
     expect(
-      mergeWatchedRange({
+      calculateVideoPositionProgress({
         currentSeconds: 40,
         durationSeconds: 100,
-        existingRanges: [
-          [0, 20],
-          [18, 30],
-        ],
+        previousMaxPositionSeconds: 20,
       })
     ).toEqual({
-      ranges: [[0, 40]],
+      maxPositionSeconds: 40,
       watchedPercent: 40,
     });
   });
 
-  it("does not count skipped video gaps as watched time", () => {
+  it("keeps the highest reached position when the student watches the same part twice", () => {
     expect(
-      mergeWatchedRange({
-        currentSeconds: 90,
+      calculateVideoPositionProgress({
+        currentSeconds: 30,
         durationSeconds: 100,
-        existingRanges: [[0, 10]],
-        maxTrackedGapSeconds: 20,
-        startSeconds: 10,
+        previousMaxPositionSeconds: 50,
       })
     ).toEqual({
-      ranges: [[0, 10]],
-      watchedPercent: 10,
+      maxPositionSeconds: 50,
+      watchedPercent: 50,
     });
   });
 });

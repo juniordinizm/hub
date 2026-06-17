@@ -71,6 +71,13 @@
       "when": 1781714000000,
       "tag": "0009_lesson_watch_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781715000000,
+      "tag": "0010_simplify_lesson_watch_progress",
+      "breakpoints": true
     }
   ]
 }

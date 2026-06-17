@@ -9,18 +9,14 @@ export interface CourseProgress {
   totalCount: number;
 }
 
-export type WatchedRange = [number, number];
-
-export interface MergeWatchedRangeInput {
+export interface VideoPositionProgressInput {
   currentSeconds: number;
   durationSeconds: number;
-  existingRanges: WatchedRange[];
-  maxTrackedGapSeconds?: number;
-  startSeconds?: number;
+  previousMaxPositionSeconds: number;
 }
 
-export interface MergeWatchedRangeResult {
-  ranges: WatchedRange[];
+export interface VideoPositionProgress {
+  maxPositionSeconds: number;
   watchedPercent: number;
 }
 
@@ -68,64 +64,30 @@ export const isLessonAvailable = ({
   );
 };
 
-export const mergeWatchedRange = ({
+export const calculateVideoPositionProgress = ({
   currentSeconds,
   durationSeconds,
-  existingRanges,
-  maxTrackedGapSeconds,
-  startSeconds = 0,
-}: MergeWatchedRangeInput): MergeWatchedRangeResult => {
+  previousMaxPositionSeconds,
+}: VideoPositionProgressInput): VideoPositionProgress => {
   const safeDurationSeconds = Math.max(1, Math.round(durationSeconds));
-  const safeStartSeconds = Math.min(
-    safeDurationSeconds,
-    Math.max(0, Math.round(startSeconds))
-  );
-  const endSeconds = Math.min(
+  const safeCurrentSeconds = Math.min(
     safeDurationSeconds,
     Math.max(0, Math.round(currentSeconds))
   );
-  const watchedGapSeconds = endSeconds - safeStartSeconds;
-  const shouldTrackCurrentRange =
-    watchedGapSeconds > 0 &&
-    (!maxTrackedGapSeconds || watchedGapSeconds <= maxTrackedGapSeconds);
-  const ranges = [
-    ...existingRanges,
-    ...(shouldTrackCurrentRange
-      ? ([[safeStartSeconds, endSeconds]] satisfies WatchedRange[])
-      : []),
-  ]
-    .map(
-      ([start, end]) =>
-        [
-          Math.max(0, Math.min(safeDurationSeconds, Math.round(start))),
-          Math.max(0, Math.min(safeDurationSeconds, Math.round(end))),
-        ] satisfies WatchedRange
-    )
-    .filter(([start, end]) => end > start)
-    .sort(([firstStart], [secondStart]) => firstStart - secondStart);
-  const mergedRanges: WatchedRange[] = [];
-
-  for (const range of ranges) {
-    const previousRange = mergedRanges.at(-1);
-
-    if (!previousRange || range[0] > previousRange[1]) {
-      mergedRanges.push(range);
-      continue;
-    }
-
-    previousRange[1] = Math.max(previousRange[1], range[1]);
-  }
-
-  const watchedSeconds = mergedRanges.reduce(
-    (total, [start, end]) => total + (end - start),
-    0
+  const safePreviousMaxPositionSeconds = Math.min(
+    safeDurationSeconds,
+    Math.max(0, Math.round(previousMaxPositionSeconds))
+  );
+  const maxPositionSeconds = Math.max(
+    safeCurrentSeconds,
+    safePreviousMaxPositionSeconds
   );
 
   return {
-    ranges: mergedRanges,
+    maxPositionSeconds,
     watchedPercent: Math.min(
       100,
-      Math.round((watchedSeconds / safeDurationSeconds) * 100)
+      Math.round((maxPositionSeconds / safeDurationSeconds) * 100)
     ),
   };
 };

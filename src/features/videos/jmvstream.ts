@@ -2,7 +2,7 @@ const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
 const IFRAME_SRC_PATTERN = /\bsrc=(["'])(.*?)\1/i;
 const VIDEO_PROVIDERS = new Set(["external", "jmvstream", "panda"]);
 const JMVSTREAM_OUT_EVENT_PATTERN = /^jmvplayerout-/;
-const JMVSTREAM_VIDEO_COMPLETE_PERCENT = 98;
+const JMVSTREAM_VIDEO_COMPLETE_PERCENT = 95;
 
 export type VideoProvider = "external" | "jmvstream" | "panda" | null;
 export type JmvstreamPlayerEventName =
@@ -146,7 +146,7 @@ export const shouldCompleteLessonFromJmvstreamEvent = ({
   eventName: string;
   watchedPercent: number;
 }): boolean =>
-  eventName === "jmvplayerout-end" &&
+  eventName === "jmvplayerout-end" ||
   watchedPercent >= JMVSTREAM_VIDEO_COMPLETE_PERCENT;
 
 const normalizeJmvstreamPayload = (message: unknown): unknown =>

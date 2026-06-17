@@ -372,9 +372,9 @@ export const lessonWatchProgress = pgTable(
       .notNull()
       .references(() => lessons.id, { onDelete: "cascade" }),
     currentSeconds: integer("current_seconds").default(0).notNull(),
+    maxPositionSeconds: integer("max_position_seconds").default(0).notNull(),
     durationSeconds: integer("duration_seconds").default(0).notNull(),
     watchedPercent: integer("watched_percent").default(0).notNull(),
-    watchedRanges: jsonb("watched_ranges").default(sql`'[]'::jsonb`).notNull(),
     lastEventName: text("last_event_name"),
     lastEventAt: timestamp("last_event_at", tz).defaultNow().notNull(),
     completedByVideoAt: timestamp("completed_by_video_at", tz),
@@ -394,6 +394,10 @@ export const lessonWatchProgress = pgTable(
     check(
       "lesson_watch_progress_duration_seconds_non_negative",
       sql`${table.durationSeconds} >= 0`
+    ),
+    check(
+      "lesson_watch_progress_max_position_seconds_non_negative",
+      sql`${table.maxPositionSeconds} >= 0`
     ),
     check(
       "lesson_watch_progress_percent_bounds",

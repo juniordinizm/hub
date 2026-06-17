@@ -6,10 +6,9 @@ import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
 import {
   calculateCourseProgress,
+  calculateVideoPositionProgress,
   getNextAvailableLessonId,
   isLessonAvailable,
-  mergeWatchedRange,
-  type WatchedRange,
 } from "@/features/progress/rules";
 import {
   shouldApplyDetectedDuration,
@@ -17,7 +16,6 @@ import {
 } from "@/features/videos/jmvstream";
 
 const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
-const MAX_TRACKED_PLAYBACK_GAP_SECONDS = 20;
 
 export interface StudentCourseCard {
   completedCount: number;
@@ -144,6 +142,7 @@ export interface StudentLessonData {
     watchProgress: {
       currentSeconds: number;
       durationSeconds: number;
+      maxPositionSeconds: number;
       watchedPercent: number;
     } | null;
     videoEmbedUrl: string | null;
@@ -173,14 +172,15 @@ interface LessonRow {
   video_provider: string | null;
   watch_current_seconds: number | null;
   watch_duration_seconds: number | null;
+  watch_max_position_seconds: number | null;
   watch_percent: number | null;
 }
 
 interface LessonWatchProgressRow {
   current_seconds: number;
   duration_seconds: number;
+  max_position_seconds: number;
   watched_percent: number;
-  watched_ranges: unknown;
 }
 
 type StudentCourseModuleAggregate = StudentCourseModule & {
@@ -783,6 +783,7 @@ export const getStudentLessonData = async ({
         lp.completed_at,
         lwp.current_seconds as watch_current_seconds,
         lwp.duration_seconds as watch_duration_seconds,
+        lwp.max_position_seconds as watch_max_position_seconds,
         lwp.watched_percent as watch_percent
       from target_course tc
       join enrollments e on e.course_id = tc.course_id and e.user_id = $1
@@ -841,6 +842,7 @@ export const getStudentLessonData = async ({
           : {
               currentSeconds: activeLesson.watch_current_seconds ?? 0,
               durationSeconds: activeLesson.watch_duration_seconds ?? 0,
+              maxPositionSeconds: activeLesson.watch_max_position_seconds ?? 0,
               watchedPercent: activeLesson.watch_percent,
             },
       videoEmbedUrl: activeLesson.video_embed_url,
@@ -1031,8 +1033,8 @@ export const recordLessonWatchProgress = async ({
       select
         current_seconds,
         duration_seconds,
-        watched_percent,
-        watched_ranges
+        max_position_seconds,
+        watched_percent
       from lesson_watch_progress
       where user_id = $1 and lesson_id = $2
       limit 1
@@ -1040,13 +1042,13 @@ export const recordLessonWatchProgress = async ({
     [userId, lessonId]
   );
   const previousProgress = rows[0];
-  const { ranges, watchedPercent } = mergeWatchedRange({
-    currentSeconds: roundedCurrentSeconds,
-    durationSeconds: roundedDurationSeconds,
-    existingRanges: parseWatchedRanges(previousProgress?.watched_ranges),
-    maxTrackedGapSeconds: MAX_TRACKED_PLAYBACK_GAP_SECONDS,
-    startSeconds: previousProgress?.current_seconds ?? 0,
-  });
+  const { maxPositionSeconds, watchedPercent } = calculateVideoPositionProgress(
+    {
+      currentSeconds: roundedCurrentSeconds,
+      durationSeconds: roundedDurationSeconds,
+      previousMaxPositionSeconds: previousProgress?.max_position_seconds ?? 0,
+    }
+  );
   const shouldCompleteByVideo = shouldCompleteLessonFromJmvstreamEvent({
     eventName,
     watchedPercent,
@@ -1058,19 +1060,19 @@ export const recordLessonWatchProgress = async ({
         user_id,
         lesson_id,
         current_seconds,
+        max_position_seconds,
         duration_seconds,
         watched_percent,
-        watched_ranges,
         last_event_name,
         last_event_at,
         completed_by_video_at
       )
-      values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), case when $8 then now() else null end)
+      values ($1, $2, $3, $4, $5, $6, $7, now(), case when $8 then now() else null end)
       on conflict (user_id, lesson_id) do update set
         current_seconds = excluded.current_seconds,
+        max_position_seconds = greatest(lesson_watch_progress.max_position_seconds, excluded.max_position_seconds),
         duration_seconds = excluded.duration_seconds,
         watched_percent = greatest(lesson_watch_progress.watched_percent, excluded.watched_percent),
-        watched_ranges = excluded.watched_ranges,
         last_event_name = excluded.last_event_name,
         last_event_at = now(),
         completed_by_video_at = case
@@ -1083,9 +1085,9 @@ export const recordLessonWatchProgress = async ({
       userId,
       lessonId,
       roundedCurrentSeconds,
+      maxPositionSeconds,
       roundedDurationSeconds,
       watchedPercent,
-      JSON.stringify(ranges),
       eventName,
       shouldCompleteByVideo,
     ]
@@ -1160,25 +1162,4 @@ export const syncJmvstreamLessonDuration = async ({
     [roundedDurationSeconds, lessonId]
   );
   await recalculateCourseWorkloadHours(data.course.id);
-};
-
-const parseWatchedRanges = (value: unknown): WatchedRange[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((range): WatchedRange[] => {
-    if (
-      !Array.isArray(range) ||
-      range.length !== 2 ||
-      typeof range[0] !== "number" ||
-      typeof range[1] !== "number" ||
-      !Number.isFinite(range[0]) ||
-      !Number.isFinite(range[1])
-    ) {
-      return [];
-    }
-
-    return [[range[0], range[1]]];
-  });
 };
