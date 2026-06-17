@@ -49,6 +49,7 @@ import { summarizeCoursePublicationReadiness } from "@/features/courses/presenta
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
+
 import { CourseActionsDropdown } from "./course-actions-dropdown";
 import { CourseEditDialog } from "./course-dialogs-client";
 
@@ -259,22 +260,25 @@ export default async function AdminCourseDetailPage({
                 </p>
               </div>
               <div className="space-y-4">
-                {modules.map((moduleData) => (
-                  <ModuleSection
-                    course={course}
-                    jmvstreamAssets={data.jmvstreamAssets}
-                    key={moduleData.id}
-                    lessons={lessons}
-                    moduleData={moduleData}
-                    modules={modules}
-                  />
-                ))}
                 {modules.length === 0 ? (
                   <p className="rounded-lg border bg-card p-5 text-muted-foreground text-sm">
                     Nenhum módulo cadastrado. Comece criando a primeira unidade
                     do curso.
                   </p>
-                ) : null}
+                ) : (
+                  <div className="mt-4 flex flex-col gap-8">
+                    {modules.map((moduleData) => (
+                      <ModuleSection
+                        course={course}
+                        jmvstreamAssets={data.jmvstreamAssets}
+                        key={moduleData.id}
+                        lessons={lessons}
+                        moduleData={moduleData}
+                        modules={modules}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </TabsContent>
