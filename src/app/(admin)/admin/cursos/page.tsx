@@ -1,6 +1,5 @@
 import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Image from "next/image";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Badge } from "@/components/ui/badge";
@@ -53,17 +52,7 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   },
 };
 
-const isLocalImage = (value: string | null): value is string =>
-  Boolean(value?.startsWith("/"));
-
 const WHITESPACE_RE = /\s+/;
-const THUMB_GRADIENTS = [
-  "from-primary to-sidebar",
-  "from-accent to-primary",
-  "from-emerald-700 to-primary",
-  "from-sky-700 to-primary",
-  "from-rose-700 to-accent",
-] as const;
 
 const getInitials = (title: string): string =>
   title
@@ -72,14 +61,6 @@ const getInitials = (title: string): string =>
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
-
-const getGradient = (id: string): string => {
-  let sum = 0;
-  for (const char of id) {
-    sum += char.charCodeAt(0);
-  }
-  return THUMB_GRADIENTS[sum % THUMB_GRADIENTS.length] ?? THUMB_GRADIENTS[0];
-};
 
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
@@ -115,7 +96,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {data.courses.map((course) => {
             const courseModules = data.modules.filter(
               (moduleData) => moduleData.courseId === course.id
@@ -132,67 +113,62 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
             return (
               <article
-                className="group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
+                className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/50"
                 key={course.id}
               >
-                <Link
-                  className="block"
-                  href={route(`/admin/cursos/${course.id}`)}
-                >
-                  <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-                    {isLocalImage(course.thumbnailUrl) ? (
-                      <Image
-                        alt={course.title}
-                        className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                        fill
-                        sizes="(min-width: 1280px) 33vw, 100vw"
-                        src={course.thumbnailUrl}
-                      />
-                    ) : (
-                      <div
-                        className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
-                      >
-                        <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
-                          {getInitials(course.title)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
+                {/* Top Cover */}
+                <div className="relative flex min-h-[220px] flex-col overflow-hidden bg-[#122425] p-5 pb-6">
+                  <div className="absolute right-0 bottom-4 -mr-4 select-none opacity-[0.03] transition-opacity group-hover:opacity-[0.05]">
+                    <span className="font-black text-[8rem] leading-none">
+                      {getInitials(course.title)}
+                    </span>
+                  </div>
+
+                  <div className="relative z-10 mb-8 flex items-center justify-between">
                     <Badge
-                      className={`absolute top-3 left-3 ${statusInfo.color}`}
+                      className="w-fit border-transparent bg-white/10 text-white backdrop-blur-sm"
                       variant="outline"
                     >
                       {statusInfo.label}
                     </Badge>
-                    <div className="absolute right-3 bottom-3 left-3">
-                      <p className="line-clamp-2 font-bold text-lg text-white">
-                        {course.title}
-                      </p>
+                  </div>
+
+                  <div className="relative z-10 mt-auto">
+                    <h3 className="line-clamp-2 font-bold text-white text-xl">
+                      {course.title}
+                    </h3>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 font-medium text-white/70 text-xs">
+                      <span>{courseModules.length} módulos</span>
+                      <span className="text-white/30">·</span>
+                      <span>{lessonsCount} aulas</span>
                     </div>
                   </div>
-                </Link>
+                </div>
 
-                <div className="flex flex-1 flex-col gap-3 p-5">
-                  {course.subtitle ? (
-                    <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
-                      {course.subtitle}
-                    </p>
-                  ) : null}
-
-                  <div className="flex items-center gap-3 text-muted-foreground text-xs">
-                    <span>{courseModules.length} módulos</span>
-                    <span className="text-foreground/20">·</span>
-                    <span>{lessonsCount} aulas</span>
-                    <span className="text-foreground/20">·</span>
-                    <span>{course.accessDurationMonths}m acesso</span>
-                    <span className="text-foreground/20">Â·</span>
-                    <span>{formatCurrencyInCents(course.priceInCents)}</span>
+                {/* Bottom Body */}
+                <div className="flex flex-1 flex-col justify-between p-5">
+                  <div className="mb-5 flex flex-col gap-3">
+                    {course.subtitle ? (
+                      <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
+                        {course.subtitle}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2 font-medium text-muted-foreground text-xs">
+                      <span>{course.accessDurationMonths}m acesso</span>
+                      <span className="text-foreground/20">·</span>
+                      <span>{formatCurrencyInCents(course.priceInCents)}</span>
+                    </div>
                   </div>
 
-                  <div className="mt-auto flex flex-wrap gap-2 pt-2">
-                    <Button asChild>
+                  <div className="mt-auto">
+                    <Button
+                      asChild
+                      className="w-full"
+                      size="sm"
+                      variant="outline"
+                    >
                       <Link href={route(`/admin/cursos/${course.id}`)}>
-                        Gerenciar
+                        Gerenciar curso
                       </Link>
                     </Button>
                   </div>
