@@ -25,6 +25,7 @@
 *.pem
 /.0ref/
 /.agents/
+/tools/abacatepay-mcp/
 
 # debug
 npm-debug.log*

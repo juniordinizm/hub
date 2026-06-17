@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "abacate-pay": {
+      "type": "stdio",
+      "command": "bun",
+      "cwd": "${workspaceFolder}/tools/abacatepay-mcp",
+      "args": ["run", "src/index.ts"],
+      "env": {
+        "ABACATE_PAY_API_KEY": "abc_dev_uUm4agAWcyuffd2tqTCxkpeT"
+      }
+    }
+  }
+}
