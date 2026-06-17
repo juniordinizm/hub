@@ -1,5 +1,6 @@
 import "server-only";
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
 import { addMonths } from "@/features/enrollments/rules";
@@ -59,6 +60,53 @@ const notifyAccessReleased = async (
   } catch {
     // E-mail failure must not block paid webhook processing.
   }
+};
+
+const resolveWebhookUserId = async ({
+  client,
+  customerEmail,
+  customerName,
+  metadataUserId,
+}: {
+  client: PoolClient;
+  customerEmail: string;
+  customerName: string;
+  metadataUserId: string | null;
+}): Promise<string> => {
+  if (metadataUserId) {
+    const existingUser = await client.query<{ id: string }>(
+      `
+        select id
+        from users
+        where id = $1
+        limit 1
+      `,
+      [metadataUserId]
+    );
+
+    if (!existingUser.rows[0]) {
+      throw new Error("Usuario do checkout nao foi localizado.");
+    }
+
+    return metadataUserId;
+  }
+
+  const userResult = await client.query<{ id: string }>(
+    `
+      insert into users (id, name, email, email_verified)
+      values ($1, $2, $3, true)
+      on conflict (email) do update set name = excluded.name
+      returning id
+    `,
+    [randomUUID(), customerName, customerEmail]
+  );
+  const userId = userResult.rows[0]?.id;
+
+  if (!userId) {
+    throw new Error("Nao foi possivel criar ou localizar a aluna.");
+  }
+
+  return userId;
 };
 
 export const createAbacatePayCourseProduct = async (
@@ -176,56 +224,6 @@ export const createCourseCheckout = async ({
   return { redirectUrl: checkout.url };
 };
 
-const getSignatureParts = (
-  signature: string
-): { timestamp: string; hash: string } | null => {
-  const parts = new Map(
-    signature.split(",").map((part) => {
-      const [key, value] = part.split("=");
-      return [key, value] as const;
-    })
-  );
-  const timestamp = parts.get("t");
-  const hash = parts.get("v1");
-
-  return timestamp && hash ? { timestamp, hash } : null;
-};
-
-export const verifyAbacatePaySignature = ({
-  payload,
-  signature,
-  secret,
-}: {
-  payload: string;
-  signature: string | null;
-  secret: string | undefined;
-}): boolean => {
-  if (!secret) {
-    return getServerEnv().NODE_ENV !== "production";
-  }
-
-  if (!signature) {
-    return false;
-  }
-
-  const parts = getSignatureParts(signature);
-
-  if (!parts) {
-    return false;
-  }
-
-  const expected = createHmac("sha256", secret)
-    .update(`${parts.timestamp}.${payload}`)
-    .digest("hex");
-  const receivedBuffer = Buffer.from(parts.hash, "hex");
-  const expectedBuffer = Buffer.from(expected, "hex");
-
-  return (
-    receivedBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(receivedBuffer, expectedBuffer)
-  );
-};
-
 export const processAbacatePayWebhook = async (
   payload: Record<string, unknown>
 ): Promise<WebhookResult> => {
@@ -298,20 +296,12 @@ export const processAbacatePayWebhook = async (
     }
 
     const now = new Date();
-    const userResult = await client.query<{ id: string }>(
-      `
-        insert into users (id, name, email, email_verified)
-        values ($1, $2, $3, true)
-        on conflict (email) do update set name = excluded.name
-        returning id
-      `,
-      [randomUUID(), orderPayload.customerName, orderPayload.customerEmail]
-    );
-    const userId = userResult.rows[0]?.id;
-
-    if (!userId) {
-      throw new Error("Nao foi possivel criar ou localizar a aluna.");
-    }
+    const userId = await resolveWebhookUserId({
+      client,
+      customerEmail: orderPayload.customerEmail,
+      customerName: orderPayload.customerName,
+      metadataUserId: orderPayload.userId,
+    });
 
     await client.query(
       `
@@ -341,12 +331,16 @@ export const processAbacatePayWebhook = async (
         )
         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         on conflict (provider, provider_order_id) do update set
+          user_id = excluded.user_id,
           status = excluded.status,
+          amount_in_cents = excluded.amount_in_cents,
           paid_amount_in_cents = excluded.paid_amount_in_cents,
           payment_method = excluded.payment_method,
           receipt_url = excluded.receipt_url,
           paid_at = coalesce(orders.paid_at, excluded.paid_at),
           refunded_at = excluded.refunded_at,
+          customer_email = excluded.customer_email,
+          customer_name = excluded.customer_name,
           updated_at = now()
       `,
       [

@@ -1,5 +1,9 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 export type OrderStatus = "pending" | "paid" | "refunded" | "ignored";
 
+const ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY =
+  "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
 const COURSE_PRICE_INVALID_MESSAGE = "Preco do curso invalido.";
 const DEFAULT_PAYMENT_METHODS = ["PIX", "CARD"] as const;
 
@@ -8,6 +12,7 @@ interface AbacatePayCheckoutPayload {
   externalId?: unknown;
   id?: unknown;
   items?: unknown;
+  metadata?: unknown;
   methods?: unknown;
   paidAmount?: unknown;
   receiptUrl?: unknown;
@@ -39,6 +44,7 @@ export interface AbacatePayOrderPayload {
   providerOrderId: string;
   providerProductId: string | null;
   receiptUrl: string | null;
+  userId: string | null;
 }
 
 export interface AbacatePayProductRequest {
@@ -80,6 +86,84 @@ const isString = (value: unknown): value is string =>
 
 const isNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+
+const timingSafeStringEqual = (left: string, right: string): boolean => {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  return (
+    leftBuffer.length === rightBuffer.length &&
+    timingSafeEqual(leftBuffer, rightBuffer)
+  );
+};
+
+const getLegacySignatureParts = (
+  signature: string
+): { hash: string; timestamp: string } | null => {
+  const parts = new Map(
+    signature.split(",").map((part) => {
+      const [key, value] = part.split("=");
+      return [key, value] as const;
+    })
+  );
+  const timestamp = parts.get("t");
+  const hash = parts.get("v1");
+
+  return timestamp && hash ? { hash, timestamp } : null;
+};
+
+export const verifyAbacatePayWebhookSecret = ({
+  expectedSecret,
+  isProduction,
+  receivedSecret,
+}: {
+  expectedSecret: string | undefined;
+  isProduction: boolean;
+  receivedSecret: string | null;
+}): boolean => {
+  if (!expectedSecret) {
+    return !isProduction;
+  }
+
+  return (
+    typeof receivedSecret === "string" &&
+    timingSafeStringEqual(receivedSecret, expectedSecret)
+  );
+};
+
+export const verifyAbacatePaySignature = ({
+  legacySecret,
+  payload,
+  signature,
+}: {
+  legacySecret: string | undefined;
+  payload: string;
+  signature: string | null;
+}): boolean => {
+  if (!signature) {
+    return false;
+  }
+
+  const legacyParts = getLegacySignatureParts(signature);
+
+  if (legacyParts) {
+    if (!legacySecret) {
+      return false;
+    }
+
+    const expected = createHmac("sha256", legacySecret)
+      .update(`${legacyParts.timestamp}.${payload}`)
+      .digest("hex");
+
+    return timingSafeStringEqual(legacyParts.hash, expected);
+  }
+
+  const expected = createHmac("sha256", ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY)
+    .update(Buffer.from(payload, "utf8"))
+    .digest("base64");
+
+  return timingSafeStringEqual(signature, expected);
+};
 
 export const mapAbacatePayEventToOrderStatus = (event: string): OrderStatus => {
   if (paidEvents.has(event)) {
@@ -221,6 +305,10 @@ export const getAbacatePayOrderPayload = (
   const rawItems = Array.isArray((order as { items?: unknown }).items)
     ? (order as { items: unknown[] }).items
     : [];
+  const metadata =
+    typeof order.metadata === "object" && order.metadata !== null
+      ? (order.metadata as { userId?: unknown })
+      : null;
   const firstItem = rawItems.find(
     (item): item is { id: string } =>
       typeof item === "object" &&
@@ -238,5 +326,6 @@ export const getAbacatePayOrderPayload = (
     receiptUrl: isString(order.receiptUrl) ? order.receiptUrl : null,
     customerEmail: customer.email,
     customerName: customer.name,
+    userId: isString(metadata?.userId) ? metadata.userId : null,
   };
 };
