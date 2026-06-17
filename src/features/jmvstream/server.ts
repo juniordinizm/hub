@@ -117,15 +117,7 @@ export const ensureJmvstreamModuleFolder = async (
     throw new Error("Modulo invalido.");
   }
 
-  const parentFolderUuid = await ensureJmvstreamCourseFolder(context.course_id);
-
-  return syncFolder({
-    courseId: context.course_id,
-    folderType: "module",
-    moduleId,
-    name: context.title,
-    parentFolderUuid,
-  });
+  return ensureJmvstreamCourseFolder(context.course_id);
 };
 
 export const requireJmvstreamModuleFolder = async (
@@ -139,9 +131,12 @@ export const requireJmvstreamModuleFolder = async (
 
   const { rows } = await getPool().query<{ last_error: string | null }>(
     `
-      select last_error
-      from jmvstream_folders
-      where module_id = $1
+      select jf.last_error
+      from modules m
+      left join jmvstream_folders jf
+        on jf.course_id = m.course_id
+       and jf.folder_type = 'course'
+      where m.id = $1
       order by updated_at desc
       limit 1
     `,
@@ -150,7 +145,7 @@ export const requireJmvstreamModuleFolder = async (
   const detail = rows[0]?.last_error ? ` Detalhe: ${rows[0].last_error}` : "";
 
   throw new Error(
-    `Nao foi possivel garantir a pasta JMVStream do modulo.${detail}`
+    `Nao foi possivel garantir a pasta JMVStream do curso.${detail}`
   );
 };
 

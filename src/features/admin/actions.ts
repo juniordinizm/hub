@@ -228,7 +228,6 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
     if (previousCourseId && previousCourseId !== courseId) {
       await recalculateCourseWorkloadHours(previousCourseId);
     }
-    await ensureJmvstreamModuleFolder(moduleId);
     revalidateAdmin();
     return;
   }
@@ -252,11 +251,6 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
     targetId: inserted.rows[0]?.id,
     targetType: "module",
   });
-  const insertedModuleId = inserted.rows[0]?.id;
-
-  if (insertedModuleId) {
-    await ensureJmvstreamModuleFolder(insertedModuleId);
-  }
   await recalculateCourseWorkloadHours(courseId);
   revalidateAdmin();
 };
