@@ -61,35 +61,22 @@ export function JmvstreamUploadPanel({
         );
         const targetLessonId = lessonId ?? (await createLessonForUpload());
         setStatus("Preparando upload na JMVStream...");
-        const init = await initJmvstreamUploadAction({
+        const initResult = await initJmvstreamUploadAction({
           fileName: file.name,
           fileSize: file.size,
           lessonId: targetLessonId,
           uploadType: "multipart",
         });
-        const urls = normalizePresignedUrls(init.presignedUrls);
-        const chunkSize = Math.ceil(file.size / urls.length);
-        const parts: UploadPart[] = [];
-
-        for (const [index, item] of urls.entries()) {
-          const start = index * chunkSize;
-          const end = Math.min(start + chunkSize, file.size);
-          const response = await fetch(item.url, {
-            body: file.slice(start, end),
-            headers: { "Content-Type": "application/octet-stream" },
-            method: "PUT",
-          });
-
-          if (!response.ok) {
-            throw new Error("A JMVStream recusou uma parte do upload.");
-          }
-
-          parts.push({
-            ETag: response.headers.get("ETag") ?? "",
-            PartNumber: item.partNumber,
-          });
-          setProgress(Math.round(((index + 1) / urls.length) * 90));
+        if (!initResult.ok) {
+          throw new Error(initResult.error);
         }
+
+        const init = initResult.data;
+        const parts = await uploadFileParts({
+          file,
+          onProgress: setProgress,
+          presignedUrls: init.presignedUrls,
+        });
 
         setStatus("Finalizando processamento...");
         await completeJmvstreamUploadAction({
@@ -122,7 +109,15 @@ export function JmvstreamUploadPanel({
       throw new Error("Formulario da aula nao encontrado.");
     }
 
-    return await createLessonForJmvstreamUploadAction(new FormData(form));
+    const result = await createLessonForJmvstreamUploadAction(
+      new FormData(form)
+    );
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return result.lessonId;
   };
 
   const retryDelete = (): void => {
@@ -233,3 +228,39 @@ const normalizePresignedUrls = (
       url: item.url,
     };
   });
+
+const uploadFileParts = async ({
+  file,
+  onProgress,
+  presignedUrls,
+}: {
+  file: File;
+  onProgress: (value: number) => void;
+  presignedUrls: PresignedUrl[];
+}): Promise<UploadPart[]> => {
+  const urls = normalizePresignedUrls(presignedUrls);
+  const chunkSize = Math.ceil(file.size / urls.length);
+  const parts: UploadPart[] = [];
+
+  for (const [index, item] of urls.entries()) {
+    const start = index * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const response = await fetch(item.url, {
+      body: file.slice(start, end),
+      headers: { "Content-Type": "application/octet-stream" },
+      method: "PUT",
+    });
+
+    if (!response.ok) {
+      throw new Error("A JMVStream recusou uma parte do upload.");
+    }
+
+    parts.push({
+      ETag: response.headers.get("ETag") ?? "",
+      PartNumber: item.partNumber,
+    });
+    onProgress(Math.round(((index + 1) / urls.length) * 90));
+  }
+
+  return parts;
+};

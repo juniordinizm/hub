@@ -13,6 +13,7 @@ import {
   ensureJmvstreamCourseFolder,
   ensureJmvstreamModuleFolder,
   initJmvstreamUpload,
+  requireJmvstreamModuleFolder,
   retryJmvstreamAssetDelete,
   syncManualJmvstreamVideoAsset,
 } from "@/features/jmvstream/server";
@@ -484,74 +485,103 @@ export const initJmvstreamUploadAction = async (input: {
   fileSize: number;
   lessonId: string;
   uploadType: "direct" | "multipart";
-}) => {
+}): Promise<
+  | { data: Awaited<ReturnType<typeof initJmvstreamUpload>>; ok: true }
+  | { error: string; ok: false }
+> => {
   await requireRole(["admin"]);
-  return initJmvstreamUpload(input);
+
+  try {
+    return {
+      data: await initJmvstreamUpload(input),
+      ok: true,
+    };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel iniciar o upload JMVStream.",
+      ok: false,
+    };
+  }
 };
 
 export const createLessonForJmvstreamUploadAction = async (
   formData: FormData
-): Promise<string> => {
+): Promise<{ lessonId: string; ok: true } | { error: string; ok: false }> => {
   const session = await requireRole(["admin"]);
-  const lessonId = readString(formData, "lessonId");
 
-  if (lessonId) {
-    return lessonId;
+  try {
+    const lessonId = readString(formData, "lessonId");
+
+    if (lessonId) {
+      return { lessonId, ok: true };
+    }
+
+    const moduleId = readString(formData, "moduleId");
+    const values = [
+      moduleId,
+      readString(formData, "title"),
+      readString(formData, "description") || null,
+      readString(formData, "lessonType") || "video",
+      "jmvstream",
+      null,
+      null,
+      readNumber(formData, "durationSeconds"),
+      readNumber(formData, "sortOrder", 1),
+      formData.get("isPublished") === "on",
+    ];
+    await requireJmvstreamModuleFolder(moduleId);
+    const inserted = await getPool().query<{ id: string }>(
+      `
+        insert into lessons (
+          module_id,
+          title,
+          description,
+          lesson_type,
+          video_provider,
+          video_external_id,
+          video_embed_url,
+          duration_seconds,
+          sort_order,
+          is_published
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        returning id
+      `,
+      values
+    );
+    const insertedLessonId = inserted.rows[0]?.id;
+
+    if (!insertedLessonId) {
+      throw new Error("Nao foi possivel criar a aula para upload.");
+    }
+
+    await audit({
+      action: "lesson.created",
+      actorUserId: session.user.id,
+      targetId: insertedLessonId,
+      targetType: "lesson",
+    });
+
+    const moduleCourseId = await getCourseIdForModule(moduleId);
+
+    if (moduleCourseId) {
+      await recalculateCourseWorkloadHours(moduleCourseId);
+    }
+
+    revalidateAdmin();
+    return { lessonId: insertedLessonId, ok: true };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel criar a aula para upload.",
+      ok: false,
+    };
   }
-
-  const moduleId = readString(formData, "moduleId");
-  const values = [
-    moduleId,
-    readString(formData, "title"),
-    readString(formData, "description") || null,
-    readString(formData, "lessonType") || "video",
-    "jmvstream",
-    null,
-    null,
-    readNumber(formData, "durationSeconds"),
-    readNumber(formData, "sortOrder", 1),
-    formData.get("isPublished") === "on",
-  ];
-  const inserted = await getPool().query<{ id: string }>(
-    `
-      insert into lessons (
-        module_id,
-        title,
-        description,
-        lesson_type,
-        video_provider,
-        video_external_id,
-        video_embed_url,
-        duration_seconds,
-        sort_order,
-        is_published
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      returning id
-    `,
-    values
-  );
-  const insertedLessonId = inserted.rows[0]?.id;
-
-  if (!insertedLessonId) {
-    throw new Error("Nao foi possivel criar a aula para upload.");
-  }
-
-  await audit({
-    action: "lesson.created",
-    actorUserId: session.user.id,
-    targetId: insertedLessonId,
-    targetType: "lesson",
-  });
-
-  const moduleCourseId = await getCourseIdForModule(moduleId);
-
-  if (moduleCourseId) {
-    await recalculateCourseWorkloadHours(moduleCourseId);
-  }
-
-  revalidateAdmin();
-  return insertedLessonId;
 };
 
 export const completeJmvstreamUploadAction = async (input: {

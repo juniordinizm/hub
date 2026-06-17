@@ -43,6 +43,12 @@ const getConfiguredClient = () => {
     );
   }
 
+  if (!env.JMVSTREAM_API_TOKEN.includes(".")) {
+    throw new Error(
+      "JMVSTREAM_API_TOKEN precisa ser o token Bearer retornado por /v1/authenticate. O valor atual parece um UUID/chave, nao o JWT da API."
+    );
+  }
+
   return createJmvstreamClient({
     apiBaseUrl: env.JMVSTREAM_API_BASE_URL,
     apiToken: env.JMVSTREAM_API_TOKEN,
@@ -122,6 +128,32 @@ export const ensureJmvstreamModuleFolder = async (
   });
 };
 
+export const requireJmvstreamModuleFolder = async (
+  moduleId: string
+): Promise<string> => {
+  const folderUuid = await ensureJmvstreamModuleFolder(moduleId);
+
+  if (folderUuid) {
+    return folderUuid;
+  }
+
+  const { rows } = await getPool().query<{ last_error: string | null }>(
+    `
+      select last_error
+      from jmvstream_folders
+      where module_id = $1
+      order by updated_at desc
+      limit 1
+    `,
+    [moduleId]
+  );
+  const detail = rows[0]?.last_error ? ` Detalhe: ${rows[0].last_error}` : "";
+
+  throw new Error(
+    `Nao foi possivel garantir a pasta JMVStream do modulo.${detail}`
+  );
+};
+
 export const initJmvstreamUpload = async ({
   fileName,
   fileSize,
@@ -139,11 +171,7 @@ export const initJmvstreamUpload = async ({
     throw new Error("Aula invalida.");
   }
 
-  const galleryUuid = await ensureJmvstreamModuleFolder(lesson.module_id);
-
-  if (!galleryUuid) {
-    throw new Error("Nao foi possivel garantir a pasta JMVStream do modulo.");
-  }
+  const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
 
   const chunkSize = uploadType === "multipart" ? 8 * 1024 * 1024 : undefined;
   const totalParts =
@@ -177,11 +205,7 @@ export const completeJmvstreamUpload = async ({
   }
 
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
-  const galleryUuid = await ensureJmvstreamModuleFolder(lesson.module_id);
-
-  if (!galleryUuid) {
-    throw new Error("Nao foi possivel garantir a pasta JMVStream do modulo.");
-  }
+  const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
 
   const response = await getConfiguredClient().completeMultipartUpload({
     filename,
