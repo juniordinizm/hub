@@ -10,11 +10,8 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
-import {
-  type JmvstreamUploadAsset,
-  JmvstreamUploadPanel,
-} from "@/components/jmvstream-upload-panel";
+import type { JmvstreamUploadAsset } from "@/components/jmvstream-upload-panel";
+import { LessonKindControls } from "@/components/lesson-kind-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -56,18 +53,6 @@ import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
-
-const lessonTypeOptions = [
-  ["video", "Vídeo"],
-  ["presentation", "Apresentação"],
-  ["bonus", "Bônus"],
-] as const;
-
-const providerOptions = [
-  ["jmvstream", "JMVStream"],
-  ["external", "Externo"],
-  ["panda", "Panda"],
-] as const;
 
 type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
 type CourseData = AdminData["courses"][number];
@@ -620,7 +605,7 @@ function LessonForm({
       <AutoCloseDialogForm action={saveLessonAction}>
         <FieldGroup>
           <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
-          <div className="grid gap-4 lg:grid-cols-[1fr_120px_120px_120px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,520px)]">
             <Field>
               <FieldLabel>Módulo</FieldLabel>
               <Select
@@ -640,44 +625,14 @@ function LessonForm({
                 </SelectContent>
               </Select>
             </Field>
-            <Field>
-              <FieldLabel>Tipo</FieldLabel>
-              <Select
-                defaultValue={lesson?.lessonType ?? "video"}
-                name="lessonType"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  {lessonTypeOptions.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Duração em segundos</FieldLabel>
-              <Input
-                defaultValue={lesson?.durationSeconds ?? 0}
-                min={0}
-                name="durationSeconds"
-                step={1}
-                type="number"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Ordem</FieldLabel>
-              <Input
-                defaultValue={lesson?.sortOrder ?? 1}
-                min={1}
-                name="sortOrder"
-                required
-                type="number"
-              />
-            </Field>
+            <LessonKindControls
+              asset={asset}
+              defaultDurationSeconds={lesson?.durationSeconds ?? 0}
+              defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
+              defaultLessonType={lesson?.lessonType ?? "video"}
+              defaultOrder={lesson?.sortOrder ?? 1}
+              lessonId={lesson?.id}
+            />
           </div>
           <Field>
             <FieldLabel>Título</FieldLabel>
@@ -690,51 +645,6 @@ function LessonForm({
               name="description"
             />
           </Field>
-          <div className="grid gap-4 lg:grid-cols-[180px_1fr]">
-            <Field>
-              <FieldLabel>Provider</FieldLabel>
-              <Select
-                defaultValue={lesson?.videoProvider ?? "jmvstream"}
-                name="videoProvider"
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providerOptions.map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Hash ou ID do vídeo</FieldLabel>
-              <Input
-                defaultValue={lesson?.videoExternalId ?? ""}
-                name="videoExternalId"
-                placeholder="video_hash da JMVStream"
-              />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel>URL ou iframe do player</FieldLabel>
-            <Input
-              defaultValue={lesson?.videoEmbedUrl ?? ""}
-              name="videoEmbedUrl"
-              placeholder="https://player.jmvstream.com/... ou iframe oficial"
-            />
-          </Field>
-          <JmvstreamDurationDetector
-            defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
-            defaultProvider={lesson?.videoProvider ?? "jmvstream"}
-          />
-          <JmvstreamUploadPanel
-            asset={asset}
-            currentVideoHash={lesson?.videoExternalId ?? null}
-            lessonId={lesson?.id}
-          />
           <div className="flex flex-wrap items-center gap-4">
             <label
               className="inline-flex items-center gap-2 text-sm"

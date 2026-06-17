@@ -1,0 +1,111 @@
+"use client";
+
+import { useState } from "react";
+import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
+import {
+  type JmvstreamUploadAsset,
+  JmvstreamUploadPanel,
+} from "@/components/jmvstream-upload-panel";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const lessonTypeOptions = [
+  ["video", "Vídeo"],
+  ["presentation", "Apresentação"],
+  ["bonus", "Bônus"],
+] as const;
+
+export function LessonKindControls({
+  asset,
+  defaultDurationSeconds,
+  defaultEmbedUrl,
+  defaultLessonType,
+  defaultOrder,
+  lessonId,
+}: {
+  asset?: JmvstreamUploadAsset | undefined;
+  defaultDurationSeconds: number;
+  defaultEmbedUrl: string;
+  defaultLessonType: string;
+  defaultOrder: number;
+  lessonId?: string | undefined;
+}): React.JSX.Element {
+  const [lessonType, setLessonType] = useState(defaultLessonType || "video");
+  const isVideoLesson = lessonType === "video";
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Field>
+          <FieldLabel>Tipo</FieldLabel>
+          <Select
+            defaultValue={lessonType}
+            name="lessonType"
+            onValueChange={setLessonType}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              {lessonTypeOptions.map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field>
+          <FieldLabel>Duração em segundos</FieldLabel>
+          <Input
+            defaultValue={defaultDurationSeconds}
+            min={0}
+            name="durationSeconds"
+            step={1}
+            type="number"
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Ordem</FieldLabel>
+          <Input
+            defaultValue={defaultOrder}
+            min={1}
+            name="sortOrder"
+            required
+            type="number"
+          />
+        </Field>
+      </div>
+
+      {isVideoLesson ? (
+        <>
+          <input name="videoProvider" type="hidden" value="jmvstream" />
+          <Field>
+            <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+            <Input
+              defaultValue={defaultEmbedUrl}
+              name="videoEmbedUrl"
+              placeholder="https://player.jmvstream.com/... ou iframe oficial"
+            />
+          </Field>
+          <JmvstreamDurationDetector
+            defaultEmbedUrl={defaultEmbedUrl}
+            defaultProvider="jmvstream"
+          />
+          <JmvstreamUploadPanel
+            asset={asset}
+            currentVideoHash={null}
+            lessonId={lessonId}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}

@@ -5,7 +5,6 @@ import { getPool } from "@/db";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import {
-  assertJmvstreamVideoHashAvailable,
   completeJmvstreamUpload,
   deleteJmvstreamAssetsForCourse,
   deleteJmvstreamAssetsForLesson,
@@ -13,14 +12,9 @@ import {
   ensureJmvstreamCourseFolder,
   ensureJmvstreamModuleFolder,
   initJmvstreamUpload,
-  requireJmvstreamModuleFolder,
   retryJmvstreamAssetDelete,
-  syncManualJmvstreamVideoAsset,
 } from "@/features/jmvstream/server";
-import {
-  resolveLessonVideoEmbedUrl,
-  toVideoProvider,
-} from "@/features/videos/jmvstream";
+import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
@@ -113,36 +107,15 @@ const getCourseIdForLesson = async (
   return rows[0]?.course_id ?? null;
 };
 
-interface LessonJmvstreamSyncInput {
-  lessonId: string;
-  shouldTrackJmvstreamVideo: boolean;
-  videoExternalId: null | string;
-}
-
-const validateJmvstreamLessonHash = async ({
-  lessonId,
-  shouldTrackJmvstreamVideo,
-  videoExternalId,
-}: LessonJmvstreamSyncInput): Promise<void> => {
-  if (!(shouldTrackJmvstreamVideo && videoExternalId)) {
-    return;
-  }
-
-  await assertJmvstreamVideoHashAvailable(
-    videoExternalId,
-    lessonId || undefined
+const getVideoExternalIdForLesson = async (
+  lessonId: string
+): Promise<string | null> => {
+  const { rows } = await getPool().query<{ video_external_id: string | null }>(
+    "select video_external_id from lessons where id = $1 limit 1",
+    [lessonId]
   );
-};
 
-const syncSavedLessonJmvstreamVideo = async ({
-  lessonId,
-  shouldTrackJmvstreamVideo,
-  videoExternalId,
-}: LessonJmvstreamSyncInput): Promise<void> => {
-  await syncManualJmvstreamVideoAsset({
-    lessonId,
-    videoHash: shouldTrackJmvstreamVideo ? videoExternalId : null,
-  });
+  return rows[0]?.video_external_id ?? null;
 };
 
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
@@ -356,25 +329,25 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const lessonId = readString(formData, "lessonId");
-  const videoProvider = toVideoProvider(readString(formData, "videoProvider"));
-  const videoExternalId = readString(formData, "videoExternalId") || null;
-  const videoEmbedUrl = resolveLessonVideoEmbedUrl({
-    embedUrl: readString(formData, "videoEmbedUrl") || null,
-    provider: videoProvider,
-  });
-  const shouldTrackJmvstreamVideo = videoProvider === "jmvstream";
-
-  await validateJmvstreamLessonHash({
-    lessonId,
-    shouldTrackJmvstreamVideo,
-    videoExternalId,
-  });
+  const lessonType = readString(formData, "lessonType") || "video";
+  const isVideoLesson = lessonType === "video";
+  const videoProvider = isVideoLesson ? "jmvstream" : null;
+  const videoExternalId =
+    isVideoLesson && lessonId
+      ? await getVideoExternalIdForLesson(lessonId)
+      : null;
+  const videoEmbedUrl = isVideoLesson
+    ? resolveLessonVideoEmbedUrl({
+        embedUrl: readString(formData, "videoEmbedUrl") || null,
+        provider: "jmvstream",
+      })
+    : null;
 
   const values = [
     readString(formData, "moduleId"),
     readString(formData, "title"),
     readString(formData, "description") || null,
-    readString(formData, "lessonType") || "video",
+    lessonType,
     videoProvider,
     videoExternalId,
     videoEmbedUrl,
@@ -416,11 +389,9 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     if (previousCourseId && previousCourseId !== moduleCourseId) {
       await recalculateCourseWorkloadHours(previousCourseId);
     }
-    await syncSavedLessonJmvstreamVideo({
-      lessonId,
-      shouldTrackJmvstreamVideo,
-      videoExternalId,
-    });
+    if (!isVideoLesson) {
+      await deleteJmvstreamAssetsForLesson(lessonId);
+    }
   } else {
     const inserted = await getPool().query<{ id: string }>(
       `
@@ -447,15 +418,6 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
       targetId: inserted.rows[0]?.id,
       targetType: "lesson",
     });
-    const insertedLessonId = inserted.rows[0]?.id;
-
-    if (insertedLessonId) {
-      await syncSavedLessonJmvstreamVideo({
-        lessonId: insertedLessonId,
-        shouldTrackJmvstreamVideo,
-        videoExternalId,
-      });
-    }
     if (moduleCourseId) {
       await recalculateCourseWorkloadHours(moduleCourseId);
     }
@@ -502,83 +464,6 @@ export const initJmvstreamUploadAction = async (input: {
         error instanceof Error
           ? error.message
           : "Nao foi possivel iniciar o upload JMVStream.",
-      ok: false,
-    };
-  }
-};
-
-export const createLessonForJmvstreamUploadAction = async (
-  formData: FormData
-): Promise<{ lessonId: string; ok: true } | { error: string; ok: false }> => {
-  const session = await requireRole(["admin"]);
-
-  try {
-    const lessonId = readString(formData, "lessonId");
-
-    if (lessonId) {
-      return { lessonId, ok: true };
-    }
-
-    const moduleId = readString(formData, "moduleId");
-    const values = [
-      moduleId,
-      readString(formData, "title"),
-      readString(formData, "description") || null,
-      readString(formData, "lessonType") || "video",
-      "jmvstream",
-      null,
-      null,
-      readNumber(formData, "durationSeconds"),
-      readNumber(formData, "sortOrder", 1),
-      formData.get("isPublished") === "on",
-    ];
-    await requireJmvstreamModuleFolder(moduleId);
-    const inserted = await getPool().query<{ id: string }>(
-      `
-        insert into lessons (
-          module_id,
-          title,
-          description,
-          lesson_type,
-          video_provider,
-          video_external_id,
-          video_embed_url,
-          duration_seconds,
-          sort_order,
-          is_published
-        )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        returning id
-      `,
-      values
-    );
-    const insertedLessonId = inserted.rows[0]?.id;
-
-    if (!insertedLessonId) {
-      throw new Error("Nao foi possivel criar a aula para upload.");
-    }
-
-    await audit({
-      action: "lesson.created",
-      actorUserId: session.user.id,
-      targetId: insertedLessonId,
-      targetType: "lesson",
-    });
-
-    const moduleCourseId = await getCourseIdForModule(moduleId);
-
-    if (moduleCourseId) {
-      await recalculateCourseWorkloadHours(moduleCourseId);
-    }
-
-    revalidateAdmin();
-    return { lessonId: insertedLessonId, ok: true };
-  } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Nao foi possivel criar a aula para upload.",
       ok: false,
     };
   }
