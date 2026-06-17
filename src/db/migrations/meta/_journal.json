@@ -43,6 +43,13 @@
       "when": 1781671925909,
       "tag": "0005_purple_ink",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781680000000,
+      "tag": "0006_course_prices",
+      "breakpoints": true
     }
   ]
 }

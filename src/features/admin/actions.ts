@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getPool } from "@/db";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
@@ -14,6 +15,8 @@ import {
   initJmvstreamUpload,
   retryJmvstreamAssetDelete,
 } from "@/features/jmvstream/server";
+import { parsePriceToCents } from "@/features/payments/abacatepay";
+import { createAbacatePayCourseProduct } from "@/features/payments/server";
 import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
@@ -34,6 +37,7 @@ const revalidateAdmin = (): void => {
     "/admin/financeiro",
     "/admin/faq",
     "/admin/configuracoes",
+    "/app",
   ]) {
     revalidatePath(path);
   }
@@ -122,15 +126,20 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
   const title = readString(formData, "title");
+  const subtitle = readString(formData, "subtitle") || null;
+  const description = readString(formData, "description") || null;
+  const thumbnailUrl = readString(formData, "thumbnailUrl") || null;
+  const supportWhatsappUrl = readString(formData, "supportWhatsappUrl") || null;
+  const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
+  const status = readString(formData, "status") || "draft";
   const values = [
     title,
-    readString(formData, "subtitle") || null,
-    readString(formData, "description") || null,
-    readString(formData, "thumbnailUrl") || null,
-    readString(formData, "supportWhatsappUrl") || null,
-    readString(formData, "paymentProviderProductId") || null,
-    readNumber(formData, "accessDurationMonths", 12),
-    readString(formData, "status") || "draft",
+    subtitle,
+    description,
+    thumbnailUrl,
+    supportWhatsappUrl,
+    accessDurationMonths,
+    status,
   ];
 
   if (courseId) {
@@ -142,11 +151,10 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             description = $3,
             thumbnail_url = $4,
             support_whatsapp_url = $5,
-            payment_provider_product_id = $6,
-            access_duration_months = $7,
-            status = $8,
+            access_duration_months = $6,
+            status = $7,
             updated_at = now()
-        where id = $9
+        where id = $8
       `,
       [...values, courseId]
     );
@@ -158,25 +166,49 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     });
     await ensureJmvstreamCourseFolder(courseId);
   } else {
+    const insertedCourseId = randomUUID();
     const slug = await resolveUniqueCourseSlug(title);
+    const priceInCents = parsePriceToCents(readString(formData, "price"));
+    const { productId } = await createAbacatePayCourseProduct({
+      courseId: insertedCourseId,
+      description,
+      imageUrl: thumbnailUrl,
+      priceInCents,
+      title,
+    });
     const inserted = await getPool().query<{ id: string }>(
       `
         insert into courses (
+          id,
           slug,
           title,
           subtitle,
           description,
           workload_hours,
+          price_in_cents,
           thumbnail_url,
           support_whatsapp_url,
           payment_provider_product_id,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         returning id
       `,
-      [slug, ...values.slice(0, 3), 0, ...values.slice(3)]
+      [
+        insertedCourseId,
+        slug,
+        title,
+        subtitle,
+        description,
+        0,
+        priceInCents,
+        thumbnailUrl,
+        supportWhatsappUrl,
+        productId,
+        accessDurationMonths,
+        status,
+      ]
     );
     await audit({
       action: "course.created",
@@ -184,10 +216,10 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       targetId: inserted.rows[0]?.id,
       targetType: "course",
     });
-    const insertedCourseId = inserted.rows[0]?.id;
+    const savedCourseId = inserted.rows[0]?.id;
 
-    if (insertedCourseId) {
-      await ensureJmvstreamCourseFolder(insertedCourseId);
+    if (savedCourseId) {
+      await ensureJmvstreamCourseFolder(savedCourseId);
     }
   }
 

@@ -345,6 +345,10 @@ export default async function AdminCourseDetailPage({
                   value={course.thumbnailUrl ?? "Não cadastrada"}
                 />
                 <InfoTile
+                  label="Preço"
+                  value={formatCurrencyInCents(course.priceInCents)}
+                />
+                <InfoTile
                   label="Produto AbacatePay"
                   value={course.paymentProviderProductId ?? "Não vinculado"}
                 />
@@ -714,6 +718,13 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
           </Field>
         </div>
         <Field>
+          <FieldLabel>Preço do curso</FieldLabel>
+          <Input
+            defaultValue={formatCurrencyInCents(course.priceInCents)}
+            disabled
+          />
+        </Field>
+        <Field>
           <FieldLabel>Capa do curso</FieldLabel>
           <Input
             defaultValue={course.thumbnailUrl ?? ""}
@@ -733,7 +744,7 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             <FieldLabel>Produto AbacatePay</FieldLabel>
             <Input
               defaultValue={course.paymentProviderProductId ?? ""}
-              name="paymentProviderProductId"
+              disabled
             />
           </Field>
           <Field>

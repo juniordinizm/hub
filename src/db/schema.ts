@@ -156,6 +156,7 @@ export const courses = pgTable(
     subtitle: text("subtitle"),
     description: text("description"),
     workloadHours: integer("workload_hours").default(0).notNull(),
+    priceInCents: integer("price_in_cents").default(0).notNull(),
     thumbnailUrl: text("thumbnail_url"),
     supportWhatsappUrl: text("support_whatsapp_url"),
     paymentProviderProductId: text("payment_provider_product_id"),
@@ -173,6 +174,10 @@ export const courses = pgTable(
     check(
       "courses_workload_hours_non_negative",
       sql`${table.workloadHours} >= 0`
+    ),
+    check(
+      "courses_price_in_cents_non_negative",
+      sql`${table.priceInCents} >= 0`
     ),
   ]
 );

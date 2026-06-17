@@ -30,6 +30,23 @@ export interface StudentCourseCard {
   workloadHours: number;
 }
 
+export interface StudentCatalogCourseCard {
+  completedCount: number;
+  courseId: string;
+  description: string | null;
+  expiresAt: Date | null;
+  isEnrolled: boolean;
+  nextLessonId: string | null;
+  priceInCents: number;
+  progressPercent: number;
+  slug: string;
+  subtitle: string | null;
+  thumbnailUrl: string | null;
+  title: string;
+  totalCount: number;
+  workloadHours: number;
+}
+
 export interface StudentCourseModule {
   color: string;
   completedCount: number;
@@ -146,6 +163,11 @@ type StudentCourseAggregate = StudentCourseCard & {
   completedLessonIds: string[];
   lessonIds: string[];
   modulesById: Map<string, StudentCourseModuleAggregate>;
+};
+
+type StudentCatalogCourseAggregate = StudentCatalogCourseCard & {
+  completedLessonIds: string[];
+  lessonIds: string[];
 };
 
 interface CourseOverviewRow {
@@ -352,6 +374,107 @@ export const getStudentCourses = async (
       completedCount: progress.completedCount,
       totalCount: progress.totalCount,
       nextLessonId: getNextAvailableLessonId(course),
+    };
+  });
+};
+
+export const getStudentCourseCatalog = async (
+  userId: string
+): Promise<StudentCatalogCourseCard[]> => {
+  const { rows } = await getPool().query<{
+    completed_at: Date | null;
+    course_description: string | null;
+    course_id: string;
+    expires_at: Date | null;
+    is_enrolled: boolean;
+    lesson_id: string | null;
+    price_in_cents: number;
+    slug: string;
+    subtitle: string | null;
+    thumbnail_url: string | null;
+    title: string;
+    workload_hours: number;
+  }>(
+    `
+      select
+        c.id as course_id,
+        c.slug,
+        c.title,
+        c.subtitle,
+        c.description as course_description,
+        c.workload_hours,
+        c.price_in_cents,
+        c.thumbnail_url,
+        e.expires_at,
+        (e.id is not null) as is_enrolled,
+        l.id as lesson_id,
+        lp.completed_at
+      from courses c
+      left join enrollments e on e.course_id = c.id
+        and e.user_id = $1
+        and e.status = 'active'
+        and e.starts_at <= now()
+        and e.expires_at >= now()
+      left join modules m on m.course_id = c.id
+      left join lessons l on l.module_id = m.id and l.is_published = true
+      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
+      where c.status = 'active'
+      order by c.created_at desc, m.sort_order asc, l.sort_order asc
+    `,
+    [userId]
+  );
+  const byCourse = new Map<string, StudentCatalogCourseAggregate>();
+
+  for (const row of rows) {
+    const course = byCourse.get(row.course_id) ?? {
+      courseId: row.course_id,
+      slug: row.slug,
+      title: row.title,
+      subtitle: row.subtitle,
+      description: row.course_description,
+      workloadHours: row.workload_hours,
+      priceInCents: row.price_in_cents,
+      thumbnailUrl: row.thumbnail_url,
+      expiresAt: row.expires_at,
+      isEnrolled: row.is_enrolled,
+      progressPercent: 0,
+      completedCount: 0,
+      totalCount: 0,
+      nextLessonId: null,
+      lessonIds: [],
+      completedLessonIds: [],
+    };
+
+    if (row.lesson_id) {
+      course.lessonIds.push(row.lesson_id);
+      if (row.completed_at && row.is_enrolled) {
+        course.completedLessonIds.push(row.lesson_id);
+      }
+    }
+
+    byCourse.set(row.course_id, course);
+  }
+
+  return [...byCourse.values()].map((course) => {
+    const progress = course.isEnrolled
+      ? calculateCourseProgress(course)
+      : { completedCount: 0, percent: 0, totalCount: course.lessonIds.length };
+
+    return {
+      courseId: course.courseId,
+      slug: course.slug,
+      title: course.title,
+      subtitle: course.subtitle,
+      description: course.description,
+      workloadHours: course.workloadHours,
+      priceInCents: course.priceInCents,
+      thumbnailUrl: course.thumbnailUrl,
+      expiresAt: course.expiresAt,
+      isEnrolled: course.isEnrolled,
+      progressPercent: progress.percent,
+      completedCount: progress.completedCount,
+      totalCount: progress.totalCount,
+      nextLessonId: course.isEnrolled ? getNextAvailableLessonId(course) : null,
     };
   });
 };

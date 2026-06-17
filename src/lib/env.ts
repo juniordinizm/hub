@@ -10,7 +10,13 @@ const optionalNonEmptyString = z.preprocess((value) => {
 }, z.string().min(1).optional());
 
 const serverEnvSchema = z.object({
+  ABACATEPAY_API_BASE_URL: z
+    .string()
+    .url()
+    .default("https://api.abacatepay.com/v2"),
+  ABACATEPAY_API_KEY: optionalNonEmptyString,
   ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
+  ABACATE_PAY_API_KEY: optionalNonEmptyString,
   BETTER_AUTH_SECRET: z.string().min(1).default("development-secret-change-me"),
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
   CERTIFICATE_PUBLIC_BASE_URL: z
@@ -37,7 +43,10 @@ const serverEnvSchema = z.object({
 
 export const getServerEnv = () =>
   serverEnvSchema.parse({
+    ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
+    ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
+    ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,

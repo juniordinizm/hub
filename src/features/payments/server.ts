@@ -4,16 +4,44 @@ import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
 import { addMonths } from "@/features/enrollments/rules";
 import {
+  buildAbacatePayCheckoutRequest,
+  buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
   mapAbacatePayEventToOrderStatus,
 } from "@/features/payments/abacatepay";
+import { AbacatePayClient } from "@/features/payments/abacatepay-client";
 import { getServerEnv } from "@/lib/env";
 
 interface WebhookResult {
   eventKey: string;
   status: "processed" | "ignored" | "duplicate";
 }
+
+interface CreatedCourseProduct {
+  productId: string;
+}
+
+interface CourseCheckoutResult {
+  redirectUrl: string;
+}
+
+const getAbacatePayClient = (): AbacatePayClient => {
+  const env = getServerEnv();
+  const apiKey = env.ABACATE_PAY_API_KEY ?? env.ABACATEPAY_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("Configure ABACATE_PAY_API_KEY para usar o AbacatePay.");
+  }
+
+  return new AbacatePayClient({
+    apiKey,
+    baseUrl: env.ABACATEPAY_API_BASE_URL,
+  });
+};
+
+const appUrl = (path: string): string =>
+  new URL(path, getServerEnv().NEXT_PUBLIC_APP_URL).toString();
 
 const notifyAccessReleased = async (
   payload: {
@@ -31,6 +59,121 @@ const notifyAccessReleased = async (
   } catch {
     // E-mail failure must not block paid webhook processing.
   }
+};
+
+export const createAbacatePayCourseProduct = async (
+  input: Parameters<typeof buildAbacatePayProductRequest>[0]
+): Promise<CreatedCourseProduct> => {
+  const request = buildAbacatePayProductRequest(input);
+  const product = await getAbacatePayClient().createProduct(request);
+
+  return { productId: product.id };
+};
+
+export const createCourseCheckout = async ({
+  courseId,
+  user,
+}: {
+  courseId: string;
+  user: {
+    email: string;
+    id: string;
+    name: string;
+  };
+}): Promise<CourseCheckoutResult> => {
+  const { rows } = await getPool().query<{
+    id: string;
+    payment_provider_product_id: string | null;
+    price_in_cents: number;
+    status: string;
+  }>(
+    `
+      select id, payment_provider_product_id, price_in_cents, status
+      from courses
+      where id = $1
+      limit 1
+    `,
+    [courseId]
+  );
+  const course = rows[0];
+
+  if (!course || course.status !== "active") {
+    throw new Error("Curso indisponivel para compra.");
+  }
+
+  const enrollment = await getPool().query<{ id: string }>(
+    `
+      select id
+      from enrollments
+      where user_id = $1
+        and course_id = $2
+        and status = 'active'
+        and starts_at <= now()
+        and expires_at >= now()
+      limit 1
+    `,
+    [user.id, course.id]
+  );
+
+  if (enrollment.rows[0]) {
+    return { redirectUrl: `/app/cursos/${course.id}` };
+  }
+
+  if (!course.payment_provider_product_id) {
+    throw new Error("Curso sem produto AbacatePay configurado.");
+  }
+
+  if (course.price_in_cents <= 0) {
+    throw new Error("Curso sem preco configurado.");
+  }
+
+  const externalId = `order_${randomUUID()}`;
+  const checkout = await getAbacatePayClient().createCheckout(
+    buildAbacatePayCheckoutRequest({
+      completionUrl: appUrl(
+        `/app/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
+      ),
+      courseId: course.id,
+      externalId,
+      productId: course.payment_provider_product_id,
+      returnUrl: appUrl("/app"),
+      userId: user.id,
+    })
+  );
+
+  await getPool().query(
+    `
+      insert into orders (
+        course_id,
+        user_id,
+        provider_order_id,
+        external_id,
+        status,
+        amount_in_cents,
+        customer_email,
+        customer_name
+      )
+      values ($1, $2, $3, $4, 'pending', $5, $6, $7)
+      on conflict (provider, provider_order_id) do update set
+        user_id = excluded.user_id,
+        external_id = excluded.external_id,
+        amount_in_cents = excluded.amount_in_cents,
+        customer_email = excluded.customer_email,
+        customer_name = excluded.customer_name,
+        updated_at = now()
+    `,
+    [
+      course.id,
+      user.id,
+      checkout.id,
+      externalId,
+      course.price_in_cents,
+      user.email,
+      user.name,
+    ]
+  );
+
+  return { redirectUrl: checkout.url };
 };
 
 const getSignatureParts = (

@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
+import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
@@ -184,6 +185,8 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     <span>{lessonsCount} aulas</span>
                     <span className="text-foreground/20">·</span>
                     <span>{course.accessDurationMonths}m acesso</span>
+                    <span className="text-foreground/20">Â·</span>
+                    <span>{formatCurrencyInCents(course.priceInCents)}</span>
                   </div>
 
                   <div className="mt-auto flex flex-wrap gap-2 pt-2">
@@ -244,6 +247,18 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           </Field>
         </div>
         <Field>
+          <FieldLabel>Preço do curso</FieldLabel>
+          <Input
+            defaultValue={
+              course ? formatCurrencyInCents(course.priceInCents) : ""
+            }
+            disabled={Boolean(course)}
+            name="price"
+            placeholder="497,00"
+            required={!course}
+          />
+        </Field>
+        <Field>
           <FieldLabel>Capa do curso</FieldLabel>
           <Input
             defaultValue={course?.thumbnailUrl ?? ""}
@@ -263,7 +278,8 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
             <FieldLabel>Produto AbacatePay</FieldLabel>
             <Input
               defaultValue={course?.paymentProviderProductId ?? ""}
-              name="paymentProviderProductId"
+              disabled
+              placeholder="Gerado automaticamente ao criar"
             />
           </Field>
           <Field>
