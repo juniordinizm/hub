@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   extractJmvstreamEmbedUrl,
-  getJmvstreamDurationMinutesFromMessage,
+  formatLessonDuration,
+  getJmvstreamDurationSecondsFromMessage,
   resolveLessonVideoEmbedUrl,
 } from "./jmvstream";
 
@@ -38,34 +39,40 @@ describe("JMVStream video embeds", () => {
     ).toBe("https://example.com/video");
   });
 
-  it("extracts rounded minutes from player status messages", () => {
+  it("extracts exact seconds from player status messages", () => {
     expect(
-      getJmvstreamDurationMinutesFromMessage(
+      getJmvstreamDurationSecondsFromMessage(
         JSON.stringify({
           event: "jmvplayerout-status",
           duration: 733,
           currentTime: 12,
         })
       )
-    ).toBe(13);
+    ).toBe(733);
   });
 
   it("accepts documented eventName player messages", () => {
     expect(
-      getJmvstreamDurationMinutesFromMessage({
+      getJmvstreamDurationSecondsFromMessage({
         eventName: "jmvplayerout-play",
         duration: 120,
       })
-    ).toBe(2);
+    ).toBe(120);
   });
 
   it("ignores malformed player messages and missing durations", () => {
-    expect(getJmvstreamDurationMinutesFromMessage("not-json")).toBeNull();
+    expect(getJmvstreamDurationSecondsFromMessage("not-json")).toBeNull();
     expect(
-      getJmvstreamDurationMinutesFromMessage({
+      getJmvstreamDurationSecondsFromMessage({
         event: "jmvplayerout-status",
         currentTime: 12,
       })
     ).toBeNull();
+  });
+
+  it("formats lesson durations with minutes and seconds", () => {
+    expect(formatLessonDuration(733)).toBe("12 min 13 s");
+    expect(formatLessonDuration(120)).toBe("2 min");
+    expect(formatLessonDuration(45)).toBe("45 s");
   });
 });

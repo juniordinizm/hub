@@ -191,13 +191,16 @@ export const lessons = pgTable(
     videoProvider: videoProviderEnum("video_provider"),
     videoExternalId: text("video_external_id"),
     videoEmbedUrl: text("video_embed_url"),
-    durationMinutes: integer("duration_minutes").default(0).notNull(),
+    durationSeconds: integer("duration_seconds").default(0).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isPublished: boolean("is_published").default(true).notNull(),
     ...timestamps,
   },
   (table) => [
-    check("lessons_duration_non_negative", sql`${table.durationMinutes} >= 0`),
+    check(
+      "lessons_duration_seconds_non_negative",
+      sql`${table.durationSeconds} >= 0`
+    ),
     index("lessons_module_sort_idx").on(table.moduleId, table.sortOrder),
     uniqueIndex("lessons_module_sort_unique_idx").on(
       table.moduleId,

@@ -9,6 +9,7 @@ import {
   getStudentCoursePrimaryHref,
 } from "@/features/courses/presentation";
 import { getStudentCourseOverviewData } from "@/features/courses/server";
+import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -243,7 +244,7 @@ function LessonRow({
         <span className="block truncate font-medium">{lesson.title}</span>
         <span className="mt-1 block text-muted-foreground text-xs">
           {lessonTypeLabels[lesson.lessonType] ?? "Aula"} ·{" "}
-          {lesson.durationMinutes} min · {stateLabel}
+          {formatLessonDuration(lesson.durationSeconds)} · {stateLabel}
         </span>
       </span>
     </>

@@ -53,7 +53,7 @@ export const resolveLessonVideoEmbedUrl = ({
   return embedUrl.trim() || null;
 };
 
-export const getJmvstreamDurationMinutesFromMessage = (
+export const getJmvstreamDurationSecondsFromMessage = (
   message: unknown
 ): number | null => {
   const payload =
@@ -63,7 +63,23 @@ export const getJmvstreamDurationMinutesFromMessage = (
     return null;
   }
 
-  return Math.ceil(payload.duration / 60);
+  return Math.round(payload.duration);
+};
+
+export const formatLessonDuration = (durationSeconds: number): string => {
+  const safeSeconds = Math.max(0, Math.round(durationSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+
+  if (minutes > 0 && seconds > 0) {
+    return `${minutes} min ${seconds} s`;
+  }
+
+  if (minutes > 0) {
+    return `${minutes} min`;
+  }
+
+  return `${seconds} s`;
 };
 
 const parseJmvstreamMessage = (message: string): unknown => {

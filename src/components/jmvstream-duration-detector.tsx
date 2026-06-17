@@ -3,18 +3,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   extractJmvstreamEmbedUrl,
-  getJmvstreamDurationMinutesFromMessage,
+  formatLessonDuration,
+  getJmvstreamDurationSecondsFromMessage,
 } from "@/features/videos/jmvstream";
 
 const SYNC_MESSAGE = JSON.stringify({ public_event: "jmvplayer-sync" });
 const SYNC_INTERVAL_MS = 1500;
 
 export function JmvstreamDurationDetector({
-  defaultDurationMinutes,
+  defaultDurationSeconds,
   defaultEmbedUrl,
   defaultProvider,
 }: {
-  defaultDurationMinutes: number;
+  defaultDurationSeconds: number;
   defaultEmbedUrl: string;
   defaultProvider: string;
 }): React.JSX.Element | null {
@@ -22,9 +23,9 @@ export function JmvstreamDurationDetector({
   const rootRef = useRef<HTMLDivElement>(null);
   const [embedUrl, setEmbedUrl] = useState(defaultEmbedUrl);
   const [provider, setProvider] = useState(defaultProvider);
-  const [detectedMinutes, setDetectedMinutes] = useState<number | null>(null);
+  const [detectedSeconds, setDetectedSeconds] = useState<number | null>(null);
   const [durationWasEdited, setDurationWasEdited] = useState(
-    () => defaultDurationMinutes > 0
+    () => defaultDurationSeconds > 0
   );
 
   const playerUrl = useMemo(() => {
@@ -59,7 +60,7 @@ export function JmvstreamDurationDetector({
         return;
       }
 
-      if (target.name === "durationMinutes") {
+      if (target.name === "durationSeconds") {
         setDurationWasEdited(Number(target.value) > 0);
       }
 
@@ -95,22 +96,22 @@ export function JmvstreamDurationDetector({
         return;
       }
 
-      const minutes = getJmvstreamDurationMinutesFromMessage(event.data);
+      const seconds = getJmvstreamDurationSecondsFromMessage(event.data);
 
-      if (!minutes) {
+      if (!seconds) {
         return;
       }
 
-      setDetectedMinutes(minutes);
+      setDetectedSeconds(seconds);
 
       const form = rootRef.current?.closest("form");
-      const durationInput = form?.elements.namedItem("durationMinutes");
+      const durationInput = form?.elements.namedItem("durationSeconds");
 
       if (!(durationInput instanceof HTMLInputElement) || durationWasEdited) {
         return;
       }
 
-      durationInput.value = String(minutes);
+      durationInput.value = String(seconds);
       durationInput.dispatchEvent(new Event("input", { bubbles: true }));
       durationInput.dispatchEvent(new Event("change", { bubbles: true }));
     };
@@ -129,9 +130,10 @@ export function JmvstreamDurationDetector({
           title="Detector de duração JMVStream"
         />
       ) : null}
-      {detectedMinutes ? (
+      {detectedSeconds ? (
         <p className="text-muted-foreground text-xs">
-          Duração detectada pela JMVStream: {detectedMinutes} min.
+          Duração detectada pela JMVStream:{" "}
+          {formatLessonDuration(detectedSeconds)}.
         </p>
       ) : null}
     </div>

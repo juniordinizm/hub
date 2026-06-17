@@ -47,6 +47,7 @@ import {
 } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
 import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
+import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
@@ -453,7 +454,8 @@ function LessonRow({
         <div>
           <p className="font-medium">{lesson.title}</p>
           <p className="text-muted-foreground text-xs">
-            {lesson.durationMinutes} min · {lesson.videoProvider ?? "sem vídeo"}
+            {formatLessonDuration(lesson.durationSeconds)} ·{" "}
+            {lesson.videoProvider ?? "sem vídeo"}
           </p>
         </div>
         <span className="truncate font-mono text-muted-foreground text-xs">
@@ -632,11 +634,12 @@ function LessonForm({
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Minutos</FieldLabel>
+              <FieldLabel>Duração em segundos</FieldLabel>
               <Input
-                defaultValue={lesson?.durationMinutes ?? 0}
+                defaultValue={lesson?.durationSeconds ?? 0}
                 min={0}
-                name="durationMinutes"
+                name="durationSeconds"
+                step={1}
                 type="number"
               />
             </Field>
@@ -699,7 +702,7 @@ function LessonForm({
             />
           </Field>
           <JmvstreamDurationDetector
-            defaultDurationMinutes={lesson?.durationMinutes ?? 0}
+            defaultDurationSeconds={lesson?.durationSeconds ?? 0}
             defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
             defaultProvider={lesson?.videoProvider ?? "jmvstream"}
           />

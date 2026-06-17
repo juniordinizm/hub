@@ -50,7 +50,7 @@ export interface ModuleWithLessons {
   lessons: Array<{
     id: string;
     title: string;
-    durationMinutes: number;
+    durationSeconds: number;
     sortOrder: number;
     isCompleted: boolean;
     isAvailable: boolean;
@@ -78,7 +78,7 @@ export interface StudentCourseOverviewData {
     description: string | null;
     id: string;
     lessons: Array<{
-      durationMinutes: number;
+      durationSeconds: number;
       id: string;
       isAvailable: boolean;
       isCompleted: boolean;
@@ -104,7 +104,7 @@ export interface StudentLessonData {
     id: string;
     title: string;
     description: string | null;
-    durationMinutes: number;
+    durationSeconds: number;
     isCompleted: boolean;
     videoEmbedUrl: string | null;
     videoProvider: string | null;
@@ -119,7 +119,7 @@ interface LessonRow {
   completed_at: Date | null;
   course_id: string;
   course_title: string;
-  duration_minutes: number;
+  duration_seconds: number;
   lesson_description: string | null;
   lesson_id: string;
   lesson_sort_order: number;
@@ -152,7 +152,7 @@ interface CourseOverviewRow {
   course_slug: string;
   course_subtitle: string | null;
   course_title: string;
-  duration_minutes: number | null;
+  duration_seconds: number | null;
   expires_at: Date;
   lesson_id: string | null;
   lesson_sort_order: number | null;
@@ -188,7 +188,7 @@ const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
     moduleData.lessons.push({
       id: row.lesson_id,
       title: row.lesson_title,
-      durationMinutes: row.duration_minutes,
+      durationSeconds: row.duration_seconds,
       sortOrder: row.lesson_sort_order,
       isCompleted: Boolean(row.completed_at),
       isAvailable: isLessonAvailable({
@@ -380,7 +380,7 @@ export const getStudentCourseOverviewData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.lesson_type,
-        l.duration_minutes,
+        l.duration_seconds,
         l.sort_order as lesson_sort_order,
         lp.completed_at
       from enrollments e
@@ -437,13 +437,13 @@ export const getStudentCourseOverviewData = async ({
       row.lesson_id &&
       row.lesson_title &&
       row.lesson_sort_order !== null &&
-      row.duration_minutes !== null
+      row.duration_seconds !== null
     ) {
       moduleData.lessons.push({
         id: row.lesson_id,
         title: row.lesson_title,
         lessonType: row.lesson_type ?? "video",
-        durationMinutes: row.duration_minutes,
+        durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: Boolean(row.completed_at),
         isAvailable: isLessonAvailable({
@@ -542,7 +542,7 @@ export const getStudentLessonData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
-        l.duration_minutes,
+        l.duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
         l.video_provider,
@@ -595,7 +595,7 @@ export const getStudentLessonData = async ({
       id: activeLesson.lesson_id,
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
-      durationMinutes: activeLesson.duration_minutes,
+      durationSeconds: activeLesson.duration_seconds,
       isCompleted: Boolean(activeLesson.completed_at),
       videoEmbedUrl: activeLesson.video_embed_url,
       videoProvider: activeLesson.video_provider,

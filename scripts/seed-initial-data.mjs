@@ -163,7 +163,7 @@ try {
             title,
             description,
             lesson_type,
-            duration_minutes,
+            duration_seconds,
             sort_order,
             video_provider,
             video_embed_url
@@ -171,7 +171,7 @@ try {
           values ($1, $2, $3, $4, $5, $6, 'external', null)
           on conflict (module_id, sort_order) do update set
             title = excluded.title,
-            duration_minutes = excluded.duration_minutes,
+            duration_seconds = excluded.duration_seconds,
             lesson_type = excluded.lesson_type
         `,
         [
@@ -179,7 +179,7 @@ try {
           lesson[0],
           "Conteudo base importado da arquitetura PROTEA-R.",
           lesson[2] ?? "video",
-          lesson[1],
+          lesson[1] * 60,
           lessonIndex + 1,
         ]
       );

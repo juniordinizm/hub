@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getStudentLessonData } from "@/features/courses/server";
 import {
+  formatLessonDuration,
   resolveLessonVideoEmbedUrl,
   toVideoProvider,
 } from "@/features/videos/jmvstream";
@@ -127,7 +128,8 @@ export default async function LessonPage({
             className="border-primary/30 bg-primary/15 text-primary"
             variant="outline"
           >
-            {data.lesson.durationMinutes} min · {data.progressPercent}% do curso
+            {formatLessonDuration(data.lesson.durationSeconds)} ·{" "}
+            {data.progressPercent}% do curso
           </Badge>
           <h1 className="mt-3 max-w-3xl font-bold text-2xl text-white tracking-tight">
             {data.lesson.title}
@@ -331,7 +333,7 @@ function LessonSidebarItem({
 }: {
   activeLessonId: string;
   lesson: {
-    durationMinutes: number;
+    durationSeconds: number;
     id: string;
     isAvailable: boolean;
     isCompleted: boolean;
@@ -354,7 +356,7 @@ function LessonSidebarItem({
         )}
       </span>
       <span className="ml-auto text-sidebar-foreground/40 text-xs">
-        {lesson.durationMinutes}m
+        {formatLessonDuration(lesson.durationSeconds)}
       </span>
     </>
   );

@@ -268,7 +268,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     videoProvider,
     readString(formData, "videoExternalId") || null,
     videoEmbedUrl,
-    readNumber(formData, "durationMinutes"),
+    readNumber(formData, "durationSeconds"),
     readNumber(formData, "sortOrder", 1),
     formData.get("isPublished") === "on",
   ];
@@ -284,7 +284,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
             video_provider = $5,
             video_external_id = $6,
             video_embed_url = $7,
-            duration_minutes = $8,
+            duration_seconds = $8,
             sort_order = $9,
             is_published = $10,
             updated_at = now()
@@ -309,7 +309,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           video_provider,
           video_external_id,
           video_embed_url,
-          duration_minutes,
+          duration_seconds,
           sort_order,
           is_published
         )

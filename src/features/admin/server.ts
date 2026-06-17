@@ -115,7 +115,7 @@ export interface AdminManagementData {
   }>;
   lessons: Array<{
     courseTitle: string;
-    durationMinutes: number;
+    durationSeconds: number;
     id: string;
     isPublished: boolean;
     lessonType: string;
@@ -217,7 +217,7 @@ export const getAdminManagementData =
       ),
       pool.query<{
         course_title: string;
-        duration_minutes: number;
+        duration_seconds: number;
         id: string;
         is_published: boolean;
         lesson_description: string | null;
@@ -233,7 +233,7 @@ export const getAdminManagementData =
         `
           select l.id, l.module_id, m.title as module_title, c.title as course_title,
                  l.title, l.description as lesson_description, l.lesson_type,
-                 l.duration_minutes, l.sort_order, l.video_provider,
+                 l.duration_seconds, l.sort_order, l.video_provider,
                  l.video_external_id, l.video_embed_url, l.is_published
           from lessons l
           join modules m on m.id = l.module_id
@@ -382,7 +382,7 @@ export const getAdminManagementData =
       })),
       lessons: lessons.rows.map((row) => ({
         courseTitle: row.course_title,
-        durationMinutes: row.duration_minutes,
+        durationSeconds: row.duration_seconds,
         id: row.id,
         isPublished: row.is_published,
         lessonType: row.lesson_type,

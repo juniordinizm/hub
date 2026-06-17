@@ -22,6 +22,13 @@
       "when": 1781622811226,
       "tag": "0002_drop_course_instructor",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781640000000,
+      "tag": "0003_lesson_duration_seconds",
+      "breakpoints": true
     }
   ]
 }
