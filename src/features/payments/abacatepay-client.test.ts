@@ -29,7 +29,6 @@ describe("AbacatePayClient", () => {
       client.createProduct({
         currency: "BRL",
         externalId: "course_123",
-        imageUrl: null,
         name: "Curso",
         price: 49_700,
       })
@@ -41,7 +40,6 @@ describe("AbacatePayClient", () => {
         body: JSON.stringify({
           currency: "BRL",
           externalId: "course_123",
-          imageUrl: null,
           name: "Curso",
           price: 49_700,
         }),
@@ -111,10 +109,38 @@ describe("AbacatePayClient", () => {
       client.createProduct({
         currency: "BRL",
         externalId: "course_123",
-        imageUrl: null,
         name: "Curso",
         price: 49_700,
       })
     ).rejects.toThrow("externalId already exists");
+  });
+
+  it("throws string errors returned by the v2 API", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: false,
+          data: null,
+          error: "Property 'price' should be one of: 'integer', 'integer'",
+        }),
+        { status: 422 }
+      )
+    );
+    const client = new AbacatePayClient({
+      apiKey: "abc_prod_token",
+      baseUrl: "https://api.abacatepay.com/v2",
+      fetcher: fetchMock,
+    });
+
+    await expect(
+      client.createProduct({
+        currency: "BRL",
+        externalId: "course_123",
+        name: "Curso",
+        price: 0,
+      })
+    ).rejects.toThrow(
+      "Property 'price' should be one of: 'integer', 'integer'"
+    );
   });
 });

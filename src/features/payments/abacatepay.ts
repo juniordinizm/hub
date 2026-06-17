@@ -45,7 +45,7 @@ export interface AbacatePayProductRequest {
   currency: "BRL";
   description?: string;
   externalId: string;
-  imageUrl: string | null;
+  imageUrl?: string;
   name: string;
   price: number;
 }
@@ -136,13 +136,16 @@ export const buildAbacatePayProductRequest = ({
   const request: AbacatePayProductRequest = {
     currency: "BRL",
     externalId: courseId,
-    imageUrl: imageUrl?.startsWith("http") ? imageUrl : null,
     name: title,
     price: priceInCents,
   };
 
   if (description) {
     request.description = description;
+  }
+
+  if (imageUrl?.startsWith("http")) {
+    request.imageUrl = imageUrl;
   }
 
   return request;

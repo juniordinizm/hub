@@ -35,6 +35,16 @@ const getApiErrorMessage = (payload: unknown): string | null => {
     typeof payload === "object" &&
     payload !== null &&
     "error" in payload &&
+    typeof (payload as { error?: unknown }).error === "string"
+  ) {
+    const error = (payload as { error: string }).error.trim();
+    return error.length > 0 ? error : null;
+  }
+
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "error" in payload &&
     typeof (payload as { error?: unknown }).error === "object" &&
     (payload as { error?: unknown }).error !== null
   ) {
@@ -104,7 +114,8 @@ export class AbacatePayClient {
 
     if (!(response.ok && payload?.data)) {
       throw new Error(
-        getApiErrorMessage(payload) ?? "Falha na comunicacao com AbacatePay."
+        getApiErrorMessage(payload) ??
+          `Falha na comunicacao com AbacatePay. Status HTTP ${response.status}.`
       );
     }
 

@@ -91,9 +91,22 @@ describe("AbacatePay v2 requests", () => {
       currency: "BRL",
       description: "Descricao do curso",
       externalId: "course_123",
-      imageUrl: null,
       name: "Curso PROTEA-R",
       price: 49_790,
+    });
+  });
+
+  it("sends product imageUrl only when it is a public URL", () => {
+    expect(
+      buildAbacatePayProductRequest({
+        courseId: "course_123",
+        description: null,
+        imageUrl: "https://example.com/course.png",
+        priceInCents: 49_790,
+        title: "Curso PROTEA-R",
+      })
+    ).toMatchObject({
+      imageUrl: "https://example.com/course.png",
     });
   });
 
