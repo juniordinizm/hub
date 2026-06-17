@@ -3,6 +3,7 @@ import {
   calculateCourseProgress,
   getNextAvailableLessonId,
   isLessonAvailable,
+  mergeWatchedRange,
 } from "./rules";
 
 const lessonIds = ["l1", "l2", "l3", "l4"] as const;
@@ -54,5 +55,36 @@ describe("course progress rules", () => {
         completedLessonIds: ["l1", "l2"],
       })
     ).toBe("l3");
+  });
+
+  it("merges watched ranges and returns the watched percentage", () => {
+    expect(
+      mergeWatchedRange({
+        currentSeconds: 40,
+        durationSeconds: 100,
+        existingRanges: [
+          [0, 20],
+          [18, 30],
+        ],
+      })
+    ).toEqual({
+      ranges: [[0, 40]],
+      watchedPercent: 40,
+    });
+  });
+
+  it("does not count skipped video gaps as watched time", () => {
+    expect(
+      mergeWatchedRange({
+        currentSeconds: 90,
+        durationSeconds: 100,
+        existingRanges: [[0, 10]],
+        maxTrackedGapSeconds: 20,
+        startSeconds: 10,
+      })
+    ).toEqual({
+      ranges: [[0, 10]],
+      watchedPercent: 10,
+    });
   });
 });

@@ -8,10 +8,16 @@ import {
   calculateCourseProgress,
   getNextAvailableLessonId,
   isLessonAvailable,
+  mergeWatchedRange,
+  type WatchedRange,
 } from "@/features/progress/rules";
-import { shouldApplyDetectedDuration } from "@/features/videos/jmvstream";
+import {
+  shouldApplyDetectedDuration,
+  shouldCompleteLessonFromJmvstreamEvent,
+} from "@/features/videos/jmvstream";
 
 const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
+const MAX_TRACKED_PLAYBACK_GAP_SECONDS = 20;
 
 export interface StudentCourseCard {
   completedCount: number;
@@ -135,6 +141,11 @@ export interface StudentLessonData {
     description: string | null;
     durationSeconds: number;
     isCompleted: boolean;
+    watchProgress: {
+      currentSeconds: number;
+      durationSeconds: number;
+      watchedPercent: number;
+    } | null;
     videoEmbedUrl: string | null;
     videoProvider: string | null;
   };
@@ -160,6 +171,16 @@ interface LessonRow {
   support_whatsapp_url: string | null;
   video_embed_url: string | null;
   video_provider: string | null;
+  watch_current_seconds: number | null;
+  watch_duration_seconds: number | null;
+  watch_percent: number | null;
+}
+
+interface LessonWatchProgressRow {
+  current_seconds: number;
+  duration_seconds: number;
+  watched_percent: number;
+  watched_ranges: unknown;
 }
 
 type StudentCourseModuleAggregate = StudentCourseModule & {
@@ -759,7 +780,10 @@ export const getStudentLessonData = async ({
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
         l.video_provider,
-        lp.completed_at
+        lp.completed_at,
+        lwp.current_seconds as watch_current_seconds,
+        lwp.duration_seconds as watch_duration_seconds,
+        lwp.watched_percent as watch_percent
       from target_course tc
       join enrollments e on e.course_id = tc.course_id and e.user_id = $1
       join courses c on c.id = e.course_id
@@ -767,6 +791,7 @@ export const getStudentLessonData = async ({
       join modules m on m.course_id = c.id
       join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.status = 'active'
         and e.starts_at <= now()
         and e.expires_at >= now()
@@ -810,6 +835,14 @@ export const getStudentLessonData = async ({
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: Boolean(activeLesson.completed_at),
+      watchProgress:
+        activeLesson.watch_percent === null
+          ? null
+          : {
+              currentSeconds: activeLesson.watch_current_seconds ?? 0,
+              durationSeconds: activeLesson.watch_duration_seconds ?? 0,
+              watchedPercent: activeLesson.watch_percent,
+            },
       videoEmbedUrl: activeLesson.video_embed_url,
       videoProvider: activeLesson.video_provider,
     },
@@ -945,6 +978,143 @@ export const completeLesson = async ({
   }
 };
 
+export const recordLessonWatchProgress = async ({
+  currentSeconds,
+  durationSeconds,
+  eventName,
+  lessonId,
+  userId,
+}: {
+  currentSeconds: number;
+  durationSeconds: number;
+  eventName: string;
+  lessonId: string;
+  userId: string;
+}): Promise<{
+  completed: boolean;
+  courseId: string;
+  nextLessonId: string | null;
+  watchedPercent: number;
+}> => {
+  if (!(lessonId && eventName)) {
+    throw new Error("Evento de aula invalido.");
+  }
+
+  if (
+    !(Number.isFinite(currentSeconds) && Number.isFinite(durationSeconds)) ||
+    currentSeconds < 0 ||
+    durationSeconds <= 0 ||
+    durationSeconds > MAX_LESSON_DURATION_SECONDS
+  ) {
+    throw new Error("Progresso de video invalido.");
+  }
+
+  const data = await getStudentLessonData({ userId, lessonId });
+
+  if (!data) {
+    throw new Error("Aula indisponivel para esta matricula.");
+  }
+
+  if (data.lesson.videoProvider !== "jmvstream") {
+    return {
+      completed: data.lesson.isCompleted,
+      courseId: data.course.id,
+      nextLessonId: data.nextLessonId,
+      watchedPercent: data.lesson.watchProgress?.watchedPercent ?? 0,
+    };
+  }
+
+  const roundedCurrentSeconds = Math.max(0, Math.round(currentSeconds));
+  const roundedDurationSeconds = Math.max(1, Math.round(durationSeconds));
+  const { rows } = await getPool().query<LessonWatchProgressRow>(
+    `
+      select
+        current_seconds,
+        duration_seconds,
+        watched_percent,
+        watched_ranges
+      from lesson_watch_progress
+      where user_id = $1 and lesson_id = $2
+      limit 1
+    `,
+    [userId, lessonId]
+  );
+  const previousProgress = rows[0];
+  const { ranges, watchedPercent } = mergeWatchedRange({
+    currentSeconds: roundedCurrentSeconds,
+    durationSeconds: roundedDurationSeconds,
+    existingRanges: parseWatchedRanges(previousProgress?.watched_ranges),
+    maxTrackedGapSeconds: MAX_TRACKED_PLAYBACK_GAP_SECONDS,
+    startSeconds: previousProgress?.current_seconds ?? 0,
+  });
+  const shouldCompleteByVideo = shouldCompleteLessonFromJmvstreamEvent({
+    eventName,
+    watchedPercent,
+  });
+
+  await getPool().query(
+    `
+      insert into lesson_watch_progress (
+        user_id,
+        lesson_id,
+        current_seconds,
+        duration_seconds,
+        watched_percent,
+        watched_ranges,
+        last_event_name,
+        last_event_at,
+        completed_by_video_at
+      )
+      values ($1, $2, $3, $4, $5, $6::jsonb, $7, now(), case when $8 then now() else null end)
+      on conflict (user_id, lesson_id) do update set
+        current_seconds = excluded.current_seconds,
+        duration_seconds = excluded.duration_seconds,
+        watched_percent = greatest(lesson_watch_progress.watched_percent, excluded.watched_percent),
+        watched_ranges = excluded.watched_ranges,
+        last_event_name = excluded.last_event_name,
+        last_event_at = now(),
+        completed_by_video_at = case
+          when excluded.completed_by_video_at is not null then coalesce(lesson_watch_progress.completed_by_video_at, excluded.completed_by_video_at)
+          else lesson_watch_progress.completed_by_video_at
+        end,
+        updated_at = now()
+    `,
+    [
+      userId,
+      lessonId,
+      roundedCurrentSeconds,
+      roundedDurationSeconds,
+      watchedPercent,
+      JSON.stringify(ranges),
+      eventName,
+      shouldCompleteByVideo,
+    ]
+  );
+
+  if (!(shouldCompleteByVideo || data.lesson.isCompleted)) {
+    return {
+      completed: false,
+      courseId: data.course.id,
+      nextLessonId: data.nextLessonId,
+      watchedPercent,
+    };
+  }
+
+  const result = data.lesson.isCompleted
+    ? {
+        courseId: data.course.id,
+        nextLessonId: data.nextLessonId,
+      }
+    : await completeLesson({ userId, lessonId });
+
+  return {
+    completed: true,
+    courseId: result.courseId,
+    nextLessonId: result.nextLessonId,
+    watchedPercent,
+  };
+};
+
 export const syncJmvstreamLessonDuration = async ({
   durationSeconds,
   lessonId,
@@ -990,4 +1160,25 @@ export const syncJmvstreamLessonDuration = async ({
     [roundedDurationSeconds, lessonId]
   );
   await recalculateCourseWorkloadHours(data.course.id);
+};
+
+const parseWatchedRanges = (value: unknown): WatchedRange[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((range): WatchedRange[] => {
+    if (
+      !Array.isArray(range) ||
+      range.length !== 2 ||
+      typeof range[0] !== "number" ||
+      typeof range[1] !== "number" ||
+      !Number.isFinite(range[0]) ||
+      !Number.isFinite(range[1])
+    ) {
+      return [];
+    }
+
+    return [[range[0], range[1]]];
+  });
 };

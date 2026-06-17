@@ -3,8 +3,10 @@ import {
   extractJmvstreamEmbedUrl,
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
+  getJmvstreamPlayerEventFromMessage,
   resolveLessonVideoEmbedUrl,
   shouldApplyDetectedDuration,
+  shouldCompleteLessonFromJmvstreamEvent,
 } from "./jmvstream";
 
 describe("JMVStream video embeds", () => {
@@ -69,6 +71,69 @@ describe("JMVStream video embeds", () => {
         currentTime: 12,
       })
     ).toBeNull();
+  });
+
+  it("normalizes documented player progress events", () => {
+    expect(
+      getJmvstreamPlayerEventFromMessage(
+        JSON.stringify({
+          currentTime: 56.8,
+          duration: 120,
+          event: "jmvplayerout-status",
+          paused: false,
+        })
+      )
+    ).toEqual({
+      currentSeconds: 57,
+      durationSeconds: 120,
+      eventName: "jmvplayerout-status",
+      watchedPercent: 48,
+    });
+  });
+
+  it("normalizes documented player end events", () => {
+    expect(
+      getJmvstreamPlayerEventFromMessage({
+        currentTime: 118,
+        duration: 120,
+        eventName: "jmvplayerout-end",
+      })
+    ).toEqual({
+      currentSeconds: 118,
+      durationSeconds: 120,
+      eventName: "jmvplayerout-end",
+      watchedPercent: 98,
+    });
+  });
+
+  it("ignores player messages without current time or duration", () => {
+    expect(
+      getJmvstreamPlayerEventFromMessage({
+        duration: 120,
+        event: "jmvplayerout-status",
+      })
+    ).toBeNull();
+  });
+
+  it("completes lessons only when the JMVStream end event is effectively complete", () => {
+    expect(
+      shouldCompleteLessonFromJmvstreamEvent({
+        eventName: "jmvplayerout-end",
+        watchedPercent: 98,
+      })
+    ).toBe(true);
+    expect(
+      shouldCompleteLessonFromJmvstreamEvent({
+        eventName: "jmvplayerout-end",
+        watchedPercent: 70,
+      })
+    ).toBe(false);
+    expect(
+      shouldCompleteLessonFromJmvstreamEvent({
+        eventName: "jmvplayerout-status",
+        watchedPercent: 100,
+      })
+    ).toBe(false);
   });
 
   it("formats lesson durations with minutes and seconds", () => {

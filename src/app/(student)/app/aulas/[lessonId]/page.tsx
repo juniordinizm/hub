@@ -108,6 +108,7 @@ export default async function LessonPage({
 
         <LessonVideoPlayer
           durationSeconds={data.lesson.durationSeconds}
+          initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
           lessonId={data.lesson.id}
           progressPercent={data.progressPercent}
           title={data.lesson.title}

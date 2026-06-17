@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -8,22 +9,31 @@ import {
   useState,
   useTransition,
 } from "react";
-import { syncJmvstreamLessonDurationAction } from "@/app/(student)/app/actions";
+import {
+  recordLessonWatchProgressAction,
+  syncJmvstreamLessonDurationAction,
+} from "@/app/(student)/app/actions";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import {
   extractJmvstreamEmbedUrl,
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
+  getJmvstreamPlayerEventFromMessage,
+  type JmvstreamPlayerEvent,
   shouldApplyDetectedDuration,
 } from "@/features/videos/jmvstream";
+import { route } from "@/lib/routes";
 
 const SYNC_MESSAGE = JSON.stringify({ public_event: "jmvplayer-sync" });
 const SYNC_INTERVAL_MS = 1500;
+const WATCH_PROGRESS_INTERVAL_MS = 10_000;
+const WATCH_PROGRESS_PERCENT_STEP = 5;
 
 export function LessonVideoPlayer({
   children,
   durationSeconds,
+  initialWatchedPercent,
   lessonId,
   progressPercent,
   title,
@@ -32,17 +42,25 @@ export function LessonVideoPlayer({
 }: {
   children: React.ReactNode;
   durationSeconds: number;
+  initialWatchedPercent: number;
   lessonId: string;
   progressPercent: number;
   title: string;
   videoEmbedUrl: string | null;
   videoProvider: string | null;
 }): React.JSX.Element {
+  const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const syncedDurationRef = useRef(durationSeconds);
+  const completedByVideoRef = useRef(false);
+  const lastWatchProgressSyncRef = useRef({
+    percent: initialWatchedPercent,
+    syncedAt: 0,
+  });
   const [, startTransition] = useTransition();
   const [displayDurationSeconds, setDisplayDurationSeconds] =
     useState(durationSeconds);
+  const [watchedPercent, setWatchedPercent] = useState(initialWatchedPercent);
   const playerUrl = useMemo(() => {
     if (!(videoEmbedUrl && videoProvider === "jmvstream")) {
       return null;
@@ -51,50 +69,33 @@ export function LessonVideoPlayer({
     return extractJmvstreamEmbedUrl(videoEmbedUrl);
   }, [videoEmbedUrl, videoProvider]);
   const iframeSrc = playerUrl ?? videoEmbedUrl;
+  const playerOrigin = useMemo(() => {
+    if (!playerUrl) {
+      return null;
+    }
+
+    return new URL(playerUrl).origin;
+  }, [playerUrl]);
 
   const syncPlayer = useCallback(() => {
-    iframeRef.current?.contentWindow?.postMessage(SYNC_MESSAGE, "*");
-  }, []);
-
-  useEffect(() => {
-    if (!playerUrl) {
+    if (!playerOrigin) {
       return;
     }
 
-    const interval = window.setInterval(syncPlayer, SYNC_INTERVAL_MS);
-    syncPlayer();
+    iframeRef.current?.contentWindow?.postMessage(SYNC_MESSAGE, playerOrigin);
+  }, [playerOrigin]);
 
-    return () => window.clearInterval(interval);
-  }, [playerUrl, syncPlayer]);
-
-  useEffect(() => {
-    if (!playerUrl) {
-      return;
-    }
-
-    const handleMessage = (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) {
-        return;
-      }
-
-      const detectedSeconds = getJmvstreamDurationSecondsFromMessage(
-        event.data
-      );
-
+  const handleDetectedDuration = useCallback(
+    (detectedSeconds: number) => {
       if (
-        !(
-          detectedSeconds &&
-          shouldApplyDetectedDuration({
-            currentSeconds: displayDurationSeconds,
-            detectedSeconds,
-            userEdited: false,
-          })
-        )
+        shouldApplyDetectedDuration({
+          currentSeconds: displayDurationSeconds,
+          detectedSeconds,
+          userEdited: false,
+        })
       ) {
-        return;
+        setDisplayDurationSeconds(detectedSeconds);
       }
-
-      setDisplayDurationSeconds(detectedSeconds);
 
       if (
         !shouldApplyDetectedDuration({
@@ -117,11 +118,106 @@ export function LessonVideoPlayer({
           syncedDurationRef.current = displayDurationSeconds;
         }
       });
+    },
+    [displayDurationSeconds, lessonId]
+  );
+
+  const handlePlayerEvent = useCallback(
+    (playerEvent: JmvstreamPlayerEvent) => {
+      const now = Date.now();
+      const shouldSyncWatchProgress =
+        playerEvent.eventName === "jmvplayerout-end" ||
+        now - lastWatchProgressSyncRef.current.syncedAt >=
+          WATCH_PROGRESS_INTERVAL_MS ||
+        playerEvent.watchedPercent - lastWatchProgressSyncRef.current.percent >=
+          WATCH_PROGRESS_PERCENT_STEP;
+
+      if (!shouldSyncWatchProgress || completedByVideoRef.current) {
+        return;
+      }
+
+      lastWatchProgressSyncRef.current = {
+        percent: playerEvent.watchedPercent,
+        syncedAt: now,
+      };
+
+      startTransition(async () => {
+        try {
+          const result = await recordLessonWatchProgressAction({
+            currentSeconds: playerEvent.currentSeconds,
+            durationSeconds: playerEvent.durationSeconds,
+            eventName: playerEvent.eventName,
+            lessonId,
+          });
+
+          setWatchedPercent((currentPercent) =>
+            Math.max(currentPercent, result.watchedPercent)
+          );
+
+          if (!result.completed) {
+            return;
+          }
+
+          completedByVideoRef.current = true;
+
+          if (result.nextLessonId) {
+            router.replace(route(`/app/aulas/${result.nextLessonId}`));
+            return;
+          }
+
+          router.replace(route(`/app/cursos/${result.courseId}`));
+        } catch {
+          lastWatchProgressSyncRef.current = {
+            percent: watchedPercent,
+            syncedAt: 0,
+          };
+        }
+      });
+    },
+    [lessonId, router, watchedPercent]
+  );
+
+  useEffect(() => {
+    if (!playerUrl) {
+      return;
+    }
+
+    const interval = window.setInterval(syncPlayer, SYNC_INTERVAL_MS);
+    syncPlayer();
+
+    return () => window.clearInterval(interval);
+  }, [playerUrl, syncPlayer]);
+
+  useEffect(() => {
+    if (!(playerOrigin && playerUrl)) {
+      return;
+    }
+
+    const handleMessage = (event: MessageEvent) => {
+      if (
+        event.source !== iframeRef.current?.contentWindow ||
+        event.origin !== playerOrigin
+      ) {
+        return;
+      }
+
+      const detectedSeconds = getJmvstreamDurationSecondsFromMessage(
+        event.data
+      );
+      const playerEvent = getJmvstreamPlayerEventFromMessage(event.data);
+
+      if (detectedSeconds) {
+        handleDetectedDuration(detectedSeconds);
+      }
+
+      if (playerEvent) {
+        handlePlayerEvent(playerEvent);
+      }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [displayDurationSeconds, lessonId, playerUrl]);
+  }, [handleDetectedDuration, handlePlayerEvent, playerOrigin, playerUrl]);
 
   return (
     <>
@@ -138,19 +234,24 @@ export function LessonVideoPlayer({
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-            Vídeo em configuração
+            Video em configuracao
           </div>
         )}
       </AspectRatio>
 
       <div className="px-5 py-7 sm:px-9">
-        <Badge
-          className="border-primary/30 bg-primary/15 text-primary"
-          variant="outline"
-        >
-          {formatLessonDuration(displayDurationSeconds)} · {progressPercent}% do
-          curso
-        </Badge>
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            className="border-primary/30 bg-primary/15 text-primary"
+            variant="outline"
+          >
+            {formatLessonDuration(displayDurationSeconds)} - {progressPercent}%
+            do curso
+          </Badge>
+          {videoProvider === "jmvstream" ? (
+            <Badge variant="outline">{watchedPercent}% assistido</Badge>
+          ) : null}
+        </div>
         {children}
       </div>
     </>

@@ -64,6 +64,13 @@
       "when": 1781712000000,
       "tag": "0008_drop_abacatepay_webhook_secret_last4",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781714000000,
+      "tag": "0009_lesson_watch_progress",
+      "breakpoints": true
     }
   ]
 }
