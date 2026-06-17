@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { route } from "@/lib/routes";
+import { isSuccessfulSignInPayload } from "./sign-in-result";
 
 export function SignInForm(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
@@ -24,18 +25,36 @@ export function SignInForm(): React.JSX.Element {
         email: formData.get("email"),
         password: formData.get("password"),
       }),
-      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
       method: "POST",
     });
 
     setIsPending(false);
 
-    if (!response.ok) {
+    const contentType = response.headers.get("content-type") ?? "";
+    const payload = contentType.includes("application/json")
+      ? await response.json()
+      : await response.text();
+
+    if (!(response.ok && isSuccessfulSignInPayload(payload))) {
       setError("E-mail ou senha incorretos.");
       return;
     }
 
-    const redirectResponse = await fetch("/api/auth/redirect");
+    const redirectResponse = await fetch("/api/auth/redirect", {
+      credentials: "same-origin",
+      headers: { "ngrok-skip-browser-warning": "true" },
+    });
+
+    if (!redirectResponse.ok) {
+      setError("Não foi possível confirmar sua sessão. Tente novamente.");
+      return;
+    }
+
     const data = (await redirectResponse.json()) as { redirectTo?: string };
 
     window.location.assign(data.redirectTo ?? "/app");

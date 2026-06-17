@@ -18,6 +18,7 @@ const serverEnvSchema = z.object({
   ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
   ABACATE_PAY_API_KEY: optionalNonEmptyString,
   BETTER_AUTH_SECRET: z.string().min(1).default("development-secret-change-me"),
+  BETTER_AUTH_TRUSTED_ORIGINS: optionalNonEmptyString,
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
   CERTIFICATE_PUBLIC_BASE_URL: z
     .string()
@@ -48,6 +49,7 @@ export const getServerEnv = () =>
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
     ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,
     DATABASE_URL: process.env.DATABASE_URL,

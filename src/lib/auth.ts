@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 import { sendPasswordResetEmail } from "@/features/email/server";
 import { getServerEnv } from "@/lib/env";
+import { parseTrustedOrigins } from "@/lib/trusted-origins";
 
 const createAuth = () => {
   const env = getServerEnv();
@@ -14,10 +15,13 @@ const createAuth = () => {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     basePath: "/api/auth",
-    trustedOrigins: [
-      new URL(env.BETTER_AUTH_URL).origin,
-      new URL(env.NEXT_PUBLIC_APP_URL).origin,
-    ],
+    advanced: {
+      trustedProxyHeaders: true,
+    },
+    trustedOrigins: parseTrustedOrigins({
+      defaults: [env.BETTER_AUTH_URL, env.NEXT_PUBLIC_APP_URL],
+      extraOrigins: env.BETTER_AUTH_TRUSTED_ORIGINS,
+    }),
     database: drizzleAdapter(getDb(), {
       provider: "pg",
       schema: {
