@@ -129,42 +129,46 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           };
 
           return (
-            <Link
+            <article
               className="group relative flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow duration-200 hover:shadow-md hover:ring-1 hover:ring-foreground/10"
-              href={route(`/admin/cursos/${course.id}`)}
               key={course.id}
             >
-              <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-                {isLocalImage(course.thumbnailUrl) ? (
-                  <Image
-                    alt={course.title}
-                    className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    fill
-                    sizes="(min-width: 1280px) 33vw, 100vw"
-                    src={course.thumbnailUrl}
-                  />
-                ) : (
-                  <div
-                    className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+              <Link
+                className="block"
+                href={route(`/admin/cursos/${course.id}`)}
+              >
+                <div className="relative aspect-[16/9] overflow-hidden bg-muted">
+                  {isLocalImage(course.thumbnailUrl) ? (
+                    <Image
+                      alt={course.title}
+                      className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                      fill
+                      sizes="(min-width: 1280px) 33vw, 100vw"
+                      src={course.thumbnailUrl}
+                    />
+                  ) : (
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getGradient(course.id)}`}
+                    >
+                      <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
+                        {getInitials(course.title)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
+                  <Badge
+                    className={`absolute top-3 left-3 ${statusInfo.color}`}
+                    variant="outline"
                   >
-                    <span className="select-none font-bold text-4xl text-white/90 tracking-wider">
-                      {getInitials(course.title)}
-                    </span>
+                    {statusInfo.label}
+                  </Badge>
+                  <div className="absolute right-3 bottom-3 left-3">
+                    <p className="line-clamp-2 font-bold text-lg text-white">
+                      {course.title}
+                    </p>
                   </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/20 to-transparent transition-colors duration-200 group-hover:bg-black/5" />
-                <Badge
-                  className={`absolute top-3 left-3 ${statusInfo.color}`}
-                  variant="outline"
-                >
-                  {statusInfo.label}
-                </Badge>
-                <div className="absolute right-3 bottom-3 left-3">
-                  <p className="line-clamp-2 font-bold text-lg text-white">
-                    {course.title}
-                  </p>
                 </div>
-              </div>
+              </Link>
 
               <div className="flex flex-1 flex-col gap-3 p-5">
                 {course.subtitle ? (
@@ -173,15 +177,23 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                   </p>
                 ) : null}
 
-                <div className="mt-auto flex items-center gap-3 text-muted-foreground text-xs">
+                <div className="flex items-center gap-3 text-muted-foreground text-xs">
                   <span>{courseModules.length} módulos</span>
                   <span className="text-foreground/20">·</span>
                   <span>{lessonsCount} aulas</span>
                   <span className="text-foreground/20">·</span>
                   <span>{course.accessDurationMonths}m acesso</span>
                 </div>
+
+                <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                  <Button asChild>
+                    <Link href={route(`/admin/cursos/${course.id}`)}>
+                      Gerenciar
+                    </Link>
+                  </Button>
+                </div>
               </div>
-            </Link>
+            </article>
           );
         })}
       </section>

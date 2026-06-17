@@ -91,7 +91,7 @@ export default async function AdminLayout({
           <span className="font-semibold text-sm">PROTEA-R Admin</span>
         </header>
         <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
-          <div className="mx-auto w-full max-w-6xl px-5 py-8">{children}</div>
+          <div className="w-full px-6 py-8 sm:px-10 lg:px-12">{children}</div>
         </ScrollArea>
       </SidebarInset>
     </SidebarProvider>
