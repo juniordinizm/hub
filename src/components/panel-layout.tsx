@@ -39,14 +39,15 @@ export function PanelLayout({
         className="border-sidebar-border bg-sidebar"
         collapsible="offcanvas"
       >
-        <SidebarHeader className="px-5 pt-5 pb-0">
-          <div className="border-sidebar-border border-b pb-4">
+        <SidebarHeader className="flex flex-col gap-0 px-0 pt-5 pb-0">
+          <div className="px-5 pb-4">
             <p className="font-black text-lg text-sidebar-foreground">
               PROTEA-R
             </p>
             <p className="text-sidebar-foreground/55 text-xs">{panelLabel}</p>
           </div>
-          <div className="border-sidebar-border border-b py-4">
+          <SidebarSeparator />
+          <div className="px-5 py-4">
             <div className="flex items-center gap-3">
               <Avatar className="size-9 shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -69,6 +70,7 @@ export function PanelLayout({
               </div>
             </div>
           </div>
+          <SidebarSeparator />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
