@@ -1,12 +1,7 @@
-import {
-  ArrowRight01Icon,
-  HelpCircleIcon,
-  Shield01Icon,
-  WhatsappIcon,
-} from "@hugeicons/core-free-icons";
+import { HelpCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -15,22 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { groupFaqItemsByCategory } from "@/features/courses/presentation";
-import {
-  getPublishedFaqItems,
-  getSupportWhatsappUrl,
-} from "@/features/courses/server";
-import { formatWhatsappUrl } from "@/lib/formatters";
+import { getPublishedFaqItems } from "@/features/courses/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentFaqPage(): Promise<React.JSX.Element> {
-  const [faqs, rawSupportWhatsappUrl] = await Promise.all([
-    getPublishedFaqItems(),
-    getSupportWhatsappUrl(),
-  ]);
-  const supportWhatsappUrl = rawSupportWhatsappUrl
-    ? formatWhatsappUrl(rawSupportWhatsappUrl)
-    : null;
+  const faqs = await getPublishedFaqItems();
   const categories = groupFaqItemsByCategory(faqs);
 
   return (
@@ -120,15 +105,10 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
                   </p>
                 </div>
               </div>
-              {supportWhatsappUrl ? (
-                <Button asChild className="mt-5 w-full">
-                  <a href={supportWhatsappUrl} rel="noopener" target="_blank">
-                    <HugeiconsIcon icon={WhatsappIcon} />
-                    Falar com suporte
-                    <HugeiconsIcon icon={ArrowRight01Icon} />
-                  </a>
-                </Button>
-              ) : null}
+              <SupportRequestDialog
+                triggerClassName="mt-5 w-full"
+                triggerLabel="Falar com suporte"
+              />
             </CardContent>
           </Card>
         </aside>

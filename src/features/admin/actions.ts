@@ -130,7 +130,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const subtitle = readString(formData, "subtitle") || null;
   const description = readString(formData, "description") || null;
   const thumbnailUrl = readString(formData, "thumbnailUrl") || null;
-  const supportWhatsappUrl = readString(formData, "supportWhatsappUrl") || null;
   const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
   const status = readString(formData, "status") || "draft";
   const values = [
@@ -138,7 +137,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     subtitle,
     description,
     thumbnailUrl,
-    supportWhatsappUrl,
     accessDurationMonths,
     status,
   ];
@@ -151,11 +149,10 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             subtitle = $2,
             description = $3,
             thumbnail_url = $4,
-            support_whatsapp_url = $5,
-            access_duration_months = $6,
-            status = $7,
+            access_duration_months = $5,
+            status = $6,
             updated_at = now()
-        where id = $8
+        where id = $7
       `,
       [...values, courseId]
     );
@@ -188,12 +185,11 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
           workload_hours,
           price_in_cents,
           thumbnail_url,
-          support_whatsapp_url,
           payment_provider_product_id,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         returning id
       `,
       [
@@ -205,7 +201,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         0,
         priceInCents,
         thumbnailUrl,
-        supportWhatsappUrl,
         productId,
         accessDurationMonths,
         status,
@@ -635,19 +630,16 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
     `
       insert into app_settings (
         id,
-        support_whatsapp_url,
         certificate_signer_name,
         certificate_signer_role
       )
-      values ('global', $1, $2, $3)
+      values ('global', $1, $2)
       on conflict (id) do update set
-        support_whatsapp_url = excluded.support_whatsapp_url,
         certificate_signer_name = excluded.certificate_signer_name,
         certificate_signer_role = excluded.certificate_signer_role,
         updated_at = now()
     `,
     [
-      readString(formData, "supportWhatsappUrl") || null,
       readString(formData, "certificateSignerName") || null,
       readString(formData, "certificateSignerRole") || null,
     ]

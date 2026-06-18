@@ -6,8 +6,12 @@ import {
   recordLessonWatchProgress,
   syncJmvstreamLessonDuration,
 } from "@/features/courses/server";
+import { sendSupportRequestEmail } from "@/features/email/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+
+const readString = (formData: FormData, key: string): string =>
+  String(formData.get(key) ?? "").trim();
 
 export const completeLessonAction = async (formData: FormData) => {
   const session = await requireSession();
@@ -77,5 +81,26 @@ export const recordLessonWatchProgressAction = async ({
     eventName,
     lessonId,
     userId: session.user.id,
+  });
+};
+
+export const sendSupportRequestAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireSession();
+  const subject = readString(formData, "subject");
+  const message = readString(formData, "message");
+  const courseTitle = readString(formData, "courseTitle") || undefined;
+
+  if (!(subject && message)) {
+    throw new Error("Informe assunto e mensagem para o suporte.");
+  }
+
+  await sendSupportRequestEmail({
+    ...(courseTitle ? { courseTitle } : {}),
+    message,
+    studentEmail: session.user.email,
+    studentName: session.user.name,
+    subject,
   });
 };

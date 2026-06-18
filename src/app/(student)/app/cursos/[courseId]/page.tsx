@@ -2,11 +2,11 @@ import {
   BookOpen01Icon,
   Certificate01Icon,
   Clock01Icon,
-  CustomerService01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -151,23 +151,13 @@ export default async function StudentCourseOverviewPage({
                     </Link>
                   </Button>
                 ) : null}
-                {data.course.supportWhatsappUrl ? (
-                  <Button
-                    asChild
-                    className="flex-1"
-                    size="sm"
-                    variant="secondary"
-                  >
-                    <a
-                      href={data.course.supportWhatsappUrl}
-                      rel="noopener"
-                      target="_blank"
-                    >
-                      <HugeiconsIcon icon={CustomerService01Icon} />
-                      Suporte
-                    </a>
-                  </Button>
-                ) : null}
+                <SupportRequestDialog
+                  courseTitle={data.course.title}
+                  triggerClassName="flex-1"
+                  triggerLabel="Suporte"
+                  triggerSize="sm"
+                  triggerVariant="secondary"
+                />
               </div>
             </div>
           </div>

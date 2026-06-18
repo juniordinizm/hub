@@ -111,8 +111,8 @@ const client = await pool.connect();
 try {
   await client.query("begin");
   await client.query(`
-    insert into app_settings (id, support_whatsapp_url)
-    values ('global', null)
+    insert into app_settings (id)
+    values ('global')
     on conflict (id) do nothing
   `);
 

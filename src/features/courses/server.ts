@@ -27,7 +27,6 @@ export interface StudentCourseCard {
   progressPercent: number;
   slug: string;
   subtitle: string | null;
-  supportWhatsappUrl: string | null;
   thumbnailUrl: string | null;
   title: string;
   totalCount: number;
@@ -47,7 +46,6 @@ export interface StudentCatalogCourseCard {
   revokedReason: string | null;
   slug: string;
   subtitle: string | null;
-  supportWhatsappUrl: string | null;
   thumbnailUrl: string | null;
   title: string;
   totalCount: number;
@@ -96,7 +94,6 @@ export interface StudentCourseOverviewData {
     id: string;
     slug: string;
     subtitle: string | null;
-    supportWhatsappUrl: string | null;
     thumbnailUrl: string | null;
     title: string;
     workloadHours: number;
@@ -133,7 +130,6 @@ export interface StudentLessonData {
   course: {
     id: string;
     title: string;
-    supportWhatsappUrl: string | null;
   };
   isPreview: boolean;
   lesson: {
@@ -170,7 +166,6 @@ interface LessonRow {
   module_id: string;
   module_sort_order: number;
   module_title: string;
-  support_whatsapp_url: string | null;
   video_embed_url: string | null;
   video_provider: string | null;
   watch_current_seconds: number | null;
@@ -221,7 +216,6 @@ interface CourseOverviewRow {
   module_id: string | null;
   module_sort_order: number | null;
   module_title: string | null;
-  support_whatsapp_url: string | null;
   thumbnail_url: string | null;
   watched_percent: number | null;
   workload_hours: number;
@@ -243,7 +237,6 @@ interface CoursePreviewOverviewRow {
   module_id: string | null;
   module_sort_order: number | null;
   module_title: string | null;
-  support_whatsapp_url: string | null;
   thumbnail_url: string | null;
   workload_hours: number;
 }
@@ -299,7 +292,6 @@ export const getStudentCourses = async (
     module_title: string | null;
     slug: string;
     subtitle: string | null;
-    support_whatsapp_url: string | null;
     thumbnail_url: string | null;
     title: string;
     workload_hours: number;
@@ -313,7 +305,6 @@ export const getStudentCourses = async (
         c.description as course_description,
         c.workload_hours,
         c.thumbnail_url,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         e.expires_at,
         m.id as module_id,
         m.title as module_title,
@@ -323,7 +314,6 @@ export const getStudentCourses = async (
         lp.completed_at
       from enrollments e
       join courses c on c.id = e.course_id
-      left join app_settings s on s.id = 'global'
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
@@ -348,7 +338,6 @@ export const getStudentCourses = async (
       description: row.course_description,
       workloadHours: row.workload_hours,
       thumbnailUrl: row.thumbnail_url,
-      supportWhatsappUrl: row.support_whatsapp_url,
       expiresAt: row.expires_at,
       modules: [],
       progressPercent: 0,
@@ -421,7 +410,6 @@ export const getStudentCourses = async (
       description: course.description,
       workloadHours: course.workloadHours,
       thumbnailUrl: course.thumbnailUrl,
-      supportWhatsappUrl: course.supportWhatsappUrl,
       expiresAt: course.expiresAt,
       modules,
       progressPercent: progress.percent,
@@ -447,7 +435,6 @@ export const getStudentCourseCatalog = async (
     revoked_reason: string | null;
     slug: string;
     subtitle: string | null;
-    support_whatsapp_url: string | null;
     thumbnail_url: string | null;
     title: string;
     workload_hours: number;
@@ -462,7 +449,6 @@ export const getStudentCourseCatalog = async (
         c.workload_hours,
         c.price_in_cents,
         c.thumbnail_url,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         e.expires_at,
         e.revoked_reason,
         case
@@ -480,7 +466,6 @@ export const getStudentCourseCatalog = async (
         l.id as lesson_id,
         lp.completed_at
       from courses c
-      left join app_settings s on s.id = 'global'
       left join enrollments e on e.course_id = c.id
         and e.user_id = $1
       left join modules m on m.course_id = c.id
@@ -503,7 +488,6 @@ export const getStudentCourseCatalog = async (
       workloadHours: row.workload_hours,
       priceInCents: row.price_in_cents,
       thumbnailUrl: row.thumbnail_url,
-      supportWhatsappUrl: row.support_whatsapp_url,
       expiresAt: row.expires_at,
       isEnrolled: row.is_enrolled,
       accessStatus: row.access_status,
@@ -540,7 +524,6 @@ export const getStudentCourseCatalog = async (
       workloadHours: course.workloadHours,
       priceInCents: course.priceInCents,
       thumbnailUrl: course.thumbnailUrl,
-      supportWhatsappUrl: course.supportWhatsappUrl,
       expiresAt: course.expiresAt,
       isEnrolled: course.isEnrolled,
       accessStatus: course.accessStatus,
@@ -628,7 +611,6 @@ export const getStudentCourseOverviewData = async ({
         c.description as course_description,
         c.workload_hours,
         c.thumbnail_url,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         e.expires_at,
         cert.code as certificate_code,
         m.id as module_id,
@@ -645,7 +627,6 @@ export const getStudentCourseOverviewData = async ({
         lwp.watched_percent
       from enrollments e
       join courses c on c.id = e.course_id
-      left join app_settings s on s.id = 'global'
       left join certificates cert on cert.course_id = c.id and cert.user_id = e.user_id
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id and l.is_published = true
@@ -730,7 +711,6 @@ export const getStudentCourseOverviewData = async ({
       description: firstRow.course_description,
       workloadHours: firstRow.workload_hours,
       thumbnailUrl: firstRow.thumbnail_url,
-      supportWhatsappUrl: firstRow.support_whatsapp_url,
       expiresAt: firstRow.expires_at,
     },
     isPreview: false,
@@ -756,7 +736,6 @@ export const getCoursePreviewOverviewData = async ({
         c.description as course_description,
         c.workload_hours,
         c.thumbnail_url,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         m.id as module_id,
         m.title as module_title,
         m.description as module_description,
@@ -768,7 +747,6 @@ export const getCoursePreviewOverviewData = async ({
         l.duration_seconds,
         l.sort_order as lesson_sort_order
       from courses c
-      left join app_settings s on s.id = 'global'
       left join modules m on m.course_id = c.id
       left join lessons l on l.module_id = m.id
       where c.id = $1
@@ -836,7 +814,6 @@ export const getCoursePreviewOverviewData = async ({
       description: firstRow.course_description,
       workloadHours: firstRow.workload_hours,
       thumbnailUrl: firstRow.thumbnail_url,
-      supportWhatsappUrl: firstRow.support_whatsapp_url,
       expiresAt: new Date(),
     },
     isPreview: true,
@@ -870,21 +847,6 @@ export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
   }));
 };
 
-export const getSupportWhatsappUrl = async (): Promise<string | null> => {
-  const { rows } = await getPool().query<{
-    support_whatsapp_url: string | null;
-  }>(
-    `
-      select support_whatsapp_url
-      from app_settings
-      where id = 'global'
-      limit 1
-    `
-  );
-
-  return rows[0]?.support_whatsapp_url ?? null;
-};
-
 export const getStudentLessonData = async ({
   userId,
   lessonId,
@@ -903,7 +865,6 @@ export const getStudentLessonData = async ({
       select
         c.id as course_id,
         c.title as course_title,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
@@ -923,7 +884,6 @@ export const getStudentLessonData = async ({
       from target_course tc
       join enrollments e on e.course_id = tc.course_id and e.user_id = $1
       join courses c on c.id = e.course_id
-      left join app_settings s on s.id = 'global'
       join modules m on m.course_id = c.id
       join lessons l on l.module_id = m.id and l.is_published = true
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
@@ -963,7 +923,6 @@ export const getStudentLessonData = async ({
     course: {
       id: activeLesson.course_id,
       title: activeLesson.course_title,
-      supportWhatsappUrl: activeLesson.support_whatsapp_url,
     },
     isPreview: false,
     lesson: {
@@ -1007,7 +966,6 @@ export const getPreviewLessonData = async ({
       select
         c.id as course_id,
         c.title as course_title,
-        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
@@ -1026,7 +984,6 @@ export const getPreviewLessonData = async ({
         null::integer as watch_percent
       from target_course tc
       join courses c on c.id = tc.course_id
-      left join app_settings s on s.id = 'global'
       join modules m on m.course_id = c.id
       join lessons l on l.module_id = m.id
       order by m.sort_order asc, l.sort_order asc
@@ -1051,7 +1008,6 @@ export const getPreviewLessonData = async ({
     course: {
       id: activeLesson.course_id,
       title: activeLesson.course_title,
-      supportWhatsappUrl: activeLesson.support_whatsapp_url,
     },
     isPreview: true,
     lesson: {

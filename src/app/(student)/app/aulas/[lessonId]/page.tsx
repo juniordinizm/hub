@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -163,11 +164,11 @@ export default async function LessonPage({
         <LessonCourseSidebar
           activeLessonId={data.lesson.id}
           busca={query.busca}
+          courseTitle={data.course.title}
           lessonsCount={lessonView.lessons.length}
           modules={lessonView.visibleModules}
           previewMode={previewMode}
           progressPercent={data.progressPercent}
-          supportWhatsappUrl={data.course.supportWhatsappUrl}
         />
       )}
     </div>
@@ -379,19 +380,19 @@ function LessonNextStepCard({
 function LessonCourseSidebar({
   activeLessonId,
   busca,
+  courseTitle,
   lessonsCount,
   modules,
   previewMode,
   progressPercent,
-  supportWhatsappUrl,
 }: {
   activeLessonId: string;
   busca: string | undefined;
+  courseTitle: string;
   lessonsCount: number;
   modules: LessonPageData["modules"];
   previewMode: StudentPreviewMode | null;
   progressPercent: number;
-  supportWhatsappUrl: string | null;
 }): React.JSX.Element {
   return (
     <Sidebar
@@ -447,13 +448,10 @@ function LessonCourseSidebar({
           </p>
         ) : null}
       </SidebarContent>
-      {supportWhatsappUrl ? (
-        <Button asChild className="m-4 mt-2" variant="outline">
-          <a href={supportWhatsappUrl} rel="noopener" target="_blank">
-            Falar com suporte
-          </a>
-        </Button>
-      ) : null}
+      <SupportRequestDialog
+        courseTitle={courseTitle}
+        triggerClassName="m-4 mt-2"
+      />
     </Sidebar>
   );
 }

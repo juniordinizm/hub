@@ -101,7 +101,6 @@ export interface AdminManagementData {
     slug: string;
     status: string;
     subtitle: string | null;
-    supportWhatsappUrl: string | null;
     thumbnailUrl: string | null;
     title: string;
     workloadHours: number;
@@ -175,7 +174,6 @@ export interface AdminManagementData {
   settings: {
     certificateSignerName: string | null;
     certificateSignerRole: string | null;
-    supportWhatsappUrl: string | null;
   };
   students: AdminStudentSummary[];
 }
@@ -219,12 +217,11 @@ export const getAdminManagementData =
         slug: string;
         status: string;
         subtitle: string | null;
-        support_whatsapp_url: string | null;
         thumbnail_url: string | null;
         title: string;
         workload_hours: number;
       }>(
-        "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, support_whatsapp_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+        "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
         color: string;
@@ -333,9 +330,8 @@ export const getAdminManagementData =
       pool.query<{
         certificate_signer_name: string | null;
         certificate_signer_role: string | null;
-        support_whatsapp_url: string | null;
       }>(
-        "select support_whatsapp_url, certificate_signer_name, certificate_signer_role from app_settings where id = 'global' limit 1"
+        "select certificate_signer_name, certificate_signer_role from app_settings where id = 'global' limit 1"
       ),
       pool.query<{
         action: string;
@@ -426,7 +422,6 @@ export const getAdminManagementData =
         slug: row.slug,
         status: row.status,
         subtitle: row.subtitle,
-        supportWhatsappUrl: row.support_whatsapp_url,
         thumbnailUrl: row.thumbnail_url,
         title: row.title,
         workloadHours: row.workload_hours,
@@ -479,7 +474,6 @@ export const getAdminManagementData =
       settings: {
         certificateSignerName: settingsRow?.certificate_signer_name ?? null,
         certificateSignerRole: settingsRow?.certificate_signer_role ?? null,
-        supportWhatsappUrl: settingsRow?.support_whatsapp_url ?? null,
       },
       students: summarizeAdminStudents(
         enrollmentRows,

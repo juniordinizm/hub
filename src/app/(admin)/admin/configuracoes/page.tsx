@@ -37,19 +37,12 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
             <CardHeader>
               <CardTitle>Dados operacionais</CardTitle>
               <CardDescription>
-                WhatsApp global e assinatura de certificado.
+                Assinatura usada nos certificados emitidos pela plataforma.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form action={saveSettingsAction}>
                 <FieldGroup>
-                  <Field>
-                    <FieldLabel>WhatsApp global</FieldLabel>
-                    <Input
-                      defaultValue={data.settings.supportWhatsappUrl ?? ""}
-                      name="supportWhatsappUrl"
-                    />
-                  </Field>
                   <Field>
                     <FieldLabel>Nome da assinatura</FieldLabel>
                     <Input

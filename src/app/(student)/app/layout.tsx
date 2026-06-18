@@ -1,28 +1,23 @@
 import {
   BookOpen01Icon,
   Certificate01Icon,
-  CustomerService01Icon,
   HelpCircleIcon,
   Home01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { redirect } from "next/navigation";
 import { PanelLayout } from "@/components/panel-layout";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
 import { isPreviewRole } from "@/features/courses/preview";
-import {
-  getStudentCourses,
-  getSupportWhatsappUrl,
-} from "@/features/courses/server";
-import { formatWhatsappUrl } from "@/lib/formatters";
+import { getStudentCourses } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -35,19 +30,12 @@ export default async function StudentLayout({
     redirect(route("/admin"));
   }
 
-  const [courses, rawWhatsappUrl] = await Promise.all([
-    session.role === "student" ? getStudentCourses(session.user.id) : [],
-    getSupportWhatsappUrl(),
-  ]);
-  const supportWhatsappUrl = rawWhatsappUrl
-    ? formatWhatsappUrl(rawWhatsappUrl)
-    : null;
+  const courses =
+    session.role === "student" ? await getStudentCourses(session.user.id) : [];
 
   return (
     <PanelLayout
-      navContent={
-        <StudentNav courses={courses} supportWhatsappUrl={supportWhatsappUrl} />
-      }
+      navContent={<StudentNav courses={courses} />}
       panelLabel="Área do aluno"
       userEmail={session.user.email}
       userName={session.user.name}
@@ -59,10 +47,8 @@ export default async function StudentLayout({
 
 function StudentNav({
   courses,
-  supportWhatsappUrl,
 }: {
   courses: Awaited<ReturnType<typeof getStudentCourses>>;
-  supportWhatsappUrl: string | null;
 }): React.JSX.Element {
   return (
     <>
@@ -117,7 +103,7 @@ function StudentNav({
         <SidebarGroupLabel>Suporte</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SupportNavItems supportWhatsappUrl={supportWhatsappUrl} />
+            <SupportNavItems />
             <SidebarMenuItem>
               <SidebarMenuLink href={route("/app/perguntas-frequentes")}>
                 <HugeiconsIcon
@@ -135,27 +121,14 @@ function StudentNav({
   );
 }
 
-function SupportNavItems({
-  supportWhatsappUrl,
-}: {
-  supportWhatsappUrl: string | null;
-}): React.JSX.Element | null {
-  if (!supportWhatsappUrl) {
-    return null;
-  }
-
+function SupportNavItems(): React.JSX.Element {
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild>
-        <a href={supportWhatsappUrl} rel="noopener" target="_blank">
-          <HugeiconsIcon
-            icon={CustomerService01Icon}
-            size={18}
-            strokeWidth={1.5}
-          />
-          <span>Suporte ao aluno</span>
-        </a>
-      </SidebarMenuButton>
+      <SupportRequestDialog
+        triggerClassName="peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sidebar-foreground text-sm outline-hidden transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        triggerLabel="Suporte ao aluno"
+        triggerMode="custom"
+      />
     </SidebarMenuItem>
   );
 }

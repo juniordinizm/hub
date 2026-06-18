@@ -159,7 +159,6 @@ export const courses = pgTable(
     workloadHours: integer("workload_hours").default(0).notNull(),
     priceInCents: integer("price_in_cents").default(0).notNull(),
     thumbnailUrl: text("thumbnail_url"),
-    supportWhatsappUrl: text("support_whatsapp_url"),
     paymentProviderProductId: text("payment_provider_product_id"),
     accessDurationMonths: integer("access_duration_months")
       .default(12)
@@ -525,7 +524,6 @@ export const auditLogs = pgTable(
 
 export const appSettings = pgTable("app_settings", {
   id: text("id").primaryKey(),
-  supportWhatsappUrl: text("support_whatsapp_url"),
   certificateSignerName: text("certificate_signer_name"),
   certificateSignerRole: text("certificate_signer_role"),
   ...timestamps,

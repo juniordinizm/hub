@@ -24,6 +24,14 @@ interface AccessExpiryWarningEmailProps extends CourseEmailProps {
   daysRemaining: number;
 }
 
+interface SupportRequestEmailProps {
+  courseTitle?: string;
+  message: string;
+  studentEmail: string;
+  studentName: string;
+  subject: string;
+}
+
 const styles = {
   body: {
     backgroundColor: "#f7f3ef",
@@ -51,6 +59,12 @@ const styles = {
     color: "#667b7d",
     fontSize: "14px",
     lineHeight: "22px",
+  },
+  panel: {
+    backgroundColor: "#f7f3ef",
+    border: "1px solid #eadfd8",
+    borderRadius: "6px",
+    padding: "16px",
   },
   text: {
     fontSize: "16px",
@@ -189,5 +203,37 @@ export const AccessExpiryWarningEmail = ({
         </Button>
       </Section>
     ) : null}
+  </EmailShell>
+);
+
+export const SupportRequestEmail = ({
+  courseTitle,
+  message,
+  studentEmail,
+  studentName,
+  subject,
+}: SupportRequestEmailProps): React.JSX.Element => (
+  <EmailShell preview={`Novo pedido de suporte: ${subject}`}>
+    <Heading>Novo pedido de suporte</Heading>
+    <Text style={styles.text}>
+      {studentName} enviou uma solicitacao de suporte pela plataforma.
+    </Text>
+    <Section style={styles.panel}>
+      <Text style={styles.text}>
+        <strong>Nome:</strong> {studentName}
+      </Text>
+      <Text style={styles.text}>
+        <strong>E-mail:</strong> {studentEmail}
+      </Text>
+      {courseTitle ? (
+        <Text style={styles.text}>
+          <strong>Curso:</strong> {courseTitle}
+        </Text>
+      ) : null}
+      <Text style={styles.text}>
+        <strong>Assunto:</strong> {subject}
+      </Text>
+    </Section>
+    <Text style={styles.text}>{message}</Text>
   </EmailShell>
 );

@@ -11,6 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
 import Link from "next/link";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -374,16 +375,12 @@ function CourseAccessControls({
   }
 
   if (course.accessStatus === "revoked") {
-    return course.supportWhatsappUrl ? (
-      <Button asChild className="w-full" size="sm" variant="outline">
-        <a href={course.supportWhatsappUrl} rel="noopener" target="_blank">
-          Falar com suporte
-        </a>
-      </Button>
-    ) : (
-      <Button className="w-full" disabled size="sm" type="button">
-        Fale com o suporte
-      </Button>
+    return (
+      <SupportRequestDialog
+        courseTitle={course.title}
+        triggerClassName="w-full"
+        triggerSize="sm"
+      />
     );
   }
 

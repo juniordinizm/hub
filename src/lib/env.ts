@@ -40,7 +40,7 @@ const serverEnvSchema = z.object({
     .string()
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
-  SUPPORT_WHATSAPP_URL: optionalNonEmptyString,
+  SUPPORT_EMAIL: optionalNonEmptyString,
 });
 
 export const getServerEnv = () =>
@@ -64,5 +64,5 @@ export const getServerEnv = () =>
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
-    SUPPORT_WHATSAPP_URL: process.env.SUPPORT_WHATSAPP_URL,
+    SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
   });

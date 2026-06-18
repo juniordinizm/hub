@@ -413,10 +413,6 @@ export default async function AdminCourseDetailPage({
                   value={course.paymentProviderProductId ?? "Não vinculado"}
                 />
                 <InfoTile
-                  label="WhatsApp"
-                  value={course.supportWhatsappUrl ?? "Padrão global"}
-                />
-                <InfoTile
                   label="Meses de acesso"
                   value={`${course.accessDurationMonths} meses`}
                 />

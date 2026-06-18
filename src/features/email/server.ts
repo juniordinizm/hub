@@ -6,11 +6,13 @@ import {
   CertificateIssuedEmail,
   InviteEmail,
   PasswordResetEmail,
+  SupportRequestEmail,
 } from "@/features/email/templates";
 import { getServerEnv } from "@/lib/env";
 
 interface SendEmailInput {
   react: React.ReactNode;
+  replyTo?: string;
   subject: string;
   to: string;
 }
@@ -30,6 +32,7 @@ const getResend = (): Resend | null => {
 
 export const sendTransactionalEmail = async ({
   react,
+  replyTo,
   subject,
   to,
 }: SendEmailInput): Promise<void> => {
@@ -43,6 +46,7 @@ export const sendTransactionalEmail = async ({
   const { error } = await resend.emails.send({
     from: env.RESEND_FROM_EMAIL,
     react,
+    ...(replyTo ? { replyTo } : {}),
     subject,
     to,
   });
@@ -146,3 +150,32 @@ export const sendCertificateIssuedEmail = async ({
     subject: "Seu certificado PROTEA-R Hub foi emitido",
     to,
   });
+
+export const sendSupportRequestEmail = async ({
+  courseTitle,
+  message,
+  studentEmail,
+  studentName,
+  subject,
+}: {
+  courseTitle?: string;
+  message: string;
+  studentEmail: string;
+  studentName: string;
+  subject: string;
+}): Promise<void> => {
+  const env = getServerEnv();
+
+  await sendTransactionalEmail({
+    react: SupportRequestEmail({
+      ...(courseTitle ? { courseTitle } : {}),
+      message,
+      studentEmail,
+      studentName,
+      subject,
+    }),
+    replyTo: studentEmail,
+    subject: `Suporte: ${subject}`,
+    to: env.SUPPORT_EMAIL ?? env.RESEND_FROM_EMAIL,
+  });
+};
