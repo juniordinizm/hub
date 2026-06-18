@@ -4,6 +4,7 @@ import { SidebarLeftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Slot } from "radix-ui";
 import {
   type ComponentProps,
@@ -564,7 +565,7 @@ function SidebarMenuButton({
 }
 
 function SidebarMenuLink({
-  isActive = false,
+  isActive,
   variant = "default",
   size = "default",
   tooltip,
@@ -575,11 +576,20 @@ function SidebarMenuLink({
   tooltip?: string | ComponentProps<typeof TooltipContent>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
+  const pathname = usePathname();
+
+  const hrefString =
+    typeof props.href === "string" ? props.href : (props.href.pathname ?? "");
+  const isLinkActive =
+    isActive ??
+    (hrefString === "/app" || hrefString === "/admin"
+      ? pathname === hrefString
+      : pathname === hrefString || pathname?.startsWith(`${hrefString}/`));
 
   const link = (
     <Link
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-      data-active={isActive}
+      data-active={isLinkActive}
       data-sidebar="menu-button"
       data-size={size}
       data-slot="sidebar-menu-button"
