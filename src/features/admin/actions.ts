@@ -15,6 +15,7 @@ import {
   initJmvstreamUpload,
   markJmvstreamUploadFailed,
   retryJmvstreamAssetDelete,
+  syncJmvstreamLessonPlayer,
 } from "@/features/jmvstream/server";
 import { parsePriceToCents } from "@/features/payments/abacatepay";
 import { createAbacatePayCourseProduct } from "@/features/payments/server";
@@ -163,7 +164,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       targetId: courseId,
       targetType: "course",
     });
-    await ensureJmvstreamCourseFolder(courseId);
   } else {
     const insertedCourseId = randomUUID();
     const slug = await resolveUniqueCourseSlug(title);
@@ -213,11 +213,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       targetId: inserted.rows[0]?.id,
       targetType: "course",
     });
-    const savedCourseId = inserted.rows[0]?.id;
-
-    if (savedCourseId) {
-      await ensureJmvstreamCourseFolder(savedCourseId);
-    }
   }
 
   revalidateAdmin();
@@ -509,6 +504,19 @@ export const completeJmvstreamUploadAction = async (input: {
   await requireRole(["admin"]);
   await completeJmvstreamUpload(input);
   revalidateAdmin();
+};
+
+export const syncJmvstreamLessonPlayerAction = async (input: {
+  lessonId: string;
+}): Promise<{ playerUrl: null | string; ready: boolean }> => {
+  await requireRole(["admin"]);
+  const result = await syncJmvstreamLessonPlayer(input.lessonId);
+
+  if (result.ready) {
+    revalidateAdmin();
+  }
+
+  return result;
 };
 
 export const markJmvstreamUploadFailedAction = async (input: {

@@ -62,11 +62,20 @@ export interface JmvstreamFolderResponse {
   uuid: string;
 }
 
+export interface JmvstreamVideoResponse {
+  folderUuid: string | null;
+  hash: string;
+  name: string;
+  playerUrl: string | null;
+  status: string | null;
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 const TRAILING_SLASH_PATTERN = /\/$/;
 const GUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const IFRAME_SRC_PATTERN = /\bsrc\s*=\s*['"]([^'"]+)['"]/i;
 const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
 const JWT_REFRESH_WINDOW_SECONDS = 60;
 
@@ -214,6 +223,12 @@ export const findJmvstreamFolderByName = (
   return null;
 };
 
+export const findJmvstreamVideoByHash = (
+  videos: JmvstreamVideoResponse[],
+  videoHash: string
+): JmvstreamVideoResponse | null =>
+  videos.find((video) => video.hash === videoHash) ?? null;
+
 export const createJmvstreamClient = ({
   apiBaseUrl,
   apiToken,
@@ -256,7 +271,6 @@ export const createJmvstreamClient = ({
         {
           body: JSON.stringify({
             filename: input.filename,
-            gallery: input.galleryUuid,
             objectName: input.objectName,
             parts: normalizeJmvstreamUploadParts(input.parts),
             size: input.size,
@@ -349,6 +363,16 @@ export const createJmvstreamClient = ({
       return folders.map((folder) => parseFolderTreeResponse(folder));
     },
 
+    listVideos: async (): Promise<JmvstreamVideoResponse[]> => {
+      const response = await request<UnknownRecord>("/v1/videos/application", {
+        method: "GET",
+      });
+
+      const videos = Array.isArray(response.videos) ? response.videos : [];
+
+      return videos.map((video) => parseVideoResponse(video));
+    },
+
     renameFolder: async ({
       folderUuid,
       name,
@@ -366,6 +390,20 @@ export const createJmvstreamClient = ({
 
       return parseFolderResponse(response, name, folderUuid);
     },
+  };
+};
+
+const parseVideoResponse = (value: unknown): JmvstreamVideoResponse => {
+  if (!isRecord(value)) {
+    throw new Error("Video JMVStream invalido.");
+  }
+
+  return {
+    folderUuid: readString(value.folder_uuid),
+    hash: requireString(value.hash, "hash"),
+    name: readString(value.name) ?? "Sem nome",
+    playerUrl: readOfficialJmvstreamPlayerUrl(value),
+    status: readString(value.status),
   };
 };
 
@@ -540,9 +578,11 @@ const readOfficialJmvstreamPlayerUrl = (
   const candidates = [
     response.player_url,
     response.playerUrl,
+    response.playerSource,
     response.embed_url,
     response.embedUrl,
     response.url,
+    readIframeSrc(readString(response.player)),
   ];
 
   for (const candidate of candidates) {
@@ -554,6 +594,15 @@ const readOfficialJmvstreamPlayerUrl = (
   }
 
   return null;
+};
+
+const readIframeSrc = (html: string | null): string | null => {
+  if (!html) {
+    return null;
+  }
+
+  const match = html.match(IFRAME_SRC_PATTERN);
+  return match?.[1] ?? null;
 };
 
 const isOfficialJmvstreamPlayerUrl = (value: string): boolean => {

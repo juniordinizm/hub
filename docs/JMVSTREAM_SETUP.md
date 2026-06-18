@@ -22,14 +22,14 @@ O admin usa o fluxo S3 atual do playground da JMVStream:
 3. O servidor inicia o upload em `/v2/upload/multipart/s3` e cria o asset como `uploading`.
 4. O navegador tenta enviar as partes direto para as URLs assinadas e guarda cada `ETag`.
 5. Se a JMVStream/S3 bloquear o PUT no navegador por CORS, o admin usa o fallback same-origin `/api/jmvstream/upload-part`, protegido por sessao admin, para enviar aquela parte no servidor.
-6. O servidor finaliza em `/v2/upload/multipart/complete`.
+6. O servidor finaliza em `/v2/upload/multipart/complete` com `filename`, `size`, `video_hash`, `objectName`, `uploadId` e `parts`. A `gallery` e enviada apenas no init; reenviar no complete faz a JMVStream/S3 responder `NoSuchUpload`.
 7. A aula recebe o `video_hash`. O player so e gravado se a JMVStream retornar uma URL oficial `https://player.jmvstream.com/...`.
 
 Se a JMVStream ainda nao retornar o player oficial, a aula fica aguardando processamento/player e nao conta como video pronto na saude do curso.
 
 ## Pastas
 
-O Hub cria galerias JMVStream para organizar os uploads. Como o endpoint publico `POST /v1/folders` documenta apenas a criacao de galerias planas com `name`, cursos usam uma galeria com o nome do curso e modulos usam uma galeria nomeada como `Curso - Modulo`. O sistema reutiliza galerias existentes pelo nome antes de criar novas.
+O Hub cria galerias JMVStream por modulo para organizar os uploads. Como o endpoint publico `POST /v1/folders` documenta apenas a criacao de galerias planas com `name`, cada modulo usa uma galeria nomeada como `Curso - Modulo`. O sistema reutiliza galerias existentes pelo nome antes de criar novas. Galerias antigas criadas apenas com o nome do curso podem permanecer na JMVStream para revisao manual, mas novos uploads nao dependem delas.
 
 ## Variaveis de ambiente
 

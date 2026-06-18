@@ -3,6 +3,7 @@ import {
   authenticateJmvstreamApi,
   createJmvstreamClient,
   findJmvstreamFolderByName,
+  findJmvstreamVideoByHash,
   isJmvstreamJwtUsable,
   normalizeJmvstreamApiBaseUrl,
   normalizeJmvstreamUploadParts,
@@ -209,7 +210,7 @@ describe("JMVStream API client", () => {
     );
   });
 
-  it("normalizes multipart completion parts to the documented shape", async () => {
+  it("finalizes multipart upload without resending the gallery", async () => {
     expect(
       normalizeJmvstreamUploadParts([
         { etag: '"def"', partNumber: 2 },
@@ -244,7 +245,6 @@ describe("JMVStream API client", () => {
       expect.objectContaining({
         body: JSON.stringify({
           filename: "aula.mp4",
-          gallery: "gallery-uuid",
           objectName: "uploads/video.mp4",
           parts: [{ ETag: '"abc"', PartNumber: 1 }],
           size: 10_000,
@@ -283,6 +283,65 @@ describe("JMVStream API client", () => {
       playerUrl: "https://player.jmvstream.com/evt/secret/video-hash",
       status: "success",
       videoHash: "video-hash",
+    });
+  });
+
+  it("lists application videos with official playerSource URLs", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        videos: [
+          {
+            folder_uuid: "folder-uuid",
+            hash: "video-hash",
+            name: "Aula.mp4",
+            playerSource:
+              "https://player.jmvstream.com/e2qGHOjxbs1eIaRI2gzKdr9dp6d5Fj/video-hash",
+            status: "COMPLETED",
+          },
+        ],
+      })
+    );
+    const client = createClient(fetcher);
+
+    await expect(client.listVideos()).resolves.toEqual([
+      {
+        folderUuid: "folder-uuid",
+        hash: "video-hash",
+        name: "Aula.mp4",
+        playerUrl:
+          "https://player.jmvstream.com/e2qGHOjxbs1eIaRI2gzKdr9dp6d5Fj/video-hash",
+        status: "COMPLETED",
+      },
+    ]);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/videos/application",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("finds JMVStream videos by hash", () => {
+    expect(
+      findJmvstreamVideoByHash(
+        [
+          {
+            folderUuid: "folder-uuid",
+            hash: "video-hash",
+            name: "Aula.mp4",
+            playerUrl:
+              "https://player.jmvstream.com/e2qGHOjxbs1eIaRI2gzKdr9dp6d5Fj/video-hash",
+            status: "COMPLETED",
+          },
+        ],
+        "video-hash"
+      )
+    )?.toEqual({
+      folderUuid: "folder-uuid",
+      hash: "video-hash",
+      name: "Aula.mp4",
+      playerUrl:
+        "https://player.jmvstream.com/e2qGHOjxbs1eIaRI2gzKdr9dp6d5Fj/video-hash",
+      status: "COMPLETED",
     });
   });
 

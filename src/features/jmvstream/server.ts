@@ -4,6 +4,7 @@ import {
   authenticateJmvstreamApi,
   createJmvstreamClient,
   findJmvstreamFolderByName,
+  findJmvstreamVideoByHash,
   isJmvstreamJwtUsable,
   type JmvstreamCompleteUploadInput,
   type JmvstreamCompleteUploadResponse,
@@ -32,6 +33,11 @@ export interface JmvstreamHealthSummary {
   message: string;
   pendingDeletes: number;
   processingUploads: number;
+}
+
+export interface JmvstreamPlayerSyncResult {
+  playerUrl: null | string;
+  ready: boolean;
 }
 
 interface FolderRecord {
@@ -219,12 +225,6 @@ export const ensureJmvstreamModuleFolder = async (
     throw new Error("Modulo invalido.");
   }
 
-  const parentFolderUuid = await ensureJmvstreamCourseFolder(context.course_id);
-
-  if (!parentFolderUuid) {
-    return null;
-  }
-
   return syncFolder({
     courseId: context.course_id,
     folderType: "module",
@@ -349,11 +349,12 @@ export const completeJmvstreamUpload = async ({
 
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
   const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
+  const client = await getConfiguredClient();
 
   let response: JmvstreamCompleteUploadResponse;
 
   try {
-    response = await (await getConfiguredClient()).completeMultipartUpload({
+    response = await client.completeMultipartUpload({
       filename,
       galleryUuid,
       objectName,
@@ -374,7 +375,12 @@ export const completeJmvstreamUpload = async ({
   }
 
   await deleteActiveAssetsForLesson(lessonId, videoHash);
-  const uploadStatus = response.playerUrl ? "ready" : "processing";
+  const syncedVideo =
+    response.playerUrl === null
+      ? findJmvstreamVideoByHash(await client.listVideos(), videoHash)
+      : null;
+  const playerUrl = response.playerUrl ?? syncedVideo?.playerUrl ?? null;
+  const uploadStatus = playerUrl ? "ready" : "processing";
   await getPool().query(
     `
       insert into jmvstream_video_assets (
@@ -420,8 +426,51 @@ export const completeJmvstreamUpload = async ({
           updated_at = now()
       where id = $2
     `,
-    [videoHash, lessonId, response.playerUrl]
+    [videoHash, lessonId, playerUrl]
   );
+};
+
+export const syncJmvstreamLessonPlayer = async (
+  lessonId: string
+): Promise<JmvstreamPlayerSyncResult> => {
+  const { rows } = await getPool().query<{
+    video_external_id: string | null;
+  }>("select video_external_id from lessons where id = $1 limit 1", [lessonId]);
+  const videoHash = rows[0]?.video_external_id;
+
+  if (!videoHash) {
+    return { playerUrl: null, ready: false };
+  }
+
+  const client = await getConfiguredClient();
+  const video = findJmvstreamVideoByHash(await client.listVideos(), videoHash);
+  const playerUrl = video?.playerUrl ?? null;
+
+  if (!playerUrl) {
+    return { playerUrl: null, ready: false };
+  }
+
+  await getPool().query(
+    `
+      update lessons
+      set video_embed_url = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [playerUrl, lessonId]
+  );
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set upload_status = 'ready',
+          last_error = null,
+          updated_at = now()
+      where video_hash = $1
+    `,
+    [videoHash]
+  );
+
+  return { playerUrl, ready: true };
 };
 
 export const markJmvstreamUploadFailed = async ({

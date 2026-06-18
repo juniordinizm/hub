@@ -11,8 +11,12 @@ import {
   initJmvstreamUploadAction,
   markJmvstreamUploadFailedAction,
   retryJmvstreamDeleteAction,
+  syncJmvstreamLessonPlayerAction,
 } from "@/features/admin/actions";
 import { uploadFileParts } from "@/features/jmvstream/upload";
+
+const PLAYER_SYNC_ATTEMPTS = 18;
+const PLAYER_SYNC_INTERVAL_MS = 5000;
 
 export interface JmvstreamUploadAsset {
   deleteStatus: string;
@@ -89,7 +93,13 @@ export function JmvstreamUploadPanel({
           videoHash: init.videoHash,
         });
         setProgress(100);
-        setStatus("Video enviado. Aguardando player oficial ficar disponivel.");
+        setStatus("Video enviado. Sincronizando player oficial...");
+        const playerReady = await waitForJmvstreamPlayer(lessonId);
+        setStatus(
+          playerReady
+            ? "Video pronto para as alunas."
+            : "Video enviado. Aguardando processamento na JMVStream."
+        );
         router.refresh();
       } catch (uploadError) {
         const errorMessage =
@@ -137,7 +147,8 @@ export function JmvstreamUploadPanel({
           <div>
             <h3 className="font-semibold text-sm">Upload JMVStream</h3>
             <p className="mt-1 text-muted-foreground text-xs">
-              Envia o arquivo para a pasta do curso e vincula o hash nesta aula.
+              Envia o arquivo para a galeria do modulo e vincula o hash nesta
+              aula.
             </p>
           </div>
           <Badge variant={asset ? "default" : "outline"}>
@@ -212,6 +223,22 @@ export function JmvstreamUploadPanel({
     </section>
   );
 }
+
+const waitForJmvstreamPlayer = async (lessonId: string): Promise<boolean> => {
+  for (let attempt = 0; attempt < PLAYER_SYNC_ATTEMPTS; attempt += 1) {
+    const result = await syncJmvstreamLessonPlayerAction({ lessonId });
+
+    if (result.ready) {
+      return true;
+    }
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, PLAYER_SYNC_INTERVAL_MS)
+    );
+  }
+
+  return false;
+};
 
 function UploadTimeline({
   progress,
