@@ -21,10 +21,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 interface SupportRequestDialogProps {
+  children?: React.ReactNode;
   courseTitle?: string;
   triggerClassName?: string;
   triggerLabel?: string;
-  triggerMode?: "button" | "custom";
+  triggerMode?: "button" | "custom" | "asChild";
   triggerSize?: "default" | "sm";
   triggerVariant?: "default" | "ghost" | "outline" | "secondary";
 }
@@ -32,6 +33,7 @@ interface SupportRequestDialogProps {
 const defaultSubject = "Preciso de ajuda com meu acesso";
 
 export function SupportRequestDialog({
+  children,
   courseTitle,
   triggerClassName,
   triggerLabel = "Falar com suporte",
@@ -41,35 +43,40 @@ export function SupportRequestDialog({
 }: SupportRequestDialogProps): React.JSX.Element {
   const subject = courseTitle ? `Suporte sobre ${courseTitle}` : defaultSubject;
 
+  let triggerElement: React.ReactNode = null;
+  if (triggerMode === "asChild") {
+    triggerElement = <DialogTrigger asChild>{children}</DialogTrigger>;
+  } else if (triggerMode === "custom") {
+    triggerElement = (
+      <DialogTrigger
+        className={cn(triggerClassName)}
+        data-size={triggerSize}
+        type="button"
+      >
+        <HugeiconsIcon
+          icon={CustomerService01Icon}
+          size={18}
+          strokeWidth={1.5}
+        />
+        <span>{triggerLabel}</span>
+      </DialogTrigger>
+    );
+  } else {
+    triggerElement = (
+      <DialogTriggerButton
+        className={triggerClassName}
+        size={triggerSize}
+        variant={triggerVariant}
+      >
+        <HugeiconsIcon icon={CustomerService01Icon} size={18} strokeWidth={2} />
+        {triggerLabel}
+      </DialogTriggerButton>
+    );
+  }
+
   return (
     <Dialog>
-      {triggerMode === "custom" ? (
-        <DialogTrigger
-          className={cn(triggerClassName)}
-          data-size={triggerSize}
-          type="button"
-        >
-          <HugeiconsIcon
-            icon={CustomerService01Icon}
-            size={18}
-            strokeWidth={1.5}
-          />
-          <span>{triggerLabel}</span>
-        </DialogTrigger>
-      ) : (
-        <DialogTriggerButton
-          className={triggerClassName}
-          size={triggerSize}
-          variant={triggerVariant}
-        >
-          <HugeiconsIcon
-            icon={CustomerService01Icon}
-            size={18}
-            strokeWidth={2}
-          />
-          {triggerLabel}
-        </DialogTriggerButton>
-      )}
+      {triggerElement}
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Enviar pedido de suporte</DialogTitle>

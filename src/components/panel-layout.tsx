@@ -1,27 +1,70 @@
-import { SignOutButton } from "@/components/sign-out-button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+"use client";
+
+import { Logout01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { createAuthClient } from "better-auth/react";
+import { type JSX, type ReactNode, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarProvider,
-  SidebarSeparator,
+  SidebarRail,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { getInitials } from "@/lib/get-initials";
 
 interface PanelLayoutProps {
-  readonly children: React.ReactNode;
-  readonly navContent: React.ReactNode;
+  readonly children: ReactNode;
+  readonly navContent: ReactNode;
   readonly panelLabel: string;
   readonly userEmail: string;
+  readonly userImage?: string | null;
   readonly userName: string;
+}
+
+const authClient = createAuthClient();
+
+function SidebarHeaderContent({ panelLabel }: { readonly panelLabel: string }) {
+  const { state } = useSidebar();
+
+  if (state === "collapsed") {
+    return (
+      <div className="flex w-full items-center justify-center py-2">
+        <SidebarTrigger />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full items-center justify-between px-2 pt-2 pb-1">
+      <div className="flex flex-col gap-0">
+        <p className="font-black text-lg text-sidebar-foreground tracking-[0.1em]">
+          PROTEA-R
+        </p>
+        <p className="truncate text-sidebar-foreground/55 text-xs">
+          {panelLabel}
+        </p>
+      </div>
+      <SidebarTrigger />
+    </div>
+  );
 }
 
 export function PanelLayout({
@@ -30,65 +73,111 @@ export function PanelLayout({
   panelLabel,
   userEmail,
   userName,
-}: PanelLayoutProps): React.JSX.Element {
+  userImage,
+}: PanelLayoutProps): JSX.Element {
   const initials = getInitials(userName);
+  const [isPending, setIsPending] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsPending(true);
+    await authClient.signOut();
+    window.location.assign("/entrar");
+  };
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      <Sidebar
-        className="border-sidebar-border bg-sidebar"
-        collapsible="offcanvas"
-      >
-        <SidebarHeader className="flex flex-col gap-0 px-0 pt-5 pb-0">
-          <div className="px-5 pb-4">
-            <p className="font-black text-lg text-sidebar-foreground">
-              PROTEA-R
-            </p>
-            <p className="text-sidebar-foreground/55 text-xs">{panelLabel}</p>
-          </div>
-          <SidebarSeparator />
-          <div className="px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Avatar className="size-9 shrink-0">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <p
-                  className="truncate font-semibold text-sidebar-foreground text-sm"
-                  title={userName}
-                >
-                  {userName}
-                </p>
-                <p
-                  className="truncate text-sidebar-foreground/55 text-xs"
-                  title={userEmail}
-                >
-                  {userEmail}
-                </p>
-              </div>
-            </div>
-          </div>
-          <SidebarSeparator />
+      <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
+        <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-0">
+          <SidebarHeaderContent panelLabel={panelLabel} />
         </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Menu</SidebarGroupLabel>
-            <SidebarGroupContent>{navContent}</SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarSeparator />
-        <SidebarFooter className="gap-3 px-5 pb-5">
-          <SignOutButton className="w-full" variant="ghost" />
+        <SidebarContent>{navContent}</SidebarContent>
+        <SidebarFooter className="gap-2 px-2 pb-2">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    className="rounded-xl data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    size="lg"
+                  >
+                    <Avatar className="size-8 shrink-0 rounded-full">
+                      {userImage ? (
+                        <AvatarImage
+                          alt={userName}
+                          referrerPolicy="no-referrer"
+                          src={userImage}
+                        />
+                      ) : null}
+                      <AvatarFallback className="rounded-full bg-primary/10 text-primary">
+                        {initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">{userName}</span>
+                      <span className="truncate text-sidebar-foreground/55 text-xs">
+                        {userEmail}
+                      </span>
+                    </div>
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
+                  side="top"
+                  sideOffset={4}
+                >
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                      <Avatar className="size-8 shrink-0 rounded-full">
+                        {userImage ? (
+                          <AvatarImage
+                            alt={userName}
+                            referrerPolicy="no-referrer"
+                            src={userImage}
+                          />
+                        ) : null}
+                        <AvatarFallback className="rounded-full bg-primary/10 text-primary">
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">
+                          {userName}
+                        </span>
+                        <span className="truncate text-muted-foreground text-xs">
+                          {userEmail}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    disabled={isPending}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      handleSignOut();
+                    }}
+                  >
+                    <HugeiconsIcon
+                      className="mr-2 size-4"
+                      icon={Logout01Icon}
+                    />
+                    <span>{isPending ? "Saindo..." : "Sair"}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
+        <SidebarRail />
       </Sidebar>
       <SidebarInset className="overflow-hidden">
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center border-border/40 border-b bg-background px-4 md:hidden">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-border/40 border-b bg-background px-4 md:hidden">
           <SidebarTrigger />
-          <span className="ml-3 font-semibold text-sm">PROTEA-R</span>
+          <span className="font-semibold text-sm">PROTEA-R</span>
         </header>
-        <ScrollArea className="h-[calc(100svh-3.5rem)] w-full md:h-svh">
+        <ScrollArea className="h-[calc(100svh-3.5rem)] w-full">
           <div className="flex-1">{children}</div>
         </ScrollArea>
       </SidebarInset>

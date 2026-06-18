@@ -1,6 +1,7 @@
 import {
   BookOpen01Icon,
   Certificate01Icon,
+  CustomerService01Icon,
   HelpCircleIcon,
   Home01Icon,
 } from "@hugeicons/core-free-icons";
@@ -13,6 +14,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
@@ -38,6 +40,7 @@ export default async function StudentLayout({
       navContent={<StudentNav courses={courses} />}
       panelLabel="Área do aluno"
       userEmail={session.user.email}
+      userImage={(session.user as { image?: string | null }).image ?? null}
       userName={session.user.name}
     >
       {children}
@@ -52,24 +55,32 @@ function StudentNav({
 }): React.JSX.Element {
   return (
     <>
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuLink href={route("/app")}>
-            <HugeiconsIcon icon={Home01Icon} size={18} strokeWidth={1.5} />
-            <span>Início</span>
-          </SidebarMenuLink>
-        </SidebarMenuItem>
-        <SidebarMenuItem>
-          <SidebarMenuLink href={route("/app/certificados")}>
-            <HugeiconsIcon
-              icon={Certificate01Icon}
-              size={18}
-              strokeWidth={1.5}
-            />
-            <span>Certificados</span>
-          </SidebarMenuLink>
-        </SidebarMenuItem>
-      </SidebarMenu>
+      <SidebarGroup>
+        <SidebarGroupLabel>Menu</SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuLink href={route("/app")} tooltip="Início">
+                <HugeiconsIcon icon={Home01Icon} size={18} strokeWidth={1.5} />
+                <span>Início</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuLink
+                href={route("/app/certificados")}
+                tooltip="Certificados"
+              >
+                <HugeiconsIcon
+                  icon={Certificate01Icon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
+                <span>Certificados</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
       {courses.length ? (
         <SidebarGroup>
           <SidebarGroupLabel>Meus cursos</SidebarGroupLabel>
@@ -80,6 +91,7 @@ function StudentNav({
                   <SidebarMenuLink
                     className="h-auto py-2"
                     href={route(`/app/cursos/${course.courseId}`)}
+                    tooltip={course.title}
                   >
                     <HugeiconsIcon
                       icon={BookOpen01Icon}
@@ -105,7 +117,10 @@ function StudentNav({
           <SidebarMenu>
             <SupportNavItems />
             <SidebarMenuItem>
-              <SidebarMenuLink href={route("/app/perguntas-frequentes")}>
+              <SidebarMenuLink
+                href={route("/app/perguntas-frequentes")}
+                tooltip="Perguntas frequentes"
+              >
                 <HugeiconsIcon
                   icon={HelpCircleIcon}
                   size={18}
@@ -124,11 +139,16 @@ function StudentNav({
 function SupportNavItems(): React.JSX.Element {
   return (
     <SidebarMenuItem>
-      <SupportRequestDialog
-        triggerClassName="peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-2 text-left text-sidebar-foreground text-sm outline-hidden transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-        triggerLabel="Suporte ao aluno"
-        triggerMode="custom"
-      />
+      <SupportRequestDialog triggerMode="asChild">
+        <SidebarMenuButton tooltip="Suporte ao aluno">
+          <HugeiconsIcon
+            icon={CustomerService01Icon}
+            size={18}
+            strokeWidth={1.5}
+          />
+          <span>Suporte ao aluno</span>
+        </SidebarMenuButton>
+      </SupportRequestDialog>
     </SidebarMenuItem>
   );
 }

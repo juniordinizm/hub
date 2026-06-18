@@ -12,6 +12,7 @@ export default async function AdminLayout({
       navContent={<AdminSidebarNav />}
       panelLabel="Painel administrativo"
       userEmail={session.user.email}
+      userImage={(session.user as { image?: string | null }).image ?? null}
       userName={session.user.name}
     >
       {children}

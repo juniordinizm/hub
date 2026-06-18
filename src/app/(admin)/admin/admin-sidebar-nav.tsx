@@ -11,6 +11,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuLink,
@@ -29,15 +32,20 @@ const navItems = [
 
 export function AdminSidebarNav(): React.JSX.Element {
   return (
-    <SidebarMenu>
-      {navItems.map(([label, href, icon]) => (
-        <SidebarMenuItem key={href}>
-          <SidebarMenuLink href={route(href)}>
-            <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
-            <span>{label}</span>
-          </SidebarMenuLink>
-        </SidebarMenuItem>
-      ))}
-    </SidebarMenu>
+    <SidebarGroup>
+      <SidebarGroupLabel>Menu</SidebarGroupLabel>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {navItems.map(([label, href, icon]) => (
+            <SidebarMenuItem key={href}>
+              <SidebarMenuLink href={route(href)} tooltip={label}>
+                <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
+                <span>{label}</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
