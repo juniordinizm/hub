@@ -1,0 +1,101 @@
+import { describe, expect, it } from "vitest";
+import {
+  getAdminOperationSignal,
+  summarizeAdminCourseHealth,
+  summarizeAdminStudentAccess,
+} from "./presentation";
+
+describe("admin presentation", () => {
+  it("summarizes course health and prioritizes incomplete courses", () => {
+    const summary = summarizeAdminCourseHealth([
+      {
+        hasDescription: true,
+        hasPaymentProviderProductId: true,
+        hasThumbnail: true,
+        moduleCount: 2,
+        publishedLessonCount: 8,
+        status: "active",
+        title: "Curso pronto",
+        totalLessonCount: 8,
+      },
+      {
+        hasDescription: false,
+        hasPaymentProviderProductId: false,
+        hasThumbnail: true,
+        moduleCount: 0,
+        publishedLessonCount: 0,
+        status: "draft",
+        title: "Curso incompleto",
+        totalLessonCount: 0,
+      },
+    ]);
+
+    expect(summary).toEqual({
+      activeCourses: 1,
+      averageReadinessPercent: 60,
+      coursesNeedingAttention: [
+        {
+          missingCount: 4,
+          readinessPercent: 20,
+          title: "Curso incompleto",
+        },
+      ],
+      draftCourses: 1,
+    });
+  });
+
+  it("prioritizes failed webhooks over other operation signals", () => {
+    expect(
+      getAdminOperationSignal({
+        coursesNeedingAttention: 3,
+        failedWebhooks: 1,
+        pendingOrders: 2,
+      })
+    ).toEqual({
+      tone: "attention",
+      label: "Revisar webhooks",
+      helper: "1 evento com falha pode afetar liberacao de acesso.",
+    });
+  });
+
+  it("returns a healthy signal when there are no pending issues", () => {
+    expect(
+      getAdminOperationSignal({
+        coursesNeedingAttention: 0,
+        failedWebhooks: 0,
+        pendingOrders: 0,
+      })
+    ).toEqual({
+      tone: "healthy",
+      label: "Operacao saudavel",
+      helper: "Catalogo, pedidos e webhooks sem pendencias criticas.",
+    });
+  });
+
+  it("summarizes student access health", () => {
+    const summary = summarizeAdminStudentAccess(
+      [
+        {
+          activeEnrollments: 1,
+          courseCount: 1,
+          latestExpiration: new Date("2026-07-10T00:00:00.000Z"),
+          status: "active",
+        },
+        {
+          activeEnrollments: 0,
+          courseCount: 0,
+          latestExpiration: null,
+          status: "not_enrolled",
+        },
+      ],
+      new Date("2026-06-18T00:00:00.000Z")
+    );
+
+    expect(summary).toEqual({
+      activeStudents: 1,
+      expiringSoonStudents: 1,
+      notEnrolledStudents: 1,
+      totalStudents: 2,
+    });
+  });
+});
