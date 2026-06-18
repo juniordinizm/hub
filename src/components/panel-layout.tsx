@@ -62,7 +62,7 @@ function SidebarHeaderContent() {
       <div className="flex min-w-0 flex-1 items-center">
         <Image
           alt="PROTEA-R"
-          className="h-auto max-h-14 w-full object-contain object-left"
+          className="h-auto max-h-14 w-[90%] object-contain object-left"
           height={100}
           src="/protear/logo-negativo.svg"
           width={400}
@@ -97,7 +97,7 @@ export function PanelLayout({
       {...(isFocusMode ? { open: false } : {})}
     >
       <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
-        <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-0">
+        <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-6">
           <SidebarHeaderContent />
         </SidebarHeader>
         <SidebarContent>{navContent}</SidebarContent>
