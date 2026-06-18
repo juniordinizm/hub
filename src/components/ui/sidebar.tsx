@@ -273,24 +273,35 @@ function SidebarTrigger({
   onClick,
   ...props
 }: ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state, isMobile } = useSidebar();
 
   return (
-    <Button
-      className={cn(className)}
-      data-sidebar="trigger"
-      data-slot="sidebar-trigger"
-      onClick={(event) => {
-        onClick?.(event);
-        toggleSidebar();
-      }}
-      size="icon-sm"
-      variant="ghost"
-      {...props}
-    >
-      <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
-      <span className="sr-only">Toggle Sidebar</span>
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          className={cn(className)}
+          data-sidebar="trigger"
+          data-slot="sidebar-trigger"
+          onClick={(event) => {
+            onClick?.(event);
+            toggleSidebar();
+          }}
+          size="icon-sm"
+          variant="ghost"
+          {...props}
+        >
+          <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
+          <span className="sr-only">Toggle Sidebar</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent
+        align="center"
+        hidden={state !== "collapsed" || isMobile}
+        side="right"
+      >
+        Expandir
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
