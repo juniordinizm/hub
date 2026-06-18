@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getAdminCourseContentSignal,
   getAdminFinancialSignal,
   getAdminOperationSignal,
+  summarizeAdminCourseContent,
   summarizeAdminCourseHealth,
   summarizeAdminFinancialHealth,
   summarizeAdminStudentAccess,
@@ -133,6 +135,55 @@ describe("admin presentation", () => {
       tone: "attention",
       label: "Disputas abertas",
       helper: "2 pedidos em disputa exige acompanhamento manual.",
+    });
+  });
+
+  it("summarizes course content health", () => {
+    const summary = summarizeAdminCourseContent({
+      modules: [{ id: "module-1" }, { id: "module-2" }],
+      lessons: [
+        {
+          durationSeconds: 600,
+          isPublished: true,
+          moduleId: "module-1",
+          videoEmbedUrl: null,
+          videoExternalId: "video-1",
+          videoProvider: "jmvstream",
+        },
+        {
+          durationSeconds: 300,
+          isPublished: false,
+          moduleId: "module-1",
+          videoEmbedUrl: null,
+          videoExternalId: null,
+          videoProvider: null,
+        },
+      ],
+    });
+
+    expect(summary).toEqual({
+      draftLessons: 1,
+      emptyModules: 1,
+      publishedLessons: 1,
+      totalDurationSeconds: 900,
+      totalLessons: 2,
+      videoReadyLessons: 1,
+      withoutVideoLessons: 1,
+    });
+  });
+
+  it("prioritizes missing lesson videos in course content signal", () => {
+    expect(
+      getAdminCourseContentSignal({
+        draftLessons: 2,
+        emptyModules: 1,
+        totalLessons: 4,
+        withoutVideoLessons: 1,
+      })
+    ).toEqual({
+      tone: "attention",
+      label: "Aulas sem video",
+      helper: "1 aula ainda precisa de video ou embed.",
     });
   });
 });

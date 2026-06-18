@@ -69,6 +69,35 @@ export interface AdminFinancialSignal {
   tone: "attention" | "healthy" | "watch";
 }
 
+export interface AdminLessonContentInput {
+  durationSeconds: number;
+  isPublished: boolean;
+  moduleId: string;
+  videoEmbedUrl: string | null;
+  videoExternalId: string | null;
+  videoProvider: string | null;
+}
+
+export interface AdminModuleContentInput {
+  id: string;
+}
+
+export interface AdminCourseContentSummary {
+  draftLessons: number;
+  emptyModules: number;
+  publishedLessons: number;
+  totalDurationSeconds: number;
+  totalLessons: number;
+  videoReadyLessons: number;
+  withoutVideoLessons: number;
+}
+
+export interface AdminCourseContentSignal {
+  helper: string;
+  label: string;
+  tone: "attention" | "healthy" | "watch";
+}
+
 const COURSE_HEALTH_CHECK_COUNT = 5;
 const EXPIRING_ACCESS_DAYS = 30;
 const MAX_ATTENTION_COURSES = 4;
@@ -279,5 +308,92 @@ export const getAdminFinancialSignal = ({
     tone: "healthy",
     label: "Receita sem alerta",
     helper: "Pedidos recentes sem disputa, pendencia ou reembolso aberto.",
+  };
+};
+
+const hasLessonVideo = (lesson: AdminLessonContentInput): boolean =>
+  Boolean(
+    lesson.videoEmbedUrl?.trim() ||
+      lesson.videoExternalId?.trim() ||
+      lesson.videoProvider?.trim()
+  );
+
+export const summarizeAdminCourseContent = ({
+  lessons,
+  modules,
+}: {
+  lessons: readonly AdminLessonContentInput[];
+  modules: readonly AdminModuleContentInput[];
+}): AdminCourseContentSummary => {
+  const videoReadyLessons = lessons.filter(hasLessonVideo).length;
+
+  return {
+    draftLessons: lessons.filter((lesson) => !lesson.isPublished).length,
+    emptyModules: modules.filter(
+      (moduleData) =>
+        !lessons.some((lesson) => lesson.moduleId === moduleData.id)
+    ).length,
+    publishedLessons: lessons.filter((lesson) => lesson.isPublished).length,
+    totalDurationSeconds: lessons.reduce(
+      (sum, lesson) => sum + Math.max(0, lesson.durationSeconds),
+      0
+    ),
+    totalLessons: lessons.length,
+    videoReadyLessons,
+    withoutVideoLessons: lessons.length - videoReadyLessons,
+  };
+};
+
+export const getAdminCourseContentSignal = ({
+  draftLessons,
+  emptyModules,
+  totalLessons,
+  withoutVideoLessons,
+}: Pick<
+  AdminCourseContentSummary,
+  "draftLessons" | "emptyModules" | "totalLessons" | "withoutVideoLessons"
+>): AdminCourseContentSignal => {
+  if (totalLessons === 0) {
+    return {
+      tone: "attention",
+      label: "Sem aulas",
+      helper: "Crie a primeira aula antes de colocar este curso a venda.",
+    };
+  }
+
+  if (withoutVideoLessons > 0) {
+    return {
+      tone: "attention",
+      label: "Aulas sem video",
+      helper: `${withoutVideoLessons} aula${
+        withoutVideoLessons === 1 ? "" : "s"
+      } ainda precisa de video ou embed.`,
+    };
+  }
+
+  if (draftLessons > 0) {
+    return {
+      tone: "watch",
+      label: "Rascunhos pendentes",
+      helper: `${draftLessons} aula${
+        draftLessons === 1 ? "" : "s"
+      } ainda nao aparece para alunos.`,
+    };
+  }
+
+  if (emptyModules > 0) {
+    return {
+      tone: "watch",
+      label: "Modulos vazios",
+      helper: `${emptyModules} modulo${
+        emptyModules === 1 ? "" : "s"
+      } sem aulas pode confundir a estrutura do curso.`,
+    };
+  }
+
+  return {
+    tone: "healthy",
+    label: "Conteudo pronto",
+    helper: "Aulas publicadas, com video e organizadas em modulos.",
   };
 };
