@@ -1,14 +1,14 @@
 "use client";
 
-import { Logout01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeftIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createAuthClient } from "better-auth/react";
 import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type JSX, type ReactNode, useState } from "react";
-import { DynamicBreadcrumb } from "@/components/dynamic-breadcrumb";
 import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,7 +83,11 @@ export function PanelLayout({
   const initials = getInitials(userName);
   const [isPending, setIsPending] = useState(false);
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const isFocusMode = searchParams.get("focus") === "1";
+
+  const showBackButton = pathname !== "/app" && pathname !== "/admin";
 
   const handleSignOut = async () => {
     setIsPending(true);
@@ -184,13 +188,25 @@ export function PanelLayout({
       </Sidebar>
       <SidebarInset className="overflow-hidden">
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-border/40 border-b bg-background px-4">
-          <div className="flex flex-1 items-center justify-start gap-4">
+          <div className="flex flex-1 items-center justify-start gap-2">
             {isFocusMode ? null : (
               <SidebarTrigger className="shrink-0 md:hidden" />
             )}
-            <div className="hidden md:block">
-              <DynamicBreadcrumb />
-            </div>
+            {showBackButton && (
+              <Button
+                className="shrink-0"
+                onClick={() => router.back()}
+                size="icon-sm"
+                title="Voltar"
+                variant="ghost"
+              >
+                <HugeiconsIcon
+                  className="size-4"
+                  icon={ArrowLeftIcon}
+                  strokeWidth={2.5}
+                />
+              </Button>
+            )}
           </div>
           <div className="flex flex-1 items-center justify-center md:hidden">
             <Image
