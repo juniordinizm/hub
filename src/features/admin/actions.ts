@@ -728,16 +728,16 @@ export const reorderLessonsAction = async (
 
     // Pass 1: Set to temporary negative order to avoid unique constraint violations
     for (let i = 0; i < orderedLessonIds.length; i++) {
-      await client.query(
-        "update lessons set sort_order = $1 where id = $2 and module_id = $3",
-        [-(i + 1), orderedLessonIds[i], moduleId]
-      );
+      await client.query("update lessons set sort_order = $1 where id = $2", [
+        -(i + 1),
+        orderedLessonIds[i],
+      ]);
     }
 
-    // Pass 2: Set to final correct order
+    // Pass 2: Set to final correct order AND update module_id
     for (let i = 0; i < orderedLessonIds.length; i++) {
       await client.query(
-        "update lessons set sort_order = $1, updated_at = now() where id = $2 and module_id = $3",
+        "update lessons set sort_order = $1, module_id = $3, updated_at = now() where id = $2",
         [i + 1, orderedLessonIds[i], moduleId]
       );
     }

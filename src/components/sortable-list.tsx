@@ -92,6 +92,7 @@ export function SortableList({
 interface SortableItemProps {
   children: React.ReactNode;
   className?: string;
+  data?: Record<string, unknown>;
   handleClassName?: string;
   id: string;
 }
@@ -101,6 +102,7 @@ export function SortableItem({
   children,
   className,
   handleClassName,
+  data,
 }: SortableItemProps) {
   const {
     attributes,
@@ -109,7 +111,7 @@ export function SortableItem({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id });
+  } = useSortable(data ? { id, data } : { id });
 
   const style = {
     transform: CSS.Transform.toString(transform),

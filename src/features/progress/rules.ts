@@ -59,9 +59,29 @@ export const isLessonAvailable = ({
     return true;
   }
 
-  return (
-    getNextAvailableLessonId({ lessonIds, completedLessonIds }) === lessonId
-  );
+  let lastCompletedIndex = -1;
+  for (let i = lessonIds.length - 1; i >= 0; i--) {
+    const id = lessonIds[i];
+    if (id !== undefined && completed.has(id)) {
+      lastCompletedIndex = i;
+      break;
+    }
+  }
+
+  const targetIndex = lessonIds.indexOf(lessonId);
+  if (targetIndex === -1) {
+    return false;
+  }
+
+  if (targetIndex <= lastCompletedIndex) {
+    return true;
+  }
+
+  if (targetIndex === lastCompletedIndex + 1) {
+    return true;
+  }
+
+  return false;
 };
 
 export const calculateVideoPositionProgress = ({
