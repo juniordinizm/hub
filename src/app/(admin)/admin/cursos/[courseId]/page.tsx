@@ -107,6 +107,8 @@ export default async function AdminCourseDetailPage({
     publishedLessonCount: publishedLessons.length,
     totalLessonCount: lessons.length,
   });
+  const nextModuleSortOrder =
+    modules.length > 0 ? Math.max(...modules.map((m) => m.sortOrder)) + 1 : 1;
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
@@ -295,23 +297,10 @@ export default async function AdminCourseDetailPage({
                       Adicione uma unidade ao curso.
                     </DialogDescription>
                   </DialogHeader>
-                  <ModuleForm course={course} />
-                </DialogContent>
-              </Dialog>
-
-              <Dialog>
-                <DialogTriggerButton variant="secondary">
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Nova aula
-                </DialogTriggerButton>
-                <DialogContent className="sm:max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>Nova aula</DialogTitle>
-                    <DialogDescription>
-                      Cadastre uma aula em um dos módulos do curso.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <LessonForm modules={modules} />
+                  <ModuleForm
+                    course={course}
+                    nextSortOrder={nextModuleSortOrder}
+                  />
                 </DialogContent>
               </Dialog>
             </section>
@@ -441,6 +430,10 @@ function ModuleSection({
   const moduleLessons = lessons.filter(
     (lesson) => lesson.moduleId === moduleData.id
   );
+  const nextLessonSortOrder =
+    moduleLessons.length > 0
+      ? Math.max(...moduleLessons.map((l) => l.sortOrder)) + 1
+      : 1;
 
   return (
     <section className="rounded-lg border bg-card">
@@ -458,6 +451,25 @@ function ModuleSection({
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{moduleLessons.length} aulas</Badge>
+          <Dialog>
+            <DialogTriggerButton size="sm" variant="outline">
+              <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
+              Nova aula
+            </DialogTriggerButton>
+            <DialogContent className="sm:max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Nova aula</DialogTitle>
+                <DialogDescription>
+                  Cadastre uma aula neste módulo.
+                </DialogDescription>
+              </DialogHeader>
+              <LessonForm
+                defaultModuleId={moduleData.id}
+                modules={modules}
+                nextSortOrder={nextLessonSortOrder}
+              />
+            </DialogContent>
+          </Dialog>
           <Dialog>
             <DialogTriggerButton size="sm" variant="secondary">
               <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
@@ -560,9 +572,11 @@ function LessonRow({
 function ModuleForm({
   course,
   moduleData,
+  nextSortOrder,
 }: {
   course: CourseData;
   moduleData?: ModuleData;
+  nextSortOrder?: number;
 }): React.JSX.Element {
   return (
     <div className="space-y-4">
@@ -578,7 +592,7 @@ function ModuleForm({
             <Field>
               <FieldLabel>Ordem</FieldLabel>
               <Input
-                defaultValue={moduleData?.sortOrder ?? 1}
+                defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
                 min={1}
                 name="sortOrder"
                 required
@@ -625,12 +639,16 @@ function ModuleForm({
 
 function LessonForm({
   asset,
+  defaultModuleId,
   lesson,
   modules,
+  nextSortOrder,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
+  defaultModuleId?: string;
   lesson?: LessonData;
   modules: ModuleData[];
+  nextSortOrder?: number;
 }): React.JSX.Element {
   const publishedFieldId = `lesson-is-published-${lesson?.id ?? "new"}`;
 
@@ -643,7 +661,9 @@ function LessonForm({
             <Field>
               <FieldLabel>Módulo</FieldLabel>
               <Select
-                defaultValue={lesson?.moduleId ?? modules[0]?.id ?? ""}
+                defaultValue={
+                  lesson?.moduleId ?? defaultModuleId ?? modules[0]?.id ?? ""
+                }
                 name="moduleId"
                 required
               >
@@ -666,7 +686,7 @@ function LessonForm({
               defaultDurationSeconds={lesson?.durationSeconds ?? 0}
               defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
               defaultLessonType={lesson?.lessonType ?? "video"}
-              defaultOrder={lesson?.sortOrder ?? 1}
+              defaultOrder={lesson?.sortOrder ?? nextSortOrder ?? 1}
               lessonId={lesson?.id}
             />
           </div>

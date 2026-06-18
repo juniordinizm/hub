@@ -135,6 +135,32 @@ function EmptyCoursesState(): React.JSX.Element {
   );
 }
 
+function getCourseButtonLabel(
+  progressPercent: number,
+  hasNextLesson: boolean
+): string {
+  if (progressPercent === 0) {
+    return "Iniciar curso";
+  }
+  if (hasNextLesson) {
+    return "Continuar curso";
+  }
+  return "Rever trilha";
+}
+
+function getShortCourseButtonLabel(
+  progressPercent: number,
+  hasNextLesson: boolean
+): string {
+  if (progressPercent === 0) {
+    return "Iniciar";
+  }
+  if (hasNextLesson) {
+    return "Continuar";
+  }
+  return "Rever";
+}
+
 function NextCoursePanel({
   course,
 }: {
@@ -192,7 +218,10 @@ function NextCoursePanel({
               </div>
               <Button asChild className="mt-6">
                 <Link href={href}>
-                  {course.nextLessonId ? "Continuar curso" : "Rever trilha"}
+                  {getCourseButtonLabel(
+                    course.progressPercent,
+                    Boolean(course.nextLessonId)
+                  )}
                   <HugeiconsIcon icon={ArrowRight01Icon} />
                 </Link>
               </Button>
@@ -364,7 +393,10 @@ function CourseAccessControls({
       <div className="flex flex-wrap gap-2">
         <Button asChild className="flex-1" size="sm">
           <Link href={primaryHref}>
-            {course.nextLessonId ? "Continuar" : "Rever"}
+            {getShortCourseButtonLabel(
+              course.progressPercent,
+              Boolean(course.nextLessonId)
+            )}
           </Link>
         </Button>
         <Button asChild className="flex-1" size="sm" variant="outline">

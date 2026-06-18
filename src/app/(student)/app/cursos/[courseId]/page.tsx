@@ -25,6 +25,19 @@ import { CourseOverviewClient } from "./course-overview-client";
 
 export const dynamic = "force-dynamic";
 
+function getCourseButtonLabel(
+  progressPercent: number,
+  hasNextLesson: boolean
+): string {
+  if (progressPercent === 0) {
+    return "Iniciar curso";
+  }
+  if (hasNextLesson) {
+    return "Continuar curso";
+  }
+  return "Rever trilha";
+}
+
 export default async function StudentCourseOverviewPage({
   params,
   searchParams,
@@ -135,7 +148,10 @@ export default async function StudentCourseOverviewPage({
             <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
               <Button asChild className="w-full sm:flex-1 xl:w-full">
                 <Link href={primaryHref}>
-                  {data.nextLessonId ? "Continuar curso" : "Rever trilha"}
+                  {getCourseButtonLabel(
+                    data.progressPercent,
+                    Boolean(data.nextLessonId)
+                  )}
                 </Link>
               </Button>
               <div className="flex gap-2">
