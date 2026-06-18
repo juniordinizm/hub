@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { PanelLayout } from "@/components/panel-layout";
 import {
   SidebarGroup,
@@ -34,19 +35,11 @@ export default async function StudentLayout({
     redirect(route("/admin"));
   }
 
-  const [courses, rawWhatsappUrl] = await Promise.all([
-    getStudentCourses(session.user.id),
-    getSupportWhatsappUrl(),
-  ]);
-  const supportWhatsappUrl = rawWhatsappUrl
-    ? formatWhatsappUrl(rawWhatsappUrl)
-    : null;
+  const courses = await getStudentCourses(session.user.id);
 
   return (
     <PanelLayout
-      navContent={
-        <StudentNav courses={courses} supportWhatsappUrl={supportWhatsappUrl} />
-      }
+      navContent={<StudentNav courses={courses} />}
       panelLabel="Área do aluno"
       userEmail={session.user.email}
       userName={session.user.name}
@@ -58,10 +51,8 @@ export default async function StudentLayout({
 
 function StudentNav({
   courses,
-  supportWhatsappUrl,
 }: {
   courses: Awaited<ReturnType<typeof getStudentCourses>>;
-  supportWhatsappUrl: string | null;
 }): React.JSX.Element {
   return (
     <>
@@ -116,20 +107,9 @@ function StudentNav({
         <SidebarGroupLabel>Suporte</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {supportWhatsappUrl ? (
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a href={supportWhatsappUrl} rel="noopener" target="_blank">
-                    <HugeiconsIcon
-                      icon={CustomerService01Icon}
-                      size={18}
-                      strokeWidth={1.5}
-                    />
-                    <span>Suporte ao aluno</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ) : null}
+            <Suspense fallback={<SupportNavSkeleton />}>
+              <SupportNavItems />
+            </Suspense>
             <SidebarMenuItem>
               <SidebarMenuLink href={route("/app/perguntas-frequentes")}>
                 <HugeiconsIcon
@@ -144,5 +124,47 @@ function StudentNav({
         </SidebarGroupContent>
       </SidebarGroup>
     </>
+  );
+}
+
+/**
+ * Async Server Component that fetches the support WhatsApp URL independently.
+ * Wrapped in <Suspense> so the layout never blocks navigation waiting for this data,
+ * and the component re-renders on each navigation instead of being cached with the layout.
+ */
+async function SupportNavItems(): Promise<React.JSX.Element | null> {
+  const rawWhatsappUrl = await getSupportWhatsappUrl();
+  const supportWhatsappUrl = rawWhatsappUrl
+    ? formatWhatsappUrl(rawWhatsappUrl)
+    : null;
+
+  if (!supportWhatsappUrl) {
+    return null;
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild>
+        <a href={supportWhatsappUrl} rel="noopener" target="_blank">
+          <HugeiconsIcon
+            icon={CustomerService01Icon}
+            size={18}
+            strokeWidth={1.5}
+          />
+          <span>Suporte ao aluno</span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function SupportNavSkeleton(): React.JSX.Element {
+  return (
+    <SidebarMenuItem>
+      <div className="flex h-8 items-center gap-2 rounded-md px-2">
+        <div className="size-[18px] animate-pulse rounded bg-sidebar-foreground/10" />
+        <div className="h-3.5 w-24 animate-pulse rounded bg-sidebar-foreground/10" />
+      </div>
+    </SidebarMenuItem>
   );
 }
