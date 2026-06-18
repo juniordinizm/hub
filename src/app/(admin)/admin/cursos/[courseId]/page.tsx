@@ -1,9 +1,5 @@
-import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -14,7 +10,6 @@ import { getAdminManagementData } from "@/features/admin/server";
 import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
-import { route } from "@/lib/routes";
 import { CourseActionsDropdown } from "./course-actions-dropdown";
 import {
   ContentStatusCard,
@@ -77,14 +72,7 @@ export default async function AdminCourseDetailPage({
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
-          <Link
-            className={buttonVariants({ size: "sm", variant: "ghost" })}
-            href={route("/admin/cursos")}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
-            Voltar para cursos
-          </Link>
-          <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <Badge variant="outline">Curso</Badge>
               <h1 className="mt-3 font-bold text-3xl tracking-tight">

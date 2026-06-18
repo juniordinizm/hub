@@ -1,4 +1,5 @@
 import {
+  type BookOpen01Icon,
   CheckmarkCircle02Icon,
   PlayIcon,
   Route03Icon,

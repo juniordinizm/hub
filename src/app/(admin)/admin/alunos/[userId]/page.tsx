@@ -1,10 +1,9 @@
-import { ArrowLeft01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DatePickerField } from "@/components/date-picker-field";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { updateEnrollmentAction } from "@/features/admin/actions";
 import { getAdminStudentDetail } from "@/features/admin/server";
-import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
@@ -43,17 +41,6 @@ export default async function AdminStudentDetailPage({
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
-          <Link
-            className={buttonVariants({
-              className: "mb-5",
-              size: "sm",
-              variant: "ghost",
-            })}
-            href={route("/admin/alunos")}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
-            Voltar para alunos
-          </Link>
           <Badge variant="outline">Aluno</Badge>
           <h1 className="mt-3 font-bold text-3xl tracking-tight">
             {student.name}

@@ -1,5 +1,4 @@
 import {
-  ArrowLeft01Icon,
   ArrowRight01Icon,
   Maximize01Icon,
   Minimize01Icon,
@@ -105,16 +104,6 @@ export default async function LessonPage({
       )}
     >
       <section className="min-w-0 overflow-y-auto">
-        <LessonTopBar
-          courseHref={lessonView.courseHref}
-          courseTitle={data.course.title}
-          focusHref={lessonView.focusHref}
-          isCompleted={data.lesson.isCompleted}
-          isFocusMode={lessonView.isFocusMode}
-          isPreview={Boolean(previewMode)}
-          lessonId={data.lesson.id}
-        />
-
         {previewMode ? <PreviewBanner /> : null}
 
         <LessonVideoPlayer
@@ -127,9 +116,39 @@ export default async function LessonPage({
           videoEmbedUrl={lessonView.videoEmbedUrl}
           videoProvider={data.lesson.videoProvider}
         >
-          <h1 className="mt-3 max-w-3xl font-bold text-2xl text-white tracking-tight">
-            {data.lesson.title}
-          </h1>
+          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <h1 className="max-w-3xl font-bold text-2xl text-white tracking-tight">
+              {data.lesson.title}
+            </h1>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button asChild size="sm" variant="outline">
+                <Link href={lessonView.focusHref}>
+                  <HugeiconsIcon
+                    icon={
+                      lessonView.isFocusMode ? Minimize01Icon : Maximize01Icon
+                    }
+                    size={16}
+                    strokeWidth={2}
+                  />
+                  {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
+                </Link>
+              </Button>
+              {data.lesson.isCompleted ? (
+                <Badge
+                  className="border-emerald-400/35 bg-emerald-400/15 py-1.5 text-emerald-200"
+                  variant="outline"
+                >
+                  Aula concluída
+                </Badge>
+              ) : (
+                <CompleteLessonButton
+                  isPreview={Boolean(previewMode)}
+                  lessonId={data.lesson.id}
+                  size="sm"
+                />
+              )}
+            </div>
+          </div>
           {data.lesson.description ? (
             <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7">
               {data.lesson.description}
@@ -234,64 +253,6 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
       moduleTitle: module.title,
       title: lesson.title,
     }))
-  );
-}
-
-function LessonTopBar({
-  courseHref,
-  courseTitle,
-  focusHref,
-  isCompleted,
-  isFocusMode,
-  isPreview,
-  lessonId,
-}: {
-  courseHref: Route;
-  courseTitle: string;
-  focusHref: Route;
-  isCompleted: boolean;
-  isFocusMode: boolean;
-  isPreview: boolean;
-  lessonId: string;
-}): React.JSX.Element {
-  return (
-    <div className="sticky top-0 z-10 flex min-h-14 items-center justify-between gap-4 border-b bg-sidebar px-5 py-2 sm:px-8">
-      <Button asChild size="sm" variant="ghost">
-        <Link href={courseHref}>
-          <HugeiconsIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
-          Curso
-        </Link>
-      </Button>
-      <p className="hidden truncate font-semibold text-sm sm:block">
-        {courseTitle}
-      </p>
-      <div className="flex items-center gap-2">
-        <Button asChild size="sm" variant="outline">
-          <Link href={focusHref}>
-            <HugeiconsIcon
-              icon={isFocusMode ? Minimize01Icon : Maximize01Icon}
-              size={16}
-              strokeWidth={2}
-            />
-            {isFocusMode ? "Sair do foco" : "Modo foco"}
-          </Link>
-        </Button>
-        {isCompleted ? (
-          <Badge
-            className="border-emerald-400/35 bg-emerald-400/15 text-emerald-200"
-            variant="outline"
-          >
-            Aula concluída
-          </Badge>
-        ) : (
-          <CompleteLessonButton
-            isPreview={isPreview}
-            lessonId={lessonId}
-            size="sm"
-          />
-        )}
-      </div>
-    </div>
   );
 }
 

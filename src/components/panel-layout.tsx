@@ -6,6 +6,7 @@ import { createAuthClient } from "better-auth/react";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { type JSX, type ReactNode, useState } from "react";
+import { DynamicBreadcrumb } from "@/components/dynamic-breadcrumb";
 import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -93,7 +94,7 @@ export function PanelLayout({
   return (
     <SidebarProvider
       className="h-svh overflow-hidden"
-      open={isFocusMode ? false : undefined}
+      {...(isFocusMode ? { open: false } : {})}
     >
       <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
         <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-0">
@@ -183,10 +184,13 @@ export function PanelLayout({
       </Sidebar>
       <SidebarInset className="overflow-hidden">
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-border/40 border-b bg-background px-4">
-          <div className="flex flex-1 items-center justify-start">
+          <div className="flex flex-1 items-center justify-start gap-4">
             {isFocusMode ? null : (
               <SidebarTrigger className="shrink-0 md:hidden" />
             )}
+            <div className="hidden md:block">
+              <DynamicBreadcrumb />
+            </div>
           </div>
           <div className="flex flex-1 items-center justify-center md:hidden">
             <Image

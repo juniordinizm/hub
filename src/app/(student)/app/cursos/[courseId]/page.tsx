@@ -71,24 +71,13 @@ export default async function StudentCourseOverviewPage({
       previewMode
     )
   );
-  const backHref = route(
+  const _backHref = route(
     previewMode ? `/admin/cursos/${data.course.id}` : "/app"
   );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-border/50 border-b bg-muted/15 px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
-        <Button
-          asChild
-          className="mb-6 -ml-3 text-muted-foreground hover:text-foreground"
-          size="sm"
-          variant="ghost"
-        >
-          <Link href={backHref}>
-            {previewMode ? "Sair do preview" : "← Voltar para meus cursos"}
-          </Link>
-        </Button>
-
         {previewMode ? (
           <div className="mb-6 rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm">
             <strong>Preview de aluno.</strong> Todas as aulas ficam liberadas e
