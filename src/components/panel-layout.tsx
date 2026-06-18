@@ -4,6 +4,7 @@ import { Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createAuthClient } from "better-auth/react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { type JSX, type ReactNode, useState } from "react";
 import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -44,11 +45,13 @@ const authClient = createAuthClient();
 
 function SidebarHeaderContent() {
   const { state, isMobile } = useSidebar();
+  const searchParams = useSearchParams();
+  const isFocusMode = searchParams.get("focus") === "1";
 
   if (state === "collapsed" && !isMobile) {
     return (
       <div className="flex w-full items-center justify-center py-2">
-        <SidebarTrigger />
+        {isFocusMode ? null : <SidebarTrigger />}
       </div>
     );
   }
@@ -64,7 +67,7 @@ function SidebarHeaderContent() {
           width={400}
         />
       </div>
-      <SidebarTrigger className="shrink-0" />
+      {isFocusMode ? null : <SidebarTrigger className="shrink-0" />}
     </div>
   );
 }
@@ -78,6 +81,8 @@ export function PanelLayout({
 }: PanelLayoutProps): JSX.Element {
   const initials = getInitials(userName);
   const [isPending, setIsPending] = useState(false);
+  const searchParams = useSearchParams();
+  const isFocusMode = searchParams.get("focus") === "1";
 
   const handleSignOut = async () => {
     setIsPending(true);
@@ -86,7 +91,10 @@ export function PanelLayout({
   };
 
   return (
-    <SidebarProvider className="h-svh overflow-hidden">
+    <SidebarProvider
+      className="h-svh overflow-hidden"
+      open={isFocusMode ? false : undefined}
+    >
       <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
         <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-0">
           <SidebarHeaderContent />
@@ -176,7 +184,9 @@ export function PanelLayout({
       <SidebarInset className="overflow-hidden">
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-border/40 border-b bg-background px-4">
           <div className="flex flex-1 items-center justify-start">
-            <SidebarTrigger className="shrink-0 md:hidden" />
+            {isFocusMode ? null : (
+              <SidebarTrigger className="shrink-0 md:hidden" />
+            )}
           </div>
           <div className="flex flex-1 items-center justify-center md:hidden">
             <Image
