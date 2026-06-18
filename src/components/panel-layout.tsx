@@ -87,7 +87,18 @@ export function PanelLayout({
   const router = useRouter();
   const isFocusMode = searchParams.get("focus") === "1";
 
-  const showBackButton = pathname !== "/app" && pathname !== "/admin";
+  const showBackButton = ![
+    "/app",
+    "/app/certificados",
+    "/app/perguntas-frequentes",
+    "/admin",
+    "/admin/cursos",
+    "/admin/alunos",
+    "/admin/financeiro",
+    "/admin/faq",
+    "/admin/configuracoes",
+    "/admin/auditoria",
+  ].includes(pathname);
 
   const handleSignOut = async () => {
     setIsPending(true);

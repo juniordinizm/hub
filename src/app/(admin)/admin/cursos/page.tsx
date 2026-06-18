@@ -69,7 +69,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
-          <Badge variant="outline">Catálogo</Badge>
+          <Badge variant="outline">Cursos</Badge>
           <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>

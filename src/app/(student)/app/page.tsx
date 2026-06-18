@@ -62,7 +62,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           <div className="grid grid-cols-3 gap-3 rounded-lg border bg-card p-4">
             <Metric label="Acessos" value={activeCount.toString()} />
             <Metric label="Concluídos" value={completedCount.toString()} />
-            <Metric label="Catálogo" value={courses.length.toString()} />
+            <Metric label="Cursos" value={courses.length.toString()} />
           </div>
         </div>
       </section>

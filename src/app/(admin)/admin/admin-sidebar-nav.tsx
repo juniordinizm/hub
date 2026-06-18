@@ -22,7 +22,7 @@ import { route } from "@/lib/routes";
 
 const navItems = [
   ["Painel", "/admin", Analytics01Icon],
-  ["Catálogo", "/admin/cursos", Book01Icon],
+  ["Cursos", "/admin/cursos", Book01Icon],
   ["Alunos", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
   ["FAQ", "/admin/faq", HelpCircleIcon],
