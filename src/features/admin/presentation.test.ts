@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  getAdminFinancialSignal,
   getAdminOperationSignal,
   summarizeAdminCourseHealth,
+  summarizeAdminFinancialHealth,
   summarizeAdminStudentAccess,
 } from "./presentation";
 
@@ -96,6 +98,41 @@ describe("admin presentation", () => {
       expiringSoonStudents: 1,
       notEnrolledStudents: 1,
       totalStudents: 2,
+    });
+  });
+
+  it("summarizes financial health from order statuses", () => {
+    const summary = summarizeAdminFinancialHealth([
+      { amountInCents: 50_000, status: "paid" },
+      { amountInCents: 70_000, status: "paid" },
+      { amountInCents: 90_000, status: "pending" },
+      { amountInCents: 30_000, status: "refunded" },
+    ]);
+
+    expect(summary).toEqual({
+      averagePaidTicketInCents: 60_000,
+      checkoutConversionPercent: 50,
+      disputedOrders: 0,
+      paidOrders: 2,
+      paidRevenueInCents: 120_000,
+      pendingOrders: 1,
+      pendingRevenueInCents: 90_000,
+      refundedOrders: 1,
+      totalOrders: 4,
+    });
+  });
+
+  it("prioritizes disputed financial orders", () => {
+    expect(
+      getAdminFinancialSignal({
+        disputedOrders: 2,
+        pendingOrders: 5,
+        refundedOrders: 1,
+      })
+    ).toEqual({
+      tone: "attention",
+      label: "Disputas abertas",
+      helper: "2 pedidos em disputa exige acompanhamento manual.",
     });
   });
 });

@@ -46,6 +46,29 @@ export interface AdminStudentAccessSummary {
   totalStudents: number;
 }
 
+export interface AdminFinancialOrderInput {
+  amountInCents: number;
+  status: string;
+}
+
+export interface AdminFinancialHealthSummary {
+  averagePaidTicketInCents: number;
+  checkoutConversionPercent: number;
+  disputedOrders: number;
+  paidOrders: number;
+  paidRevenueInCents: number;
+  pendingOrders: number;
+  pendingRevenueInCents: number;
+  refundedOrders: number;
+  totalOrders: number;
+}
+
+export interface AdminFinancialSignal {
+  helper: string;
+  label: string;
+  tone: "attention" | "healthy" | "watch";
+}
+
 const COURSE_HEALTH_CHECK_COUNT = 5;
 const EXPIRING_ACCESS_DAYS = 30;
 const MAX_ATTENTION_COURSES = 4;
@@ -180,3 +203,81 @@ export const summarizeAdminStudentAccess = (
     .length,
   totalStudents: students.length,
 });
+
+export const summarizeAdminFinancialHealth = (
+  orders: readonly AdminFinancialOrderInput[]
+): AdminFinancialHealthSummary => {
+  const paidOrders = orders.filter((order) => order.status === "paid");
+  const pendingOrders = orders.filter((order) => order.status === "pending");
+  const disputedOrders = orders.filter((order) => order.status === "disputed");
+  const refundedOrders = orders.filter((order) => order.status === "refunded");
+  const paidRevenueInCents = paidOrders.reduce(
+    (sum, order) => sum + order.amountInCents,
+    0
+  );
+  const pendingRevenueInCents = pendingOrders.reduce(
+    (sum, order) => sum + order.amountInCents,
+    0
+  );
+
+  return {
+    averagePaidTicketInCents: paidOrders.length
+      ? Math.round(paidRevenueInCents / paidOrders.length)
+      : 0,
+    checkoutConversionPercent: orders.length
+      ? Math.round((paidOrders.length / orders.length) * 100)
+      : 0,
+    disputedOrders: disputedOrders.length,
+    paidOrders: paidOrders.length,
+    paidRevenueInCents,
+    pendingOrders: pendingOrders.length,
+    pendingRevenueInCents,
+    refundedOrders: refundedOrders.length,
+    totalOrders: orders.length,
+  };
+};
+
+export const getAdminFinancialSignal = ({
+  disputedOrders,
+  pendingOrders,
+  refundedOrders,
+}: Pick<
+  AdminFinancialHealthSummary,
+  "disputedOrders" | "pendingOrders" | "refundedOrders"
+>): AdminFinancialSignal => {
+  if (disputedOrders > 0) {
+    return {
+      tone: "attention",
+      label: "Disputas abertas",
+      helper: `${disputedOrders} pedido${
+        disputedOrders === 1 ? "" : "s"
+      } em disputa exige acompanhamento manual.`,
+    };
+  }
+
+  if (pendingOrders > 0) {
+    return {
+      tone: "watch",
+      label: "Aguardando pagamento",
+      helper: `${pendingOrders} checkout${
+        pendingOrders === 1 ? "" : "s"
+      } ainda nao virou acesso pago.`,
+    };
+  }
+
+  if (refundedOrders > 0) {
+    return {
+      tone: "watch",
+      label: "Reembolsos registrados",
+      helper: `${refundedOrders} pedido${
+        refundedOrders === 1 ? "" : "s"
+      } reembolsado deve estar refletido no acesso.`,
+    };
+  }
+
+  return {
+    tone: "healthy",
+    label: "Receita sem alerta",
+    helper: "Pedidos recentes sem disputa, pendencia ou reembolso aberto.",
+  };
+};
