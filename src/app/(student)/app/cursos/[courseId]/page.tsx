@@ -1,9 +1,24 @@
+import {
+  BookOpen01Icon,
+  Certificate01Icon,
+  Clock01Icon,
+  CustomerService01Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getStudentCoursePrimaryHref } from "@/features/courses/presentation";
-import { getStudentCourseOverviewData } from "@/features/courses/server";
+import {
+  getPreviewAwareHref,
+  getStudentPreviewMode,
+} from "@/features/courses/preview";
+import {
+  getCoursePreviewOverviewData,
+  getStudentCourseOverviewData,
+} from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { CourseOverviewClient } from "./course-overview-client";
@@ -12,73 +27,113 @@ export const dynamic = "force-dynamic";
 
 export default async function StudentCourseOverviewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ courseId: string }>;
+  searchParams: Promise<{ preview?: string | string[] }>;
 }): Promise<React.JSX.Element> {
-  const [{ courseId }, session] = await Promise.all([params, requireSession()]);
-  const data = await getStudentCourseOverviewData({
-    courseId,
-    userId: session.user.id,
-  });
+  const [{ courseId }, { preview }, session] = await Promise.all([
+    params,
+    searchParams,
+    requireSession(),
+  ]);
+  const previewMode = getStudentPreviewMode({ preview, role: session.role });
+  const data = previewMode
+    ? await getCoursePreviewOverviewData({ courseId })
+    : await getStudentCourseOverviewData({
+        courseId,
+        userId: session.user.id,
+      });
 
   if (!data) {
     notFound();
   }
 
   const primaryHref = route(
-    getStudentCoursePrimaryHref({
-      courseId: data.course.id,
-      nextLessonId: data.nextLessonId,
-    })
+    getPreviewAwareHref(
+      getStudentCoursePrimaryHref({
+        courseId: data.course.id,
+        nextLessonId: data.nextLessonId,
+      }),
+      previewMode
+    )
+  );
+  const backHref = route(
+    previewMode ? `/admin/cursos/${data.course.id}` : "/app"
   );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="border-border/50 border-b px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
+      <section className="border-border/50 border-b bg-muted/15 px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
         <Button
           asChild
           className="mb-6 -ml-3 text-muted-foreground hover:text-foreground"
           size="sm"
           variant="ghost"
         >
-          <Link href={route("/app")}>← Voltar para meus cursos</Link>
+          <Link href={backHref}>
+            {previewMode ? "Sair do preview" : "← Voltar para meus cursos"}
+          </Link>
         </Button>
 
-        <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-end">
-          <div className="max-w-3xl flex-1">
-            <h1 className="font-bold text-3xl tracking-tight md:text-4xl">
+        {previewMode ? (
+          <div className="mb-6 rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm">
+            <strong>Preview de aluno.</strong> Todas as aulas ficam liberadas e
+            nenhum progresso é gravado.
+          </div>
+        ) : null}
+
+        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
+          <div className="max-w-4xl">
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">Trilha privada</Badge>
+              {data.certificateCode ? (
+                <Badge variant="outline">Certificado liberado</Badge>
+              ) : null}
+            </div>
+            <h1 className="mt-4 font-extrabold text-3xl tracking-tight md:text-5xl">
               {data.course.title}
             </h1>
-            {data.course.subtitle ? (
-              <p className="mt-3 text-muted-foreground text-sm leading-relaxed md:text-base">
-                {data.course.subtitle}
-              </p>
-            ) : null}
+            <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7 md:text-base">
+              {data.course.subtitle ??
+                data.course.description ??
+                "Avance pelas aulas na ordem da trilha, acompanhe seu progresso e conclua o curso para liberar o certificado."}
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <CourseMetric
+                icon={BookOpen01Icon}
+                label="Aulas"
+                value={data.totalCount.toString()}
+              />
+              <CourseMetric
+                icon={Clock01Icon}
+                label="Carga horária"
+                value={`${data.course.workloadHours}h`}
+              />
+              <CourseMetric
+                icon={Certificate01Icon}
+                label="Conclusão"
+                value={`${data.progressPercent}%`}
+              />
+            </div>
           </div>
 
-          <div className="flex w-full flex-col gap-4 lg:max-w-xs lg:shrink-0">
+          <div className="flex w-full flex-col gap-4 rounded-lg border bg-card p-5 xl:shrink-0">
             <div>
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {data.totalCount}
-                  </span>{" "}
-                  aulas
-                  <span>·</span>
-                  <span className="font-medium text-foreground">
-                    {data.course.workloadHours}h
-                  </span>{" "}
-                  total
-                </div>
-                <span className="font-semibold text-primary">
-                  {data.progressPercent}%
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Progresso do curso
                 </span>
+                <span className="font-semibold">{data.progressPercent}%</span>
               </div>
-              <Progress className="h-1.5" value={data.progressPercent} />
+              <Progress className="h-2" value={data.progressPercent} />
+              <p className="mt-3 text-muted-foreground text-sm">
+                {data.completedCount} de {data.totalCount} aulas concluídas.
+              </p>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
-              <Button asChild className="w-full sm:flex-1 lg:w-full">
+            <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+              <Button asChild className="w-full sm:flex-1 xl:w-full">
                 <Link href={primaryHref}>
                   {data.nextLessonId ? "Continuar curso" : "Rever trilha"}
                 </Link>
@@ -108,6 +163,7 @@ export default async function StudentCourseOverviewPage({
                       rel="noopener"
                       target="_blank"
                     >
+                      <HugeiconsIcon icon={CustomerService01Icon} />
                       Suporte
                     </a>
                   </Button>
@@ -121,7 +177,28 @@ export default async function StudentCourseOverviewPage({
       <CourseOverviewClient
         modules={data.modules}
         nextLessonId={data.nextLessonId}
+        previewMode={previewMode}
       />
     </main>
+  );
+}
+
+function CourseMetric({
+  icon,
+  label,
+  value,
+}: {
+  icon: typeof BookOpen01Icon;
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <HugeiconsIcon icon={icon} />
+        {label}
+      </div>
+      <p className="mt-2 font-bold text-2xl tabular-nums">{value}</p>
+    </div>
   );
 }

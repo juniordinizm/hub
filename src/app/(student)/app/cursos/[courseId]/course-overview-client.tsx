@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { LessonCard, type LessonStatus } from "@/components/ui/lesson-card";
 import { Progress } from "@/components/ui/progress";
+import type { StudentPreviewMode } from "@/features/courses/preview";
+import { getPreviewAwareHref } from "@/features/courses/preview";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 
@@ -28,11 +30,13 @@ interface ModuleData {
 interface CourseOverviewClientProps {
   modules: ModuleData[];
   nextLessonId: string | null;
+  previewMode: StudentPreviewMode | null;
 }
 
 export function CourseOverviewClient({
   modules,
   nextLessonId,
+  previewMode,
 }: CourseOverviewClientProps): React.JSX.Element {
   const flatLessons = useMemo(
     () => modules.flatMap((m) => m.lessons),
@@ -94,7 +98,12 @@ export function CourseOverviewClient({
     }
 
     return (
-      <Link href={route(`/app/aulas/${lesson.id}`)} key={lesson.id}>
+      <Link
+        href={route(
+          getPreviewAwareHref(`/app/aulas/${lesson.id}`, previewMode)
+        )}
+        key={lesson.id}
+      >
         {card}
       </Link>
     );
@@ -106,10 +115,12 @@ export function CourseOverviewClient({
         <section className="border-border/50 border-b bg-muted/20 px-6 pt-9 pb-6 sm:px-10 lg:px-12">
           <div>
             <h2 className="font-bold text-xl tracking-tight">
-              Continuar assistindo
+              {previewMode ? "Preview da trilha" : "Continuar assistindo"}
             </h2>
             <p className="mt-1 text-muted-foreground text-sm">
-              Retome de onde você parou
+              {previewMode
+                ? "Todas as aulas aparecem liberadas para revisão do admin."
+                : "Retome de onde você parou."}
             </p>
           </div>
 
@@ -121,9 +132,7 @@ export function CourseOverviewClient({
 
       <section className="px-6 py-9 sm:px-10 lg:px-12">
         <div className="mb-10">
-          <h2 className="font-bold text-2xl tracking-tight">
-            Conteúdo do Curso
-          </h2>
+          <h2 className="font-bold text-2xl tracking-tight">Trilha do curso</h2>
           <p className="mt-1 text-muted-foreground text-sm">
             {modules.length} {modules.length === 1 ? "módulo" : "módulos"} ·{" "}
             {flatLessons.length} {flatLessons.length === 1 ? "aula" : "aulas"}
@@ -149,7 +158,7 @@ export function CourseOverviewClient({
               <div className="flex flex-col" key={moduleData.id}>
                 <div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-end">
                   <div>
-                    <h3 className="mb-1 font-semibold text-foreground text-lg text-muted-foreground text-sm uppercase tracking-wider">
+                    <h3 className="font-semibold text-muted-foreground text-sm uppercase">
                       Módulo {moduleData.sortOrder}
                     </h3>
                     <h4 className="font-bold text-xl">{moduleData.title}</h4>

@@ -18,6 +18,7 @@ import {
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
+import { isPreviewRole } from "@/features/courses/preview";
 import {
   getStudentCourses,
   getSupportWhatsappUrl,
@@ -31,11 +32,12 @@ export default async function StudentLayout({
 }: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {
   const session = await requireSession();
 
-  if (session.role !== "student") {
+  if (!(session.role === "student" || isPreviewRole(session.role))) {
     redirect(route("/admin"));
   }
 
-  const courses = await getStudentCourses(session.user.id);
+  const courses =
+    session.role === "student" ? await getStudentCourses(session.user.id) : [];
 
   return (
     <PanelLayout

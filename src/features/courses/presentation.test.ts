@@ -4,6 +4,8 @@ import {
   getCourseAccessPresentation,
   getStudentCatalogAccessPresentation,
   getStudentCoursePrimaryHref,
+  groupFaqItemsByCategory,
+  groupStudentCatalogCourses,
   summarizeCoursePublicationReadiness,
 } from "./presentation";
 
@@ -80,6 +82,46 @@ describe("course presentation helpers", () => {
         nextLessonId: null,
       })
     ).toBe("/app/cursos/course-1");
+  });
+
+  it("groups catalog courses by learning state", () => {
+    const courses = [
+      {
+        accessStatus: "none",
+        progressPercent: 0,
+      },
+      {
+        accessStatus: "active",
+        progressPercent: 100,
+      },
+      {
+        accessStatus: "active",
+        progressPercent: 35,
+      },
+      {
+        accessStatus: "expired",
+        progressPercent: 80,
+      },
+    ] as const;
+
+    expect(groupStudentCatalogCourses(courses)).toEqual({
+      active: [courses[2]],
+      completed: [courses[1]],
+      locked: [courses[0], courses[3]],
+    });
+  });
+
+  it("groups FAQ items by category using Geral as fallback", () => {
+    const faqItems = [
+      { category: "Acesso", id: "1" },
+      { category: " ", id: "2" },
+      { category: "Acesso", id: "3" },
+    ] as const;
+
+    expect(groupFaqItemsByCategory(faqItems)).toEqual([
+      { items: [faqItems[0], faqItems[2]], name: "Acesso" },
+      { items: [faqItems[1]], name: "Geral" },
+    ]);
   });
 
   it("summarizes publication readiness for admin course operations", () => {

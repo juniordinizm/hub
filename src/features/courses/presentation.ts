@@ -53,6 +53,28 @@ export interface CoursePublicationReadiness {
   totalCount: number;
 }
 
+export interface StudentCatalogCourseGroupingInput {
+  accessStatus: StudentCatalogAccessStatus;
+  progressPercent: number;
+}
+
+export interface StudentCatalogCourseGroups<
+  TCourse extends StudentCatalogCourseGroupingInput,
+> {
+  active: TCourse[];
+  completed: TCourse[];
+  locked: TCourse[];
+}
+
+export interface FaqCategoryGroupingInput {
+  category: string;
+}
+
+export interface FaqCategoryGroup<TItem extends FaqCategoryGroupingInput> {
+  items: TItem[];
+  name: string;
+}
+
 const getDaysUntil = (date: Date, now: Date): number =>
   Math.max(
     0,
@@ -140,6 +162,50 @@ export const getStudentCoursePrimaryHref = ({
   nextLessonId,
 }: StudentCourseHrefInput): string =>
   nextLessonId ? `/app/aulas/${nextLessonId}` : `/app/cursos/${courseId}`;
+
+export const groupStudentCatalogCourses = <
+  TCourse extends StudentCatalogCourseGroupingInput,
+>(
+  courses: readonly TCourse[]
+): StudentCatalogCourseGroups<TCourse> => {
+  const groups: StudentCatalogCourseGroups<TCourse> = {
+    active: [],
+    completed: [],
+    locked: [],
+  };
+
+  for (const course of courses) {
+    if (course.accessStatus !== "active") {
+      groups.locked.push(course);
+      continue;
+    }
+
+    if (course.progressPercent >= 100) {
+      groups.completed.push(course);
+      continue;
+    }
+
+    groups.active.push(course);
+  }
+
+  return groups;
+};
+
+export const groupFaqItemsByCategory = <TItem extends FaqCategoryGroupingInput>(
+  items: readonly TItem[]
+): FaqCategoryGroup<TItem>[] => {
+  const groups = new Map<string, TItem[]>();
+
+  for (const item of items) {
+    const name = item.category.trim() || "Geral";
+    groups.set(name, [...(groups.get(name) ?? []), item]);
+  }
+
+  return [...groups.entries()].map(([name, groupItems]) => ({
+    name,
+    items: groupItems,
+  }));
+};
 
 export const summarizeCoursePublicationReadiness = ({
   hasDescription,

@@ -1,6 +1,13 @@
-import { Download01Icon } from "@hugeicons/core-free-icons";
+import {
+  Award01Icon,
+  Certificate01Icon,
+  Download01Icon,
+  FileValidationIcon,
+  Shield01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,18 +29,27 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
   const certificates = await getCertificatesForUser(session.user.id);
 
   return (
-    <div className="min-h-screen bg-background px-5 py-6 text-foreground sm:px-8 lg:px-10">
-      <h1 className="font-bold text-3xl tracking-tight">Meus certificados</h1>
-      <div className="mt-8 grid gap-4">
+    <main className="min-h-screen bg-background px-6 py-9 text-foreground sm:px-10 lg:px-12">
+      <section className="grid gap-6 rounded-lg border bg-card p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
+        <div>
+          <Badge variant="secondary">Certificados</Badge>
+          <h1 className="mt-4 max-w-3xl font-extrabold text-3xl tracking-tight md:text-5xl">
+            Suas conclusões validadas
+          </h1>
+          <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">
+            Cada certificado emitido fica disponível para download e validação
+            pública por código.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Metric label="Emitidos" value={certificates.length.toString()} />
+          <Metric label="Validação" value="QR" />
+        </div>
+      </section>
+
+      <section className="mt-8 grid gap-4">
         {certificates.length === 0 ? (
-          <Card>
-            <CardContent>
-              <p className="text-muted-foreground text-sm">
-                Seus certificados aparecem aqui quando voce conclui 100% de um
-                curso.
-              </p>
-            </CardContent>
-          </Card>
+          <EmptyCertificatesState />
         ) : (
           certificates.map((certificate) => (
             <Card key={certificate.code}>
@@ -47,29 +63,83 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
                 </CardDescription>
                 <CardAction className="flex gap-2">
                   <Button asChild>
-                    <Link
-                      className="gap-2"
-                      href={route(`/certificados/${certificate.code}/pdf`)}
-                    >
-                      <HugeiconsIcon
-                        icon={Download01Icon}
-                        size={16}
-                        strokeWidth={2}
-                      />
+                    <Link href={route(`/certificados/${certificate.code}/pdf`)}>
+                      <HugeiconsIcon icon={Download01Icon} />
                       Baixar PDF
                     </Link>
                   </Button>
                   <Button asChild variant="outline">
                     <Link href={route(`/certificados/${certificate.code}`)}>
+                      <HugeiconsIcon icon={FileValidationIcon} />
                       Validar
                     </Link>
                   </Button>
                 </CardAction>
               </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm sm:grid-cols-3">
+                  <InfoPill
+                    icon={Certificate01Icon}
+                    label="Certificado digital"
+                  />
+                  <InfoPill icon={Shield01Icon} label="Código verificável" />
+                  <InfoPill icon={Award01Icon} label="Conclusão do curso" />
+                </div>
+              </CardContent>
             </Card>
           ))
         )}
-      </div>
+      </section>
+    </main>
+  );
+}
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-md bg-background/45 px-3 py-3">
+      <p className="font-bold text-2xl tabular-nums">{value}</p>
+      <p className="text-muted-foreground text-xs">{label}</p>
     </div>
+  );
+}
+
+function EmptyCertificatesState(): React.JSX.Element {
+  return (
+    <Card>
+      <CardHeader>
+        <CardDescription>Em andamento</CardDescription>
+        <CardTitle>Nenhum certificado emitido ainda</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="max-w-2xl text-muted-foreground text-sm leading-6">
+          Conclua 100% das aulas de um curso ativo para liberar o certificado e
+          o link público de validação.
+        </p>
+        <Button asChild className="mt-5" variant="outline">
+          <Link href={route("/app")}>Voltar para meus cursos</Link>
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function InfoPill({
+  icon,
+  label,
+}: {
+  icon: typeof Certificate01Icon;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <span className="inline-flex items-center gap-2 rounded-md border bg-background/45 px-3 py-2 text-muted-foreground">
+      <HugeiconsIcon icon={icon} />
+      {label}
+    </span>
   );
 }

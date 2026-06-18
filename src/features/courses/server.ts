@@ -101,6 +101,7 @@ export interface StudentCourseOverviewData {
     title: string;
     workloadHours: number;
   };
+  isPreview: boolean;
   modules: Array<{
     color: string;
     description: string | null;
@@ -134,6 +135,7 @@ export interface StudentLessonData {
     title: string;
     supportWhatsappUrl: string | null;
   };
+  isPreview: boolean;
   lesson: {
     id: string;
     title: string;
@@ -222,6 +224,27 @@ interface CourseOverviewRow {
   support_whatsapp_url: string | null;
   thumbnail_url: string | null;
   watched_percent: number | null;
+  workload_hours: number;
+}
+
+interface CoursePreviewOverviewRow {
+  course_description: string | null;
+  course_id: string;
+  course_slug: string;
+  course_subtitle: string | null;
+  course_title: string;
+  duration_seconds: number | null;
+  lesson_id: string | null;
+  lesson_sort_order: number | null;
+  lesson_title: string | null;
+  lesson_type: string | null;
+  module_color: string | null;
+  module_description: string | null;
+  module_id: string | null;
+  module_sort_order: number | null;
+  module_title: string | null;
+  support_whatsapp_url: string | null;
+  thumbnail_url: string | null;
   workload_hours: number;
 }
 
@@ -710,10 +733,117 @@ export const getStudentCourseOverviewData = async ({
       supportWhatsappUrl: firstRow.support_whatsapp_url,
       expiresAt: firstRow.expires_at,
     },
+    isPreview: false,
     modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
     nextLessonId: getNextAvailableLessonId({ lessonIds, completedLessonIds }),
     progressPercent: progress.percent,
     totalCount: progress.totalCount,
+  };
+};
+
+export const getCoursePreviewOverviewData = async ({
+  courseId,
+}: {
+  courseId: string;
+}): Promise<StudentCourseOverviewData | null> => {
+  const { rows } = await getPool().query<CoursePreviewOverviewRow>(
+    `
+      select
+        c.id as course_id,
+        c.slug as course_slug,
+        c.title as course_title,
+        c.subtitle as course_subtitle,
+        c.description as course_description,
+        c.workload_hours,
+        c.thumbnail_url,
+        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
+        m.id as module_id,
+        m.title as module_title,
+        m.description as module_description,
+        m.sort_order as module_sort_order,
+        m.color as module_color,
+        l.id as lesson_id,
+        l.title as lesson_title,
+        l.lesson_type,
+        l.duration_seconds,
+        l.sort_order as lesson_sort_order
+      from courses c
+      left join app_settings s on s.id = 'global'
+      left join modules m on m.course_id = c.id
+      left join lessons l on l.module_id = m.id
+      where c.id = $1
+      order by m.sort_order asc, l.sort_order asc
+    `,
+    [courseId]
+  );
+  const firstRow = rows[0];
+
+  if (!firstRow) {
+    return null;
+  }
+
+  const lessonIds = rows
+    .map((row) => row.lesson_id)
+    .filter((lessonId): lessonId is string => Boolean(lessonId));
+  const modules = new Map<
+    string,
+    StudentCourseOverviewData["modules"][number]
+  >();
+
+  for (const row of rows) {
+    if (!(row.module_id && row.module_title && row.module_sort_order)) {
+      continue;
+    }
+
+    const moduleData = modules.get(row.module_id) ?? {
+      id: row.module_id,
+      title: row.module_title,
+      description: row.module_description,
+      sortOrder: row.module_sort_order,
+      color: row.module_color ?? "#326c71",
+      lessons: [],
+    };
+
+    if (
+      row.lesson_id &&
+      row.lesson_title &&
+      row.lesson_sort_order !== null &&
+      row.duration_seconds !== null
+    ) {
+      moduleData.lessons.push({
+        id: row.lesson_id,
+        title: row.lesson_title,
+        lessonType: row.lesson_type ?? "video",
+        durationSeconds: row.duration_seconds,
+        sortOrder: row.lesson_sort_order,
+        isCompleted: false,
+        watchedPercent: 0,
+        isAvailable: true,
+      });
+    }
+
+    modules.set(row.module_id, moduleData);
+  }
+
+  return {
+    certificateCode: null,
+    completedCount: 0,
+    course: {
+      id: firstRow.course_id,
+      slug: firstRow.course_slug,
+      title: firstRow.course_title,
+      subtitle: firstRow.course_subtitle,
+      description: firstRow.course_description,
+      workloadHours: firstRow.workload_hours,
+      thumbnailUrl: firstRow.thumbnail_url,
+      supportWhatsappUrl: firstRow.support_whatsapp_url,
+      expiresAt: new Date(),
+    },
+    isPreview: true,
+    modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+    nextLessonId: lessonIds[0] ?? null,
+    progressPercent: 0,
+    totalCount: lessonIds.length,
   };
 };
 
@@ -835,6 +965,7 @@ export const getStudentLessonData = async ({
       title: activeLesson.course_title,
       supportWhatsappUrl: activeLesson.support_whatsapp_url,
     },
+    isPreview: false,
     lesson: {
       id: activeLesson.lesson_id,
       title: activeLesson.lesson_title,
@@ -855,6 +986,97 @@ export const getStudentLessonData = async ({
     },
     modules: mapModules(rows),
     progressPercent: progress.percent,
+    nextLessonId: lessonIds[lessonIndex + 1] ?? null,
+    previousLessonId: lessonIds[lessonIndex - 1] ?? null,
+  };
+};
+
+export const getPreviewLessonData = async ({
+  lessonId,
+}: {
+  lessonId: string;
+}): Promise<StudentLessonData | null> => {
+  const { rows } = await getPool().query<LessonRow>(
+    `
+      with target_course as (
+        select m.course_id
+        from lessons l
+        join modules m on m.id = l.module_id
+        where l.id = $1
+      )
+      select
+        c.id as course_id,
+        c.title as course_title,
+        coalesce(c.support_whatsapp_url, s.support_whatsapp_url) as support_whatsapp_url,
+        m.id as module_id,
+        m.title as module_title,
+        m.sort_order as module_sort_order,
+        m.color as module_color,
+        l.id as lesson_id,
+        l.title as lesson_title,
+        l.description as lesson_description,
+        l.duration_seconds,
+        l.sort_order as lesson_sort_order,
+        l.video_embed_url,
+        l.video_provider,
+        null::timestamp as completed_at,
+        null::integer as watch_current_seconds,
+        null::integer as watch_duration_seconds,
+        null::integer as watch_max_position_seconds,
+        null::integer as watch_percent
+      from target_course tc
+      join courses c on c.id = tc.course_id
+      left join app_settings s on s.id = 'global'
+      join modules m on m.course_id = c.id
+      join lessons l on l.module_id = m.id
+      order by m.sort_order asc, l.sort_order asc
+    `,
+    [lessonId]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const activeLesson = rows.find((row) => row.lesson_id === lessonId);
+
+  if (!activeLesson) {
+    return null;
+  }
+
+  const lessonIds = rows.map((row) => row.lesson_id);
+  const lessonIndex = lessonIds.indexOf(lessonId);
+
+  return {
+    course: {
+      id: activeLesson.course_id,
+      title: activeLesson.course_title,
+      supportWhatsappUrl: activeLesson.support_whatsapp_url,
+    },
+    isPreview: true,
+    lesson: {
+      id: activeLesson.lesson_id,
+      title: activeLesson.lesson_title,
+      description: activeLesson.lesson_description,
+      durationSeconds: activeLesson.duration_seconds,
+      isCompleted: false,
+      watchProgress: null,
+      videoEmbedUrl: activeLesson.video_embed_url,
+      videoProvider: activeLesson.video_provider,
+    },
+    modules: mapModules(
+      rows.map((row) => ({
+        ...row,
+        completed_at: null,
+      }))
+    ).map((moduleData) => ({
+      ...moduleData,
+      lessons: moduleData.lessons.map((lesson) => ({
+        ...lesson,
+        isAvailable: true,
+      })),
+    })),
+    progressPercent: 0,
     nextLessonId: lessonIds[lessonIndex + 1] ?? null,
     previousLessonId: lessonIds[lessonIndex - 1] ?? null,
   };

@@ -34,6 +34,7 @@ export function LessonVideoPlayer({
   children,
   durationSeconds,
   initialWatchedPercent,
+  isPreview,
   lessonId,
   progressPercent,
   title,
@@ -43,6 +44,7 @@ export function LessonVideoPlayer({
   children: React.ReactNode;
   durationSeconds: number;
   initialWatchedPercent: number;
+  isPreview: boolean;
   lessonId: string;
   progressPercent: number;
   title: string;
@@ -98,6 +100,7 @@ export function LessonVideoPlayer({
       }
 
       if (
+        isPreview ||
         !shouldApplyDetectedDuration({
           currentSeconds: syncedDurationRef.current,
           detectedSeconds,
@@ -119,12 +122,19 @@ export function LessonVideoPlayer({
         }
       });
     },
-    [displayDurationSeconds, lessonId]
+    [displayDurationSeconds, isPreview, lessonId]
   );
 
   const handlePlayerEvent = useCallback(
     (playerEvent: JmvstreamPlayerEvent) => {
       const now = Date.now();
+      if (isPreview) {
+        setWatchedPercent((currentPercent) =>
+          Math.max(currentPercent, playerEvent.watchedPercent)
+        );
+        return;
+      }
+
       const shouldSyncWatchProgress =
         playerEvent.eventName === "jmvplayerout-end" ||
         now - lastWatchProgressSyncRef.current.syncedAt >=
@@ -174,7 +184,7 @@ export function LessonVideoPlayer({
         }
       });
     },
-    [lessonId, router, watchedPercent]
+    [isPreview, lessonId, router, watchedPercent]
   );
 
   useEffect(() => {
@@ -234,7 +244,7 @@ export function LessonVideoPlayer({
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-            Video em configuracao
+            Vídeo em configuração
           </div>
         )}
       </AspectRatio>

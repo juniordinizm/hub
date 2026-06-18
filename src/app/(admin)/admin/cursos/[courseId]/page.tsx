@@ -31,6 +31,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -586,11 +587,13 @@ function LessonForm({
                   <SelectValue placeholder="Selecione o módulo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {modules.map((module) => (
-                    <SelectItem key={module.id} value={module.id}>
-                      {module.title}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {modules.map((module) => (
+                      <SelectItem key={module.id} value={module.id}>
+                        {module.title}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
