@@ -13,6 +13,7 @@ import {
   ensureJmvstreamCourseFolder,
   ensureJmvstreamModuleFolder,
   initJmvstreamUpload,
+  markJmvstreamUploadFailed,
   retryJmvstreamAssetDelete,
 } from "@/features/jmvstream/server";
 import { parsePriceToCents } from "@/features/payments/abacatepay";
@@ -507,6 +508,15 @@ export const completeJmvstreamUploadAction = async (input: {
 }): Promise<void> => {
   await requireRole(["admin"]);
   await completeJmvstreamUpload(input);
+  revalidateAdmin();
+};
+
+export const markJmvstreamUploadFailedAction = async (input: {
+  lastError: string;
+  videoHash: string;
+}): Promise<void> => {
+  await requireRole(["admin"]);
+  await markJmvstreamUploadFailed(input);
   revalidateAdmin();
 };
 

@@ -1,10 +1,16 @@
 import "server-only";
 import { getPool } from "@/db";
 import {
+  authenticateJmvstreamApi,
   createJmvstreamClient,
+  findJmvstreamFolderByName,
+  isJmvstreamJwtUsable,
   type JmvstreamCompleteUploadInput,
+  type JmvstreamCompleteUploadResponse,
+  type JmvstreamFolderResponse,
   type JmvstreamInitUploadInput,
 } from "@/features/jmvstream/client";
+import { JMVSTREAM_UPLOAD_CHUNK_SIZE } from "@/features/jmvstream/upload-config";
 import { getServerEnv } from "@/lib/env";
 
 export interface JmvstreamAsset {
@@ -16,6 +22,16 @@ export interface JmvstreamAsset {
   lessonId: string | null;
   uploadStatus: string;
   videoHash: string;
+}
+
+export interface JmvstreamHealthSummary {
+  auth: "error" | "ok";
+  failedDeletes: number;
+  failedUploads: number;
+  folderCount: number;
+  message: string;
+  pendingDeletes: number;
+  processingUploads: number;
 }
 
 interface FolderRecord {
@@ -34,26 +50,59 @@ interface LessonContext {
   module_title: string;
 }
 
-const getConfiguredClient = () => {
+let cachedApiToken: string | null = null;
+
+const getConfiguredClient = async () => {
   const env = getServerEnv();
 
-  if (!(env.JMVSTREAM_API_TOKEN && env.JMVSTREAM_PLAN_ID)) {
-    throw new Error(
-      "Configure JMVSTREAM_API_TOKEN e JMVSTREAM_PLAN_ID para usar a JMVStream."
-    );
+  if (!env.JMVSTREAM_PLAN_ID) {
+    throw new Error("Configure JMVSTREAM_PLAN_ID para usar a JMVStream.");
   }
 
-  if (!env.JMVSTREAM_API_TOKEN.includes(".")) {
-    throw new Error(
-      "JMVSTREAM_API_TOKEN precisa ser o token Bearer retornado por /v1/authenticate. O valor atual parece um UUID/chave, nao o JWT da API."
-    );
-  }
+  const apiToken = await getJmvstreamApiToken();
 
   return createJmvstreamClient({
     apiBaseUrl: env.JMVSTREAM_API_BASE_URL,
-    apiToken: env.JMVSTREAM_API_TOKEN,
+    apiToken,
     planId: env.JMVSTREAM_PLAN_ID,
   });
+};
+
+const getJmvstreamApiToken = async (): Promise<string> => {
+  const env = getServerEnv();
+  const configuredToken = env.JMVSTREAM_API_TOKEN;
+
+  if (configuredToken && isJmvstreamJwtUsable(configuredToken)) {
+    return configuredToken;
+  }
+
+  if (isJmvstreamJwtUsable(cachedApiToken)) {
+    return cachedApiToken as string;
+  }
+
+  if (
+    env.JMVSTREAM_AUTH_EMAIL &&
+    env.JMVSTREAM_AUTH_PASSWORD &&
+    env.JMVSTREAM_AUTH_RESOURCE
+  ) {
+    cachedApiToken = await authenticateJmvstreamApi({
+      apiBaseUrl: env.JMVSTREAM_API_BASE_URL,
+      email: env.JMVSTREAM_AUTH_EMAIL,
+      password: env.JMVSTREAM_AUTH_PASSWORD,
+      resource: env.JMVSTREAM_AUTH_RESOURCE,
+    });
+    return cachedApiToken;
+  }
+
+  if (env.JMVSTREAM_API_TOKEN) {
+    throw new Error(
+      "O token JMVStream configurado expirou. Configure JMVSTREAM_AUTH_EMAIL, JMVSTREAM_AUTH_PASSWORD e JMVSTREAM_AUTH_RESOURCE para renovacao automatica."
+    );
+  }
+
+  throw new Error(
+    "Configure credenciais JMVStream server-only para usar uploads no admin."
+  );
 };
 
 export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
@@ -72,7 +121,7 @@ export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
              upload_status, delete_status, last_error
       from jmvstream_video_assets
       where delete_status <> 'deleted'
-      order by updated_at desc
+      order by jmvstream_video_assets.updated_at desc
     `
   );
 
@@ -87,6 +136,59 @@ export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
     videoHash: row.video_hash,
   }));
 };
+
+export const getJmvstreamHealthSummary =
+  async (): Promise<JmvstreamHealthSummary> => {
+    const assets = await getJmvstreamAssets();
+    const failedUploads = assets.filter(
+      (asset) => asset.uploadStatus === "failed"
+    ).length;
+    const processingUploads = assets.filter((asset) =>
+      ["processing", "uploading"].includes(asset.uploadStatus)
+    ).length;
+    const failedDeletes = assets.filter(
+      (asset) => asset.deleteStatus === "failed"
+    ).length;
+    const pendingDeletes = assets.filter(
+      (asset) => asset.deleteStatus === "pending"
+    ).length;
+
+    try {
+      const folders = await (await getConfiguredClient()).listFolders();
+
+      return {
+        auth: "ok",
+        failedDeletes,
+        failedUploads,
+        folderCount: countFolders(folders),
+        message: "JMVStream autenticada e galerias acessiveis.",
+        pendingDeletes,
+        processingUploads,
+      };
+    } catch (error) {
+      return {
+        auth: "error",
+        failedDeletes,
+        failedUploads,
+        folderCount: 0,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Nao foi possivel validar a JMVStream.",
+        pendingDeletes,
+        processingUploads,
+      };
+    }
+  };
+
+const countFolders = (folders: JmvstreamFolderResponse[]): number =>
+  folders.reduce(
+    (sum, folder) =>
+      sum +
+      1 +
+      countFolders(Array.isArray(folder.children) ? folder.children : []),
+    0
+  );
 
 export const ensureJmvstreamCourseFolder = async (
   courseId: string
@@ -117,7 +219,18 @@ export const ensureJmvstreamModuleFolder = async (
     throw new Error("Modulo invalido.");
   }
 
-  return ensureJmvstreamCourseFolder(context.course_id);
+  const parentFolderUuid = await ensureJmvstreamCourseFolder(context.course_id);
+
+  if (!parentFolderUuid) {
+    return null;
+  }
+
+  return syncFolder({
+    courseId: context.course_id,
+    folderType: "module",
+    moduleId,
+    name: formatJmvstreamModuleFolderName(context.course_title, context.title),
+  });
 };
 
 export const requireJmvstreamModuleFolder = async (
@@ -137,7 +250,7 @@ export const requireJmvstreamModuleFolder = async (
         on jf.course_id = m.course_id
        and jf.folder_type = 'course'
       where m.id = $1
-      order by updated_at desc
+      order by jf.updated_at desc
       limit 1
     `,
     [moduleId]
@@ -168,11 +281,12 @@ export const initJmvstreamUpload = async ({
 
   const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
 
-  const chunkSize = uploadType === "multipart" ? 8 * 1024 * 1024 : undefined;
+  const chunkSize =
+    uploadType === "multipart" ? JMVSTREAM_UPLOAD_CHUNK_SIZE : undefined;
   const totalParts =
     chunkSize && fileSize > 0 ? Math.ceil(fileSize / chunkSize) : undefined;
 
-  return getConfiguredClient().initMultipartUpload({
+  const init = await (await getConfiguredClient()).initMultipartUpload({
     ...(chunkSize ? { chunkSize } : {}),
     fileName,
     fileSize,
@@ -180,6 +294,40 @@ export const initJmvstreamUpload = async ({
     ...(totalParts ? { totalParts } : {}),
     uploadType,
   });
+
+  await getPool().query(
+    `
+      insert into jmvstream_video_assets (
+        lesson_id, module_id, course_id, video_hash, gallery_uuid, filename,
+        size_bytes, object_name, upload_id, upload_status, delete_status
+      )
+      values (null, $1, $2, $3, $4, $5, $6, $7, $8, 'uploading', 'none')
+      on conflict (video_hash) do update set
+        module_id = excluded.module_id,
+        course_id = excluded.course_id,
+        gallery_uuid = excluded.gallery_uuid,
+        filename = excluded.filename,
+        size_bytes = excluded.size_bytes,
+        object_name = excluded.object_name,
+        upload_id = excluded.upload_id,
+        upload_status = 'uploading',
+        delete_status = 'none',
+        last_error = null,
+        updated_at = now()
+    `,
+    [
+      lesson.module_id,
+      lesson.course_id,
+      init.videoHash,
+      galleryUuid,
+      fileName,
+      fileSize,
+      init.objectName,
+      init.uploadId,
+    ]
+  );
+
+  return init;
 };
 
 export const completeJmvstreamUpload = async ({
@@ -202,24 +350,38 @@ export const completeJmvstreamUpload = async ({
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
   const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
 
-  const response = await getConfiguredClient().completeMultipartUpload({
-    filename,
-    galleryUuid,
-    objectName,
-    parts,
-    size,
-    uploadId,
-    videoHash,
-  });
+  let response: JmvstreamCompleteUploadResponse;
+
+  try {
+    response = await (await getConfiguredClient()).completeMultipartUpload({
+      filename,
+      galleryUuid,
+      objectName,
+      parts,
+      size,
+      uploadId,
+      videoHash,
+    });
+  } catch (error) {
+    await markJmvstreamUploadFailed({
+      lastError:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel finalizar o upload na JMVStream.",
+      videoHash,
+    });
+    throw error;
+  }
 
   await deleteActiveAssetsForLesson(lessonId, videoHash);
+  const uploadStatus = response.playerUrl ? "ready" : "processing";
   await getPool().query(
     `
       insert into jmvstream_video_assets (
         lesson_id, module_id, course_id, video_hash, gallery_uuid, filename,
         size_bytes, object_name, upload_id, job_id, upload_status, delete_status
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'processing', 'none')
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'none')
       on conflict (video_hash) do update set
         lesson_id = excluded.lesson_id,
         module_id = excluded.module_id,
@@ -246,6 +408,7 @@ export const completeJmvstreamUpload = async ({
       objectName,
       uploadId,
       response.jobId,
+      uploadStatus,
     ]
   );
   await getPool().query(
@@ -253,10 +416,30 @@ export const completeJmvstreamUpload = async ({
       update lessons
       set video_provider = 'jmvstream',
           video_external_id = $1,
+          video_embed_url = $3,
           updated_at = now()
       where id = $2
     `,
-    [videoHash, lessonId]
+    [videoHash, lessonId, response.playerUrl]
+  );
+};
+
+export const markJmvstreamUploadFailed = async ({
+  lastError,
+  videoHash,
+}: {
+  lastError: string;
+  videoHash: string;
+}): Promise<void> => {
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set upload_status = 'failed',
+          last_error = $2,
+          updated_at = now()
+      where video_hash = $1
+    `,
+    [videoHash, lastError]
   );
 };
 
@@ -358,9 +541,9 @@ const syncFolder = async ({
   parentFolderUuid?: null | string;
 }): Promise<string | null> => {
   const existing = await getExistingFolder(folderType, courseId, moduleId);
+  const client = await getConfiguredClient();
 
   try {
-    const client = getConfiguredClient();
     const parentChanged =
       existing?.folder_uuid &&
       folderType === "module" &&
@@ -371,7 +554,13 @@ const syncFolder = async ({
     let folder: { name: string; uuid: string };
 
     if (shouldCreate) {
-      folder = await client.createFolder({ name, parentFolderUuid });
+      const existingRemoteFolder = findJmvstreamFolderByName(
+        await client.listFolders(),
+        name
+      );
+      folder = existingRemoteFolder
+        ? { name: existingRemoteFolder.name, uuid: existingRemoteFolder.uuid }
+        : await client.createFolder({ name, parentFolderUuid });
     } else if (existingFolderName === name) {
       folder = {
         name,
@@ -497,14 +686,33 @@ const upsertFolder = async ({
 
 const getModuleContext = async (
   moduleId: string
-): Promise<{ course_id: string; title: string } | null> => {
-  const { rows } = await getPool().query<{ course_id: string; title: string }>(
-    "select course_id, title from modules where id = $1 limit 1",
+): Promise<{
+  course_id: string;
+  course_title: string;
+  title: string;
+} | null> => {
+  const { rows } = await getPool().query<{
+    course_id: string;
+    course_title: string;
+    title: string;
+  }>(
+    `
+      select m.course_id, c.title as course_title, m.title
+      from modules m
+      join courses c on c.id = m.course_id
+      where m.id = $1
+      limit 1
+    `,
     [moduleId]
   );
 
   return rows[0] ?? null;
 };
+
+const formatJmvstreamModuleFolderName = (
+  courseTitle: string,
+  moduleTitle: string
+): string => `${courseTitle} - ${moduleTitle}`;
 
 const getLessonContext = async (
   lessonId: string
@@ -607,7 +815,7 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
   );
 
   try {
-    await getConfiguredClient().deleteVideo(asset.video_hash);
+    await (await getConfiguredClient()).deleteVideo(asset.video_hash);
     await getPool().query(
       `
         update jmvstream_video_assets

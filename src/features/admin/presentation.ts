@@ -312,11 +312,9 @@ export const getAdminFinancialSignal = ({
 };
 
 const hasLessonVideo = (lesson: AdminLessonContentInput): boolean =>
-  Boolean(
-    lesson.videoEmbedUrl?.trim() ||
-      lesson.videoExternalId?.trim() ||
-      lesson.videoProvider?.trim()
-  );
+  lesson.videoProvider === "jmvstream"
+    ? Boolean(lesson.videoEmbedUrl?.trim())
+    : Boolean(lesson.videoEmbedUrl?.trim() || lesson.videoExternalId?.trim());
 
 export const summarizeAdminCourseContent = ({
   lessons,

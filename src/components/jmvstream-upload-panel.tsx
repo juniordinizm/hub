@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,15 +9,10 @@ import { Progress } from "@/components/ui/progress";
 import {
   completeJmvstreamUploadAction,
   initJmvstreamUploadAction,
+  markJmvstreamUploadFailedAction,
   retryJmvstreamDeleteAction,
 } from "@/features/admin/actions";
-
-interface UploadPart {
-  ETag: string;
-  PartNumber: number;
-}
-
-type PresignedUrl = string | { partNumber?: number; url: string };
+import { uploadFileParts } from "@/features/jmvstream/upload";
 
 export interface JmvstreamUploadAsset {
   deleteStatus: string;
@@ -37,6 +33,7 @@ export function JmvstreamUploadPanel({
   currentVideoHash: null | string;
   lessonId?: string | undefined;
 }): React.JSX.Element {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -57,6 +54,7 @@ export function JmvstreamUploadPanel({
     }
 
     startTransition(async () => {
+      let activeVideoHash: string | null = null;
       try {
         setError(null);
         setProgress(2);
@@ -72,6 +70,8 @@ export function JmvstreamUploadPanel({
         }
 
         const init = initResult.data;
+        activeVideoHash = init.videoHash;
+        setStatus("Enviando partes do video...");
         const parts = await uploadFileParts({
           file,
           onProgress: setProgress,
@@ -89,14 +89,22 @@ export function JmvstreamUploadPanel({
           videoHash: init.videoHash,
         });
         setProgress(100);
-        setStatus("Video enviado e vinculado a aula.");
-        window.location.reload();
+        setStatus("Video enviado. Aguardando player oficial ficar disponivel.");
+        router.refresh();
       } catch (uploadError) {
-        setError(
+        const errorMessage =
           uploadError instanceof Error
             ? uploadError.message
-            : "Nao foi possivel enviar o video."
-        );
+            : "Nao foi possivel enviar o video.";
+
+        if (activeVideoHash) {
+          await markJmvstreamUploadFailedAction({
+            lastError: errorMessage,
+            videoHash: activeVideoHash,
+          });
+        }
+
+        setError(errorMessage);
         setStatus(null);
       }
     });
@@ -111,7 +119,7 @@ export function JmvstreamUploadPanel({
       try {
         setError(null);
         await retryJmvstreamDeleteAction({ assetId: asset.id });
-        window.location.reload();
+        router.refresh();
       } catch (retryError) {
         setError(
           retryError instanceof Error
@@ -179,6 +187,10 @@ export function JmvstreamUploadPanel({
           <div className="space-y-2">
             <Progress className="h-2" value={progress} />
             <p className="text-muted-foreground text-xs">{status}</p>
+            <UploadTimeline
+              progress={progress}
+              status={asset?.uploadStatus ?? null}
+            />
           </div>
         ) : null}
 
@@ -201,52 +213,28 @@ export function JmvstreamUploadPanel({
   );
 }
 
-const normalizePresignedUrls = (
-  presignedUrls: PresignedUrl[]
-): Array<{ partNumber: number; url: string }> =>
-  presignedUrls.map((item, index) => {
-    if (typeof item === "string") {
-      return { partNumber: index + 1, url: item };
-    }
-
-    return {
-      partNumber: item.partNumber ?? index + 1,
-      url: item.url,
-    };
-  });
-
-const uploadFileParts = async ({
-  file,
-  onProgress,
-  presignedUrls,
+function UploadTimeline({
+  progress,
+  status,
 }: {
-  file: File;
-  onProgress: (value: number) => void;
-  presignedUrls: PresignedUrl[];
-}): Promise<UploadPart[]> => {
-  const urls = normalizePresignedUrls(presignedUrls);
-  const chunkSize = Math.ceil(file.size / urls.length);
-  const parts: UploadPart[] = [];
+  progress: number;
+  status: null | string;
+}): React.JSX.Element {
+  const steps = [
+    ["Preparando", progress >= 2],
+    ["Enviando", progress > 2],
+    ["Finalizando", progress >= 90],
+    ["Processando", progress === 100 || status === "processing"],
+    ["Pronto", status === "ready"],
+  ] as const;
 
-  for (const [index, item] of urls.entries()) {
-    const start = index * chunkSize;
-    const end = Math.min(start + chunkSize, file.size);
-    const response = await fetch(item.url, {
-      body: file.slice(start, end),
-      headers: { "Content-Type": "application/octet-stream" },
-      method: "PUT",
-    });
-
-    if (!response.ok) {
-      throw new Error("A JMVStream recusou uma parte do upload.");
-    }
-
-    parts.push({
-      ETag: response.headers.get("ETag") ?? "",
-      PartNumber: item.partNumber,
-    });
-    onProgress(Math.round(((index + 1) / urls.length) * 90));
-  }
-
-  return parts;
-};
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {steps.map(([label, isActive]) => (
+        <Badge key={label} variant={isActive ? "default" : "outline"}>
+          {label}
+        </Badge>
+      ))}
+    </div>
+  );
+}

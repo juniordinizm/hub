@@ -48,11 +48,14 @@ export interface JmvstreamCompleteUploadInput {
 export interface JmvstreamCompleteUploadResponse {
   jobId: string | null;
   message: string | null;
+  playerUrl: string | null;
   status: string | null;
   videoHash: string;
 }
 
 export interface JmvstreamFolderResponse {
+  children?: JmvstreamFolderResponse[];
+  description?: string | null;
   id?: string | number;
   name: string;
   parentId?: string | number | null;
@@ -62,9 +65,16 @@ export interface JmvstreamFolderResponse {
 type UnknownRecord = Record<string, unknown>;
 
 const TRAILING_SLASH_PATTERN = /\/$/;
+const GUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
+const JWT_REFRESH_WINDOW_SECONDS = 60;
 
 const readString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value : null;
+
+const normalizeFolderName = (name: string): string =>
+  name.trim().toLocaleLowerCase();
 
 export class JmvstreamApiError extends Error {
   readonly body: unknown;
@@ -78,6 +88,84 @@ export class JmvstreamApiError extends Error {
   }
 }
 
+export const isJmvstreamJwtUsable = (
+  token: string | null | undefined,
+  now = new Date()
+): boolean => {
+  if (!token) {
+    return false;
+  }
+
+  const payload = decodeJwtPayload(token);
+  const expiresAt = typeof payload?.exp === "number" ? payload.exp : null;
+
+  if (!expiresAt) {
+    return false;
+  }
+
+  const safeNowSeconds =
+    Math.floor(now.getTime() / 1000) + JWT_REFRESH_WINDOW_SECONDS;
+
+  return expiresAt > safeNowSeconds;
+};
+
+export const authenticateJmvstreamApi = async ({
+  apiBaseUrl,
+  email,
+  fetcher = fetch,
+  password,
+  resource,
+}: {
+  apiBaseUrl: string;
+  email: string;
+  fetcher?: typeof fetch;
+  password: string;
+  resource: string;
+}): Promise<string> => {
+  assertValidJmvstreamResource(resource);
+  const baseUrl = normalizeJmvstreamApiBaseUrl(apiBaseUrl);
+  const response = await fetcher(`${baseUrl}/v1/authenticate`, {
+    body: JSON.stringify({ email, password, resource }),
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    method: "POST",
+  });
+  const responseBody = await readResponseBody(response);
+
+  if (!response.ok) {
+    throw new JmvstreamApiError(
+      createJmvstreamApiErrorMessage(response.status, responseBody),
+      response.status,
+      responseBody
+    );
+  }
+
+  return requireString(
+    isRecord(responseBody) ? responseBody.token : null,
+    "token"
+  );
+};
+
+export const assertValidJmvstreamResource = (resource: string): void => {
+  if (GUID_PATTERN.test(resource.trim())) {
+    return;
+  }
+
+  const jwtPayload = decodeJwtPayload(resource);
+  const planUuid =
+    jwtPayload && typeof jwtPayload.planUuid === "string"
+      ? jwtPayload.planUuid
+      : null;
+
+  throw new Error(
+    planUuid
+      ? `JMVSTREAM_AUTH_RESOURCE precisa ser o UUID do recurso/aplicacao da JMVStream, nao o JWT. Use o planUuid do token: ${planUuid}.`
+      : "JMVSTREAM_AUTH_RESOURCE precisa ser o UUID do recurso/aplicacao da JMVStream."
+  );
+};
+
 export const normalizeJmvstreamApiBaseUrl = (apiBaseUrl: string): string => {
   const url = new URL(apiBaseUrl);
   url.pathname = "";
@@ -89,19 +177,42 @@ export const normalizeJmvstreamApiBaseUrl = (apiBaseUrl: string): string => {
 export const normalizeJmvstreamUploadParts = (
   parts: JmvstreamUploadPartInput[]
 ): JmvstreamUploadPart[] =>
-  parts.map((part) => {
-    const partNumber = part.PartNumber ?? part.partNumber;
-    const etag = part.ETag ?? part.etag;
+  parts
+    .map((part) => {
+      const partNumber = part.PartNumber ?? part.partNumber;
+      const etag = part.ETag ?? part.etag;
 
-    if (!(partNumber && etag)) {
-      throw new Error("Parte de upload JMVStream invalida.");
+      if (!(partNumber && etag?.trim())) {
+        throw new Error("Parte de upload JMVStream invalida.");
+      }
+
+      return {
+        ETag: etag,
+        PartNumber: partNumber,
+      };
+    })
+    .sort((left, right) => left.PartNumber - right.PartNumber);
+
+export const findJmvstreamFolderByName = (
+  folders: JmvstreamFolderResponse[],
+  name: string
+): JmvstreamFolderResponse | null => {
+  const normalizedName = normalizeFolderName(name);
+
+  for (const folder of folders) {
+    if (normalizeFolderName(folder.name) === normalizedName) {
+      return folder;
     }
 
-    return {
-      ETag: etag,
-      PartNumber: partNumber,
-    };
-  });
+    const child = findJmvstreamFolderByName(folder.children ?? [], name);
+
+    if (child) {
+      return child;
+    }
+  }
+
+  return null;
+};
 
 export const createJmvstreamClient = ({
   apiBaseUrl,
@@ -127,7 +238,7 @@ export const createJmvstreamClient = ({
 
     if (!response.ok) {
       throw new JmvstreamApiError(
-        `JMVStream retornou erro ${response.status}.`,
+        createJmvstreamApiErrorMessage(response.status, responseBody),
         response.status,
         responseBody
       );
@@ -159,6 +270,7 @@ export const createJmvstreamClient = ({
       return {
         jobId: readString(response.jobId),
         message: readString(response.message),
+        playerUrl: readOfficialJmvstreamPlayerUrl(response),
         status: readString(response.status),
         videoHash: readString(response.video_hash) ?? input.videoHash,
       };
@@ -166,7 +278,6 @@ export const createJmvstreamClient = ({
 
     createFolder: async ({
       name,
-      parentFolderUuid,
     }: {
       name: string;
       parentFolderUuid?: string | null;
@@ -174,12 +285,28 @@ export const createJmvstreamClient = ({
       const response = await request<UnknownRecord>("/v1/folders", {
         body: JSON.stringify({
           name,
-          ...(parentFolderUuid ? { parent_uuid: parentFolderUuid } : {}),
         }),
         method: "POST",
       });
+      const folder = parseFolderResponse(response, name);
 
-      return parseFolderResponse(response, name);
+      if (folder.uuid) {
+        return folder;
+      }
+
+      const foldersResponse = await request<UnknownRecord>("/v1/folders", {
+        method: "GET",
+      });
+      const folders = Array.isArray(foldersResponse.folders)
+        ? foldersResponse.folders.map((item) => parseFolderTreeResponse(item))
+        : [];
+      const createdFolder = findJmvstreamFolderByName(folders, name);
+
+      if (createdFolder?.uuid) {
+        return createdFolder;
+      }
+
+      throw new Error("Resposta da JMVStream sem uuid da pasta.");
     },
 
     deleteVideo: async (videoHash: string): Promise<void> => {
@@ -212,6 +339,16 @@ export const createJmvstreamClient = ({
       };
     },
 
+    listFolders: async (): Promise<JmvstreamFolderResponse[]> => {
+      const response = await request<UnknownRecord>("/v1/folders", {
+        method: "GET",
+      });
+
+      const folders = Array.isArray(response.folders) ? response.folders : [];
+
+      return folders.map((folder) => parseFolderTreeResponse(folder));
+    },
+
     renameFolder: async ({
       folderUuid,
       name,
@@ -229,6 +366,28 @@ export const createJmvstreamClient = ({
 
       return parseFolderResponse(response, name, folderUuid);
     },
+  };
+};
+
+const parseFolderTreeResponse = (value: unknown): JmvstreamFolderResponse => {
+  if (!isRecord(value)) {
+    throw new Error("Pasta JMVStream invalida.");
+  }
+
+  const folder = parseFolderResponse(value, "Sem nome");
+  const childrenValue = Array.isArray(value.children)
+    ? value.children
+    : value.subFolders;
+  const children = Array.isArray(childrenValue)
+    ? childrenValue.map((child) => parseFolderTreeResponse(child))
+    : [];
+
+  return {
+    ...folder,
+    ...(readString(value.description)
+      ? { description: readString(value.description) }
+      : {}),
+    children,
   };
 };
 
@@ -299,6 +458,55 @@ const readResponseBody = async (response: Response): Promise<unknown> => {
   }
 };
 
+const createJmvstreamApiErrorMessage = (
+  status: number,
+  body: unknown
+): string => {
+  const message = getJmvstreamApiErrorMessage(body);
+
+  if (message) {
+    return message;
+  }
+
+  const bodySummary = getJmvstreamApiBodySummary(body);
+
+  if (bodySummary) {
+    return `JMVStream retornou erro ${status}: ${bodySummary}`;
+  }
+
+  return `JMVStream retornou erro ${status}.`;
+};
+
+const getJmvstreamApiErrorMessage = (body: unknown): string | null => {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  return (
+    readString(body.message) ??
+    readString(body.error) ??
+    (isRecord(body.error) ? readString(body.error.message) : null)
+  );
+};
+
+const getJmvstreamApiBodySummary = (body: unknown): string | null => {
+  let summary = "";
+
+  if (typeof body === "string") {
+    summary = body;
+  } else if (isRecord(body)) {
+    summary = JSON.stringify(body);
+  }
+
+  const trimmed = summary.trim();
+
+  if (!trimmed || trimmed === "{}") {
+    return null;
+  }
+
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}...` : trimmed;
+};
+
 const requireString = (value: unknown, fieldName: string): string => {
   const stringValue = readString(value);
 
@@ -311,3 +519,50 @@ const requireString = (value: unknown, fieldName: string): string => {
 
 const isRecord = (value: unknown): value is UnknownRecord =>
   typeof value === "object" && value !== null;
+
+const decodeJwtPayload = (token: string): UnknownRecord | null => {
+  const [, encodedPayload] = token.split(".");
+
+  if (!encodedPayload) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(Buffer.from(encodedPayload, "base64url").toString());
+  } catch {
+    return null;
+  }
+};
+
+const readOfficialJmvstreamPlayerUrl = (
+  response: UnknownRecord
+): string | null => {
+  const candidates = [
+    response.player_url,
+    response.playerUrl,
+    response.embed_url,
+    response.embedUrl,
+    response.url,
+  ];
+
+  for (const candidate of candidates) {
+    const url = readString(candidate);
+
+    if (url && isOfficialJmvstreamPlayerUrl(url)) {
+      return url;
+    }
+  }
+
+  return null;
+};
+
+const isOfficialJmvstreamPlayerUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" && url.hostname === JMVSTREAM_PLAYER_HOSTNAME
+    );
+  } catch {
+    return false;
+  }
+};

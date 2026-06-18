@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  authenticateJmvstreamApi,
   createJmvstreamClient,
+  findJmvstreamFolderByName,
+  isJmvstreamJwtUsable,
   normalizeJmvstreamApiBaseUrl,
   normalizeJmvstreamUploadParts,
 } from "./client";
@@ -20,13 +23,72 @@ const createClient = (fetcher: typeof fetch) =>
   });
 
 describe("JMVStream API client", () => {
+  it("detects expired JMVStream JWTs before using them", () => {
+    const expiredToken = createJwt({ exp: 1_781_770_681 });
+    const validToken = createJwt({ exp: 1_781_800_000 });
+    const now = new Date("2026-06-18T08:18:02.000Z");
+
+    expect(isJmvstreamJwtUsable(expiredToken, now)).toBe(false);
+    expect(isJmvstreamJwtUsable(validToken, now)).toBe(true);
+    expect(isJmvstreamJwtUsable("not-a-jwt", now)).toBe(false);
+  });
+
+  it("authenticates with email, password, and resource when a fresh token is needed", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        token: "jwt-token",
+      })
+    );
+
+    await expect(
+      authenticateJmvstreamApi({
+        apiBaseUrl: "https://api.jmvstream.com/v1",
+        email: "admin@example.com",
+        fetcher,
+        password: "secret",
+        resource: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
+      })
+    ).resolves.toBe("jwt-token");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/authenticate",
+      expect.objectContaining({
+        body: JSON.stringify({
+          email: "admin@example.com",
+          password: "secret",
+          resource: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
+        }),
+        method: "POST",
+      })
+    );
+  });
+
+  it("rejects non-GUID JMVStream auth resources before calling the API", async () => {
+    const fetcher = vi.fn<typeof fetch>();
+
+    await expect(
+      authenticateJmvstreamApi({
+        apiBaseUrl: "https://api.jmvstream.com/v1",
+        email: "admin@example.com",
+        fetcher,
+        password: "secret",
+        resource: createJwt({
+          planUuid: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
+        }),
+      })
+    ).rejects.toThrow(
+      "JMVSTREAM_AUTH_RESOURCE precisa ser o UUID do recurso/aplicacao da JMVStream"
+    );
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it("normalizes configured base URL to the API origin", () => {
     expect(normalizeJmvstreamApiBaseUrl("https://api.jmvstream.com/v1")).toBe(
       "https://api.jmvstream.com"
     );
   });
 
-  it("creates course and module folders with bearer auth", async () => {
+  it("creates galleries with the documented folder payload", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       createJsonResponse({
         name: "Modulo 1",
@@ -52,7 +114,6 @@ describe("JMVStream API client", () => {
       expect.objectContaining({
         body: JSON.stringify({
           name: "Modulo 1",
-          parent_uuid: "course-folder",
         }),
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
@@ -60,6 +121,50 @@ describe("JMVStream API client", () => {
         method: "POST",
       })
     );
+  });
+
+  it("includes safe raw API details when JMVStream returns an undocumented error body", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("Invalid folder name", {
+        headers: { "Content-Type": "text/plain" },
+        status: 400,
+      })
+    );
+    const client = createClient(fetcher);
+
+    await expect(client.createFolder({ name: "Curso" })).rejects.toThrow(
+      "JMVStream retornou erro 400: Invalid folder name"
+    );
+  });
+
+  it("resolves the created gallery UUID from the folder list when create response omits it", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          name: "Curso - Modulo",
+        })
+      )
+      .mockResolvedValueOnce(
+        createJsonResponse({
+          folders: [
+            {
+              name: "Curso - Modulo",
+              uuid: "30789200-9352-41c8-85ed-e61cdfd5506b",
+            },
+          ],
+        })
+      );
+    const client = createClient(fetcher);
+
+    await expect(
+      client.createFolder({ name: "Curso - Modulo" })
+    ).resolves.toEqual({
+      children: [],
+      name: "Curso - Modulo",
+      parentId: null,
+      uuid: "30789200-9352-41c8-85ed-e61cdfd5506b",
+    });
   });
 
   it("starts S3 multipart upload in the target gallery", async () => {
@@ -106,8 +211,14 @@ describe("JMVStream API client", () => {
 
   it("normalizes multipart completion parts to the documented shape", async () => {
     expect(
-      normalizeJmvstreamUploadParts([{ etag: '"abc"', partNumber: 1 }])
-    ).toEqual([{ ETag: '"abc"', PartNumber: 1 }]);
+      normalizeJmvstreamUploadParts([
+        { etag: '"def"', partNumber: 2 },
+        { ETag: '"abc"', PartNumber: 1 },
+      ])
+    ).toEqual([
+      { ETag: '"abc"', PartNumber: 1 },
+      { ETag: '"def"', PartNumber: 2 },
+    ]);
 
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       createJsonResponse({
@@ -145,6 +256,65 @@ describe("JMVStream API client", () => {
     );
   });
 
+  it("returns the official player URL from upload completion when JMVStream provides one", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        jobId: "job-1",
+        player_url: "https://player.jmvstream.com/evt/secret/video-hash",
+        status: "success",
+        video_hash: "video-hash",
+      })
+    );
+    const client = createClient(fetcher);
+
+    await expect(
+      client.completeMultipartUpload({
+        filename: "aula.mp4",
+        galleryUuid: "gallery-uuid",
+        objectName: "uploads/video.mp4",
+        parts: [{ etag: '"abc"', partNumber: 1 }],
+        size: 10_000,
+        uploadId: "upload-1",
+        videoHash: "video-hash",
+      })
+    ).resolves.toEqual({
+      jobId: "job-1",
+      message: null,
+      playerUrl: "https://player.jmvstream.com/evt/secret/video-hash",
+      status: "success",
+      videoHash: "video-hash",
+    });
+  });
+
+  it("finds existing JMVStream folders by name across parsed nested responses", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        folders: [
+          {
+            name: "Curso",
+            subFolders: [
+              {
+                name: "Modulo 1",
+                uuid: "module-folder",
+              },
+            ],
+            uuid: "course-folder",
+          },
+        ],
+      })
+    );
+    const client = createClient(fetcher);
+
+    const folders = await client.listFolders();
+
+    expect(findJmvstreamFolderByName(folders, " modulo 1 ")).toEqual({
+      children: [],
+      name: "Modulo 1",
+      parentId: null,
+      uuid: "module-folder",
+    });
+  });
+
   it("deletes videos by hash and configured plan id", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
@@ -159,3 +329,11 @@ describe("JMVStream API client", () => {
     );
   });
 });
+
+const createJwt = (payload: Record<string, unknown>): string => {
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+    "base64url"
+  );
+
+  return `header.${encodedPayload}.signature`;
+};

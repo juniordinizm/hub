@@ -92,6 +92,13 @@
       "when": 1781717000000,
       "tag": "0012_remove_whatsapp_support",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781769600000,
+      "tag": "0013_jmvstream_upload_failed",
+      "breakpoints": true
     }
   ]
 }

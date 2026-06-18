@@ -13,11 +13,15 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { saveSettingsAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
+import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
-  const data = await getAdminManagementData();
+  const [data, jmvstreamHealth] = await Promise.all([
+    getAdminManagementData(),
+    getJmvstreamHealthSummary(),
+  ]);
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
@@ -33,6 +37,48 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
         </header>
 
         <section className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>JMVStream</CardTitle>
+                  <CardDescription>{jmvstreamHealth.message}</CardDescription>
+                </div>
+                <Badge
+                  variant={
+                    jmvstreamHealth.auth === "ok" ? "default" : "destructive"
+                  }
+                >
+                  {jmvstreamHealth.auth === "ok" ? "conectada" : "revisar"}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <HealthTile
+                  label="Galerias"
+                  value={jmvstreamHealth.folderCount}
+                />
+                <HealthTile
+                  label="Uploads ativos"
+                  value={jmvstreamHealth.processingUploads}
+                />
+                <HealthTile
+                  label="Uploads falhos"
+                  value={jmvstreamHealth.failedUploads}
+                />
+                <HealthTile
+                  label="Exclusoes pendentes"
+                  value={jmvstreamHealth.pendingDeletes}
+                />
+                <HealthTile
+                  label="Exclusoes falhas"
+                  value={jmvstreamHealth.failedDeletes}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Dados operacionais</CardTitle>
@@ -72,5 +118,20 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
         </section>
       </div>
     </main>
+  );
+}
+
+function HealthTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-md border bg-background/35 p-3">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="mt-1 font-semibold text-xl">{value}</p>
+    </div>
   );
 }

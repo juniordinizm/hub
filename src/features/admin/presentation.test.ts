@@ -146,7 +146,7 @@ describe("admin presentation", () => {
           durationSeconds: 600,
           isPublished: true,
           moduleId: "module-1",
-          videoEmbedUrl: null,
+          videoEmbedUrl: "https://player.jmvstream.com/evt/secret/video-1",
           videoExternalId: "video-1",
           videoProvider: "jmvstream",
         },
@@ -170,6 +170,25 @@ describe("admin presentation", () => {
       videoReadyLessons: 1,
       withoutVideoLessons: 1,
     });
+  });
+
+  it("does not count a JMVStream hash as ready until a player URL is available", () => {
+    const summary = summarizeAdminCourseContent({
+      modules: [{ id: "module-1" }],
+      lessons: [
+        {
+          durationSeconds: 600,
+          isPublished: true,
+          moduleId: "module-1",
+          videoEmbedUrl: null,
+          videoExternalId: "video-hash",
+          videoProvider: "jmvstream",
+        },
+      ],
+    });
+
+    expect(summary.videoReadyLessons).toBe(0);
+    expect(summary.withoutVideoLessons).toBe(1);
   });
 
   it("prioritizes missing lesson videos in course content signal", () => {

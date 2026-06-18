@@ -1,0 +1,2 @@
+export const S3_MIN_MULTIPART_PART_SIZE = 5 * 1024 * 1024;
+export const JMVSTREAM_UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;

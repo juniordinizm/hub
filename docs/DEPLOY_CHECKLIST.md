@@ -16,7 +16,10 @@
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `ABACATEPAY_WEBHOOK_SECRET`
-- `SUPPORT_WHATSAPP_URL`
+- `JMVSTREAM_PLAN_ID`
+- `JMVSTREAM_AUTH_EMAIL`
+- `JMVSTREAM_AUTH_PASSWORD`
+- `JMVSTREAM_AUTH_RESOURCE` com UUID do recurso/aplicacao, nao JWT
 
 ## Provedores
 - Dominio de envio validado no Resend.
@@ -24,13 +27,16 @@
 - Segredo do webhook registrado no AbacatePay e em `ABACATEPAY_WEBHOOK_SECRET`.
 - JMVStream configurado como provedor de video final.
 - Dominios da plataforma liberados na JMVStream quando usar protecao por dominio/hotlink.
-- Videos das aulas enviados para a JMVStream e cada aula cadastrada com `video_hash` e URL/iframe oficial do player.
-- Opcional para automacao futura: `JMVSTREAM_API_BASE_URL`, `JMVSTREAM_API_TOKEN` e `JMVSTREAM_PLAN_ID`.
+- Upload via admin validado com um MP4 pequeno.
+- `Admin > Configuracoes > JMVStream` mostra conexao ativa e galerias acessiveis.
+- Aulas enviadas pelo admin ficam com player oficial antes de contar como prontas.
+- `JMVSTREAM_API_TOKEN` e apenas fallback manual; prefira credenciais de auth server-only para renovar JWT expirado.
 
 ## Smoke pos-deploy
 - `GET /api/health` retorna `ok: true`.
 - Admin consegue entrar.
 - Admin cria ou atualiza curso, modulo e aula.
+- Admin envia video pela aula e confirma que a aluna ve o player.
 - Admin cria aluna e reenvia acesso por reset de senha.
 - Webhook de pagamento aprovado cria pedido e matricula ativa.
 - Aluna entra, acessa dashboard e assiste a primeira aula.

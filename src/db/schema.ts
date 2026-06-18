@@ -71,6 +71,7 @@ export const jmvstreamUploadStatusEnum = pgEnum("jmvstream_upload_status", [
   "uploading",
   "processing",
   "ready",
+  "failed",
 ]);
 export const jmvstreamDeleteStatusEnum = pgEnum("jmvstream_delete_status", [
   "none",
