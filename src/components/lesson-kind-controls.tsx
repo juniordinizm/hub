@@ -42,7 +42,7 @@ export function LessonKindControls({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Field>
           <FieldLabel>Tipo</FieldLabel>
           <Select
@@ -72,17 +72,8 @@ export function LessonKindControls({
             type="number"
           />
         </Field>
-        <Field>
-          <FieldLabel>Ordem</FieldLabel>
-          <Input
-            defaultValue={defaultOrder}
-            min={1}
-            name="sortOrder"
-            required
-            type="number"
-          />
-        </Field>
       </div>
+      <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
 
       {isVideoLesson ? (
         <>

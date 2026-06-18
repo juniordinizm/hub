@@ -670,3 +670,91 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
   });
   revalidateAdmin();
 };
+
+export const reorderModulesAction = async (
+  courseId: string,
+  orderedModuleIds: string[]
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Pass 1: Set to temporary negative order to avoid unique constraint violations
+    for (let i = 0; i < orderedModuleIds.length; i++) {
+      await client.query(
+        "update modules set sort_order = $1 where id = $2 and course_id = $3",
+        [-(i + 1), orderedModuleIds[i], courseId]
+      );
+    }
+
+    // Pass 2: Set to final correct order
+    for (let i = 0; i < orderedModuleIds.length; i++) {
+      await client.query(
+        "update modules set sort_order = $1, updated_at = now() where id = $2 and course_id = $3",
+        [i + 1, orderedModuleIds[i], courseId]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit({
+    action: "modules.reordered",
+    actorUserId: session.user.id,
+    targetId: courseId,
+    targetType: "course",
+  });
+  revalidateAdmin();
+};
+
+export const reorderLessonsAction = async (
+  moduleId: string,
+  orderedLessonIds: string[]
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Pass 1: Set to temporary negative order to avoid unique constraint violations
+    for (let i = 0; i < orderedLessonIds.length; i++) {
+      await client.query(
+        "update lessons set sort_order = $1 where id = $2 and module_id = $3",
+        [-(i + 1), orderedLessonIds[i], moduleId]
+      );
+    }
+
+    // Pass 2: Set to final correct order
+    for (let i = 0; i < orderedLessonIds.length; i++) {
+      await client.query(
+        "update lessons set sort_order = $1, updated_at = now() where id = $2 and module_id = $3",
+        [i + 1, orderedLessonIds[i], moduleId]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit({
+    action: "lessons.reordered",
+    actorUserId: session.user.id,
+    targetId: moduleId,
+    targetType: "module",
+  });
+  revalidateAdmin();
+};

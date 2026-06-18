@@ -55,9 +55,9 @@ import { summarizeCoursePublicationReadiness } from "@/features/courses/presenta
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
-
 import { CourseActionsDropdown } from "./course-actions-dropdown";
 import { CourseEditDialog } from "./course-dialogs-client";
+import { CourseModulesList, ModuleLessonsList } from "./sortable-content-lists";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +82,9 @@ export default async function AdminCourseDetailPage({
     notFound();
   }
 
-  const modules = data.modules.filter((item) => item.courseId === course.id);
+  const modules = data.modules
+    .filter((item) => item.courseId === course.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const lessons = data.lessons.filter((lesson) =>
     modules.some((moduleData) => moduleData.id === lesson.moduleId)
   );
@@ -320,7 +322,10 @@ export default async function AdminCourseDetailPage({
                     do curso.
                   </p>
                 ) : (
-                  <div className="mt-4 flex flex-col gap-8">
+                  <CourseModulesList
+                    courseId={course.id}
+                    moduleIds={modules.map((m) => m.id)}
+                  >
                     {modules.map((moduleData) => (
                       <ModuleSection
                         course={course}
@@ -331,7 +336,7 @@ export default async function AdminCourseDetailPage({
                         modules={modules}
                       />
                     ))}
-                  </div>
+                  </CourseModulesList>
                 )}
               </div>
             </section>
@@ -427,16 +432,16 @@ function ModuleSection({
   moduleData: ModuleData;
   modules: ModuleData[];
 }): React.JSX.Element {
-  const moduleLessons = lessons.filter(
-    (lesson) => lesson.moduleId === moduleData.id
-  );
+  const moduleLessons = lessons
+    .filter((lesson) => lesson.moduleId === moduleData.id)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
   const nextLessonSortOrder =
     moduleLessons.length > 0
       ? Math.max(...moduleLessons.map((l) => l.sortOrder)) + 1
       : 1;
 
   return (
-    <section className="rounded-lg border bg-card">
+    <>
       <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-muted-foreground text-xs">
@@ -488,7 +493,10 @@ function ModuleSection({
         </div>
       </div>
       <Separator />
-      <div className="divide-y">
+      <ModuleLessonsList
+        lessonIds={moduleLessons.map((l) => l.id)}
+        moduleId={moduleData.id}
+      >
         {moduleLessons.length ? (
           moduleLessons.map((lesson) => (
             <LessonRow
@@ -505,8 +513,8 @@ function ModuleSection({
             Nenhuma aula cadastrada neste módulo.
           </p>
         )}
-      </div>
-    </section>
+      </ModuleLessonsList>
+    </>
   );
 }
 
@@ -584,20 +592,10 @@ function ModuleForm({
         <FieldGroup>
           <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
           <input name="courseId" type="hidden" value={course.id} />
-          <div className="grid gap-4 lg:grid-cols-[1fr_120px_160px]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_160px]">
             <Field>
               <FieldLabel>Curso</FieldLabel>
               <Input disabled value={course.title} />
-            </Field>
-            <Field>
-              <FieldLabel>Ordem</FieldLabel>
-              <Input
-                defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
-                min={1}
-                name="sortOrder"
-                required
-                type="number"
-              />
             </Field>
             <Field>
               <FieldLabel>Cor</FieldLabel>
@@ -607,6 +605,11 @@ function ModuleForm({
               />
             </Field>
           </div>
+          <input
+            defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
+            name="sortOrder"
+            type="hidden"
+          />
           <Field>
             <FieldLabel>Título</FieldLabel>
             <Input
