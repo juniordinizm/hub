@@ -51,18 +51,18 @@ function SidebarHeaderContent() {
 
   if (state === "collapsed" && !isMobile) {
     return (
-      <div className="flex w-full items-center justify-center py-2">
+      <div className="flex w-full items-center justify-center">
         {isFocusMode ? null : <SidebarTrigger />}
       </div>
     );
   }
 
   return (
-    <div className="flex w-full items-center justify-between gap-2 px-2 pt-2 pb-1">
+    <div className="flex w-full items-center justify-between gap-2 px-2">
       <div className="flex min-w-0 flex-1 items-center">
         <Image
           alt="PROTEA-R"
-          className="h-auto max-h-14 w-[90%] object-contain object-left"
+          className="h-auto max-h-10 w-[90%] object-contain object-left"
           height={100}
           src="/protear/logo-negativo.svg"
           width={400}
@@ -101,7 +101,7 @@ export function PanelLayout({
       {...(isFocusMode ? { open: false } : {})}
     >
       <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
-        <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-6">
+        <SidebarHeader className="mb-6 flex h-16 flex-col justify-center gap-0 px-2">
           <SidebarHeaderContent />
         </SidebarHeader>
         <SidebarContent>{navContent}</SidebarContent>
@@ -194,10 +194,9 @@ export function PanelLayout({
             )}
             {showBackButton && (
               <Button
-                className="shrink-0"
+                className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
                 onClick={() => router.back()}
-                size="icon-sm"
-                title="Voltar"
+                size="sm"
                 variant="ghost"
               >
                 <HugeiconsIcon
@@ -205,6 +204,7 @@ export function PanelLayout({
                   icon={ArrowLeftIcon}
                   strokeWidth={2.5}
                 />
+                <span>Voltar</span>
               </Button>
             )}
           </div>
