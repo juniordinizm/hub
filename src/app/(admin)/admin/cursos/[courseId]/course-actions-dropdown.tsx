@@ -4,6 +4,7 @@ import {
   Delete02Icon,
   Edit01Icon,
   MoreHorizontalIcon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
@@ -14,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { route } from "@/lib/routes";
 import {
   type CourseData,
   CourseEditDialog,
@@ -44,6 +46,12 @@ export function CourseActionsDropdown({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <a href={route(`/app/cursos/${course.id}?preview=student`)}>
+              <HugeiconsIcon icon={ViewIcon} />
+              Preview como aluno
+            </a>
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(e) => {
               e.preventDefault();

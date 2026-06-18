@@ -5,6 +5,7 @@ import {
   Delete02Icon,
   Edit01Icon,
   FloppyDiskIcon,
+  PlayCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
@@ -31,6 +32,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -44,6 +46,10 @@ import {
   saveLessonAction,
   saveModuleAction,
 } from "@/features/admin/actions";
+import {
+  getAdminCourseContentSignal,
+  summarizeAdminCourseContent,
+} from "@/features/admin/presentation";
 import { getAdminManagementData } from "@/features/admin/server";
 import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
@@ -91,6 +97,8 @@ export default async function AdminCourseDetailPage({
   const certificates = data.certificates.filter(
     (certificate) => certificate.courseId === course.id
   );
+  const contentSummary = summarizeAdminCourseContent({ lessons, modules });
+  const contentSignal = getAdminCourseContentSignal(contentSummary);
   const readiness = summarizeCoursePublicationReadiness({
     hasDescription: Boolean(course.description?.trim()),
     hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
@@ -116,6 +124,20 @@ export default async function AdminCourseDetailPage({
               <h1 className="mt-3 font-bold text-3xl tracking-tight">
                 {course.title}
               </h1>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge
+                  variant={
+                    contentSignal.tone === "attention"
+                      ? "destructive"
+                      : "secondary"
+                  }
+                >
+                  {contentSignal.label}
+                </Badge>
+                <Badge variant="outline">
+                  {formatLessonDuration(contentSummary.totalDurationSeconds)}
+                </Badge>
+              </div>
               <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
                 Organize conteúdo, acompanhe alunos e prepare a publicação deste
                 curso.
@@ -154,6 +176,29 @@ export default async function AdminCourseDetailPage({
           </TabsList>
 
           <TabsContent className="space-y-6" value="overview">
+            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <CourseMetricCard
+                helper="Aulas visiveis para alunos."
+                label="Aulas publicadas"
+                value={`${contentSummary.publishedLessons}/${contentSummary.totalLessons}`}
+              />
+              <CourseMetricCard
+                helper="Aulas com video, hash ou embed."
+                label="Com video"
+                value={`${contentSummary.videoReadyLessons}/${contentSummary.totalLessons}`}
+              />
+              <CourseMetricCard
+                helper="Aulas fora da area do aluno."
+                label="Rascunhos"
+                value={contentSummary.draftLessons.toString()}
+              />
+              <CourseMetricCard
+                helper="Modulos sem aula cadastrada."
+                label="Modulos vazios"
+                value={contentSummary.emptyModules.toString()}
+              />
+            </section>
+
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
               <div className="rounded-lg border bg-card p-5">
                 <div className="flex items-start justify-between gap-4">
@@ -197,6 +242,9 @@ export default async function AdminCourseDetailPage({
               </div>
               <div className="rounded-lg border bg-card p-5">
                 <h2 className="font-semibold">Indicadores do curso</h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  {contentSignal.helper}
+                </p>
                 <div className="mt-4 space-y-3 text-sm">
                   <InfoRow
                     label="Aulas publicadas"
@@ -217,6 +265,23 @@ export default async function AdminCourseDetailPage({
           </TabsContent>
 
           <TabsContent className="space-y-6" value="content">
+            <section className="grid gap-4 sm:grid-cols-3">
+              <ContentStatusCard
+                label="Aulas sem video"
+                value={contentSummary.withoutVideoLessons.toString()}
+              />
+              <ContentStatusCard
+                label="Aulas em rascunho"
+                value={contentSummary.draftLessons.toString()}
+              />
+              <ContentStatusCard
+                label="Carga cadastrada"
+                value={formatLessonDuration(
+                  contentSummary.totalDurationSeconds
+                )}
+              />
+            </section>
+
             <section className="flex flex-wrap gap-3">
               <Dialog>
                 <DialogTriggerButton>
@@ -446,6 +511,8 @@ function LessonRow({
   lesson: LessonData;
   modules: ModuleData[];
 }): React.JSX.Element {
+  const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
+
   return (
     <div className="flex flex-col gap-3 bg-background/20 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
       <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
@@ -454,10 +521,12 @@ function LessonRow({
         </span>
         <div>
           <p className="font-medium">{lesson.title}</p>
-          <p className="text-muted-foreground text-xs">
-            {formatLessonDuration(lesson.durationSeconds)} ·{" "}
-            {lesson.videoProvider ?? "sem vídeo"}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
+            <span>{formatLessonDuration(lesson.durationSeconds)}</span>
+            <span>·</span>
+            <span>{lesson.videoProvider ?? "sem vídeo"}</span>
+            {hasVideo ? null : <Badge variant="destructive">sem video</Badge>}
+          </div>
         </div>
         <span className="truncate font-mono text-muted-foreground text-xs">
           {lesson.videoExternalId ?? "sem hash"}
@@ -586,11 +655,13 @@ function LessonForm({
                   <SelectValue placeholder="Selecione o módulo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {modules.map((module) => (
-                    <SelectItem key={module.id} value={module.id}>
-                      {module.title}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    {modules.map((module) => (
+                      <SelectItem key={module.id} value={module.id}>
+                        {module.title}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </Field>
@@ -769,6 +840,44 @@ function InfoTile({
     <div className="rounded-lg border bg-background/35 p-4">
       <p className="text-muted-foreground text-xs">{label}</p>
       <p className="mt-1 break-words font-medium text-sm">{value}</p>
+    </div>
+  );
+}
+
+function CourseMetricCard({
+  helper,
+  label,
+  value,
+}: {
+  helper: string;
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <p className="text-muted-foreground text-xs">{label}</p>
+      <p className="mt-2 font-bold text-2xl tracking-tight">{value}</p>
+      <p className="mt-2 text-muted-foreground text-xs">{helper}</p>
+    </div>
+  );
+}
+
+function ContentStatusCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.JSX.Element {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <HugeiconsIcon icon={PlayCircleIcon} size={18} strokeWidth={2} />
+      </div>
+      <div>
+        <p className="text-muted-foreground text-xs">{label}</p>
+        <p className="font-semibold text-lg">{value}</p>
+      </div>
     </div>
   );
 }
