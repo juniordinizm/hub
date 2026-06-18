@@ -1,8 +1,5 @@
 import {
-  ArrowRight01Icon,
-  BookOpen01Icon,
-  Certificate01Icon,
-  Clock01Icon,
+  type BookOpen01Icon,
   LockIcon,
   PlayCircleIcon,
   ShoppingBag03Icon,
@@ -27,13 +24,23 @@ import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+const WHITESPACE_RE = /\s+/;
+
+const getInitials = (title: string): string =>
+  title
+    .split(WHITESPACE_RE)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
   const courses = await getStudentCourseCatalog(session.user.id);
   const groups = groupStudentCatalogCourses(courses);
   const completedCount = groups.completed.length;
   const activeCount = groups.active.length + groups.completed.length;
-  const nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
+  const _nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -63,8 +70,6 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           <EmptyCoursesState />
         ) : (
           <>
-            {nextCourse ? <NextCoursePanel course={nextCourse} /> : null}
-
             {groups.active.length > 0 ? (
               <CourseSection
                 courses={groups.active}
@@ -82,9 +87,9 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
             ) : null}
 
             <CourseSection
-              courses={groups.locked}
-              description="Compre, renove ou regularize acesso para entrar na trilha."
-              title="Disponíveis para acesso"
+              courses={courses}
+              description="Explore todos os cursos disponíveis na plataforma."
+              title="Catálogo de cursos"
             />
           </>
         )}
@@ -121,7 +126,7 @@ function EmptyCoursesState(): React.JSX.Element {
   );
 }
 
-function getCourseButtonLabel(
+function _getCourseButtonLabel(
   progressPercent: number,
   hasNextLesson: boolean
 ): string {
@@ -147,80 +152,6 @@ function getShortCourseButtonLabel(
   return "Rever";
 }
 
-function NextCoursePanel({
-  course,
-}: {
-  course: StudentCatalogCourseCard;
-}): React.JSX.Element {
-  const hasActiveAccess = course.accessStatus === "active";
-  const href = route(
-    getStudentCoursePrimaryHref({
-      courseId: course.courseId,
-      nextLessonId: course.nextLessonId,
-    })
-  );
-
-  return (
-    <section className="overflow-hidden rounded-lg border bg-card">
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="p-6 sm:p-7">
-          <Badge variant={hasActiveAccess ? "default" : "outline"}>
-            {hasActiveAccess ? "Próximo passo" : "Curso em destaque"}
-          </Badge>
-          <h2 className="mt-4 max-w-2xl font-bold text-2xl tracking-tight">
-            {course.title}
-          </h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-6">
-            {course.subtitle ??
-              course.description ??
-              "Uma trilha privada para avançar com acompanhamento e certificado."}
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3 text-sm">
-            <InfoPill
-              icon={BookOpen01Icon}
-              label={`${course.totalCount} aulas`}
-            />
-            <InfoPill icon={Clock01Icon} label={`${course.workloadHours}h`} />
-            {course.progressPercent >= 100 ? (
-              <InfoPill icon={Certificate01Icon} label="Certificado liberado" />
-            ) : null}
-          </div>
-        </div>
-        <div className="flex flex-col justify-between border-border/60 border-t bg-muted/25 p-6 lg:border-t-0 lg:border-l">
-          {hasActiveAccess ? (
-            <>
-              <div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Progresso</span>
-                  <span className="font-semibold">
-                    {course.progressPercent}%
-                  </span>
-                </div>
-                <Progress className="mt-3 h-2" value={course.progressPercent} />
-                <p className="mt-3 text-muted-foreground text-sm">
-                  {course.completedCount} de {course.totalCount} aulas
-                  concluídas.
-                </p>
-              </div>
-              <Button asChild className="mt-6">
-                <Link href={href}>
-                  {getCourseButtonLabel(
-                    course.progressPercent,
-                    Boolean(course.nextLessonId)
-                  )}
-                  <HugeiconsIcon icon={ArrowRight01Icon} />
-                </Link>
-              </Button>
-            </>
-          ) : (
-            <CoursePurchaseForm course={course} />
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function CourseSection({
   courses,
   description,
@@ -236,16 +167,11 @@ function CourseSection({
 
   return (
     <section>
-      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h2 className="font-bold text-xl">{title}</h2>
-          <p className="mt-1 text-muted-foreground text-sm">{description}</p>
-        </div>
-        <Button asChild size="sm" variant="outline">
-          <Link href={route("/app/certificados")}>Ver certificados</Link>
-        </Button>
+      <div className="mb-5">
+        <h2 className="font-bold text-xl">{title}</h2>
+        <p className="mt-1 text-muted-foreground text-sm">{description}</p>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="flex flex-wrap gap-5">
         {courses.map((course) => (
           <CourseCard course={course} key={course.courseId} />
         ))}
@@ -254,7 +180,7 @@ function CourseSection({
   );
 }
 
-function InfoPill({
+function _InfoPill({
   icon,
   label,
 }: {
@@ -290,45 +216,79 @@ function CourseCard({
   const cardHref = route(`/app/cursos/${course.courseId}`);
 
   return (
-    <article className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-colors hover:border-primary/45">
-      <div className="flex flex-1 flex-col p-5 sm:p-6">
+    <article className="group relative flex w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
+      <div className="absolute inset-0 z-0">
+        {course.thumbnailUrl ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
+            style={{ backgroundImage: `url(${course.thumbnailUrl})` }}
+          />
+        ) : (
+          <>
+            <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
+            <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
+              <span className="font-black text-[8rem] leading-none tracking-tighter">
+                {getInitials(course.title)}
+              </span>
+            </div>
+          </>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
+      </div>
+
+      <div className="relative z-10 flex min-h-[220px] flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="line-clamp-2 font-bold text-lg">
-              <Link className="before:absolute before:inset-0" href={cardHref}>
-                {course.title}
-              </Link>
-            </h3>
-            <p className="mt-1 text-muted-foreground text-sm">
-              {course.totalCount} aulas • {course.workloadHours}h
-            </p>
-          </div>
+          <Badge variant={hasActiveAccess ? "default" : "secondary"}>
+            {access.label}
+          </Badge>
           {!hasActiveAccess && (
-            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-secondary-foreground">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-background/20 text-sidebar-foreground backdrop-blur-sm">
               <HugeiconsIcon icon={LockIcon} size={16} strokeWidth={2} />
             </span>
           )}
         </div>
 
-        {course.subtitle || course.description ? (
-          <p className="mt-3 line-clamp-2 text-muted-foreground text-sm leading-6">
-            {course.subtitle ?? course.description}
-          </p>
-        ) : null}
+        <div className="mt-auto pt-10">
+          <h3 className="line-clamp-2 font-bold text-lg">
+            <Link className="before:absolute before:inset-0" href={cardHref}>
+              {course.title}
+            </Link>
+          </h3>
+          <div className="mt-2 flex items-start gap-4">
+            <div className="flex-1">
+              {course.subtitle || course.description ? (
+                <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
+                  {course.subtitle ?? course.description}
+                </p>
+              ) : null}
+            </div>
+            <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
+              {course.totalCount} aulas • {course.workloadHours}h
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <div className="relative z-10 mt-auto flex flex-col gap-5 pt-6">
+      <div className="relative z-10 flex flex-1 flex-col justify-end p-5 pt-0 sm:p-6 sm:pt-0">
+        <div className="flex flex-col gap-5">
           {hasActiveAccess ? (
             <div>
-              <div className="mb-2 flex items-center justify-between text-muted-foreground text-xs">
+              <div className="mb-2 flex items-center justify-between text-sidebar-foreground/60 text-xs">
                 <span>
                   {course.completedCount}/{course.totalCount} aulas
                 </span>
-                <span className="font-semibold">{course.progressPercent}%</span>
+                <span className="font-semibold text-sidebar-foreground">
+                  {course.progressPercent}%
+                </span>
               </div>
-              <Progress className="h-1" value={course.progressPercent} />
+              <Progress
+                className="h-1 [&>[data-slot=progress-indicator]]:bg-emerald-500"
+                value={course.progressPercent}
+              />
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm leading-6">
+            <p className="text-sidebar-foreground/60 text-sm leading-6">
               {access.helper}
             </p>
           )}

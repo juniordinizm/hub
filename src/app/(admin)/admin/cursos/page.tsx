@@ -52,6 +52,16 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   },
 };
 
+const WHITESPACE_RE = /\s+/;
+
+const getInitials = (title: string): string =>
+  title
+    .split(WHITESPACE_RE)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
 
@@ -86,7 +96,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <section className="flex flex-wrap gap-5">
           {data.courses.map((course) => {
             const courseModules = data.modules.filter(
               (moduleData) => moduleData.courseId === course.id
@@ -103,54 +113,80 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
             return (
               <article
-                className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/50"
+                className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-all hover:border-primary/50"
                 key={course.id}
               >
-                <div className="flex flex-1 flex-col p-5 sm:p-6">
+                <div className="absolute inset-0 z-0">
+                  {course.thumbnailUrl ? (
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
+                      style={{
+                        backgroundImage: `url(${course.thumbnailUrl})`,
+                      }}
+                    />
+                  ) : (
+                    <>
+                      <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
+                      <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
+                        <span className="font-black text-[8rem] leading-none tracking-tighter">
+                          {getInitials(course.title)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
+                </div>
+
+                <div className="relative z-10 flex min-h-[220px] flex-col p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="line-clamp-2 font-bold text-lg">
-                        <Link
-                          className="before:absolute before:inset-0"
-                          href={route(`/admin/cursos/${course.id}`)}
-                        >
-                          {course.title}
-                        </Link>
-                      </h3>
-                      <p className="mt-1 text-muted-foreground text-sm">
-                        {courseModules.length} módulos • {lessonsCount} aulas
-                      </p>
-                    </div>
                     <Badge className={statusInfo.color} variant="outline">
                       {statusInfo.label}
                     </Badge>
                   </div>
 
-                  {course.subtitle ? (
-                    <p className="mt-3 line-clamp-2 text-muted-foreground text-sm leading-6">
-                      {course.subtitle}
-                    </p>
-                  ) : null}
-
-                  <div className="relative z-10 mt-auto flex flex-col gap-5 pt-6">
-                    <div className="flex items-center justify-between text-muted-foreground text-xs">
-                      <span>{course.accessDurationMonths}m acesso</span>
-                      <span className="font-semibold">
-                        {formatCurrencyInCents(course.priceInCents)}
-                      </span>
-                    </div>
-
-                    <Button
-                      asChild
-                      className="w-full"
-                      size="sm"
-                      variant="secondary"
-                    >
-                      <Link href={route(`/admin/cursos/${course.id}`)}>
-                        Gerenciar curso
+                  <div className="mt-auto pt-10">
+                    <h3 className="line-clamp-2 font-bold text-lg">
+                      <Link
+                        className="before:absolute before:inset-0"
+                        href={route(`/admin/cursos/${course.id}`)}
+                      >
+                        {course.title}
                       </Link>
-                    </Button>
+                    </h3>
+                    <div className="mt-2 flex items-start gap-4">
+                      <div className="flex-1">
+                        {course.subtitle ? (
+                          <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
+                            {course.subtitle}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
+                        {courseModules.length} módulos • {lessonsCount} aulas
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="relative z-10 flex flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
+                  <div className="flex items-center justify-between text-muted-foreground text-xs">
+                    <span>{course.accessDurationMonths}m acesso</span>
+                    <span className="font-semibold text-foreground">
+                      {formatCurrencyInCents(course.priceInCents)}
+                    </span>
+                  </div>
+
+                  <Button
+                    asChild
+                    className="w-full"
+                    size="sm"
+                    variant="secondary"
+                  >
+                    <Link href={route(`/admin/cursos/${course.id}`)}>
+                      Gerenciar curso
+                    </Link>
+                  </Button>
                 </div>
               </article>
             );
