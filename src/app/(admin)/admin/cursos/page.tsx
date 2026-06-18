@@ -138,7 +138,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
                 </div>
 
-                <div className="relative z-10 flex min-h-[220px] flex-col p-5 sm:p-6">
+                <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <Badge className={statusInfo.color} variant="outline">
                       {statusInfo.label}

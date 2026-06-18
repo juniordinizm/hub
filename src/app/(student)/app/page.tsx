@@ -1,8 +1,9 @@
 import {
-  type BookOpen01Icon,
-  LockIcon,
-  PlayCircleIcon,
-  ShoppingBag03Icon,
+  CheckmarkCircle02Icon,
+  PlayIcon,
+  Route03Icon,
+  ShoppingBasketDone01Icon,
+  SquareLock02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
@@ -49,11 +50,11 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           <div>
             <Badge variant="secondary">PROTEA-R Hub</Badge>
             <h1 className="mt-4 max-w-3xl font-extrabold text-3xl tracking-tight md:text-5xl">
-              Sua biblioteca de cursos privados
+              Biblioteca de cursos
             </h1>
             <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">
               Acompanhe suas trilhas, retome a próxima aula e veja quais cursos
-              ainda estão disponíveis para liberar acesso.
+              estão disponíveis.
             </p>
           </div>
 
@@ -235,18 +236,33 @@ function CourseCard({
           </>
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
+
+        {!hasActiveAccess && (
+          <div className="absolute inset-0 flex items-start justify-center bg-background/60 pt-24 backdrop-blur-[2px]">
+            <HugeiconsIcon
+              className="text-sidebar-foreground/80 drop-shadow-md"
+              icon={SquareLock02Icon}
+              size={48}
+            />
+          </div>
+        )}
       </div>
 
-      <div className="relative z-10 flex min-h-[220px] flex-col p-5 sm:p-6">
+      <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
-          <Badge variant={hasActiveAccess ? "default" : "secondary"}>
+          <Badge
+            className={
+              hasActiveAccess
+                ? ""
+                : "border-sidebar-foreground/30 border-dashed bg-transparent text-sidebar-foreground/80 hover:bg-transparent"
+            }
+            variant={hasActiveAccess ? "default" : "outline"}
+          >
+            {hasActiveAccess && (
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} />
+            )}
             {access.label}
           </Badge>
-          {!hasActiveAccess && (
-            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-background/20 text-sidebar-foreground backdrop-blur-sm">
-              <HugeiconsIcon icon={LockIcon} size={16} strokeWidth={2} />
-            </span>
-          )}
         </div>
 
         <div className="mt-auto pt-10">
@@ -325,7 +341,7 @@ function CourseAccessControls({
           size="sm"
         >
           <Link href={primaryHref}>
-            <HugeiconsIcon icon={PlayCircleIcon} size={16} />
+            <HugeiconsIcon icon={PlayIcon} size={16} />
             {getShortCourseButtonLabel(
               course.progressPercent,
               Boolean(course.nextLessonId)
@@ -338,7 +354,10 @@ function CourseAccessControls({
           size="sm"
           variant="secondary"
         >
-          <Link href={cardHref}>Trilha</Link>
+          <Link href={cardHref}>
+            <HugeiconsIcon icon={Route03Icon} size={16} />
+            Trilha
+          </Link>
         </Button>
       </div>
     );
@@ -366,10 +385,10 @@ function CoursePurchaseForm({
     <form action={startCourseCheckoutAction}>
       <input name="courseId" type="hidden" value={course.courseId} />
       <Button className="w-full" size="sm" type="submit">
-        <HugeiconsIcon icon={ShoppingBag03Icon} />
+        <HugeiconsIcon icon={ShoppingBasketDone01Icon} />
         {course.accessStatus === "expired"
           ? "Renovar acesso"
-          : "Comprar acesso"}
+          : "Adquirir acesso"}
       </Button>
     </form>
   );

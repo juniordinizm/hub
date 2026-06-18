@@ -111,7 +111,7 @@ export const getCourseAccessPresentation = ({
 
   return {
     tone: "active",
-    label: "Acesso ativo",
+    label: "Matriculado",
     helper: "Continue no seu ritmo dentro do período de acesso.",
   };
 };
