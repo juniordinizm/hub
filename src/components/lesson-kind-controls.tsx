@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const lessonTypeOptions = [
   ["video", "Vídeo"],
@@ -78,23 +79,35 @@ export function LessonKindControls({
       {isVideoLesson ? (
         <>
           <input name="videoProvider" type="hidden" value="jmvstream" />
-          <Field>
-            <FieldLabel>Link ou iframe JMVStream</FieldLabel>
-            <Input
-              defaultValue={defaultEmbedUrl}
-              name="videoEmbedUrl"
-              placeholder="https://player.jmvstream.com/... ou iframe oficial"
-            />
-          </Field>
-          <JmvstreamDurationDetector
-            defaultEmbedUrl={defaultEmbedUrl}
-            defaultProvider="jmvstream"
-          />
-          <JmvstreamUploadPanel
-            asset={asset}
-            currentVideoHash={null}
-            lessonId={lessonId}
-          />
+          <Tabs className="w-full" defaultValue="upload">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upload">Envio Direto</TabsTrigger>
+              <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
+            </TabsList>
+            <TabsContent className="pt-4" value="upload">
+              <JmvstreamUploadPanel
+                asset={asset}
+                currentVideoHash={null}
+                lessonId={lessonId}
+              />
+            </TabsContent>
+            <TabsContent className="pt-4" value="link">
+              <div className="space-y-4">
+                <Field>
+                  <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+                  <Input
+                    defaultValue={defaultEmbedUrl}
+                    name="videoEmbedUrl"
+                    placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                  />
+                </Field>
+                <JmvstreamDurationDetector
+                  defaultEmbedUrl={defaultEmbedUrl}
+                  defaultProvider="jmvstream"
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
         </>
       ) : null}
     </div>

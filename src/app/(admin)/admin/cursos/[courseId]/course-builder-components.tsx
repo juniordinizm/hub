@@ -12,6 +12,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type React from "react";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseBuilderClient } from "@/components/course-builder-dnd";
+import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import type { JmvstreamUploadAsset } from "@/components/jmvstream-upload-panel";
 import { LessonKindControls } from "@/components/lesson-kind-controls";
 import { Badge } from "@/components/ui/badge";
@@ -119,39 +120,34 @@ export function ModuleSection({
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline">{moduleLessons.length} aulas</Badge>
-          <Dialog>
-            <DialogTriggerButton size="sm" variant="outline">
-              <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
-              Nova aula
-            </DialogTriggerButton>
-            <DialogContent className="sm:max-w-3xl">
-              <DialogHeader>
-                <DialogTitle>Nova aula</DialogTitle>
-                <DialogDescription>
-                  Cadastre uma aula neste módulo.
-                </DialogDescription>
-              </DialogHeader>
-              <LessonForm
-                defaultModuleId={moduleData.id}
-                nextSortOrder={nextLessonSortOrder}
-              />
-            </DialogContent>
-          </Dialog>
-          <Dialog>
-            <DialogTriggerButton size="sm" variant="secondary">
-              <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-              Editar
-            </DialogTriggerButton>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Editar módulo</DialogTitle>
-                <DialogDescription>
-                  Atualize os dados deste módulo.
-                </DialogDescription>
-              </DialogHeader>
-              <ModuleForm course={course} moduleData={moduleData} />
-            </DialogContent>
-          </Dialog>
+          <DiscardAwareDialog
+            className="sm:max-w-3xl"
+            description="Cadastre uma aula neste módulo."
+            title="Nova aula"
+            trigger={
+              <DialogTriggerButton size="sm" variant="outline">
+                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
+                Nova aula
+              </DialogTriggerButton>
+            }
+          >
+            <LessonForm
+              defaultModuleId={moduleData.id}
+              nextSortOrder={nextLessonSortOrder}
+            />
+          </DiscardAwareDialog>
+          <DiscardAwareDialog
+            description="Atualize os dados deste módulo."
+            title="Editar módulo"
+            trigger={
+              <DialogTriggerButton size="sm" variant="secondary">
+                <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+                Editar
+              </DialogTriggerButton>
+            }
+          >
+            <ModuleForm course={course} moduleData={moduleData} />
+          </DiscardAwareDialog>
         </div>
       </div>
       <Separator />
@@ -193,24 +189,22 @@ export function LessonRow({
           {lesson.isPublished ? "publicada" : "rascunho"}
         </Badge>
       </div>
-      <Dialog>
-        <DialogTriggerButton size="sm" variant="ghost">
-          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-          Editar
-        </DialogTriggerButton>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Editar aula</DialogTitle>
-            <DialogDescription>
-              Altere vídeo, ordem ou publicação.
-            </DialogDescription>
-          </DialogHeader>
-          <LessonForm
-            asset={asset ? toUploadAsset(asset) : undefined}
-            lesson={lesson}
-          />
-        </DialogContent>
-      </Dialog>
+      <DiscardAwareDialog
+        className="sm:max-w-3xl"
+        description="Altere vídeo, ordem ou publicação."
+        title="Editar aula"
+        trigger={
+          <DialogTriggerButton size="sm" variant="ghost">
+            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+            Editar
+          </DialogTriggerButton>
+        }
+      >
+        <LessonForm
+          asset={asset ? toUploadAsset(asset) : undefined}
+          lesson={lesson}
+        />
+      </DiscardAwareDialog>
     </div>
   );
 }
@@ -373,21 +367,21 @@ export function DeleteModuleDialog({
           detail={`Módulo ${moduleData.sortOrder}`}
           title={moduleData.title}
         />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteModuleAction}>
+        <AutoCloseDialogForm action={deleteModuleAction}>
+          <DialogFooter className="mt-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+                Cancelar
+              </Button>
+            </DialogClose>
             <input name="moduleId" type="hidden" value={moduleData.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusão
             </Button>
-          </form>
-        </DialogFooter>
+          </DialogFooter>
+        </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>
   );
@@ -416,21 +410,21 @@ export function DeleteLessonDialog({
           detail={`Aula ${lesson.sortOrder}`}
           title={lesson.title}
         />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteLessonAction}>
+        <AutoCloseDialogForm action={deleteLessonAction}>
+          <DialogFooter className="mt-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+                Cancelar
+              </Button>
+            </DialogClose>
             <input name="lessonId" type="hidden" value={lesson.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusão
             </Button>
-          </form>
-        </DialogFooter>
+          </DialogFooter>
+        </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>
   );
@@ -516,5 +510,29 @@ export function ContentStatusCard({
         <p className="font-semibold text-lg">{value}</p>
       </div>
     </div>
+  );
+}
+
+export function CreateModuleDialog({
+  course,
+  nextModuleSortOrder,
+}: {
+  course: CourseData;
+  nextModuleSortOrder: number;
+}): React.JSX.Element {
+  return (
+    <DiscardAwareDialog
+      className="sm:max-w-3xl"
+      description="Adicione uma unidade ao curso."
+      title="Novo módulo"
+      trigger={
+        <DialogTriggerButton>
+          <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+          Novo módulo
+        </DialogTriggerButton>
+      }
+    >
+      <ModuleForm course={course} nextSortOrder={nextModuleSortOrder} />
+    </DiscardAwareDialog>
   );
 }

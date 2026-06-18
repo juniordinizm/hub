@@ -8,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,46 +58,38 @@ export function CourseEditDialog({
   open,
   onOpenChange,
 }: CourseDialogProps): React.JSX.Element {
-  const dialogProps: {
-    open?: boolean;
-    onOpenChange?: (open: boolean) => void;
-  } = {};
-  if (open !== undefined) {
-    dialogProps.open = open;
-  }
-  if (onOpenChange !== undefined) {
-    dialogProps.onOpenChange = onOpenChange;
-  }
-
   return (
-    <Dialog {...dialogProps}>
-      {!onOpenChange && (
-        <DialogTriggerButton size="sm" variant="outline">
-          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-          Editar curso
-        </DialogTriggerButton>
-      )}
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Editar curso</DialogTitle>
-          <DialogDescription>
-            Atualize os dados principais do curso.
-          </DialogDescription>
-        </DialogHeader>
-        <CourseForm course={course} />
-      </DialogContent>
-    </Dialog>
+    <DiscardAwareDialog
+      description="Atualize os dados principais do curso."
+      onOpenChange={onOpenChange}
+      open={open}
+      title="Editar curso"
+      trigger={
+        onOpenChange ? undefined : (
+          <DialogTriggerButton size="sm" variant="outline">
+            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+            Editar curso
+          </DialogTriggerButton>
+        )
+      }
+    >
+      <CourseForm course={course} />
+    </DiscardAwareDialog>
   );
 }
 
 export function DeleteCourseDialog({
   course,
-  open,
   onOpenChange,
-}: CourseDialogProps): React.JSX.Element {
+  open,
+}: {
+  course: CourseData;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+}): React.JSX.Element {
   const dialogProps: {
-    open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    open?: boolean;
   } = {};
   if (open !== undefined) {
     dialogProps.open = open;
@@ -113,7 +106,7 @@ export function DeleteCourseDialog({
           Excluir curso
         </DialogTriggerButton>
       )}
-      <DialogContent className="max-w-md">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Excluir curso?</DialogTitle>
           <DialogDescription>
@@ -125,21 +118,21 @@ export function DeleteCourseDialog({
           detail="O identificador interno será preservado apenas no sistema."
           title={course.title}
         />
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteCourseAction}>
+        <AutoCloseDialogForm action={deleteCourseAction}>
+          <DialogFooter className="mt-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+                Cancelar
+              </Button>
+            </DialogClose>
             <input name="courseId" type="hidden" value={course.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
               Confirmar exclusão
             </Button>
-          </form>
-        </DialogFooter>
+          </DialogFooter>
+        </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>
   );

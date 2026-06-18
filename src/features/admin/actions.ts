@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
@@ -296,6 +297,8 @@ export const deleteCourseAction = async (formData: FormData): Promise<void> => {
     targetType: "course",
   });
   revalidateAdmin();
+  // biome-ignore lint/suspicious/noExplicitAny: Next.js typed routes workaround
+  redirect("/admin/cursos" as any);
 };
 
 export const deleteModuleAction = async (formData: FormData): Promise<void> => {

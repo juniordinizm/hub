@@ -1,17 +1,9 @@
-import { Add01Icon, ArrowLeft01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTriggerButton,
-} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -28,9 +20,9 @@ import {
   ContentStatusCard,
   CourseBuilderWrapper,
   CourseMetricCard,
+  CreateModuleDialog,
   InfoRow,
   InfoTile,
-  ModuleForm,
 } from "./course-builder-components";
 import { CourseEditDialog } from "./course-dialogs-client";
 
@@ -256,24 +248,10 @@ export default async function AdminCourseDetailPage({
             </section>
 
             <section className="flex flex-wrap gap-3">
-              <Dialog>
-                <DialogTriggerButton>
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                  Novo módulo
-                </DialogTriggerButton>
-                <DialogContent className="sm:max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>Novo módulo</DialogTitle>
-                    <DialogDescription>
-                      Adicione uma unidade ao curso.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <ModuleForm
-                    course={course}
-                    nextSortOrder={nextModuleSortOrder}
-                  />
-                </DialogContent>
-              </Dialog>
+              <CreateModuleDialog
+                course={course}
+                nextModuleSortOrder={nextModuleSortOrder}
+              />
             </section>
 
             <section className="space-y-4">

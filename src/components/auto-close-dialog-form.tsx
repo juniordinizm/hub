@@ -4,6 +4,13 @@ import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+const isRedirectError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "digest" in error &&
+  typeof (error as { digest?: unknown }).digest === "string" &&
+  ((error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT") ?? false);
+
 export function AutoCloseDialogForm({
   action,
   children,
@@ -28,7 +35,10 @@ export function AutoCloseDialogForm({
     try {
       await action(formData);
       closeRef.current?.click();
-    } catch {
+    } catch (err) {
+      if (isRedirectError(err)) {
+        throw err;
+      }
       setError("Nao foi possivel salvar. Tente novamente.");
     } finally {
       setIsPending(false);
