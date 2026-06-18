@@ -48,7 +48,7 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <Badge variant="outline">Alunos</Badge>
           <h1 className="mt-3 font-bold text-3xl tracking-tight">

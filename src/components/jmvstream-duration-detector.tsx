@@ -130,7 +130,7 @@ export function JmvstreamDurationDetector({
   }, [durationWasEdited]);
 
   return (
-    <div className="space-y-2" ref={rootRef}>
+    <div className="flex flex-col gap-2" ref={rootRef}>
       {playerUrl ? (
         <iframe
           className="sr-only"

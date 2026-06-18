@@ -59,7 +59,7 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <Badge variant="outline">Financeiro</Badge>
           <div className="mt-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
@@ -127,7 +127,7 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                 <HugeiconsIcon icon={Invoice01Icon} size={22} strokeWidth={2} />
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="flex flex-col gap-5">
               <div>
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-sm">Conversao geral</p>

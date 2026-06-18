@@ -75,7 +75,7 @@ export default async function AdminCourseDetailPage({
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <Button asChild size="sm" variant="ghost">
             <Link href={route("/admin/cursos")}>
@@ -210,7 +210,7 @@ export default async function AdminCourseDetailPage({
                 <p className="mt-1 text-muted-foreground text-sm">
                   {contentSignal.helper}
                 </p>
-                <div className="mt-4 space-y-3 text-sm">
+                <div className="mt-4 flex flex-col gap-3 text-sm">
                   <InfoRow
                     label="Aulas publicadas"
                     value={`${publishedLessons.length} de ${lessons.length}`}
@@ -254,7 +254,7 @@ export default async function AdminCourseDetailPage({
               />
             </section>
 
-            <section className="space-y-4">
+            <section className="flex flex-col gap-4">
               <div className="border-b pb-3">
                 <h2 className="font-semibold text-xl">Estrutura do curso</h2>
                 <p className="mt-1 text-muted-foreground text-sm">
@@ -262,7 +262,7 @@ export default async function AdminCourseDetailPage({
                   editar vídeo, ordem e publicação.
                 </p>
               </div>
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
                 {modules.length === 0 ? (
                   <p className="rounded-lg border bg-card p-5 text-muted-foreground text-sm">
                     Nenhum módulo cadastrado. Comece criando a primeira unidade

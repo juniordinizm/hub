@@ -10,7 +10,7 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <Badge variant="outline">FAQ</Badge>

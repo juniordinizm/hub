@@ -21,7 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 import type React from "react";
 import { useEffect, useState, useTransition } from "react";
-
+import { Separator } from "@/components/ui/separator";
 import {
   reorderLessonsAction,
   reorderModulesAction,
@@ -247,7 +247,7 @@ export function CourseBuilderClient({
       onDragStart={handleDragStart}
       sensors={sensors}
     >
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <SortableContext
           items={modules.map((m) => m.id)}
           strategy={verticalListSortingStrategy}
@@ -269,7 +269,8 @@ export function CourseBuilderClient({
                     items={moduleLessons.map((l) => l.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    <div className="divide-y border-t">
+                    {moduleLessons.length > 0 && <Separator />}
+                    <div className="divide-y">
                       {moduleLessons.map((lesson) => (
                         <SortableItem
                           className="bg-background/20 transition-colors hover:bg-muted/10"

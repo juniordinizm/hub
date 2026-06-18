@@ -2,6 +2,7 @@
 
 import React from "react";
 import { SortableItem, SortableList } from "@/components/sortable-list";
+import { Separator } from "@/components/ui/separator";
 import {
   reorderLessonsAction,
   reorderModulesAction,
@@ -51,27 +52,30 @@ export function ModuleLessonsList({
   children: React.ReactNode;
 }) {
   return (
-    <SortableList
-      className="divide-y border-t"
-      itemIds={lessonIds}
-      onReorder={(newOrder) => reorderLessonsAction(moduleId, newOrder)}
-    >
-      {React.Children.map(children, (child, index) => {
-        const id = lessonIds[index];
-        if (!id) {
-          return null;
-        }
-        return (
-          <SortableItem
-            className="bg-background/20 transition-colors hover:bg-muted/10"
-            handleClassName="px-4"
-            id={id}
-            key={id}
-          >
-            {child}
-          </SortableItem>
-        );
-      })}
-    </SortableList>
+    <>
+      <Separator />
+      <SortableList
+        className="divide-y"
+        itemIds={lessonIds}
+        onReorder={(newOrder) => reorderLessonsAction(moduleId, newOrder)}
+      >
+        {React.Children.map(children, (child, index) => {
+          const id = lessonIds[index];
+          if (!id) {
+            return null;
+          }
+          return (
+            <SortableItem
+              className="bg-background/20 transition-colors hover:bg-muted/10"
+              handleClassName="px-4"
+              id={id}
+              key={id}
+            >
+              {child}
+            </SortableItem>
+          );
+        })}
+      </SortableList>
+    </>
   );
 }

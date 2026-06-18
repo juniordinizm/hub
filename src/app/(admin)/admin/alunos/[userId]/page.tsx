@@ -41,7 +41,7 @@ export default async function AdminStudentDetailPage({
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
-      <div className="space-y-8">
+      <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <Button asChild className="mb-5" size="sm" variant="ghost">
             <Link href={route("/admin/alunos")}>

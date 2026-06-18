@@ -111,7 +111,7 @@ export function CoursesRevenueTable({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <Input
           className="max-w-sm"

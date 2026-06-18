@@ -219,7 +219,7 @@ export function ModuleForm({
   nextSortOrder?: number;
 }): React.JSX.Element {
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <AutoCloseDialogForm action={saveModuleAction}>
         <FieldGroup>
           <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
@@ -286,7 +286,7 @@ export function LessonForm({
   const publishedFieldId = `lesson-is-published-${lesson?.id ?? "new"}`;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <AutoCloseDialogForm action={saveLessonAction}>
         <FieldGroup>
           <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />

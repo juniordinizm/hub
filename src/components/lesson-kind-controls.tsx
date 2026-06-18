@@ -42,7 +42,7 @@ export function LessonKindControls({
   const isVideoLesson = lessonType === "video";
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <Field>
           <FieldLabel>Tipo</FieldLabel>
@@ -92,7 +92,7 @@ export function LessonKindControls({
               />
             </TabsContent>
             <TabsContent className="pt-4" value="link">
-              <div className="space-y-4">
+              <div className="flex flex-col gap-4">
                 <Field>
                   <FieldLabel>Link ou iframe JMVStream</FieldLabel>
                   <Input

@@ -33,25 +33,37 @@ export function LessonCard({
   let statusBadge: React.JSX.Element | null = null;
   if (status === "in_progress") {
     statusBadge = (
-      <Badge className="absolute bottom-3 left-3 border-transparent bg-teal-600 font-bold text-[10px] text-white uppercase tracking-wider hover:bg-teal-700">
+      <Badge
+        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        variant="default"
+      >
         Em andamento
       </Badge>
     );
   } else if (status === "next") {
     statusBadge = (
-      <Badge className="absolute bottom-3 left-3 border-transparent bg-zinc-700 font-bold text-[10px] text-white uppercase tracking-wider hover:bg-zinc-800">
+      <Badge
+        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        variant="secondary"
+      >
         Próxima
       </Badge>
     );
   } else if (status === "locked") {
     statusBadge = (
-      <Badge className="absolute bottom-3 left-3 border-transparent bg-red-900/80 font-bold text-[10px] text-red-200 uppercase tracking-wider hover:bg-red-900">
+      <Badge
+        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        variant="destructive"
+      >
         Bloqueada
       </Badge>
     );
   } else if (status === "completed") {
     statusBadge = (
-      <Badge className="absolute bottom-3 left-3 border-transparent bg-emerald-600 font-bold text-[10px] text-white uppercase tracking-wider hover:bg-emerald-700">
+      <Badge
+        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        variant="secondary"
+      >
         Concluída
       </Badge>
     );

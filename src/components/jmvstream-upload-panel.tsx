@@ -195,7 +195,7 @@ export function JmvstreamUploadPanel({
         )}
 
         {status ? (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Progress className="h-2" value={progress} />
             <p className="text-muted-foreground text-xs">{status}</p>
             <UploadTimeline
