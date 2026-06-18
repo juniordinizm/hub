@@ -63,7 +63,7 @@ function SidebarHeaderContent() {
           alt="PROTEA-R"
           className="h-auto max-h-14 w-full object-contain object-left"
           height={100}
-          src="/protear/logo-negativo.png"
+          src="/protear/logo-negativo.svg"
           width={400}
         />
       </div>
@@ -193,7 +193,7 @@ export function PanelLayout({
               alt="PROTEA-R"
               className="h-auto max-h-10 w-full object-contain object-center"
               height={100}
-              src="/protear/logo-negativo.png"
+              src="/protear/logo-negativo.svg"
               width={400}
             />
           </div>

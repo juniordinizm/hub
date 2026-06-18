@@ -2,7 +2,6 @@ import {
   ArrowRight01Icon,
   BookOpen01Icon,
   Certificate01Icon,
-  CheckmarkCircle01Icon,
   Clock01Icon,
   LockIcon,
   PlayCircleIcon,
@@ -23,23 +22,10 @@ import {
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
 import { startCourseCheckoutAction } from "@/features/payments/actions";
-import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
-
-function getInitials(title: string): string {
-  return (
-    title
-      .split(" ")
-      .filter((word) => word.length > 2)
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || title.slice(0, 2).toUpperCase()
-  );
-}
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
@@ -304,74 +290,56 @@ function CourseCard({
   const cardHref = route(`/app/cursos/${course.courseId}`);
 
   return (
-    <article className="group flex min-h-[410px] flex-col overflow-hidden rounded-lg border bg-card shadow-sm transition-colors hover:border-primary/45">
-      <div className="relative flex min-h-48 flex-col justify-between overflow-hidden bg-sidebar p-5 text-sidebar-foreground">
-        {course.thumbnailUrl ? (
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-center bg-cover opacity-35 transition-opacity group-hover:opacity-45"
-            style={{ backgroundImage: `url(${course.thumbnailUrl})` }}
-          />
-        ) : null}
-        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/90 to-primary/20" />
-        <div className="relative flex items-start justify-between gap-3">
-          <Badge variant={hasActiveAccess ? "default" : "secondary"}>
-            {access.label}
-          </Badge>
-          <span className="grid size-9 place-items-center rounded-md bg-background/10">
-            <HugeiconsIcon
-              icon={hasActiveAccess ? PlayCircleIcon : LockIcon}
-              strokeWidth={2}
-            />
-          </span>
+    <article className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-colors hover:border-primary/45">
+      <div className="flex flex-1 flex-col p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="line-clamp-2 font-bold text-lg">
+              <Link className="before:absolute before:inset-0" href={cardHref}>
+                {course.title}
+              </Link>
+            </h3>
+            <p className="mt-1 text-muted-foreground text-sm">
+              {course.totalCount} aulas • {course.workloadHours}h
+            </p>
+          </div>
+          {!hasActiveAccess && (
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-secondary text-secondary-foreground">
+              <HugeiconsIcon icon={LockIcon} size={16} strokeWidth={2} />
+            </span>
+          )}
         </div>
-        <div className="relative">
-          <p className="font-black text-5xl text-sidebar-foreground/15">
-            {getInitials(course.title)}
-          </p>
-          <h3 className="mt-3 line-clamp-2 font-bold text-xl">
-            {course.title}
-          </h3>
-          <p className="mt-2 text-sidebar-foreground/70 text-xs">
-            {course.totalCount} aulas · {course.workloadHours}h ·{" "}
-            {formatCurrencyInCents(course.priceInCents)}
-          </p>
-        </div>
-      </div>
 
-      <div className="flex flex-1 flex-col justify-between gap-5 p-5">
-        <div className="flex flex-col gap-4">
+        {course.subtitle || course.description ? (
+          <p className="mt-3 line-clamp-2 text-muted-foreground text-sm leading-6">
+            {course.subtitle ?? course.description}
+          </p>
+        ) : null}
+
+        <div className="relative z-10 mt-auto flex flex-col gap-5 pt-6">
           {hasActiveAccess ? (
             <div>
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Progresso</span>
+              <div className="mb-2 flex items-center justify-between text-muted-foreground text-xs">
+                <span>
+                  {course.completedCount}/{course.totalCount} aulas
+                </span>
                 <span className="font-semibold">{course.progressPercent}%</span>
               </div>
-              <Progress className="h-1.5" value={course.progressPercent} />
-              <p className="mt-2 text-muted-foreground text-xs">
-                Acesso até{" "}
-                {course.expiresAt ? formatDate(course.expiresAt) : "-"}
-              </p>
+              <Progress className="h-1" value={course.progressPercent} />
             </div>
           ) : (
             <p className="text-muted-foreground text-sm leading-6">
               {access.helper}
             </p>
           )}
-          {course.progressPercent >= 100 ? (
-            <Badge className="w-fit" variant="outline">
-              <HugeiconsIcon icon={CheckmarkCircle01Icon} />
-              Curso concluído
-            </Badge>
-          ) : null}
-        </div>
 
-        <CourseAccessControls
-          cardHref={cardHref}
-          course={course}
-          hasActiveAccess={hasActiveAccess}
-          primaryHref={primaryHref}
-        />
+          <CourseAccessControls
+            cardHref={cardHref}
+            course={course}
+            hasActiveAccess={hasActiveAccess}
+            primaryHref={primaryHref}
+          />
+        </div>
       </div>
     </article>
   );
@@ -390,16 +358,26 @@ function CourseAccessControls({
 }): React.JSX.Element {
   if (hasActiveAccess) {
     return (
-      <div className="flex flex-wrap gap-2">
-        <Button asChild className="flex-1" size="sm">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          asChild
+          className="flex-1 justify-start sm:justify-center"
+          size="sm"
+        >
           <Link href={primaryHref}>
+            <HugeiconsIcon icon={PlayCircleIcon} size={16} />
             {getShortCourseButtonLabel(
               course.progressPercent,
               Boolean(course.nextLessonId)
             )}
           </Link>
         </Button>
-        <Button asChild className="flex-1" size="sm" variant="outline">
+        <Button
+          asChild
+          className="flex-1 justify-start sm:justify-center"
+          size="sm"
+          variant="secondary"
+        >
           <Link href={cardHref}>Trilha</Link>
         </Button>
       </div>

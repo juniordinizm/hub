@@ -20,7 +20,7 @@ const notifications = [
   {
     id: "1",
     user: "Neuro Capacitar",
-    avatar: "/protear/logo-negativo.png",
+    avatar: "/protear/logo-negativo.svg",
     initials: "NC",
     action: "adicionou um novo módulo em",
     target: "PROTEA-R",

@@ -52,16 +52,6 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   },
 };
 
-const WHITESPACE_RE = /\s+/;
-
-const getInitials = (title: string): string =>
-  title
-    .split(WHITESPACE_RE)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
-    .join("");
-
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
 
@@ -113,59 +103,48 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
             return (
               <article
-                className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/50"
+                className="group relative flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-all hover:border-primary/50"
                 key={course.id}
               >
-                {/* Top Cover */}
-                <div className="relative flex min-h-[220px] flex-col overflow-hidden bg-[#122425] p-5 pb-6">
-                  <div className="absolute right-0 bottom-4 -mr-4 select-none opacity-[0.03] transition-opacity group-hover:opacity-[0.05]">
-                    <span className="font-black text-[8rem] leading-none">
-                      {getInitials(course.title)}
-                    </span>
-                  </div>
-
-                  <div className="relative z-10 mb-8 flex items-center justify-between">
-                    <Badge
-                      className="w-fit border-transparent bg-white/10 text-white backdrop-blur-sm"
-                      variant="outline"
-                    >
+                <div className="flex flex-1 flex-col p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="line-clamp-2 font-bold text-lg">
+                        <Link
+                          className="before:absolute before:inset-0"
+                          href={route(`/admin/cursos/${course.id}`)}
+                        >
+                          {course.title}
+                        </Link>
+                      </h3>
+                      <p className="mt-1 text-muted-foreground text-sm">
+                        {courseModules.length} módulos • {lessonsCount} aulas
+                      </p>
+                    </div>
+                    <Badge className={statusInfo.color} variant="outline">
                       {statusInfo.label}
                     </Badge>
                   </div>
 
-                  <div className="relative z-10 mt-auto">
-                    <h3 className="line-clamp-2 font-bold text-white text-xl">
-                      {course.title}
-                    </h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 font-medium text-white/70 text-xs">
-                      <span>{courseModules.length} módulos</span>
-                      <span className="text-white/30">·</span>
-                      <span>{lessonsCount} aulas</span>
-                    </div>
-                  </div>
-                </div>
+                  {course.subtitle ? (
+                    <p className="mt-3 line-clamp-2 text-muted-foreground text-sm leading-6">
+                      {course.subtitle}
+                    </p>
+                  ) : null}
 
-                {/* Bottom Body */}
-                <div className="flex flex-1 flex-col justify-between p-5">
-                  <div className="mb-5 flex flex-col gap-3">
-                    {course.subtitle ? (
-                      <p className="line-clamp-2 text-muted-foreground text-sm leading-6">
-                        {course.subtitle}
-                      </p>
-                    ) : null}
-                    <div className="flex flex-wrap items-center gap-2 font-medium text-muted-foreground text-xs">
+                  <div className="relative z-10 mt-auto flex flex-col gap-5 pt-6">
+                    <div className="flex items-center justify-between text-muted-foreground text-xs">
                       <span>{course.accessDurationMonths}m acesso</span>
-                      <span className="text-foreground/20">·</span>
-                      <span>{formatCurrencyInCents(course.priceInCents)}</span>
+                      <span className="font-semibold">
+                        {formatCurrencyInCents(course.priceInCents)}
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="mt-auto">
                     <Button
                       asChild
                       className="w-full"
                       size="sm"
-                      variant="outline"
+                      variant="secondary"
                     >
                       <Link href={route(`/admin/cursos/${course.id}`)}>
                         Gerenciar curso
