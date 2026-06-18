@@ -38,7 +38,6 @@ export default async function StudentLayout({
   return (
     <PanelLayout
       navContent={<StudentNav courses={courses} />}
-      panelLabel="Área do aluno"
       userEmail={session.user.email}
       userImage={(session.user as { image?: string | null }).image ?? null}
       userName={session.user.name}

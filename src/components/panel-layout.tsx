@@ -3,7 +3,9 @@
 import { Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createAuthClient } from "better-auth/react";
+import Image from "next/image";
 import { type JSX, type ReactNode, useState } from "react";
+import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -33,7 +35,6 @@ import { getInitials } from "@/lib/get-initials";
 interface PanelLayoutProps {
   readonly children: ReactNode;
   readonly navContent: ReactNode;
-  readonly panelLabel: string;
   readonly userEmail: string;
   readonly userImage?: string | null;
   readonly userName: string;
@@ -41,10 +42,10 @@ interface PanelLayoutProps {
 
 const authClient = createAuthClient();
 
-function SidebarHeaderContent({ panelLabel }: { readonly panelLabel: string }) {
-  const { state } = useSidebar();
+function SidebarHeaderContent() {
+  const { state, isMobile } = useSidebar();
 
-  if (state === "collapsed") {
+  if (state === "collapsed" && !isMobile) {
     return (
       <div className="flex w-full items-center justify-center py-2">
         <SidebarTrigger />
@@ -53,16 +54,17 @@ function SidebarHeaderContent({ panelLabel }: { readonly panelLabel: string }) {
   }
 
   return (
-    <div className="flex w-full items-center justify-between px-2 pt-2 pb-1">
-      <div className="flex flex-col gap-0">
-        <p className="font-black text-lg text-sidebar-foreground tracking-[0.1em]">
-          PROTEA-R
-        </p>
-        <p className="truncate text-sidebar-foreground/55 text-xs">
-          {panelLabel}
-        </p>
+    <div className="flex w-full items-center justify-between gap-2 px-2 pt-2 pb-1">
+      <div className="flex min-w-0 flex-1 items-center">
+        <Image
+          alt="PROTEA-R"
+          className="h-auto max-h-14 w-full object-contain object-left"
+          height={100}
+          src="/protear/logo-negativo.png"
+          width={400}
+        />
       </div>
-      <SidebarTrigger />
+      <SidebarTrigger className="shrink-0" />
     </div>
   );
 }
@@ -70,7 +72,6 @@ function SidebarHeaderContent({ panelLabel }: { readonly panelLabel: string }) {
 export function PanelLayout({
   children,
   navContent,
-  panelLabel,
   userEmail,
   userName,
   userImage,
@@ -88,7 +89,7 @@ export function PanelLayout({
     <SidebarProvider className="h-svh overflow-hidden">
       <Sidebar className="border-sidebar-border bg-sidebar" collapsible="icon">
         <SidebarHeader className="flex flex-col gap-0 px-2 pt-2 pb-0">
-          <SidebarHeaderContent panelLabel={panelLabel} />
+          <SidebarHeaderContent />
         </SidebarHeader>
         <SidebarContent>{navContent}</SidebarContent>
         <SidebarFooter className="gap-2 px-2 pb-2">
@@ -173,9 +174,22 @@ export function PanelLayout({
         <SidebarRail />
       </Sidebar>
       <SidebarInset className="overflow-hidden">
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-border/40 border-b bg-background px-4 md:hidden">
-          <SidebarTrigger />
-          <span className="font-semibold text-sm">PROTEA-R</span>
+        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-border/40 border-b bg-background px-4">
+          <div className="flex flex-1 items-center justify-start">
+            <SidebarTrigger className="shrink-0 md:hidden" />
+          </div>
+          <div className="flex flex-1 items-center justify-center md:hidden">
+            <Image
+              alt="PROTEA-R"
+              className="h-auto max-h-10 w-full object-contain object-center"
+              height={100}
+              src="/protear/logo-negativo.png"
+              width={400}
+            />
+          </div>
+          <div className="flex flex-1 items-center justify-end">
+            <NotificationsButton />
+          </div>
         </header>
         <ScrollArea className="h-[calc(100svh-3.5rem)] w-full">
           <div className="flex-1">{children}</div>
