@@ -27,7 +27,9 @@
 - Segredo do webhook registrado no AbacatePay e em `ABACATEPAY_WEBHOOK_SECRET`.
 - JMVStream configurado como provedor de video final.
 - Dominios da plataforma liberados na JMVStream quando usar protecao por dominio/hotlink.
+- JMVStream/S3 configurado para aceitar PUT direto do navegador e expor `ETag` em CORS/Expose-Headers.
 - Upload via admin validado com um MP4 pequeno.
+- Upload grande validado sem proxy pela Vercel; bytes de video devem ir direto para URLs assinadas.
 - `Admin > Configuracoes > JMVStream` mostra conexao ativa e galerias acessiveis.
 - Aulas enviadas pelo admin ficam com player oficial antes de contar como prontas.
 - `JMVSTREAM_API_TOKEN` e apenas fallback manual; prefira credenciais de auth server-only para renovar JWT expirado.

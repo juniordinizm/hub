@@ -51,16 +51,10 @@ describe("Jmvstream upload helpers", () => {
     ).rejects.toThrow("ETag");
   });
 
-  it("falls back to the same-origin proxy when the browser blocks the S3 PUT", async () => {
+  it("fails clearly when the browser blocks the direct S3 PUT", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockRejectedValue(new TypeError("Failed to fetch"));
-    const proxyFetcher = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ etag: '"etag-proxy"' }), {
-        headers: { "Content-Type": "application/json" },
-        status: 200,
-      })
-    );
 
     await expect(
       uploadFileParts({
@@ -68,15 +62,7 @@ describe("Jmvstream upload helpers", () => {
         file: createFile(),
         onProgress: vi.fn(),
         presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
-        proxyFetcher,
       })
-    ).resolves.toEqual([{ ETag: '"etag-proxy"', PartNumber: 1 }]);
-
-    expect(proxyFetcher).toHaveBeenCalledWith(
-      expect.stringContaining("/api/jmvstream/upload-part?url="),
-      expect.objectContaining({
-        method: "POST",
-      })
-    );
+    ).rejects.toThrow("CORS/Expose-Headers: ETag");
   });
 });

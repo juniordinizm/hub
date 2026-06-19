@@ -26,13 +26,11 @@ export const uploadFileParts = async ({
   file,
   onProgress,
   presignedUrls,
-  proxyFetcher = fetch,
 }: {
   fetcher?: typeof fetch;
   file: File;
   onProgress: (value: number) => void;
   presignedUrls: JmvstreamPresignedUrl[];
-  proxyFetcher?: typeof fetch;
 }): Promise<JmvstreamUploadPart[]> => {
   const urls = normalizePresignedUrls(presignedUrls);
   const chunkSize = Math.ceil(file.size / urls.length);
@@ -47,7 +45,6 @@ export const uploadFileParts = async ({
       chunk,
       contentType,
       fetcher,
-      proxyFetcher,
       url: item.url,
     });
 
@@ -65,13 +62,11 @@ const uploadPart = async ({
   chunk,
   contentType,
   fetcher,
-  proxyFetcher,
   url,
 }: {
   chunk: Blob;
   contentType: string;
   fetcher: typeof fetch;
-  proxyFetcher: typeof fetch;
   url: string;
 }): Promise<string> => {
   try {
@@ -89,60 +84,20 @@ const uploadPart = async ({
 
     if (!etag) {
       throw new Error(
-        "A JMVStream nao retornou o ETag do upload. Verifique a exposicao do header ETag nas URLs assinadas antes de finalizar."
+        "A JMVStream nao retornou o ETag do upload. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
       );
     }
 
     return etag;
   } catch (error) {
-    if (!isBrowserNetworkBlock(error)) {
-      throw error;
+    if (isBrowserNetworkBlock(error)) {
+      throw new Error(
+        "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
+      );
     }
 
-    return uploadPartViaProxy({
-      chunk,
-      contentType,
-      proxyFetcher,
-      url,
-    });
+    throw error;
   }
-};
-
-const uploadPartViaProxy = async ({
-  chunk,
-  contentType,
-  proxyFetcher,
-  url,
-}: {
-  chunk: Blob;
-  contentType: string;
-  proxyFetcher: typeof fetch;
-  url: string;
-}): Promise<string> => {
-  const response = await proxyFetcher(
-    `/api/jmvstream/upload-part?url=${encodeURIComponent(url)}`,
-    {
-      body: chunk,
-      headers: { "x-upload-content-type": contentType },
-      method: "POST",
-    }
-  );
-
-  const body = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      typeof body?.error === "string"
-        ? body.error
-        : "Nao foi possivel enviar a parte do upload via proxy."
-    );
-  }
-
-  if (typeof body?.etag !== "string" || !body.etag.trim()) {
-    throw new Error("Proxy JMVStream nao retornou ETag.");
-  }
-
-  return body.etag;
 };
 
 const isBrowserNetworkBlock = (error: unknown): boolean =>

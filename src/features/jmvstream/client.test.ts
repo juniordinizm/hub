@@ -124,6 +124,31 @@ describe("JMVStream API client", () => {
     );
   });
 
+  it("creates galleries from the current enveloped JMVStream response", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        data: {
+          id: 79_089,
+          name: "Curso - Modulo",
+          parentId: null,
+          uuid: "folder-uuid",
+        },
+        message: "Folder created successfully",
+        status: 200,
+      })
+    );
+    const client = createClient(fetcher);
+
+    await expect(
+      client.createFolder({ name: "Curso - Modulo" })
+    ).resolves.toEqual({
+      id: 79_089,
+      name: "Curso - Modulo",
+      parentId: null,
+      uuid: "folder-uuid",
+    });
+  });
+
   it("includes safe raw API details when JMVStream returns an undocumented error body", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       new Response("Invalid folder name", {
@@ -385,6 +410,37 @@ describe("JMVStream API client", () => {
     expect(fetcher).toHaveBeenCalledWith(
       "https://api.jmvstream.com/v1/videos/deleteVideo/hash%2Fwith%2Fslash/plan-456",
       expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("deletes folders by UUID", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(createJsonResponse({ data: 1 }));
+    const client = createClient(fetcher);
+
+    await client.deleteFolder("folder-uuid");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/folders/folder-uuid",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("moves videos to a target folder", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(createJsonResponse({ status: 200 }));
+    const client = createClient(fetcher);
+
+    await client.moveVideo("video-hash", "folder-uuid");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/videos/moveVideo/video-hash",
+      expect.objectContaining({
+        body: JSON.stringify({ folder_uuid: "folder-uuid" }),
+        method: "PUT",
+      })
     );
   });
 });

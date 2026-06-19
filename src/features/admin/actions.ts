@@ -501,6 +501,7 @@ export const completeJmvstreamUploadAction = async (input: {
     partNumber?: number;
   }>;
   size: number;
+  uploadSessionId: string;
   uploadId: string;
   videoHash: string;
 }): Promise<void> => {

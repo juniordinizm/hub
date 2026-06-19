@@ -303,7 +303,7 @@ export const jmvstreamVideoAssets = pgTable(
     uniqueIndex("jmvstream_video_assets_active_lesson_unique_idx")
       .on(table.lessonId)
       .where(
-        sql`${table.lessonId} is not null and ${table.deleteStatus} = 'none'`
+        sql`${table.lessonId} is not null and ${table.deleteStatus} = 'none' and ${table.uploadStatus} in ('processing', 'ready')`
       ),
     index("jmvstream_video_assets_lesson_idx").on(table.lessonId),
     index("jmvstream_video_assets_delete_status_idx").on(table.deleteStatus),

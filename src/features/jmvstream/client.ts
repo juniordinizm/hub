@@ -223,6 +223,25 @@ export const findJmvstreamFolderByName = (
   return null;
 };
 
+export const findJmvstreamFolderByUuid = (
+  folders: JmvstreamFolderResponse[],
+  folderUuid: string
+): JmvstreamFolderResponse | null => {
+  for (const folder of folders) {
+    if (folder.uuid === folderUuid) {
+      return folder;
+    }
+
+    const child = findJmvstreamFolderByUuid(folder.children ?? [], folderUuid);
+
+    if (child) {
+      return child;
+    }
+  }
+
+  return null;
+};
+
 export const findJmvstreamVideoByHash = (
   videos: JmvstreamVideoResponse[],
   videoHash: string
@@ -302,7 +321,7 @@ export const createJmvstreamClient = ({
         }),
         method: "POST",
       });
-      const folder = parseFolderResponse(response, name);
+      const folder = parseFolderResponse(readFolderPayload(response), name);
 
       if (folder.uuid) {
         return folder;
@@ -328,6 +347,12 @@ export const createJmvstreamClient = ({
         `/v1/videos/deleteVideo/${encodeURIComponent(videoHash)}/${encodeURIComponent(planId)}`,
         { method: "DELETE" }
       );
+    },
+
+    deleteFolder: async (folderUuid: string): Promise<void> => {
+      await request<unknown>(`/v1/folders/${encodeURIComponent(folderUuid)}`, {
+        method: "DELETE",
+      });
     },
 
     initMultipartUpload: async (
@@ -371,6 +396,16 @@ export const createJmvstreamClient = ({
       const videos = Array.isArray(response.videos) ? response.videos : [];
 
       return videos.map((video) => parseVideoResponse(video));
+    },
+
+    moveVideo: async (videoHash: string, folderUuid: string): Promise<void> => {
+      await request<unknown>(
+        `/v1/videos/moveVideo/${encodeURIComponent(videoHash)}`,
+        {
+          body: JSON.stringify({ folder_uuid: folderUuid }),
+          method: "PUT",
+        }
+      );
     },
 
     renameFolder: async ({
@@ -481,6 +516,9 @@ const parseFolderResponse = (
 
   return folder;
 };
+
+const readFolderPayload = (response: UnknownRecord): UnknownRecord =>
+  isRecord(response.data) ? response.data : response;
 
 const readResponseBody = async (response: Response): Promise<unknown> => {
   const text = await response.text();

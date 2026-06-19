@@ -10,4 +10,50 @@ describe("JMVStream server SQL", () => {
 
     expect(source).not.toContain("order by updated_at");
   });
+
+  it("binds JMVStream upload sessions to lessons at init time", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("returning id");
+    expect(source).toContain(
+      "values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'uploading', 'none')"
+    );
+    expect(source).toContain("uploadSessionId");
+  });
+
+  it("validates the upload session before completing a JMVStream upload", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("assertJmvstreamUploadSessionMatches");
+    expect(source).toContain("uploadSessionId");
+    expect(source).toContain("video_hash = $3");
+  });
+
+  it("deletes JMVStream assets by lesson and persisted video hash", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("video_external_id");
+    expect(source).toContain("deleteJmvstreamAssetsForLesson");
+    expect(source).toContain("or video_hash = $2");
+  });
+
+  it("deletes empty JMVStream module folders after video cleanup", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("deleteEmptyJmvstreamFolder");
+    expect(source).toContain("client.deleteFolder");
+    expect(source).toContain("client.listVideos");
+  });
 });

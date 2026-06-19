@@ -4,6 +4,7 @@ import {
   authenticateJmvstreamApi,
   createJmvstreamClient,
   findJmvstreamFolderByName,
+  findJmvstreamFolderByUuid,
   findJmvstreamVideoByHash,
   isJmvstreamJwtUsable,
   type JmvstreamCompleteUploadInput,
@@ -31,6 +32,7 @@ export interface JmvstreamHealthSummary {
   failedUploads: number;
   folderCount: number;
   message: string;
+  orphanFolders: number;
   pendingDeletes: number;
   processingUploads: number;
 }
@@ -57,6 +59,7 @@ interface LessonContext {
 }
 
 let cachedApiToken: string | null = null;
+const STALE_UPLOAD_INTERVAL = "6 hours";
 
 const getConfiguredClient = async () => {
   const env = getServerEnv();
@@ -145,6 +148,7 @@ export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
 
 export const getJmvstreamHealthSummary =
   async (): Promise<JmvstreamHealthSummary> => {
+    await markStaleJmvstreamUploadsFailed();
     const assets = await getJmvstreamAssets();
     const failedUploads = assets.filter(
       (asset) => asset.uploadStatus === "failed"
@@ -161,13 +165,18 @@ export const getJmvstreamHealthSummary =
 
     try {
       const folders = await (await getConfiguredClient()).listFolders();
+      const orphanFolders = await countLocalOrphanFolders(folders);
 
       return {
         auth: "ok",
         failedDeletes,
         failedUploads,
         folderCount: countFolders(folders),
-        message: "JMVStream autenticada e galerias acessiveis.",
+        message:
+          orphanFolders > 0
+            ? `JMVStream autenticada; ${orphanFolders} pasta(s) locais nao existem mais na JMVStream e serao recriadas no proximo uso.`
+            : "JMVStream autenticada e galerias acessiveis.",
+        orphanFolders,
         pendingDeletes,
         processingUploads,
       };
@@ -181,6 +190,7 @@ export const getJmvstreamHealthSummary =
           error instanceof Error
             ? error.message
             : "Nao foi possivel validar a JMVStream.",
+        orphanFolders: 0,
         pendingDeletes,
         processingUploads,
       };
@@ -295,14 +305,15 @@ export const initJmvstreamUpload = async ({
     uploadType,
   });
 
-  await getPool().query(
+  const { rows } = await getPool().query<{ id: string }>(
     `
       insert into jmvstream_video_assets (
         lesson_id, module_id, course_id, video_hash, gallery_uuid, filename,
         size_bytes, object_name, upload_id, upload_status, delete_status
       )
-      values (null, $1, $2, $3, $4, $5, $6, $7, $8, 'uploading', 'none')
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'uploading', 'none')
       on conflict (video_hash) do update set
+        lesson_id = excluded.lesson_id,
         module_id = excluded.module_id,
         course_id = excluded.course_id,
         gallery_uuid = excluded.gallery_uuid,
@@ -314,8 +325,10 @@ export const initJmvstreamUpload = async ({
         delete_status = 'none',
         last_error = null,
         updated_at = now()
+      returning id
     `,
     [
+      lessonId,
       lesson.module_id,
       lesson.course_id,
       init.videoHash,
@@ -327,7 +340,16 @@ export const initJmvstreamUpload = async ({
     ]
   );
 
-  return init;
+  const uploadSessionId = rows[0]?.id;
+
+  if (!uploadSessionId) {
+    throw new Error("Nao foi possivel registrar a sessao de upload JMVStream.");
+  }
+
+  return {
+    ...init,
+    uploadSessionId,
+  };
 };
 
 export const completeJmvstreamUpload = async ({
@@ -336,10 +358,12 @@ export const completeJmvstreamUpload = async ({
   objectName,
   parts,
   size,
+  uploadSessionId,
   uploadId,
   videoHash,
 }: Omit<JmvstreamCompleteUploadInput, "galleryUuid"> & {
   lessonId: string;
+  uploadSessionId: string;
 }): Promise<void> => {
   const lesson = await getLessonContext(lessonId);
 
@@ -347,6 +371,11 @@ export const completeJmvstreamUpload = async ({
     throw new Error("Aula invalida.");
   }
 
+  await assertJmvstreamUploadSessionMatches({
+    lessonId,
+    uploadSessionId,
+    videoHash,
+  });
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
   const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
   const client = await getConfiguredClient();
@@ -552,6 +581,19 @@ export const deleteJmvstreamAssetsForCourse = async (
 export const deleteJmvstreamAssetsForLesson = async (
   lessonId: string
 ): Promise<void> => {
+  const { rows } = await getPool().query<{
+    video_external_id: string | null;
+  }>("select video_external_id from lessons where id = $1 limit 1", [lessonId]);
+  const videoHash = rows[0]?.video_external_id;
+
+  if (videoHash) {
+    await deleteAssetsByQuery("(lesson_id = $1 or video_hash = $2)", [
+      lessonId,
+      videoHash,
+    ]);
+    return;
+  }
+
   await deleteAssetsByQuery("lesson_id = $1", [lessonId]);
 };
 
@@ -593,18 +635,26 @@ const syncFolder = async ({
   const client = await getConfiguredClient();
 
   try {
+    const remoteFolders = await client.listFolders();
     const parentChanged =
       existing?.folder_uuid &&
       folderType === "module" &&
       existing.parent_folder_uuid !== parentFolderUuid;
     const existingFolderUuid = existing?.folder_uuid ?? null;
     const existingFolderName = existing?.name ?? null;
-    const shouldCreate = !existingFolderUuid || parentChanged;
+    const existingRemoteFolder = existingFolderUuid
+      ? findJmvstreamFolderByUuid(remoteFolders, existingFolderUuid)
+      : null;
+    const missingRemoteFolder = Boolean(
+      existingFolderUuid && !existingRemoteFolder
+    );
+    const shouldCreate =
+      !existingFolderUuid || parentChanged || missingRemoteFolder;
     let folder: { name: string; uuid: string };
 
     if (shouldCreate) {
       const existingRemoteFolder = findJmvstreamFolderByName(
-        await client.listFolders(),
+        remoteFolders,
         name
       );
       folder = existingRemoteFolder
@@ -612,7 +662,7 @@ const syncFolder = async ({
         : await client.createFolder({ name, parentFolderUuid });
     } else if (existingFolderName === name) {
       folder = {
-        name,
+        name: existingRemoteFolder?.name ?? name,
         uuid: existingFolderUuid,
       };
     } else {
@@ -622,13 +672,17 @@ const syncFolder = async ({
       });
     }
 
+    const syncLastError = getFolderSyncLastError({
+      existingFolderUuid: existing?.folder_uuid ?? null,
+      missingRemoteFolder,
+      parentChanged: Boolean(parentChanged),
+    });
+
     await upsertFolder({
       courseId,
       folderType,
       folderUuid: folder.uuid,
-      lastError: parentChanged
-        ? `Pasta anterior ${existing?.folder_uuid} mantida na JMVStream para revisao manual.`
-        : null,
+      lastError: syncLastError,
       moduleId,
       name: folder.name,
       parentFolderUuid,
@@ -650,6 +704,26 @@ const syncFolder = async ({
 
     return existing?.folder_uuid ?? null;
   }
+};
+
+const getFolderSyncLastError = ({
+  existingFolderUuid,
+  missingRemoteFolder,
+  parentChanged,
+}: {
+  existingFolderUuid: null | string;
+  missingRemoteFolder: boolean;
+  parentChanged: boolean;
+}): null | string => {
+  if (parentChanged) {
+    return `Pasta anterior ${existingFolderUuid} mantida na JMVStream para revisao manual.`;
+  }
+
+  if (missingRemoteFolder) {
+    return `Pasta local ${existingFolderUuid} nao existe mais na JMVStream e foi recriada.`;
+  }
+
+  return null;
 };
 
 const getExistingFolder = async (
@@ -805,6 +879,34 @@ export const assertJmvstreamVideoHashAvailable = async (
   }
 };
 
+const assertJmvstreamUploadSessionMatches = async ({
+  lessonId,
+  uploadSessionId,
+  videoHash,
+}: {
+  lessonId: string;
+  uploadSessionId: string;
+  videoHash: string;
+}): Promise<void> => {
+  const { rows } = await getPool().query<{ id: string }>(
+    `
+      select id
+      from jmvstream_video_assets
+      where id = $1
+        and lesson_id = $2
+        and video_hash = $3
+        and upload_status = 'uploading'
+        and delete_status = 'none'
+      limit 1
+    `,
+    [uploadSessionId, lessonId, videoHash]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Sessao de upload JMVStream invalida ou expirada.");
+  }
+};
+
 const deleteActiveAssetsForLesson = async (
   lessonId: string,
   exceptVideoHash?: string
@@ -842,10 +944,13 @@ const deleteAssetsByQuery = async (
 
 const deleteAssetById = async (assetId: string): Promise<void> => {
   const { rows } = await getPool().query<{
+    gallery_uuid: string | null;
+    module_id: string | null;
     video_hash: string;
-  }>("select video_hash from jmvstream_video_assets where id = $1 limit 1", [
-    assetId,
-  ]);
+  }>(
+    "select video_hash, gallery_uuid, module_id from jmvstream_video_assets where id = $1 limit 1",
+    [assetId]
+  );
   const asset = rows[0];
 
   if (!asset) {
@@ -864,7 +969,8 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
   );
 
   try {
-    await (await getConfiguredClient()).deleteVideo(asset.video_hash);
+    const client = await getConfiguredClient();
+    await client.deleteVideo(asset.video_hash);
     await getPool().query(
       `
         update jmvstream_video_assets
@@ -876,6 +982,11 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
       `,
       [assetId]
     );
+    await deleteEmptyJmvstreamFolder({
+      client,
+      folderUuid: asset.gallery_uuid,
+      moduleId: asset.module_id,
+    });
   } catch (error) {
     await getPool().query(
       `
@@ -893,4 +1004,105 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
       ]
     );
   }
+};
+
+const markStaleJmvstreamUploadsFailed = async (): Promise<void> => {
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set upload_status = 'failed',
+          last_error = $1,
+          updated_at = now()
+      where upload_status = 'uploading'
+        and updated_at < now() - $2::interval
+    `,
+    [
+      "Upload JMVStream expirado antes da finalizacao. Tente enviar novamente ou cancele e limpe a sessao.",
+      STALE_UPLOAD_INTERVAL,
+    ]
+  );
+};
+
+const countLocalOrphanFolders = async (
+  folders: JmvstreamFolderResponse[]
+): Promise<number> => {
+  const remoteFolderUuids = new Set(flattenFolderUuids(folders));
+  const { rows } = await getPool().query<{ folder_uuid: string }>(
+    `
+      select folder_uuid
+      from jmvstream_folders
+      where folder_uuid is not null
+        and status = 'active'
+    `
+  );
+
+  return rows.filter((row) => !remoteFolderUuids.has(row.folder_uuid)).length;
+};
+
+const flattenFolderUuids = (folders: JmvstreamFolderResponse[]): string[] => {
+  const uuids: string[] = [];
+
+  for (const folder of folders) {
+    uuids.push(folder.uuid);
+    uuids.push(...flattenFolderUuids(folder.children ?? []));
+  }
+
+  return uuids;
+};
+
+const deleteEmptyJmvstreamFolder = async ({
+  client,
+  folderUuid,
+  moduleId,
+}: {
+  client: Awaited<ReturnType<typeof getConfiguredClient>>;
+  folderUuid: null | string;
+  moduleId: null | string;
+}): Promise<void> => {
+  if (!(folderUuid && moduleId)) {
+    return;
+  }
+
+  const videos = await client.listVideos();
+  const hasRemoteVideos = videos.some(
+    (video) => video.folderUuid === folderUuid
+  );
+
+  if (hasRemoteVideos) {
+    return;
+  }
+
+  const { rows } = await getPool().query<{ id: string }>(
+    `
+      select id
+      from jmvstream_video_assets
+      where gallery_uuid = $1
+        and delete_status <> 'deleted'
+        and upload_status in ('uploading', 'processing', 'ready')
+      limit 1
+    `,
+    [folderUuid]
+  );
+
+  if (rows[0]) {
+    return;
+  }
+
+  await client.deleteFolder(folderUuid);
+  await getPool().query(
+    `
+      update jmvstream_folders
+      set folder_uuid = null,
+          status = 'needs_review',
+          last_error = $2,
+          updated_at = now()
+      where module_id = $1
+        and folder_uuid = $3
+    `,
+    [
+      moduleId,
+      "Pasta JMVStream removida automaticamente porque ficou vazia.",
+      folderUuid,
+    ]
+  );
 };

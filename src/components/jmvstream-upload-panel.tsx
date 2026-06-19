@@ -89,6 +89,7 @@ export function JmvstreamUploadPanel({
           objectName: init.objectName,
           parts,
           size: file.size,
+          uploadSessionId: init.uploadSessionId,
           uploadId: init.uploadId,
           videoHash: init.videoHash,
         });
