@@ -78,4 +78,15 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("client.moveVideo(videoHash, galleryUuid)");
     expect(source).toContain("video.folderUuid !== galleryUuid");
   });
+
+  it("defers moving videos until they are visible in the JMVStream video list", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("if (!video) {");
+    expect(source).toContain("markJmvstreamAssetMovePending");
+    expect(source).toContain("findJmvstreamVideoByHash(videos, videoHash)");
+  });
 });

@@ -397,16 +397,15 @@ export const completeJmvstreamUpload = async ({
     throw error;
   }
 
+  await deleteActiveAssetsForLesson(lessonId, videoHash);
+  const videos = await client.listVideos();
+  const syncedVideo = findJmvstreamVideoByHash(videos, videoHash);
   await moveJmvstreamVideoToCourseFolder({
     client,
     galleryUuid,
+    video: syncedVideo,
     videoHash,
   });
-  await deleteActiveAssetsForLesson(lessonId, videoHash);
-  const syncedVideo =
-    response.playerUrl === null
-      ? findJmvstreamVideoByHash(await client.listVideos(), videoHash)
-      : null;
   const playerUrl = response.playerUrl ?? syncedVideo?.playerUrl ?? null;
   const uploadStatus = playerUrl ? "ready" : "processing";
   await getPool().query(
@@ -531,21 +530,28 @@ const moveJmvstreamVideoToCourseFolder = async ({
   video?: ReturnType<typeof findJmvstreamVideoByHash>;
   videoHash: string;
 }): Promise<void> => {
+  if (!video) {
+    await markJmvstreamAssetMovePending({ videoHash });
+    return;
+  }
+
   if (video?.folderUuid === galleryUuid) {
     await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
     return;
   }
 
   try {
-    if (video && video.folderUuid !== galleryUuid) {
+    if (video.folderUuid !== galleryUuid) {
       await client.moveVideo(videoHash, galleryUuid);
       await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
       return;
     }
-
-    await client.moveVideo(videoHash, galleryUuid);
-    await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
   } catch (error) {
+    if (isJmvstreamVideoNotFoundError(error)) {
+      await markJmvstreamAssetMovePending({ videoHash });
+      return;
+    }
+
     await getPool().query(
       `
         update jmvstream_video_assets
@@ -563,6 +569,27 @@ const moveJmvstreamVideoToCourseFolder = async ({
     );
   }
 };
+
+const markJmvstreamAssetMovePending = async ({
+  videoHash,
+}: {
+  videoHash: string;
+}): Promise<void> => {
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set last_error = null,
+          updated_at = now()
+      where video_hash = $1
+        and delete_status <> 'deleted'
+    `,
+    [videoHash]
+  );
+};
+
+const isJmvstreamVideoNotFoundError = (error: unknown): boolean =>
+  error instanceof Error &&
+  error.message.trim().toLocaleLowerCase() === "video not found";
 
 const markJmvstreamAssetInGallery = async ({
   galleryUuid,
