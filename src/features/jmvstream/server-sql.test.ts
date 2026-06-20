@@ -46,24 +46,35 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("or video_hash = $2");
   });
 
-  it("deletes empty JMVStream module folders after video cleanup", async () => {
+  it("keeps course folders when lesson videos are deleted", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain("deleteEmptyJmvstreamFolder");
-    expect(source).toContain("client.deleteFolder");
-    expect(source).toContain("client.listVideos");
+    expect(source).not.toContain("deleteEmptyJmvstreamFolder");
+    expect(source).toContain("await client.deleteVideo(asset.video_hash)");
   });
 
-  it("moves completed or synced videos into the stored module gallery", async () => {
+  it("uses course folders as the upload gallery", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain("moveJmvstreamVideoToModuleFolder");
+    expect(source).toContain("requireJmvstreamCourseFolder(lesson.course_id)");
+    expect(source).not.toContain(
+      "requireJmvstreamModuleFolder(lesson.module_id)"
+    );
+  });
+
+  it("moves completed or synced videos into the stored course gallery", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("moveJmvstreamVideoToCourseFolder");
     expect(source).toContain("client.moveVideo(videoHash, galleryUuid)");
     expect(source).toContain("video.folderUuid !== galleryUuid");
   });

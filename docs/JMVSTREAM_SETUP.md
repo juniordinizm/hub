@@ -19,7 +19,7 @@ O admin usa o fluxo S3 atual do playground da JMVStream:
 
 1. Crie ou edite a aula.
 2. Selecione um arquivo em `Upload JMVStream`.
-3. O servidor inicia o upload em `/v2/upload/multipart/s3`, garante a galeria `Curso - Modulo` e cria uma sessao de asset como `uploading` ja vinculada a aula.
+3. O servidor inicia o upload em `/v2/upload/multipart/s3`, usa a galeria do curso e cria uma sessao de asset como `uploading` ja vinculada a aula.
 4. O navegador tenta enviar as partes direto para as URLs assinadas e guarda cada `ETag`.
 5. Se a JMVStream/S3 bloquear o PUT no navegador por CORS ou nao expuser o header `ETag`, o admin usa o proxy local/dedicado quando ele estiver habilitado. Sem proxy habilitado, falha com uma mensagem acionavel para configurar `CORS/Expose-Headers: ETag` na JMVStream/S3 ou usar backend dedicado de upload.
 6. O servidor finaliza em `/v2/upload/multipart/complete` com `filename`, `size`, `video_hash`, `objectName`, `uploadId`, `uploadSessionId` e `parts`. A `gallery` e enviada apenas no init; reenviar no complete faz a JMVStream/S3 responder `NoSuchUpload`.
@@ -29,9 +29,11 @@ Se a JMVStream ainda nao retornar o player oficial, a aula fica aguardando proce
 
 ## Pastas
 
-O Hub cria galerias JMVStream por modulo para organizar os uploads. Como o endpoint publico `POST /v1/folders` documenta apenas a criacao de galerias planas com `name`, cada modulo usa uma galeria nomeada como `Curso - Modulo`. O sistema reutiliza galerias existentes pelo nome antes de criar novas, valida se o `folder_uuid` local ainda existe em `GET /v1/folders` e recria a galeria quando a pasta remota foi removida.
+O Hub cria uma galeria JMVStream por curso. A pasta e criada ou sincronizada quando o curso e salvo no admin; ao renomear o curso, a galeria tambem e renomeada. Durante o upload, essa galeria do curso e usada como destino unico para todos os videos das aulas, independentemente do modulo.
 
-Ao apagar uma aula, o Hub tenta excluir o video vinculado na JMVStream pelo `video_hash`. Depois da exclusao, se a galeria do modulo nao tiver videos remotos nem assets locais ativos, o Hub apaga a pasta vazia na JMVStream e marca o registro local para revisao.
+O sistema reutiliza galerias existentes pelo nome antes de criar novas, valida se o `folder_uuid` local ainda existe em `GET /v1/folders` e recria a galeria quando a pasta remota foi removida. Se a JMVStream salvar um video na pasta `default`, o Hub tenta mover o video para a galeria do curso apos o complete ou na sincronizacao do player.
+
+Ao apagar uma aula, o Hub tenta excluir o video vinculado na JMVStream pelo `video_hash` e marca o asset local como `deleted`. A galeria do curso nao e apagada como efeito colateral da exclusao de uma aula; ela permanece como organizacao estavel do curso.
 
 ## Variaveis de ambiente
 

@@ -149,7 +149,7 @@ export function JmvstreamUploadPanel({
           <div>
             <h3 className="font-semibold text-sm">Upload JMVStream</h3>
             <p className="mt-1 text-muted-foreground text-xs">
-              Envia o arquivo para a galeria do modulo e vincula o hash nesta
+              Envia o arquivo para a galeria do curso e vincula o hash nesta
               aula.
             </p>
           </div>

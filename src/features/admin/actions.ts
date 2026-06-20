@@ -12,7 +12,6 @@ import {
   deleteJmvstreamAssetsForLesson,
   deleteJmvstreamAssetsForModule,
   ensureJmvstreamCourseFolder,
-  ensureJmvstreamModuleFolder,
   initJmvstreamUpload,
   markJmvstreamUploadFailed,
   retryJmvstreamAssetDelete,
@@ -143,6 +142,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     accessDurationMonths,
     status,
   ];
+  let savedCourseId = courseId;
 
   if (courseId) {
     await getPool().query(
@@ -167,6 +167,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     });
   } else {
     const insertedCourseId = randomUUID();
+    savedCourseId = insertedCourseId;
     const slug = await resolveUniqueCourseSlug(title);
     const priceInCents = parsePriceToCents(readString(formData, "price"));
     const { productId } = await createAbacatePayCourseProduct({
@@ -216,6 +217,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     });
   }
 
+  await ensureJmvstreamCourseFolder(savedCourseId);
   revalidateAdmin();
 };
 
@@ -452,14 +454,6 @@ export const ensureJmvstreamCourseFolderAction = async (
 ): Promise<void> => {
   await requireRole(["admin"]);
   await ensureJmvstreamCourseFolder(courseId);
-  revalidateAdmin();
-};
-
-export const ensureJmvstreamModuleFolderAction = async (
-  moduleId: string
-): Promise<void> => {
-  await requireRole(["admin"]);
-  await ensureJmvstreamModuleFolder(moduleId);
   revalidateAdmin();
 };
 

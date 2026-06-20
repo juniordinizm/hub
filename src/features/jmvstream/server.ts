@@ -227,27 +227,10 @@ export const ensureJmvstreamCourseFolder = async (
   });
 };
 
-export const ensureJmvstreamModuleFolder = async (
-  moduleId: string
-): Promise<string | null> => {
-  const context = await getModuleContext(moduleId);
-
-  if (!context) {
-    throw new Error("Modulo invalido.");
-  }
-
-  return syncFolder({
-    courseId: context.course_id,
-    folderType: "module",
-    moduleId,
-    name: formatJmvstreamModuleFolderName(context.course_title, context.title),
-  });
-};
-
-export const requireJmvstreamModuleFolder = async (
-  moduleId: string
+export const requireJmvstreamCourseFolder = async (
+  courseId: string
 ): Promise<string> => {
-  const folderUuid = await ensureJmvstreamModuleFolder(moduleId);
+  const folderUuid = await ensureJmvstreamCourseFolder(courseId);
 
   if (folderUuid) {
     return folderUuid;
@@ -255,16 +238,14 @@ export const requireJmvstreamModuleFolder = async (
 
   const { rows } = await getPool().query<{ last_error: string | null }>(
     `
-      select jf.last_error
-      from modules m
-      left join jmvstream_folders jf
-        on jf.course_id = m.course_id
-       and jf.folder_type = 'course'
-      where m.id = $1
-      order by jf.updated_at desc
+      select last_error
+      from jmvstream_folders
+      where course_id = $1
+        and folder_type = 'course'
+      order by jmvstream_folders.updated_at desc
       limit 1
     `,
-    [moduleId]
+    [courseId]
   );
   const detail = rows[0]?.last_error ? ` Detalhe: ${rows[0].last_error}` : "";
 
@@ -290,7 +271,7 @@ export const initJmvstreamUpload = async ({
     throw new Error("Aula invalida.");
   }
 
-  const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
+  const galleryUuid = await requireJmvstreamCourseFolder(lesson.course_id);
 
   const chunkSize =
     uploadType === "multipart" ? JMVSTREAM_UPLOAD_CHUNK_SIZE : undefined;
@@ -390,7 +371,7 @@ export const completeJmvstreamUpload = async ({
     videoHash,
   });
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
-  const galleryUuid = await requireJmvstreamModuleFolder(lesson.module_id);
+  const galleryUuid = await requireJmvstreamCourseFolder(lesson.course_id);
   const client = await getConfiguredClient();
 
   let response: JmvstreamCompleteUploadResponse;
@@ -416,7 +397,7 @@ export const completeJmvstreamUpload = async ({
     throw error;
   }
 
-  await moveJmvstreamVideoToModuleFolder({
+  await moveJmvstreamVideoToCourseFolder({
     client,
     galleryUuid,
     videoHash,
@@ -481,27 +462,36 @@ export const syncJmvstreamLessonPlayer = async (
   lessonId: string
 ): Promise<JmvstreamPlayerSyncResult> => {
   const { rows } = await getPool().query<{
+    course_id: string;
     video_external_id: string | null;
-  }>("select video_external_id from lessons where id = $1 limit 1", [lessonId]);
-  const videoHash = rows[0]?.video_external_id;
+  }>(
+    `
+      select m.course_id, l.video_external_id
+      from lessons l
+      join modules m on m.id = l.module_id
+      where l.id = $1
+      limit 1
+    `,
+    [lessonId]
+  );
+  const lesson = rows[0];
+  const videoHash = lesson?.video_external_id;
 
-  if (!videoHash) {
+  if (!(lesson && videoHash)) {
     return { playerUrl: null, ready: false };
   }
 
   const client = await getConfiguredClient();
   const video = findJmvstreamVideoByHash(await client.listVideos(), videoHash);
   const playerUrl = video?.playerUrl ?? null;
-  const galleryUuid = await getJmvstreamAssetGalleryUuid(videoHash);
+  const galleryUuid = await requireJmvstreamCourseFolder(lesson.course_id);
 
-  if (galleryUuid) {
-    await moveJmvstreamVideoToModuleFolder({
-      client,
-      galleryUuid,
-      video,
-      videoHash,
-    });
-  }
+  await moveJmvstreamVideoToCourseFolder({
+    client,
+    galleryUuid,
+    video,
+    videoHash,
+  });
 
   if (!playerUrl) {
     return { playerUrl: null, ready: false };
@@ -530,25 +520,7 @@ export const syncJmvstreamLessonPlayer = async (
   return { playerUrl, ready: true };
 };
 
-const getJmvstreamAssetGalleryUuid = async (
-  videoHash: string
-): Promise<null | string> => {
-  const { rows } = await getPool().query<{ gallery_uuid: string | null }>(
-    `
-      select gallery_uuid
-      from jmvstream_video_assets
-      where video_hash = $1
-        and delete_status <> 'deleted'
-      order by jmvstream_video_assets.updated_at desc
-      limit 1
-    `,
-    [videoHash]
-  );
-
-  return rows[0]?.gallery_uuid ?? null;
-};
-
-const moveJmvstreamVideoToModuleFolder = async ({
+const moveJmvstreamVideoToCourseFolder = async ({
   client,
   galleryUuid,
   video,
@@ -560,16 +532,19 @@ const moveJmvstreamVideoToModuleFolder = async ({
   videoHash: string;
 }): Promise<void> => {
   if (video?.folderUuid === galleryUuid) {
+    await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
     return;
   }
 
   try {
     if (video && video.folderUuid !== galleryUuid) {
       await client.moveVideo(videoHash, galleryUuid);
+      await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
       return;
     }
 
     await client.moveVideo(videoHash, galleryUuid);
+    await markJmvstreamAssetInGallery({ galleryUuid, videoHash });
   } catch (error) {
     await getPool().query(
       `
@@ -582,11 +557,31 @@ const moveJmvstreamVideoToModuleFolder = async ({
       [
         videoHash,
         error instanceof Error
-          ? `Video pronto, mas ainda nao foi movido para a galeria do modulo: ${error.message}`
-          : "Video pronto, mas ainda nao foi movido para a galeria do modulo.",
+          ? `Video pronto, mas ainda nao foi movido para a galeria do curso: ${error.message}`
+          : "Video pronto, mas ainda nao foi movido para a galeria do curso.",
       ]
     );
   }
+};
+
+const markJmvstreamAssetInGallery = async ({
+  galleryUuid,
+  videoHash,
+}: {
+  galleryUuid: string;
+  videoHash: string;
+}): Promise<void> => {
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set gallery_uuid = $2,
+          last_error = null,
+          updated_at = now()
+      where video_hash = $1
+        and delete_status <> 'deleted'
+    `,
+    [videoHash, galleryUuid]
+  );
 };
 
 export const markJmvstreamUploadFailed = async ({
@@ -627,7 +622,7 @@ export const syncManualJmvstreamVideoAsset = async ({
   }
 
   await assertJmvstreamVideoHashAvailable(videoHash, lessonId);
-  const galleryUuid = await ensureJmvstreamModuleFolder(lesson.module_id);
+  const galleryUuid = await ensureJmvstreamCourseFolder(lesson.course_id);
 
   await deleteActiveAssetsForLesson(lessonId, videoHash);
   await getPool().query(
@@ -719,9 +714,9 @@ const syncFolder = async ({
   parentFolderUuid?: null | string;
 }): Promise<string | null> => {
   const existing = await getExistingFolder(folderType, courseId, moduleId);
-  const client = await getConfiguredClient();
 
   try {
+    const client = await getConfiguredClient();
     const remoteFolders = await client.listFolders();
     const parentChanged =
       existing?.folder_uuid &&
@@ -894,36 +889,6 @@ const upsertFolder = async ({
   );
 };
 
-const getModuleContext = async (
-  moduleId: string
-): Promise<{
-  course_id: string;
-  course_title: string;
-  title: string;
-} | null> => {
-  const { rows } = await getPool().query<{
-    course_id: string;
-    course_title: string;
-    title: string;
-  }>(
-    `
-      select m.course_id, c.title as course_title, m.title
-      from modules m
-      join courses c on c.id = m.course_id
-      where m.id = $1
-      limit 1
-    `,
-    [moduleId]
-  );
-
-  return rows[0] ?? null;
-};
-
-const formatJmvstreamModuleFolderName = (
-  courseTitle: string,
-  moduleTitle: string
-): string => `${courseTitle} - ${moduleTitle}`;
-
 const getLessonContext = async (
   lessonId: string
 ): Promise<LessonContext | null> => {
@@ -1031,13 +996,10 @@ const deleteAssetsByQuery = async (
 
 const deleteAssetById = async (assetId: string): Promise<void> => {
   const { rows } = await getPool().query<{
-    gallery_uuid: string | null;
-    module_id: string | null;
     video_hash: string;
-  }>(
-    "select video_hash, gallery_uuid, module_id from jmvstream_video_assets where id = $1 limit 1",
-    [assetId]
-  );
+  }>("select video_hash from jmvstream_video_assets where id = $1 limit 1", [
+    assetId,
+  ]);
   const asset = rows[0];
 
   if (!asset) {
@@ -1069,11 +1031,6 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
       `,
       [assetId]
     );
-    await deleteEmptyJmvstreamFolder({
-      client,
-      folderUuid: asset.gallery_uuid,
-      moduleId: asset.module_id,
-    });
   } catch (error) {
     await getPool().query(
       `
@@ -1135,61 +1092,4 @@ const flattenFolderUuids = (folders: JmvstreamFolderResponse[]): string[] => {
   }
 
   return uuids;
-};
-
-const deleteEmptyJmvstreamFolder = async ({
-  client,
-  folderUuid,
-  moduleId,
-}: {
-  client: Awaited<ReturnType<typeof getConfiguredClient>>;
-  folderUuid: null | string;
-  moduleId: null | string;
-}): Promise<void> => {
-  if (!(folderUuid && moduleId)) {
-    return;
-  }
-
-  const videos = await client.listVideos();
-  const hasRemoteVideos = videos.some(
-    (video) => video.folderUuid === folderUuid
-  );
-
-  if (hasRemoteVideos) {
-    return;
-  }
-
-  const { rows } = await getPool().query<{ id: string }>(
-    `
-      select id
-      from jmvstream_video_assets
-      where gallery_uuid = $1
-        and delete_status <> 'deleted'
-        and upload_status in ('uploading', 'processing', 'ready')
-      limit 1
-    `,
-    [folderUuid]
-  );
-
-  if (rows[0]) {
-    return;
-  }
-
-  await client.deleteFolder(folderUuid);
-  await getPool().query(
-    `
-      update jmvstream_folders
-      set folder_uuid = null,
-          status = 'needs_review',
-          last_error = $2,
-          updated_at = now()
-      where module_id = $1
-        and folder_uuid = $3
-    `,
-    [
-      moduleId,
-      "Pasta JMVStream removida automaticamente porque ficou vazia.",
-      folderUuid,
-    ]
-  );
 };

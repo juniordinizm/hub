@@ -31,14 +31,14 @@
 - Upload via admin validado com um MP4 pequeno.
 - Upload grande validado sem proxy pela Vercel; bytes de video devem ir direto para URLs assinadas.
 - `JMVSTREAM_UPLOAD_PROXY_MODE` em Production Vercel deve ficar `disabled` ou `development`; `enabled` apenas em backend dedicado fora da Vercel.
-- `Admin > Configuracoes > JMVStream` mostra conexao ativa e galerias acessiveis.
+- `Admin > Configuracoes > JMVStream` mostra conexao ativa e galerias de curso acessiveis.
 - Aulas enviadas pelo admin ficam com player oficial antes de contar como prontas.
 - `JMVSTREAM_API_TOKEN` e apenas fallback manual; prefira credenciais de auth server-only para renovar JWT expirado.
 
 ## Smoke pos-deploy
 - `GET /api/health` retorna `ok: true`.
 - Admin consegue entrar.
-- Admin cria ou atualiza curso, modulo e aula.
+- Admin cria ou atualiza curso, confirma a galeria JMVStream do curso, modulo e aula.
 - Admin envia video pela aula e confirma que a aluna ve o player.
 - Admin cria aluna e reenvia acesso por reset de senha.
 - Webhook de pagamento aprovado cria pedido e matricula ativa.
