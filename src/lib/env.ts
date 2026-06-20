@@ -33,6 +33,9 @@ const serverEnvSchema = z.object({
   JMVSTREAM_AUTH_PASSWORD: optionalNonEmptyString,
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
   JMVSTREAM_API_TOKEN: optionalNonEmptyString,
+  JMVSTREAM_UPLOAD_PROXY_MODE: z
+    .enum(["development", "disabled", "enabled"])
+    .default("development"),
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NODE_ENV: z
@@ -44,6 +47,7 @@ const serverEnvSchema = z.object({
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
   SUPPORT_EMAIL: optionalNonEmptyString,
+  VERCEL: optionalNonEmptyString,
 });
 
 export const getServerEnv = () =>
@@ -65,10 +69,12 @@ export const getServerEnv = () =>
     JMVSTREAM_AUTH_PASSWORD: process.env.JMVSTREAM_AUTH_PASSWORD,
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
     JMVSTREAM_API_TOKEN: process.env.JMVSTREAM_API_TOKEN,
+    JMVSTREAM_UPLOAD_PROXY_MODE: process.env.JMVSTREAM_UPLOAD_PROXY_MODE,
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+    VERCEL: process.env.VERCEL,
   });

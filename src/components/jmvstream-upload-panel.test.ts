@@ -65,4 +65,55 @@ describe("Jmvstream upload helpers", () => {
       })
     ).rejects.toThrow("CORS/Expose-Headers: ETag");
   });
+
+  it("uses a configured dedicated proxy when the browser blocks the direct S3 PUT", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { ETag: '"proxied-etag"' },
+          status: 200,
+        })
+      );
+
+    await expect(
+      uploadFileParts({
+        fetcher,
+        file: createFile(),
+        onProgress: vi.fn(),
+        presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
+        uploadPartProxyUrl: "/api/jmvstream/upload-part",
+      })
+    ).resolves.toEqual([{ ETag: '"proxied-etag"', PartNumber: 1 }]);
+
+    expect(fetcher).toHaveBeenLastCalledWith(
+      "/api/jmvstream/upload-part?url=https%3A%2F%2Fs3.local%2Fpart-1",
+      expect.objectContaining({
+        method: "POST",
+      })
+    );
+  });
+
+  it("uses a configured dedicated proxy when the direct S3 PUT does not expose ETag", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { ETag: '"proxied-etag"' },
+          status: 200,
+        })
+      );
+
+    await expect(
+      uploadFileParts({
+        fetcher,
+        file: createFile(),
+        onProgress: vi.fn(),
+        presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
+        uploadPartProxyUrl: "/api/jmvstream/upload-part",
+      })
+    ).resolves.toEqual([{ ETag: '"proxied-etag"', PartNumber: 1 }]);
+  });
 });

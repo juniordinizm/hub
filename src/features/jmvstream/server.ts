@@ -12,6 +12,7 @@ import {
   type JmvstreamFolderResponse,
   type JmvstreamInitUploadInput,
 } from "@/features/jmvstream/client";
+import { isJmvstreamUploadProxyEnabled } from "@/features/jmvstream/proxy-upload";
 import { JMVSTREAM_UPLOAD_CHUNK_SIZE } from "@/features/jmvstream/upload-config";
 import { getServerEnv } from "@/lib/env";
 
@@ -348,8 +349,20 @@ export const initJmvstreamUpload = async ({
 
   return {
     ...init,
+    uploadPartProxyUrl: getJmvstreamUploadPartProxyUrl(),
     uploadSessionId,
   };
+};
+
+const getJmvstreamUploadPartProxyUrl = (): null | string => {
+  const env = getServerEnv();
+  const isEnabled = isJmvstreamUploadProxyEnabled({
+    isVercel: env.VERCEL === "1",
+    mode: env.JMVSTREAM_UPLOAD_PROXY_MODE,
+    nodeEnv: env.NODE_ENV,
+  });
+
+  return isEnabled ? "/api/jmvstream/upload-part" : null;
 };
 
 export const completeJmvstreamUpload = async ({
@@ -403,6 +416,11 @@ export const completeJmvstreamUpload = async ({
     throw error;
   }
 
+  await moveJmvstreamVideoToModuleFolder({
+    client,
+    galleryUuid,
+    videoHash,
+  });
   await deleteActiveAssetsForLesson(lessonId, videoHash);
   const syncedVideo =
     response.playerUrl === null
@@ -474,6 +492,16 @@ export const syncJmvstreamLessonPlayer = async (
   const client = await getConfiguredClient();
   const video = findJmvstreamVideoByHash(await client.listVideos(), videoHash);
   const playerUrl = video?.playerUrl ?? null;
+  const galleryUuid = await getJmvstreamAssetGalleryUuid(videoHash);
+
+  if (galleryUuid) {
+    await moveJmvstreamVideoToModuleFolder({
+      client,
+      galleryUuid,
+      video,
+      videoHash,
+    });
+  }
 
   if (!playerUrl) {
     return { playerUrl: null, ready: false };
@@ -500,6 +528,65 @@ export const syncJmvstreamLessonPlayer = async (
   );
 
   return { playerUrl, ready: true };
+};
+
+const getJmvstreamAssetGalleryUuid = async (
+  videoHash: string
+): Promise<null | string> => {
+  const { rows } = await getPool().query<{ gallery_uuid: string | null }>(
+    `
+      select gallery_uuid
+      from jmvstream_video_assets
+      where video_hash = $1
+        and delete_status <> 'deleted'
+      order by jmvstream_video_assets.updated_at desc
+      limit 1
+    `,
+    [videoHash]
+  );
+
+  return rows[0]?.gallery_uuid ?? null;
+};
+
+const moveJmvstreamVideoToModuleFolder = async ({
+  client,
+  galleryUuid,
+  video,
+  videoHash,
+}: {
+  client: Awaited<ReturnType<typeof getConfiguredClient>>;
+  galleryUuid: string;
+  video?: ReturnType<typeof findJmvstreamVideoByHash>;
+  videoHash: string;
+}): Promise<void> => {
+  if (video?.folderUuid === galleryUuid) {
+    return;
+  }
+
+  try {
+    if (video && video.folderUuid !== galleryUuid) {
+      await client.moveVideo(videoHash, galleryUuid);
+      return;
+    }
+
+    await client.moveVideo(videoHash, galleryUuid);
+  } catch (error) {
+    await getPool().query(
+      `
+        update jmvstream_video_assets
+        set last_error = $2,
+            updated_at = now()
+        where video_hash = $1
+          and delete_status <> 'deleted'
+      `,
+      [
+        videoHash,
+        error instanceof Error
+          ? `Video pronto, mas ainda nao foi movido para a galeria do modulo: ${error.message}`
+          : "Video pronto, mas ainda nao foi movido para a galeria do modulo.",
+      ]
+    );
+  }
 };
 
 export const markJmvstreamUploadFailed = async ({

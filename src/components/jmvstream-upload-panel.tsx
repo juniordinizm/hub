@@ -80,6 +80,7 @@ export function JmvstreamUploadPanel({
           file,
           onProgress: setProgress,
           presignedUrls: init.presignedUrls,
+          uploadPartProxyUrl: init.uploadPartProxyUrl,
         });
 
         setStatus("Finalizando processamento...");

@@ -56,4 +56,15 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("client.deleteFolder");
     expect(source).toContain("client.listVideos");
   });
+
+  it("moves completed or synced videos into the stored module gallery", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("moveJmvstreamVideoToModuleFolder");
+    expect(source).toContain("client.moveVideo(videoHash, galleryUuid)");
+    expect(source).toContain("video.folderUuid !== galleryUuid");
+  });
 });

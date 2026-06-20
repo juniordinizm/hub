@@ -26,11 +26,13 @@ export const uploadFileParts = async ({
   file,
   onProgress,
   presignedUrls,
+  uploadPartProxyUrl = null,
 }: {
   fetcher?: typeof fetch;
   file: File;
   onProgress: (value: number) => void;
   presignedUrls: JmvstreamPresignedUrl[];
+  uploadPartProxyUrl?: null | string;
 }): Promise<JmvstreamUploadPart[]> => {
   const urls = normalizePresignedUrls(presignedUrls);
   const chunkSize = Math.ceil(file.size / urls.length);
@@ -45,6 +47,7 @@ export const uploadFileParts = async ({
       chunk,
       contentType,
       fetcher,
+      uploadPartProxyUrl,
       url: item.url,
     });
 
@@ -62,11 +65,13 @@ const uploadPart = async ({
   chunk,
   contentType,
   fetcher,
+  uploadPartProxyUrl,
   url,
 }: {
   chunk: Blob;
   contentType: string;
   fetcher: typeof fetch;
+  uploadPartProxyUrl: null | string;
   url: string;
 }): Promise<string> => {
   try {
@@ -83,6 +88,16 @@ const uploadPart = async ({
     const etag = response.headers.get("ETag");
 
     if (!etag) {
+      if (uploadPartProxyUrl) {
+        return uploadPartViaDedicatedProxy({
+          chunk,
+          contentType,
+          fetcher,
+          uploadPartProxyUrl,
+          url,
+        });
+      }
+
       throw new Error(
         "A JMVStream nao retornou o ETag do upload. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
       );
@@ -91,6 +106,16 @@ const uploadPart = async ({
     return etag;
   } catch (error) {
     if (isBrowserNetworkBlock(error)) {
+      if (uploadPartProxyUrl) {
+        return uploadPartViaDedicatedProxy({
+          chunk,
+          contentType,
+          fetcher,
+          uploadPartProxyUrl,
+          url,
+        });
+      }
+
       throw new Error(
         "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
       );
@@ -102,3 +127,50 @@ const uploadPart = async ({
 
 const isBrowserNetworkBlock = (error: unknown): boolean =>
   error instanceof TypeError && error.message === "Failed to fetch";
+
+const uploadPartViaDedicatedProxy = async ({
+  chunk,
+  contentType,
+  fetcher,
+  uploadPartProxyUrl,
+  url,
+}: {
+  chunk: Blob;
+  contentType: string;
+  fetcher: typeof fetch;
+  uploadPartProxyUrl: string;
+  url: string;
+}): Promise<string> => {
+  const proxyUrl = createProxyPartUrl(uploadPartProxyUrl, url);
+  const response = await fetcher(proxyUrl, {
+    body: chunk,
+    headers: { "Content-Type": contentType },
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      "O backend dedicado nao conseguiu enviar a parte para a JMVStream/S3."
+    );
+  }
+
+  const etag = response.headers.get("ETag");
+
+  if (!etag) {
+    throw new Error(
+      "O backend dedicado enviou a parte, mas nao retornou o ETag da JMVStream/S3."
+    );
+  }
+
+  return etag;
+};
+
+const createProxyPartUrl = (
+  uploadPartProxyUrl: string,
+  presignedUrl: string
+): string => {
+  const separator = uploadPartProxyUrl.includes("?") ? "&" : "?";
+  return `${uploadPartProxyUrl}${separator}url=${encodeURIComponent(
+    presignedUrl
+  )}`;
+};

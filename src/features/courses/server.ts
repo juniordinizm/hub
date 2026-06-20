@@ -4,6 +4,7 @@ import { getPool } from "@/db";
 import { createCertificateCode } from "@/features/certificates/rules";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
+import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
 import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
@@ -167,6 +168,7 @@ interface LessonRow {
   module_sort_order: number;
   module_title: string;
   video_embed_url: string | null;
+  video_external_id: string | null;
   video_provider: string | null;
   watch_current_seconds: number | null;
   watch_duration_seconds: number | null;
@@ -875,6 +877,7 @@ export const getStudentLessonData = async ({
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
+        l.video_external_id,
         l.video_provider,
         lp.completed_at,
         lwp.current_seconds as watch_current_seconds,
@@ -918,6 +921,7 @@ export const getStudentLessonData = async ({
 
   const lessonIndex = lessonIds.indexOf(lessonId);
   const progress = calculateCourseProgress({ lessonIds, completedLessonIds });
+  const videoEmbedUrl = await resolveStudentLessonVideoEmbedUrl(activeLesson);
 
   return {
     course: {
@@ -940,7 +944,7 @@ export const getStudentLessonData = async ({
               maxPositionSeconds: activeLesson.watch_max_position_seconds ?? 0,
               watchedPercent: activeLesson.watch_percent,
             },
-      videoEmbedUrl: activeLesson.video_embed_url,
+      videoEmbedUrl,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(rows),
@@ -976,6 +980,7 @@ export const getPreviewLessonData = async ({
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
+        l.video_external_id,
         l.video_provider,
         null::timestamp as completed_at,
         null::integer as watch_current_seconds,
@@ -1003,6 +1008,7 @@ export const getPreviewLessonData = async ({
 
   const lessonIds = rows.map((row) => row.lesson_id);
   const lessonIndex = lessonIds.indexOf(lessonId);
+  const videoEmbedUrl = await resolveStudentLessonVideoEmbedUrl(activeLesson);
 
   return {
     course: {
@@ -1017,7 +1023,7 @@ export const getPreviewLessonData = async ({
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: false,
       watchProgress: null,
-      videoEmbedUrl: activeLesson.video_embed_url,
+      videoEmbedUrl,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(
@@ -1036,6 +1042,28 @@ export const getPreviewLessonData = async ({
     nextLessonId: lessonIds[lessonIndex + 1] ?? null,
     previousLessonId: lessonIds[lessonIndex - 1] ?? null,
   };
+};
+
+const resolveStudentLessonVideoEmbedUrl = async (
+  lesson: Pick<
+    LessonRow,
+    "lesson_id" | "video_embed_url" | "video_external_id" | "video_provider"
+  >
+): Promise<null | string> => {
+  if (
+    lesson.video_embed_url ||
+    lesson.video_provider !== "jmvstream" ||
+    !lesson.video_external_id
+  ) {
+    return lesson.video_embed_url;
+  }
+
+  try {
+    const sync = await syncJmvstreamLessonPlayer(lesson.lesson_id);
+    return sync.playerUrl ?? lesson.video_embed_url;
+  } catch {
+    return lesson.video_embed_url;
+  }
 };
 
 export const completeLesson = async ({
