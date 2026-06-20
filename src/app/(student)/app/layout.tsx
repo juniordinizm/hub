@@ -1,20 +1,18 @@
 import {
   BookOpen01Icon,
   Certificate01Icon,
-  CustomerService01Icon,
   HelpCircleIcon,
   Home01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { redirect } from "next/navigation";
 import { PanelLayout } from "@/components/panel-layout";
-import { SupportRequestDialog } from "@/components/support-request-dialog";
+import { SupportSidebarItem } from "@/components/support-sidebar-item";
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
@@ -114,7 +112,7 @@ function StudentNav({
         <SidebarGroupLabel>Suporte</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            <SupportNavItems />
+            <SupportSidebarItem />
             <SidebarMenuItem>
               <SidebarMenuLink
                 href={route("/app/perguntas-frequentes")}
@@ -132,22 +130,5 @@ function StudentNav({
         </SidebarGroupContent>
       </SidebarGroup>
     </>
-  );
-}
-
-function SupportNavItems(): React.JSX.Element {
-  return (
-    <SidebarMenuItem>
-      <SupportRequestDialog triggerMode="asChild">
-        <SidebarMenuButton tooltip="Suporte ao aluno">
-          <HugeiconsIcon
-            icon={CustomerService01Icon}
-            size={18}
-            strokeWidth={1.5}
-          />
-          <span>Suporte ao aluno</span>
-        </SidebarMenuButton>
-      </SupportRequestDialog>
-    </SidebarMenuItem>
   );
 }

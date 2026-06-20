@@ -11,11 +11,16 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+// sonner's ToasterProps conflicts with exactOptionalPropertyTypes — cast to bypass
+const SonnerAny = Sonner as React.ComponentType<Record<string, unknown>>;
+
+const Toaster = (props: ToasterProps) => {
+  const { theme } = useTheme();
+  const themeProps =
+    theme === undefined ? {} : { theme: theme as ToasterProps["theme"] };
 
   return (
-    <Sonner
+    <SonnerAny
       className="toaster group"
       icons={{
         success: (
@@ -62,13 +67,13 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
-      theme={theme as ToasterProps["theme"]}
       toastOptions={{
         classNames: {
           toast: "cn-toast",
         },
       }}
-      {...props}
+      {...themeProps}
+      {...(props as Record<string, unknown>)}
     />
   );
 };
