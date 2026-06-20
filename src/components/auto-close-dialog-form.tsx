@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import { toast } from "sonner";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDiscardDialog } from "./discard-aware-dialog";
@@ -34,15 +35,20 @@ export function AutoCloseDialogForm({
     setError(null);
     setIsPending(true);
 
+    const toastId = toast.loading("Salvando...");
+
     try {
       await action(formData);
       discardDialog?.setDirty(false);
+      toast.success("Salvo com sucesso!", { id: toastId });
       closeRef.current?.click();
     } catch (err) {
       if (isRedirectError(err)) {
+        toast.dismiss(toastId);
         throw err;
       }
-      setError("Nao foi possivel salvar. Tente novamente.");
+      toast.error("Não foi possível salvar.", { id: toastId });
+      setError("Não foi possível salvar. Tente novamente.");
     } finally {
       setIsPending(false);
     }
@@ -54,7 +60,12 @@ export function AutoCloseDialogForm({
       className={cn(className)}
       onSubmit={handleSubmit}
     >
-      {children}
+      <fieldset
+        className="m-0 w-full min-w-0 border-0 p-0"
+        disabled={isPending}
+      >
+        {children}
+      </fieldset>
       {error ? (
         <p className="mt-3 text-destructive text-sm" role="alert">
           {error}
