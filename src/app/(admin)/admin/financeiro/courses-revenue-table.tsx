@@ -1,5 +1,8 @@
 "use client";
 
+import { Money01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+
 import {
   type ColumnDef,
   flexRender,
@@ -10,6 +13,13 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -110,6 +120,22 @@ export function CoursesRevenueTable({
     [table]
   );
 
+  if (data.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HugeiconsIcon icon={Money01Icon} />
+          </EmptyMedia>
+          <EmptyTitle>Nenhum faturamento registrado</EmptyTitle>
+          <EmptyDescription>
+            Ainda não há vendas de cursos processadas neste período.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -171,11 +197,19 @@ export function CoursesRevenueTable({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  className="h-24 text-center text-muted-foreground"
-                  colSpan={columns.length}
-                >
-                  Nenhum faturamento por curso registrado.
+                <TableCell className="h-64 p-0" colSpan={columns.length}>
+                  <Empty className="rounded-none border-0 border-transparent">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <HugeiconsIcon icon={Search01Icon} />
+                      </EmptyMedia>
+                      <EmptyTitle>Nenhum curso encontrado</EmptyTitle>
+                      <EmptyDescription>
+                        A busca por &quot;{globalFilter}&quot; não retornou
+                        resultados.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}

@@ -1,5 +1,5 @@
 import {
-  type BookOpen01Icon,
+  BookOpen01Icon,
   CheckmarkCircle02Icon,
   PlayIcon,
   Route03Icon,
@@ -12,6 +12,13 @@ import Link from "next/link";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import {
   getStudentCatalogAccessPresentation,
@@ -117,14 +124,18 @@ function Metric({
 
 function EmptyCoursesState(): React.JSX.Element {
   return (
-    <section className="rounded-lg border bg-card p-6">
-      <Badge variant="outline">Catálogo vazio</Badge>
-      <h2 className="mt-4 font-bold text-xl">Nenhum curso publicado ainda</h2>
-      <p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6">
-        Quando a equipe liberar o primeiro curso, ele aparecerá aqui com preço,
-        carga horária e status de acesso.
-      </p>
-    </section>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <HugeiconsIcon icon={BookOpen01Icon} />
+        </EmptyMedia>
+        <EmptyTitle>Nenhum curso publicado ainda</EmptyTitle>
+        <EmptyDescription>
+          Quando a equipe liberar o primeiro curso, ele aparecerá aqui com
+          preço, carga horária e status de acesso.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 

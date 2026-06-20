@@ -3,6 +3,7 @@
 import {
   Delete02Icon,
   Edit01Icon,
+  HelpSquareIcon,
   MoreHorizontalIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -21,6 +22,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Table,
   TableBody,
@@ -80,6 +88,22 @@ export function FaqTable({ faqs }: FaqTableProps): React.JSX.Element {
     getCoreRowModel: getCoreRowModel(),
   });
 
+  if (faqs.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HugeiconsIcon icon={HelpSquareIcon} />
+          </EmptyMedia>
+          <EmptyTitle>Nenhuma FAQ cadastrada</EmptyTitle>
+          <EmptyDescription>
+            Você ainda não possui nenhuma pergunta frequente na plataforma.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -100,26 +124,18 @@ export function FaqTable({ faqs }: FaqTableProps): React.JSX.Element {
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                data-state={row.getIsSelected() && "selected"}
-                key={row.id}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell className="h-24 text-center" colSpan={columns.length}>
-                Nenhuma FAQ cadastrada.
-              </TableCell>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow
+              data-state={row.getIsSelected() && "selected"}
+              key={row.id}
+            >
+              {row.getVisibleCells().map((cell) => (
+                <TableCell key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+              ))}
             </TableRow>
-          )}
+          ))}
         </TableBody>
       </Table>
     </div>

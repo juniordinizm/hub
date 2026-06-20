@@ -1,6 +1,10 @@
 "use client";
 
-import { ViewIcon } from "@hugeicons/core-free-icons";
+import {
+  Search01Icon,
+  UserMultipleIcon,
+  ViewIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   type ColumnDef,
@@ -22,6 +26,13 @@ import {
   DialogTitle,
   DialogTriggerButton,
 } from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -142,6 +153,22 @@ export function StudentsTable({
     [table]
   );
 
+  if (students.length === 0) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HugeiconsIcon icon={UserMultipleIcon} />
+          </EmptyMedia>
+          <EmptyTitle>Nenhum aluno encontrado</EmptyTitle>
+          <EmptyDescription>
+            Você ainda não possui nenhum aluno cadastrado na plataforma.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -203,11 +230,19 @@ export function StudentsTable({
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  className="h-24 text-center text-muted-foreground"
-                  colSpan={columns.length}
-                >
-                  Nenhum aluno encontrado.
+                <TableCell className="h-64 p-0" colSpan={columns.length}>
+                  <Empty className="rounded-none border-0 border-transparent">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <HugeiconsIcon icon={Search01Icon} />
+                      </EmptyMedia>
+                      <EmptyTitle>Nenhum aluno encontrado</EmptyTitle>
+                      <EmptyDescription>
+                        A busca por &quot;{globalFilter}&quot; não retornou
+                        resultados.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -298,9 +333,14 @@ function StudentEnrollmentsDialog({
               </AutoCloseDialogForm>
             ))
           ) : (
-            <p className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-              Este aluno ainda nao possui matriculas.
-            </p>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>Sem matrículas</EmptyTitle>
+                <EmptyDescription>
+                  Este aluno ainda não possui matrículas ativas.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       </DialogContent>

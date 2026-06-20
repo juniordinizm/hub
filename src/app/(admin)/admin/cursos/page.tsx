@@ -1,4 +1,8 @@
-import { Add01Icon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Book01Icon,
+  FloppyDiskIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
@@ -12,6 +16,14 @@ import {
   DialogTitle,
   DialogTriggerButton,
 } from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -97,100 +109,132 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
         </header>
 
         <section className="flex flex-wrap gap-5">
-          {data.courses.map((course) => {
-            const courseModules = data.modules.filter(
-              (moduleData) => moduleData.courseId === course.id
-            );
-            const lessonsCount = data.lessons.filter((lesson) =>
-              courseModules.some(
-                (moduleData) => moduleData.id === lesson.moduleId
-              )
-            ).length;
-            const statusInfo = STATUS_MAP[course.status] ?? {
-              label: course.status,
-              color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
-            };
+          {data.courses.length === 0 ? (
+            <Empty className="w-full">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <HugeiconsIcon icon={Book01Icon} />
+                </EmptyMedia>
+                <EmptyTitle>Nenhum curso encontrado</EmptyTitle>
+                <EmptyDescription>
+                  Você ainda não possui nenhum curso cadastrado. Crie o seu
+                  primeiro curso para começar a adicionar módulos e aulas.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Dialog>
+                  <DialogTriggerButton>
+                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                    Criar primeiro curso
+                  </DialogTriggerButton>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Novo curso</DialogTitle>
+                      <DialogDescription>
+                        Crie o curso antes de cadastrar seus módulos e aulas.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <CourseForm />
+                  </DialogContent>
+                </Dialog>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            data.courses.map((course) => {
+              const courseModules = data.modules.filter(
+                (moduleData) => moduleData.courseId === course.id
+              );
+              const lessonsCount = data.lessons.filter((lesson) =>
+                courseModules.some(
+                  (moduleData) => moduleData.id === lesson.moduleId
+                )
+              ).length;
+              const statusInfo = STATUS_MAP[course.status] ?? {
+                label: course.status,
+                color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
+              };
 
-            return (
-              <article
-                className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-all hover:border-primary/50"
-                key={course.id}
-              >
-                <div className="absolute inset-0 z-0">
-                  {course.thumbnailUrl ? (
-                    <div
-                      aria-hidden="true"
-                      className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
-                      style={{
-                        backgroundImage: `url(${course.thumbnailUrl})`,
-                      }}
-                    />
-                  ) : (
-                    <>
-                      <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
-                      <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
-                        <span className="font-black text-[8rem] leading-none tracking-tighter">
-                          {getInitials(course.title)}
-                        </span>
-                      </div>
-                    </>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
-                </div>
-
-                <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <Badge className={statusInfo.color} variant="outline">
-                      {statusInfo.label}
-                    </Badge>
+              return (
+                <article
+                  className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-all hover:border-primary/50"
+                  key={course.id}
+                >
+                  <div className="absolute inset-0 z-0">
+                    {course.thumbnailUrl ? (
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
+                        style={{
+                          backgroundImage: `url(${course.thumbnailUrl})`,
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
+                        <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
+                          <span className="font-black text-[8rem] leading-none tracking-tighter">
+                            {getInitials(course.title)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
                   </div>
 
-                  <div className="mt-auto pt-10">
-                    <h3 className="line-clamp-2 font-bold text-lg">
-                      <Link
-                        className="before:absolute before:inset-0"
-                        href={route(`/admin/cursos/${course.id}`)}
-                      >
-                        {course.title}
-                      </Link>
-                    </h3>
-                    <div className="mt-2 flex items-start gap-4">
-                      <div className="flex-1">
-                        {course.subtitle ? (
-                          <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
-                            {course.subtitle}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
-                        {courseModules.length} módulos • {lessonsCount} aulas
+                  <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <Badge className={statusInfo.color} variant="outline">
+                        {statusInfo.label}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-auto pt-10">
+                      <h3 className="line-clamp-2 font-bold text-lg">
+                        <Link
+                          className="before:absolute before:inset-0"
+                          href={route(`/admin/cursos/${course.id}`)}
+                        >
+                          {course.title}
+                        </Link>
+                      </h3>
+                      <div className="mt-2 flex items-start gap-4">
+                        <div className="flex-1">
+                          {course.subtitle ? (
+                            <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
+                              {course.subtitle}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
+                          {courseModules.length} módulos • {lessonsCount} aulas
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="relative z-10 flex flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
-                  <div className="flex items-center justify-between text-muted-foreground text-xs">
-                    <span>{course.accessDurationMonths}m acesso</span>
-                    <span className="font-semibold text-foreground">
-                      {formatCurrencyInCents(course.priceInCents)}
-                    </span>
+                  <div className="relative z-10 flex flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
+                    <div className="flex items-center justify-between text-muted-foreground text-xs">
+                      <span>{course.accessDurationMonths}m acesso</span>
+                      <span className="font-semibold text-foreground">
+                        {formatCurrencyInCents(course.priceInCents)}
+                      </span>
+                    </div>
+
+                    <Button
+                      asChild
+                      className="w-full"
+                      size="sm"
+                      variant="secondary"
+                    >
+                      <Link href={route(`/admin/cursos/${course.id}`)}>
+                        Gerenciar curso
+                      </Link>
+                    </Button>
                   </div>
-
-                  <Button
-                    asChild
-                    className="w-full"
-                    size="sm"
-                    variant="secondary"
-                  >
-                    <Link href={route(`/admin/cursos/${course.id}`)}>
-                      Gerenciar curso
-                    </Link>
-                  </Button>
-                </div>
-              </article>
-            );
-          })}
+                </article>
+              );
+            })
+          )}
         </section>
       </div>
     </main>
