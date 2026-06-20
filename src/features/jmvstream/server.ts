@@ -12,7 +12,6 @@ import {
   type JmvstreamFolderResponse,
   type JmvstreamInitUploadInput,
 } from "@/features/jmvstream/client";
-import { isJmvstreamUploadProxyEnabled } from "@/features/jmvstream/proxy-upload";
 import { JMVSTREAM_UPLOAD_CHUNK_SIZE } from "@/features/jmvstream/upload-config";
 import { getServerEnv } from "@/lib/env";
 
@@ -330,20 +329,8 @@ export const initJmvstreamUpload = async ({
 
   return {
     ...init,
-    uploadPartProxyUrl: getJmvstreamUploadPartProxyUrl(),
     uploadSessionId,
   };
-};
-
-const getJmvstreamUploadPartProxyUrl = (): null | string => {
-  const env = getServerEnv();
-  const isEnabled = isJmvstreamUploadProxyEnabled({
-    isVercel: env.VERCEL === "1",
-    mode: env.JMVSTREAM_UPLOAD_PROXY_MODE,
-    nodeEnv: env.NODE_ENV,
-  });
-
-  return isEnabled ? "/api/jmvstream/upload-part" : null;
 };
 
 export const completeJmvstreamUpload = async ({

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { uploadFileParts } from "../features/jmvstream/upload";
+import { JMVSTREAM_UPLOAD_CONCURRENCY } from "../features/jmvstream/upload-config";
 
 const createFile = () =>
   new File(["abcdef"], "aula.mp4", {
@@ -7,7 +8,7 @@ const createFile = () =>
   });
 
 describe("Jmvstream upload helpers", () => {
-  it("uses the selected video MIME type and returns ordered documented parts", async () => {
+  it("uploads direct S3 parts without custom headers and returns ordered documented parts", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(
       async () =>
         new Response(null, {
@@ -28,10 +29,10 @@ describe("Jmvstream upload helpers", () => {
     expect(fetcher).toHaveBeenCalledWith(
       "https://s3.local/part-1",
       expect.objectContaining({
-        headers: { "Content-Type": "video/mp4" },
         method: "PUT",
       })
     );
+    expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty("headers");
   });
 
   it("fails before completion when a JMVStream S3 PUT does not expose ETag", async () => {
@@ -66,16 +67,10 @@ describe("Jmvstream upload helpers", () => {
     ).rejects.toThrow("CORS/Expose-Headers: ETag");
   });
 
-  it("uses a configured dedicated proxy when the browser blocks the direct S3 PUT", async () => {
+  it("does not re-upload through an application proxy when the direct S3 PUT succeeds without exposed ETag", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
-      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
-      .mockResolvedValueOnce(
-        new Response(null, {
-          headers: { ETag: '"proxied-etag"' },
-          status: 200,
-        })
-      );
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
 
     await expect(
       uploadFileParts({
@@ -83,37 +78,70 @@ describe("Jmvstream upload helpers", () => {
         file: createFile(),
         onProgress: vi.fn(),
         presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
-        uploadPartProxyUrl: "/api/jmvstream/upload-part",
       })
-    ).resolves.toEqual([{ ETag: '"proxied-etag"', PartNumber: 1 }]);
+    ).rejects.toThrow("ETag");
 
-    expect(fetcher).toHaveBeenLastCalledWith(
-      "/api/jmvstream/upload-part?url=https%3A%2F%2Fs3.local%2Fpart-1",
-      expect.objectContaining({
-        method: "POST",
-      })
-    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("uses a configured dedicated proxy when the direct S3 PUT does not expose ETag", async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-      .mockResolvedValueOnce(
-        new Response(null, {
-          headers: { ETag: '"proxied-etag"' },
-          status: 200,
+  it("uploads large files with bounded parallel part uploads", async () => {
+    const pendingUploads: Array<() => void> = [];
+    let activeUploads = 0;
+    let maxActiveUploads = 0;
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Promise<Response>((resolve) => {
+          activeUploads += 1;
+          maxActiveUploads = Math.max(maxActiveUploads, activeUploads);
+          pendingUploads.push(() => {
+            activeUploads -= 1;
+            resolve(
+              new Response(null, {
+                headers: { ETag: `"etag-${pendingUploads.length}"` },
+                status: 200,
+              })
+            );
+          });
         })
-      );
+    );
+    const uploadPromise = uploadFileParts({
+      fetcher,
+      file: new File(["abcdefghij"], "aula.mp4", { type: "video/mp4" }),
+      onProgress: vi.fn(),
+      presignedUrls: Array.from(
+        { length: JMVSTREAM_UPLOAD_CONCURRENCY + 1 },
+        (_, index) => ({
+          partNumber: index + 1,
+          url: `https://s3.local/part-${index + 1}`,
+        })
+      ),
+    });
 
-    await expect(
-      uploadFileParts({
-        fetcher,
-        file: createFile(),
-        onProgress: vi.fn(),
-        presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
-        uploadPartProxyUrl: "/api/jmvstream/upload-part",
-      })
-    ).resolves.toEqual([{ ETag: '"proxied-etag"', PartNumber: 1 }]);
+    await waitUntil(
+      () => pendingUploads.length === JMVSTREAM_UPLOAD_CONCURRENCY
+    );
+    expect(maxActiveUploads).toBe(JMVSTREAM_UPLOAD_CONCURRENCY);
+
+    for (const resolveUpload of pendingUploads.splice(0)) {
+      resolveUpload();
+    }
+
+    await waitUntil(
+      () => fetcher.mock.calls.length === JMVSTREAM_UPLOAD_CONCURRENCY + 1
+    );
+    for (const resolveUpload of pendingUploads.splice(0)) {
+      resolveUpload();
+    }
+
+    await expect(uploadPromise).resolves.toHaveLength(
+      JMVSTREAM_UPLOAD_CONCURRENCY + 1
+    );
+    expect(maxActiveUploads).toBe(JMVSTREAM_UPLOAD_CONCURRENCY);
   });
 });
+
+const waitUntil = async (predicate: () => boolean): Promise<void> => {
+  while (!predicate()) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+};

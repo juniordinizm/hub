@@ -33,9 +33,6 @@ const serverEnvSchema = z.object({
   JMVSTREAM_AUTH_PASSWORD: optionalNonEmptyString,
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
   JMVSTREAM_API_TOKEN: optionalNonEmptyString,
-  JMVSTREAM_UPLOAD_PROXY_MODE: z
-    .enum(["development", "disabled", "enabled"])
-    .default("development"),
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NODE_ENV: z
@@ -69,7 +66,6 @@ export const getServerEnv = () =>
     JMVSTREAM_AUTH_PASSWORD: process.env.JMVSTREAM_AUTH_PASSWORD,
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
     JMVSTREAM_API_TOKEN: process.env.JMVSTREAM_API_TOKEN,
-    JMVSTREAM_UPLOAD_PROXY_MODE: process.env.JMVSTREAM_UPLOAD_PROXY_MODE,
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,

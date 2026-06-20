@@ -1,3 +1,5 @@
+import { JMVSTREAM_UPLOAD_CONCURRENCY } from "./upload-config";
+
 export interface JmvstreamUploadPart {
   ETag: string;
   PartNumber: number;
@@ -26,58 +28,69 @@ export const uploadFileParts = async ({
   file,
   onProgress,
   presignedUrls,
-  uploadPartProxyUrl = null,
 }: {
   fetcher?: typeof fetch;
   file: File;
   onProgress: (value: number) => void;
   presignedUrls: JmvstreamPresignedUrl[];
-  uploadPartProxyUrl?: null | string;
 }): Promise<JmvstreamUploadPart[]> => {
   const urls = normalizePresignedUrls(presignedUrls);
   const chunkSize = Math.ceil(file.size / urls.length);
-  const parts: JmvstreamUploadPart[] = [];
-  const contentType = file.type || "application/octet-stream";
+  const parts = new Array<JmvstreamUploadPart>(urls.length);
+  const workerCount = Math.min(JMVSTREAM_UPLOAD_CONCURRENCY, urls.length);
+  let nextIndex = 0;
+  let completedParts = 0;
 
-  for (const [index, item] of urls.entries()) {
+  const uploadNextPart = async (): Promise<void> => {
+    const index = nextIndex;
+    nextIndex += 1;
+
+    if (index >= urls.length) {
+      return;
+    }
+
+    const item = urls[index];
+
+    if (!item) {
+      return;
+    }
     const start = index * chunkSize;
     const end = Math.min(start + chunkSize, file.size);
     const chunk = file.slice(start, end);
     const etag = await uploadPart({
       chunk,
-      contentType,
       fetcher,
-      uploadPartProxyUrl,
       url: item.url,
     });
 
-    parts.push({
+    parts[index] = {
       ETag: etag,
       PartNumber: item.partNumber,
-    });
-    onProgress(Math.round(((index + 1) / urls.length) * 90));
-  }
+    };
+    completedParts += 1;
+    onProgress(Math.round((completedParts / urls.length) * 90));
+    await uploadNextPart();
+  };
+
+  await Promise.all(
+    Array.from({ length: workerCount }, () => uploadNextPart())
+  );
 
   return parts.sort((left, right) => left.PartNumber - right.PartNumber);
 };
 
 const uploadPart = async ({
   chunk,
-  contentType,
   fetcher,
-  uploadPartProxyUrl,
   url,
 }: {
   chunk: Blob;
-  contentType: string;
   fetcher: typeof fetch;
-  uploadPartProxyUrl: null | string;
   url: string;
 }): Promise<string> => {
   try {
     const response = await fetcher(url, {
       body: chunk,
-      headers: { "Content-Type": contentType },
       method: "PUT",
     });
 
@@ -88,36 +101,16 @@ const uploadPart = async ({
     const etag = response.headers.get("ETag");
 
     if (!etag) {
-      if (uploadPartProxyUrl) {
-        return uploadPartViaDedicatedProxy({
-          chunk,
-          contentType,
-          fetcher,
-          uploadPartProxyUrl,
-          url,
-        });
-      }
-
       throw new Error(
-        "A JMVStream nao retornou o ETag do upload. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
+        "A JMVStream nao retornou o ETag do upload. Configure CORS/Expose-Headers: ETag na JMV/S3."
       );
     }
 
     return etag;
   } catch (error) {
     if (isBrowserNetworkBlock(error)) {
-      if (uploadPartProxyUrl) {
-        return uploadPartViaDedicatedProxy({
-          chunk,
-          contentType,
-          fetcher,
-          uploadPartProxyUrl,
-          url,
-        });
-      }
-
       throw new Error(
-        "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3 ou use um backend dedicado de upload."
+        "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3."
       );
     }
 
@@ -127,50 +120,3 @@ const uploadPart = async ({
 
 const isBrowserNetworkBlock = (error: unknown): boolean =>
   error instanceof TypeError && error.message === "Failed to fetch";
-
-const uploadPartViaDedicatedProxy = async ({
-  chunk,
-  contentType,
-  fetcher,
-  uploadPartProxyUrl,
-  url,
-}: {
-  chunk: Blob;
-  contentType: string;
-  fetcher: typeof fetch;
-  uploadPartProxyUrl: string;
-  url: string;
-}): Promise<string> => {
-  const proxyUrl = createProxyPartUrl(uploadPartProxyUrl, url);
-  const response = await fetcher(proxyUrl, {
-    body: chunk,
-    headers: { "Content-Type": contentType },
-    method: "POST",
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      "O backend dedicado nao conseguiu enviar a parte para a JMVStream/S3."
-    );
-  }
-
-  const etag = response.headers.get("ETag");
-
-  if (!etag) {
-    throw new Error(
-      "O backend dedicado enviou a parte, mas nao retornou o ETag da JMVStream/S3."
-    );
-  }
-
-  return etag;
-};
-
-const createProxyPartUrl = (
-  uploadPartProxyUrl: string,
-  presignedUrl: string
-): string => {
-  const separator = uploadPartProxyUrl.includes("?") ? "&" : "?";
-  return `${uploadPartProxyUrl}${separator}url=${encodeURIComponent(
-    presignedUrl
-  )}`;
-};

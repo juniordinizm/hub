@@ -20,8 +20,8 @@ O admin usa o fluxo S3 atual do playground da JMVStream:
 1. Crie ou edite a aula.
 2. Selecione um arquivo em `Upload JMVStream`.
 3. O servidor inicia o upload em `/v2/upload/multipart/s3`, usa a galeria do curso e cria uma sessao de asset como `uploading` ja vinculada a aula.
-4. O navegador tenta enviar as partes direto para as URLs assinadas e guarda cada `ETag`.
-5. Se a JMVStream/S3 bloquear o PUT no navegador por CORS ou nao expuser o header `ETag`, o admin usa o proxy local/dedicado quando ele estiver habilitado. Sem proxy habilitado, falha com uma mensagem acionavel para configurar `CORS/Expose-Headers: ETag` na JMVStream/S3 ou usar backend dedicado de upload.
+4. O navegador envia partes em paralelo direto para as URLs assinadas e guarda cada `ETag`.
+5. Se a JMVStream/S3 bloquear o PUT no navegador por CORS ou nao expuser o header `ETag`, o upload falha com uma mensagem acionavel para configurar CORS/`Expose-Headers: ETag`.
 6. O servidor finaliza em `/v2/upload/multipart/complete` com `filename`, `size`, `video_hash`, `objectName`, `uploadId`, `uploadSessionId` e `parts`. A `gallery` e enviada apenas no init; reenviar no complete faz a JMVStream/S3 responder `NoSuchUpload`.
 7. A aula recebe o `video_hash`. O player so e gravado se a JMVStream retornar uma URL oficial `https://player.jmvstream.com/...`.
 
@@ -46,9 +46,6 @@ JMVSTREAM_AUTH_EMAIL=
 JMVSTREAM_AUTH_PASSWORD=
 # UUID do recurso/aplicacao JMVStream usado no POST /v1/authenticate. Nao use JWT/Bearer token aqui.
 JMVSTREAM_AUTH_RESOURCE=
-# disabled | development | enabled. Use enabled apenas em backend dedicado fora da Vercel.
-JMVSTREAM_UPLOAD_PROXY_MODE=development
-
 # Fallback manual opcional. Expira e deve ser renovado se usado sem as credenciais acima.
 JMVSTREAM_API_TOKEN=
 ```
@@ -59,8 +56,8 @@ Na Vercel, cadastre essas variaveis em Production e Preview. O sistema reutiliza
 
 - O token da API e secreto de servidor.
 - O caminho de producao envia o arquivo direto para as URLs assinadas da JMVStream/S3.
-- A Vercel nao deve proxyar bytes de video: Vercel Functions tem limite de corpo pequeno para requests/responses, enquanto multipart S3 exige partes grandes. A rota `/api/jmvstream/upload-part` fica desabilitada automaticamente quando `VERCEL=1`.
-- Em desenvolvimento local, `JMVSTREAM_UPLOAD_PROXY_MODE=development` permite contornar CORS da JMVStream/S3 sem expor o JWT no frontend. Para producao, prefira configurar CORS/Expose-Headers na JMVStream/S3; se isso nao for possivel, rode o mesmo app/API em backend dedicado fora da Vercel com `JMVSTREAM_UPLOAD_PROXY_MODE=enabled`.
+- A Vercel nao deve proxyar bytes de video: Vercel Functions tem limite de corpo pequeno para requests/responses, enquanto multipart S3 exige partes grandes. O projeto nao possui rota de proxy para bytes de upload; o caminho suportado e direto do navegador para as URLs assinadas da JMVStream/S3.
+- O upload multipart usa partes maiores e concorrencia controlada no navegador para reduzir overhead sem passar bytes pela Vercel.
 - O upload TUS direto no frontend nao e usado porque a JMVStream confirmou que ele exige o JWT Bearer normal e nao existe token temporario/scoped.
 - O header `ETag` precisa estar disponivel no PUT direto; sem ele o upload nao e finalizado.
 - O player e renderizado em iframe dentro da area autenticada da aluna.
