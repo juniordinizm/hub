@@ -170,7 +170,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                       />
                     ) : (
                       <>
-                        <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
+                        <div className="absolute inset-0 bg-linear-to-br from-sidebar via-sidebar/95 to-primary/20" />
                         <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
                           <span className="font-black text-[8rem] leading-none tracking-tighter">
                             {getInitials(course.title)}
@@ -178,7 +178,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                         </div>
                       </>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
+                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
                   </div>
 
                   <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">

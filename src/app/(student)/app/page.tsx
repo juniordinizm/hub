@@ -239,7 +239,7 @@ function CourseCard({
           />
         ) : (
           <>
-            <div className="absolute inset-0 bg-gradient-to-br from-sidebar via-sidebar/95 to-primary/20" />
+            <div className="absolute inset-0 bg-linear-to-br from-sidebar via-sidebar/95 to-primary/20" />
             <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
               <span className="font-black text-[8rem] leading-none tracking-tighter">
                 {getInitials(course.title)}
@@ -247,7 +247,7 @@ function CourseCard({
             </div>
           </>
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-sidebar/80 to-sidebar" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
 
         {!hasActiveAccess && (
           <div className="absolute inset-0 flex items-start justify-center bg-background/60 pt-24 backdrop-blur-[2px]">
@@ -311,7 +311,7 @@ function CourseCard({
                 </span>
               </div>
               <Progress
-                className="h-1 [&>[data-slot=progress-indicator]]:bg-emerald-500"
+                className="h-1 *:data-[slot=progress-indicator]:bg-emerald-500"
                 value={course.progressPercent}
               />
             </div>
