@@ -1347,7 +1347,7 @@ export const syncJmvstreamLessonDuration = async ({
 
   const data = await getStudentLessonData({ userId, lessonId });
 
-  if (!data || data.lesson.videoProvider !== "jmvstream") {
+  if (data?.lesson.videoProvider !== "jmvstream") {
     return;
   }
 

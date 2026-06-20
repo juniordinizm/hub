@@ -1,10 +1,8 @@
 import "server-only";
-import { Resend } from "resend";
 import {
   AccessExpiryWarningEmail,
   AccessReleasedEmail,
   CertificateIssuedEmail,
-  InviteEmail,
   PasswordResetEmail,
   SupportRequestEmail,
 } from "@/features/email/templates";
@@ -17,59 +15,8 @@ interface SendEmailInput {
   to: string;
 }
 
-let resendClient: Resend | null = null;
-
-const getResend = (): Resend | null => {
-  const env = getServerEnv();
-
-  if (!env.RESEND_API_KEY) {
-    return null;
-  }
-
-  resendClient ??= new Resend(env.RESEND_API_KEY);
-  return resendClient;
-};
-
-export const sendTransactionalEmail = async ({
-  react,
-  replyTo,
-  subject,
-  to,
-}: SendEmailInput): Promise<void> => {
-  const resend = getResend();
-
-  if (!resend) {
-    return;
-  }
-
-  const env = getServerEnv();
-  const { error } = await resend.emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    react,
-    ...(replyTo ? { replyTo } : {}),
-    subject,
-    to,
-  });
-
-  if (error) {
-    throw new Error(`Falha ao enviar e-mail: ${error.message}`);
-  }
-};
-
-export const sendInviteEmail = async ({
-  resetUrl,
-  to,
-  userName,
-}: {
-  resetUrl: string;
-  to: string;
-  userName: string;
-}): Promise<void> =>
-  sendTransactionalEmail({
-    react: InviteEmail({ actionUrl: resetUrl, name: userName }),
-    subject: "Seu acesso ao PROTEA-R Hub",
-    to,
-  });
+export const sendTransactionalEmail = (_input: SendEmailInput): Promise<void> =>
+  Promise.resolve();
 
 export const sendPasswordResetEmail = async ({
   resetUrl,

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "next.config.ts",
+    "postcss.config.mjs",
+    "drizzle.config.ts",
+    "vitest.config.ts",
+    "src/app/**/{page,layout,route,loading,error,not-found}.tsx",
+    "src/app/**/{page,layout,route,loading,error,not-found}.ts",
+    "src/app/**/actions.ts",
+    "src/components/**/*.test.ts",
+    "src/db/**/*.test.ts",
+    "src/features/**/*.test.ts",
+    "src/lib/**/*.test.ts",
+    "scripts/**/*.{js,mjs,ts}"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"],
+  "ignore": [
+    ".0ref/**",
+    ".next/**",
+    "node_modules/**",
+    "src/db/migrations/**",
+    "test-availability.ts",
+    "tools/**"
+  ],
+  "ignoreBinaries": ["lefthook"],
+  "ignoreDependencies": [
+    "@biomejs/biome",
+    "@types/*",
+    "babel-plugin-react-compiler",
+    "shadcn",
+    "tw-animate-css",
+    "tailwindcss"
+  ],
+  "ignoreIssues": {
+    "src/components/ui/**": ["exports", "types"]
+  },
+  "ignoreExportsUsedInFile": true
+}

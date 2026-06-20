@@ -88,31 +88,6 @@ const EmailShell = ({
   </Html>
 );
 
-export const InviteEmail = ({
-  actionUrl,
-  courseTitle,
-  name,
-}: CourseEmailProps): React.JSX.Element => (
-  <EmailShell preview="Seu acesso ao PROTEA-R Hub foi liberado.">
-    <Heading>Seu acesso esta pronto</Heading>
-    <Text style={styles.text}>Ola, {name}.</Text>
-    <Text style={styles.text}>
-      Sua matricula em {courseTitle ?? "PROTEA-R Hub"} foi liberada. Use o botao
-      abaixo para definir sua senha e acessar a area da aluna.
-    </Text>
-    {actionUrl ? (
-      <Section>
-        <Button href={actionUrl} style={styles.button}>
-          Definir senha
-        </Button>
-      </Section>
-    ) : null}
-    <Text style={styles.muted}>
-      Se o botao nao funcionar, copie e cole o link recebido no navegador.
-    </Text>
-  </EmailShell>
-);
-
 export const PasswordResetEmail = ({
   actionUrl,
   name,

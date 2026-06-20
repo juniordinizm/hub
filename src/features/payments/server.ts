@@ -432,7 +432,7 @@ export const createCourseCheckout = async ({
   );
   const course = rows[0];
 
-  if (!course || course.status !== "active") {
+  if (course?.status !== "active") {
     throw new Error("Curso indisponivel para compra.");
   }
 

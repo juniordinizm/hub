@@ -286,12 +286,6 @@ export const parsePriceToCents = (value: string): number => {
   return amountInCents;
 };
 
-export const formatCentsToBrl = (valueInCents: number): string =>
-  new Intl.NumberFormat("pt-BR", {
-    currency: "BRL",
-    style: "currency",
-  }).format(valueInCents / 100);
-
 export const buildAbacatePayProductRequest = ({
   courseId,
   description,
