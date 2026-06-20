@@ -1,7 +1,22 @@
 "use client";
 
 import type React from "react";
-import { useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useRef,
+  useState,
+} from "react";
+
+export const DiscardDialogContext = createContext<{
+  setDirty: (dirty: boolean) => void;
+} | null>(null);
+
+export function useDiscardDialog() {
+  return useContext(DiscardDialogContext);
+}
+
 import { ConfirmDiscardDialog } from "./confirm-discard-dialog";
 import {
   Dialog,
@@ -29,13 +44,13 @@ export function DiscardAwareDialog({
   onOpenChange?: ((open: boolean) => void) | undefined;
 }): React.JSX.Element {
   const [internalOpen, setInternalOpen] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
+  const isDirtyRef = useRef(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const isOpen = externalOpen === undefined ? internalOpen : externalOpen;
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen && isDirty) {
+    if (!newOpen && isDirtyRef.current) {
       setShowDiscardConfirm(true);
       return;
     }
@@ -47,12 +62,12 @@ export function DiscardAwareDialog({
     }
 
     if (!newOpen) {
-      setIsDirty(false);
+      isDirtyRef.current = false;
     }
   };
 
   const handleConfirmDiscard = () => {
-    setIsDirty(false);
+    isDirtyRef.current = false;
     if (externalOnOpenChange) {
       externalOnOpenChange(false);
     } else {
@@ -60,8 +75,12 @@ export function DiscardAwareDialog({
     }
   };
 
+  const setDirty = useCallback((dirty: boolean) => {
+    isDirtyRef.current = dirty;
+  }, []);
+
   return (
-    <>
+    <DiscardDialogContext.Provider value={{ setDirty }}>
       <Dialog onOpenChange={handleOpenChange} open={isOpen}>
         {trigger}
         <DialogContent className={className}>
@@ -69,7 +88,13 @@ export function DiscardAwareDialog({
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
-          <div onChange={() => setIsDirty(true)}>{children}</div>
+          <div
+            onChange={() => {
+              isDirtyRef.current = true;
+            }}
+          >
+            {children}
+          </div>
         </DialogContent>
       </Dialog>
       <ConfirmDiscardDialog
@@ -77,6 +102,6 @@ export function DiscardAwareDialog({
         onOpenChange={setShowDiscardConfirm}
         open={showDiscardConfirm}
       />
-    </>
+    </DiscardDialogContext.Provider>
   );
 }

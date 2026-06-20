@@ -3,6 +3,7 @@
 import { type FormEvent, type ReactNode, useRef, useState } from "react";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useDiscardDialog } from "./discard-aware-dialog";
 
 const isRedirectError = (error: unknown): boolean =>
   typeof error === "object" &&
@@ -23,6 +24,7 @@ export function AutoCloseDialogForm({
   const closeRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const discardDialog = useDiscardDialog();
 
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>
@@ -34,6 +36,7 @@ export function AutoCloseDialogForm({
 
     try {
       await action(formData);
+      discardDialog?.setDirty(false);
       closeRef.current?.click();
     } catch (err) {
       if (isRedirectError(err)) {
