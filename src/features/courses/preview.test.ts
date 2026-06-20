@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAccessStudentRoute,
+  canMutateStudentExperience,
+  getHomeHrefForRole,
   getHrefWithSearchParams,
   getPreviewAwareHref,
   getStudentPreviewMode,
@@ -59,5 +62,72 @@ describe("course preview helpers", () => {
     expect(isPreviewRole("admin")).toBe(true);
     expect(isPreviewRole("support")).toBe(true);
     expect(isPreviewRole("student")).toBe(false);
+  });
+
+  it("routes users to the correct home for their role", () => {
+    expect(getHomeHrefForRole("student")).toBe("/app");
+    expect(getHomeHrefForRole("admin")).toBe("/admin");
+    expect(getHomeHrefForRole("support")).toBe("/admin");
+  });
+
+  it("allows admin and support into student routes only for explicit course or lesson preview", () => {
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app/cursos/course-1",
+        previewMode: "student",
+        role: "admin",
+      })
+    ).toBe(true);
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app/aulas/lesson-1",
+        previewMode: "student",
+        role: "support",
+      })
+    ).toBe(true);
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app",
+        previewMode: null,
+        role: "admin",
+      })
+    ).toBe(false);
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app/certificados",
+        previewMode: "student",
+        role: "admin",
+      })
+    ).toBe(false);
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app/cursos/course-1",
+        previewMode: null,
+        role: "admin",
+      })
+    ).toBe(false);
+  });
+
+  it("keeps normal student routes available without preview", () => {
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app",
+        previewMode: null,
+        role: "student",
+      })
+    ).toBe(true);
+    expect(
+      canAccessStudentRoute({
+        pathname: "/app/certificados",
+        previewMode: null,
+        role: "student",
+      })
+    ).toBe(true);
+  });
+
+  it("allows student mutations only for real students", () => {
+    expect(canMutateStudentExperience("student")).toBe(true);
+    expect(canMutateStudentExperience("admin")).toBe(false);
+    expect(canMutateStudentExperience("support")).toBe(false);
   });
 });

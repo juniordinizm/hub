@@ -2,8 +2,13 @@ import type { AppRole } from "@/lib/session";
 
 export type StudentPreviewMode = "student";
 
+const STUDENT_PREVIEW_PATHS = ["/app/cursos/", "/app/aulas/"] as const;
+
 export const isPreviewRole = (role: AppRole): boolean =>
   role === "admin" || role === "support";
+
+export const getHomeHrefForRole = (role: AppRole): "/admin" | "/app" =>
+  role === "student" ? "/app" : "/admin";
 
 export const getStudentPreviewMode = ({
   preview,
@@ -23,6 +28,29 @@ export const getStudentPreviewMode = ({
 
   return null;
 };
+
+export const canAccessStudentRoute = ({
+  pathname,
+  previewMode,
+  role,
+}: {
+  pathname: string;
+  previewMode: StudentPreviewMode | null;
+  role: AppRole;
+}): boolean => {
+  if (role === "student") {
+    return true;
+  }
+
+  if (!isPreviewRole(role) || previewMode !== "student") {
+    return false;
+  }
+
+  return STUDENT_PREVIEW_PATHS.some((path) => pathname.startsWith(path));
+};
+
+export const canMutateStudentExperience = (role: AppRole): boolean =>
+  role === "student";
 
 export const getPreviewAwareHref = (
   href: string,

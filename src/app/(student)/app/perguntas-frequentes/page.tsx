@@ -1,5 +1,6 @@
 import { HelpCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { redirect } from "next/navigation";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,11 +11,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { groupFaqItemsByCategory } from "@/features/courses/presentation";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import { getPublishedFaqItems } from "@/features/courses/server";
+import { route } from "@/lib/routes";
+import { requireSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentFaqPage(): Promise<React.JSX.Element> {
+  const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    redirect(route("/admin"));
+  }
+
   const faqs = await getPublishedFaqItems();
   const categories = groupFaqItemsByCategory(faqs);
 

@@ -9,6 +9,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
   getStudentCoursePrimaryHref,
   groupStudentCatalogCourses,
 } from "@/features/courses/presentation";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
 import { startCourseCheckoutAction } from "@/features/payments/actions";
@@ -45,6 +47,11 @@ const getInitials = (title: string): string =>
 
 export default async function StudentDashboardPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    redirect(route("/admin"));
+  }
+
   const courses = await getStudentCourseCatalog(session.user.id);
   const groups = groupStudentCatalogCourses(courses);
   const completedCount = groups.completed.length;

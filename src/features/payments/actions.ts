@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import { createCourseCheckout } from "@/features/payments/server";
 import { requireSession } from "@/lib/session";
 
@@ -11,6 +12,11 @@ export const startCourseCheckoutAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    throw new Error("Apenas alunos podem iniciar checkout.");
+  }
+
   const courseId = readString(formData, "courseId");
 
   if (!courseId) {

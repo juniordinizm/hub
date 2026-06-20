@@ -5,13 +5,14 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getStudentCoursePrimaryHref } from "@/features/courses/presentation";
 import {
+  canAccessStudentRoute,
   getPreviewAwareHref,
   getStudentPreviewMode,
 } from "@/features/courses/preview";
@@ -51,6 +52,17 @@ export default async function StudentCourseOverviewPage({
     requireSession(),
   ]);
   const previewMode = getStudentPreviewMode({ preview, role: session.role });
+
+  if (
+    !canAccessStudentRoute({
+      pathname: `/app/cursos/${courseId}`,
+      previewMode,
+      role: session.role,
+    })
+  ) {
+    redirect(route("/admin"));
+  }
+
   const data = previewMode
     ? await getCoursePreviewOverviewData({ courseId })
     : await getStudentCourseOverviewData({
@@ -71,17 +83,20 @@ export default async function StudentCourseOverviewPage({
       previewMode
     )
   );
-  const _backHref = route(
-    previewMode ? `/admin/cursos/${data.course.id}` : "/app"
-  );
-
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-border/50 border-b bg-muted/15 px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
         {previewMode ? (
-          <div className="mb-6 rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm">
-            <strong>Preview de aluno.</strong> Todas as aulas ficam liberadas e
-            nenhum progresso é gravado.
+          <div className="mb-6 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              <strong>Preview de aluno.</strong> Todas as aulas ficam liberadas
+              e nenhum progresso e gravado.
+            </p>
+            <Button asChild size="sm" variant="outline">
+              <Link href={route(`/admin/cursos/${data.course.id}`)}>
+                Voltar ao Admin
+              </Link>
+            </Button>
           </div>
         ) : null}
 

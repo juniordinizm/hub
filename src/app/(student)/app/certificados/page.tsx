@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getCertificatesForUser } from "@/features/certificates/server";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -26,6 +28,11 @@ export const dynamic = "force-dynamic";
 
 export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    redirect(route("/admin"));
+  }
+
   const certificates = await getCertificatesForUser(session.user.id);
 
   return (

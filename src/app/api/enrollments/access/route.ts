@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import { getStudentCourseAccessStatus } from "@/features/courses/server";
 import { getCurrentSession } from "@/lib/session";
 
@@ -9,6 +10,13 @@ export const GET = async (request: Request): Promise<Response> => {
 
   if (!session) {
     return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+  }
+
+  if (!canMutateStudentExperience(session.role)) {
+    return NextResponse.json(
+      { error: "Acesso restrito a alunos." },
+      { status: 403 }
+    );
   }
 
   const url = new URL(request.url);

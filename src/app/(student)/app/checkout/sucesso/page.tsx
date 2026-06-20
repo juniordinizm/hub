@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import { getStudentCourseAccessStatus } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -17,6 +18,11 @@ export default async function CheckoutSuccessPage({
   searchParams: Promise<{ courseId?: string }>;
 }): Promise<React.JSX.Element> {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    redirect(route("/admin"));
+  }
+
   const { courseId = null } = await searchParams;
 
   if (courseId) {

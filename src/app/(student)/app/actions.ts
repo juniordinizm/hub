@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { canMutateStudentExperience } from "@/features/courses/preview";
 import {
   completeLesson,
   recordLessonWatchProgress,
@@ -15,6 +16,11 @@ const readString = (formData: FormData, key: string): string =>
 
 export const completeLessonAction = async (formData: FormData) => {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    throw new Error("Preview de aluno nao permite gravar progresso.");
+  }
+
   const lessonId = String(formData.get("lessonId") ?? "");
 
   if (!lessonId) {
@@ -41,6 +47,10 @@ export const syncJmvstreamLessonDurationAction = async ({
   lessonId: string;
 }): Promise<void> => {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    throw new Error("Preview de aluno nao permite gravar duracao.");
+  }
 
   if (!lessonId) {
     throw new Error("Aula invalida.");
@@ -71,6 +81,10 @@ export const recordLessonWatchProgressAction = async ({
 }> => {
   const session = await requireSession();
 
+  if (!canMutateStudentExperience(session.role)) {
+    throw new Error("Preview de aluno nao permite gravar progresso.");
+  }
+
   if (!lessonId) {
     throw new Error("Aula invalida.");
   }
@@ -88,6 +102,11 @@ export const sendSupportRequestAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requireSession();
+
+  if (!canMutateStudentExperience(session.role)) {
+    throw new Error("Preview de aluno nao permite enviar suporte.");
+  }
+
   const subject = readString(formData, "subject");
   const message = readString(formData, "message");
   const courseTitle = readString(formData, "courseTitle") || undefined;

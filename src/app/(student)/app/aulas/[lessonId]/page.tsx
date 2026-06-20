@@ -7,7 +7,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
@@ -27,6 +27,7 @@ import {
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
 import {
+  canAccessStudentRoute,
   getHrefWithSearchParams,
   getPreviewAwareHref,
   getStudentPreviewMode,
@@ -77,6 +78,17 @@ export default async function LessonPage({
     preview: query.preview,
     role: session.role,
   });
+
+  if (
+    !canAccessStudentRoute({
+      pathname: `/app/aulas/${lessonId}`,
+      previewMode,
+      role: session.role,
+    })
+  ) {
+    redirect(route("/admin"));
+  }
+
   const data = previewMode
     ? await getPreviewLessonData({ lessonId })
     : await getStudentLessonData({
@@ -104,7 +116,7 @@ export default async function LessonPage({
       )}
     >
       <section className="min-w-0 overflow-y-auto">
-        {previewMode ? <PreviewBanner /> : null}
+        {previewMode ? <PreviewBanner courseId={data.course.id} /> : null}
 
         <LessonVideoPlayer
           durationSeconds={data.lesson.durationSeconds}
@@ -256,11 +268,16 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
   );
 }
 
-function PreviewBanner(): React.JSX.Element {
+function PreviewBanner({ courseId }: { courseId: string }): React.JSX.Element {
   return (
-    <div className="border-primary/20 border-b bg-primary/10 px-5 py-2 text-sm sm:px-8">
-      Preview de aluno: progresso, duração detectada e certificado não serão
-      gravados.
+    <div className="flex flex-col gap-3 border-primary/20 border-b bg-primary/10 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
+      <p>
+        <strong>Preview de aluno.</strong> Progresso, duracao detectada e
+        certificado nao serao gravados.
+      </p>
+      <Button asChild size="sm" variant="outline">
+        <Link href={route(`/admin/cursos/${courseId}`)}>Voltar ao Admin</Link>
+      </Button>
     </div>
   );
 }
