@@ -67,6 +67,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
+    "db:reset": "bun scripts/reset-db-keep-users.ts",
     "db:seed": "node scripts/seed-initial-data.mjs",
     "db:seed:student": "bun scripts/bootstrap-student.ts",
     "db:studio": "drizzle-kit studio",
