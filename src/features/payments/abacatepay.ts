@@ -184,6 +184,20 @@ export const verifyAbacatePaySignature = ({
   return timingSafeStringEqual(signature, expected);
 };
 
+export const parseAbacatePayWebhookPayload = (
+  rawBody: string
+): Record<string, unknown> | null => {
+  try {
+    const payload: unknown = JSON.parse(rawBody);
+
+    return typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
 export const mapAbacatePayEventToOrderStatus = (event: string): OrderStatus => {
   if (paidEvents.has(event)) {
     return "paid";

@@ -6,6 +6,7 @@ import {
   getAbacatePayOrderPayload,
   getAbacatePayOrderTransition,
   mapAbacatePayEventToOrderStatus,
+  parseAbacatePayWebhookPayload,
   parsePriceToCents,
   resolveAbacatePayOrderStatus,
   verifyAbacatePaySignature,
@@ -116,6 +117,16 @@ describe("AbacatePay webhook mapping", () => {
 });
 
 describe("AbacatePay webhook security", () => {
+  it("parses valid webhook JSON payloads", () => {
+    expect(parseAbacatePayWebhookPayload('{"event":"checkout.paid"}')).toEqual({
+      event: "checkout.paid",
+    });
+  });
+
+  it("rejects malformed webhook JSON payloads", () => {
+    expect(parseAbacatePayWebhookPayload("{not-json")).toBeNull();
+  });
+
   it("accepts the configured webhook secret from AbacatePay", () => {
     expect(
       verifyAbacatePayWebhookSecret({

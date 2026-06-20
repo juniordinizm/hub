@@ -17,7 +17,7 @@ const serverEnvSchema = z.object({
   ABACATEPAY_API_KEY: optionalNonEmptyString,
   ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
   ABACATE_PAY_API_KEY: optionalNonEmptyString,
-  BETTER_AUTH_SECRET: z.string().min(1).default("development-secret-change-me"),
+  BETTER_AUTH_SECRET: optionalNonEmptyString,
   BETTER_AUTH_TRUSTED_ORIGINS: optionalNonEmptyString,
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
   CERTIFICATE_PUBLIC_BASE_URL: z
@@ -47,8 +47,8 @@ const serverEnvSchema = z.object({
   VERCEL: optionalNonEmptyString,
 });
 
-export const getServerEnv = () =>
-  serverEnvSchema.parse({
+export const getServerEnv = () => {
+  const env = serverEnvSchema.parse({
     ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
     ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
@@ -74,3 +74,14 @@ export const getServerEnv = () =>
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     VERCEL: process.env.VERCEL,
   });
+
+  if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
+    throw new Error("BETTER_AUTH_SECRET is required in production.");
+  }
+
+  return {
+    ...env,
+    BETTER_AUTH_SECRET:
+      env.BETTER_AUTH_SECRET ?? "development-secret-change-me",
+  };
+};

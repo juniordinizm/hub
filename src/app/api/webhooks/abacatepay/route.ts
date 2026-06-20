@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  parseAbacatePayWebhookPayload,
   verifyAbacatePaySignature,
   verifyAbacatePayWebhookSecret,
 } from "@/features/payments/abacatepay";
@@ -37,7 +38,12 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
-  const payload = JSON.parse(rawBody) as Record<string, unknown>;
+  const payload = parseAbacatePayWebhookPayload(rawBody);
+
+  if (!payload) {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+
   const result = await processAbacatePayWebhook(payload);
 
   return NextResponse.json({ ok: true, ...result });
