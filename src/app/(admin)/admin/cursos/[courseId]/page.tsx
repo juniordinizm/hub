@@ -12,7 +12,6 @@ import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { CourseActionsDropdown } from "./course-actions-dropdown";
 import {
-  ContentStatusCard,
   CourseBuilderWrapper,
   CourseMetricCard,
   CreateModuleDialog,
@@ -132,24 +131,26 @@ export default async function AdminCourseDetailPage({
           <TabsContent className="space-y-6" value="overview">
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <CourseMetricCard
-                helper="Aulas visiveis para alunos."
-                label="Aulas publicadas"
-                value={`${contentSummary.publishedLessons}/${contentSummary.totalLessons}`}
+                helper="Alunos com acesso liberado."
+                label="Matrículas ativas"
+                value={activeEnrollments.length.toString()}
               />
               <CourseMetricCard
-                helper="Aulas com video, hash ou embed."
-                label="Com video"
-                value={`${contentSummary.videoReadyLessons}/${contentSummary.totalLessons}`}
+                helper="Vendas totais do curso."
+                label="Pedidos aprovados"
+                value={orders.length.toString()}
               />
               <CourseMetricCard
-                helper="Aulas fora da area do aluno."
-                label="Rascunhos"
-                value={contentSummary.draftLessons.toString()}
+                helper="Alunos que concluíram o curso."
+                label="Certificados"
+                value={certificates.length.toString()}
               />
               <CourseMetricCard
-                helper="Modulos sem aula cadastrada."
-                label="Modulos vazios"
-                value={contentSummary.emptyModules.toString()}
+                helper="Duração total das aulas em vídeo."
+                label="Carga horária"
+                value={formatLessonDuration(
+                  contentSummary.totalDurationSeconds
+                )}
               />
             </section>
 
@@ -195,47 +196,29 @@ export default async function AdminCourseDetailPage({
                 </div>
               </div>
               <div className="rounded-lg border bg-card p-5">
-                <h2 className="font-semibold">Indicadores do curso</h2>
+                <h2 className="font-semibold">Status do conteúdo</h2>
                 <p className="mt-1 text-muted-foreground text-sm">
                   {contentSignal.helper}
                 </p>
                 <div className="mt-4 flex flex-col gap-3 text-sm">
                   <InfoRow
                     label="Aulas publicadas"
-                    value={`${publishedLessons.length} de ${lessons.length}`}
+                    value={`${contentSummary.publishedLessons} de ${contentSummary.totalLessons}`}
                   />
                   <InfoRow
-                    label="Matrículas ativas"
-                    value={activeEnrollments.length.toString()}
+                    label="Aulas com vídeo"
+                    value={`${contentSummary.videoReadyLessons} de ${contentSummary.totalLessons}`}
                   />
                   <InfoRow
-                    label="Certificados"
-                    value={certificates.length.toString()}
+                    label="Módulos cadastrados"
+                    value={modules.length.toString()}
                   />
-                  <InfoRow label="Pedidos" value={orders.length.toString()} />
                 </div>
               </div>
             </section>
           </TabsContent>
 
           <TabsContent className="space-y-6" value="content">
-            <section className="grid gap-4 sm:grid-cols-3">
-              <ContentStatusCard
-                label="Aulas sem video"
-                value={contentSummary.withoutVideoLessons.toString()}
-              />
-              <ContentStatusCard
-                label="Aulas em rascunho"
-                value={contentSummary.draftLessons.toString()}
-              />
-              <ContentStatusCard
-                label="Carga cadastrada"
-                value={formatLessonDuration(
-                  contentSummary.totalDurationSeconds
-                )}
-              />
-            </section>
-
             <section className="flex flex-wrap gap-3">
               <CreateModuleDialog
                 course={course}
