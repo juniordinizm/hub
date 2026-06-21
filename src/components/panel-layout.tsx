@@ -4,8 +4,16 @@ import { ArrowLeftIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { createAuthClient } from "better-auth/react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { type JSX, type ReactNode, useState } from "react";
+import {
+  createContext,
+  type JSX,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -33,6 +41,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getInitials } from "@/lib/get-initials";
+import { route } from "@/lib/routes";
+import type { AppRole } from "@/lib/session";
 
 interface PanelLayoutProps {
   readonly children: ReactNode;
@@ -40,6 +50,7 @@ interface PanelLayoutProps {
   readonly userEmail: string;
   readonly userImage?: string | null;
   readonly userName: string;
+  readonly userRole?: AppRole;
 }
 
 const authClient = createAuthClient();
@@ -73,12 +84,64 @@ function SidebarHeaderContent() {
   );
 }
 
-export function PanelLayout({
+interface PreviewContextType {
+  courseId: string | null;
+  setCourseId: (id: string | null) => void;
+}
+
+const PreviewContext = createContext<PreviewContextType | undefined>(undefined);
+
+export function PreviewProvider({
+  children,
+}: {
+  readonly children: ReactNode;
+}) {
+  const [courseId, setCourseId] = useState<string | null>(null);
+  return (
+    <PreviewContext.Provider value={{ courseId, setCourseId }}>
+      {children}
+    </PreviewContext.Provider>
+  );
+}
+
+export function usePreview() {
+  return useContext(PreviewContext);
+}
+
+export function RegisterPreviewCourseId({
+  courseId,
+}: {
+  readonly courseId: string;
+}): JSX.Element | null {
+  const preview = usePreview();
+
+  useEffect(() => {
+    if (preview) {
+      preview.setCourseId(courseId);
+      return () => {
+        preview.setCourseId(null);
+      };
+    }
+  }, [courseId, preview]);
+
+  return null;
+}
+
+export function PanelLayout(props: PanelLayoutProps): JSX.Element {
+  return (
+    <PreviewProvider>
+      <PanelLayoutInner {...props} />
+    </PreviewProvider>
+  );
+}
+
+function PanelLayoutInner({
   children,
   navContent,
   userEmail,
   userName,
   userImage,
+  userRole,
 }: PanelLayoutProps): JSX.Element {
   const initials = getInitials(userName);
   const [isPending, setIsPending] = useState(false);
@@ -86,6 +149,13 @@ export function PanelLayout({
   const pathname = usePathname();
   const router = useRouter();
   const isFocusMode = searchParams.get("focus") === "1";
+
+  const previewContext = usePreview();
+  const courseId = previewContext?.courseId ?? null;
+  const previewParam = searchParams.get("preview");
+  const isPreviewActive =
+    (userRole === "admin" || userRole === "support") &&
+    (previewParam === "student" || previewParam === "aluno");
 
   const showBackButton = ![
     "/app",
@@ -219,16 +289,53 @@ export function PanelLayout({
               </Button>
             )}
           </div>
-          <div className="flex flex-1 items-center justify-center md:hidden">
-            <Image
-              alt="PROTEA-R"
-              className="h-auto max-h-10 w-full object-contain object-center"
-              height={100}
-              src="/protear/logo-negativo.svg"
-              width={400}
-            />
-          </div>
-          <div className="flex flex-1 items-center justify-end">
+
+          {isPreviewActive && (
+            <div className="hidden items-center gap-3 text-sm md:flex">
+              <div className="flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-600 dark:text-amber-400">
+                <span className="font-semibold text-xs">Preview de aluno</span>
+                <span className="hidden text-muted-foreground text-xs lg:inline">
+                  · Progresso, duração detectada e certificado não serão
+                  gravados
+                </span>
+              </div>
+              {courseId && (
+                <Button
+                  asChild
+                  className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                  size="sm"
+                  variant="outline"
+                >
+                  <Link href={route(`/admin/cursos/${courseId}`)}>
+                    Voltar ao Admin
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-1 items-center justify-end gap-3">
+            {isPreviewActive && courseId && (
+              <Button
+                asChild
+                className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 md:hidden dark:text-amber-400"
+                size="sm"
+                variant="outline"
+              >
+                <Link href={route(`/admin/cursos/${courseId}`)}>
+                  Voltar ao Admin
+                </Link>
+              </Button>
+            )}
+            <div className="flex flex-1 items-center justify-center md:hidden">
+              <Image
+                alt="PROTEA-R"
+                className="h-auto max-h-10 w-full object-contain object-center"
+                height={100}
+                src="/protear/logo-negativo.svg"
+                width={400}
+              />
+            </div>
             <NotificationsButton />
           </div>
         </header>

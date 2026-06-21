@@ -10,6 +10,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
+import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,9 @@ export default async function LessonPage({
       )}
     >
       <section className="min-w-0 overflow-y-auto">
-        {previewMode ? <PreviewBanner courseId={data.course.id} /> : null}
+        {previewMode ? (
+          <RegisterPreviewCourseId courseId={data.course.id} />
+        ) : null}
 
         <LessonVideoPlayer
           durationSeconds={data.lesson.durationSeconds}
@@ -265,20 +268,6 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
       moduleTitle: module.title,
       title: lesson.title,
     }))
-  );
-}
-
-function PreviewBanner({ courseId }: { courseId: string }): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-3 border-primary/20 border-b bg-primary/10 px-5 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-8">
-      <p>
-        <strong>Preview de aluno.</strong> Progresso, duracao detectada e
-        certificado nao serao gravados.
-      </p>
-      <Button asChild size="sm" variant="outline">
-        <Link href={route(`/admin/cursos/${courseId}`)}>Voltar ao Admin</Link>
-      </Button>
-    </div>
   );
 }
 

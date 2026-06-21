@@ -13,6 +13,7 @@ export default async function AdminLayout({
       userEmail={session.user.email}
       userImage={(session.user as { image?: string | null }).image ?? null}
       userName={session.user.name}
+      userRole={session.role}
     >
       {children}
     </PanelLayout>

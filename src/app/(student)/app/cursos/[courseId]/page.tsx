@@ -6,6 +6,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,17 +88,7 @@ export default async function StudentCourseOverviewPage({
     <main className="min-h-screen bg-background text-foreground">
       <section className="border-border/50 border-b bg-muted/15 px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
         {previewMode ? (
-          <div className="mb-6 flex flex-col gap-3 rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-            <p>
-              <strong>Preview de aluno.</strong> Todas as aulas ficam liberadas
-              e nenhum progresso e gravado.
-            </p>
-            <Button asChild size="sm" variant="outline">
-              <Link href={route(`/admin/cursos/${data.course.id}`)}>
-                Voltar ao Admin
-              </Link>
-            </Button>
-          </div>
+          <RegisterPreviewCourseId courseId={data.course.id} />
         ) : null}
 
         <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
