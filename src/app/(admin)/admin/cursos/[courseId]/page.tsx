@@ -9,16 +9,15 @@ import {
 import { getAdminManagementData } from "@/features/admin/server";
 import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
-import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
+import { formatDate } from "@/lib/formatters";
 import { CourseActionsDropdown } from "./course-actions-dropdown";
 import {
   CourseBuilderWrapper,
   CourseMetricCard,
   CreateModuleDialog,
   InfoRow,
-  InfoTile,
 } from "./course-builder-components";
-import { CourseEditDialog } from "./course-dialogs-client";
+import { CourseSettingsForm } from "./course-dialogs-client";
 
 export const dynamic = "force-dynamic";
 
@@ -290,36 +289,16 @@ export default async function AdminCourseDetailPage({
 
           <TabsContent className="space-y-5" value="settings">
             <section className="rounded-lg border bg-card p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="font-semibold text-xl">
-                    Configurações do curso
-                  </h2>
-                  <p className="mt-1 text-muted-foreground text-sm">
-                    Dados que aparecem para o aluno e conectam o curso ao
-                    checkout externo.
-                  </p>
-                </div>
-                <CourseEditDialog course={course} />
+              <div className="mb-6 border-b pb-4">
+                <h2 className="font-semibold text-xl">
+                  Configurações do curso
+                </h2>
+                <p className="mt-1 text-muted-foreground text-sm">
+                  Dados que aparecem para o aluno e conectam o curso ao checkout
+                  externo.
+                </p>
               </div>
-              <div className="mt-5 grid gap-3 lg:grid-cols-2">
-                <InfoTile
-                  label="Capa"
-                  value={course.thumbnailUrl ?? "Não cadastrada"}
-                />
-                <InfoTile
-                  label="Preço"
-                  value={formatCurrencyInCents(course.priceInCents)}
-                />
-                <InfoTile
-                  label="Produto AbacatePay"
-                  value={course.paymentProviderProductId ?? "Não vinculado"}
-                />
-                <InfoTile
-                  label="Meses de acesso"
-                  value={`${course.accessDurationMonths} meses`}
-                />
-              </div>
+              <CourseSettingsForm course={course} />
             </section>
           </TabsContent>
         </Tabs>

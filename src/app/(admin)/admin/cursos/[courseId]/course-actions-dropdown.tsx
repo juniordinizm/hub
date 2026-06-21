@@ -2,7 +2,6 @@
 
 import {
   Delete02Icon,
-  Edit01Icon,
   MoreHorizontalIcon,
   ViewIcon,
 } from "@hugeicons/core-free-icons";
@@ -16,11 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { route } from "@/lib/routes";
-import {
-  type CourseData,
-  CourseEditDialog,
-  DeleteCourseDialog,
-} from "./course-dialogs-client";
+import { type CourseData, DeleteCourseDialog } from "./course-dialogs-client";
 
 interface CourseActionsDropdownProps {
   course: CourseData;
@@ -29,7 +24,6 @@ interface CourseActionsDropdownProps {
 export function CourseActionsDropdown({
   course,
 }: CourseActionsDropdownProps): React.JSX.Element {
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   return (
@@ -52,15 +46,7 @@ export function CourseActionsDropdown({
               Preview como aluno
             </a>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault();
-              setIsEditDialogOpen(true);
-            }}
-          >
-            <HugeiconsIcon className="mr-2 h-4 w-4" icon={Edit01Icon} />
-            Editar curso
-          </DropdownMenuItem>
+
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onSelect={(e) => {
@@ -74,11 +60,6 @@ export function CourseActionsDropdown({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <CourseEditDialog
-        course={course}
-        onOpenChange={setIsEditDialogOpen}
-        open={isEditDialogOpen}
-      />
       <DeleteCourseDialog
         course={course}
         onOpenChange={setIsDeleteDialogOpen}

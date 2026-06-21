@@ -116,12 +116,14 @@ export function RegisterPreviewCourseId({
   const preview = usePreview();
 
   useEffect(() => {
-    if (preview) {
-      preview.setCourseId(courseId);
-      return () => {
-        preview.setCourseId(null);
-      };
+    if (!preview) {
+      return;
     }
+
+    preview.setCourseId(courseId);
+    return () => {
+      preview.setCourseId(null);
+    };
   }, [courseId, preview]);
 
   return null;

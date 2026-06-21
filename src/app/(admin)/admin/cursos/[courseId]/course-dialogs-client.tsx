@@ -1,14 +1,13 @@
 "use client";
-
 import {
   Cancel01Icon,
   Delete02Icon,
-  Edit01Icon,
   FloppyDiskIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,37 +45,6 @@ export interface CourseData {
   thumbnailUrl: string | null;
   title: string;
   workloadHours: number;
-}
-
-interface CourseDialogProps {
-  course: CourseData;
-  onOpenChange?: (open: boolean) => void;
-  open?: boolean;
-}
-
-export function CourseEditDialog({
-  course,
-  open,
-  onOpenChange,
-}: CourseDialogProps): React.JSX.Element {
-  return (
-    <DiscardAwareDialog
-      description="Atualize os dados principais do curso."
-      onOpenChange={onOpenChange}
-      open={open}
-      title="Editar curso"
-      trigger={
-        onOpenChange ? undefined : (
-          <DialogTriggerButton size="sm" variant="outline">
-            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-            Editar curso
-          </DialogTriggerButton>
-        )
-      }
-    >
-      <CourseForm course={course} />
-    </DiscardAwareDialog>
-  );
 }
 
 export function DeleteCourseDialog({
@@ -141,13 +109,31 @@ export function DeleteCourseDialog({
   );
 }
 
-function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
+export function CourseSettingsForm({
+  course,
+}: {
+  course: CourseData;
+}): React.JSX.Element {
+  const [isPending, startTransition] = useTransition();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const toastId = toast.loading("Salvando configurações...");
+
+    startTransition(async () => {
+      try {
+        await saveCourseAction(formData);
+        toast.success("Configurações salvas com sucesso!", { id: toastId });
+      } catch {
+        toast.error("Não foi possível salvar o curso.", { id: toastId });
+      }
+    });
+  };
+
   return (
-    <AutoCloseDialogForm
-      action={saveCourseAction}
-      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-    >
-      <DialogBody>
+    <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+      <fieldset className="contents" disabled={isPending}>
         <FieldGroup>
           <input name="courseId" type="hidden" value={course.id} />
           <Field>
@@ -223,14 +209,15 @@ function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
             </Field>
           </div>
         </FieldGroup>
-      </DialogBody>
-      <DialogFooter>
-        <Button className="w-fit" type="submit">
-          <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-          Salvar curso
-        </Button>
-      </DialogFooter>
-    </AutoCloseDialogForm>
+
+        <div className="mt-2 flex justify-end">
+          <Button disabled={isPending} type="submit">
+            <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            {isPending ? "Salvando..." : "Salvar configurações"}
+          </Button>
+        </div>
+      </fieldset>
+    </form>
   );
 }
 
