@@ -6,16 +6,12 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
   DialogBody,
-  DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTriggerButton,
 } from "@/components/ui/dialog";
 import {
@@ -94,21 +90,18 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 organizar módulos, aulas, alunos e publicação.
               </p>
             </div>
-            <Dialog>
-              <DialogTriggerButton>
-                <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                Novo curso
-              </DialogTriggerButton>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Novo curso</DialogTitle>
-                  <DialogDescription>
-                    Crie o curso antes de cadastrar seus módulos e aulas.
-                  </DialogDescription>
-                </DialogHeader>
-                <CourseForm />
-              </DialogContent>
-            </Dialog>
+            <DiscardAwareDialog
+              description="Crie o curso antes de cadastrar seus módulos e aulas."
+              title="Novo curso"
+              trigger={
+                <DialogTriggerButton>
+                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  Novo curso
+                </DialogTriggerButton>
+              }
+            >
+              <CourseForm />
+            </DiscardAwareDialog>
           </div>
         </header>
 
@@ -126,21 +119,22 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Dialog>
-                  <DialogTriggerButton>
-                    <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-                    Criar primeiro curso
-                  </DialogTriggerButton>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Novo curso</DialogTitle>
-                      <DialogDescription>
-                        Crie o curso antes de cadastrar seus módulos e aulas.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <CourseForm />
-                  </DialogContent>
-                </Dialog>
+                <DiscardAwareDialog
+                  description="Crie o curso antes de cadastrar seus módulos e aulas."
+                  title="Novo curso"
+                  trigger={
+                    <DialogTriggerButton>
+                      <HugeiconsIcon
+                        icon={Add01Icon}
+                        size={18}
+                        strokeWidth={2}
+                      />
+                      Criar primeiro curso
+                    </DialogTriggerButton>
+                  }
+                >
+                  <CourseForm />
+                </DiscardAwareDialog>
               </EmptyContent>
             </Empty>
           ) : (
