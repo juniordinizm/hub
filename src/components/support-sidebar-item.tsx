@@ -8,6 +8,7 @@ import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -47,36 +48,41 @@ export function SupportSidebarItem(): React.JSX.Element {
               conta.
             </DialogDescription>
           </DialogHeader>
-          <AutoCloseDialogForm action={sendSupportRequestAction}>
-            <FieldGroup>
-              <Field>
-                <FieldLabel>Assunto</FieldLabel>
-                <Input
-                  defaultValue="Preciso de ajuda com meu acesso"
-                  name="subject"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Mensagem</FieldLabel>
-                <Textarea
-                  name="message"
-                  placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
-                  required
-                  rows={6}
-                />
-              </Field>
-              <DialogFooter>
-                <Button type="submit">
-                  <HugeiconsIcon
-                    icon={CustomerService01Icon}
-                    size={18}
-                    strokeWidth={2}
+          <AutoCloseDialogForm
+            action={sendSupportRequestAction}
+            className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+          >
+            <DialogBody>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel>Assunto</FieldLabel>
+                  <Input
+                    defaultValue="Preciso de ajuda com meu acesso"
+                    name="subject"
+                    required
                   />
-                  Enviar suporte
-                </Button>
-              </DialogFooter>
-            </FieldGroup>
+                </Field>
+                <Field>
+                  <FieldLabel>Mensagem</FieldLabel>
+                  <Textarea
+                    name="message"
+                    placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
+                    required
+                    rows={6}
+                  />
+                </Field>
+              </FieldGroup>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="submit">
+                <HugeiconsIcon
+                  icon={CustomerService01Icon}
+                  size={18}
+                  strokeWidth={2}
+                />
+                Enviar suporte
+              </Button>
+            </DialogFooter>
           </AutoCloseDialogForm>
         </DialogContent>
       </Dialog>

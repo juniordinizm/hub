@@ -89,6 +89,7 @@ export function DiscardAwareDialog({
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           <div
+            className="flex flex-1 flex-col overflow-hidden"
             onChange={() => {
               isDirtyRef.current = true;
             }}

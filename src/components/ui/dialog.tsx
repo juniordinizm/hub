@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 function Dialog({
@@ -81,7 +82,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[88vh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-lg border bg-popover p-6 text-popover-foreground shadow-xl",
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[88vh] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col gap-0 overflow-hidden rounded-lg border bg-popover p-0 text-popover-foreground shadow-xl",
           className
         )}
         data-slot="dialog-content"
@@ -91,7 +92,7 @@ function DialogContent({
         {showCloseButton ? (
           <DialogPrimitive.Close asChild>
             <Button
-              className="absolute top-4 right-4"
+              className="absolute top-4 right-4 z-10"
               size="icon-sm"
               type="button"
               variant="ghost"
@@ -109,7 +110,10 @@ function DialogContent({
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("grid gap-1.5 pr-9", className)}
+      className={cn(
+        "flex flex-none flex-col gap-1.5 border-b p-6 pr-12 pb-4",
+        className
+      )}
       data-slot="dialog-header"
       {...props}
     />
@@ -120,10 +124,23 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "flex flex-none flex-col-reverse gap-2 border-t bg-muted/50 px-6 py-3 sm:flex-row sm:justify-end",
         className
       )}
       data-slot="dialog-footer"
+      {...props}
+    />
+  );
+}
+
+function DialogBody({
+  className,
+  ...props
+}: React.ComponentProps<typeof ScrollArea>) {
+  return (
+    <ScrollArea
+      className={cn("min-h-0 flex-1 p-6", className)}
+      data-slot="dialog-body"
       {...props}
     />
   );
@@ -157,6 +174,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

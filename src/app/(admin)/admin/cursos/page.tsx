@@ -10,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTriggerButton,
@@ -243,87 +245,94 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
 function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
   return (
-    <AutoCloseDialogForm action={saveCourseAction}>
-      <FieldGroup>
-        <input name="courseId" type="hidden" value={course?.id ?? ""} />
-        <Field>
-          <FieldLabel>Título</FieldLabel>
-          <Input defaultValue={course?.title ?? ""} name="title" required />
-        </Field>
-        <Field>
-          <FieldLabel>Subtítulo</FieldLabel>
-          <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
-        </Field>
-        <Field>
-          <FieldLabel>Descrição</FieldLabel>
-          <Textarea
-            defaultValue={course?.description ?? ""}
-            name="description"
-          />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
+    <AutoCloseDialogForm
+      action={saveCourseAction}
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <DialogBody>
+        <FieldGroup>
+          <input name="courseId" type="hidden" value={course?.id ?? ""} />
           <Field>
-            <FieldLabel>Carga horária</FieldLabel>
+            <FieldLabel>Título</FieldLabel>
+            <Input defaultValue={course?.title ?? ""} name="title" required />
+          </Field>
+          <Field>
+            <FieldLabel>Subtítulo</FieldLabel>
+            <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
+          </Field>
+          <Field>
+            <FieldLabel>Descrição</FieldLabel>
+            <Textarea
+              defaultValue={course?.description ?? ""}
+              name="description"
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Carga horária</FieldLabel>
+              <Input
+                defaultValue={course?.workloadHours ?? 0}
+                min={0}
+                name="workloadHours"
+                type="number"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Meses de acesso</FieldLabel>
+              <Input
+                defaultValue={course?.accessDurationMonths ?? 12}
+                min={1}
+                name="accessDurationMonths"
+                type="number"
+              />
+            </Field>
+          </div>
+          <Field>
+            <FieldLabel>Preço do curso</FieldLabel>
             <Input
-              defaultValue={course?.workloadHours ?? 0}
-              min={0}
-              name="workloadHours"
-              type="number"
+              defaultValue={
+                course ? formatCurrencyInCents(course.priceInCents) : ""
+              }
+              disabled={Boolean(course)}
+              name="price"
+              placeholder="497,00"
+              required={!course}
             />
           </Field>
           <Field>
-            <FieldLabel>Meses de acesso</FieldLabel>
+            <FieldLabel>Capa do curso</FieldLabel>
             <Input
-              defaultValue={course?.accessDurationMonths ?? 12}
-              min={1}
-              name="accessDurationMonths"
-              type="number"
+              defaultValue={course?.thumbnailUrl ?? ""}
+              name="thumbnailUrl"
+              placeholder="/protear/dash-banner.png"
             />
           </Field>
-        </div>
-        <Field>
-          <FieldLabel>Preço do curso</FieldLabel>
-          <Input
-            defaultValue={
-              course ? formatCurrencyInCents(course.priceInCents) : ""
-            }
-            disabled={Boolean(course)}
-            name="price"
-            placeholder="497,00"
-            required={!course}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Capa do curso</FieldLabel>
-          <Input
-            defaultValue={course?.thumbnailUrl ?? ""}
-            name="thumbnailUrl"
-            placeholder="/protear/dash-banner.png"
-          />
-        </Field>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Field>
-            <FieldLabel>Produto AbacatePay</FieldLabel>
-            <Input
-              defaultValue={course?.paymentProviderProductId ?? ""}
-              disabled
-              placeholder="Gerado automaticamente ao criar"
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Status</FieldLabel>
-            <Select defaultValue={course?.status ?? "draft"} name="status">
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Rascunho</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="archived">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Field>
+              <FieldLabel>Produto AbacatePay</FieldLabel>
+              <Input
+                defaultValue={course?.paymentProviderProductId ?? ""}
+                disabled
+                placeholder="Gerado automaticamente ao criar"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Status</FieldLabel>
+              <Select defaultValue={course?.status ?? "draft"} name="status">
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Rascunho</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="archived">Arquivado</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </FieldGroup>
+      </DialogBody>
+      <DialogFooter>
         <Button className="w-fit" type="submit">
           <HugeiconsIcon
             icon={course ? FloppyDiskIcon : Add01Icon}
@@ -332,7 +341,7 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           />
           {course ? "Salvar curso" : "Criar curso"}
         </Button>
-      </FieldGroup>
+      </DialogFooter>
     </AutoCloseDialogForm>
   );
 }

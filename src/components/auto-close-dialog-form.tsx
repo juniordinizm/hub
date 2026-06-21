@@ -60,17 +60,17 @@ export function AutoCloseDialogForm({
       className={cn(className)}
       onSubmit={handleSubmit}
     >
-      <fieldset
-        className="m-0 w-full min-w-0 border-0 p-0"
-        disabled={isPending}
-      >
+      <fieldset className="contents" disabled={isPending}>
+        {error ? (
+          <div
+            className="border-destructive/20 border-b bg-destructive/10 px-6 py-3 text-destructive text-sm"
+            role="alert"
+          >
+            {error}
+          </div>
+        ) : null}
         {children}
       </fieldset>
-      {error ? (
-        <p className="mt-3 text-destructive text-sm" role="alert">
-          {error}
-        </p>
-      ) : null}
       <DialogClose asChild>
         <button className="sr-only" ref={closeRef} type="button">
           Fechar

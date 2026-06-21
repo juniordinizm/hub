@@ -12,6 +12,7 @@ import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -114,10 +115,12 @@ export function DeleteCourseDialog({
             matrículas, pedidos e certificados vinculados.
           </DialogDescription>
         </DialogHeader>
-        <DeleteSummary
-          detail="O identificador interno será preservado apenas no sistema."
-          title={course.title}
-        />
+        <DialogBody>
+          <DeleteSummary
+            detail="O identificador interno será preservado apenas no sistema."
+            title={course.title}
+          />
+        </DialogBody>
         <AutoCloseDialogForm action={deleteCourseAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>
@@ -140,86 +143,93 @@ export function DeleteCourseDialog({
 
 function CourseForm({ course }: { course: CourseData }): React.JSX.Element {
   return (
-    <AutoCloseDialogForm action={saveCourseAction}>
-      <FieldGroup>
-        <input name="courseId" type="hidden" value={course.id} />
-        <Field>
-          <FieldLabel>Título</FieldLabel>
-          <Input defaultValue={course.title} name="title" required />
-        </Field>
-        <Field>
-          <FieldLabel>Subtítulo</FieldLabel>
-          <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-        </Field>
-        <Field>
-          <FieldLabel>Descrição</FieldLabel>
-          <Textarea
-            defaultValue={course.description ?? ""}
-            name="description"
-          />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-2">
+    <AutoCloseDialogForm
+      action={saveCourseAction}
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <DialogBody>
+        <FieldGroup>
+          <input name="courseId" type="hidden" value={course.id} />
           <Field>
-            <FieldLabel>Carga horária</FieldLabel>
-            <Input
-              defaultValue={course.workloadHours ?? 0}
-              disabled
-              min={0}
-              type="number"
-            />
+            <FieldLabel>Título</FieldLabel>
+            <Input defaultValue={course.title} name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Meses de acesso</FieldLabel>
-            <Input
-              defaultValue={course.accessDurationMonths ?? 12}
-              min={1}
-              name="accessDurationMonths"
-              type="number"
+            <FieldLabel>Subtítulo</FieldLabel>
+            <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
+          </Field>
+          <Field>
+            <FieldLabel>Descrição</FieldLabel>
+            <Textarea
+              defaultValue={course.description ?? ""}
+              name="description"
             />
           </Field>
-        </div>
-        <Field>
-          <FieldLabel>Preço do curso</FieldLabel>
-          <Input
-            defaultValue={formatCurrencyInCents(course.priceInCents)}
-            disabled
-          />
-        </Field>
-        <Field>
-          <FieldLabel>Capa do curso</FieldLabel>
-          <Input
-            defaultValue={course.thumbnailUrl ?? ""}
-            name="thumbnailUrl"
-            placeholder="/protear/dash-banner.png"
-          />
-        </Field>
-        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Carga horária</FieldLabel>
+              <Input
+                defaultValue={course.workloadHours ?? 0}
+                disabled
+                min={0}
+                type="number"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Meses de acesso</FieldLabel>
+              <Input
+                defaultValue={course.accessDurationMonths ?? 12}
+                min={1}
+                name="accessDurationMonths"
+                type="number"
+              />
+            </Field>
+          </div>
           <Field>
-            <FieldLabel>Produto AbacatePay</FieldLabel>
+            <FieldLabel>Preço do curso</FieldLabel>
             <Input
-              defaultValue={course.paymentProviderProductId ?? ""}
+              defaultValue={formatCurrencyInCents(course.priceInCents)}
               disabled
             />
           </Field>
           <Field>
-            <FieldLabel>Status</FieldLabel>
-            <Select defaultValue={course.status ?? "draft"} name="status">
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Rascunho</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="archived">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
+            <FieldLabel>Capa do curso</FieldLabel>
+            <Input
+              defaultValue={course.thumbnailUrl ?? ""}
+              name="thumbnailUrl"
+              placeholder="/protear/dash-banner.png"
+            />
           </Field>
-        </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Field>
+              <FieldLabel>Produto AbacatePay</FieldLabel>
+              <Input
+                defaultValue={course.paymentProviderProductId ?? ""}
+                disabled
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Status</FieldLabel>
+              <Select defaultValue={course.status ?? "draft"} name="status">
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Rascunho</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="archived">Arquivado</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </FieldGroup>
+      </DialogBody>
+      <DialogFooter>
         <Button className="w-fit" type="submit">
           <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
           Salvar curso
         </Button>
-      </FieldGroup>
+      </DialogFooter>
     </AutoCloseDialogForm>
   );
 }

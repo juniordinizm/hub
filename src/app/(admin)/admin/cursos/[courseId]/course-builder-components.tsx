@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -220,43 +221,50 @@ export function ModuleForm({
 }): React.JSX.Element {
   return (
     <div className="flex flex-col gap-4">
-      <AutoCloseDialogForm action={saveModuleAction}>
-        <FieldGroup>
-          <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
-          <input name="courseId" type="hidden" value={course.id} />
-          <div className="grid gap-4 lg:grid-cols-[1fr_160px]">
+      <AutoCloseDialogForm
+        action={saveModuleAction}
+        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <DialogBody>
+          <FieldGroup>
+            <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
+            <input name="courseId" type="hidden" value={course.id} />
+            <div className="grid gap-4 lg:grid-cols-[1fr_160px]">
+              <Field>
+                <FieldLabel>Curso</FieldLabel>
+                <Input disabled value={course.title} />
+              </Field>
+              <Field>
+                <FieldLabel>Cor</FieldLabel>
+                <Input
+                  defaultValue={moduleData?.color ?? "#326c71"}
+                  name="color"
+                />
+              </Field>
+            </div>
+            <input
+              defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
+              name="sortOrder"
+              type="hidden"
+            />
             <Field>
-              <FieldLabel>Curso</FieldLabel>
-              <Input disabled value={course.title} />
-            </Field>
-            <Field>
-              <FieldLabel>Cor</FieldLabel>
+              <FieldLabel>Título</FieldLabel>
               <Input
-                defaultValue={moduleData?.color ?? "#326c71"}
-                name="color"
+                defaultValue={moduleData?.title ?? ""}
+                name="title"
+                required
               />
             </Field>
-          </div>
-          <input
-            defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
-            name="sortOrder"
-            type="hidden"
-          />
-          <Field>
-            <FieldLabel>Título</FieldLabel>
-            <Input
-              defaultValue={moduleData?.title ?? ""}
-              name="title"
-              required
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Descrição</FieldLabel>
-            <Textarea
-              defaultValue={moduleData?.description ?? ""}
-              name="description"
-            />
-          </Field>
+            <Field>
+              <FieldLabel>Descrição</FieldLabel>
+              <Textarea
+                defaultValue={moduleData?.description ?? ""}
+                name="description"
+              />
+            </Field>
+          </FieldGroup>
+        </DialogBody>
+        <DialogFooter>
           <Button className="w-fit" type="submit">
             <HugeiconsIcon
               icon={moduleData ? FloppyDiskIcon : Add01Icon}
@@ -265,7 +273,7 @@ export function ModuleForm({
             />
             {moduleData ? "Salvar módulo" : "Criar módulo"}
           </Button>
-        </FieldGroup>
+        </DialogFooter>
       </AutoCloseDialogForm>
       {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
     </div>
@@ -287,36 +295,39 @@ export function LessonForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <AutoCloseDialogForm action={saveLessonAction}>
-        <FieldGroup>
-          <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
-          <input
-            name="moduleId"
-            type="hidden"
-            value={lesson?.moduleId ?? defaultModuleId ?? ""}
-          />
-          <div className="grid gap-4">
-            <LessonKindControls
-              asset={asset}
-              defaultDurationSeconds={lesson?.durationSeconds ?? 0}
-              defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
-              defaultLessonType={lesson?.lessonType ?? "video"}
-              defaultOrder={lesson?.sortOrder ?? nextSortOrder ?? 1}
-              lessonId={lesson?.id}
+      <AutoCloseDialogForm
+        action={saveLessonAction}
+        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <DialogBody>
+          <FieldGroup>
+            <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
+            <input
+              name="moduleId"
+              type="hidden"
+              value={lesson?.moduleId ?? defaultModuleId ?? ""}
             />
-          </div>
-          <Field>
-            <FieldLabel>Título</FieldLabel>
-            <Input defaultValue={lesson?.title ?? ""} name="title" required />
-          </Field>
-          <Field>
-            <FieldLabel>Descrição</FieldLabel>
-            <Textarea
-              defaultValue={lesson?.description ?? ""}
-              name="description"
-            />
-          </Field>
-          <div className="flex flex-wrap items-center gap-4">
+            <div className="grid gap-4">
+              <LessonKindControls
+                asset={asset}
+                defaultDurationSeconds={lesson?.durationSeconds ?? 0}
+                defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
+                defaultLessonType={lesson?.lessonType ?? "video"}
+                defaultOrder={lesson?.sortOrder ?? nextSortOrder ?? 1}
+                lessonId={lesson?.id}
+              />
+            </div>
+            <Field>
+              <FieldLabel>Título</FieldLabel>
+              <Input defaultValue={lesson?.title ?? ""} name="title" required />
+            </Field>
+            <Field>
+              <FieldLabel>Descrição</FieldLabel>
+              <Textarea
+                defaultValue={lesson?.description ?? ""}
+                name="description"
+              />
+            </Field>
             <label
               className="inline-flex items-center gap-2 text-sm"
               htmlFor={publishedFieldId}
@@ -328,16 +339,18 @@ export function LessonForm({
               />
               Publicada
             </label>
-            <Button type="submit">
-              <HugeiconsIcon
-                icon={lesson ? FloppyDiskIcon : Add01Icon}
-                size={18}
-                strokeWidth={2}
-              />
-              {lesson ? "Salvar aula" : "Criar aula"}
-            </Button>
-          </div>
-        </FieldGroup>
+          </FieldGroup>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="submit">
+            <HugeiconsIcon
+              icon={lesson ? FloppyDiskIcon : Add01Icon}
+              size={18}
+              strokeWidth={2}
+            />
+            {lesson ? "Salvar aula" : "Criar aula"}
+          </Button>
+        </DialogFooter>
       </AutoCloseDialogForm>
       {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
     </div>
@@ -363,10 +376,12 @@ export function DeleteModuleDialog({
             vinculados a elas.
           </DialogDescription>
         </DialogHeader>
-        <DeleteSummary
-          detail={`Módulo ${moduleData.sortOrder}`}
-          title={moduleData.title}
-        />
+        <DialogBody>
+          <DeleteSummary
+            detail={`Módulo ${moduleData.sortOrder}`}
+            title={moduleData.title}
+          />
+        </DialogBody>
         <AutoCloseDialogForm action={deleteModuleAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>
@@ -406,10 +421,12 @@ export function DeleteLessonDialog({
             ela.
           </DialogDescription>
         </DialogHeader>
-        <DeleteSummary
-          detail={`Aula ${lesson.sortOrder}`}
-          title={lesson.title}
-        />
+        <DialogBody>
+          <DeleteSummary
+            detail={`Aula ${lesson.sortOrder}`}
+            title={lesson.title}
+          />
+        </DialogBody>
         <AutoCloseDialogForm action={deleteLessonAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>

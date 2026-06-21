@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,
@@ -55,43 +56,50 @@ export function FaqCreateDialog(): React.JSX.Element {
             Cadastre uma resposta curta e objetiva.
           </DialogDescription>
         </DialogHeader>
-        <AutoCloseDialogForm action={saveFaqAction}>
-          <FieldGroup>
-            <input name="faqId" type="hidden" />
-            <Field>
-              <FieldLabel>Pergunta</FieldLabel>
-              <Input name="question" required />
-            </Field>
-            <Field>
-              <FieldLabel>Resposta</FieldLabel>
-              <Textarea name="answer" required />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
+        <AutoCloseDialogForm
+          action={saveFaqAction}
+          className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <DialogBody>
+            <FieldGroup>
+              <input name="faqId" type="hidden" />
               <Field>
-                <FieldLabel>Categoria</FieldLabel>
-                <Input name="category" />
+                <FieldLabel>Pergunta</FieldLabel>
+                <Input name="question" required />
               </Field>
               <Field>
-                <FieldLabel>Ordem</FieldLabel>
-                <Input name="sortOrder" type="number" />
+                <FieldLabel>Resposta</FieldLabel>
+                <Textarea name="answer" required />
               </Field>
-            </div>
-            <label
-              className="inline-flex items-center gap-2 text-sm"
-              htmlFor="faq-is-published-create"
-            >
-              <Checkbox
-                defaultChecked
-                id="faq-is-published-create"
-                name="isPublished"
-              />
-              Publicado
-            </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Categoria</FieldLabel>
+                  <Input name="category" />
+                </Field>
+                <Field>
+                  <FieldLabel>Ordem</FieldLabel>
+                  <Input name="sortOrder" type="number" />
+                </Field>
+              </div>
+              <label
+                className="inline-flex items-center gap-2 text-sm"
+                htmlFor="faq-is-published-create"
+              >
+                <Checkbox
+                  defaultChecked
+                  id="faq-is-published-create"
+                  name="isPublished"
+                />
+                Publicado
+              </label>
+            </FieldGroup>
+          </DialogBody>
+          <DialogFooter>
             <Button type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
               Salvar FAQ
             </Button>
-          </FieldGroup>
+          </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>
@@ -127,47 +135,54 @@ export function FaqEditDialog({
           <DialogTitle>Editar FAQ</DialogTitle>
           <DialogDescription>Atualize os detalhes do FAQ.</DialogDescription>
         </DialogHeader>
-        <AutoCloseDialogForm action={saveFaqAction}>
-          <FieldGroup>
-            <input name="faqId" type="hidden" value={faq.id} />
-            <Field>
-              <FieldLabel>Pergunta</FieldLabel>
-              <Input defaultValue={faq.question} name="question" required />
-            </Field>
-            <Field>
-              <FieldLabel>Resposta</FieldLabel>
-              <Textarea defaultValue={faq.answer} name="answer" required />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
+        <AutoCloseDialogForm
+          action={saveFaqAction}
+          className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <DialogBody>
+            <FieldGroup>
+              <input name="faqId" type="hidden" value={faq.id} />
               <Field>
-                <FieldLabel>Categoria</FieldLabel>
-                <Input defaultValue={faq.category} name="category" />
+                <FieldLabel>Pergunta</FieldLabel>
+                <Input defaultValue={faq.question} name="question" required />
               </Field>
               <Field>
-                <FieldLabel>Ordem</FieldLabel>
-                <Input
-                  defaultValue={faq.sortOrder}
-                  name="sortOrder"
-                  type="number"
+                <FieldLabel>Resposta</FieldLabel>
+                <Textarea defaultValue={faq.answer} name="answer" required />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>Categoria</FieldLabel>
+                  <Input defaultValue={faq.category} name="category" />
+                </Field>
+                <Field>
+                  <FieldLabel>Ordem</FieldLabel>
+                  <Input
+                    defaultValue={faq.sortOrder}
+                    name="sortOrder"
+                    type="number"
+                  />
+                </Field>
+              </div>
+              <label
+                className="inline-flex items-center gap-2 text-sm"
+                htmlFor={`faq-is-published-${faq.id}`}
+              >
+                <Checkbox
+                  defaultChecked={faq.isPublished ?? false}
+                  id={`faq-is-published-${faq.id}`}
+                  name="isPublished"
                 />
-              </Field>
-            </div>
-            <label
-              className="inline-flex items-center gap-2 text-sm"
-              htmlFor={`faq-is-published-${faq.id}`}
-            >
-              <Checkbox
-                defaultChecked={faq.isPublished ?? false}
-                id={`faq-is-published-${faq.id}`}
-                name="isPublished"
-              />
-              Publicado
-            </label>
+                Publicado
+              </label>
+            </FieldGroup>
+          </DialogBody>
+          <DialogFooter>
             <Button type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
               Salvar pergunta
             </Button>
-          </FieldGroup>
+          </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>
@@ -205,9 +220,11 @@ export function FaqDeleteDialog({
             Esta ação removerá a pergunta permanentemente.
           </DialogDescription>
         </DialogHeader>
-        <div className="rounded-lg border bg-background/40 p-3">
-          <p className="font-semibold">{faq.question}</p>
-        </div>
+        <DialogBody>
+          <div className="rounded-lg border bg-background/40 p-3">
+            <p className="font-semibold">{faq.question}</p>
+          </div>
+        </DialogBody>
         <DialogFooter>
           <DialogClose asChild>
             <Button type="button" variant="outline">

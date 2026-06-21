@@ -7,6 +7,7 @@ import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -85,35 +86,40 @@ export function SupportRequestDialog({
             conta.
           </DialogDescription>
         </DialogHeader>
-        <AutoCloseDialogForm action={sendSupportRequestAction}>
-          <FieldGroup>
-            {courseTitle ? (
-              <input name="courseTitle" type="hidden" value={courseTitle} />
-            ) : null}
-            <Field>
-              <FieldLabel>Assunto</FieldLabel>
-              <Input defaultValue={subject} name="subject" required />
-            </Field>
-            <Field>
-              <FieldLabel>Mensagem</FieldLabel>
-              <Textarea
-                name="message"
-                placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
-                required
-                rows={6}
-              />
-            </Field>
-            <DialogFooter>
-              <Button type="submit">
-                <HugeiconsIcon
-                  icon={CustomerService01Icon}
-                  size={18}
-                  strokeWidth={2}
+        <AutoCloseDialogForm
+          action={sendSupportRequestAction}
+          className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <DialogBody>
+            <FieldGroup>
+              {courseTitle ? (
+                <input name="courseTitle" type="hidden" value={courseTitle} />
+              ) : null}
+              <Field>
+                <FieldLabel>Assunto</FieldLabel>
+                <Input defaultValue={subject} name="subject" required />
+              </Field>
+              <Field>
+                <FieldLabel>Mensagem</FieldLabel>
+                <Textarea
+                  name="message"
+                  placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
+                  required
+                  rows={6}
                 />
-                Enviar suporte
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
+              </Field>
+            </FieldGroup>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="submit">
+              <HugeiconsIcon
+                icon={CustomerService01Icon}
+                size={18}
+                strokeWidth={2}
+              />
+              Enviar suporte
+            </Button>
+          </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>
     </Dialog>

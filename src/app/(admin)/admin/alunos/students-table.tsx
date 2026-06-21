@@ -20,6 +20,7 @@ import { DatePickerField } from "@/components/date-picker-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -295,54 +296,56 @@ function StudentEnrollmentsDialog({
             {student.courseCount === 1 ? "" : "s"}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3">
-          {student.enrollments.length ? (
-            student.enrollments.map((enrollment) => (
-              <AutoCloseDialogForm
-                action={updateEnrollmentAction}
-                className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_140px_150px_auto]"
-                key={enrollment.id}
-              >
-                <input
-                  name="enrollmentId"
-                  type="hidden"
-                  value={enrollment.id}
-                />
-                <input name="userId" type="hidden" value={student.userId} />
-                <div>
-                  <p className="font-semibold">{enrollment.courseTitle}</p>
-                  <p className="text-muted-foreground text-xs">
-                    Matricula: {formatDate(enrollment.startedAt)}
-                  </p>
-                </div>
-                <Select defaultValue={enrollment.status} name="status">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativa</SelectItem>
-                    <SelectItem value="expired">Expirada</SelectItem>
-                    <SelectItem value="revoked">Revogada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <DatePickerField
-                  defaultValue={enrollment.expiresAt}
-                  name="expiresAt"
-                />
-                <Button type="submit">Atualizar</Button>
-              </AutoCloseDialogForm>
-            ))
-          ) : (
-            <Empty>
-              <EmptyHeader>
-                <EmptyTitle>Sem matrículas</EmptyTitle>
-                <EmptyDescription>
-                  Este aluno ainda não possui matrículas ativas.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          )}
-        </div>
+        <DialogBody>
+          <div className="grid gap-3">
+            {student.enrollments.length ? (
+              student.enrollments.map((enrollment) => (
+                <AutoCloseDialogForm
+                  action={updateEnrollmentAction}
+                  className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_140px_150px_auto]"
+                  key={enrollment.id}
+                >
+                  <input
+                    name="enrollmentId"
+                    type="hidden"
+                    value={enrollment.id}
+                  />
+                  <input name="userId" type="hidden" value={student.userId} />
+                  <div>
+                    <p className="font-semibold">{enrollment.courseTitle}</p>
+                    <p className="text-muted-foreground text-xs">
+                      Matricula: {formatDate(enrollment.startedAt)}
+                    </p>
+                  </div>
+                  <Select defaultValue={enrollment.status} name="status">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativa</SelectItem>
+                      <SelectItem value="expired">Expirada</SelectItem>
+                      <SelectItem value="revoked">Revogada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <DatePickerField
+                    defaultValue={enrollment.expiresAt}
+                    name="expiresAt"
+                  />
+                  <Button type="submit">Atualizar</Button>
+                </AutoCloseDialogForm>
+              ))
+            ) : (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>Sem matrículas</EmptyTitle>
+                  <EmptyDescription>
+                    Este aluno ainda não possui matrículas ativas.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );
