@@ -264,7 +264,10 @@ export function ModuleForm({
             </Field>
           </FieldGroup>
         </DialogBody>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex items-center">
+            {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
+          </div>
           <Button className="w-fit" type="submit">
             <HugeiconsIcon
               icon={moduleData ? FloppyDiskIcon : Add01Icon}
@@ -275,7 +278,6 @@ export function ModuleForm({
           </Button>
         </DialogFooter>
       </AutoCloseDialogForm>
-      {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
     </div>
   );
 }
@@ -328,8 +330,12 @@ export function LessonForm({
                 name="description"
               />
             </Field>
+          </FieldGroup>
+        </DialogBody>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex items-center gap-4">
             <label
-              className="inline-flex items-center gap-2 text-sm"
+              className="inline-flex cursor-pointer items-center gap-2 font-medium text-sm"
               htmlFor={publishedFieldId}
             >
               <Checkbox
@@ -339,9 +345,8 @@ export function LessonForm({
               />
               Publicada
             </label>
-          </FieldGroup>
-        </DialogBody>
-        <DialogFooter>
+            {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
+          </div>
           <Button type="submit">
             <HugeiconsIcon
               icon={lesson ? FloppyDiskIcon : Add01Icon}
@@ -352,7 +357,6 @@ export function LessonForm({
           </Button>
         </DialogFooter>
       </AutoCloseDialogForm>
-      {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
     </div>
   );
 }
