@@ -45,6 +45,7 @@ export function DiscardAwareDialog({
 }): React.JSX.Element {
   const [internalOpen, setInternalOpen] = useState(false);
   const isDirtyRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   const isOpen = externalOpen === undefined ? internalOpen : externalOpen;
@@ -83,7 +84,7 @@ export function DiscardAwareDialog({
     <DiscardDialogContext.Provider value={{ setDirty }}>
       <Dialog onOpenChange={handleOpenChange} open={isOpen}>
         {trigger}
-        <DialogContent className={className}>
+        <DialogContent className={className} ref={contentRef}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
@@ -96,13 +97,13 @@ export function DiscardAwareDialog({
           >
             {children}
           </div>
+          <ConfirmDiscardDialog
+            onConfirm={handleConfirmDiscard}
+            onOpenChange={setShowDiscardConfirm}
+            open={showDiscardConfirm}
+          />
         </DialogContent>
       </Dialog>
-      <ConfirmDiscardDialog
-        onConfirm={handleConfirmDiscard}
-        onOpenChange={setShowDiscardConfirm}
-        open={showDiscardConfirm}
-      />
     </DiscardDialogContext.Provider>
   );
 }
