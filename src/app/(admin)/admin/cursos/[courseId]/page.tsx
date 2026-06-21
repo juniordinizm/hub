@@ -219,20 +219,19 @@ export default async function AdminCourseDetailPage({
           </TabsContent>
 
           <TabsContent className="space-y-6" value="content">
-            <section className="flex flex-wrap gap-3">
-              <CreateModuleDialog
-                course={course}
-                nextModuleSortOrder={nextModuleSortOrder}
-              />
-            </section>
-
             <section className="flex flex-col gap-4">
-              <div className="border-b pb-3">
-                <h2 className="font-semibold text-xl">Estrutura do curso</h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  Abra um módulo para editar seus dados. Abra uma aula para
-                  editar vídeo, ordem e publicação.
-                </p>
+              <div className="flex flex-col gap-4 border-b pb-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="font-semibold text-xl">Estrutura do curso</h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Abra um módulo para editar seus dados. Abra uma aula para
+                    editar vídeo, ordem e publicação.
+                  </p>
+                </div>
+                <CreateModuleDialog
+                  course={course}
+                  nextModuleSortOrder={nextModuleSortOrder}
+                />
               </div>
               <div className="flex flex-col gap-4">
                 {modules.length === 0 ? (
