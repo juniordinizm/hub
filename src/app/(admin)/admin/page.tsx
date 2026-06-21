@@ -90,7 +90,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <Badge variant="outline">Operacao</Badge>
-              <h1 className="mt-3 font-bold text-3xl tracking-tight">
+              <h1 className="mt-3 text-balance font-bold text-3xl tracking-tight">
                 Central do LMS
               </h1>
               <p className="mt-2 max-w-2xl text-muted-foreground text-sm">

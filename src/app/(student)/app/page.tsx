@@ -64,7 +64,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
           <div>
             <Badge variant="secondary">PROTEA-R Hub</Badge>
-            <h1 className="mt-4 max-w-3xl font-extrabold text-3xl tracking-tight md:text-5xl">
+            <h1 className="mt-4 max-w-3xl text-balance font-extrabold text-3xl tracking-tight md:text-5xl">
               Biblioteca de cursos
             </h1>
             <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">

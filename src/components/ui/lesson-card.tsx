@@ -75,9 +75,9 @@ export function LessonCard({
     >
       <div
         className={cn(
-          "relative aspect-[16/10] w-full overflow-hidden rounded-lg border border-border/50 bg-muted transition-all",
+          "relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted transition-[border-color,box-shadow,opacity,filter] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
           !isLocked &&
-            "group-hover:border-primary group-hover:ring-2 group-hover:ring-primary/50",
+            "group-hover:ring-2 group-hover:ring-primary/50 group-hover:after:shadow-[inset_0_0_0_1px_hsl(var(--primary))]",
           isLocked && "opacity-60 grayscale-[50%]"
         )}
       >
@@ -98,7 +98,7 @@ export function LessonCard({
         {status !== "completed" && watchedPercent && watchedPercent > 0 ? (
           <div className="absolute bottom-0 left-0 z-10 h-1.5 w-full bg-background/40 backdrop-blur-sm">
             <div
-              className="h-full bg-primary transition-all duration-500 ease-in-out"
+              className="h-full bg-primary transition-[width] duration-500 ease-in-out"
               style={{
                 width: `${Math.min(100, Math.max(0, watchedPercent))}%`,
               }}

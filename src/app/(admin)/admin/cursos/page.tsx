@@ -86,7 +86,9 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
           <Badge variant="outline">Cursos</Badge>
           <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>
+              <h1 className="text-balance font-bold text-3xl tracking-tight">
+                Cursos
+              </h1>
               <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
                 Gerencie cursos em uma visão limpa. Entre em um curso para
                 organizar módulos, aulas, alunos e publicação.
@@ -158,7 +160,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
               return (
                 <article
-                  className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-all hover:border-primary/50"
+                  className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
                   key={course.id}
                 >
                   <div className="absolute inset-0 z-0">
