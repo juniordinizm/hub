@@ -303,29 +303,19 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
               placeholder="/protear/dash-banner.png"
             />
           </Field>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Field>
-              <FieldLabel>Produto AbacatePay</FieldLabel>
-              <Input
-                defaultValue={course?.paymentProviderProductId ?? ""}
-                disabled
-                placeholder="Gerado automaticamente ao criar"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Status</FieldLabel>
-              <Select defaultValue={course?.status ?? "draft"} name="status">
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Rascunho</SelectItem>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="archived">Arquivado</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+          <Field>
+            <FieldLabel>Status</FieldLabel>
+            <Select defaultValue={course?.status ?? "draft"} name="status">
+              <SelectTrigger>
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Rascunho</SelectItem>
+                <SelectItem value="active">Ativo</SelectItem>
+                <SelectItem value="archived">Arquivado</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
         </FieldGroup>
       </DialogBody>
       <DialogFooter>
