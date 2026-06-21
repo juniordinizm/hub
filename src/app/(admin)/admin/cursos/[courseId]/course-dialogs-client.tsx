@@ -136,63 +136,11 @@ export function CourseSettingsForm({
       <fieldset className="contents" disabled={isPending}>
         <FieldGroup>
           <input name="courseId" type="hidden" value={course.id} />
-          <Field>
-            <FieldLabel>Título</FieldLabel>
-            <Input defaultValue={course.title} name="title" required />
-          </Field>
-          <Field>
-            <FieldLabel>Subtítulo</FieldLabel>
-            <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-          </Field>
-          <Field>
-            <FieldLabel>Descrição</FieldLabel>
-            <Textarea
-              defaultValue={course.description ?? ""}
-              name="description"
-            />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Carga horária</FieldLabel>
-              <Input
-                defaultValue={course.workloadHours ?? 0}
-                disabled
-                min={0}
-                type="number"
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Meses de acesso</FieldLabel>
-              <Input
-                defaultValue={course.accessDurationMonths ?? 12}
-                min={1}
-                name="accessDurationMonths"
-                type="number"
-              />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel>Preço do curso</FieldLabel>
-            <Input
-              defaultValue={formatCurrencyInCents(course.priceInCents)}
-              disabled
-            />
-          </Field>
-          <Field>
-            <FieldLabel>Capa do curso</FieldLabel>
-            <Input
-              defaultValue={course.thumbnailUrl ?? ""}
-              name="thumbnailUrl"
-              placeholder="/protear/dash-banner.png"
-            />
-          </Field>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Field>
-              <FieldLabel>Produto AbacatePay</FieldLabel>
-              <Input
-                defaultValue={course.paymentProviderProductId ?? ""}
-                disabled
-              />
+
+          <div className="grid gap-5 md:grid-cols-3">
+            <Field className="md:col-span-2">
+              <FieldLabel>Título</FieldLabel>
+              <Input defaultValue={course.title} name="title" required />
             </Field>
             <Field>
               <FieldLabel>Status</FieldLabel>
@@ -206,6 +154,68 @@ export function CourseSettingsForm({
                   <SelectItem value="archived">Arquivado</SelectItem>
                 </SelectContent>
               </Select>
+            </Field>
+          </div>
+
+          <Field>
+            <FieldLabel>Subtítulo</FieldLabel>
+            <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
+          </Field>
+
+          <Field>
+            <FieldLabel>Descrição</FieldLabel>
+            <Textarea
+              className="min-h-24 resize-y"
+              defaultValue={course.description ?? ""}
+              name="description"
+            />
+          </Field>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Capa do curso</FieldLabel>
+              <Input
+                defaultValue={course.thumbnailUrl ?? ""}
+                name="thumbnailUrl"
+                placeholder="/protear/dash-banner.png"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Produto AbacatePay</FieldLabel>
+              <Input
+                defaultValue={
+                  course.paymentProviderProductId ?? "Não vinculado"
+                }
+                disabled
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-3">
+            <Field>
+              <FieldLabel>Preço do curso</FieldLabel>
+              <Input
+                defaultValue={formatCurrencyInCents(course.priceInCents)}
+                disabled
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Meses de acesso</FieldLabel>
+              <Input
+                defaultValue={course.accessDurationMonths ?? 12}
+                min={1}
+                name="accessDurationMonths"
+                type="number"
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Carga horária</FieldLabel>
+              <Input
+                defaultValue={course.workloadHours ?? 0}
+                disabled
+                min={0}
+                type="number"
+              />
             </Field>
           </div>
         </FieldGroup>
