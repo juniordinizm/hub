@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
+import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 
-const allowedDevOrigins = process.env.NEXT_ALLOWED_DEV_ORIGINS?.split(",")
-  .map((origin) => origin.trim())
-  .filter((origin) => origin.length > 0);
+const allowedDevOrigins = getAllowedDevOrigins(process.env);
 
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),

@@ -4,11 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
-import {
-  Button,
-  type ButtonProps,
-  buttonVariants,
-} from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function Dialog({
@@ -27,18 +23,20 @@ function DialogTriggerButton({
   asChild: _asChild,
   className,
   size = "default",
+  type = "button",
   variant = "default",
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Trigger> & ButtonProps) {
   return (
-    <DialogPrimitive.Trigger
-      className={cn(buttonVariants({ variant, size, className }))}
-      data-size={size}
-      data-slot="dialog-trigger"
-      data-variant={variant}
-      type="button"
-      {...props}
-    />
+    <DialogPrimitive.Trigger asChild>
+      <Button
+        className={className}
+        size={size}
+        type={type}
+        variant={variant}
+        {...props}
+      />
+    </DialogPrimitive.Trigger>
   );
 }
 
