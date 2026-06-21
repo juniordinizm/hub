@@ -259,8 +259,9 @@ export function CourseBuilderClient({
               );
               return (
                 <SortableItem
-                  className="flex-col rounded-lg border bg-card shadow-sm"
+                  className="rounded-lg border bg-card shadow-sm"
                   data={{ type: "module" }}
+                  handleClassName="px-4"
                   id={moduleData.id}
                   key={moduleData.id}
                 >

@@ -133,6 +133,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const description = readString(formData, "description") || null;
   const thumbnailUrl = readString(formData, "thumbnailUrl") || null;
   const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
+  const workloadHours = readNumber(formData, "workloadHours", 0);
   const status = readString(formData, "status") || "draft";
   const values = [
     title,
@@ -140,6 +141,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     description,
     thumbnailUrl,
     accessDurationMonths,
+    workloadHours,
     status,
   ];
   let savedCourseId = courseId;
@@ -153,9 +155,10 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             description = $3,
             thumbnail_url = $4,
             access_duration_months = $5,
-            status = $6,
+            workload_hours = $6,
+            status = $7,
             updated_at = now()
-        where id = $7
+        where id = $8
       `,
       [...values, courseId]
     );
@@ -201,7 +204,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         title,
         subtitle,
         description,
-        0,
+        workloadHours,
         priceInCents,
         thumbnailUrl,
         productId,

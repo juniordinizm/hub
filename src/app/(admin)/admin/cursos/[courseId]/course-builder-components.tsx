@@ -120,7 +120,6 @@ export function ModuleSection({
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline">{moduleLessons.length} aulas</Badge>
           <DiscardAwareDialog
             className="sm:max-w-3xl"
             description="Cadastre uma aula neste módulo."
@@ -498,18 +497,33 @@ export function InfoTile({
 
 export function CourseMetricCard({
   helper,
+  icon: Icon,
   label,
   value,
 }: {
   helper: string;
+  // biome-ignore lint/suspicious/noExplicitAny: type from hugeicons
+  icon?: any;
   label: string;
   value: string;
 }): React.JSX.Element {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="mt-2 font-bold text-2xl tracking-tight">{value}</p>
-      <p className="mt-2 text-muted-foreground text-xs">{helper}</p>
+    <div className="flex flex-col gap-1 rounded-xl border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium text-muted-foreground text-sm tracking-tight">
+          {label}
+        </p>
+        {Icon && (
+          <div className="flex size-7 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
+            {/* biome-ignore lint/suspicious/noExplicitAny: dynamic icon prop */}
+            <HugeiconsIcon icon={Icon as any} size={16} />
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="font-bold text-2xl">{value}</p>
+        <p className="text-muted-foreground text-xs">{helper}</p>
+      </div>
     </div>
   );
 }

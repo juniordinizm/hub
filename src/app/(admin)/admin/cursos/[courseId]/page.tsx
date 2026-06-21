@@ -1,5 +1,14 @@
+import {
+  Certificate01Icon,
+  Clock01Icon,
+  ShoppingCart01Icon,
+  UserMultipleIcon,
+  ViewIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -10,14 +19,17 @@ import { getAdminManagementData } from "@/features/admin/server";
 import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { formatDate } from "@/lib/formatters";
-import { CourseActionsDropdown } from "./course-actions-dropdown";
+import { route } from "@/lib/routes";
 import {
   CourseBuilderWrapper,
   CourseMetricCard,
   CreateModuleDialog,
   InfoRow,
 } from "./course-builder-components";
-import { CourseSettingsForm } from "./course-dialogs-client";
+import {
+  CourseSettingsForm,
+  DeleteCourseDialog,
+} from "./course-dialogs-client";
 
 export const dynamic = "force-dynamic";
 
@@ -69,14 +81,13 @@ export default async function AdminCourseDetailPage({
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <Badge variant="outline">Curso</Badge>
-              <h1 className="mt-3 font-bold text-3xl tracking-tight">
-                {course.title}
-              </h1>
-              <div className="mt-4 flex flex-wrap gap-2">
+        <header className="flex flex-col gap-6 border-b pb-6">
+          <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-3">
+                <h1 className="font-bold text-2xl tracking-tight sm:text-3xl">
+                  {course.title}
+                </h1>
                 <Badge
                   variant={
                     contentSignal.tone === "attention"
@@ -86,35 +97,26 @@ export default async function AdminCourseDetailPage({
                 >
                   {contentSignal.label}
                 </Badge>
-                <Badge variant="outline">
-                  {formatLessonDuration(contentSummary.totalDurationSeconds)}
-                </Badge>
               </div>
-              <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-                Organize conteúdo, acompanhe alunos e prepare a publicação deste
-                curso.
+              <p className="text-muted-foreground text-sm sm:text-base">
+                {course.subtitle ||
+                  "Nenhum subtítulo cadastrado para este curso."}
               </p>
             </div>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-1.5 text-muted-foreground text-sm">
-                <span>
-                  {modules.length} {modules.length === 1 ? "módulo" : "módulos"}
-                </span>
-                <span>·</span>
-                <span>
-                  {lessons.length} {lessons.length === 1 ? "aula" : "aulas"}
-                </span>
-                <span>·</span>
-                <span>
-                  {activeEnrollments.length}{" "}
-                  {activeEnrollments.length === 1
-                    ? "aluno ativo"
-                    : "alunos ativos"}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CourseActionsDropdown course={course} />
-              </div>
+
+            <div className="flex shrink-0 items-center gap-3">
+              <Button asChild size="sm" variant="outline">
+                <a href={route(`/app/cursos/${course.id}?preview=student`)}>
+                  <HugeiconsIcon
+                    className="mr-2"
+                    icon={ViewIcon}
+                    size={16}
+                    strokeWidth={2}
+                  />
+                  Ver como aluno
+                </a>
+              </Button>
+              <DeleteCourseDialog course={course} />
             </div>
           </div>
         </header>
@@ -131,21 +133,25 @@ export default async function AdminCourseDetailPage({
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <CourseMetricCard
                 helper="Alunos com acesso liberado."
+                icon={UserMultipleIcon}
                 label="Matrículas ativas"
                 value={activeEnrollments.length.toString()}
               />
               <CourseMetricCard
                 helper="Vendas totais do curso."
+                icon={ShoppingCart01Icon}
                 label="Pedidos aprovados"
                 value={orders.length.toString()}
               />
               <CourseMetricCard
                 helper="Alunos que concluíram o curso."
+                icon={Certificate01Icon}
                 label="Certificados"
                 value={certificates.length.toString()}
               />
               <CourseMetricCard
                 helper="Duração total das aulas em vídeo."
+                icon={Clock01Icon}
                 label="Carga horária"
                 value={formatLessonDuration(
                   contentSummary.totalDurationSeconds

@@ -137,30 +137,25 @@ export function CourseSettingsForm({
         <FieldGroup>
           <input name="courseId" type="hidden" value={course.id} />
 
-          <div className="grid gap-5 md:grid-cols-3">
-            <Field className="md:col-span-2">
+          <div className="grid gap-5 lg:grid-cols-3">
+            <Field>
               <FieldLabel>Título</FieldLabel>
               <Input defaultValue={course.title} name="title" required />
             </Field>
             <Field>
-              <FieldLabel>Status</FieldLabel>
-              <Select defaultValue={course.status ?? "draft"} name="status">
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Rascunho</SelectItem>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="archived">Arquivado</SelectItem>
-                </SelectContent>
-              </Select>
+              <FieldLabel>Subtítulo</FieldLabel>
+              <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
+            </Field>
+            <Field>
+              <FieldLabel>Capa do curso</FieldLabel>
+              <Input accept="image/*" name="thumbnailFile" type="file" />
+              {course.thumbnailUrl && (
+                <p className="mt-1 text-muted-foreground text-xs">
+                  Uma capa já está cadastrada.
+                </p>
+              )}
             </Field>
           </div>
-
-          <Field>
-            <FieldLabel>Subtítulo</FieldLabel>
-            <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-          </Field>
 
           <Field>
             <FieldLabel>Descrição</FieldLabel>
@@ -171,27 +166,16 @@ export function CourseSettingsForm({
             />
           </Field>
 
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5 md:grid-cols-4">
             <Field>
-              <FieldLabel>Capa do curso</FieldLabel>
+              <FieldLabel>Carga horária</FieldLabel>
               <Input
-                defaultValue={course.thumbnailUrl ?? ""}
-                name="thumbnailUrl"
-                placeholder="/protear/dash-banner.png"
+                defaultValue={course.workloadHours ?? 0}
+                min={0}
+                name="workloadHours"
+                type="number"
               />
             </Field>
-            <Field>
-              <FieldLabel>Produto AbacatePay</FieldLabel>
-              <Input
-                defaultValue={
-                  course.paymentProviderProductId ?? "Não vinculado"
-                }
-                disabled
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-3">
             <Field>
               <FieldLabel>Preço do curso</FieldLabel>
               <Input
@@ -209,13 +193,17 @@ export function CourseSettingsForm({
               />
             </Field>
             <Field>
-              <FieldLabel>Carga horária</FieldLabel>
-              <Input
-                defaultValue={course.workloadHours ?? 0}
-                disabled
-                min={0}
-                type="number"
-              />
+              <FieldLabel>Status</FieldLabel>
+              <Select defaultValue={course.status ?? "draft"} name="status">
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Rascunho</SelectItem>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="archived">Arquivado</SelectItem>
+                </SelectContent>
+              </Select>
             </Field>
           </div>
         </FieldGroup>
