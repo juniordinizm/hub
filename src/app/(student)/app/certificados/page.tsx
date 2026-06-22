@@ -8,7 +8,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -36,67 +35,73 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
   const certificates = await getCertificatesForUser(session.user.id);
 
   return (
-    <main className="min-h-screen bg-background px-6 py-9 text-foreground sm:px-10 lg:px-12">
-      <section className="grid gap-6 rounded-lg border bg-card p-6 sm:p-7 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
-        <div>
-          <Badge variant="secondary">Certificados</Badge>
-          <h1 className="mt-4 max-w-3xl font-extrabold text-3xl tracking-tight md:text-5xl">
-            Suas conclusões validadas
-          </h1>
-          <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">
-            Cada certificado emitido fica disponível para download e validação
-            pública por código.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+      <div className="flex flex-col gap-8">
+        <header className="border-b pb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 space-y-1">
+              <h1 className="font-bold text-3xl tracking-tight">
+                Suas conclusões validadas
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Cada certificado emitido fica disponível para download e
+                validação pública por código.
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <section className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 md:max-w-xs">
           <Metric label="Emitidos" value={certificates.length.toString()} />
           <Metric label="Validação" value="QR" />
-        </div>
-      </section>
+        </section>
 
-      <section className="mt-8 grid gap-4">
-        {certificates.length === 0 ? (
-          <EmptyCertificatesState />
-        ) : (
-          certificates.map((certificate) => (
-            <Card key={certificate.code}>
-              <CardHeader>
-                <CardDescription>
-                  Emitido em {formatDate(certificate.issuedAt)}
-                </CardDescription>
-                <CardTitle>{certificate.courseTitle}</CardTitle>
-                <CardDescription className="font-mono">
-                  {certificate.code}
-                </CardDescription>
-                <CardAction className="flex gap-2">
-                  <Button asChild>
-                    <Link href={route(`/certificados/${certificate.code}/pdf`)}>
-                      <HugeiconsIcon icon={Download01Icon} />
-                      Baixar PDF
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline">
-                    <Link href={route(`/certificados/${certificate.code}`)}>
-                      <HugeiconsIcon icon={FileValidationIcon} />
-                      Validar
-                    </Link>
-                  </Button>
-                </CardAction>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 text-sm sm:grid-cols-3">
-                  <InfoPill
-                    icon={Certificate01Icon}
-                    label="Certificado digital"
-                  />
-                  <InfoPill icon={Shield01Icon} label="Código verificável" />
-                  <InfoPill icon={Award01Icon} label="Conclusão do curso" />
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </section>
+        <section className="grid gap-4">
+          {certificates.length === 0 ? (
+            <EmptyCertificatesState />
+          ) : (
+            certificates.map((certificate) => (
+              <Card key={certificate.code}>
+                <CardHeader>
+                  <CardDescription>
+                    Emitido em {formatDate(certificate.issuedAt)}
+                  </CardDescription>
+                  <CardTitle>{certificate.courseTitle}</CardTitle>
+                  <CardDescription className="font-mono">
+                    {certificate.code}
+                  </CardDescription>
+                  <CardAction className="flex gap-2">
+                    <Button asChild>
+                      <Link
+                        href={route(`/certificados/${certificate.code}/pdf`)}
+                      >
+                        <HugeiconsIcon icon={Download01Icon} />
+                        Baixar PDF
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline">
+                      <Link href={route(`/certificados/${certificate.code}`)}>
+                        <HugeiconsIcon icon={FileValidationIcon} />
+                        Validar
+                      </Link>
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 text-sm sm:grid-cols-3">
+                    <InfoPill
+                      icon={Certificate01Icon}
+                      label="Certificado digital"
+                    />
+                    <InfoPill icon={Shield01Icon} label="Código verificável" />
+                    <InfoPill icon={Award01Icon} label="Conclusão do curso" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </section>
+      </div>
     </main>
   );
 }

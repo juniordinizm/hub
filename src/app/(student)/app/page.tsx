@@ -60,56 +60,57 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
   const _nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <section className="border-border/50 border-b px-6 py-8 sm:px-10 lg:px-12">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
-          <div>
-            <Badge variant="secondary">PROTEA-R Hub</Badge>
-            <h1 className="mt-4 max-w-3xl text-balance font-extrabold text-3xl tracking-tight md:text-5xl">
-              Biblioteca de cursos
-            </h1>
-            <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">
-              Acompanhe suas trilhas, retome a próxima aula e veja quais cursos
-              estão disponíveis.
-            </p>
+    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+      <div className="flex flex-col gap-8">
+        <header className="border-b pb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 space-y-1">
+              <h1 className="font-bold text-3xl tracking-tight">
+                Biblioteca de cursos
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Acompanhe suas trilhas, retome a próxima aula e veja quais
+                cursos estão disponíveis.
+              </p>
+            </div>
           </div>
+        </header>
 
-          <div className="grid grid-cols-3 gap-3 rounded-lg border bg-card p-4">
-            <Metric label="Acessos" value={activeCount.toString()} />
-            <Metric label="Concluídos" value={completedCount.toString()} />
-            <Metric label="Cursos" value={courses.length.toString()} />
-          </div>
+        <section className="grid grid-cols-3 gap-3 rounded-lg border bg-card p-4 md:max-w-md">
+          <Metric label="Acessos" value={activeCount.toString()} />
+          <Metric label="Concluídos" value={completedCount.toString()} />
+          <Metric label="Cursos" value={courses.length.toString()} />
+        </section>
+
+        <div className="flex flex-col gap-12 pt-4">
+          {courses.length === 0 ? (
+            <EmptyCoursesState />
+          ) : (
+            <>
+              {groups.active.length > 0 ? (
+                <CourseSection
+                  courses={groups.active}
+                  description="Cursos com acesso ativo e aulas ainda pendentes."
+                  title="Continue de onde parou"
+                />
+              ) : null}
+
+              {groups.completed.length > 0 ? (
+                <CourseSection
+                  courses={groups.completed}
+                  description="Cursos finalizados ficam aqui para revisão e certificado."
+                  title="Trilhas concluídas"
+                />
+              ) : null}
+
+              <CourseSection
+                courses={courses}
+                description="Explore todos os cursos disponíveis na plataforma."
+                title="Catálogo de cursos"
+              />
+            </>
+          )}
         </div>
-      </section>
-
-      <div className="flex flex-col gap-12 px-6 py-9 sm:px-10 lg:px-12">
-        {courses.length === 0 ? (
-          <EmptyCoursesState />
-        ) : (
-          <>
-            {groups.active.length > 0 ? (
-              <CourseSection
-                courses={groups.active}
-                description="Cursos com acesso ativo e aulas ainda pendentes."
-                title="Continue de onde parou"
-              />
-            ) : null}
-
-            {groups.completed.length > 0 ? (
-              <CourseSection
-                courses={groups.completed}
-                description="Cursos finalizados ficam aqui para revisão e certificado."
-                title="Trilhas concluídas"
-              />
-            ) : null}
-
-            <CourseSection
-              courses={courses}
-              description="Explore todos os cursos disponíveis na plataforma."
-              title="Catálogo de cursos"
-            />
-          </>
-        )}
       </div>
     </main>
   );

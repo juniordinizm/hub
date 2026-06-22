@@ -8,7 +8,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getStudentCoursePrimaryHref } from "@/features/courses/presentation";
@@ -86,89 +85,94 @@ export default async function StudentCourseOverviewPage({
   );
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <section className="border-border/50 border-b bg-muted/15 px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
-        {previewMode ? (
-          <RegisterPreviewCourseId courseId={data.course.id} />
-        ) : null}
+      <section className="px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
+        <div className="flex flex-col gap-8">
+          {previewMode ? (
+            <RegisterPreviewCourseId courseId={data.course.id} />
+          ) : null}
 
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-end">
-          <div className="max-w-4xl">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Trilha privada</Badge>
-              {data.certificateCode ? (
-                <Badge variant="outline">Certificado liberado</Badge>
-              ) : null}
-            </div>
-            <h1 className="mt-4 font-extrabold text-3xl tracking-tight md:text-5xl">
-              {data.course.title}
-            </h1>
-            <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7 md:text-base">
-              {data.course.subtitle ??
-                data.course.description ??
-                "Avance pelas aulas na ordem da trilha, acompanhe seu progresso e conclua o curso para liberar o certificado."}
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <CourseMetric
-                icon={BookOpen01Icon}
-                label="Aulas"
-                value={data.totalCount.toString()}
-              />
-              <CourseMetric
-                icon={Clock01Icon}
-                label="Carga horária"
-                value={`${data.course.workloadHours}h`}
-              />
-              <CourseMetric
-                icon={Certificate01Icon}
-                label="Conclusão"
-                value={`${data.progressPercent}%`}
-              />
-            </div>
-          </div>
-
-          <div className="flex w-full flex-col gap-4 rounded-lg border bg-card p-5 xl:shrink-0">
-            <div>
-              <div className="mb-2 flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Progresso do curso
-                </span>
-                <span className="font-semibold">{data.progressPercent}%</span>
+          <header className="border-b pb-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex-1 space-y-1">
+                <h1 className="font-bold text-3xl tracking-tight">
+                  {data.course.title}
+                </h1>
+                <p className="text-muted-foreground text-sm">
+                  {data.course.subtitle ??
+                    data.course.description ??
+                    "Avance pelas aulas na ordem da trilha, acompanhe seu progresso e conclua o curso para liberar o certificado."}
+                </p>
               </div>
-              <Progress className="h-2" value={data.progressPercent} />
-              <p className="mt-3 text-muted-foreground text-sm">
-                {data.completedCount} de {data.totalCount} aulas concluídas.
-              </p>
+            </div>
+          </header>
+
+          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+            <div className="max-w-4xl">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <CourseMetric
+                  icon={BookOpen01Icon}
+                  label="Aulas"
+                  value={data.totalCount.toString()}
+                />
+                <CourseMetric
+                  icon={Clock01Icon}
+                  label="Carga horária"
+                  value={`${data.course.workloadHours}h`}
+                />
+                <CourseMetric
+                  icon={Certificate01Icon}
+                  label="Conclusão"
+                  value={`${data.progressPercent}%`}
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
-              <Button asChild className="w-full sm:flex-1 xl:w-full">
-                <Link href={primaryHref}>
-                  {getCourseButtonLabel(
-                    data.progressPercent,
-                    Boolean(data.nextLessonId)
-                  )}
-                </Link>
-              </Button>
-              <div className="flex gap-2">
-                {data.certificateCode ? (
-                  <Button
-                    asChild
-                    className="flex-1"
-                    size="sm"
-                    variant="outline"
-                  >
-                    <Link href={route(`/certificados/${data.certificateCode}`)}>
-                      Certificado
-                    </Link>
-                  </Button>
-                ) : null}
-                <SupportRequestDialog
-                  courseTitle={data.course.title}
-                  triggerClassName="flex-1"
-                  triggerLabel="Suporte"
-                  triggerSize="sm"
-                  triggerVariant="secondary"
-                />
+            <div className="flex w-full flex-col gap-4 rounded-lg border bg-card p-5 xl:shrink-0">
+              <div>
+                <div className="mb-2 flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Progresso do curso
+                  </span>
+                  <span className="font-semibold">{data.progressPercent}%</span>
+                </div>
+                <Progress className="h-2" value={data.progressPercent} />
+                <p className="mt-3 text-muted-foreground text-sm">
+                  {data.completedCount} de {data.totalCount} aulas concluídas.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+                <Button asChild className="w-full sm:flex-1 xl:w-full">
+                  <Link href={primaryHref}>
+                    {getCourseButtonLabel(
+                      data.progressPercent,
+                      Boolean(data.nextLessonId)
+                    )}
+                  </Link>
+                </Button>
+                <div className="flex gap-2">
+                  {data.certificateCode ? (
+                    <Button
+                      asChild
+                      className="flex-1"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Link
+                        href={route(`/certificados/${data.certificateCode}`)}
+                      >
+                        Certificado
+                      </Link>
+                    </Button>
+                  ) : null}
+                  <SupportRequestDialog
+                    courseTitle={data.course.title}
+                    triggerClassName="flex-1"
+                    triggerLabel="Suporte"
+                    triggerSize="sm"
+                    triggerVariant="secondary"
+                  />
+                </div>
               </div>
             </div>
           </div>

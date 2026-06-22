@@ -2,7 +2,6 @@ import { HelpCircleIcon, Shield01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { redirect } from "next/navigation";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -29,21 +28,24 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
   const categories = groupFaqItemsByCategory(faqs);
 
   return (
-    <main className="min-h-screen px-6 py-9 sm:px-10 lg:px-12">
-      <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-        <div>
-          <header>
-            <Badge variant="secondary">Suporte</Badge>
-            <h1 className="mt-4 font-extrabold text-3xl tracking-tight md:text-5xl">
-              Perguntas frequentes
-            </h1>
-            <p className="mt-4 max-w-2xl text-muted-foreground text-sm leading-6 md:text-base">
-              Respostas rápidas sobre acesso, pagamento, progresso, certificados
-              e uso da plataforma.
-            </p>
-          </header>
+    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+      <div className="flex flex-col gap-8">
+        <header className="border-b pb-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 space-y-1">
+              <h1 className="font-bold text-3xl tracking-tight">
+                Perguntas frequentes
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Respostas rápidas sobre acesso, pagamento, progresso,
+                certificados e uso da plataforma.
+              </p>
+            </div>
+          </div>
+        </header>
 
-          <div className="mt-8 flex flex-col gap-8">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+          <div className="flex flex-col gap-8">
             {categories.length === 0 ? (
               <Card>
                 <CardHeader>
