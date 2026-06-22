@@ -387,7 +387,7 @@ function LessonResources({
           </p>
         </div>
       </div>
-      <div className="grid gap-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {resources.map((resource) => (
           <LessonResourceItem
             key={resource.id}
@@ -414,7 +414,7 @@ function LessonResourceItem({
   const isExternal = resource.storage !== "r2";
 
   return (
-    <div className="group/resource grid min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background/80 p-2 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-background sm:grid-cols-[72px_minmax(0,1fr)_auto] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
+    <div className="group/resource grid h-full min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background/80 p-2 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-background sm:grid-cols-[72px_minmax(0,1fr)_auto] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
       <ResourceVisual lessonId={lessonId} resource={resource} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
@@ -484,7 +484,7 @@ function ResourceVisual({
   return (
     <div
       className={cn(
-        "flex aspect-square items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+        "flex aspect-video items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
         tone
       )}
     >
