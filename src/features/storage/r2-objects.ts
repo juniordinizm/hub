@@ -1,6 +1,11 @@
 export const MAX_LESSON_ATTACHMENT_BYTES = 150 * 1024 * 1024;
 export const MAX_LESSON_RESOURCES = 15;
 export const MAX_LESSON_R2_RESOURCES_BYTES = 750 * 1024 * 1024;
+export const LESSON_RESOURCE_IMAGE_PREVIEW = {
+  height: 180,
+  maxSizeBytes: 180 * 1024,
+  width: 320,
+} as const;
 
 const ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION = {
   csv: new Set(["text/csv", "application/csv", "application/vnd.ms-excel"]),
@@ -64,6 +69,14 @@ export const buildLessonResourceObjectKey = ({
 }): string =>
   `lessons/${lessonId}/resources/${nonce}-${sanitizeR2FileName(fileName)}`;
 
+export const buildLessonResourcePreviewObjectKey = ({
+  lessonId,
+  nonce,
+}: {
+  lessonId: string;
+  nonce: string;
+}): string => `lessons/${lessonId}/resources/${nonce}-preview.webp`;
+
 export const validateLessonAttachmentUpload = ({
   contentType,
   fileName,
@@ -102,5 +115,36 @@ export const validateLessonAttachmentUpload = ({
 
   if (sizeBytes > maxSizeBytes) {
     throw new Error("Arquivo maior que 150 MB.");
+  }
+};
+
+export const validateLessonImagePreviewUpload = ({
+  contentType,
+  height,
+  sizeBytes,
+  width,
+}: {
+  contentType: string;
+  height: number;
+  sizeBytes: number;
+  width: number;
+}): void => {
+  if (contentType !== "image/webp") {
+    throw new Error("Tipo de preview invalido.");
+  }
+
+  if (
+    width !== LESSON_RESOURCE_IMAGE_PREVIEW.width ||
+    height !== LESSON_RESOURCE_IMAGE_PREVIEW.height
+  ) {
+    throw new Error("Dimensoes do preview invalidas.");
+  }
+
+  if (!(Number.isInteger(sizeBytes) && sizeBytes > 0)) {
+    throw new Error("Tamanho do preview invalido.");
+  }
+
+  if (sizeBytes > LESSON_RESOURCE_IMAGE_PREVIEW.maxSizeBytes) {
+    throw new Error("Preview maior que o permitido.");
   }
 };

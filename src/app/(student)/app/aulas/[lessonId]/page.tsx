@@ -1,7 +1,14 @@
 import {
-  ArrowRight01Icon,
+  Download01Icon,
+  ExternalLinkIcon,
+  File01Icon,
+  FileArchiveIcon,
+  FileDownloadIcon,
+  FileImageIcon,
+  FileLinkIcon,
   Maximize01Icon,
   Minimize01Icon,
+  Pdf01Icon,
   TaskEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -48,6 +55,8 @@ import { requireSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
+
+const RESOURCE_NAME_QUERY_PATTERN = /[?#]/;
 
 type LessonPageData = NonNullable<
   Awaited<ReturnType<typeof getStudentLessonData>>
@@ -369,29 +378,117 @@ function LessonResources({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-muted/50 p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
-      <h2 className="font-semibold text-sm">Materiais da aula</h2>
-      <div className="flex flex-wrap gap-2">
+    <section className="rounded-xl bg-muted/35 p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] sm:p-4 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+        <div>
+          <h2 className="font-semibold text-sm">Materiais da aula</h2>
+          <p className="text-muted-foreground text-xs">
+            {resources.length} {resources.length === 1 ? "item" : "itens"}
+          </p>
+        </div>
+      </div>
+      <div className="grid gap-2">
         {resources.map((resource) => (
-          <Button asChild key={resource.id} size="sm" variant="secondary">
-            <a
-              href={getLessonResourceHref({
-                lessonId,
-                resource,
-              })}
-              rel="noopener"
-              target="_blank"
-            >
-              {resource.label}
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                size={16}
-                strokeWidth={2}
-              />
-            </a>
-          </Button>
+          <LessonResourceItem
+            key={resource.id}
+            lessonId={lessonId}
+            resource={resource}
+          />
         ))}
       </div>
+    </section>
+  );
+}
+
+function LessonResourceItem({
+  lessonId,
+  resource,
+}: {
+  lessonId: string;
+  resource: LessonResource;
+}): React.JSX.Element {
+  const extension = getResourceExtension(resource);
+  const displayName = getResourceDisplayName(resource);
+  const metadata = getResourceMetadata(resource);
+  const href = getLessonResourceHref({ lessonId, resource });
+  const isExternal = resource.storage !== "r2";
+
+  return (
+    <div className="group/resource grid min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background/80 p-2 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-background sm:grid-cols-[72px_minmax(0,1fr)_auto] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
+      <ResourceVisual lessonId={lessonId} resource={resource} />
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="min-w-0 flex-1 truncate font-medium text-sm">
+            {displayName.base}
+            {displayName.extension ? (
+              <span className="text-muted-foreground">
+                .{displayName.extension}
+              </span>
+            ) : null}
+          </p>
+          {extension ? (
+            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+              {extension}
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1 truncate text-muted-foreground text-xs">
+          {metadata}
+        </p>
+      </div>
+      <Button asChild size="icon-sm" variant="ghost">
+        <a
+          aria-label={isExternal ? "Abrir material" : "Baixar material"}
+          href={href}
+          rel="noopener"
+          target="_blank"
+          title={isExternal ? "Abrir material" : "Baixar material"}
+        >
+          <HugeiconsIcon
+            icon={isExternal ? ExternalLinkIcon : Download01Icon}
+            size={16}
+            strokeWidth={2}
+          />
+        </a>
+      </Button>
+    </div>
+  );
+}
+
+function ResourceVisual({
+  lessonId,
+  resource,
+}: {
+  lessonId: string;
+  resource: LessonResource;
+}): React.JSX.Element {
+  if (resource.storage === "r2" && resource.preview) {
+    return (
+      <div
+        aria-label={`Preview de ${resource.label}`}
+        className="aspect-video overflow-hidden rounded-md bg-center bg-cover bg-muted shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+        role="img"
+        style={{
+          backgroundImage: `url(${getLessonResourcePreviewHref({
+            lessonId,
+            resource,
+          })})`,
+        }}
+      />
+    );
+  }
+
+  const Icon = getResourceIcon(resource);
+  const tone = getResourceTone(resource);
+
+  return (
+    <div
+      className={cn(
+        "flex aspect-square items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+        tone
+      )}
+    >
+      <HugeiconsIcon icon={Icon} size={22} strokeWidth={2} />
     </div>
   );
 }
@@ -410,6 +507,168 @@ function getLessonResourceHref({
   }
 
   return resource.url;
+}
+
+function getLessonResourcePreviewHref({
+  lessonId,
+  resource,
+}: {
+  lessonId: string;
+  resource: Extract<LessonResource, { storage: "r2" }>;
+}): string {
+  return route(
+    `/api/lessons/${lessonId}/resources/${resource.id}/preview`
+  ) as string;
+}
+
+function getResourceExtension(resource: LessonResource): string | null {
+  if (resource.storage === "r2") {
+    return getFileExtension(resource.fileName);
+  }
+
+  try {
+    return getFileExtension(new URL(resource.url).pathname);
+  } catch {
+    return null;
+  }
+}
+
+function getFileExtension(fileName: string): string | null {
+  const cleanName = fileName.split(RESOURCE_NAME_QUERY_PATTERN)[0] ?? "";
+  const lastSegment = cleanName.split("/").pop() ?? "";
+  const extension = lastSegment.includes(".")
+    ? lastSegment.split(".").pop()
+    : null;
+
+  return extension?.trim().toLowerCase() || null;
+}
+
+function getResourceDisplayName(resource: LessonResource): {
+  base: string;
+  extension: string | null;
+} {
+  const label = resource.label.trim() || "Material da aula";
+  const extension = getResourceExtension(resource);
+
+  if (!extension) {
+    return { base: label, extension: null };
+  }
+
+  const suffix = `.${extension}`;
+
+  return label.toLowerCase().endsWith(suffix)
+    ? { base: label.slice(0, -suffix.length) || label, extension }
+    : { base: label, extension };
+}
+
+function getResourceMetadata(resource: LessonResource): string {
+  if (resource.storage !== "r2") {
+    return "Link externo";
+  }
+
+  return `${getFileTypeLabel(resource)} · ${formatFileSize(resource.sizeBytes)}`;
+}
+
+function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
+    })} MB`;
+  }
+
+  return `${Math.max(1, Math.round(sizeBytes / 1024)).toLocaleString(
+    "pt-BR"
+  )} KB`;
+}
+
+function getFileTypeLabel(resource: LessonResource): string {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return "Link";
+  }
+
+  if (resource.contentType.startsWith("image/")) {
+    return "Imagem";
+  }
+
+  if (extension === "pdf") {
+    return "PDF";
+  }
+
+  if (extension && ["doc", "docx"].includes(extension)) {
+    return "Documento";
+  }
+
+  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
+    return "Planilha";
+  }
+
+  if (extension && ["ppt", "pptx"].includes(extension)) {
+    return "Apresentacao";
+  }
+
+  if (extension === "zip") {
+    return "Arquivo compactado";
+  }
+
+  return "Arquivo";
+}
+
+function getResourceIcon(resource: LessonResource) {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return FileLinkIcon;
+  }
+
+  if (resource.contentType.startsWith("image/")) {
+    return FileImageIcon;
+  }
+
+  if (extension === "pdf") {
+    return Pdf01Icon;
+  }
+
+  if (extension === "zip") {
+    return FileArchiveIcon;
+  }
+
+  if (
+    extension &&
+    ["doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(extension)
+  ) {
+    return FileDownloadIcon;
+  }
+
+  return File01Icon;
+}
+
+function getResourceTone(resource: LessonResource): string {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return "bg-sky-500/10 text-sky-600 dark:text-sky-300";
+  }
+
+  if (resource.contentType.startsWith("image/")) {
+    return "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300";
+  }
+
+  if (extension === "pdf") {
+    return "bg-red-500/10 text-red-600 dark:text-red-300";
+  }
+
+  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300";
+  }
+
+  if (extension === "zip") {
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-300";
+  }
+
+  return "bg-primary/10 text-primary";
 }
 
 function LessonNextStepCard({

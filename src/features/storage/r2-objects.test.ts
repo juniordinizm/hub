@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLessonResourceObjectKey,
+  buildLessonResourcePreviewObjectKey,
   validateLessonAttachmentUpload,
+  validateLessonImagePreviewUpload,
 } from "./r2-objects";
 
 describe("R2 lesson objects", () => {
@@ -13,6 +15,12 @@ describe("R2 lesson objects", () => {
         nonce: "upload-1",
       })
     ).toBe("lessons/lesson-1/resources/upload-1-apostila-final-01.pdf");
+    expect(
+      buildLessonResourcePreviewObjectKey({
+        lessonId: "lesson-1",
+        nonce: "upload-1",
+      })
+    ).toBe("lessons/lesson-1/resources/upload-1-preview.webp");
   });
 
   it("accepts common course materials up to the per-file limit", () => {
@@ -59,5 +67,25 @@ describe("R2 lesson objects", () => {
         sizeBytes: 151 * 1024 * 1024,
       })
     ).toThrow("Arquivo maior que 150 MB.");
+  });
+
+  it("validates generated image previews before signing uploads", () => {
+    expect(() =>
+      validateLessonImagePreviewUpload({
+        contentType: "image/webp",
+        height: 180,
+        sizeBytes: 24 * 1024,
+        width: 320,
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      validateLessonImagePreviewUpload({
+        contentType: "image/png",
+        height: 180,
+        sizeBytes: 24 * 1024,
+        width: 320,
+      })
+    ).toThrow("Tipo de preview invalido.");
   });
 });

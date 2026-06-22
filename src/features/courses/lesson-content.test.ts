@@ -81,6 +81,16 @@ describe("lesson content", () => {
     );
     formData.set("resourceFileName[]", "apostila.pdf");
     formData.set("resourceContentType[]", "application/pdf");
+    formData.set(
+      "resourcePreview[]",
+      JSON.stringify({
+        contentType: "image/webp",
+        height: 180,
+        key: "lessons/lesson-1/resources/upload-1-preview.webp",
+        sizeBytes: 4096,
+        width: 320,
+      })
+    );
     formData.set("resourceSizeBytes[]", "1024");
 
     expect(
@@ -99,6 +109,13 @@ describe("lesson content", () => {
           id: "resource-1",
           key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
           label: "Apostila",
+          preview: {
+            contentType: "image/webp",
+            height: 180,
+            key: "lessons/lesson-1/resources/upload-1-preview.webp",
+            sizeBytes: 4096,
+            width: 320,
+          },
           sizeBytes: 1024,
           storage: "r2",
         },

@@ -21,9 +21,18 @@ export type LessonResource =
       id: string;
       key: string;
       label: string;
+      preview?: LessonResourcePreview;
       sizeBytes: number;
       storage: "r2";
     };
+
+export interface LessonResourcePreview {
+  contentType: "image/webp";
+  height: number;
+  key: string;
+  sizeBytes: number;
+  width: number;
+}
 
 export type LessonContent =
   | {
@@ -113,6 +122,9 @@ const normalizePositiveInteger = (value: string): number | null => {
   return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : null;
 };
 
+const isPositiveInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value > 0;
+
 const isLessonResourceKey = ({
   key,
   lessonId,
@@ -134,6 +146,7 @@ const createR2ResourceFromForm = ({
   key,
   label,
   lessonId,
+  previewJson,
   size,
 }: {
   contentType: string;
@@ -142,6 +155,7 @@ const createR2ResourceFromForm = ({
   key: string;
   label: string;
   lessonId?: string | undefined;
+  previewJson?: string | undefined;
   size: string;
 }): LessonResource | null => {
   if (!key) {
@@ -158,15 +172,51 @@ const createR2ResourceFromForm = ({
     throw new Error("Arquivo da aula invalido.");
   }
 
+  const preview = parseR2ResourcePreviewFromForm({ lessonId, previewJson });
+
   return {
     contentType,
     fileName,
     id: `resource-${index}`,
     key,
     label: label || fileName,
+    ...(preview ? { preview } : {}),
     sizeBytes,
     storage: "r2",
   };
+};
+
+const parseR2ResourcePreviewFromForm = ({
+  lessonId,
+  previewJson,
+}: {
+  lessonId?: string | undefined;
+  previewJson?: string | undefined;
+}): LessonResourcePreview | null => {
+  if (!previewJson) {
+    return null;
+  }
+
+  try {
+    const preview: unknown = JSON.parse(previewJson);
+    const normalized = normalizeR2ResourcePreview(preview);
+
+    if (!normalized) {
+      throw new Error("Preview invalido.");
+    }
+
+    if (!isLessonResourceKey({ key: normalized.key, lessonId })) {
+      throw new Error("Preview nao pertence a esta aula.");
+    }
+
+    return normalized;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    throw new Error("Preview invalido.");
+  }
 };
 
 const createExternalResourceFromForm = ({
@@ -247,6 +297,7 @@ const normalizeResourcesFromForm = ({
   const keys = readStringList(formData, "resourceKey[]");
   const fileNames = readStringList(formData, "resourceFileName[]");
   const contentTypes = readStringList(formData, "resourceContentType[]");
+  const previews = readStringList(formData, "resourcePreview[]");
   const sizes = readStringList(formData, "resourceSizeBytes[]");
   const resources: LessonResource[] = [];
   const maxLength = Math.max(labels.length, urls.length, keys.length);
@@ -264,6 +315,7 @@ const normalizeResourcesFromForm = ({
             key: keys[index] ?? "",
             label,
             lessonId,
+            previewJson: previews[index] ?? "",
             size: sizes[index] ?? "",
           })
         : createExternalResourceFromForm({
@@ -335,14 +387,45 @@ const normalizeR2Resource = (
     return null;
   }
 
+  const preview = normalizeR2ResourcePreview(candidate.preview);
+
   return {
     contentType,
     fileName,
     id,
     key,
     label: rawLabel || fileName,
+    ...(preview ? { preview } : {}),
     sizeBytes,
     storage: "r2",
+  };
+};
+
+const normalizeR2ResourcePreview = (
+  value: unknown
+): LessonResourcePreview | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (
+    !(
+      value.contentType === "image/webp" &&
+      typeof value.key === "string" &&
+      isPositiveInteger(value.height) &&
+      isPositiveInteger(value.sizeBytes) &&
+      isPositiveInteger(value.width)
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    contentType: "image/webp",
+    height: value.height,
+    key: value.key,
+    sizeBytes: value.sizeBytes,
+    width: value.width,
   };
 };
 
@@ -507,7 +590,10 @@ export const getLessonContentStorageKeys = (value: unknown): string[] => {
   const keys =
     content.resources
       ?.filter((resource) => resource.storage === "r2")
-      .map((resource) => resource.key) ?? [];
+      .flatMap((resource) => [
+        resource.key,
+        ...(resource.preview ? [resource.preview.key] : []),
+      ]) ?? [];
 
   return Array.from(new Set(keys));
 };

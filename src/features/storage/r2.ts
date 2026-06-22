@@ -16,7 +16,9 @@ import {
 } from "@/features/storage/course-cover";
 import {
   buildLessonResourceObjectKey,
+  buildLessonResourcePreviewObjectKey,
   validateLessonAttachmentUpload,
+  validateLessonImagePreviewUpload,
 } from "@/features/storage/r2-objects";
 
 const UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
@@ -36,6 +38,13 @@ interface R2LessonResource {
   id: string;
   key: string;
   label: string;
+  preview?: {
+    contentType: "image/webp";
+    height: number;
+    key: string;
+    sizeBytes: number;
+    width: number;
+  };
   sizeBytes: number;
   storage: "r2";
 }
@@ -84,35 +93,64 @@ export const createLessonResourceUploadUrl = async ({
   contentType,
   fileName,
   lessonId,
+  preview,
   sizeBytes,
 }: {
   contentType: string;
   fileName: string;
   lessonId: string;
+  preview?:
+    | {
+        contentType: "image/webp";
+        height: number;
+        sizeBytes: number;
+        width: number;
+      }
+    | undefined;
   sizeBytes: number;
 }): Promise<{
   resource: R2LessonResource;
+  previewUploadUrl?: string;
   uploadUrl: string;
 }> => {
   validateLessonAttachmentUpload({ contentType, fileName, sizeBytes });
+  if (preview) {
+    validateLessonImagePreviewUpload(preview);
+  }
 
   const config = getR2Config();
+  const nonce = randomUUID();
   const key = buildLessonResourceObjectKey({
     fileName,
     lessonId,
-    nonce: randomUUID(),
+    nonce,
   });
+  const previewKey = preview
+    ? buildLessonResourcePreviewObjectKey({ lessonId, nonce })
+    : null;
   const resource: R2LessonResource = {
     contentType,
     fileName,
     id: `resource-${randomUUID()}`,
     key,
     label: fileName,
+    ...(preview && previewKey
+      ? {
+          preview: {
+            contentType: preview.contentType,
+            height: preview.height,
+            key: previewKey,
+            sizeBytes: preview.sizeBytes,
+            width: preview.width,
+          },
+        }
+      : {}),
     sizeBytes,
     storage: "r2",
   };
+  const client = getR2Client(config);
   const uploadUrl = await getSignedUrl(
-    getR2Client(config),
+    client,
     new PutObjectCommand({
       Bucket: config.bucketName,
       ContentType: contentType,
@@ -123,8 +161,27 @@ export const createLessonResourceUploadUrl = async ({
       signableHeaders: new Set(["content-type"]),
     }
   );
+  const previewUploadUrl =
+    preview && previewKey
+      ? await getSignedUrl(
+          client,
+          new PutObjectCommand({
+            Bucket: config.bucketName,
+            ContentType: preview.contentType,
+            Key: previewKey,
+          }),
+          {
+            expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+            signableHeaders: new Set(["content-type"]),
+          }
+        )
+      : undefined;
 
-  return { resource, uploadUrl };
+  return {
+    resource,
+    ...(previewUploadUrl ? { previewUploadUrl } : {}),
+    uploadUrl,
+  };
 };
 
 export const createLessonResourceDownloadUrl = async ({

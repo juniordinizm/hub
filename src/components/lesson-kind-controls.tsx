@@ -31,6 +31,7 @@ import {
 } from "@/features/courses/lesson-content";
 import {
   LESSON_ATTACHMENT_ACCEPT,
+  LESSON_RESOURCE_IMAGE_PREVIEW,
   validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
 
@@ -184,43 +185,15 @@ function LessonResourcesFields({
     const toastId = toast.loading("Enviando anexo...");
 
     try {
-      validateLessonAttachmentUpload({
-        contentType: file.type,
-        fileName: file.name,
-        sizeBytes: file.size,
+      const signedUpload = await prepareSignedResourceUpload({
+        file,
+        lessonId,
       });
-
-      const signedResponse = await fetch(
-        `/api/admin/lessons/${lessonId}/resources/upload-url`,
-        {
-          body: JSON.stringify({
-            contentType: file.type,
-            fileName: file.name,
-            sizeBytes: file.size,
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }
-      );
-      const signedPayload: unknown = await signedResponse.json();
-
-      if (!(signedResponse.ok && isSignedUploadPayload(signedPayload))) {
-        throw new Error(readUploadError(signedPayload));
-      }
-
-      const uploadResponse = await fetch(signedPayload.uploadUrl, {
-        body: file,
-        headers: { "Content-Type": file.type },
-        method: "PUT",
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Nao foi possivel enviar o arquivo para o R2.");
-      }
+      await uploadSignedResource({ file, signedUpload });
 
       setResources((current) => [
         ...current,
-        toEditableResource(signedPayload.resource),
+        toEditableResource(signedUpload.payload.resource),
       ]);
       toast.success("Anexo enviado. Salve a aula para publicar o material.", {
         id: toastId,
@@ -309,6 +282,13 @@ function LessonResourcesFields({
                   value={resource.contentType}
                 />
                 <input
+                  name="resourcePreview[]"
+                  type="hidden"
+                  value={
+                    resource.preview ? JSON.stringify(resource.preview) : ""
+                  }
+                />
+                <input
                   name="resourceSizeBytes[]"
                   type="hidden"
                   value={resource.sizeBytes}
@@ -319,6 +299,7 @@ function LessonResourcesFields({
                 <input name="resourceKey[]" type="hidden" value="" />
                 <input name="resourceFileName[]" type="hidden" value="" />
                 <input name="resourceContentType[]" type="hidden" value="" />
+                <input name="resourcePreview[]" type="hidden" value="" />
                 <input name="resourceSizeBytes[]" type="hidden" value="" />
               </>
             )}
@@ -352,11 +333,19 @@ type EditableLessonResource =
       id: string;
       key: string;
       label: string;
+      preview?: {
+        contentType: "image/webp";
+        height: number;
+        key: string;
+        sizeBytes: number;
+        width: number;
+      };
       sizeBytes: number;
       storage: "r2";
     };
 
 interface SignedUploadPayload {
+  previewUploadUrl?: string;
   resource: Extract<EditableLessonResource, { storage: "r2" }>;
   uploadUrl: string;
 }
@@ -386,7 +375,14 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isSignedUploadPayload = (
   value: unknown
 ): value is SignedUploadPayload => {
-  if (!isRecord(value) || typeof value.uploadUrl !== "string") {
+  if (
+    !isRecord(value) ||
+    typeof value.uploadUrl !== "string" ||
+    !(
+      value.previewUploadUrl === undefined ||
+      typeof value.previewUploadUrl === "string"
+    )
+  ) {
     return false;
   }
 
@@ -403,6 +399,185 @@ const isSignedUploadPayload = (
     typeof resource.sizeBytes === "number"
   );
 };
+
+const prepareSignedResourceUpload = async ({
+  file,
+  lessonId,
+}: {
+  file: File;
+  lessonId: string;
+}): Promise<{
+  payload: SignedUploadPayload;
+  preview: GeneratedImagePreview | null;
+}> => {
+  validateLessonAttachmentUpload({
+    contentType: file.type,
+    fileName: file.name,
+    sizeBytes: file.size,
+  });
+
+  const preview = await createImagePreview(file);
+  const signedResponse = await fetch(
+    `/api/admin/lessons/${lessonId}/resources/upload-url`,
+    {
+      body: JSON.stringify({
+        contentType: file.type,
+        fileName: file.name,
+        ...(preview
+          ? {
+              preview: {
+                contentType: preview.contentType,
+                height: preview.height,
+                sizeBytes: preview.blob.size,
+                width: preview.width,
+              },
+            }
+          : {}),
+        sizeBytes: file.size,
+      }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }
+  );
+  const signedPayload: unknown = await signedResponse.json();
+
+  if (!(signedResponse.ok && isSignedUploadPayload(signedPayload))) {
+    throw new Error(readUploadError(signedPayload));
+  }
+
+  if (preview && !signedPayload.previewUploadUrl) {
+    throw new Error("Upload de preview indisponivel.");
+  }
+
+  return { payload: signedPayload, preview };
+};
+
+const uploadSignedResource = async ({
+  file,
+  signedUpload,
+}: {
+  file: File;
+  signedUpload: {
+    payload: SignedUploadPayload;
+    preview: GeneratedImagePreview | null;
+  };
+}): Promise<void> => {
+  const uploadResponse = await fetch(signedUpload.payload.uploadUrl, {
+    body: file,
+    headers: { "Content-Type": file.type },
+    method: "PUT",
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error("Nao foi possivel enviar o arquivo para o R2.");
+  }
+
+  if (signedUpload.preview && signedUpload.payload.previewUploadUrl) {
+    const previewUploadResponse = await fetch(
+      signedUpload.payload.previewUploadUrl,
+      {
+        body: signedUpload.preview.blob,
+        headers: { "Content-Type": signedUpload.preview.contentType },
+        method: "PUT",
+      }
+    );
+
+    if (!previewUploadResponse.ok) {
+      throw new Error("Nao foi possivel enviar o preview para o R2.");
+    }
+  }
+};
+
+interface GeneratedImagePreview {
+  blob: Blob;
+  contentType: "image/webp";
+  height: number;
+  width: number;
+}
+
+const imagePreviewTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+const createImagePreview = async (
+  file: File
+): Promise<GeneratedImagePreview | null> => {
+  if (!imagePreviewTypes.has(file.type)) {
+    return null;
+  }
+
+  const image = await readImage(file);
+  const { height, width } = LESSON_RESOURCE_IMAGE_PREVIEW;
+  const sourceRatio = image.naturalWidth / image.naturalHeight;
+  const targetRatio = width / height;
+  const sourceWidth =
+    sourceRatio > targetRatio
+      ? image.naturalHeight * targetRatio
+      : image.naturalWidth;
+  const sourceHeight =
+    sourceRatio > targetRatio
+      ? image.naturalHeight
+      : image.naturalWidth / targetRatio;
+  const sourceX = (image.naturalWidth - sourceWidth) / 2;
+  const sourceY = (image.naturalHeight - sourceHeight) / 2;
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Canvas indisponivel para gerar o preview.");
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    width,
+    height
+  );
+
+  return {
+    blob: await canvasToBlob(canvas),
+    contentType: "image/webp",
+    height,
+    width,
+  };
+};
+
+const readImage = async (file: File): Promise<HTMLImageElement> =>
+  await new Promise((resolve, reject) => {
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Nao foi possivel ler a imagem."));
+    };
+    image.src = url;
+  });
+
+const canvasToBlob = async (canvas: HTMLCanvasElement): Promise<Blob> =>
+  await new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+
+        reject(new Error("Nao foi possivel gerar o preview."));
+      },
+      "image/webp",
+      0.78
+    );
+  });
 
 const readUploadError = (value: unknown): string => {
   if (isRecord(value) && typeof value.error === "string") {
