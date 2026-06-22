@@ -18,12 +18,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
-  Sidebar,
-  SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuLink,
@@ -115,13 +112,13 @@ export default async function LessonPage({
   return (
     <div
       className={cn(
-        "grid min-h-screen bg-background text-foreground",
+        "grid bg-background text-foreground",
         lessonView.isFocusMode
-          ? "lg:grid-cols-1"
-          : "lg:grid-cols-[minmax(0,1fr)_340px]"
+          ? "grid-cols-1"
+          : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
       )}
     >
-      <section className="min-w-0 overflow-y-auto">
+      <section className="min-w-0">
         {previewMode ? (
           <RegisterPreviewCourseId courseId={data.course.id} />
         ) : null}
@@ -533,12 +530,8 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <Sidebar
-      className="w-full border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:w-[340px]"
-      collapsible="none"
-      side="right"
-    >
-      <SidebarHeader className="border-sidebar-border border-b px-5 py-5">
+    <aside className="sticky top-0 hidden h-[calc(100svh-3.5rem)] w-[340px] flex-col border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:flex">
+      <div className="shrink-0 border-sidebar-border border-b px-5 py-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-semibold text-sm">Conteúdo do curso</p>
@@ -561,8 +554,8 @@ function LessonCourseSidebar({
             placeholder="Buscar conteúdo…"
           />
         </form>
-      </SidebarHeader>
-      <SidebarContent className="px-2 py-2">
+      </div>
+      <div className="flex-1 overflow-y-auto px-2 py-2">
         {modules.map((module) => (
           <SidebarGroup key={module.id}>
             <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
@@ -585,12 +578,14 @@ function LessonCourseSidebar({
             Nenhuma aula encontrada para essa busca.
           </p>
         ) : null}
-      </SidebarContent>
-      <SupportRequestDialog
-        courseTitle={courseTitle}
-        triggerClassName="m-4 mt-2"
-      />
-    </Sidebar>
+      </div>
+      <div className="shrink-0">
+        <SupportRequestDialog
+          courseTitle={courseTitle}
+          triggerClassName="m-4 mt-2"
+        />
+      </div>
+    </aside>
   );
 }
 
