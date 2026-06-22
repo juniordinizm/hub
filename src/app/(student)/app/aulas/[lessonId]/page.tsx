@@ -12,10 +12,8 @@ import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
-import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   SidebarGroup,
@@ -133,8 +131,6 @@ export default async function LessonPage({
       {lessonView.isFocusMode ? null : (
         <LessonCourseSidebar
           activeLessonId={data.lesson.id}
-          busca={query.busca}
-          courseTitle={data.course.title}
           lessonsCount={lessonView.lessons.length}
           modules={lessonView.visibleModules}
           previewMode={previewMode}
@@ -445,7 +441,6 @@ function LessonNextStepCard({
   isPreview,
   lessonId,
   nextLessonId,
-  previewMode,
 }: {
   courseHref: Route;
   isCompleted: boolean;
@@ -453,77 +448,36 @@ function LessonNextStepCard({
   lessonId: string;
   nextLessonId: string | null;
   previewMode: StudentPreviewMode | null;
-}): React.JSX.Element {
-  if (nextLessonId) {
+}): React.JSX.Element | null {
+  if (!isCompleted) {
     return (
-      <div className="mt-7 rounded-lg border bg-card p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-semibold">Próximo passo</h2>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Conclua esta aula para liberar a próxima etapa da trilha.
-            </p>
-          </div>
-          {isCompleted ? (
-            <Button asChild>
-              <Link
-                href={route(
-                  getPreviewAwareHref(`/app/aulas/${nextLessonId}`, previewMode)
-                )}
-              >
-                Ir para próxima aula
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={16}
-                  strokeWidth={2}
-                />
-              </Link>
-            </Button>
-          ) : (
-            <CompleteLessonButton isPreview={isPreview} lessonId={lessonId} />
-          )}
-        </div>
+      <div className="mt-7 flex justify-end">
+        <CompleteLessonButton isPreview={isPreview} lessonId={lessonId} />
       </div>
     );
   }
 
-  return (
-    <div className="mt-7 rounded-lg border bg-card p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="font-semibold">
-            {isCompleted ? "Curso finalizado" : "Última aula da trilha"}
-          </h2>
-          <p className="mt-1 text-muted-foreground text-sm">
-            {isCompleted
-              ? "Seu progresso está completo. Confira a página do curso e o certificado."
-              : "Conclua esta aula para fechar o curso e emitir o certificado."}
-          </p>
-        </div>
-        {isCompleted ? (
-          <Button asChild>
-            <Link href={courseHref}>Ver conclusão</Link>
-          </Button>
-        ) : (
-          <CompleteLessonButton isPreview={isPreview} lessonId={lessonId} />
-        )}
+  if (!nextLessonId && isCompleted) {
+    return (
+      <div className="mt-7 flex justify-end">
+        <Button asChild>
+          <Link href={courseHref}>Ir para a página do curso</Link>
+        </Button>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }
 
 function LessonCourseSidebar({
   activeLessonId,
-  busca,
-  courseTitle,
   lessonsCount,
   modules,
   previewMode,
   progressPercent,
 }: {
   activeLessonId: string;
-  busca: string | undefined;
-  courseTitle: string;
   lessonsCount: number;
   modules: LessonPageData["modules"];
   previewMode: StudentPreviewMode | null;
@@ -542,18 +496,6 @@ function LessonCourseSidebar({
           <Badge variant="outline">{lessonsCount} aulas</Badge>
         </div>
         <Progress className="mt-3 h-1 bg-primary/20" value={progressPercent} />
-        <form className="mt-4" method="get">
-          {previewMode ? (
-            <input name="preview" type="hidden" value={previewMode} />
-          ) : null}
-          <Input
-            aria-label="Buscar aula no curso"
-            className="bg-primary/10"
-            defaultValue={busca ?? ""}
-            name="busca"
-            placeholder="Buscar conteúdo…"
-          />
-        </form>
       </div>
       <div className="flex-1 overflow-y-auto px-2 py-2">
         {modules.map((module) => (
@@ -578,12 +520,6 @@ function LessonCourseSidebar({
             Nenhuma aula encontrada para essa busca.
           </p>
         ) : null}
-      </div>
-      <div className="shrink-0">
-        <SupportRequestDialog
-          courseTitle={courseTitle}
-          triggerClassName="m-4 mt-2"
-        />
       </div>
     </aside>
   );
