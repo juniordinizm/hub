@@ -1,13 +1,8 @@
-import {
-  BookOpen01Icon,
-  Certificate01Icon,
-  Clock01Icon,
-} from "@hugeicons/core-free-icons";
+import { BookOpen01Icon, Clock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
-import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { getStudentCoursePrimaryHref } from "@/features/courses/presentation";
@@ -92,23 +87,19 @@ export default async function StudentCourseOverviewPage({
           ) : null}
 
           <header className="border-b pb-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex-1 space-y-1">
                 <h1 className="font-bold text-3xl tracking-tight">
                   {data.course.title}
                 </h1>
-                <p className="text-muted-foreground text-sm">
+                <p className="max-w-2xl text-muted-foreground text-sm">
                   {data.course.subtitle ??
                     data.course.description ??
                     "Avance pelas aulas na ordem da trilha, acompanhe seu progresso e conclua o curso para liberar o certificado."}
                 </p>
               </div>
-            </div>
-          </header>
 
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-            <div className="max-w-4xl">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="flex shrink-0 flex-col items-stretch gap-3 sm:flex-row">
                 <CourseMetric
                   icon={BookOpen01Icon}
                   label="Aulas"
@@ -119,63 +110,48 @@ export default async function StudentCourseOverviewPage({
                   label="Carga horária"
                   value={`${data.course.workloadHours}h`}
                 />
-                <CourseMetric
-                  icon={Certificate01Icon}
-                  label="Conclusão"
-                  value={`${data.progressPercent}%`}
-                />
-              </div>
-            </div>
 
-            <div className="flex w-full flex-col gap-4 rounded-lg border bg-card p-5 xl:shrink-0">
-              <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Progresso do curso
-                  </span>
-                  <span className="font-semibold">{data.progressPercent}%</span>
+                <div className="flex min-w-[200px] flex-1 flex-col justify-center rounded-md border bg-card px-3 py-1 text-xs">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-muted-foreground">Progresso</span>
+                    <span className="font-semibold text-foreground">
+                      {data.progressPercent}%
+                    </span>
+                  </div>
+                  <Progress className="h-1.5" value={data.progressPercent} />
                 </div>
-                <Progress className="h-2" value={data.progressPercent} />
-                <p className="mt-3 text-muted-foreground text-sm">
-                  {data.completedCount} de {data.totalCount} aulas concluídas.
-                </p>
-              </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
-                <Button asChild className="w-full sm:flex-1 xl:w-full">
-                  <Link href={primaryHref}>
-                    {getCourseButtonLabel(
-                      data.progressPercent,
-                      Boolean(data.nextLessonId)
-                    )}
-                  </Link>
-                </Button>
-                <div className="flex gap-2">
-                  {data.certificateCode ? (
+                <div className="flex shrink-0">
+                  {data.progressPercent === 100 && data.certificateCode ? (
                     <Button
                       asChild
-                      className="flex-1"
+                      className="h-full w-full px-6 sm:w-auto"
                       size="sm"
-                      variant="outline"
                     >
                       <Link
                         href={route(`/certificados/${data.certificateCode}`)}
                       >
-                        Certificado
+                        Acessar certificado
                       </Link>
                     </Button>
-                  ) : null}
-                  <SupportRequestDialog
-                    courseTitle={data.course.title}
-                    triggerClassName="flex-1"
-                    triggerLabel="Suporte"
-                    triggerSize="sm"
-                    triggerVariant="secondary"
-                  />
+                  ) : (
+                    <Button
+                      asChild
+                      className="h-full w-full px-6 sm:w-auto"
+                      size="sm"
+                    >
+                      <Link href={primaryHref}>
+                        {getCourseButtonLabel(
+                          data.progressPercent,
+                          Boolean(data.nextLessonId)
+                        )}
+                      </Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </header>
         </div>
       </section>
 
@@ -198,12 +174,10 @@ function CourseMetric({
   value: string;
 }): React.JSX.Element {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <HugeiconsIcon icon={icon} />
-        {label}
-      </div>
-      <p className="mt-2 font-bold text-2xl tabular-nums">{value}</p>
+    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-muted-foreground text-xs">
+      <HugeiconsIcon icon={icon} size={16} />
+      <span>{label}:</span>
+      <span className="font-semibold text-foreground">{value}</span>
     </div>
   );
 }
