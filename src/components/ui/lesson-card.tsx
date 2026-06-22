@@ -1,4 +1,4 @@
-import { LockKeyIcon, PlayIcon } from "@hugeicons/core-free-icons";
+import { File01Icon, LockKeyIcon, PlayIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ export type LessonStatus =
 export interface LessonCardProps {
   className?: string;
   durationText: string;
+  hasVideo?: boolean;
   status: LessonStatus;
   thumbnailUrl?: string | null;
   title: string;
@@ -24,11 +25,14 @@ export function LessonCard({
   title,
   durationText,
   status,
+  hasVideo = true,
   thumbnailUrl,
   className,
   watchedPercent,
 }: LessonCardProps): React.JSX.Element {
   const isLocked = status === "locked";
+  const CenterIcon = getCenterIcon({ hasVideo, isLocked });
+  const centerIconClassName = !isLocked && hasVideo ? "ml-1" : undefined;
 
   let statusBadge: React.JSX.Element | null = null;
   if (status === "in_progress") {
@@ -114,16 +118,12 @@ export function LessonCard({
               isLocked && "bg-white/50"
             )}
           >
-            {isLocked ? (
-              <HugeiconsIcon icon={LockKeyIcon} size={20} strokeWidth={2.5} />
-            ) : (
-              <HugeiconsIcon
-                className="ml-1"
-                icon={PlayIcon}
-                size={20}
-                strokeWidth={2.5}
-              />
-            )}
+            <HugeiconsIcon
+              className={centerIconClassName}
+              icon={CenterIcon}
+              size={20}
+              strokeWidth={2.5}
+            />
           </div>
         </div>
 
@@ -139,3 +139,17 @@ export function LessonCard({
     </div>
   );
 }
+
+const getCenterIcon = ({
+  hasVideo,
+  isLocked,
+}: {
+  hasVideo: boolean;
+  isLocked: boolean;
+}) => {
+  if (isLocked) {
+    return LockKeyIcon;
+  }
+
+  return hasVideo ? PlayIcon : File01Icon;
+};

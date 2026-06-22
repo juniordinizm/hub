@@ -11,6 +11,7 @@ import { route } from "@/lib/routes";
 
 interface LessonData {
   durationSeconds: number;
+  hasVideo: boolean;
   id: string;
   isAvailable: boolean;
   isCompleted: boolean;
@@ -85,6 +86,7 @@ export function CourseOverviewClient({
       <LessonCard
         className="snap-start"
         durationText={formatLessonDuration(lesson.durationSeconds)}
+        hasVideo={lesson.hasVideo}
         key={lesson.id}
         status={status}
         thumbnailUrl={lesson.thumbnailUrl ?? null}

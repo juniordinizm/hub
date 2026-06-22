@@ -110,6 +110,7 @@ export interface StudentCourseOverviewData {
     id: string;
     lessons: Array<{
       durationSeconds: number;
+      hasVideo: boolean;
       id: string;
       isAvailable: boolean;
       isCompleted: boolean;
@@ -225,6 +226,8 @@ interface CourseOverviewRow {
   module_sort_order: number | null;
   module_title: string | null;
   thumbnail_url: string | null;
+  video_embed_url: string | null;
+  video_external_id: string | null;
   watched_percent: number | null;
   workload_hours: number;
 }
@@ -246,6 +249,8 @@ interface CoursePreviewOverviewRow {
   module_sort_order: number | null;
   module_title: string | null;
   thumbnail_url: string | null;
+  video_embed_url: string | null;
+  video_external_id: string | null;
   workload_hours: number;
 }
 
@@ -629,6 +634,8 @@ export const getStudentCourseOverviewData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.thumbnail_url as lesson_thumbnail_url,
+        l.video_embed_url,
+        l.video_external_id,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         lp.completed_at,
@@ -693,6 +700,7 @@ export const getStudentCourseOverviewData = async ({
         id: row.lesson_id,
         title: row.lesson_title,
         thumbnailUrl: row.lesson_thumbnail_url,
+        hasVideo: Boolean(row.video_embed_url || row.video_external_id),
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: Boolean(row.completed_at),
@@ -752,6 +760,8 @@ export const getCoursePreviewOverviewData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.thumbnail_url as lesson_thumbnail_url,
+        l.video_embed_url,
+        l.video_external_id,
         l.duration_seconds,
         l.sort_order as lesson_sort_order
       from courses c
@@ -800,6 +810,7 @@ export const getCoursePreviewOverviewData = async ({
         id: row.lesson_id,
         title: row.lesson_title,
         thumbnailUrl: row.lesson_thumbnail_url,
+        hasVideo: Boolean(row.video_embed_url || row.video_external_id),
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: false,
