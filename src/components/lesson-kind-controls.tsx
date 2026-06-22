@@ -45,7 +45,7 @@ export function LessonKindControls({
   const content = parseLessonContent(defaultContentJson);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-10">
       <div className="grid gap-4">
         <Field>
           <FieldLabel>Duracao em segundos</FieldLabel>

@@ -283,16 +283,6 @@ export function LessonEditorForm({
           <FieldGroup>
             <input name="lessonId" type="hidden" value={lesson.id} />
             <input name="moduleId" type="hidden" value={lesson.moduleId} />
-            <div className="grid gap-4">
-              <LessonKindControls
-                asset={asset}
-                defaultContentJson={lesson.contentJson}
-                defaultDurationSeconds={lesson.durationSeconds}
-                defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
-                defaultOrder={lesson.sortOrder}
-                lessonId={lesson.id}
-              />
-            </div>
             <Field>
               <FieldLabel>Título</FieldLabel>
               <Input defaultValue={lesson.title} name="title" required />
@@ -305,6 +295,16 @@ export function LessonEditorForm({
                 required
               />
             </Field>
+            <div className="mt-8 grid gap-8 border-border/50 border-t pt-8">
+              <LessonKindControls
+                asset={asset}
+                defaultContentJson={lesson.contentJson}
+                defaultDurationSeconds={lesson.durationSeconds}
+                defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
+                defaultOrder={lesson.sortOrder}
+                lessonId={lesson.id}
+              />
+            </div>
           </FieldGroup>
         </DialogBody>
         <DialogFooter className="sm:justify-between">
@@ -349,11 +349,11 @@ export function CreateLessonDraftForm({
           <input name="moduleId" type="hidden" value={moduleId} />
           <input name="sortOrder" type="hidden" value={nextSortOrder} />
           <Field>
-            <FieldLabel>Titulo</FieldLabel>
+            <FieldLabel>Título</FieldLabel>
             <Input name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Subtitulo</FieldLabel>
+            <FieldLabel>Descrição</FieldLabel>
             <Textarea name="description" required />
           </Field>
         </FieldGroup>
