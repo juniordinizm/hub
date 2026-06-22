@@ -114,6 +114,7 @@ export interface StudentCourseOverviewData {
       isAvailable: boolean;
       isCompleted: boolean;
       sortOrder: number;
+      thumbnailUrl: string | null;
       title: string;
       watchedPercent: number;
     }>;
@@ -216,6 +217,7 @@ interface CourseOverviewRow {
   expires_at: Date;
   lesson_id: string | null;
   lesson_sort_order: number | null;
+  lesson_thumbnail_url: string | null;
   lesson_title: string | null;
   module_color: string | null;
   module_description: string | null;
@@ -236,6 +238,7 @@ interface CoursePreviewOverviewRow {
   duration_seconds: number | null;
   lesson_id: string | null;
   lesson_sort_order: number | null;
+  lesson_thumbnail_url: string | null;
   lesson_title: string | null;
   module_color: string | null;
   module_description: string | null;
@@ -625,6 +628,7 @@ export const getStudentCourseOverviewData = async ({
         m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
+        l.thumbnail_url as lesson_thumbnail_url,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         lp.completed_at,
@@ -688,6 +692,7 @@ export const getStudentCourseOverviewData = async ({
       moduleData.lessons.push({
         id: row.lesson_id,
         title: row.lesson_title,
+        thumbnailUrl: row.lesson_thumbnail_url,
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: Boolean(row.completed_at),
@@ -746,6 +751,7 @@ export const getCoursePreviewOverviewData = async ({
         m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
+        l.thumbnail_url as lesson_thumbnail_url,
         l.duration_seconds,
         l.sort_order as lesson_sort_order
       from courses c
@@ -793,6 +799,7 @@ export const getCoursePreviewOverviewData = async ({
       moduleData.lessons.push({
         id: row.lesson_id,
         title: row.lesson_title,
+        thumbnailUrl: row.lesson_thumbnail_url,
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: false,

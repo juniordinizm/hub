@@ -4,6 +4,7 @@ import {
   createJmvstreamClient,
   findJmvstreamFolderByName,
   findJmvstreamVideoByHash,
+  getJmvstreamThumbnailUrlFromPlayerHtml,
   isJmvstreamJwtUsable,
   normalizeJmvstreamApiBaseUrl,
   normalizeJmvstreamUploadParts,
@@ -309,6 +310,32 @@ describe("JMVStream API client", () => {
       status: "success",
       videoHash: "video-hash",
     });
+  });
+
+  it("extracts the generated cover URL from JMVStream player HTML", () => {
+    const html = `
+      <meta property="og:image" content="https://cdn.vod.br1.jmvstream.com/vod/vod_20790/f/video-hash/cover/cover1.jpg">
+      <script>
+        window.__PLAYER__ = {
+          "thumbnail": "https://cdn.vod.br1.jmvstream.com/vod/vod_20790/f/video-hash/thumbnail/thumb.jpg?token=abc"
+        }
+      </script>
+    `;
+
+    expect(getJmvstreamThumbnailUrlFromPlayerHtml(html)).toBe(
+      "https://cdn.vod.br1.jmvstream.com/vod/vod_20790/f/video-hash/cover/cover1.jpg"
+    );
+  });
+
+  it("falls back to JMVStream thumbnail URLs and ignores unrelated images", () => {
+    expect(
+      getJmvstreamThumbnailUrlFromPlayerHtml(`
+        <img src="https://evil.example.com/cover/cover1.jpg">
+        {"thumbnail":"https://cdn.vod.br1.jmvstream.com/vod/vod_20790/f/video-hash/thumbnail/thumb.jpg?token=abc"}
+      `)
+    ).toBe(
+      "https://cdn.vod.br1.jmvstream.com/vod/vod_20790/f/video-hash/thumbnail/thumb.jpg?token=abc"
+    );
   });
 
   it("lists application videos with official playerSource URLs", async () => {

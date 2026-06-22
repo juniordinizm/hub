@@ -76,7 +76,10 @@ const TRAILING_SLASH_PATTERN = /\/$/;
 const GUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const IFRAME_SRC_PATTERN = /\bsrc\s*=\s*['"]([^'"]+)['"]/i;
+const IMAGE_URL_PATTERN =
+  /https?:\/\/[^\s"'<>]+?\.(?:jpe?g|png|webp)(?:[?#][^\s"'<>]*)?/gi;
 const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
+const JMVSTREAM_THUMBNAIL_HOSTNAME = "cdn.vod.br1.jmvstream.com";
 const JWT_REFRESH_WINDOW_SECONDS = 60;
 
 const readString = (value: unknown): string | null =>
@@ -247,6 +250,19 @@ export const findJmvstreamVideoByHash = (
   videoHash: string
 ): JmvstreamVideoResponse | null =>
   videos.find((video) => video.hash === videoHash) ?? null;
+
+export const getJmvstreamThumbnailUrlFromPlayerHtml = (
+  html: string
+): string | null => {
+  const candidates = Array.from(html.matchAll(IMAGE_URL_PATTERN))
+    .map((match) => match[0])
+    .filter(isJmvstreamThumbnailUrl);
+  const cover = candidates.find((url) =>
+    new URL(url).pathname.includes("/cover/")
+  );
+
+  return cover ?? candidates[0] ?? null;
+};
 
 export const createJmvstreamClient = ({
   apiBaseUrl,
@@ -648,6 +664,20 @@ const isOfficialJmvstreamPlayerUrl = (value: string): boolean => {
     const url = new URL(value);
     return (
       url.protocol === "https:" && url.hostname === JMVSTREAM_PLAYER_HOSTNAME
+    );
+  } catch {
+    return false;
+  }
+};
+
+const isJmvstreamThumbnailUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === JMVSTREAM_THUMBNAIL_HOSTNAME &&
+      url.pathname.startsWith("/vod/") &&
+      (url.pathname.includes("/cover/") || url.pathname.includes("/thumbnail/"))
     );
   } catch {
     return false;

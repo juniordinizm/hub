@@ -213,6 +213,7 @@ export const lessons = pgTable(
     videoProvider: videoProviderEnum("video_provider"),
     videoExternalId: text("video_external_id"),
     videoEmbedUrl: text("video_embed_url"),
+    thumbnailUrl: text("thumbnail_url"),
     contentJson: jsonb("content_json"),
     durationSeconds: integer("duration_seconds").default(0).notNull(),
     sortOrder: integer("sort_order").notNull(),

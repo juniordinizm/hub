@@ -23,6 +23,7 @@ import {
   ensureJmvstreamCourseFolder,
   initJmvstreamUpload,
   markJmvstreamUploadFailed,
+  resolveJmvstreamPlayerThumbnailUrl,
   retryJmvstreamAssetDelete,
   syncJmvstreamLessonPlayer,
 } from "@/features/jmvstream/server";
@@ -187,6 +188,7 @@ const getLessonVideoFormState = async ({
   lessonId: string;
 }): Promise<{
   hasVideoContent: boolean;
+  thumbnailUrl: string | null;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
   videoProvider: "jmvstream" | null;
@@ -203,9 +205,13 @@ const getLessonVideoFormState = async ({
       });
   const hasVideoContent = Boolean(videoEmbedUrl || existingVideoExternalId);
   const shouldKeepVideo = hasVideoContent && !shouldRemoveVideo;
+  const thumbnailUrl = shouldKeepVideo
+    ? await resolveJmvstreamPlayerThumbnailUrl(videoEmbedUrl)
+    : null;
 
   return {
     hasVideoContent: shouldKeepVideo,
+    thumbnailUrl,
     videoEmbedUrl,
     videoExternalId: shouldKeepVideo ? existingVideoExternalId : null,
     videoProvider: shouldKeepVideo ? "jmvstream" : null,
@@ -605,8 +611,13 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     formData,
     lessonId,
   });
-  const { hasVideoContent, videoEmbedUrl, videoExternalId, videoProvider } =
-    await getLessonVideoFormState({ formData, lessonId });
+  const {
+    hasVideoContent,
+    thumbnailUrl,
+    videoEmbedUrl,
+    videoExternalId,
+    videoProvider,
+  } = await getLessonVideoFormState({ formData, lessonId });
 
   if (!(hasVideoContent || contentJson)) {
     throw new Error("Adicione video ou texto antes de salvar a aula.");
@@ -619,6 +630,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     videoProvider,
     videoExternalId,
     videoEmbedUrl,
+    thumbnailUrl,
     contentJson ? JSON.stringify(contentJson) : null,
     readNumber(formData, "durationSeconds"),
     readNumber(formData, "sortOrder", 1),
@@ -638,12 +650,13 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
             video_provider = $4,
             video_external_id = $5,
             video_embed_url = $6,
-            content_json = $7::jsonb,
-            duration_seconds = $8,
-            sort_order = $9,
-            is_published = $10,
+            thumbnail_url = $7,
+            content_json = $8::jsonb,
+            duration_seconds = $9,
+            sort_order = $10,
+            is_published = $11,
             updated_at = now()
-        where id = $11
+        where id = $12
       `,
       [...values, lessonId]
     );
@@ -675,12 +688,13 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           video_provider,
           video_external_id,
           video_embed_url,
+          thumbnail_url,
           content_json,
           duration_seconds,
           sort_order,
           is_published
         )
-        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
         returning id
       `,
       values

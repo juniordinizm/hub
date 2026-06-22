@@ -134,6 +134,13 @@
       "when": 1782136800000,
       "tag": "0018_dynamic_lessons_without_type",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782140400000,
+      "tag": "0019_lesson_video_thumbnail",
+      "breakpoints": true
     }
   ]
 }

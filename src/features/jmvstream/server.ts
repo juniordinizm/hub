@@ -6,6 +6,7 @@ import {
   findJmvstreamFolderByName,
   findJmvstreamFolderByUuid,
   findJmvstreamVideoByHash,
+  getJmvstreamThumbnailUrlFromPlayerHtml,
   isJmvstreamJwtUsable,
   type JmvstreamCompleteUploadInput,
   type JmvstreamCompleteUploadResponse,
@@ -40,6 +41,7 @@ export interface JmvstreamHealthSummary {
 export interface JmvstreamPlayerSyncResult {
   playerUrl: null | string;
   ready: boolean;
+  thumbnailUrl: null | string;
 }
 
 interface FolderRecord {
@@ -112,6 +114,28 @@ const getJmvstreamApiToken = async (): Promise<string> => {
   throw new Error(
     "Configure credenciais JMVStream server-only para usar uploads no admin."
   );
+};
+
+export const resolveJmvstreamPlayerThumbnailUrl = async (
+  playerUrl: string | null
+): Promise<string | null> => {
+  if (!playerUrl) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(playerUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return getJmvstreamThumbnailUrlFromPlayerHtml(await response.text());
+  } catch {
+    return null;
+  }
 };
 
 export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
@@ -394,6 +418,7 @@ export const completeJmvstreamUpload = async ({
     videoHash,
   });
   const playerUrl = response.playerUrl ?? syncedVideo?.playerUrl ?? null;
+  const thumbnailUrl = await resolveJmvstreamPlayerThumbnailUrl(playerUrl);
   const uploadStatus = playerUrl ? "ready" : "processing";
   await getPool().query(
     `
@@ -437,10 +462,11 @@ export const completeJmvstreamUpload = async ({
       set video_provider = 'jmvstream',
           video_external_id = $1,
           video_embed_url = $3,
+          thumbnail_url = $4,
           updated_at = now()
       where id = $2
     `,
-    [videoHash, lessonId, playerUrl]
+    [videoHash, lessonId, playerUrl, thumbnailUrl]
   );
 };
 
@@ -464,7 +490,7 @@ export const syncJmvstreamLessonPlayer = async (
   const videoHash = lesson?.video_external_id;
 
   if (!(lesson && videoHash)) {
-    return { playerUrl: null, ready: false };
+    return { playerUrl: null, ready: false, thumbnailUrl: null };
   }
 
   const client = await getConfiguredClient();
@@ -480,17 +506,19 @@ export const syncJmvstreamLessonPlayer = async (
   });
 
   if (!playerUrl) {
-    return { playerUrl: null, ready: false };
+    return { playerUrl: null, ready: false, thumbnailUrl: null };
   }
 
+  const thumbnailUrl = await resolveJmvstreamPlayerThumbnailUrl(playerUrl);
   await getPool().query(
     `
       update lessons
       set video_embed_url = $1,
+          thumbnail_url = $3,
           updated_at = now()
       where id = $2
     `,
-    [playerUrl, lessonId]
+    [playerUrl, lessonId, thumbnailUrl]
   );
   await getPool().query(
     `
@@ -503,7 +531,7 @@ export const syncJmvstreamLessonPlayer = async (
     [videoHash]
   );
 
-  return { playerUrl, ready: true };
+  return { playerUrl, ready: true, thumbnailUrl };
 };
 
 const moveJmvstreamVideoToCourseFolder = async ({
