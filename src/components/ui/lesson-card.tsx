@@ -32,13 +32,14 @@ export function LessonCard({
 }: LessonCardProps): React.JSX.Element {
   const isLocked = status === "locked";
   const CenterIcon = getCenterIcon({ hasVideo, isLocked });
-  const centerIconClassName = !isLocked && hasVideo ? "ml-1" : undefined;
+  const centerIconClassName =
+    !isLocked && hasVideo ? "translate-x-[2px]" : undefined;
 
   let statusBadge: React.JSX.Element | null = null;
   if (status === "in_progress") {
     statusBadge = (
       <Badge
-        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
         variant="default"
       >
         Em andamento
@@ -47,7 +48,7 @@ export function LessonCard({
   } else if (status === "next") {
     statusBadge = (
       <Badge
-        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
         variant="secondary"
       >
         Próxima
@@ -56,7 +57,7 @@ export function LessonCard({
   } else if (status === "locked") {
     statusBadge = (
       <Badge
-        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
         variant="destructive"
       >
         Bloqueada
@@ -65,7 +66,7 @@ export function LessonCard({
   } else if (status === "completed") {
     statusBadge = (
       <Badge
-        className="absolute bottom-3 left-3 font-bold text-[10px] uppercase tracking-wider"
+        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
         variant="secondary"
       >
         Concluída
@@ -79,9 +80,10 @@ export function LessonCard({
     >
       <div
         className={cn(
-          "relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted transition-[border-color,box-shadow,opacity,filter] after:pointer-events-none after:absolute after:inset-0 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
+          "relative isolate aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted transition-[opacity,filter]",
+          "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
           !isLocked &&
-            "group-hover:ring-2 group-hover:ring-primary/50 group-hover:after:shadow-[inset_0_0_0_1px_hsl(var(--primary))]",
+            "after:transition-shadow after:duration-300 group-hover:after:shadow-[inset_0_0_0_2px_hsl(var(--primary))]",
           isLocked && "opacity-60 grayscale-[50%]"
         )}
       >
@@ -110,10 +112,10 @@ export function LessonCard({
           </div>
         ) : null}
 
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
           <div
             className={cn(
-              "flex size-10 items-center justify-center rounded-full bg-white/90 text-background shadow-sm backdrop-blur-sm transition-transform",
+              "flex size-10 items-center justify-center rounded-full bg-white/90 text-background shadow-sm backdrop-blur-sm transition-transform duration-300",
               !isLocked && "group-hover:scale-110",
               isLocked && "bg-white/50"
             )}
@@ -127,11 +129,11 @@ export function LessonCard({
           </div>
         </div>
 
-        {statusBadge}
+        {statusBadge && <div className="z-10">{statusBadge}</div>}
       </div>
 
       <div className="flex flex-col gap-1">
-        <h4 className="line-clamp-2 font-semibold text-sm leading-tight transition-colors group-hover:text-primary">
+        <h4 className="line-clamp-2 font-semibold text-sm leading-tight transition-colors group-hover:text-accent">
           {title}
         </h4>
         <p className="text-muted-foreground text-xs">{durationText}</p>
