@@ -14,10 +14,8 @@ import {
   syncJmvstreamLessonDurationAction,
 } from "@/app/(student)/app/actions";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Badge } from "@/components/ui/badge";
 import {
   extractJmvstreamEmbedUrl,
-  formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
   getJmvstreamPlayerEventFromMessage,
   type JmvstreamPlayerEvent,
@@ -36,7 +34,6 @@ export function LessonVideoPlayer({
   initialWatchedPercent,
   isPreview,
   lessonId,
-  progressPercent,
   title,
   videoEmbedUrl,
   videoProvider,
@@ -46,7 +43,6 @@ export function LessonVideoPlayer({
   initialWatchedPercent: number;
   isPreview: boolean;
   lessonId: string;
-  progressPercent: number;
   title: string;
   videoEmbedUrl: string | null;
   videoProvider: string | null;
@@ -249,21 +245,7 @@ export function LessonVideoPlayer({
         )}
       </AspectRatio>
 
-      <div className="px-5 py-7 sm:px-9">
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            className="border-primary/30 bg-primary/15 text-primary"
-            variant="outline"
-          >
-            {formatLessonDuration(displayDurationSeconds)} - {progressPercent}%
-            do curso
-          </Badge>
-          {videoProvider === "jmvstream" ? (
-            <Badge variant="outline">{watchedPercent}% assistido</Badge>
-          ) : null}
-        </div>
-        {children}
-      </div>
+      <div className="px-5 py-7 sm:px-9">{children}</div>
     </>
   );
 }

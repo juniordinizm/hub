@@ -228,7 +228,6 @@ function LessonMainContent({
         initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
         isPreview={Boolean(previewMode)}
         lessonId={data.lesson.id}
-        progressPercent={data.progressPercent}
         title={data.lesson.title}
         videoEmbedUrl={lessonView.videoEmbedUrl}
         videoProvider={data.lesson.videoProvider}
@@ -241,21 +240,7 @@ function LessonMainContent({
   return (
     <>
       <LessonContentFrame lesson={data.lesson} />
-      <div className="px-5 py-7 sm:px-9">
-        <div className="flex flex-wrap gap-2">
-          <Badge
-            className="border-primary/30 bg-primary/15 text-primary"
-            variant="outline"
-          >
-            {formatLessonDuration(data.lesson.durationSeconds)} -{" "}
-            {data.progressPercent}% do curso
-          </Badge>
-          <Badge variant="outline">
-            {getLessonTypeLabel(data.lesson.lessonType)}
-          </Badge>
-        </div>
-        {details}
-      </div>
+      <div className="px-5 py-7 sm:px-9">{details}</div>
     </>
   );
 }
@@ -425,14 +410,6 @@ function getLessonResourceHref({
   }
 
   return resource.url;
-}
-
-function getLessonTypeLabel(lessonType: string): string {
-  if (lessonType === "text") {
-    return "Texto";
-  }
-
-  return "Video";
 }
 
 function LessonNextStepCard({
