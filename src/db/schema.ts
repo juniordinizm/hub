@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   bigint,
   boolean,
   check,
@@ -52,6 +53,10 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "processed",
   "ignored",
   "failed",
+]);
+export const lessonCommentStatusEnum = pgEnum("lesson_comment_status", [
+  "visible",
+  "hidden",
 ]);
 export const jmvstreamFolderTypeEnum = pgEnum("jmvstream_folder_type", [
   "course",
@@ -400,6 +405,41 @@ export const lessonWatchProgress = pgTable(
       "lesson_watch_progress_percent_bounds",
       sql`${table.watchedPercent} >= 0 and ${table.watchedPercent} <= 100`
     ),
+  ]
+);
+
+export const lessonComments = pgTable(
+  "lesson_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => lessonComments.id,
+      { onDelete: "cascade" }
+    ),
+    body: text("body").notNull(),
+    status: lessonCommentStatusEnum("status").default("visible").notNull(),
+    hiddenByUserId: text("hidden_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    hiddenAt: timestamp("hidden_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    index("lesson_comments_lesson_created_idx").on(
+      table.lessonId,
+      table.createdAt
+    ),
+    index("lesson_comments_parent_created_idx").on(
+      table.parentId,
+      table.createdAt
+    ),
+    index("lesson_comments_author_idx").on(table.authorUserId),
   ]
 );
 

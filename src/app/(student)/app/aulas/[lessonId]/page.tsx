@@ -17,6 +17,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
+import { LessonCommentsSection } from "@/components/lesson-comments-section";
 import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
@@ -31,6 +32,7 @@ import {
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
+import { getLessonComments } from "@/features/comments/server";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
   canAccessStudentRoute,
@@ -59,6 +61,7 @@ const RESOURCE_NAME_QUERY_PATTERN = /[?#]/;
 type LessonPageData = NonNullable<
   Awaited<ReturnType<typeof getStudentLessonData>>
 >;
+type LessonCommentsData = Awaited<ReturnType<typeof getLessonComments>>;
 interface LessonSearchParams {
   busca?: string;
   focus?: string;
@@ -108,6 +111,11 @@ export default async function LessonPage({
     notFound();
   }
 
+  const commentsData = await getLessonComments({
+    lessonId: data.lesson.id,
+    role: session.role,
+    userId: session.user.id,
+  });
   const lessonView = getLessonViewState({
     data,
     query,
@@ -129,6 +137,7 @@ export default async function LessonPage({
         ) : null}
 
         <LessonMainContent
+          commentsData={commentsData}
           data={data}
           lessonView={lessonView}
           previewMode={previewMode}
@@ -211,10 +220,12 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
 }
 
 function LessonMainContent({
+  commentsData,
   data,
   lessonView,
   previewMode,
 }: {
+  commentsData: LessonCommentsData;
   data: LessonPageData;
   lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
@@ -232,6 +243,16 @@ function LessonMainContent({
       data={data}
       lessonView={lessonView}
       previewMode={previewMode}
+    />
+  );
+  const commentsSection = lessonView.isFocusMode ? null : (
+    <LessonCommentsSection
+      canComment={!previewMode}
+      canModerate={false}
+      comments={commentsData.comments}
+      context="student"
+      lessonId={data.lesson.id}
+      totalCount={commentsData.totalCount}
     />
   );
 
@@ -253,6 +274,7 @@ function LessonMainContent({
           ) : null}
           {footer}
         </LessonVideoPlayer>
+        {commentsSection}
       </div>
     );
   }
@@ -262,6 +284,7 @@ function LessonMainContent({
       {header}
       <LessonContentFrame lesson={data.lesson} />
       <div className="px-5 py-7 sm:px-9">{footer}</div>
+      {commentsSection}
     </div>
   );
 }
