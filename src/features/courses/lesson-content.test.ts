@@ -96,17 +96,17 @@ describe("lesson content", () => {
     ).toThrow("Informe uma URL http ou https valida para o material.");
   });
 
-  it("rejects removed legacy lesson content types", () => {
+  it("rejects removed non-video/text lesson content types", () => {
     expect(
       parseLessonContent({
-        type: "presentation",
+        type: "file",
         url: "https://example.com/slides.pdf",
       })
     ).toBeNull();
 
     expect(
       parseLessonContent({
-        type: "bonus",
+        type: "download",
         body: "Material complementar",
         url: "https://example.com/material",
       })
@@ -137,10 +137,10 @@ describe("lesson content", () => {
     expect(
       getLessonContentReadiness({
         contentJson: {
-          type: "bonus",
+          type: "download",
           body: "Material que nao deve mais contar como aula",
         },
-        lessonType: "bonus",
+        lessonType: "download",
         videoEmbedUrl: null,
         videoExternalId: null,
         videoProvider: null,
