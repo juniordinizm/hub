@@ -69,6 +69,76 @@ describe("lesson content", () => {
     });
   });
 
+  it("stores R2 lesson attachments as private resources scoped to the lesson", () => {
+    const formData = new FormData();
+    formData.set("textDocument", JSON.stringify(richTextDocument));
+    formData.set("resourceStorage[]", "r2");
+    formData.set("resourceLabel[]", "Apostila");
+    formData.set(
+      "resourceKey[]",
+      "lessons/lesson-1/resources/upload-1-apostila.pdf"
+    );
+    formData.set("resourceFileName[]", "apostila.pdf");
+    formData.set("resourceContentType[]", "application/pdf");
+    formData.set("resourceSizeBytes[]", "1024");
+
+    expect(
+      normalizeLessonContentFromForm({
+        formData,
+        lessonId: "lesson-1",
+        lessonType: "text",
+      })
+    ).toEqual({
+      type: "text",
+      document: richTextDocument,
+      resources: [
+        {
+          contentType: "application/pdf",
+          fileName: "apostila.pdf",
+          id: "resource-1",
+          key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
+          label: "Apostila",
+          sizeBytes: 1024,
+          storage: "r2",
+        },
+      ],
+    });
+  });
+
+  it("reads stored R2 lesson attachments", () => {
+    expect(
+      parseLessonContent({
+        type: "text",
+        document: richTextDocument,
+        resources: [
+          {
+            contentType: "application/pdf",
+            fileName: "apostila.pdf",
+            id: "resource-1",
+            key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
+            label: "Apostila",
+            sizeBytes: 1024,
+            storage: "r2",
+          },
+        ],
+      })
+    ).toEqual({
+      type: "text",
+      document: richTextDocument,
+      resources: [
+        {
+          contentType: "application/pdf",
+          fileName: "apostila.pdf",
+          id: "resource-1",
+          key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
+          label: "Apostila",
+          sizeBytes: 1024,
+          storage: "r2",
+        },
+      ],
+    });
+  });
+
   it("rejects empty rich text documents and invalid resource URLs", () => {
     const emptyDocument = new FormData();
     emptyDocument.set(
@@ -94,6 +164,22 @@ describe("lesson content", () => {
         lessonType: "text",
       })
     ).toThrow("Informe uma URL http ou https valida para o material.");
+
+    const invalidR2Key = new FormData();
+    invalidR2Key.set("textDocument", JSON.stringify(richTextDocument));
+    invalidR2Key.set("resourceStorage[]", "r2");
+    invalidR2Key.set("resourceKey[]", "lessons/other/resources/file.pdf");
+    invalidR2Key.set("resourceFileName[]", "file.pdf");
+    invalidR2Key.set("resourceContentType[]", "application/pdf");
+    invalidR2Key.set("resourceSizeBytes[]", "100");
+
+    expect(() =>
+      normalizeLessonContentFromForm({
+        formData: invalidR2Key,
+        lessonId: "lesson-1",
+        lessonType: "text",
+      })
+    ).toThrow("O arquivo enviado nao pertence a esta aula.");
   });
 
   it("rejects removed non-video/text lesson content types", () => {

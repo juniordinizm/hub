@@ -366,7 +366,7 @@ function LessonContentFrame({
           <div className="text-base leading-8 [&_.lesson-rich-text_a]:font-medium [&_.lesson-rich-text_a]:text-primary [&_.lesson-rich-text_a]:underline [&_.lesson-rich-text_a]:underline-offset-4 [&_.lesson-rich-text_blockquote]:border-l-2 [&_.lesson-rich-text_blockquote]:pl-4 [&_.lesson-rich-text_blockquote]:text-muted-foreground [&_.lesson-rich-text_h2]:mt-6 [&_.lesson-rich-text_h2]:font-semibold [&_.lesson-rich-text_h2]:text-2xl [&_.lesson-rich-text_h3]:mt-5 [&_.lesson-rich-text_h3]:font-semibold [&_.lesson-rich-text_h3]:text-xl [&_.lesson-rich-text_ol]:ml-6 [&_.lesson-rich-text_ol]:list-decimal [&_.lesson-rich-text_p]:my-3 [&_.lesson-rich-text_ul]:ml-6 [&_.lesson-rich-text_ul]:list-disc">
             <LessonRichTextRenderer document={document} />
           </div>
-          <LessonResources resources={resources ?? []} />
+          <LessonResources lessonId={lesson.id} resources={resources ?? []} />
         </div>
       </article>
     );
@@ -380,8 +380,10 @@ function LessonContentFrame({
 }
 
 function LessonResources({
+  lessonId,
   resources,
 }: {
+  lessonId: string;
   resources: LessonResource[];
 }): React.JSX.Element | null {
   if (resources.length === 0) {
@@ -394,7 +396,14 @@ function LessonResources({
       <div className="flex flex-wrap gap-2">
         {resources.map((resource) => (
           <Button asChild key={resource.id} size="sm" variant="secondary">
-            <a href={resource.url} rel="noopener" target="_blank">
+            <a
+              href={getLessonResourceHref({
+                lessonId,
+                resource,
+              })}
+              rel="noopener"
+              target="_blank"
+            >
               {resource.label}
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
@@ -407,6 +416,22 @@ function LessonResources({
       </div>
     </div>
   );
+}
+
+function getLessonResourceHref({
+  lessonId,
+  resource,
+}: {
+  lessonId: string;
+  resource: LessonResource;
+}): string {
+  if (resource.storage === "r2") {
+    return route(
+      `/api/lessons/${lessonId}/resources/${resource.id}/download`
+    ) as string;
+  }
+
+  return resource.url;
 }
 
 function getLessonTypeLabel(lessonType: string): string {

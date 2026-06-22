@@ -430,6 +430,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
   const isVideoLesson = lessonType === "video";
   const contentJson = normalizeLessonContentFromForm({
     formData,
+    lessonId,
     lessonType,
   });
   const videoProvider = isVideoLesson ? "jmvstream" : null;
