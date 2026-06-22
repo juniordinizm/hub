@@ -144,7 +144,6 @@ export interface AdminManagementData {
     durationSeconds: number;
     id: string;
     isPublished: boolean;
-    lessonType: string;
     moduleId: string;
     moduleTitle: string;
     description: string | null;
@@ -250,7 +249,6 @@ export const getAdminManagementData =
         id: string;
         is_published: boolean;
         lesson_description: string | null;
-        lesson_type: string;
         module_id: string;
         module_title: string;
         sort_order: number;
@@ -261,7 +259,7 @@ export const getAdminManagementData =
       }>(
         `
           select l.id, l.module_id, m.title as module_title, c.title as course_title,
-                 l.title, l.description as lesson_description, l.lesson_type, l.content_json,
+                 l.title, l.description as lesson_description, l.content_json,
                  l.duration_seconds, l.sort_order, l.video_provider,
                  l.video_external_id, l.video_embed_url, l.is_published
           from lessons l
@@ -458,7 +456,6 @@ export const getAdminManagementData =
         durationSeconds: row.duration_seconds,
         id: row.id,
         isPublished: row.is_published,
-        lessonType: row.lesson_type,
         moduleId: row.module_id,
         moduleTitle: row.module_title,
         description: row.lesson_description,

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminManagementData } from "@/features/admin/server";
+import { parseLessonContent } from "@/features/courses/lesson-content";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 import { LessonEditorForm } from "../../course-builder-components";
@@ -45,6 +46,9 @@ export default async function AdminLessonEditPage({
   const asset = data.jmvstreamAssets.find(
     (item) => item.lessonId === lesson.id
   );
+  const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
+  const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
+  const hasAnyContent = hasVideo || hasText;
 
   return (
     <div className="space-y-6">
@@ -72,9 +76,11 @@ export default async function AdminLessonEditPage({
           <Badge variant={lesson.isPublished ? "default" : "outline"}>
             {lesson.isPublished ? "publicada" : "rascunho"}
           </Badge>
-          <Badge variant="secondary">
-            {lesson.lessonType === "text" ? "Texto" : "Video"}
-          </Badge>
+          {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
+          {hasText ? <Badge variant="secondary">Texto</Badge> : null}
+          {hasAnyContent ? null : (
+            <Badge variant="destructive">sem conteudo</Badge>
+          )}
           <Badge variant="outline">
             {formatLessonDuration(lesson.durationSeconds)}
           </Badge>

@@ -13,16 +13,8 @@ import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  createTextDocumentFromPlainText,
   EMPTY_TEXT_DOCUMENT,
   type LessonContent,
   type LessonResource,
@@ -35,17 +27,11 @@ import {
   validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
 
-const lessonTypeOptions = [
-  ["video", "Video"],
-  ["text", "Texto"],
-] as const;
-
 export function LessonKindControls({
   asset,
   defaultContentJson,
   defaultDurationSeconds,
   defaultEmbedUrl,
-  defaultLessonType,
   defaultOrder,
   lessonId,
 }: {
@@ -53,40 +39,14 @@ export function LessonKindControls({
   defaultContentJson?: unknown;
   defaultDurationSeconds: number;
   defaultEmbedUrl: string;
-  defaultLessonType: string;
   defaultOrder: number;
   lessonId?: string | undefined;
 }): React.JSX.Element {
   const content = parseLessonContent(defaultContentJson);
-  const defaultEditableLessonType =
-    defaultLessonType === "video" ? "video" : "text";
-  const [lessonType, setLessonType] = useState(defaultEditableLessonType);
-  const isVideoLesson = lessonType === "video";
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Field>
-          <FieldLabel>Tipo</FieldLabel>
-          <Select
-            defaultValue={lessonType}
-            name="lessonType"
-            onValueChange={(value) =>
-              setLessonType(value === "text" ? "text" : "video")
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              {lessonTypeOptions.map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+      <div className="grid gap-4">
         <Field>
           <FieldLabel>Duracao em segundos</FieldLabel>
           <Input
@@ -100,53 +60,53 @@ export function LessonKindControls({
       </div>
       <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
 
-      {isVideoLesson ? (
-        <>
-          <input name="videoProvider" type="hidden" value="jmvstream" />
-          <Tabs className="w-full" defaultValue="upload">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upload">Envio Direto</TabsTrigger>
-              <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
-            </TabsList>
-            <TabsContent className="pt-4" value="upload">
-              <JmvstreamUploadPanel
-                asset={asset}
-                currentVideoHash={null}
-                lessonId={lessonId}
-              />
-            </TabsContent>
-            <TabsContent className="pt-4" value="link">
-              <div className="flex flex-col gap-4">
-                <Field>
-                  <FieldLabel>Link ou iframe JMVStream</FieldLabel>
-                  <Input
-                    defaultValue={defaultEmbedUrl}
-                    name="videoEmbedUrl"
-                    placeholder="https://player.jmvstream.com/... ou iframe oficial"
-                  />
-                </Field>
-                <JmvstreamDurationDetector
-                  defaultEmbedUrl={defaultEmbedUrl}
-                  defaultProvider="jmvstream"
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </>
-      ) : null}
-
-      {lessonType === "text" ? (
-        <div className="flex flex-col gap-4">
-          <Field>
-            <FieldLabel>Conteudo da aula</FieldLabel>
-            <LessonRichTextEditor initialDocument={getTextDocument(content)} />
-          </Field>
-          <LessonResourcesFields
-            defaultResources={getResources(content)}
+      <input name="videoProvider" type="hidden" value="jmvstream" />
+      <Tabs className="w-full" defaultValue="upload">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="upload">Envio Direto</TabsTrigger>
+          <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
+        </TabsList>
+        <TabsContent className="pt-4" value="upload">
+          <JmvstreamUploadPanel
+            asset={asset}
+            currentVideoHash={null}
             lessonId={lessonId}
           />
-        </div>
+        </TabsContent>
+        <TabsContent className="pt-4" value="link">
+          <div className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+              <Input
+                defaultValue={defaultEmbedUrl}
+                name="videoEmbedUrl"
+                placeholder="https://player.jmvstream.com/... ou iframe oficial"
+              />
+            </Field>
+            <JmvstreamDurationDetector
+              defaultEmbedUrl={defaultEmbedUrl}
+              defaultProvider="jmvstream"
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+      {asset || defaultEmbedUrl ? (
+        <label className="flex w-fit items-center gap-2 text-muted-foreground text-sm">
+          <input className="size-4" name="removeVideo" type="checkbox" />
+          Remover video desta aula
+        </label>
       ) : null}
+
+      <div className="flex flex-col gap-4">
+        <Field>
+          <FieldLabel>Conteudo da aula</FieldLabel>
+          <LessonRichTextEditor initialDocument={getTextDocument(content)} />
+        </Field>
+        <LessonResourcesFields
+          defaultResources={getResources(content)}
+          lessonId={lessonId}
+        />
+      </div>
     </div>
   );
 }
@@ -588,12 +548,8 @@ const readUploadError = (value: unknown): string => {
 };
 
 const getTextDocument = (content: LessonContent | null): ProseMirrorJson => {
-  if (content?.type === "text" && "document" in content) {
+  if (content?.type === "text") {
     return content.document;
-  }
-
-  if (content?.type === "text" && "body" in content) {
-    return createTextDocumentFromPlainText(content.body);
   }
 
   return EMPTY_TEXT_DOCUMENT;

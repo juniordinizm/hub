@@ -12,7 +12,6 @@ import {
 import {
   getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
-  toLessonType,
 } from "@/features/courses/lesson-content";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
@@ -180,6 +179,39 @@ const getVideoExternalIdForLesson = async (
   return rows[0]?.video_external_id ?? null;
 };
 
+const getLessonVideoFormState = async ({
+  formData,
+  lessonId,
+}: {
+  formData: FormData;
+  lessonId: string;
+}): Promise<{
+  hasVideoContent: boolean;
+  videoEmbedUrl: string | null;
+  videoExternalId: string | null;
+  videoProvider: "jmvstream" | null;
+}> => {
+  const shouldRemoveVideo = formData.get("removeVideo") === "on";
+  const existingVideoExternalId = lessonId
+    ? await getVideoExternalIdForLesson(lessonId)
+    : null;
+  const videoEmbedUrl = shouldRemoveVideo
+    ? null
+    : resolveLessonVideoEmbedUrl({
+        embedUrl: readString(formData, "videoEmbedUrl") || null,
+        provider: "jmvstream",
+      });
+  const hasVideoContent = Boolean(videoEmbedUrl || existingVideoExternalId);
+  const shouldKeepVideo = hasVideoContent && !shouldRemoveVideo;
+
+  return {
+    hasVideoContent: shouldKeepVideo,
+    videoEmbedUrl,
+    videoExternalId: shouldKeepVideo ? existingVideoExternalId : null,
+    videoProvider: shouldKeepVideo ? "jmvstream" : null,
+  };
+};
+
 const getLessonR2ObjectKeys = async (lessonId: string): Promise<string[]> => {
   const { rows } = await getPool().query<{ content_json: unknown }>(
     "select content_json from lessons where id = $1 limit 1",
@@ -238,16 +270,16 @@ const deleteRemovedR2Objects = async ({
 
 const cleanupUpdatedLessonAssets = async ({
   contentJson,
-  isVideoLesson,
+  hasVideoContent,
   lessonId,
   previousR2Keys,
 }: {
   contentJson: unknown;
-  isVideoLesson: boolean;
+  hasVideoContent: boolean;
   lessonId: string;
   previousR2Keys: string[];
 }): Promise<void> => {
-  if (!isVideoLesson) {
+  if (!hasVideoContent) {
     await deleteJmvstreamAssetsForLesson(lessonId);
   }
 
@@ -528,14 +560,12 @@ export const createLessonDraftAction = async (
     throw new Error("Modulo invalido.");
   }
 
-  const isVideoLesson = draft.lessonType === "video";
   const inserted = await getPool().query<{ id: string }>(
     `
       insert into lessons (
         module_id,
         title,
         description,
-        lesson_type,
         video_provider,
         video_external_id,
         video_embed_url,
@@ -544,17 +574,10 @@ export const createLessonDraftAction = async (
         sort_order,
         is_published
       )
-      values ($1, $2, $3, $4, $5, null, null, null, 0, $6, false)
+      values ($1, $2, $3, null, null, null, null, 0, $4, false)
       returning id
     `,
-    [
-      draft.moduleId,
-      draft.title,
-      draft.description,
-      draft.lessonType,
-      isVideoLesson ? "jmvstream" : null,
-      draft.sortOrder,
-    ]
+    [draft.moduleId, draft.title, draft.description, draft.sortOrder]
   );
   const lessonId = inserted.rows[0]?.id;
 
@@ -578,30 +601,21 @@ export const createLessonDraftAction = async (
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const lessonId = readString(formData, "lessonId");
-  const lessonType = toLessonType(readString(formData, "lessonType"));
-  const isVideoLesson = lessonType === "video";
   const contentJson = normalizeLessonContentFromForm({
     formData,
     lessonId,
-    lessonType,
   });
-  const videoProvider = isVideoLesson ? "jmvstream" : null;
-  const videoExternalId =
-    isVideoLesson && lessonId
-      ? await getVideoExternalIdForLesson(lessonId)
-      : null;
-  const videoEmbedUrl = isVideoLesson
-    ? resolveLessonVideoEmbedUrl({
-        embedUrl: readString(formData, "videoEmbedUrl") || null,
-        provider: "jmvstream",
-      })
-    : null;
+  const { hasVideoContent, videoEmbedUrl, videoExternalId, videoProvider } =
+    await getLessonVideoFormState({ formData, lessonId });
+
+  if (!(hasVideoContent || contentJson)) {
+    throw new Error("Adicione video ou texto antes de salvar a aula.");
+  }
 
   const values = [
     readString(formData, "moduleId"),
     readString(formData, "title"),
     readString(formData, "description") || null,
-    lessonType,
     videoProvider,
     videoExternalId,
     videoEmbedUrl,
@@ -621,16 +635,15 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
         set module_id = $1,
             title = $2,
             description = $3,
-            lesson_type = $4,
-            video_provider = $5,
-            video_external_id = $6,
-            video_embed_url = $7,
-            content_json = $8::jsonb,
-            duration_seconds = $9,
-            sort_order = $10,
-            is_published = $11,
+            video_provider = $4,
+            video_external_id = $5,
+            video_embed_url = $6,
+            content_json = $7::jsonb,
+            duration_seconds = $8,
+            sort_order = $9,
+            is_published = $10,
             updated_at = now()
-        where id = $12
+        where id = $11
       `,
       [...values, lessonId]
     );
@@ -648,7 +661,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     }
     await cleanupUpdatedLessonAssets({
       contentJson,
-      isVideoLesson,
+      hasVideoContent,
       lessonId,
       previousR2Keys,
     });
@@ -659,7 +672,6 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           module_id,
           title,
           description,
-          lesson_type,
           video_provider,
           video_external_id,
           video_embed_url,
@@ -668,7 +680,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           sort_order,
           is_published
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9, $10)
         returning id
       `,
       values

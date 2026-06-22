@@ -4,8 +4,6 @@ import {
   MAX_LESSON_RESOURCES,
 } from "@/features/storage/r2-objects";
 
-export type LessonType = "text" | "video";
-
 export type ProseMirrorJson = JSONContent;
 
 export type LessonResource =
@@ -34,16 +32,11 @@ export interface LessonResourcePreview {
   width: number;
 }
 
-export type LessonContent =
-  | {
-      document: ProseMirrorJson;
-      resources?: LessonResource[];
-      type: "text";
-    }
-  | {
-      body: string;
-      type: "text";
-    };
+export interface LessonContent {
+  document: ProseMirrorJson;
+  resources?: LessonResource[];
+  type: "text";
+}
 
 export interface LessonContentReadiness {
   isReady: boolean;
@@ -55,11 +48,7 @@ export const EMPTY_TEXT_DOCUMENT: ProseMirrorJson = {
   content: [{ type: "paragraph" }],
 };
 
-const LESSON_TYPES = new Set<LessonType>(["text", "video"]);
 const LINE_BREAK_PATTERN = /\r?\n/;
-
-export const toLessonType = (value: string): LessonType =>
-  LESSON_TYPES.has(value as LessonType) ? (value as LessonType) : "video";
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
@@ -471,48 +460,25 @@ const validateLessonResourcesPolicy = (
 export const normalizeLessonContentFromForm = ({
   formData,
   lessonId,
-  lessonType,
 }: {
   formData: FormData;
   lessonId?: string | undefined;
-  lessonType: LessonType | string;
 }): LessonContent | null => {
-  const normalizedLessonType = toLessonType(lessonType);
+  const document = parseTextDocument(readString(formData, "textDocument"));
 
-  if (normalizedLessonType === "video") {
+  if (!(document && hasTextContent(document))) {
     return null;
   }
 
-  if (normalizedLessonType === "text") {
-    const document = parseTextDocument(readString(formData, "textDocument"));
+  const resources = validateLessonResourcesPolicy(
+    normalizeResourcesFromForm({ formData, lessonId })
+  );
 
-    if (!(document && hasTextContent(document))) {
-      throw new Error("Informe o conteudo textual da aula.");
-    }
-
-    const resources = validateLessonResourcesPolicy(
-      normalizeResourcesFromForm({ formData, lessonId })
-    );
-
-    return {
-      type: "text",
-      document,
-      ...(resources.length > 0 ? { resources } : {}),
-    };
-  }
-
-  return null;
-};
-
-const parseLegacyTextContent = (
-  candidate: Record<string, unknown>
-): LessonContent | null => {
-  if (!(candidate.type === "text" && typeof candidate.body === "string")) {
-    return null;
-  }
-
-  const body = normalizeBody(candidate.body);
-  return body ? { type: "text", body } : null;
+  return {
+    type: "text",
+    document,
+    ...(resources.length > 0 ? { resources } : {}),
+  };
 };
 
 const parseRichTextLessonContent = (
@@ -540,44 +506,30 @@ export const parseLessonContent = (value: unknown): LessonContent | null => {
     return null;
   }
 
-  return parseRichTextLessonContent(value) ?? parseLegacyTextContent(value);
+  return parseRichTextLessonContent(value);
 };
 
 export const getLessonContentReadiness = ({
   contentJson,
-  lessonType,
   videoEmbedUrl,
   videoExternalId,
   videoProvider,
 }: {
   contentJson: unknown;
-  lessonType: string;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
   videoProvider: string | null;
 }): LessonContentReadiness => {
-  const normalizedLessonType = toLessonType(lessonType);
-
-  if (normalizedLessonType === "video") {
-    const hasVideo =
-      videoProvider === "jmvstream"
-        ? Boolean(videoEmbedUrl?.trim())
-        : Boolean(videoEmbedUrl?.trim() || videoExternalId?.trim());
-
-    return hasVideo
-      ? { isReady: true, missingLabel: null }
-      : { isReady: false, missingLabel: "Adicionar video" };
-  }
-
+  const hasVideo =
+    videoProvider === "jmvstream"
+      ? Boolean(videoEmbedUrl?.trim())
+      : Boolean(videoEmbedUrl?.trim() || videoExternalId?.trim());
   const content = parseLessonContent(contentJson);
+  const hasText = content?.type === "text";
 
-  if (normalizedLessonType === "text") {
-    return content?.type === "text"
-      ? { isReady: true, missingLabel: null }
-      : { isReady: false, missingLabel: "Adicionar texto" };
-  }
-
-  return { isReady: false, missingLabel: "Adicionar video" };
+  return hasVideo || hasText
+    ? { isReady: true, missingLabel: null }
+    : { isReady: false, missingLabel: "Adicionar video ou texto" };
 };
 
 export const getLessonContentStorageKeys = (value: unknown): string[] => {

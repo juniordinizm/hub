@@ -75,7 +75,6 @@ export interface AdminLessonContentInput {
   contentJson: unknown;
   durationSeconds: number;
   isPublished: boolean;
-  lessonType: string;
   moduleId: string;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;

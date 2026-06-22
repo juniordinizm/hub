@@ -127,6 +127,13 @@
       "when": 1782133200000,
       "tag": "0017_course_cover_image_json",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782136800000,
+      "tag": "0018_dynamic_lessons_without_type",
+      "breakpoints": true
     }
   ]
 }

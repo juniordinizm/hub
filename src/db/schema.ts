@@ -30,7 +30,6 @@ export const courseStatusEnum = pgEnum("course_status", [
   "active",
   "archived",
 ]);
-export const lessonTypeEnum = pgEnum("lesson_type", ["video", "text"]);
 export const videoProviderEnum = pgEnum("video_provider", [
   "panda",
   "jmvstream",
@@ -211,7 +210,6 @@ export const lessons = pgTable(
       .references(() => modules.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
-    lessonType: lessonTypeEnum("lesson_type").default("video").notNull(),
     videoProvider: videoProviderEnum("video_provider"),
     videoExternalId: text("video_external_id"),
     videoEmbedUrl: text("video_embed_url"),

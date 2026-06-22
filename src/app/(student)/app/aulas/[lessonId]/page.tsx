@@ -31,10 +31,7 @@ import {
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
-import {
-  createTextDocumentFromPlainText,
-  type LessonResource,
-} from "@/features/courses/lesson-content";
+import type { LessonResource } from "@/features/courses/lesson-content";
 import {
   canAccessStudentRoute,
   getHrefWithSearchParams,
@@ -238,7 +235,7 @@ function LessonMainContent({
     />
   );
 
-  if (data.lesson.lessonType === "video") {
+  if (lessonView.videoEmbedUrl) {
     return (
       <div className="flex flex-col">
         {header}
@@ -251,6 +248,9 @@ function LessonMainContent({
           videoEmbedUrl={lessonView.videoEmbedUrl}
           videoProvider={data.lesson.videoProvider}
         >
+          {data.lesson.contentJson ? (
+            <LessonContentFrame lesson={data.lesson} />
+          ) : null}
           {footer}
         </LessonVideoPlayer>
       </div>
@@ -367,10 +367,7 @@ function LessonContentFrame({
   if (lesson.contentJson?.type === "text") {
     const resources =
       "resources" in lesson.contentJson ? lesson.contentJson.resources : [];
-    const document =
-      "document" in lesson.contentJson
-        ? lesson.contentJson.document
-        : createTextDocumentFromPlainText(lesson.contentJson.body);
+    const { document } = lesson.contentJson;
 
     return (
       <article className="border-border/50 border-b bg-card px-5 py-8 sm:px-9">

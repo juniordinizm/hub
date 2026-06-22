@@ -1,11 +1,5 @@
-import {
-  type LessonType,
-  toLessonType,
-} from "@/features/courses/lesson-content";
-
 export interface LessonDraftInput {
   description: string;
-  lessonType: LessonType;
   moduleId: string;
   sortOrder: number;
   title: string;
@@ -32,7 +26,6 @@ export const normalizeLessonDraftInput = (
 
   return {
     description,
-    lessonType: toLessonType(readString(formData, "lessonType") || "video"),
     moduleId,
     sortOrder: readNumber(formData, "sortOrder", 1),
     title,

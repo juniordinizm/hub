@@ -32,13 +32,6 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -49,6 +42,7 @@ import {
   saveModuleAction,
 } from "@/features/admin/actions";
 import type { getAdminManagementData } from "@/features/admin/server";
+import { parseLessonContent } from "@/features/courses/lesson-content";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 
@@ -157,6 +151,8 @@ export function LessonRow({
   lesson: LessonData;
 }): React.JSX.Element {
   const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
+  const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
+  const hasAnyContent = hasVideo || hasText;
 
   return (
     <div className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
@@ -169,10 +165,11 @@ export function LessonRow({
           <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
             <span>{formatLessonDuration(lesson.durationSeconds)}</span>
             <span>·</span>
-            <span>{getLessonTypeLabel(lesson.lessonType)}</span>
-            {lesson.lessonType === "video" && !hasVideo ? (
-              <Badge variant="destructive">sem video</Badge>
-            ) : null}
+            {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
+            {hasText ? <Badge variant="secondary">Texto</Badge> : null}
+            {hasAnyContent ? null : (
+              <Badge variant="destructive">sem conteudo</Badge>
+            )}
           </div>
         </div>
         <span className="truncate font-mono text-muted-foreground text-xs">
@@ -267,14 +264,6 @@ export function ModuleForm({
   );
 }
 
-function getLessonTypeLabel(lessonType: string): string {
-  if (lessonType === "text") {
-    return "Texto";
-  }
-
-  return "Video";
-}
-
 export function LessonEditorForm({
   asset,
   lesson,
@@ -300,7 +289,6 @@ export function LessonEditorForm({
                 defaultContentJson={lesson.contentJson}
                 defaultDurationSeconds={lesson.durationSeconds}
                 defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
-                defaultLessonType={lesson.lessonType}
                 defaultOrder={lesson.sortOrder}
                 lessonId={lesson.id}
               />
@@ -367,18 +355,6 @@ export function CreateLessonDraftForm({
           <Field>
             <FieldLabel>Subtitulo</FieldLabel>
             <Textarea name="description" required />
-          </Field>
-          <Field>
-            <FieldLabel>Tipo de aula</FieldLabel>
-            <Select defaultValue="video" name="lessonType">
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="video">Video</SelectItem>
-                <SelectItem value="text">Texto</SelectItem>
-              </SelectContent>
-            </Select>
           </Field>
         </FieldGroup>
       </DialogBody>

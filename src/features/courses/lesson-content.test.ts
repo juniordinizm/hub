@@ -17,17 +17,21 @@ const richTextDocument = {
 };
 
 describe("lesson content", () => {
-  it("keeps video lessons content-free and ready only when a player exists", () => {
+  it("treats empty text content as absent so video can provide the lesson body", () => {
+    const emptyDocument = new FormData();
+    emptyDocument.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
+
     const content = normalizeLessonContentFromForm({
-      formData: new FormData(),
-      lessonType: "video",
+      formData: emptyDocument,
     });
 
     expect(content).toBeNull();
     expect(
       getLessonContentReadiness({
         contentJson: content,
-        lessonType: "video",
         videoEmbedUrl: "https://player.jmvstream.com/video",
         videoExternalId: "hash",
         videoProvider: "jmvstream",
@@ -36,12 +40,11 @@ describe("lesson content", () => {
     expect(
       getLessonContentReadiness({
         contentJson: content,
-        lessonType: "video",
         videoEmbedUrl: null,
         videoExternalId: "hash",
         videoProvider: "jmvstream",
       })
-    ).toEqual({ isReady: false, missingLabel: "Adicionar video" });
+    ).toEqual({ isReady: false, missingLabel: "Adicionar video ou texto" });
   });
 
   it("stores rich text documents and external lesson resources for text lessons", () => {
@@ -55,7 +58,6 @@ describe("lesson content", () => {
     expect(
       normalizeLessonContentFromForm({
         formData,
-        lessonType: "text",
       })
     ).toEqual({
       type: "text",
@@ -97,7 +99,6 @@ describe("lesson content", () => {
       normalizeLessonContentFromForm({
         formData,
         lessonId: "lesson-1",
-        lessonType: "text",
       })
     ).toEqual({
       type: "text",
@@ -222,7 +223,6 @@ describe("lesson content", () => {
       normalizeLessonContentFromForm({
         formData: tooManyResources,
         lessonId: "lesson-1",
-        lessonType: "text",
       })
     ).toThrow("Limite de 15 materiais por aula atingido.");
 
@@ -242,25 +242,11 @@ describe("lesson content", () => {
       normalizeLessonContentFromForm({
         formData: tooLargeTotal,
         lessonId: "lesson-1",
-        lessonType: "text",
       })
     ).toThrow("Limite de 750 MB em materiais da aula atingido.");
   });
 
-  it("rejects empty rich text documents and invalid resource URLs", () => {
-    const emptyDocument = new FormData();
-    emptyDocument.set(
-      "textDocument",
-      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
-    );
-
-    expect(() =>
-      normalizeLessonContentFromForm({
-        formData: emptyDocument,
-        lessonType: "text",
-      })
-    ).toThrow("Informe o conteudo textual da aula.");
-
+  it("rejects invalid resource URLs and invalid R2 ownership", () => {
     const invalid = new FormData();
     invalid.set("textDocument", JSON.stringify(richTextDocument));
     invalid.set("resourceLabel[]", "Slides");
@@ -269,7 +255,6 @@ describe("lesson content", () => {
     expect(() =>
       normalizeLessonContentFromForm({
         formData: invalid,
-        lessonType: "text",
       })
     ).toThrow("Informe uma URL http ou https valida para o material.");
 
@@ -285,7 +270,6 @@ describe("lesson content", () => {
       normalizeLessonContentFromForm({
         formData: invalidR2Key,
         lessonId: "lesson-1",
-        lessonType: "text",
       })
     ).toThrow("O arquivo enviado nao pertence a esta aula.");
   });
@@ -307,11 +291,10 @@ describe("lesson content", () => {
     ).toBeNull();
   });
 
-  it("marks text lesson content readiness correctly", () => {
+  it("marks lessons ready when video, text, or both are present", () => {
     expect(
       getLessonContentReadiness({
         contentJson: { type: "text", document: richTextDocument },
-        lessonType: "text",
         videoEmbedUrl: null,
         videoExternalId: null,
         videoProvider: null,
@@ -320,25 +303,29 @@ describe("lesson content", () => {
 
     expect(
       getLessonContentReadiness({
-        contentJson: { type: "text", body: "Aula legada" },
-        lessonType: "text",
-        videoEmbedUrl: null,
-        videoExternalId: null,
-        videoProvider: null,
+        contentJson: null,
+        videoEmbedUrl: "https://player.jmvstream.com/video",
+        videoExternalId: "hash",
+        videoProvider: "jmvstream",
       })
     ).toEqual({ isReady: true, missingLabel: null });
 
     expect(
       getLessonContentReadiness({
-        contentJson: {
-          type: "download",
-          body: "Material que nao deve mais contar como aula",
-        },
-        lessonType: "download",
+        contentJson: { type: "text", document: richTextDocument },
+        videoEmbedUrl: "https://player.jmvstream.com/video",
+        videoExternalId: "hash",
+        videoProvider: "jmvstream",
+      })
+    ).toEqual({ isReady: true, missingLabel: null });
+
+    expect(
+      getLessonContentReadiness({
+        contentJson: null,
         videoEmbedUrl: null,
         videoExternalId: null,
         videoProvider: null,
       })
-    ).toEqual({ isReady: false, missingLabel: "Adicionar video" });
+    ).toEqual({ isReady: false, missingLabel: "Adicionar video ou texto" });
   });
 });

@@ -113,7 +113,6 @@ export interface StudentCourseOverviewData {
       id: string;
       isAvailable: boolean;
       isCompleted: boolean;
-      lessonType: string;
       sortOrder: number;
       title: string;
       watchedPercent: number;
@@ -144,7 +143,6 @@ export interface StudentLessonData {
     description: string | null;
     durationSeconds: number;
     isCompleted: boolean;
-    lessonType: string;
     watchProgress: {
       currentSeconds: number;
       durationSeconds: number;
@@ -170,7 +168,6 @@ interface LessonRow {
   lesson_id: string;
   lesson_sort_order: number;
   lesson_title: string;
-  lesson_type: string;
   module_color: string;
   module_id: string;
   module_sort_order: number;
@@ -220,7 +217,6 @@ interface CourseOverviewRow {
   lesson_id: string | null;
   lesson_sort_order: number | null;
   lesson_title: string | null;
-  lesson_type: string | null;
   module_color: string | null;
   module_description: string | null;
   module_id: string | null;
@@ -241,7 +237,6 @@ interface CoursePreviewOverviewRow {
   lesson_id: string | null;
   lesson_sort_order: number | null;
   lesson_title: string | null;
-  lesson_type: string | null;
   module_color: string | null;
   module_description: string | null;
   module_id: string | null;
@@ -630,7 +625,6 @@ export const getStudentCourseOverviewData = async ({
         m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
-        l.lesson_type,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         lp.completed_at,
@@ -694,7 +688,6 @@ export const getStudentCourseOverviewData = async ({
       moduleData.lessons.push({
         id: row.lesson_id,
         title: row.lesson_title,
-        lessonType: row.lesson_type ?? "video",
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: Boolean(row.completed_at),
@@ -753,7 +746,6 @@ export const getCoursePreviewOverviewData = async ({
         m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
-        l.lesson_type,
         l.duration_seconds,
         l.sort_order as lesson_sort_order
       from courses c
@@ -801,7 +793,6 @@ export const getCoursePreviewOverviewData = async ({
       moduleData.lessons.push({
         id: row.lesson_id,
         title: row.lesson_title,
-        lessonType: row.lesson_type ?? "video",
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: false,
@@ -882,7 +873,6 @@ export const getStudentLessonData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
-        l.lesson_type,
         l.content_json,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
@@ -946,7 +936,6 @@ export const getStudentLessonData = async ({
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: Boolean(activeLesson.completed_at),
-      lessonType: activeLesson.lesson_type,
       watchProgress:
         activeLesson.watch_percent === null
           ? null
@@ -989,7 +978,6 @@ export const getPreviewLessonData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
-        l.lesson_type,
         l.content_json,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
@@ -1037,7 +1025,6 @@ export const getPreviewLessonData = async ({
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: false,
-      lessonType: activeLesson.lesson_type,
       watchProgress: null,
       videoEmbedUrl,
       videoProvider: activeLesson.video_provider,
