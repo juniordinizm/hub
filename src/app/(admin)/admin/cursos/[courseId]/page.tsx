@@ -211,8 +211,8 @@ export default async function AdminCourseDetailPage({
                     value={`${contentSummary.publishedLessons} de ${contentSummary.totalLessons}`}
                   />
                   <InfoRow
-                    label="Aulas com vídeo"
-                    value={`${contentSummary.videoReadyLessons} de ${contentSummary.totalLessons}`}
+                    label="Aulas com conteúdo"
+                    value={`${contentSummary.readyLessons} de ${contentSummary.totalLessons}`}
                   />
                   <InfoRow
                     label="Módulos cadastrados"

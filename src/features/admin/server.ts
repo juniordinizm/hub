@@ -138,6 +138,7 @@ export interface AdminManagementData {
     videoHash: string;
   }>;
   lessons: Array<{
+    contentJson: unknown;
     courseTitle: string;
     durationSeconds: number;
     id: string;
@@ -241,6 +242,7 @@ export const getAdminManagementData =
         `
       ),
       pool.query<{
+        content_json: unknown;
         course_title: string;
         duration_seconds: number;
         id: string;
@@ -257,7 +259,7 @@ export const getAdminManagementData =
       }>(
         `
           select l.id, l.module_id, m.title as module_title, c.title as course_title,
-                 l.title, l.description as lesson_description, l.lesson_type,
+                 l.title, l.description as lesson_description, l.lesson_type, l.content_json,
                  l.duration_seconds, l.sort_order, l.video_provider,
                  l.video_external_id, l.video_embed_url, l.is_published
           from lessons l
@@ -448,6 +450,7 @@ export const getAdminManagementData =
       })),
       jmvstreamAssets,
       lessons: lessons.rows.map((row) => ({
+        contentJson: row.content_json,
         courseTitle: row.course_title,
         durationSeconds: row.duration_seconds,
         id: row.id,

@@ -1,3 +1,5 @@
+import { getLessonContentReadiness } from "@/features/courses/lesson-content";
+
 export interface AdminCourseHealthInput {
   hasDescription: boolean;
   hasPaymentProviderProductId: boolean;
@@ -70,8 +72,10 @@ export interface AdminFinancialSignal {
 }
 
 export interface AdminLessonContentInput {
+  contentJson: unknown;
   durationSeconds: number;
   isPublished: boolean;
+  lessonType: string;
   moduleId: string;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
@@ -86,10 +90,10 @@ export interface AdminCourseContentSummary {
   draftLessons: number;
   emptyModules: number;
   publishedLessons: number;
+  readyLessons: number;
   totalDurationSeconds: number;
   totalLessons: number;
-  videoReadyLessons: number;
-  withoutVideoLessons: number;
+  withoutContentLessons: number;
 }
 
 export interface AdminCourseContentSignal {
@@ -311,11 +315,6 @@ export const getAdminFinancialSignal = ({
   };
 };
 
-const hasLessonVideo = (lesson: AdminLessonContentInput): boolean =>
-  lesson.videoProvider === "jmvstream"
-    ? Boolean(lesson.videoEmbedUrl?.trim())
-    : Boolean(lesson.videoEmbedUrl?.trim() || lesson.videoExternalId?.trim());
-
 export const summarizeAdminCourseContent = ({
   lessons,
   modules,
@@ -323,7 +322,9 @@ export const summarizeAdminCourseContent = ({
   lessons: readonly AdminLessonContentInput[];
   modules: readonly AdminModuleContentInput[];
 }): AdminCourseContentSummary => {
-  const videoReadyLessons = lessons.filter(hasLessonVideo).length;
+  const lessonReadiness = lessons.map((lesson) =>
+    getLessonContentReadiness(lesson)
+  );
 
   return {
     draftLessons: lessons.filter((lesson) => !lesson.isPublished).length,
@@ -332,13 +333,16 @@ export const summarizeAdminCourseContent = ({
         !lessons.some((lesson) => lesson.moduleId === moduleData.id)
     ).length,
     publishedLessons: lessons.filter((lesson) => lesson.isPublished).length,
+    readyLessons: lessonReadiness.filter((readiness) => readiness.isReady)
+      .length,
     totalDurationSeconds: lessons.reduce(
       (sum, lesson) => sum + Math.max(0, lesson.durationSeconds),
       0
     ),
     totalLessons: lessons.length,
-    videoReadyLessons,
-    withoutVideoLessons: lessons.length - videoReadyLessons,
+    withoutContentLessons: lessons.filter(
+      (lesson, index) => lesson.isPublished && !lessonReadiness[index]?.isReady
+    ).length,
   };
 };
 
@@ -346,10 +350,10 @@ export const getAdminCourseContentSignal = ({
   draftLessons,
   emptyModules,
   totalLessons,
-  withoutVideoLessons,
+  withoutContentLessons,
 }: Pick<
   AdminCourseContentSummary,
-  "draftLessons" | "emptyModules" | "totalLessons" | "withoutVideoLessons"
+  "draftLessons" | "emptyModules" | "totalLessons" | "withoutContentLessons"
 >): AdminCourseContentSignal => {
   if (totalLessons === 0) {
     return {
@@ -359,13 +363,15 @@ export const getAdminCourseContentSignal = ({
     };
   }
 
-  if (withoutVideoLessons > 0) {
+  if (withoutContentLessons > 0) {
     return {
       tone: "attention",
-      label: "Aulas sem video",
-      helper: `${withoutVideoLessons} aula${
-        withoutVideoLessons === 1 ? "" : "s"
-      } ainda precisa de video ou embed.`,
+      label: "Aulas sem conteudo",
+      helper: `${withoutContentLessons} aula${
+        withoutContentLessons === 1 ? "" : "s"
+      } publicada${
+        withoutContentLessons === 1 ? "" : "s"
+      } ainda precisa de conteudo.`,
     };
   }
 

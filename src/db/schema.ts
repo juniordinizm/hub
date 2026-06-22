@@ -33,6 +33,7 @@ export const courseStatusEnum = pgEnum("course_status", [
 export const lessonTypeEnum = pgEnum("lesson_type", [
   "video",
   "presentation",
+  "text",
   "bonus",
 ]);
 export const videoProviderEnum = pgEnum("video_provider", [
@@ -218,6 +219,7 @@ export const lessons = pgTable(
     videoProvider: videoProviderEnum("video_provider"),
     videoExternalId: text("video_external_id"),
     videoEmbedUrl: text("video_embed_url"),
+    contentJson: jsonb("content_json"),
     durationSeconds: integer("duration_seconds").default(0).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isPublished: boolean("is_published").default(true).notNull(),

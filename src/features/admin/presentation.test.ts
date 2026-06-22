@@ -144,7 +144,9 @@ describe("admin presentation", () => {
       lessons: [
         {
           durationSeconds: 600,
+          contentJson: null,
           isPublished: true,
+          lessonType: "video",
           moduleId: "module-1",
           videoEmbedUrl: "https://player.jmvstream.com/evt/secret/video-1",
           videoExternalId: "video-1",
@@ -152,7 +154,9 @@ describe("admin presentation", () => {
         },
         {
           durationSeconds: 300,
+          contentJson: { type: "text", body: "Aula de leitura" },
           isPublished: false,
+          lessonType: "text",
           moduleId: "module-1",
           videoEmbedUrl: null,
           videoExternalId: null,
@@ -164,21 +168,23 @@ describe("admin presentation", () => {
     expect(summary).toEqual({
       draftLessons: 1,
       emptyModules: 1,
+      readyLessons: 2,
       publishedLessons: 1,
       totalDurationSeconds: 900,
       totalLessons: 2,
-      videoReadyLessons: 1,
-      withoutVideoLessons: 1,
+      withoutContentLessons: 0,
     });
   });
 
-  it("does not count a JMVStream hash as ready until a player URL is available", () => {
+  it("does not count a JMVStream hash as ready content until a player URL is available", () => {
     const summary = summarizeAdminCourseContent({
       modules: [{ id: "module-1" }],
       lessons: [
         {
           durationSeconds: 600,
+          contentJson: null,
           isPublished: true,
+          lessonType: "video",
           moduleId: "module-1",
           videoEmbedUrl: null,
           videoExternalId: "video-hash",
@@ -187,22 +193,22 @@ describe("admin presentation", () => {
       ],
     });
 
-    expect(summary.videoReadyLessons).toBe(0);
-    expect(summary.withoutVideoLessons).toBe(1);
+    expect(summary.readyLessons).toBe(0);
+    expect(summary.withoutContentLessons).toBe(1);
   });
 
-  it("prioritizes missing lesson videos in course content signal", () => {
+  it("prioritizes missing published lesson content in course content signal", () => {
     expect(
       getAdminCourseContentSignal({
         draftLessons: 2,
         emptyModules: 1,
         totalLessons: 4,
-        withoutVideoLessons: 1,
+        withoutContentLessons: 1,
       })
     ).toEqual({
       tone: "attention",
-      label: "Aulas sem video",
-      helper: "1 aula ainda precisa de video ou embed.",
+      label: "Aulas sem conteudo",
+      helper: "1 aula publicada ainda precisa de conteudo.",
     });
   });
 });

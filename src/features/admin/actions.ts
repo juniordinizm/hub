@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
+import {
+  normalizeLessonContentFromForm,
+  toLessonType,
+} from "@/features/courses/lesson-content";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import {
@@ -355,8 +359,12 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const lessonId = readString(formData, "lessonId");
-  const lessonType = readString(formData, "lessonType") || "video";
+  const lessonType = toLessonType(readString(formData, "lessonType"));
   const isVideoLesson = lessonType === "video";
+  const contentJson = normalizeLessonContentFromForm({
+    formData,
+    lessonType,
+  });
   const videoProvider = isVideoLesson ? "jmvstream" : null;
   const videoExternalId =
     isVideoLesson && lessonId
@@ -377,6 +385,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     videoProvider,
     videoExternalId,
     videoEmbedUrl,
+    contentJson ? JSON.stringify(contentJson) : null,
     readNumber(formData, "durationSeconds"),
     readNumber(formData, "sortOrder", 1),
     formData.get("isPublished") === "on",
@@ -395,11 +404,12 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
             video_provider = $5,
             video_external_id = $6,
             video_embed_url = $7,
-            duration_seconds = $8,
-            sort_order = $9,
-            is_published = $10,
+            content_json = $8::jsonb,
+            duration_seconds = $9,
+            sort_order = $10,
+            is_published = $11,
             updated_at = now()
-        where id = $11
+        where id = $12
       `,
       [...values, lessonId]
     );
@@ -429,11 +439,12 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           video_provider,
           video_external_id,
           video_embed_url,
+          content_json,
           duration_seconds,
           sort_order,
           is_published
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
         returning id
       `,
       values

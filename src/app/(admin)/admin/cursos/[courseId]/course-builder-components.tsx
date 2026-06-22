@@ -175,8 +175,10 @@ export function LessonRow({
           <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
             <span>{formatLessonDuration(lesson.durationSeconds)}</span>
             <span>·</span>
-            <span>{lesson.videoProvider ?? "sem vídeo"}</span>
-            {hasVideo ? null : <Badge variant="destructive">sem video</Badge>}
+            <span>{getLessonTypeLabel(lesson.lessonType)}</span>
+            {lesson.lessonType === "video" && !hasVideo ? (
+              <Badge variant="destructive">sem video</Badge>
+            ) : null}
           </div>
         </div>
         <span className="truncate font-mono text-muted-foreground text-xs">
@@ -281,6 +283,22 @@ export function ModuleForm({
   );
 }
 
+function getLessonTypeLabel(lessonType: string): string {
+  if (lessonType === "presentation") {
+    return "Apresentacao";
+  }
+
+  if (lessonType === "text") {
+    return "Texto";
+  }
+
+  if (lessonType === "bonus") {
+    return "Bonus";
+  }
+
+  return "Video";
+}
+
 export function LessonForm({
   asset,
   defaultModuleId,
@@ -311,6 +329,7 @@ export function LessonForm({
             <div className="grid gap-4">
               <LessonKindControls
                 asset={asset}
+                defaultContentJson={lesson?.contentJson}
                 defaultDurationSeconds={lesson?.durationSeconds ?? 0}
                 defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
                 defaultLessonType={lesson?.lessonType ?? "video"}

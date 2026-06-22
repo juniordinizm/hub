@@ -2,6 +2,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import { createCertificateCode } from "@/features/certificates/rules";
+import {
+  type LessonContent,
+  parseLessonContent,
+} from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
@@ -134,11 +138,13 @@ export interface StudentLessonData {
   };
   isPreview: boolean;
   lesson: {
+    contentJson: LessonContent | null;
     id: string;
     title: string;
     description: string | null;
     durationSeconds: number;
     isCompleted: boolean;
+    lessonType: string;
     watchProgress: {
       currentSeconds: number;
       durationSeconds: number;
@@ -156,6 +162,7 @@ export interface StudentLessonData {
 
 interface LessonRow {
   completed_at: Date | null;
+  content_json: unknown;
   course_id: string;
   course_title: string;
   duration_seconds: number;
@@ -163,6 +170,7 @@ interface LessonRow {
   lesson_id: string;
   lesson_sort_order: number;
   lesson_title: string;
+  lesson_type: string;
   module_color: string;
   module_id: string;
   module_sort_order: number;
@@ -874,6 +882,8 @@ export const getStudentLessonData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
+        l.lesson_type,
+        l.content_json,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
@@ -930,11 +940,13 @@ export const getStudentLessonData = async ({
     },
     isPreview: false,
     lesson: {
+      contentJson: parseLessonContent(activeLesson.content_json),
       id: activeLesson.lesson_id,
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: Boolean(activeLesson.completed_at),
+      lessonType: activeLesson.lesson_type,
       watchProgress:
         activeLesson.watch_percent === null
           ? null
@@ -977,6 +989,8 @@ export const getPreviewLessonData = async ({
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
+        l.lesson_type,
+        l.content_json,
         l.duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
@@ -1017,11 +1031,13 @@ export const getPreviewLessonData = async ({
     },
     isPreview: true,
     lesson: {
+      contentJson: parseLessonContent(activeLesson.content_json),
       id: activeLesson.lesson_id,
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
       isCompleted: false,
+      lessonType: activeLesson.lesson_type,
       watchProgress: null,
       videoEmbedUrl,
       videoProvider: activeLesson.video_provider,

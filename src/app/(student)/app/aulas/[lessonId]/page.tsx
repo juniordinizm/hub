@@ -12,6 +12,7 @@ import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -121,77 +122,11 @@ export default async function LessonPage({
           <RegisterPreviewCourseId courseId={data.course.id} />
         ) : null}
 
-        <LessonVideoPlayer
-          durationSeconds={data.lesson.durationSeconds}
-          initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
-          isPreview={Boolean(previewMode)}
-          lessonId={data.lesson.id}
-          progressPercent={data.progressPercent}
-          title={data.lesson.title}
-          videoEmbedUrl={lessonView.videoEmbedUrl}
-          videoProvider={data.lesson.videoProvider}
-        >
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <h1 className="max-w-3xl font-bold text-2xl text-white tracking-tight">
-              {data.lesson.title}
-            </h1>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button asChild size="sm" variant="outline">
-                <Link href={lessonView.focusHref}>
-                  <HugeiconsIcon
-                    icon={
-                      lessonView.isFocusMode ? Minimize01Icon : Maximize01Icon
-                    }
-                    size={16}
-                    strokeWidth={2}
-                  />
-                  {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
-                </Link>
-              </Button>
-              {data.lesson.isCompleted ? (
-                <Badge
-                  className="border-emerald-400/35 bg-emerald-400/15 py-1.5 text-emerald-200"
-                  variant="outline"
-                >
-                  Aula concluída
-                </Badge>
-              ) : (
-                <CompleteLessonButton
-                  isPreview={Boolean(previewMode)}
-                  lessonId={data.lesson.id}
-                  size="sm"
-                />
-              )}
-            </div>
-          </div>
-          {data.lesson.description ? (
-            <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7">
-              {data.lesson.description}
-            </p>
-          ) : null}
-
-          <div className="mt-7 grid gap-3 md:grid-cols-2">
-            <NavigationCard
-              lesson={lessonView.previousLesson}
-              previewMode={previewMode}
-              type="previous"
-            />
-            <NavigationCard
-              lesson={lessonView.nextLesson}
-              previewMode={previewMode}
-              type="next"
-            />
-          </div>
-
-          <LessonNextStepCard
-            courseHref={lessonView.courseHref}
-            isCompleted={data.lesson.isCompleted}
-            isPreview={Boolean(previewMode)}
-            lessonId={data.lesson.id}
-            nextLessonId={data.nextLessonId}
-            previewMode={previewMode}
-          />
-        </LessonVideoPlayer>
+        <LessonMainContent
+          data={data}
+          lessonView={lessonView}
+          previewMode={previewMode}
+        />
       </section>
 
       {lessonView.isFocusMode ? null : (
@@ -269,6 +204,236 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
       title: lesson.title,
     }))
   );
+}
+
+function LessonMainContent({
+  data,
+  lessonView,
+  previewMode,
+}: {
+  data: LessonPageData;
+  lessonView: ReturnType<typeof getLessonViewState>;
+  previewMode: StudentPreviewMode | null;
+}): React.JSX.Element {
+  const details = (
+    <LessonDetails
+      data={data}
+      isVideo={data.lesson.lessonType === "video"}
+      lessonView={lessonView}
+      previewMode={previewMode}
+    />
+  );
+
+  if (data.lesson.lessonType === "video") {
+    return (
+      <LessonVideoPlayer
+        durationSeconds={data.lesson.durationSeconds}
+        initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
+        isPreview={Boolean(previewMode)}
+        lessonId={data.lesson.id}
+        progressPercent={data.progressPercent}
+        title={data.lesson.title}
+        videoEmbedUrl={lessonView.videoEmbedUrl}
+        videoProvider={data.lesson.videoProvider}
+      >
+        {details}
+      </LessonVideoPlayer>
+    );
+  }
+
+  return (
+    <>
+      <LessonContentFrame lesson={data.lesson} />
+      <div className="px-5 py-7 sm:px-9">
+        <div className="flex flex-wrap gap-2">
+          <Badge
+            className="border-primary/30 bg-primary/15 text-primary"
+            variant="outline"
+          >
+            {formatLessonDuration(data.lesson.durationSeconds)} -{" "}
+            {data.progressPercent}% do curso
+          </Badge>
+          <Badge variant="outline">
+            {getLessonTypeLabel(data.lesson.lessonType)}
+          </Badge>
+        </div>
+        {details}
+      </div>
+    </>
+  );
+}
+
+function LessonDetails({
+  data,
+  isVideo,
+  lessonView,
+  previewMode,
+}: {
+  data: LessonPageData;
+  isVideo: boolean;
+  lessonView: ReturnType<typeof getLessonViewState>;
+  previewMode: StudentPreviewMode | null;
+}): React.JSX.Element {
+  return (
+    <>
+      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <h1
+          className={cn(
+            "max-w-3xl font-bold text-2xl tracking-tight",
+            isVideo ? "text-white" : "text-foreground"
+          )}
+        >
+          {data.lesson.title}
+        </h1>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={lessonView.focusHref}>
+              <HugeiconsIcon
+                icon={lessonView.isFocusMode ? Minimize01Icon : Maximize01Icon}
+                size={16}
+                strokeWidth={2}
+              />
+              {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
+            </Link>
+          </Button>
+          {data.lesson.isCompleted ? (
+            <Badge
+              className="border-emerald-400/35 bg-emerald-400/15 py-1.5 text-emerald-200"
+              variant="outline"
+            >
+              Aula concluida
+            </Badge>
+          ) : (
+            <CompleteLessonButton
+              isPreview={Boolean(previewMode)}
+              lessonId={data.lesson.id}
+              size="sm"
+            />
+          )}
+        </div>
+      </div>
+      {data.lesson.description ? (
+        <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7">
+          {data.lesson.description}
+        </p>
+      ) : null}
+
+      <div className="mt-7 grid gap-3 md:grid-cols-2">
+        <NavigationCard
+          lesson={lessonView.previousLesson}
+          previewMode={previewMode}
+          type="previous"
+        />
+        <NavigationCard
+          lesson={lessonView.nextLesson}
+          previewMode={previewMode}
+          type="next"
+        />
+      </div>
+
+      <LessonNextStepCard
+        courseHref={lessonView.courseHref}
+        isCompleted={data.lesson.isCompleted}
+        isPreview={Boolean(previewMode)}
+        lessonId={data.lesson.id}
+        nextLessonId={data.nextLessonId}
+        previewMode={previewMode}
+      />
+    </>
+  );
+}
+
+function LessonContentFrame({
+  lesson,
+}: {
+  lesson: LessonPageData["lesson"];
+}): React.JSX.Element {
+  if (lesson.contentJson?.type === "presentation") {
+    return (
+      <div className="border-border/50 border-b bg-black">
+        <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
+          <iframe
+            allow="fullscreen; picture-in-picture"
+            allowFullScreen
+            className="h-full w-full"
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            sandbox="allow-same-origin allow-scripts allow-presentation allow-popups"
+            src={lesson.contentJson.url}
+            title={lesson.title}
+          />
+        </AspectRatio>
+        <div className="px-5 py-3 sm:px-9">
+          <Button asChild size="sm" variant="secondary">
+            <a href={lesson.contentJson.url} rel="noopener" target="_blank">
+              Abrir material
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={16}
+                strokeWidth={2}
+              />
+            </a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (lesson.contentJson?.type === "text") {
+    return (
+      <article className="border-border/50 border-b bg-card px-5 py-8 sm:px-9">
+        <div className="mx-auto max-w-3xl whitespace-pre-wrap text-base leading-8">
+          {lesson.contentJson.body}
+        </div>
+      </article>
+    );
+  }
+
+  if (lesson.contentJson?.type === "bonus") {
+    return (
+      <article className="border-border/50 border-b bg-card px-5 py-8 sm:px-9">
+        <div className="mx-auto flex max-w-3xl flex-col gap-5">
+          <div className="whitespace-pre-wrap text-base leading-8">
+            {lesson.contentJson.body}
+          </div>
+          {lesson.contentJson.url ? (
+            <Button asChild className="w-fit">
+              <a href={lesson.contentJson.url} rel="noopener" target="_blank">
+                Acessar material bonus
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
+              </a>
+            </Button>
+          ) : null}
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <div className="border-border/50 border-b bg-card px-5 py-12 text-center text-muted-foreground sm:px-9">
+      Conteudo em configuracao.
+    </div>
+  );
+}
+
+function getLessonTypeLabel(lessonType: string): string {
+  if (lessonType === "presentation") {
+    return "Apresentacao";
+  }
+
+  if (lessonType === "text") {
+    return "Texto";
+  }
+
+  if (lessonType === "bonus") {
+    return "Bonus";
+  }
+
+  return "Video";
 }
 
 function LessonNextStepCard({

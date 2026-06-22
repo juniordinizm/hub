@@ -16,15 +16,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  type LessonContent,
+  parseLessonContent,
+} from "@/features/courses/lesson-content";
 
 const lessonTypeOptions = [
-  ["video", "Vídeo"],
-  ["presentation", "Apresentação"],
-  ["bonus", "Bônus"],
+  ["video", "Video"],
+  ["presentation", "Apresentacao"],
+  ["text", "Texto"],
+  ["bonus", "Bonus"],
 ] as const;
 
 export function LessonKindControls({
   asset,
+  defaultContentJson,
   defaultDurationSeconds,
   defaultEmbedUrl,
   defaultLessonType,
@@ -32,6 +39,7 @@ export function LessonKindControls({
   lessonId,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
+  defaultContentJson?: unknown;
   defaultDurationSeconds: number;
   defaultEmbedUrl: string;
   defaultLessonType: string;
@@ -39,6 +47,7 @@ export function LessonKindControls({
   lessonId?: string | undefined;
 }): React.JSX.Element {
   const [lessonType, setLessonType] = useState(defaultLessonType || "video");
+  const content = parseLessonContent(defaultContentJson);
   const isVideoLesson = lessonType === "video";
 
   return (
@@ -64,7 +73,7 @@ export function LessonKindControls({
           </Select>
         </Field>
         <Field>
-          <FieldLabel>Duração em segundos</FieldLabel>
+          <FieldLabel>Duracao em segundos</FieldLabel>
           <Input
             defaultValue={defaultDurationSeconds}
             min={0}
@@ -110,6 +119,65 @@ export function LessonKindControls({
           </Tabs>
         </>
       ) : null}
+
+      {lessonType === "presentation" ? (
+        <Field>
+          <FieldLabel>Link da apresentacao ou PDF</FieldLabel>
+          <Input
+            defaultValue={getPresentationUrl(content)}
+            name="presentationUrl"
+            placeholder="https://..."
+            type="url"
+          />
+        </Field>
+      ) : null}
+
+      {lessonType === "text" ? (
+        <Field>
+          <FieldLabel>Conteudo da aula</FieldLabel>
+          <Textarea
+            defaultValue={getTextBody(content)}
+            name="textBody"
+            placeholder="Escreva o conteudo textual da aula..."
+            rows={10}
+          />
+        </Field>
+      ) : null}
+
+      {lessonType === "bonus" ? (
+        <div className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel>Conteudo do bonus</FieldLabel>
+            <Textarea
+              defaultValue={getBonusBody(content)}
+              name="bonusBody"
+              placeholder="Descreva o material bonus, instrucoes ou proximos passos..."
+              rows={8}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>Link opcional do material</FieldLabel>
+            <Input
+              defaultValue={getBonusUrl(content)}
+              name="bonusUrl"
+              placeholder="https://..."
+              type="url"
+            />
+          </Field>
+        </div>
+      ) : null}
     </div>
   );
 }
+
+const getPresentationUrl = (content: LessonContent | null): string =>
+  content?.type === "presentation" ? content.url : "";
+
+const getTextBody = (content: LessonContent | null): string =>
+  content?.type === "text" ? content.body : "";
+
+const getBonusBody = (content: LessonContent | null): string =>
+  content?.type === "bonus" ? content.body : "";
+
+const getBonusUrl = (content: LessonContent | null): string =>
+  content?.type === "bonus" ? (content.url ?? "") : "";
