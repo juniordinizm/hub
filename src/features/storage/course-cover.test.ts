@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCourseCoverObjectKey,
+  getCourseCoverStorageKeys,
   getCourseCoverVariantPath,
   parseCourseCoverImage,
   validateCourseCoverUploadRequest,
@@ -37,11 +38,6 @@ describe("course cover storage", () => {
             contentType: "image/webp",
             sizeBytes: 700 * 1024,
             variant: "card",
-          },
-          {
-            contentType: "image/webp",
-            sizeBytes: 1600 * 1024,
-            variant: "hero",
           },
         ],
       })
@@ -89,7 +85,7 @@ describe("course cover storage", () => {
           },
         ],
       })
-    ).toThrow("Envie as variantes thumb, card e hero da capa.");
+    ).toThrow("Envie as variantes thumb e card da capa.");
   });
 
   it("parses stored cover metadata and ignores invalid variants", () => {
@@ -176,5 +172,46 @@ describe("course cover storage", () => {
         variant: "card",
       })
     ).toBeNull();
+  });
+
+  it("extracts all R2 keys from stored cover metadata, including old variants", () => {
+    expect(
+      getCourseCoverStorageKeys({
+        original: {
+          contentType: "image/png",
+          fileName: "capa.png",
+          key: "courses/course-1/cover/upload-original.png",
+          sizeBytes: 1_000_000,
+        },
+        variants: {
+          card: {
+            contentType: "image/webp",
+            height: 540,
+            key: "courses/course-1/cover/upload-card.webp",
+            sizeBytes: 500_000,
+            width: 960,
+          },
+          hero: {
+            contentType: "image/webp",
+            height: 900,
+            key: "courses/course-1/cover/upload-hero.webp",
+            sizeBytes: 900_000,
+            width: 1600,
+          },
+          thumb: {
+            contentType: "image/webp",
+            height: 270,
+            key: "courses/course-1/cover/upload-thumb.webp",
+            sizeBytes: 120_000,
+            width: 480,
+          },
+        },
+      })
+    ).toEqual([
+      "courses/course-1/cover/upload-original.png",
+      "courses/course-1/cover/upload-card.webp",
+      "courses/course-1/cover/upload-hero.webp",
+      "courses/course-1/cover/upload-thumb.webp",
+    ]);
   });
 });

@@ -30,7 +30,11 @@ export async function GET(
 
   const signedUrl = await createR2ObjectReadUrl({ key: image.key });
 
-  const response = Response.redirect(signedUrl, 302);
-  response.headers.set("Cache-Control", "public, max-age=300");
-  return response;
+  return new Response(null, {
+    headers: {
+      "Cache-Control": "public, max-age=300",
+      Location: signedUrl,
+    },
+    status: 302,
+  });
 }

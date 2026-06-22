@@ -34,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
+import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
@@ -158,9 +159,11 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     {course.thumbnailUrl ? (
                       <div
                         aria-hidden="true"
-                        className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
+                        className="absolute inset-0 bg-center bg-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
                         style={{
-                          backgroundImage: `url(${course.thumbnailUrl})`,
+                          backgroundImage: getCourseCoverBackgroundImage(
+                            course.thumbnailUrl
+                          ),
                         }}
                       />
                     ) : (

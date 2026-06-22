@@ -10,6 +10,7 @@ import {
   normalizeLessonDraftInput,
 } from "@/features/admin/lesson-drafts";
 import {
+  getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
   toLessonType,
 } from "@/features/courses/lesson-content";
@@ -28,7 +29,12 @@ import {
 } from "@/features/jmvstream/server";
 import { parsePriceToCents } from "@/features/payments/abacatepay";
 import { createAbacatePayCourseProduct } from "@/features/payments/server";
-import { getCourseCoverVariantPath } from "@/features/storage/course-cover";
+import {
+  getCourseCoverStorageKeys,
+  getCourseCoverVariantPath,
+  parseCourseCoverImage,
+} from "@/features/storage/course-cover";
+import { deleteR2Objects } from "@/features/storage/r2";
 import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
@@ -52,6 +58,22 @@ const parseJsonFormField = (formData: FormData, key: string): unknown => {
   } catch {
     throw new Error("Dados de capa invalidos.");
   }
+};
+
+const parseCourseCoverFormField = (formData: FormData): unknown => {
+  const rawCoverImage = parseJsonFormField(formData, "coverImage");
+
+  if (!rawCoverImage) {
+    return null;
+  }
+
+  const coverImage = parseCourseCoverImage(rawCoverImage);
+
+  if (!coverImage) {
+    throw new Error("Dados de capa invalidos.");
+  }
+
+  return coverImage;
 };
 
 const getCourseCoverUrl = ({
@@ -158,13 +180,90 @@ const getVideoExternalIdForLesson = async (
   return rows[0]?.video_external_id ?? null;
 };
 
+const getLessonR2ObjectKeys = async (lessonId: string): Promise<string[]> => {
+  const { rows } = await getPool().query<{ content_json: unknown }>(
+    "select content_json from lessons where id = $1 limit 1",
+    [lessonId]
+  );
+
+  return getLessonContentStorageKeys(rows[0]?.content_json);
+};
+
+const getModuleR2ObjectKeys = async (moduleId: string): Promise<string[]> => {
+  const { rows } = await getPool().query<{ content_json: unknown }>(
+    "select content_json from lessons where module_id = $1",
+    [moduleId]
+  );
+
+  return rows.flatMap((row) => getLessonContentStorageKeys(row.content_json));
+};
+
+const getCourseR2ObjectKeys = async (courseId: string): Promise<string[]> => {
+  const [courseResult, lessonResult] = await Promise.all([
+    getPool().query<{ cover_image_json: unknown }>(
+      "select cover_image_json from courses where id = $1 limit 1",
+      [courseId]
+    ),
+    getPool().query<{ content_json: unknown }>(
+      `
+        select l.content_json
+        from lessons l
+        join modules m on m.id = l.module_id
+        where m.course_id = $1
+      `,
+      [courseId]
+    ),
+  ]);
+
+  return [
+    ...getCourseCoverStorageKeys(courseResult.rows[0]?.cover_image_json),
+    ...lessonResult.rows.flatMap((row) =>
+      getLessonContentStorageKeys(row.content_json)
+    ),
+  ];
+};
+
+const deleteRemovedR2Objects = async ({
+  nextKeys,
+  previousKeys,
+}: {
+  nextKeys: string[];
+  previousKeys: string[];
+}): Promise<void> => {
+  const nextKeySet = new Set(nextKeys);
+  const removedKeys = previousKeys.filter((key) => !nextKeySet.has(key));
+
+  await deleteR2Objects(removedKeys);
+};
+
+const cleanupUpdatedLessonAssets = async ({
+  contentJson,
+  isVideoLesson,
+  lessonId,
+  previousR2Keys,
+}: {
+  contentJson: unknown;
+  isVideoLesson: boolean;
+  lessonId: string;
+  previousR2Keys: string[];
+}): Promise<void> => {
+  if (!isVideoLesson) {
+    await deleteJmvstreamAssetsForLesson(lessonId);
+  }
+
+  await deleteRemovedR2Objects({
+    nextKeys: getLessonContentStorageKeys(contentJson),
+    previousKeys: previousR2Keys,
+  });
+};
+
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
   const title = readString(formData, "title");
   const subtitle = readString(formData, "subtitle") || null;
   const description = readString(formData, "description") || null;
-  const coverImage = parseJsonFormField(formData, "coverImage");
+  const coverImage = parseCourseCoverFormField(formData);
   const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
   const workloadHours = readNumber(formData, "workloadHours", 0);
   const status = readString(formData, "status") || "draft";
@@ -185,6 +284,11 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     status,
   ];
   let savedCourseId = courseId;
+  const previousCoverKeys = courseId
+    ? (await getCourseR2ObjectKeys(courseId)).filter((key) =>
+        key.includes("/cover/")
+      )
+    : [];
 
   if (courseId) {
     await getPool().query(
@@ -208,6 +312,10 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       actorUserId: session.user.id,
       targetId: courseId,
       targetType: "course",
+    });
+    await deleteRemovedR2Objects({
+      nextKeys: getCourseCoverStorageKeys(coverImage),
+      previousKeys: previousCoverKeys,
     });
   } else {
     const insertedCourseId = randomUUID();
@@ -340,6 +448,8 @@ export const deleteCourseAction = async (formData: FormData): Promise<void> => {
     throw new Error("Curso invalido.");
   }
 
+  const r2ObjectKeys = await getCourseR2ObjectKeys(courseId);
+  await deleteR2Objects(r2ObjectKeys);
   await deleteJmvstreamAssetsForCourse(courseId);
   await getPool().query("delete from courses where id = $1", [courseId]);
   await audit({
@@ -362,6 +472,8 @@ export const deleteModuleAction = async (formData: FormData): Promise<void> => {
   }
 
   const courseId = await getCourseIdForModule(moduleId);
+  const r2ObjectKeys = await getModuleR2ObjectKeys(moduleId);
+  await deleteR2Objects(r2ObjectKeys);
   await deleteJmvstreamAssetsForModule(moduleId);
   await getPool().query("delete from modules where id = $1", [moduleId]);
   await audit({
@@ -385,6 +497,8 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
   }
 
   const courseId = await getCourseIdForLesson(lessonId);
+  const r2ObjectKeys = await getLessonR2ObjectKeys(lessonId);
+  await deleteR2Objects(r2ObjectKeys);
   await deleteJmvstreamAssetsForLesson(lessonId);
   await getPool().query("delete from lessons where id = $1", [lessonId]);
   await audit({
@@ -497,6 +611,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     formData.get("isPublished") === "on",
   ];
   const moduleCourseId = await getCourseIdForModule(String(values[0]));
+  const previousR2Keys = lessonId ? await getLessonR2ObjectKeys(lessonId) : [];
 
   if (lessonId) {
     const previousCourseId = await getCourseIdForLesson(lessonId);
@@ -531,9 +646,12 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     if (previousCourseId && previousCourseId !== moduleCourseId) {
       await recalculateCourseWorkloadHours(previousCourseId);
     }
-    if (!isVideoLesson) {
-      await deleteJmvstreamAssetsForLesson(lessonId);
-    }
+    await cleanupUpdatedLessonAssets({
+      contentJson,
+      isVideoLesson,
+      lessonId,
+      previousR2Keys,
+    });
   } else {
     const inserted = await getPool().query<{ id: string }>(
       `

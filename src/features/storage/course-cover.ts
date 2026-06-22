@@ -3,7 +3,6 @@ import { sanitizeR2FileName } from "@/features/storage/r2-objects";
 export const COURSE_COVER_VARIANTS = {
   thumb: { height: 270, maxSizeBytes: 350 * 1024, width: 480 },
   card: { height: 540, maxSizeBytes: 950 * 1024, width: 960 },
-  hero: { height: 900, maxSizeBytes: 2200 * 1024, width: 1600 },
 } as const;
 
 export type CourseCoverVariant = keyof typeof COURSE_COVER_VARIANTS;
@@ -56,6 +55,7 @@ interface CourseCoverUploadRequest {
 const requiredVariants = Object.keys(
   COURSE_COVER_VARIANTS
 ) as CourseCoverVariant[];
+const CARD_COVER_PATH_PATTERN = /\/cover\/card$/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -127,7 +127,7 @@ export const validateCourseCoverUploadRequest = ({
   const variantNames = new Set(variants.map(({ variant }) => variant));
 
   if (!requiredVariants.every((variant) => variantNames.has(variant))) {
-    throw new Error("Envie as variantes thumb, card e hero da capa.");
+    throw new Error("Envie as variantes thumb e card da capa.");
   }
 
   for (const candidate of variants) {
@@ -244,4 +244,42 @@ export const getCourseCoverVariantPath = ({
   }
 
   return `/api/courses/${courseId}/cover/${variant}`;
+};
+
+export const getCourseCoverBackgroundImage = (
+  cardPath: string | null | undefined
+): string | undefined => {
+  if (!cardPath) {
+    return;
+  }
+
+  const thumbPath = cardPath.replace(CARD_COVER_PATH_PATTERN, "/cover/thumb");
+
+  if (thumbPath === cardPath) {
+    return `url("${cardPath}")`;
+  }
+
+  return `image-set(url("${thumbPath}") 1x, url("${cardPath}") 2x)`;
+};
+
+export const getCourseCoverStorageKeys = (value: unknown): string[] => {
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  const keys: string[] = [];
+
+  if (isRecord(value.original) && typeof value.original.key === "string") {
+    keys.push(value.original.key);
+  }
+
+  if (isRecord(value.variants)) {
+    for (const variant of Object.values(value.variants)) {
+      if (isRecord(variant) && typeof variant.key === "string") {
+        keys.push(variant.key);
+      }
+    }
+  }
+
+  return Array.from(new Set(keys.filter(Boolean)));
 };

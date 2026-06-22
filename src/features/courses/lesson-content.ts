@@ -496,3 +496,18 @@ export const getLessonContentReadiness = ({
 
   return { isReady: false, missingLabel: "Adicionar video" };
 };
+
+export const getLessonContentStorageKeys = (value: unknown): string[] => {
+  const content = parseLessonContent(value);
+
+  if (content?.type !== "text" || !("resources" in content)) {
+    return [];
+  }
+
+  const keys =
+    content.resources
+      ?.filter((resource) => resource.storage === "r2")
+      .map((resource) => resource.key) ?? [];
+
+  return Array.from(new Set(keys));
+};

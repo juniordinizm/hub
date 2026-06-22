@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import {
+  DeleteObjectsCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -20,6 +21,7 @@ import {
 
 const UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_URL_EXPIRES_SECONDS = 5 * 60;
+const DELETE_OBJECTS_BATCH_SIZE = 1000;
 
 interface R2Config {
   accessKeyId: string;
@@ -278,4 +280,48 @@ export const createR2ObjectReadUrl = async ({
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
   );
+};
+
+const chunkKeys = (keys: string[]): string[][] => {
+  const chunks: string[][] = [];
+
+  for (let index = 0; index < keys.length; index += DELETE_OBJECTS_BATCH_SIZE) {
+    chunks.push(keys.slice(index, index + DELETE_OBJECTS_BATCH_SIZE));
+  }
+
+  return chunks;
+};
+
+export const deleteR2Objects = async (keys: string[]): Promise<void> => {
+  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+
+  if (uniqueKeys.length === 0) {
+    return;
+  }
+
+  const config = getR2Config();
+  const client = getR2Client(config);
+
+  for (const keyBatch of chunkKeys(uniqueKeys)) {
+    const result = await client.send(
+      new DeleteObjectsCommand({
+        Bucket: config.bucketName,
+        Delete: {
+          Objects: keyBatch.map((key) => ({ Key: key })),
+          Quiet: true,
+        },
+      })
+    );
+
+    if (result.Errors?.length) {
+      const failedKeys = result.Errors.map((error) => error.Key)
+        .filter(Boolean)
+        .join(", ");
+      throw new Error(
+        failedKeys
+          ? `Nao foi possivel apagar arquivos do R2: ${failedKeys}`
+          : "Nao foi possivel apagar arquivos do R2."
+      );
+    }
+  }
 };

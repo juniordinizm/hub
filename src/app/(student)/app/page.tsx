@@ -30,6 +30,7 @@ import { canMutateStudentExperience } from "@/features/courses/preview";
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
 import { startCourseCheckoutAction } from "@/features/payments/actions";
+import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -241,8 +242,12 @@ function CourseCard({
         {course.thumbnailUrl ? (
           <div
             aria-hidden="true"
-            className="absolute inset-0 bg-center bg-cover opacity-40 transition-transform duration-500 group-hover:scale-105"
-            style={{ backgroundImage: `url(${course.thumbnailUrl})` }}
+            className="absolute inset-0 bg-center bg-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
+            style={{
+              backgroundImage: getCourseCoverBackgroundImage(
+                course.thumbnailUrl
+              ),
+            }}
           />
         ) : (
           <>

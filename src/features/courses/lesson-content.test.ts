@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getLessonContentReadiness,
+  getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
   parseLessonContent,
 } from "./lesson-content";
@@ -117,6 +118,13 @@ describe("lesson content", () => {
             id: "resource-1",
             key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
             label: "Apostila",
+            preview: {
+              contentType: "image/webp",
+              height: 180,
+              key: "lessons/lesson-1/resources/upload-1-preview.webp",
+              sizeBytes: 4096,
+              width: 320,
+            },
             sizeBytes: 1024,
             storage: "r2",
           },
@@ -132,11 +140,53 @@ describe("lesson content", () => {
           id: "resource-1",
           key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
           label: "Apostila",
+          preview: {
+            contentType: "image/webp",
+            height: 180,
+            key: "lessons/lesson-1/resources/upload-1-preview.webp",
+            sizeBytes: 4096,
+            width: 320,
+          },
           sizeBytes: 1024,
           storage: "r2",
         },
       ],
     });
+  });
+
+  it("extracts private R2 resource keys from lesson content", () => {
+    expect(
+      getLessonContentStorageKeys({
+        type: "text",
+        document: richTextDocument,
+        resources: [
+          {
+            contentType: "application/pdf",
+            fileName: "apostila.pdf",
+            id: "resource-1",
+            key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
+            label: "Apostila",
+            preview: {
+              contentType: "image/webp",
+              height: 180,
+              key: "lessons/lesson-1/resources/upload-1-preview.webp",
+              sizeBytes: 4096,
+              width: 320,
+            },
+            sizeBytes: 1024,
+            storage: "r2",
+          },
+          {
+            id: "resource-2",
+            label: "Link externo",
+            url: "https://example.com/material",
+          },
+        ],
+      })
+    ).toEqual([
+      "lessons/lesson-1/resources/upload-1-apostila.pdf",
+      "lessons/lesson-1/resources/upload-1-preview.webp",
+    ]);
   });
 
   it("limits lesson resources to a reasonable count and total R2 size", () => {

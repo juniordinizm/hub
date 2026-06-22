@@ -38,7 +38,6 @@ interface SignedCoverUploadPayload {
 
 const VARIANT_QUALITY: Record<CourseCoverVariant, number> = {
   card: 0.82,
-  hero: 0.86,
   thumb: 0.8,
 };
 
