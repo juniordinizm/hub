@@ -1,4 +1,9 @@
-import { Badge } from "@/components/ui/badge";
+import {
+  Time02Icon,
+  UserBlock01Icon,
+  UserCircleIcon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
 import {
   Card,
   CardContent,
@@ -8,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { summarizeAdminStudentAccess } from "@/features/admin/presentation";
 import { getAdminManagementData } from "@/features/admin/server";
+import { AdminMetricCard } from "../admin-metric-card";
 import {
   type StudentEnrollmentRow,
   StudentsTable,
@@ -50,45 +56,52 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
-          <Badge variant="outline">Alunos</Badge>
-          <h1 className="mt-3 font-bold text-3xl tracking-tight">
-            Alunos e matriculas
-          </h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
-            Lista centralizada por aluno, com consulta rapida e gestao das
-            matriculas por curso no dialog.
-          </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 space-y-1">
+              <h1 className="font-bold text-3xl tracking-tight">
+                Alunos e matrículas
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                Lista centralizada por aluno, com consulta rápida e gestão das
+                matrículas por curso.
+              </p>
+            </div>
+          </div>
         </header>
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StudentMetricCard
+          <AdminMetricCard
             helper="Todos os perfis com papel de aluno."
+            icon={UserGroupIcon}
             label="Alunos cadastrados"
             value={studentAccessSummary.totalStudents.toString()}
           />
-          <StudentMetricCard
-            helper="Com pelo menos uma matricula ativa."
+          <AdminMetricCard
+            helper="Com pelo menos uma matrícula ativa."
+            icon={UserCircleIcon}
             label="Com acesso ativo"
             value={studentAccessSummary.activeStudents.toString()}
           />
-          <StudentMetricCard
+          <AdminMetricCard
             helper="Sem curso liberado no momento."
-            label="Sem matricula"
+            icon={UserBlock01Icon}
+            label="Sem matrícula"
             value={studentAccessSummary.notEnrolledStudents.toString()}
           />
-          <StudentMetricCard
-            helper="Acessos ativos que vencem em ate 30 dias."
+          <AdminMetricCard
+            helper="Acessos ativos que vencem em até 30 dias."
+            icon={Time02Icon}
             label="Expirando em breve"
             value={studentAccessSummary.expiringSoonStudents.toString()}
           />
         </section>
 
-        <Card className="border-border/40 bg-background/50 shadow-sm">
-          <CardHeader>
-            <CardTitle>Alunos cadastrados</CardTitle>
-            <CardDescription>
-              Nome, email, status geral de matricula, cursos, primeira matricula
-              e ultimo acesso.
+        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Alunos cadastrados</CardTitle>
+            <CardDescription className="mt-1">
+              Nome, email, status geral de matrícula, cursos, primeira matrícula
+              e último acesso.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -97,29 +110,5 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
         </Card>
       </div>
     </main>
-  );
-}
-
-function StudentMetricCard({
-  helper,
-  label,
-  value,
-}: {
-  helper: string;
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <Card className="border-border/40 bg-background/50 shadow-sm">
-      <CardHeader className="pb-2">
-        <CardTitle className="font-medium text-muted-foreground text-sm">
-          {label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="font-bold text-3xl tracking-tight">{value}</p>
-        <p className="mt-2 text-muted-foreground text-xs">{helper}</p>
-      </CardContent>
-    </Card>
   );
 }
