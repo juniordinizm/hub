@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import {
+  buildAdminCourseEditPath,
+  buildAdminLessonEditPath,
+  normalizeLessonDraftInput,
+} from "@/features/admin/lesson-drafts";
+import {
   normalizeLessonContentFromForm,
   toLessonType,
 } from "@/features/courses/lesson-content";
@@ -354,6 +359,68 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
     await recalculateCourseWorkloadHours(courseId);
   }
   revalidateAdmin();
+  if (courseId) {
+    // biome-ignore lint/suspicious/noExplicitAny: Next.js typed routes workaround
+    redirect(buildAdminCourseEditPath(courseId) as any);
+  }
+};
+
+export const createLessonDraftAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const draft = normalizeLessonDraftInput(formData);
+  const courseId = await getCourseIdForModule(draft.moduleId);
+
+  if (!courseId) {
+    throw new Error("Modulo invalido.");
+  }
+
+  const isVideoLesson = draft.lessonType === "video";
+  const inserted = await getPool().query<{ id: string }>(
+    `
+      insert into lessons (
+        module_id,
+        title,
+        description,
+        lesson_type,
+        video_provider,
+        video_external_id,
+        video_embed_url,
+        content_json,
+        duration_seconds,
+        sort_order,
+        is_published
+      )
+      values ($1, $2, $3, $4, $5, null, null, null, 0, $6, false)
+      returning id
+    `,
+    [
+      draft.moduleId,
+      draft.title,
+      draft.description,
+      draft.lessonType,
+      isVideoLesson ? "jmvstream" : null,
+      draft.sortOrder,
+    ]
+  );
+  const lessonId = inserted.rows[0]?.id;
+
+  await audit({
+    action: "lesson.created",
+    actorUserId: session.user.id,
+    targetId: lessonId,
+    targetType: "lesson",
+  });
+  await recalculateCourseWorkloadHours(courseId);
+  revalidateAdmin();
+
+  if (!lessonId) {
+    throw new Error("Nao foi possivel criar a aula.");
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Next.js typed routes workaround
+  redirect(buildAdminLessonEditPath({ courseId, lessonId }) as any);
 };
 
 export const saveLessonAction = async (formData: FormData): Promise<void> => {
@@ -461,6 +528,11 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
   }
 
   revalidateAdmin();
+  if (lessonId && moduleCourseId) {
+    revalidatePath(
+      buildAdminLessonEditPath({ courseId: moduleCourseId, lessonId })
+    );
+  }
 };
 
 export const ensureJmvstreamCourseFolderAction = async (

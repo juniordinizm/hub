@@ -247,7 +247,6 @@ export default async function AdminCourseDetailPage({
                 ) : (
                   <CourseBuilderWrapper
                     course={course}
-                    jmvstreamAssets={data.jmvstreamAssets}
                     lessons={lessons}
                     modules={modules}
                   />

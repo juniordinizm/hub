@@ -9,6 +9,7 @@ import {
   PlayCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import type React from "react";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseBuilderClient } from "@/components/course-builder-dnd";
@@ -31,9 +32,17 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  createLessonDraftAction,
   deleteLessonAction,
   deleteModuleAction,
   saveLessonAction,
@@ -41,33 +50,21 @@ import {
 } from "@/features/admin/actions";
 import type { getAdminManagementData } from "@/features/admin/server";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
+import { route } from "@/lib/routes";
 
 type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
 type CourseData = AdminData["courses"][number];
-type JmvstreamAssetData = AdminData["jmvstreamAssets"][number];
 type ModuleData = AdminData["modules"][number];
 type LessonData = AdminData["lessons"][number];
-
-const toUploadAsset = (asset: JmvstreamAssetData): JmvstreamUploadAsset => ({
-  deleteStatus: asset.deleteStatus,
-  filename: asset.filename,
-  galleryUuid: asset.galleryUuid,
-  id: asset.id,
-  lastError: asset.lastError,
-  uploadStatus: asset.uploadStatus,
-  videoHash: asset.videoHash,
-});
 
 export function CourseBuilderWrapper({
   course,
   modules,
   lessons,
-  jmvstreamAssets,
 }: {
   course: CourseData;
   modules: ModuleData[];
   lessons: LessonData[];
-  jmvstreamAssets: JmvstreamAssetData[];
 }) {
   return (
     <CourseBuilderClient
@@ -75,10 +72,7 @@ export function CourseBuilderWrapper({
       initialLessons={lessons}
       initialModules={modules}
       renderLesson={(lesson, _moduleData) => (
-        <LessonRow
-          asset={jmvstreamAssets.find((asset) => asset.lessonId === lesson.id)}
-          lesson={lesson}
-        />
+        <LessonRow courseId={course.id} lesson={lesson} />
       )}
       renderModule={(moduleData, moduleLessons) => (
         <ModuleSection
@@ -121,8 +115,8 @@ export function ModuleSection({
         </div>
         <div className="flex items-center gap-3">
           <DiscardAwareDialog
-            className="sm:max-w-3xl"
-            description="Cadastre uma aula neste módulo."
+            className="sm:max-w-lg"
+            description="Defina o basico da aula. Depois voce sera levado para a edicao completa."
             title="Nova aula"
             trigger={
               <DialogTriggerButton size="sm" variant="outline">
@@ -131,8 +125,8 @@ export function ModuleSection({
               </DialogTriggerButton>
             }
           >
-            <LessonForm
-              defaultModuleId={moduleData.id}
+            <CreateLessonDraftForm
+              moduleId={moduleData.id}
               nextSortOrder={nextLessonSortOrder}
             />
           </DiscardAwareDialog>
@@ -156,10 +150,10 @@ export function ModuleSection({
 }
 
 export function LessonRow({
-  asset,
+  courseId,
   lesson,
 }: {
-  asset?: JmvstreamAssetData | undefined;
+  courseId: string;
   lesson: LessonData;
 }): React.JSX.Element {
   const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
@@ -191,22 +185,12 @@ export function LessonRow({
           {lesson.isPublished ? "publicada" : "rascunho"}
         </Badge>
       </div>
-      <DiscardAwareDialog
-        className="sm:max-w-3xl"
-        description="Altere vídeo, ordem ou publicação."
-        title="Editar aula"
-        trigger={
-          <DialogTriggerButton size="sm" variant="ghost">
-            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-            Editar
-          </DialogTriggerButton>
-        }
-      >
-        <LessonForm
-          asset={asset ? toUploadAsset(asset) : undefined}
-          lesson={lesson}
-        />
-      </DiscardAwareDialog>
+      <Button asChild size="sm" variant="ghost">
+        <Link href={route(`/admin/cursos/${courseId}/aulas/${lesson.id}`)}>
+          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+          Editar
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -291,53 +275,46 @@ function getLessonTypeLabel(lessonType: string): string {
   return "Video";
 }
 
-export function LessonForm({
+export function LessonEditorForm({
   asset,
-  defaultModuleId,
   lesson,
-  nextSortOrder,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
-  defaultModuleId?: string;
-  lesson?: LessonData;
-  nextSortOrder?: number;
+  lesson: LessonData;
 }): React.JSX.Element {
-  const publishedFieldId = `lesson-is-published-${lesson?.id ?? "new"}`;
+  const publishedFieldId = `lesson-is-published-${lesson.id}`;
 
   return (
     <div className="flex flex-col gap-4">
-      <AutoCloseDialogForm
+      <form
         action={saveLessonAction}
         className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       >
         <DialogBody>
           <FieldGroup>
-            <input name="lessonId" type="hidden" value={lesson?.id ?? ""} />
-            <input
-              name="moduleId"
-              type="hidden"
-              value={lesson?.moduleId ?? defaultModuleId ?? ""}
-            />
+            <input name="lessonId" type="hidden" value={lesson.id} />
+            <input name="moduleId" type="hidden" value={lesson.moduleId} />
             <div className="grid gap-4">
               <LessonKindControls
                 asset={asset}
-                defaultContentJson={lesson?.contentJson}
-                defaultDurationSeconds={lesson?.durationSeconds ?? 0}
-                defaultEmbedUrl={lesson?.videoEmbedUrl ?? ""}
-                defaultLessonType={lesson?.lessonType ?? "video"}
-                defaultOrder={lesson?.sortOrder ?? nextSortOrder ?? 1}
-                lessonId={lesson?.id}
+                defaultContentJson={lesson.contentJson}
+                defaultDurationSeconds={lesson.durationSeconds}
+                defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
+                defaultLessonType={lesson.lessonType}
+                defaultOrder={lesson.sortOrder}
+                lessonId={lesson.id}
               />
             </div>
             <Field>
               <FieldLabel>Título</FieldLabel>
-              <Input defaultValue={lesson?.title ?? ""} name="title" required />
+              <Input defaultValue={lesson.title} name="title" required />
             </Field>
             <Field>
               <FieldLabel>Descrição</FieldLabel>
               <Textarea
-                defaultValue={lesson?.description ?? ""}
+                defaultValue={lesson.description ?? ""}
                 name="description"
+                required
               />
             </Field>
           </FieldGroup>
@@ -349,25 +326,69 @@ export function LessonForm({
               htmlFor={publishedFieldId}
             >
               <Checkbox
-                defaultChecked={lesson?.isPublished ?? true}
+                defaultChecked={lesson.isPublished}
                 id={publishedFieldId}
                 name="isPublished"
               />
               Publicada
             </label>
-            {lesson ? <DeleteLessonDialog lesson={lesson} /> : null}
+            <DeleteLessonDialog lesson={lesson} />
           </div>
           <Button type="submit">
-            <HugeiconsIcon
-              icon={lesson ? FloppyDiskIcon : Add01Icon}
-              size={18}
-              strokeWidth={2}
-            />
-            {lesson ? "Salvar aula" : "Criar aula"}
+            <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            Salvar aula
           </Button>
         </DialogFooter>
-      </AutoCloseDialogForm>
+      </form>
     </div>
+  );
+}
+
+export function CreateLessonDraftForm({
+  moduleId,
+  nextSortOrder,
+}: {
+  moduleId: string;
+  nextSortOrder: number;
+}): React.JSX.Element {
+  return (
+    <AutoCloseDialogForm
+      action={createLessonDraftAction}
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <DialogBody>
+        <FieldGroup>
+          <input name="moduleId" type="hidden" value={moduleId} />
+          <input name="sortOrder" type="hidden" value={nextSortOrder} />
+          <Field>
+            <FieldLabel>Titulo</FieldLabel>
+            <Input name="title" required />
+          </Field>
+          <Field>
+            <FieldLabel>Subtitulo</FieldLabel>
+            <Textarea name="description" required />
+          </Field>
+          <Field>
+            <FieldLabel>Tipo de aula</FieldLabel>
+            <Select defaultValue="video" name="lessonType">
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="video">Video</SelectItem>
+                <SelectItem value="text">Texto</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </FieldGroup>
+      </DialogBody>
+      <DialogFooter>
+        <Button type="submit">
+          <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+          Criar e editar
+        </Button>
+      </DialogFooter>
+    </AutoCloseDialogForm>
   );
 }
 
