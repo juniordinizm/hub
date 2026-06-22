@@ -341,7 +341,7 @@ function PanelLayoutInner({
             <NotificationsButton />
           </div>
         </header>
-        <ScrollArea className="h-[calc(100svh-3.5rem)] w-full">
+        <ScrollArea className="h-[calc(100svh-4rem)] w-full">
           <div className="flex-1">{children}</div>
         </ScrollArea>
       </SidebarInset>

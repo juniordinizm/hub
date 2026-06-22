@@ -530,7 +530,7 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <aside className="sticky top-0 hidden h-[calc(100svh-3.5rem)] w-[340px] flex-col border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:flex">
+    <aside className="sticky top-0 hidden h-[calc(100svh-4rem)] w-[340px] flex-col border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:flex">
       <div className="shrink-0 border-sidebar-border border-b px-5 py-5">
         <div className="flex items-start justify-between gap-4">
           <div>
