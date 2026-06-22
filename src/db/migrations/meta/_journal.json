@@ -120,6 +120,13 @@
       "when": 1782129600000,
       "tag": "0016_simplify_lesson_types",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782133200000,
+      "tag": "0017_course_cover_image_json",
+      "breakpoints": true
     }
   ]
 }

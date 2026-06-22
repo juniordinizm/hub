@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCourseCoverObjectKey,
+  getCourseCoverVariantPath,
   parseCourseCoverImage,
   validateCourseCoverUploadRequest,
 } from "./course-cover";
@@ -53,12 +54,24 @@ describe("course cover storage", () => {
         courseId: "course-1",
         original: {
           contentType: "image/svg+xml",
-          fileName: "capa.svg",
+          fileName: "capa.png",
           sizeBytes: 1024,
         },
         variants: [],
       })
     ).toThrow("Tipo de imagem nao permitido.");
+
+    expect(() =>
+      validateCourseCoverUploadRequest({
+        courseId: "course-1",
+        original: {
+          contentType: "image/png",
+          fileName: "capa.svg",
+          sizeBytes: 1024,
+        },
+        variants: [],
+      })
+    ).toThrow("Extensao de imagem nao permitida.");
 
     expect(() =>
       validateCourseCoverUploadRequest({
@@ -129,5 +142,39 @@ describe("course cover storage", () => {
         },
       },
     });
+  });
+
+  it("builds public course cover paths only for stored variants", () => {
+    expect(
+      getCourseCoverVariantPath({
+        courseId: "course-1",
+        coverImage: {
+          original: {
+            contentType: "image/png",
+            fileName: "capa.png",
+            key: "courses/course-1/cover/upload-original.png",
+            sizeBytes: 1_000_000,
+          },
+          variants: {
+            card: {
+              contentType: "image/webp",
+              height: 540,
+              key: "courses/course-1/cover/upload-card.webp",
+              sizeBytes: 500_000,
+              width: 960,
+            },
+          },
+        },
+        variant: "card",
+      })
+    ).toBe("/api/courses/course-1/cover/card");
+
+    expect(
+      getCourseCoverVariantPath({
+        courseId: "course-1",
+        coverImage: null,
+        variant: "card",
+      })
+    ).toBeNull();
   });
 });

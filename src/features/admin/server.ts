@@ -102,6 +102,7 @@ export interface AdminManagementData {
     slug: string;
     status: string;
     subtitle: string | null;
+    coverImage: unknown;
     thumbnailUrl: string | null;
     title: string;
     workloadHours: number;
@@ -219,11 +220,12 @@ export const getAdminManagementData =
         slug: string;
         status: string;
         subtitle: string | null;
+        cover_image_json: unknown;
         thumbnail_url: string | null;
         title: string;
         workload_hours: number;
       }>(
-        "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+        "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
         color: string;
@@ -435,6 +437,7 @@ export const getAdminManagementData =
         slug: row.slug,
         status: row.status,
         subtitle: row.subtitle,
+        coverImage: row.cover_image_json,
         thumbnailUrl: row.thumbnail_url,
         title: row.title,
         workloadHours: row.workload_hours,

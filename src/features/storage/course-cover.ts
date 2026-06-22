@@ -16,6 +16,7 @@ const ALLOWED_ORIGINAL_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+const ALLOWED_ORIGINAL_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
 const ALLOWED_VARIANT_TYPES = new Set(["image/webp", "image/jpeg"]);
 
 export interface CourseCoverOriginal {
@@ -62,6 +63,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isPositiveInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value > 0;
 
+const getFileExtension = (fileName: string): string | null => {
+  const sanitized = sanitizeR2FileName(fileName);
+  const extension = sanitized.split(".").pop();
+
+  return extension && extension !== sanitized ? extension : null;
+};
+
 export const isCourseCoverVariant = (
   value: string
 ): value is CourseCoverVariant => value in COURSE_COVER_VARIANTS;
@@ -84,6 +92,12 @@ const validateOriginalCover = (
 ): void => {
   if (!original.fileName.trim()) {
     throw new Error("Informe o nome da imagem.");
+  }
+
+  const extension = getFileExtension(original.fileName);
+
+  if (!(extension && ALLOWED_ORIGINAL_EXTENSIONS.has(extension))) {
+    throw new Error("Extensao de imagem nao permitida.");
   }
 
   if (!ALLOWED_ORIGINAL_TYPES.has(original.contentType)) {
@@ -212,4 +226,22 @@ export const parseCourseCoverImage = (
   }
 
   return { original, variants };
+};
+
+export const getCourseCoverVariantPath = ({
+  courseId,
+  coverImage,
+  variant,
+}: {
+  courseId: string;
+  coverImage: unknown;
+  variant: CourseCoverVariant;
+}): string | null => {
+  const parsed = parseCourseCoverImage(coverImage);
+
+  if (!parsed?.variants[variant]) {
+    return null;
+  }
+
+  return `/api/courses/${courseId}/cover/${variant}`;
 };

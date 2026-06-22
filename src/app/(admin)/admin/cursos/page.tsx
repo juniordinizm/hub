@@ -293,14 +293,6 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
             />
           </Field>
           <Field>
-            <FieldLabel>Capa do curso</FieldLabel>
-            <Input
-              defaultValue={course?.thumbnailUrl ?? ""}
-              name="thumbnailUrl"
-              placeholder="/protear/dash-banner.png"
-            />
-          </Field>
-          <Field>
             <FieldLabel>Status</FieldLabel>
             <Select defaultValue={course?.status ?? "draft"} name="status">
               <SelectTrigger>

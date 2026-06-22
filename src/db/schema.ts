@@ -156,6 +156,7 @@ export const courses = pgTable(
     workloadHours: integer("workload_hours").default(0).notNull(),
     priceInCents: integer("price_in_cents").default(0).notNull(),
     thumbnailUrl: text("thumbnail_url"),
+    coverImageJson: jsonb("cover_image_json"),
     paymentProviderProductId: text("payment_provider_product_id"),
     accessDurationMonths: integer("access_duration_months")
       .default(12)

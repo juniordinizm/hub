@@ -28,6 +28,7 @@ import {
 } from "@/features/jmvstream/server";
 import { parsePriceToCents } from "@/features/payments/abacatepay";
 import { createAbacatePayCourseProduct } from "@/features/payments/server";
+import { getCourseCoverVariantPath } from "@/features/storage/course-cover";
 import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
@@ -38,6 +39,29 @@ const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   const value = Number(formData.get(key));
   return Number.isFinite(value) ? value : fallback;
 };
+
+const parseJsonFormField = (formData: FormData, key: string): unknown => {
+  const value = readString(formData, key);
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    throw new Error("Dados de capa invalidos.");
+  }
+};
+
+const getCourseCoverUrl = ({
+  courseId,
+  coverImage,
+}: {
+  courseId: string;
+  coverImage: unknown;
+}): string | null =>
+  getCourseCoverVariantPath({ courseId, coverImage, variant: "card" });
 
 const revalidateAdmin = (): void => {
   for (const path of [
@@ -140,15 +164,22 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const title = readString(formData, "title");
   const subtitle = readString(formData, "subtitle") || null;
   const description = readString(formData, "description") || null;
-  const thumbnailUrl = readString(formData, "thumbnailUrl") || null;
+  const coverImage = parseJsonFormField(formData, "coverImage");
   const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
   const workloadHours = readNumber(formData, "workloadHours", 0);
   const status = readString(formData, "status") || "draft";
+  const thumbnailUrl = courseId
+    ? getCourseCoverUrl({
+        courseId,
+        coverImage,
+      })
+    : null;
   const values = [
     title,
     subtitle,
     description,
     thumbnailUrl,
+    coverImage ? JSON.stringify(coverImage) : null,
     accessDurationMonths,
     workloadHours,
     status,
@@ -163,11 +194,12 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             subtitle = $2,
             description = $3,
             thumbnail_url = $4,
-            access_duration_months = $5,
-            workload_hours = $6,
-            status = $7,
+            cover_image_json = $5::jsonb,
+            access_duration_months = $6,
+            workload_hours = $7,
+            status = $8,
             updated_at = now()
-        where id = $8
+        where id = $9
       `,
       [...values, courseId]
     );
@@ -180,12 +212,16 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   } else {
     const insertedCourseId = randomUUID();
     savedCourseId = insertedCourseId;
+    const insertedThumbnailUrl = getCourseCoverUrl({
+      courseId: insertedCourseId,
+      coverImage,
+    });
     const slug = await resolveUniqueCourseSlug(title);
     const priceInCents = parsePriceToCents(readString(formData, "price"));
     const { productId } = await createAbacatePayCourseProduct({
       courseId: insertedCourseId,
       description,
-      imageUrl: thumbnailUrl,
+      imageUrl: insertedThumbnailUrl,
       priceInCents,
       title,
     });
@@ -200,11 +236,12 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
           workload_hours,
           price_in_cents,
           thumbnail_url,
+          cover_image_json,
           payment_provider_product_id,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12)
         returning id
       `,
       [
@@ -215,7 +252,8 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         description,
         workloadHours,
         priceInCents,
-        thumbnailUrl,
+        insertedThumbnailUrl,
+        coverImage ? JSON.stringify(coverImage) : null,
         productId,
         accessDurationMonths,
         status,

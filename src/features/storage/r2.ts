@@ -7,6 +7,13 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
+  buildCourseCoverObjectKey,
+  COURSE_COVER_VARIANTS,
+  type CourseCoverImage,
+  type CourseCoverVariant,
+  validateCourseCoverUploadRequest,
+} from "@/features/storage/course-cover";
+import {
   buildLessonResourceObjectKey,
   validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
@@ -29,6 +36,19 @@ interface R2LessonResource {
   label: string;
   sizeBytes: number;
   storage: "r2";
+}
+
+type CourseCoverUploadVariantInput = Array<{
+  contentType: string;
+  sizeBytes: number;
+  variant: CourseCoverVariant;
+}>;
+
+interface CourseCoverUploadUrl {
+  contentType: string;
+  key: string;
+  uploadUrl: string;
+  variant: CourseCoverVariant | "original";
 }
 
 const readRequiredEnv = (key: string): string => {
@@ -120,6 +140,141 @@ export const createLessonResourceDownloadUrl = async ({
       Bucket: config.bucketName,
       Key: key,
       ResponseContentDisposition: `attachment; filename="${fileName.replaceAll('"', "")}"`,
+    }),
+    { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
+  );
+};
+
+const getExtensionForContentType = (contentType: string): string => {
+  if (contentType === "image/png") {
+    return "png";
+  }
+
+  if (contentType === "image/jpeg") {
+    return "jpg";
+  }
+
+  return "webp";
+};
+
+const createPutSignedUrl = async ({
+  bucketName,
+  client,
+  contentType,
+  key,
+}: {
+  bucketName: string;
+  client: S3Client;
+  contentType: string;
+  key: string;
+}): Promise<string> =>
+  await getSignedUrl(
+    client,
+    new PutObjectCommand({
+      Bucket: bucketName,
+      ContentType: contentType,
+      Key: key,
+    }),
+    {
+      expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+      signableHeaders: new Set(["content-type"]),
+    }
+  );
+
+export const createCourseCoverUploadUrls = async ({
+  courseId,
+  original,
+  variants,
+}: {
+  courseId: string;
+  original: {
+    contentType: string;
+    fileName: string;
+    sizeBytes: number;
+  };
+  variants: CourseCoverUploadVariantInput;
+}): Promise<{
+  coverImage: CourseCoverImage;
+  uploads: CourseCoverUploadUrl[];
+}> => {
+  validateCourseCoverUploadRequest({ courseId, original, variants });
+
+  const config = getR2Config();
+  const client = getR2Client(config);
+  const nonce = randomUUID();
+  const originalKey = buildCourseCoverObjectKey({
+    courseId,
+    extension: getExtensionForContentType(original.contentType),
+    nonce,
+    variant: "original",
+  });
+  const uploads: CourseCoverUploadUrl[] = [
+    {
+      contentType: original.contentType,
+      key: originalKey,
+      uploadUrl: await createPutSignedUrl({
+        bucketName: config.bucketName,
+        client,
+        contentType: original.contentType,
+        key: originalKey,
+      }),
+      variant: "original",
+    },
+  ];
+  const coverImage: CourseCoverImage = {
+    original: {
+      contentType: original.contentType,
+      fileName: original.fileName,
+      key: originalKey,
+      sizeBytes: original.sizeBytes,
+    },
+    variants: {},
+  };
+
+  for (const variantInput of variants) {
+    const dimensions = COURSE_COVER_VARIANTS[variantInput.variant];
+    const key = buildCourseCoverObjectKey({
+      courseId,
+      extension: getExtensionForContentType(variantInput.contentType),
+      nonce,
+      variant: variantInput.variant,
+    });
+
+    uploads.push({
+      contentType: variantInput.contentType,
+      key,
+      uploadUrl: await createPutSignedUrl({
+        bucketName: config.bucketName,
+        client,
+        contentType: variantInput.contentType,
+        key,
+      }),
+      variant: variantInput.variant,
+    });
+    coverImage.variants[variantInput.variant] = {
+      contentType: variantInput.contentType,
+      height: dimensions.height,
+      key,
+      sizeBytes: variantInput.sizeBytes,
+      width: dimensions.width,
+    };
+  }
+
+  return { coverImage, uploads };
+};
+
+export const createR2ObjectReadUrl = async ({
+  key,
+}: {
+  key: string;
+}): Promise<string> => {
+  const config = getR2Config();
+
+  return await getSignedUrl(
+    getR2Client(config),
+    new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: key,
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
   );

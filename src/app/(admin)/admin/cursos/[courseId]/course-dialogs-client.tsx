@@ -8,6 +8,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useTransition } from "react";
 import { toast } from "sonner";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +36,7 @@ import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
   accessDurationMonths: number;
+  coverImage?: unknown;
   description: string | null;
   id: string;
   paymentProviderProductId: string | null;
@@ -148,12 +150,11 @@ export function CourseSettingsForm({
             </Field>
             <Field>
               <FieldLabel>Capa do curso</FieldLabel>
-              <Input accept="image/*" name="thumbnailFile" type="file" />
-              {course.thumbnailUrl && (
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Uma capa já está cadastrada.
-                </p>
-              )}
+              <CourseCoverUploadField
+                courseId={course.id}
+                defaultCoverImage={course.coverImage}
+                defaultThumbnailUrl={course.thumbnailUrl}
+              />
             </Field>
           </div>
 
