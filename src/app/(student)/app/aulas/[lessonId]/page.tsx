@@ -1,4 +1,6 @@
 import {
+  CheckmarkCircle02Icon,
+  CircleIcon,
   Download01Icon,
   ExternalLinkIcon,
   File01Icon,
@@ -9,7 +11,6 @@ import {
   Maximize01Icon,
   Minimize01Icon,
   Pdf01Icon,
-  TaskEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
@@ -221,10 +222,17 @@ function LessonMainContent({
   lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
-  const details = (
-    <LessonDetails
+  const header = (
+    <LessonHeader
       data={data}
-      isVideo={data.lesson.lessonType === "video"}
+      lessonView={lessonView}
+      previewMode={previewMode}
+    />
+  );
+
+  const footer = (
+    <LessonFooter
+      data={data}
       lessonView={lessonView}
       previewMode={previewMode}
     />
@@ -232,50 +240,54 @@ function LessonMainContent({
 
   if (data.lesson.lessonType === "video") {
     return (
-      <LessonVideoPlayer
-        durationSeconds={data.lesson.durationSeconds}
-        initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
-        isPreview={Boolean(previewMode)}
-        lessonId={data.lesson.id}
-        title={data.lesson.title}
-        videoEmbedUrl={lessonView.videoEmbedUrl}
-        videoProvider={data.lesson.videoProvider}
-      >
-        {details}
-      </LessonVideoPlayer>
+      <div className="flex flex-col">
+        {header}
+        <LessonVideoPlayer
+          durationSeconds={data.lesson.durationSeconds}
+          initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
+          isPreview={Boolean(previewMode)}
+          lessonId={data.lesson.id}
+          title={data.lesson.title}
+          videoEmbedUrl={lessonView.videoEmbedUrl}
+          videoProvider={data.lesson.videoProvider}
+        >
+          {footer}
+        </LessonVideoPlayer>
+      </div>
     );
   }
 
   return (
-    <>
+    <div className="flex flex-col">
+      {header}
       <LessonContentFrame lesson={data.lesson} />
-      <div className="px-5 py-7 sm:px-9">{details}</div>
-    </>
+      <div className="px-5 py-7 sm:px-9">{footer}</div>
+    </div>
   );
 }
 
-function LessonDetails({
+function LessonHeader({
   data,
-  isVideo,
   lessonView,
   previewMode,
 }: {
   data: LessonPageData;
-  isVideo: boolean;
   lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <>
-      <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <h1
-          className={cn(
-            "max-w-3xl font-bold text-2xl tracking-tight",
-            isVideo ? "text-white" : "text-foreground"
-          )}
-        >
-          {data.lesson.title}
-        </h1>
+    <div className="border-border/50 border-b bg-background px-5 py-3 sm:px-9">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate font-semibold text-base text-foreground tracking-tight">
+            {data.lesson.title}
+          </h1>
+          {data.lesson.description ? (
+            <p className="truncate text-muted-foreground text-sm">
+              {data.lesson.description}
+            </p>
+          ) : null}
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button asChild size="sm" variant="outline">
             <Link href={lessonView.focusHref}>
@@ -284,16 +296,20 @@ function LessonDetails({
                 size={16}
                 strokeWidth={2}
               />
-              {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
+              <span className="hidden sm:inline">
+                {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
+              </span>
             </Link>
           </Button>
           {data.lesson.isCompleted ? (
-            <Badge
-              className="border-emerald-400/35 bg-emerald-400/15 py-1.5 text-emerald-200"
-              variant="outline"
-            >
-              Aula concluida
-            </Badge>
+            <Button className="gap-2" disabled size="sm" variant="secondary">
+              <HugeiconsIcon
+                icon={CheckmarkCircle02Icon}
+                size={16}
+                strokeWidth={2}
+              />
+              Aula concluída
+            </Button>
           ) : (
             <CompleteLessonButton
               isPreview={Boolean(previewMode)}
@@ -303,13 +319,22 @@ function LessonDetails({
           )}
         </div>
       </div>
-      {data.lesson.description ? (
-        <p className="mt-4 max-w-3xl text-muted-foreground text-sm leading-7">
-          {data.lesson.description}
-        </p>
-      ) : null}
+    </div>
+  );
+}
 
-      <div className="mt-7 grid gap-3 md:grid-cols-2">
+function LessonFooter({
+  data,
+  lessonView,
+  previewMode,
+}: {
+  data: LessonPageData;
+  lessonView: ReturnType<typeof getLessonViewState>;
+  previewMode: StudentPreviewMode | null;
+}): React.JSX.Element {
+  return (
+    <>
+      <div className="grid gap-3 md:grid-cols-2">
         <NavigationCard
           lesson={lessonView.previousLesson}
           previewMode={previewMode}
@@ -773,7 +798,7 @@ function CompleteLessonButton({
   if (isPreview) {
     return (
       <Button disabled size={size} type="button" variant="secondary">
-        <HugeiconsIcon icon={TaskEdit01Icon} size={16} strokeWidth={2} />
+        <HugeiconsIcon icon={CircleIcon} size={16} strokeWidth={2} />
         Preview sem progresso
       </Button>
     );
@@ -783,7 +808,7 @@ function CompleteLessonButton({
     <form action={completeLessonAction}>
       <input name="lessonId" type="hidden" value={lessonId} />
       <Button className="gap-2" size={size} type="submit" variant="secondary">
-        <HugeiconsIcon icon={TaskEdit01Icon} size={16} strokeWidth={2} />
+        <HugeiconsIcon icon={CircleIcon} size={16} strokeWidth={2} />
         Concluir aula
       </Button>
     </form>
