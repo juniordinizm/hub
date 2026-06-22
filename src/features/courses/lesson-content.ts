@@ -1,4 +1,8 @@
 import type { JSONContent } from "@tiptap/core";
+import {
+  MAX_LESSON_R2_RESOURCES_BYTES,
+  MAX_LESSON_RESOURCES,
+} from "@/features/storage/r2-objects";
 
 export type LessonType = "text" | "video";
 
@@ -361,6 +365,26 @@ const normalizeExternalResource = (
   };
 };
 
+const validateLessonResourcesPolicy = (
+  resources: LessonResource[]
+): LessonResource[] => {
+  if (resources.length > MAX_LESSON_RESOURCES) {
+    throw new Error("Limite de 15 materiais por aula atingido.");
+  }
+
+  const totalR2Bytes = resources.reduce(
+    (total, resource) =>
+      resource.storage === "r2" ? total + resource.sizeBytes : total,
+    0
+  );
+
+  if (totalR2Bytes > MAX_LESSON_R2_RESOURCES_BYTES) {
+    throw new Error("Limite de 750 MB em materiais da aula atingido.");
+  }
+
+  return resources;
+};
+
 export const normalizeLessonContentFromForm = ({
   formData,
   lessonId,
@@ -383,7 +407,9 @@ export const normalizeLessonContentFromForm = ({
       throw new Error("Informe o conteudo textual da aula.");
     }
 
-    const resources = normalizeResourcesFromForm({ formData, lessonId });
+    const resources = validateLessonResourcesPolicy(
+      normalizeResourcesFromForm({ formData, lessonId })
+    );
 
     return {
       type: "text",

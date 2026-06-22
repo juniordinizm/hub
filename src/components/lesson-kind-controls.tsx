@@ -29,6 +29,10 @@ import {
   type ProseMirrorJson,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
+import {
+  LESSON_ATTACHMENT_ACCEPT,
+  validateLessonAttachmentUpload,
+} from "@/features/storage/r2-objects";
 
 const lessonTypeOptions = [
   ["video", "Video"],
@@ -180,6 +184,12 @@ function LessonResourcesFields({
     const toastId = toast.loading("Enviando anexo...");
 
     try {
+      validateLessonAttachmentUpload({
+        contentType: file.type,
+        fileName: file.name,
+        sizeBytes: file.size,
+      });
+
       const signedResponse = await fetch(
         `/api/admin/lessons/${lessonId}/resources/upload-url`,
         {
@@ -229,6 +239,7 @@ function LessonResourcesFields({
         <FieldLabel>Materiais da aula</FieldLabel>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Input
+            accept={LESSON_ATTACHMENT_ACCEPT}
             aria-label="Enviar arquivo da aula"
             className="max-w-56"
             onChange={(event) => {

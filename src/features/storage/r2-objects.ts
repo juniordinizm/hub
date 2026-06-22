@@ -1,19 +1,35 @@
-const DEFAULT_MAX_LESSON_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+export const MAX_LESSON_ATTACHMENT_BYTES = 150 * 1024 * 1024;
+export const MAX_LESSON_RESOURCES = 15;
+export const MAX_LESSON_R2_RESOURCES_BYTES = 750 * 1024 * 1024;
 
-const ALLOWED_LESSON_ATTACHMENT_TYPES = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.ms-excel",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/zip",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "text/plain",
-]);
+const ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION = {
+  csv: new Set(["text/csv", "application/csv", "application/vnd.ms-excel"]),
+  doc: new Set(["application/msword"]),
+  docx: new Set([
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ]),
+  jpeg: new Set(["image/jpeg"]),
+  jpg: new Set(["image/jpeg"]),
+  pdf: new Set(["application/pdf"]),
+  png: new Set(["image/png"]),
+  ppt: new Set(["application/vnd.ms-powerpoint"]),
+  pptx: new Set([
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ]),
+  txt: new Set(["text/plain"]),
+  webp: new Set(["image/webp"]),
+  xls: new Set(["application/vnd.ms-excel"]),
+  xlsx: new Set([
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ]),
+  zip: new Set(["application/zip", "application/x-zip-compressed"]),
+} as const;
+
+export const LESSON_ATTACHMENT_ACCEPT = Object.keys(
+  ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION
+)
+  .map((extension) => `.${extension}`)
+  .join(",");
 
 const normalizeAscii = (value: string): string =>
   value
@@ -30,6 +46,13 @@ export const sanitizeR2FileName = (fileName: string): string => {
   return normalized || "arquivo";
 };
 
+const getFileExtension = (fileName: string): string | null => {
+  const normalized = sanitizeR2FileName(fileName);
+  const extension = normalized.split(".").pop();
+
+  return extension && extension !== normalized ? extension : null;
+};
+
 export const buildLessonResourceObjectKey = ({
   fileName,
   lessonId,
@@ -44,7 +67,7 @@ export const buildLessonResourceObjectKey = ({
 export const validateLessonAttachmentUpload = ({
   contentType,
   fileName,
-  maxSizeBytes = DEFAULT_MAX_LESSON_ATTACHMENT_BYTES,
+  maxSizeBytes = MAX_LESSON_ATTACHMENT_BYTES,
   sizeBytes,
 }: {
   contentType: string;
@@ -56,8 +79,21 @@ export const validateLessonAttachmentUpload = ({
     throw new Error("Informe o nome do arquivo.");
   }
 
-  if (!ALLOWED_LESSON_ATTACHMENT_TYPES.has(contentType)) {
-    throw new Error("Tipo de arquivo nao permitido.");
+  const extension = getFileExtension(fileName);
+
+  if (
+    !(extension && extension in ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION)
+  ) {
+    throw new Error("Extensao de arquivo nao permitida.");
+  }
+
+  const allowedContentTypes =
+    ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION[
+      extension as keyof typeof ALLOWED_LESSON_ATTACHMENT_TYPES_BY_EXTENSION
+    ];
+
+  if (!allowedContentTypes.has(contentType)) {
+    throw new Error("Extensao e tipo do arquivo nao correspondem.");
   }
 
   if (!(Number.isInteger(sizeBytes) && sizeBytes > 0)) {
@@ -65,6 +101,6 @@ export const validateLessonAttachmentUpload = ({
   }
 
   if (sizeBytes > maxSizeBytes) {
-    throw new Error("Arquivo maior que 50 MB.");
+    throw new Error("Arquivo maior que 150 MB.");
   }
 };

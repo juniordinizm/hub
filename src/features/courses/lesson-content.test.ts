@@ -139,6 +139,47 @@ describe("lesson content", () => {
     });
   });
 
+  it("limits lesson resources to a reasonable count and total R2 size", () => {
+    const tooManyResources = new FormData();
+    tooManyResources.set("textDocument", JSON.stringify(richTextDocument));
+
+    for (let index = 0; index < 16; index += 1) {
+      tooManyResources.append("resourceLabel[]", `Material ${index + 1}`);
+      tooManyResources.append(
+        "resourceUrl[]",
+        `https://example.com/material-${index + 1}.pdf`
+      );
+    }
+
+    expect(() =>
+      normalizeLessonContentFromForm({
+        formData: tooManyResources,
+        lessonId: "lesson-1",
+        lessonType: "text",
+      })
+    ).toThrow("Limite de 15 materiais por aula atingido.");
+
+    const tooLargeTotal = new FormData();
+    tooLargeTotal.set("textDocument", JSON.stringify(richTextDocument));
+    tooLargeTotal.set("resourceStorage[]", "r2");
+    tooLargeTotal.set("resourceLabel[]", "Pacote 1");
+    tooLargeTotal.set(
+      "resourceKey[]",
+      "lessons/lesson-1/resources/upload-1.zip"
+    );
+    tooLargeTotal.set("resourceFileName[]", "upload-1.zip");
+    tooLargeTotal.set("resourceContentType[]", "application/zip");
+    tooLargeTotal.set("resourceSizeBytes[]", String(751 * 1024 * 1024));
+
+    expect(() =>
+      normalizeLessonContentFromForm({
+        formData: tooLargeTotal,
+        lessonId: "lesson-1",
+        lessonType: "text",
+      })
+    ).toThrow("Limite de 750 MB em materiais da aula atingido.");
+  });
+
   it("rejects empty rich text documents and invalid resource URLs", () => {
     const emptyDocument = new FormData();
     emptyDocument.set(

@@ -15,29 +15,49 @@ describe("R2 lesson objects", () => {
     ).toBe("lessons/lesson-1/resources/upload-1-apostila-final-01.pdf");
   });
 
-  it("validates lesson attachment uploads before signing", () => {
+  it("accepts common course materials up to the per-file limit", () => {
     expect(() =>
       validateLessonAttachmentUpload({
         contentType: "application/pdf",
         fileName: "apostila.pdf",
-        sizeBytes: 1024,
+        sizeBytes: 150 * 1024 * 1024,
       })
     ).not.toThrow();
+  });
 
+  it("rejects unsafe file types and mismatched extensions before signing", () => {
     expect(() =>
       validateLessonAttachmentUpload({
         contentType: "application/x-msdownload",
         fileName: "setup.exe",
         sizeBytes: 1024,
       })
-    ).toThrow("Tipo de arquivo nao permitido.");
+    ).toThrow("Extensao de arquivo nao permitida.");
+
+    expect(() =>
+      validateLessonAttachmentUpload({
+        contentType: "application/x-msdownload",
+        fileName: "apostila.pdf",
+        sizeBytes: 1024,
+      })
+    ).toThrow("Extensao e tipo do arquivo nao correspondem.");
 
     expect(() =>
       validateLessonAttachmentUpload({
         contentType: "application/pdf",
-        fileName: "apostila.pdf",
-        sizeBytes: 60 * 1024 * 1024,
+        fileName: "apostila.jpg",
+        sizeBytes: 1024,
       })
-    ).toThrow("Arquivo maior que 50 MB.");
+    ).toThrow("Extensao e tipo do arquivo nao correspondem.");
+  });
+
+  it("rejects files above the per-file upload limit", () => {
+    expect(() =>
+      validateLessonAttachmentUpload({
+        contentType: "application/pdf",
+        fileName: "apostila.pdf",
+        sizeBytes: 151 * 1024 * 1024,
+      })
+    ).toThrow("Arquivo maior que 150 MB.");
   });
 });
