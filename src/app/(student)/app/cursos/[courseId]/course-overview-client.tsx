@@ -141,8 +141,8 @@ export function CourseOverviewClient({
           </p>
         </div>
 
-        <div className="flex flex-col gap-12">
-          {modules.map((moduleData) => {
+        <div className="flex flex-col">
+          {modules.map((moduleData, index) => {
             const completedCount = moduleData.lessons.filter(
               (l) => l.isCompleted
             ).length;
@@ -197,6 +197,10 @@ export function CourseOverviewClient({
                     </p>
                   )}
                 </div>
+
+                {index < modules.length - 1 && (
+                  <hr className="my-8 border-border border-dashed" />
+                )}
               </div>
             );
           })}
