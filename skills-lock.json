@@ -7,6 +7,12 @@
       "skillPath": "skills/brainstorming/SKILL.md",
       "computedHash": "f483c304fcde060211ffae00f49bb728536e7e7613c99db45b5b924d9fc17243"
     },
+    "cloudflare": {
+      "source": "cloudflare/skills",
+      "sourceType": "github",
+      "skillPath": "skills/cloudflare/SKILL.md",
+      "computedHash": "fcb47a959393265b575b30ce960efe6308e642c9ee11f8ed9e461bc904ff15ce"
+    },
     "emil-design-eng": {
       "source": "emilkowalski/skill",
       "sourceType": "github",
