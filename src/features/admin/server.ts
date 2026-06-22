@@ -83,6 +83,7 @@ export interface AdminManagementData {
     actorEmail: string | null;
     createdAt: Date;
     targetId: string | null;
+    targetName: string | null;
     targetType: string;
   }>;
   certificates: Array<{
@@ -338,10 +339,19 @@ export const getAdminManagementData =
         actor_email: string | null;
         created_at: Date;
         target_id: string | null;
+        target_name: string | null;
         target_type: string;
       }>(
         `
-          select a.action, a.target_type, a.target_id, a.created_at, u.email as actor_email
+          select a.action, a.target_type, a.target_id, a.created_at, u.email as actor_email,
+                 coalesce(
+                   (select title from courses where id::text = a.target_id),
+                   (select title from modules where id::text = a.target_id),
+                   (select title from lessons where id::text = a.target_id),
+                   (select name from users where id::text = a.target_id),
+                   (select question from faq_items where id::text = a.target_id),
+                   (select u2.email from enrollments e2 join users u2 on u2.id = e2.user_id where e2.id::text = a.target_id limit 1)
+                 ) as target_name
           from audit_logs a
           left join users u on u.id = a.actor_user_id
           order by a.created_at desc
@@ -404,6 +414,7 @@ export const getAdminManagementData =
         actorEmail: row.actor_email,
         createdAt: row.created_at,
         targetId: row.target_id,
+        targetName: row.target_name,
         targetType: row.target_type,
       })),
       certificates: certificates.rows.map((row) => ({
