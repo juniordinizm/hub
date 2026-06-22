@@ -9,10 +9,10 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
+import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,10 @@ import {
   SidebarMenuItem,
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
+import {
+  createTextDocumentFromPlainText,
+  type LessonResource,
+} from "@/features/courses/lesson-content";
 import {
   canAccessStudentRoute,
   getHrefWithSearchParams,
@@ -348,66 +352,21 @@ function LessonContentFrame({
 }: {
   lesson: LessonPageData["lesson"];
 }): React.JSX.Element {
-  if (lesson.contentJson?.type === "presentation") {
-    return (
-      <div className="border-border/50 border-b bg-black">
-        <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
-          <iframe
-            allow="fullscreen; picture-in-picture"
-            allowFullScreen
-            className="h-full w-full"
-            loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
-            sandbox="allow-same-origin allow-scripts allow-presentation allow-popups"
-            src={lesson.contentJson.url}
-            title={lesson.title}
-          />
-        </AspectRatio>
-        <div className="px-5 py-3 sm:px-9">
-          <Button asChild size="sm" variant="secondary">
-            <a href={lesson.contentJson.url} rel="noopener" target="_blank">
-              Abrir material
-              <HugeiconsIcon
-                icon={ArrowRight01Icon}
-                size={16}
-                strokeWidth={2}
-              />
-            </a>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   if (lesson.contentJson?.type === "text") {
-    return (
-      <article className="border-border/50 border-b bg-card px-5 py-8 sm:px-9">
-        <div className="mx-auto max-w-3xl whitespace-pre-wrap text-base leading-8">
-          {lesson.contentJson.body}
-        </div>
-      </article>
-    );
-  }
+    const resources =
+      "resources" in lesson.contentJson ? lesson.contentJson.resources : [];
+    const document =
+      "document" in lesson.contentJson
+        ? lesson.contentJson.document
+        : createTextDocumentFromPlainText(lesson.contentJson.body);
 
-  if (lesson.contentJson?.type === "bonus") {
     return (
       <article className="border-border/50 border-b bg-card px-5 py-8 sm:px-9">
-        <div className="mx-auto flex max-w-3xl flex-col gap-5">
-          <div className="whitespace-pre-wrap text-base leading-8">
-            {lesson.contentJson.body}
+        <div className="mx-auto flex max-w-3xl flex-col gap-8">
+          <div className="text-base leading-8 [&_.lesson-rich-text_a]:font-medium [&_.lesson-rich-text_a]:text-primary [&_.lesson-rich-text_a]:underline [&_.lesson-rich-text_a]:underline-offset-4 [&_.lesson-rich-text_blockquote]:border-l-2 [&_.lesson-rich-text_blockquote]:pl-4 [&_.lesson-rich-text_blockquote]:text-muted-foreground [&_.lesson-rich-text_h2]:mt-6 [&_.lesson-rich-text_h2]:font-semibold [&_.lesson-rich-text_h2]:text-2xl [&_.lesson-rich-text_h3]:mt-5 [&_.lesson-rich-text_h3]:font-semibold [&_.lesson-rich-text_h3]:text-xl [&_.lesson-rich-text_ol]:ml-6 [&_.lesson-rich-text_ol]:list-decimal [&_.lesson-rich-text_p]:my-3 [&_.lesson-rich-text_ul]:ml-6 [&_.lesson-rich-text_ul]:list-disc">
+            <LessonRichTextRenderer document={document} />
           </div>
-          {lesson.contentJson.url ? (
-            <Button asChild className="w-fit">
-              <a href={lesson.contentJson.url} rel="noopener" target="_blank">
-                Acessar material bonus
-                <HugeiconsIcon
-                  icon={ArrowRight01Icon}
-                  size={16}
-                  strokeWidth={2}
-                />
-              </a>
-            </Button>
-          ) : null}
+          <LessonResources resources={resources ?? []} />
         </div>
       </article>
     );
@@ -420,17 +379,39 @@ function LessonContentFrame({
   );
 }
 
-function getLessonTypeLabel(lessonType: string): string {
-  if (lessonType === "presentation") {
-    return "Apresentacao";
+function LessonResources({
+  resources,
+}: {
+  resources: LessonResource[];
+}): React.JSX.Element | null {
+  if (resources.length === 0) {
+    return null;
   }
 
+  return (
+    <div className="flex flex-col gap-3 rounded-lg bg-muted/50 p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+      <h2 className="font-semibold text-sm">Materiais da aula</h2>
+      <div className="flex flex-wrap gap-2">
+        {resources.map((resource) => (
+          <Button asChild key={resource.id} size="sm" variant="secondary">
+            <a href={resource.url} rel="noopener" target="_blank">
+              {resource.label}
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={16}
+                strokeWidth={2}
+              />
+            </a>
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getLessonTypeLabel(lessonType: string): string {
   if (lessonType === "text") {
     return "Texto";
-  }
-
-  if (lessonType === "bonus") {
-    return "Bonus";
   }
 
   return "Video";

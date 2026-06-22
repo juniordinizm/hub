@@ -154,7 +154,18 @@ describe("admin presentation", () => {
         },
         {
           durationSeconds: 300,
-          contentJson: { type: "text", body: "Aula de leitura" },
+          contentJson: {
+            type: "text",
+            document: {
+              type: "doc",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "Aula de leitura" }],
+                },
+              ],
+            },
+          },
           isPublished: false,
           lessonType: "text",
           moduleId: "module-1",

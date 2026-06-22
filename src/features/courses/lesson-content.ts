@@ -1,18 +1,24 @@
-export type LessonType = "bonus" | "presentation" | "text" | "video";
+import type { JSONContent } from "@tiptap/core";
+
+export type LessonType = "text" | "video";
+
+export type ProseMirrorJson = JSONContent;
+
+export interface LessonResource {
+  id: string;
+  label: string;
+  url: string;
+}
 
 export type LessonContent =
   | {
-      type: "presentation";
-      url: string;
-    }
-  | {
-      body: string;
+      document: ProseMirrorJson;
+      resources?: LessonResource[];
       type: "text";
     }
   | {
       body: string;
-      type: "bonus";
-      url?: string;
+      type: "text";
     };
 
 export interface LessonContentReadiness {
@@ -20,12 +26,12 @@ export interface LessonContentReadiness {
   missingLabel: string | null;
 }
 
-const LESSON_TYPES = new Set<LessonType>([
-  "bonus",
-  "presentation",
-  "text",
-  "video",
-]);
+export const EMPTY_TEXT_DOCUMENT: ProseMirrorJson = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
+const LESSON_TYPES = new Set<LessonType>(["text", "video"]);
 const LINE_BREAK_PATTERN = /\r?\n/;
 
 export const toLessonType = (value: string): LessonType =>
@@ -34,12 +40,37 @@ export const toLessonType = (value: string): LessonType =>
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
 
+const readStringList = (formData: FormData, key: string): string[] =>
+  formData.getAll(key).map((value) => String(value ?? "").trim());
+
 const normalizeBody = (value: string): string =>
   value
     .trim()
     .split(LINE_BREAK_PATTERN)
     .map((line) => line.trim())
     .join("\n");
+
+export const createTextDocumentFromPlainText = (
+  value: string
+): ProseMirrorJson => {
+  const body = normalizeBody(value);
+
+  if (!body) {
+    return EMPTY_TEXT_DOCUMENT;
+  }
+
+  return {
+    type: "doc",
+    content: body.split(LINE_BREAK_PATTERN).map((line) => ({
+      type: "paragraph",
+      ...(line
+        ? {
+            content: [{ type: "text", text: line }],
+          }
+        : {}),
+    })),
+  };
+};
 
 const normalizeHttpUrl = (value: string): string | null => {
   if (!value.trim()) {
@@ -59,6 +90,109 @@ const normalizeHttpUrl = (value: string): string | null => {
   }
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const isProseMirrorJson = (value: unknown): value is ProseMirrorJson => {
+  if (!(isRecord(value) && typeof value.type === "string")) {
+    return false;
+  }
+
+  if (value.content === undefined) {
+    return true;
+  }
+
+  return (
+    Array.isArray(value.content) &&
+    value.content.every((child) => isProseMirrorJson(child))
+  );
+};
+
+const hasTextContent = (document: ProseMirrorJson): boolean => {
+  if (typeof document.text === "string" && document.text.trim()) {
+    return true;
+  }
+
+  return document.content?.some((child) => hasTextContent(child)) ?? false;
+};
+
+const parseTextDocument = (value: string): ProseMirrorJson | null => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const document: unknown = JSON.parse(value);
+    return isProseMirrorJson(document) ? document : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeResourcesFromForm = (formData: FormData): LessonResource[] => {
+  const labels = readStringList(formData, "resourceLabel[]");
+  const urls = readStringList(formData, "resourceUrl[]");
+  const resources: LessonResource[] = [];
+  const maxLength = Math.max(labels.length, urls.length);
+
+  for (let index = 0; index < maxLength; index += 1) {
+    const label = labels[index] ?? "";
+    const rawUrl = urls[index] ?? "";
+
+    if (!rawUrl) {
+      continue;
+    }
+
+    const url = normalizeHttpUrl(rawUrl);
+
+    if (!url) {
+      throw new Error("Informe uma URL http ou https valida para o material.");
+    }
+
+    resources.push({
+      id: `resource-${resources.length + 1}`,
+      label: label || "Material da aula",
+      url,
+    });
+  }
+
+  return resources;
+};
+
+const normalizeResources = (value: unknown): LessonResource[] | undefined => {
+  if (!Array.isArray(value)) {
+    return;
+  }
+
+  const resources: LessonResource[] = [];
+
+  for (const candidate of value) {
+    if (!isRecord(candidate)) {
+      continue;
+    }
+
+    const rawLabel =
+      typeof candidate.label === "string" ? candidate.label.trim() : "";
+    const rawUrl = typeof candidate.url === "string" ? candidate.url : "";
+    const url = normalizeHttpUrl(rawUrl);
+
+    if (!url) {
+      continue;
+    }
+
+    resources.push({
+      id:
+        typeof candidate.id === "string" && candidate.id.trim()
+          ? candidate.id.trim()
+          : `resource-${resources.length + 1}`,
+      label: rawLabel || "Material da aula",
+      url,
+    });
+  }
+
+  return resources.length > 0 ? resources : undefined;
+};
+
 export const normalizeLessonContentFromForm = ({
   formData,
   lessonType,
@@ -72,81 +206,62 @@ export const normalizeLessonContentFromForm = ({
     return null;
   }
 
-  if (normalizedLessonType === "presentation") {
-    const url = normalizeHttpUrl(readString(formData, "presentationUrl"));
-
-    if (!url) {
-      throw new Error(
-        "Informe uma URL http ou https valida para a apresentacao."
-      );
-    }
-
-    return {
-      type: "presentation",
-      url,
-    };
-  }
-
   if (normalizedLessonType === "text") {
-    const body = normalizeBody(readString(formData, "textBody"));
+    const document = parseTextDocument(readString(formData, "textDocument"));
 
-    if (!body) {
+    if (!(document && hasTextContent(document))) {
       throw new Error("Informe o conteudo textual da aula.");
     }
 
+    const resources = normalizeResourcesFromForm(formData);
+
     return {
       type: "text",
-      body,
+      document,
+      ...(resources.length > 0 ? { resources } : {}),
     };
   }
 
-  const body = normalizeBody(readString(formData, "bonusBody"));
-
-  if (!body) {
-    throw new Error("Informe o conteudo da aula bonus.");
-  }
-
-  const url = normalizeHttpUrl(readString(formData, "bonusUrl"));
-  const content: LessonContent = {
-    type: "bonus",
-    body,
-  };
-
-  return url ? { ...content, url } : content;
+  return null;
 };
 
-export const parseLessonContent = (value: unknown): LessonContent | null => {
-  if (!value || typeof value !== "object") {
+const parseLegacyTextContent = (
+  candidate: Record<string, unknown>
+): LessonContent | null => {
+  if (!(candidate.type === "text" && typeof candidate.body === "string")) {
     return null;
   }
 
-  const candidate = value as Record<string, unknown>;
+  const body = normalizeBody(candidate.body);
+  return body ? { type: "text", body } : null;
+};
 
-  if (candidate.type === "presentation" && typeof candidate.url === "string") {
-    const url = normalizeHttpUrl(candidate.url);
-    return url ? { type: "presentation", url } : null;
+const parseRichTextLessonContent = (
+  candidate: Record<string, unknown>
+): LessonContent | null => {
+  if (!(candidate.type === "text" && isProseMirrorJson(candidate.document))) {
+    return null;
   }
 
-  if (candidate.type === "text" && typeof candidate.body === "string") {
-    const body = normalizeBody(candidate.body);
-    return body ? { type: "text", body } : null;
+  if (!hasTextContent(candidate.document)) {
+    return null;
   }
 
-  if (candidate.type === "bonus" && typeof candidate.body === "string") {
-    const body = normalizeBody(candidate.body);
-    const url =
-      typeof candidate.url === "string"
-        ? normalizeHttpUrl(candidate.url)
-        : null;
+  const resources = normalizeResources(candidate.resources);
 
-    if (!body) {
-      return null;
-    }
+  return {
+    type: "text",
+    document: candidate.document,
+    ...(resources ? { resources } : {}),
+  };
+};
 
-    return url ? { type: "bonus", body, url } : { type: "bonus", body };
+export const parseLessonContent = (value: unknown): LessonContent | null => {
+  if (!isRecord(value)) {
+    return null;
   }
 
-  return null;
+  return parseRichTextLessonContent(value) ?? parseLegacyTextContent(value);
 };
 
 export const getLessonContentReadiness = ({
@@ -177,19 +292,11 @@ export const getLessonContentReadiness = ({
 
   const content = parseLessonContent(contentJson);
 
-  if (normalizedLessonType === "presentation") {
-    return content?.type === "presentation"
-      ? { isReady: true, missingLabel: null }
-      : { isReady: false, missingLabel: "Adicionar apresentacao" };
-  }
-
   if (normalizedLessonType === "text") {
     return content?.type === "text"
       ? { isReady: true, missingLabel: null }
       : { isReady: false, missingLabel: "Adicionar texto" };
   }
 
-  return content?.type === "bonus"
-    ? { isReady: true, missingLabel: null }
-    : { isReady: false, missingLabel: "Adicionar bonus" };
+  return { isReady: false, missingLabel: "Adicionar video" };
 };

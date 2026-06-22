@@ -113,6 +113,13 @@
       "when": 1782118720000,
       "tag": "0015_lesson_content_json",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782129600000,
+      "tag": "0016_simplify_lesson_types",
+      "breakpoints": true
     }
   ]
 }

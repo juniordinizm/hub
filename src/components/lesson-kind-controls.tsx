@@ -1,11 +1,15 @@
 "use client";
 
+import { Add01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
 import {
   type JmvstreamUploadAsset,
   JmvstreamUploadPanel,
 } from "@/components/jmvstream-upload-panel";
+import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
+import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,17 +20,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
+  createTextDocumentFromPlainText,
+  EMPTY_TEXT_DOCUMENT,
   type LessonContent,
+  type LessonResource,
+  type ProseMirrorJson,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 
 const lessonTypeOptions = [
   ["video", "Video"],
-  ["presentation", "Apresentacao"],
   ["text", "Texto"],
-  ["bonus", "Bonus"],
 ] as const;
 
 export function LessonKindControls({
@@ -46,8 +51,10 @@ export function LessonKindControls({
   defaultOrder: number;
   lessonId?: string | undefined;
 }): React.JSX.Element {
-  const [lessonType, setLessonType] = useState(defaultLessonType || "video");
   const content = parseLessonContent(defaultContentJson);
+  const defaultEditableLessonType =
+    defaultLessonType === "video" ? "video" : "text";
+  const [lessonType, setLessonType] = useState(defaultEditableLessonType);
   const isVideoLesson = lessonType === "video";
 
   return (
@@ -58,7 +65,9 @@ export function LessonKindControls({
           <Select
             defaultValue={lessonType}
             name="lessonType"
-            onValueChange={setLessonType}
+            onValueChange={(value) =>
+              setLessonType(value === "text" ? "text" : "video")
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Tipo" />
@@ -120,64 +129,104 @@ export function LessonKindControls({
         </>
       ) : null}
 
-      {lessonType === "presentation" ? (
-        <Field>
-          <FieldLabel>Link da apresentacao ou PDF</FieldLabel>
-          <Input
-            defaultValue={getPresentationUrl(content)}
-            name="presentationUrl"
-            placeholder="https://..."
-            type="url"
-          />
-        </Field>
-      ) : null}
-
       {lessonType === "text" ? (
-        <Field>
-          <FieldLabel>Conteudo da aula</FieldLabel>
-          <Textarea
-            defaultValue={getTextBody(content)}
-            name="textBody"
-            placeholder="Escreva o conteudo textual da aula..."
-            rows={10}
-          />
-        </Field>
-      ) : null}
-
-      {lessonType === "bonus" ? (
         <div className="flex flex-col gap-4">
           <Field>
-            <FieldLabel>Conteudo do bonus</FieldLabel>
-            <Textarea
-              defaultValue={getBonusBody(content)}
-              name="bonusBody"
-              placeholder="Descreva o material bonus, instrucoes ou proximos passos..."
-              rows={8}
-            />
+            <FieldLabel>Conteudo da aula</FieldLabel>
+            <LessonRichTextEditor initialDocument={getTextDocument(content)} />
           </Field>
-          <Field>
-            <FieldLabel>Link opcional do material</FieldLabel>
-            <Input
-              defaultValue={getBonusUrl(content)}
-              name="bonusUrl"
-              placeholder="https://..."
-              type="url"
-            />
-          </Field>
+          <LessonResourcesFields defaultResources={getResources(content)} />
         </div>
       ) : null}
     </div>
   );
 }
 
-const getPresentationUrl = (content: LessonContent | null): string =>
-  content?.type === "presentation" ? content.url : "";
+function LessonResourcesFields({
+  defaultResources,
+}: {
+  defaultResources: LessonResource[];
+}): React.JSX.Element {
+  const [resources, setResources] = useState(() =>
+    defaultResources.length > 0
+      ? defaultResources
+      : [{ id: "resource-1", label: "", url: "" }]
+  );
 
-const getTextBody = (content: LessonContent | null): string =>
-  content?.type === "text" ? content.body : "";
+  const addResource = (): void => {
+    setResources((current) => [
+      ...current,
+      { id: `resource-${current.length + 1}`, label: "", url: "" },
+    ]);
+  };
 
-const getBonusBody = (content: LessonContent | null): string =>
-  content?.type === "bonus" ? content.body : "";
+  const removeResource = (id: string): void => {
+    setResources((current) =>
+      current.length > 1
+        ? current.filter((resource) => resource.id !== id)
+        : [{ id: "resource-1", label: "", url: "" }]
+    );
+  };
 
-const getBonusUrl = (content: LessonContent | null): string =>
-  content?.type === "bonus" ? (content.url ?? "") : "";
+  return (
+    <Field>
+      <div className="flex items-center justify-between gap-3">
+        <FieldLabel>Materiais da aula</FieldLabel>
+        <Button onClick={addResource} size="sm" type="button" variant="outline">
+          <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
+          Adicionar
+        </Button>
+      </div>
+      <div className="flex flex-col gap-3">
+        {resources.map((resource, index) => (
+          <div
+            className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]"
+            key={resource.id}
+          >
+            <Input
+              defaultValue={resource.label}
+              name="resourceLabel[]"
+              placeholder="Nome do material"
+            />
+            <Input
+              defaultValue={resource.url}
+              name="resourceUrl[]"
+              placeholder="https://..."
+              type="url"
+            />
+            <Button
+              aria-label={`Remover material ${index + 1}`}
+              onClick={() => removeResource(resource.id)}
+              size="icon"
+              title="Remover material"
+              type="button"
+              variant="ghost"
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
+const getTextDocument = (content: LessonContent | null): ProseMirrorJson => {
+  if (content?.type === "text" && "document" in content) {
+    return content.document;
+  }
+
+  if (content?.type === "text" && "body" in content) {
+    return createTextDocumentFromPlainText(content.body);
+  }
+
+  return EMPTY_TEXT_DOCUMENT;
+};
+
+const getResources = (content: LessonContent | null): LessonResource[] => {
+  if (content?.type === "text" && "resources" in content) {
+    return content.resources ?? [];
+  }
+
+  return [];
+};

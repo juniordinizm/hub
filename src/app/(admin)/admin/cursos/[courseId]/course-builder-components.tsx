@@ -284,16 +284,8 @@ export function ModuleForm({
 }
 
 function getLessonTypeLabel(lessonType: string): string {
-  if (lessonType === "presentation") {
-    return "Apresentacao";
-  }
-
   if (lessonType === "text") {
     return "Texto";
-  }
-
-  if (lessonType === "bonus") {
-    return "Bonus";
   }
 
   return "Video";

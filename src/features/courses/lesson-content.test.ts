@@ -2,7 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   getLessonContentReadiness,
   normalizeLessonContentFromForm,
+  parseLessonContent,
 } from "./lesson-content";
+
+const richTextDocument = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "Linha 1" }],
+    },
+  ],
+};
 
 describe("lesson content", () => {
   it("keeps video lessons content-free and ready only when a player exists", () => {
@@ -32,65 +43,108 @@ describe("lesson content", () => {
     ).toEqual({ isReady: false, missingLabel: "Adicionar video" });
   });
 
-  it("normalizes presentation URLs and rejects invalid URLs", () => {
+  it("stores rich text documents and external lesson resources for text lessons", () => {
     const formData = new FormData();
-    formData.set("presentationUrl", " HTTPS://example.com/slides.pdf ");
+    formData.set("textDocument", JSON.stringify(richTextDocument));
+    formData.set("resourceLabel[]", " Slides em PDF ");
+    formData.set("resourceUrl[]", " HTTPS://example.com/slides.pdf ");
+    formData.append("resourceLabel[]", "Material vazio");
+    formData.append("resourceUrl[]", "");
 
     expect(
       normalizeLessonContentFromForm({
         formData,
-        lessonType: "presentation",
-      })
-    ).toEqual({
-      type: "presentation",
-      url: "https://example.com/slides.pdf",
-    });
-
-    const invalid = new FormData();
-    invalid.set("presentationUrl", "javascript:alert(1)");
-
-    expect(() =>
-      normalizeLessonContentFromForm({
-        formData: invalid,
-        lessonType: "presentation",
-      })
-    ).toThrow("Informe uma URL http ou https valida para a apresentacao.");
-  });
-
-  it("requires text content for text and bonus lessons", () => {
-    const textForm = new FormData();
-    textForm.set("textBody", " Linha 1 \n\n Linha 2 ");
-
-    expect(
-      normalizeLessonContentFromForm({
-        formData: textForm,
         lessonType: "text",
       })
     ).toEqual({
       type: "text",
-      body: "Linha 1\n\nLinha 2",
+      document: richTextDocument,
+      resources: [
+        {
+          id: "resource-1",
+          label: "Slides em PDF",
+          url: "https://example.com/slides.pdf",
+        },
+      ],
     });
+  });
 
-    const bonusForm = new FormData();
-    bonusForm.set("bonusBody", "Material complementar");
-    bonusForm.set("bonusUrl", "https://example.com/material");
-
-    expect(
-      normalizeLessonContentFromForm({
-        formData: bonusForm,
-        lessonType: "bonus",
-      })
-    ).toEqual({
-      type: "bonus",
-      body: "Material complementar",
-      url: "https://example.com/material",
-    });
+  it("rejects empty rich text documents and invalid resource URLs", () => {
+    const emptyDocument = new FormData();
+    emptyDocument.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
 
     expect(() =>
       normalizeLessonContentFromForm({
-        formData: new FormData(),
+        formData: emptyDocument,
         lessonType: "text",
       })
     ).toThrow("Informe o conteudo textual da aula.");
+
+    const invalid = new FormData();
+    invalid.set("textDocument", JSON.stringify(richTextDocument));
+    invalid.set("resourceLabel[]", "Slides");
+    invalid.set("resourceUrl[]", "javascript:alert(1)");
+
+    expect(() =>
+      normalizeLessonContentFromForm({
+        formData: invalid,
+        lessonType: "text",
+      })
+    ).toThrow("Informe uma URL http ou https valida para o material.");
+  });
+
+  it("rejects removed legacy lesson content types", () => {
+    expect(
+      parseLessonContent({
+        type: "presentation",
+        url: "https://example.com/slides.pdf",
+      })
+    ).toBeNull();
+
+    expect(
+      parseLessonContent({
+        type: "bonus",
+        body: "Material complementar",
+        url: "https://example.com/material",
+      })
+    ).toBeNull();
+  });
+
+  it("marks text lesson content readiness correctly", () => {
+    expect(
+      getLessonContentReadiness({
+        contentJson: { type: "text", document: richTextDocument },
+        lessonType: "text",
+        videoEmbedUrl: null,
+        videoExternalId: null,
+        videoProvider: null,
+      })
+    ).toEqual({ isReady: true, missingLabel: null });
+
+    expect(
+      getLessonContentReadiness({
+        contentJson: { type: "text", body: "Aula legada" },
+        lessonType: "text",
+        videoEmbedUrl: null,
+        videoExternalId: null,
+        videoProvider: null,
+      })
+    ).toEqual({ isReady: true, missingLabel: null });
+
+    expect(
+      getLessonContentReadiness({
+        contentJson: {
+          type: "bonus",
+          body: "Material que nao deve mais contar como aula",
+        },
+        lessonType: "bonus",
+        videoEmbedUrl: null,
+        videoExternalId: null,
+        videoProvider: null,
+      })
+    ).toEqual({ isReady: false, missingLabel: "Adicionar video" });
   });
 });

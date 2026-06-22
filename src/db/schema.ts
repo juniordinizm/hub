@@ -30,12 +30,7 @@ export const courseStatusEnum = pgEnum("course_status", [
   "active",
   "archived",
 ]);
-export const lessonTypeEnum = pgEnum("lesson_type", [
-  "video",
-  "presentation",
-  "text",
-  "bonus",
-]);
+export const lessonTypeEnum = pgEnum("lesson_type", ["video", "text"]);
 export const videoProviderEnum = pgEnum("video_provider", [
   "panda",
   "jmvstream",
