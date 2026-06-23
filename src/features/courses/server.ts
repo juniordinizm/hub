@@ -54,6 +54,7 @@ export interface StudentCatalogCourseCard {
   thumbnailUrl: string | null;
   title: string;
   totalCount: number;
+  totalDurationSeconds: number;
   workloadHours: number;
 }
 
@@ -205,6 +206,7 @@ type StudentCourseAggregate = StudentCourseCard & {
 
 type StudentCatalogCourseAggregate = StudentCatalogCourseCard & {
   completedLessonIds: string[];
+  durationSecondsPerLesson: Map<string, number>;
   lessonIds: string[];
 };
 
@@ -443,6 +445,7 @@ export const getStudentCourseCatalog = async (
     completed_at: Date | null;
     course_description: string | null;
     course_id: string;
+    duration_seconds: number;
     expires_at: Date | null;
     is_enrolled: boolean;
     lesson_id: string | null;
@@ -479,6 +482,7 @@ export const getStudentCourseCatalog = async (
           and e.expires_at >= now()
         ) as is_enrolled,
         l.id as lesson_id,
+        coalesce(l.duration_seconds, 0) as duration_seconds,
         lp.completed_at
       from courses c
       left join enrollments e on e.course_id = c.id
@@ -510,13 +514,16 @@ export const getStudentCourseCatalog = async (
       progressPercent: 0,
       completedCount: 0,
       totalCount: 0,
+      totalDurationSeconds: 0,
       nextLessonId: null,
       lessonIds: [],
       completedLessonIds: [],
+      durationSecondsPerLesson: new Map<string, number>(),
     };
 
     if (row.lesson_id) {
       course.lessonIds.push(row.lesson_id);
+      course.durationSecondsPerLesson.set(row.lesson_id, row.duration_seconds);
       if (row.completed_at && row.is_enrolled) {
         course.completedLessonIds.push(row.lesson_id);
       }
@@ -546,6 +553,9 @@ export const getStudentCourseCatalog = async (
       progressPercent: progress.percent,
       completedCount: progress.completedCount,
       totalCount: progress.totalCount,
+      totalDurationSeconds: [
+        ...course.durationSecondsPerLesson.values(),
+      ].reduce((sum, s) => sum + Math.max(0, s), 0),
       nextLessonId: course.isEnrolled ? getNextAvailableLessonId(course) : null,
     };
   });

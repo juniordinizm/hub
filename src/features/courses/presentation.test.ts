@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveCourseWorkloadHours,
+  formatCourseWorkload,
   getCourseAccessPresentation,
   getStudentCatalogAccessPresentation,
   getStudentCoursePrimaryHref,
@@ -150,5 +151,16 @@ describe("course presentation helpers", () => {
     expect(deriveCourseWorkloadHours([1800, 1801])).toBe(2);
     expect(deriveCourseWorkloadHours([1800, 1799])).toBe(1);
     expect(deriveCourseWorkloadHours([])).toBe(0);
+  });
+
+  it("formats course workload rounded up to the nearest minute", () => {
+    expect(formatCourseWorkload(0)).toBe("0min");
+    expect(formatCourseWorkload(30)).toBe("1min");
+    expect(formatCourseWorkload(180)).toBe("3min");
+    expect(formatCourseWorkload(1801)).toBe("31min");
+    expect(formatCourseWorkload(3600)).toBe("1h");
+    expect(formatCourseWorkload(5400)).toBe("1h 30min");
+    expect(formatCourseWorkload(5401)).toBe("1h 31min");
+    expect(formatCourseWorkload(7200)).toBe("2h");
   });
 });

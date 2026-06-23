@@ -16,8 +16,10 @@ import {
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
 import { getAdminManagementData } from "@/features/admin/server";
-import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
-import { formatLessonDuration } from "@/features/videos/jmvstream";
+import {
+  formatCourseWorkload,
+  summarizeCoursePublicationReadiness,
+} from "@/features/courses/presentation";
 import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import {
@@ -153,7 +155,7 @@ export default async function AdminCourseDetailPage({
                 helper="Duração total das aulas em vídeo."
                 icon={Clock01Icon}
                 label="Carga horária"
-                value={formatLessonDuration(
+                value={formatCourseWorkload(
                   contentSummary.totalDurationSeconds
                 )}
               />
@@ -303,7 +305,10 @@ export default async function AdminCourseDetailPage({
                   externo.
                 </p>
               </div>
-              <CourseSettingsForm course={course} />
+              <CourseSettingsForm
+                course={course}
+                totalDurationSeconds={contentSummary.totalDurationSeconds}
+              />
             </section>
           </TabsContent>
         </Tabs>

@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import {
+  formatCourseWorkload,
   getStudentCatalogAccessPresentation,
   getStudentCoursePrimaryHref,
   groupStudentCatalogCourses,
@@ -305,7 +306,8 @@ function CourseCard({
               ) : null}
             </div>
             <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
-              {course.totalCount} aulas • {course.workloadHours}h
+              {course.totalCount} aulas •{" "}
+              {formatCourseWorkload(course.totalDurationSeconds)}
             </div>
           </div>
         </div>

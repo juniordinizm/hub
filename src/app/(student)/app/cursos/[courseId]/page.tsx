@@ -5,7 +5,10 @@ import { notFound, redirect } from "next/navigation";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { getStudentCoursePrimaryHref } from "@/features/courses/presentation";
+import {
+  formatCourseWorkload,
+  getStudentCoursePrimaryHref,
+} from "@/features/courses/presentation";
 import {
   canAccessStudentRoute,
   getPreviewAwareHref,
@@ -15,7 +18,6 @@ import {
   getCoursePreviewOverviewData,
   getStudentCourseOverviewData,
 } from "@/features/courses/server";
-import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { CourseOverviewClient } from "./course-overview-client";
@@ -117,7 +119,7 @@ export default async function StudentCourseOverviewPage({
                 <CourseMetric
                   icon={Clock01Icon}
                   label="Carga horária"
-                  value={formatLessonDuration(totalDurationSeconds)}
+                  value={formatCourseWorkload(totalDurationSeconds)}
                 />
 
                 <div className="flex min-w-[200px] flex-1 flex-col justify-center rounded-md border bg-card px-3 py-1 text-xs">

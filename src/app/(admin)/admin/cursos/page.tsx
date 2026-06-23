@@ -34,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
+import { formatCourseWorkload } from "@/features/courses/presentation";
 import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
@@ -239,7 +240,13 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   );
 }
 
-function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
+function CourseForm({
+  course,
+  totalDurationSeconds = 0,
+}: {
+  course?: CourseData;
+  totalDurationSeconds?: number;
+}): React.JSX.Element {
   return (
     <AutoCloseDialogForm
       action={saveCourseAction}
@@ -269,7 +276,7 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
               <Input
                 disabled
                 readOnly
-                value={`${course?.workloadHours ?? 0}h`}
+                value={formatCourseWorkload(totalDurationSeconds)}
               />
             </Field>
             <Field>

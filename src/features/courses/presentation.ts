@@ -1,6 +1,7 @@
 const EXPIRING_SOON_DAYS = 30;
 const MILLISECONDS_PER_DAY = 86_400_000;
 const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
 
 export type CourseAccessTone =
   | "active"
@@ -263,4 +264,27 @@ export const deriveCourseWorkloadHours = (
   );
 
   return totalSeconds > 0 ? Math.ceil(totalSeconds / SECONDS_PER_HOUR) : 0;
+};
+
+/**
+ * Formats total course duration in seconds as a human-readable workload
+ * string rounded up to the nearest minute.
+ *
+ * Examples: "0min", "3min", "1h 30min", "2h"
+ */
+export const formatCourseWorkload = (totalSeconds: number): string => {
+  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const totalMinutes = Math.ceil(safeSeconds / SECONDS_PER_MINUTE);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}min`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  return `${totalMinutes}min`;
 };
