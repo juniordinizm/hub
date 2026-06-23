@@ -169,12 +169,11 @@ export function CourseSettingsForm({
 
           <div className="grid gap-5 md:grid-cols-4">
             <Field>
-              <FieldLabel>Carga horária</FieldLabel>
+              <FieldLabel>Carga horária automática</FieldLabel>
               <Input
-                defaultValue={course.workloadHours ?? 0}
-                min={0}
-                name="workloadHours"
-                type="number"
+                disabled
+                readOnly
+                value={`${course.workloadHours ?? 0}h`}
               />
             </Field>
             <Field>

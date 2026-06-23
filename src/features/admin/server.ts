@@ -149,7 +149,10 @@ export interface AdminManagementData {
     description: string | null;
     sortOrder: number;
     title: string;
+    textDurationSeconds: number;
+    textWordCount: number;
     videoEmbedUrl: string | null;
+    videoDurationSeconds: number;
     videoExternalId: string | null;
     videoProvider: string | null;
   }>;
@@ -252,15 +255,20 @@ export const getAdminManagementData =
         module_id: string;
         module_title: string;
         sort_order: number;
+        text_duration_seconds: number;
+        text_word_count: number;
         title: string;
         video_embed_url: string | null;
+        video_duration_seconds: number;
         video_external_id: string | null;
         video_provider: string | null;
       }>(
         `
           select l.id, l.module_id, m.title as module_title, c.title as course_title,
                  l.title, l.description as lesson_description, l.content_json,
-                 l.duration_seconds, l.sort_order, l.video_provider,
+                 l.duration_seconds, l.video_duration_seconds,
+                 l.text_duration_seconds, l.text_word_count,
+                 l.sort_order, l.video_provider,
                  l.video_external_id, l.video_embed_url, l.is_published
           from lessons l
           join modules m on m.id = l.module_id
@@ -461,7 +469,10 @@ export const getAdminManagementData =
         description: row.lesson_description,
         sortOrder: row.sort_order,
         title: row.title,
+        textDurationSeconds: row.text_duration_seconds,
+        textWordCount: row.text_word_count,
         videoEmbedUrl: row.video_embed_url,
+        videoDurationSeconds: row.video_duration_seconds,
         videoExternalId: row.video_external_id,
         videoProvider: row.video_provider,
       })),

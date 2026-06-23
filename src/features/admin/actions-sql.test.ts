@@ -14,4 +14,14 @@ describe("admin course actions", () => {
       "await ensureJmvstreamCourseFolder(savedCourseId)"
     );
   });
+
+  it("does not persist course workload from manual form input", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).not.toContain('readNumber(formData, "workloadHours"');
+    expect(source).not.toContain("workload_hours = $7");
+  });
 });

@@ -144,6 +144,7 @@ export interface StudentLessonData {
     title: string;
     description: string | null;
     durationSeconds: number;
+    videoDurationSeconds: number;
     isCompleted: boolean;
     watchProgress: {
       currentSeconds: number;
@@ -174,6 +175,7 @@ interface LessonRow {
   module_id: string;
   module_sort_order: number;
   module_title: string;
+  video_duration_seconds: number;
   video_embed_url: string | null;
   video_external_id: string | null;
   video_provider: string | null;
@@ -637,6 +639,7 @@ export const getStudentCourseOverviewData = async ({
         l.video_embed_url,
         l.video_external_id,
         l.duration_seconds,
+        l.video_duration_seconds,
         l.sort_order as lesson_sort_order,
         lp.completed_at,
         lwp.watched_percent
@@ -893,6 +896,7 @@ export const getStudentLessonData = async ({
         l.description as lesson_description,
         l.content_json,
         l.duration_seconds,
+        l.video_duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
         l.video_external_id,
@@ -953,6 +957,7 @@ export const getStudentLessonData = async ({
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
+      videoDurationSeconds: activeLesson.video_duration_seconds,
       isCompleted: Boolean(activeLesson.completed_at),
       watchProgress:
         activeLesson.watch_percent === null
@@ -1042,6 +1047,7 @@ export const getPreviewLessonData = async ({
       title: activeLesson.lesson_title,
       description: activeLesson.lesson_description,
       durationSeconds: activeLesson.duration_seconds,
+      videoDurationSeconds: activeLesson.video_duration_seconds,
       isCompleted: false,
       watchProgress: null,
       videoEmbedUrl,
@@ -1376,7 +1382,7 @@ export const syncJmvstreamLessonDuration = async ({
 
   if (
     !shouldApplyDetectedDuration({
-      currentSeconds: data.lesson.durationSeconds,
+      currentSeconds: data.lesson.videoDurationSeconds,
       detectedSeconds: roundedDurationSeconds,
       userEdited: false,
     })
@@ -1387,7 +1393,8 @@ export const syncJmvstreamLessonDuration = async ({
   await getPool().query(
     `
       update lessons
-      set duration_seconds = $1,
+      set video_duration_seconds = $1,
+          duration_seconds = $1 + coalesce(text_duration_seconds, 0),
           updated_at = now()
       where id = $2
     `,

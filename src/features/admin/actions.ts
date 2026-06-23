@@ -13,6 +13,7 @@ import {
   getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
 } from "@/features/courses/lesson-content";
+import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import {
@@ -303,7 +304,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const description = readString(formData, "description") || null;
   const coverImage = parseCourseCoverFormField(formData);
   const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
-  const workloadHours = readNumber(formData, "workloadHours", 0);
   const status = readString(formData, "status") || "draft";
   const thumbnailUrl = courseId
     ? getCourseCoverUrl({
@@ -318,7 +318,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     thumbnailUrl,
     coverImage ? JSON.stringify(coverImage) : null,
     accessDurationMonths,
-    workloadHours,
     status,
   ];
   let savedCourseId = courseId;
@@ -338,10 +337,9 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
             thumbnail_url = $4,
             cover_image_json = $5::jsonb,
             access_duration_months = $6,
-            workload_hours = $7,
-            status = $8,
+            status = $7,
             updated_at = now()
-        where id = $9
+        where id = $8
       `,
       [...values, courseId]
     );
@@ -379,7 +377,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
           title,
           subtitle,
           description,
-          workload_hours,
           price_in_cents,
           thumbnail_url,
           cover_image_json,
@@ -387,7 +384,7 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
         returning id
       `,
       [
@@ -396,7 +393,6 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
         title,
         subtitle,
         description,
-        workloadHours,
         priceInCents,
         insertedThumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
@@ -623,6 +619,12 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     throw new Error("Adicione video ou texto antes de salvar a aula.");
   }
 
+  const durationBreakdown = calculateLessonDurationBreakdown({
+    textDocument: contentJson?.document ?? null,
+    videoDurationSeconds: hasVideoContent
+      ? readNumber(formData, "durationSeconds")
+      : 0,
+  });
   const values = [
     readString(formData, "moduleId"),
     readString(formData, "title"),
@@ -632,7 +634,10 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     videoEmbedUrl,
     thumbnailUrl,
     contentJson ? JSON.stringify(contentJson) : null,
-    readNumber(formData, "durationSeconds"),
+    durationBreakdown.totalDurationSeconds,
+    durationBreakdown.videoDurationSeconds,
+    durationBreakdown.textDurationSeconds,
+    durationBreakdown.textWordCount,
     readNumber(formData, "sortOrder", 1),
     formData.get("isPublished") === "on",
   ];
@@ -653,10 +658,13 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
             thumbnail_url = $7,
             content_json = $8::jsonb,
             duration_seconds = $9,
-            sort_order = $10,
-            is_published = $11,
+            video_duration_seconds = $10,
+            text_duration_seconds = $11,
+            text_word_count = $12,
+            sort_order = $13,
+            is_published = $14,
             updated_at = now()
-        where id = $12
+        where id = $15
       `,
       [...values, lessonId]
     );
@@ -691,10 +699,13 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           thumbnail_url,
           content_json,
           duration_seconds,
+          video_duration_seconds,
+          text_duration_seconds,
+          text_word_count,
           sort_order,
           is_published
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14)
         returning id
       `,
       values

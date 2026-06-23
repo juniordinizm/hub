@@ -265,12 +265,11 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Carga horária</FieldLabel>
+              <FieldLabel>Carga horária automática</FieldLabel>
               <Input
-                defaultValue={course?.workloadHours ?? 0}
-                min={0}
-                name="workloadHours"
-                type="number"
+                disabled
+                readOnly
+                value={`${course?.workloadHours ?? 0}h`}
               />
             </Field>
             <Field>

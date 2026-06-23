@@ -221,6 +221,11 @@ export const lessons = pgTable(
     thumbnailUrl: text("thumbnail_url"),
     contentJson: jsonb("content_json"),
     durationSeconds: integer("duration_seconds").default(0).notNull(),
+    videoDurationSeconds: integer("video_duration_seconds")
+      .default(0)
+      .notNull(),
+    textDurationSeconds: integer("text_duration_seconds").default(0).notNull(),
+    textWordCount: integer("text_word_count").default(0).notNull(),
     sortOrder: integer("sort_order").notNull(),
     isPublished: boolean("is_published").default(true).notNull(),
     ...timestamps,
@@ -229,6 +234,18 @@ export const lessons = pgTable(
     check(
       "lessons_duration_seconds_non_negative",
       sql`${table.durationSeconds} >= 0`
+    ),
+    check(
+      "lessons_video_duration_seconds_non_negative",
+      sql`${table.videoDurationSeconds} >= 0`
+    ),
+    check(
+      "lessons_text_duration_seconds_non_negative",
+      sql`${table.textDurationSeconds} >= 0`
+    ),
+    check(
+      "lessons_text_word_count_non_negative",
+      sql`${table.textWordCount} >= 0`
     ),
     index("lessons_module_sort_idx").on(table.moduleId, table.sortOrder),
     uniqueIndex("lessons_module_sort_unique_idx").on(
