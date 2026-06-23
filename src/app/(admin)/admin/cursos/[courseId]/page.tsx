@@ -305,10 +305,7 @@ export default async function AdminCourseDetailPage({
                   externo.
                 </p>
               </div>
-              <CourseSettingsForm
-                course={course}
-                totalDurationSeconds={contentSummary.totalDurationSeconds}
-              />
+              <CourseSettingsForm course={course} />
             </section>
           </TabsContent>
         </Tabs>

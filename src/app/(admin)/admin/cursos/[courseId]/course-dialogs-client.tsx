@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { deleteCourseAction, saveCourseAction } from "@/features/admin/actions";
-import { formatCourseWorkload } from "@/features/courses/presentation";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
@@ -114,10 +113,8 @@ export function DeleteCourseDialog({
 
 export function CourseSettingsForm({
   course,
-  totalDurationSeconds,
 }: {
   course: CourseData;
-  totalDurationSeconds: number;
 }): React.JSX.Element {
   const [isPending, startTransition] = useTransition();
 
@@ -170,15 +167,7 @@ export function CourseSettingsForm({
             />
           </Field>
 
-          <div className="grid gap-5 md:grid-cols-4">
-            <Field>
-              <FieldLabel>Carga horária automática</FieldLabel>
-              <Input
-                disabled
-                readOnly
-                value={formatCourseWorkload(totalDurationSeconds)}
-              />
-            </Field>
+          <div className="grid gap-5 md:grid-cols-3">
             <Field>
               <FieldLabel>Preço do curso</FieldLabel>
               <Input

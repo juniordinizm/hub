@@ -34,7 +34,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
-import { formatCourseWorkload } from "@/features/courses/presentation";
 import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
@@ -240,13 +239,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   );
 }
 
-function CourseForm({
-  course,
-  totalDurationSeconds = 0,
-}: {
-  course?: CourseData;
-  totalDurationSeconds?: number;
-}): React.JSX.Element {
+function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
   return (
     <AutoCloseDialogForm
       action={saveCourseAction}
@@ -272,14 +265,6 @@ function CourseForm({
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Carga horária automática</FieldLabel>
-              <Input
-                disabled
-                readOnly
-                value={formatCourseWorkload(totalDurationSeconds)}
-              />
-            </Field>
-            <Field>
               <FieldLabel>Meses de acesso</FieldLabel>
               <Input
                 defaultValue={course?.accessDurationMonths ?? 12}
@@ -288,19 +273,19 @@ function CourseForm({
                 type="number"
               />
             </Field>
+            <Field>
+              <FieldLabel>Preço do curso</FieldLabel>
+              <Input
+                defaultValue={
+                  course ? formatCurrencyInCents(course.priceInCents) : ""
+                }
+                disabled={Boolean(course)}
+                name="price"
+                placeholder="497,00"
+                required={!course}
+              />
+            </Field>
           </div>
-          <Field>
-            <FieldLabel>Preço do curso</FieldLabel>
-            <Input
-              defaultValue={
-                course ? formatCurrencyInCents(course.priceInCents) : ""
-              }
-              disabled={Boolean(course)}
-              name="price"
-              placeholder="497,00"
-              required={!course}
-            />
-          </Field>
           <Field>
             <FieldLabel>Status</FieldLabel>
             <Select defaultValue={course?.status ?? "draft"} name="status">
