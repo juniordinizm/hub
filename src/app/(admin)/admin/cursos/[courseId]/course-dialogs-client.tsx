@@ -140,7 +140,7 @@ export function CourseSettingsForm({
           <input name="courseId" type="hidden" value={course.id} />
 
           <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
-            <Field className="row-span-2 py-4">
+            <Field className="row-span-2">
               <CourseCoverUploadField
                 courseId={course.id}
                 defaultCoverImage={course.coverImage}

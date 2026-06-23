@@ -178,8 +178,8 @@ export function CourseCoverUploadField({
 
   if (!effectiveCourseId) {
     return (
-      <div className="flex h-full w-full max-w-[280px] flex-col gap-2">
-        <Skeleton className="h-full min-h-[120px] w-full rounded-xl" />
+      <div className="flex w-full flex-col gap-2 sm:w-[280px]">
+        <Skeleton className="aspect-video w-full rounded-xl" />
       </div>
     );
   }
@@ -314,13 +314,13 @@ export function CourseCoverUploadField({
   };
 
   return (
-    <div className="flex h-full w-full max-w-[280px] flex-col gap-2">
+    <div className="flex w-full flex-col gap-2 sm:w-[280px]">
       <input name="coverImage" type="hidden" value={coverImageJson} />
       {isNewCourse && (
         <input name="pendingCourseId" type="hidden" value={effectiveCourseId} />
       )}
 
-      <div className="relative h-full min-h-[120px]">
+      <div className="relative aspect-video w-full">
         {/* biome-ignore lint/a11y/useSemanticElements: div is required for drag-and-drop drop zone with flexible sizing */}
         <div
           className={cn(
@@ -359,7 +359,7 @@ export function CourseCoverUploadField({
               {/* biome-ignore lint/correctness/useImageSize: image fills container via CSS */}
               <img
                 alt="Capa do curso"
-                className="size-full object-cover"
+                className="absolute inset-0 size-full object-cover"
                 src={previewUrl}
               />
               <div className="pointer-events-none absolute inset-0 rounded-xl border border-black/10 dark:border-white/10" />
