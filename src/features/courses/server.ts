@@ -1003,6 +1003,7 @@ export const getPreviewLessonData = async ({
         l.description as lesson_description,
         l.content_json,
         l.duration_seconds,
+        l.video_duration_seconds,
         l.sort_order as lesson_sort_order,
         l.video_embed_url,
         l.video_external_id,
