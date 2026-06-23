@@ -152,7 +152,7 @@ export default async function AdminCourseDetailPage({
                 value={certificates.length.toString()}
               />
               <CourseMetricCard
-                helper="Duração total das aulas em vídeo."
+                helper="Duração total das aulas."
                 icon={Clock01Icon}
                 label="Carga horária"
                 value={formatCourseWorkload(
