@@ -4,7 +4,6 @@ import { Cancel01Icon, ImageUpload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -13,145 +12,33 @@ import {
 } from "@/components/ui/tooltip";
 import {
   COURSE_COVER_ACCEPT,
-  COURSE_COVER_VARIANTS,
-  type CourseCoverImage,
-  type CourseCoverVariant,
   parseCourseCoverImage,
 } from "@/features/storage/course-cover";
 import { cn } from "@/lib/utils";
 
 interface CourseCoverUploadFieldProps {
-  courseId: string;
   defaultCoverImage?: unknown;
   defaultThumbnailUrl?: string | null | undefined;
 }
 
-interface GeneratedVariant {
-  blob: Blob;
-  contentType: string;
-  sizeBytes: number;
-  variant: CourseCoverVariant;
-}
+const MAX_COVER_BYTES = 5 * 1024 * 1024;
+const ALLOWED_COVER_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-interface SignedCoverUploadPayload {
-  coverImage: CourseCoverImage;
-  uploads: Array<{
-    contentType: string;
-    key: string;
-    uploadUrl: string;
-    variant: CourseCoverVariant | "original";
-  }>;
-}
-
-const VARIANT_QUALITY: Record<CourseCoverVariant, number> = {
-  card: 0.82,
-  thumb: 0.8,
-};
-
-const readImage = async (file: File): Promise<HTMLImageElement> =>
-  await new Promise((resolve, reject) => {
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Nao foi possivel ler a imagem."));
-    };
-    image.src = url;
-  });
-
-const canvasToBlob = async (
-  canvas: HTMLCanvasElement,
-  quality: number
-): Promise<Blob> =>
-  await new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-          return;
-        }
-
-        reject(new Error("Nao foi possivel gerar a variante da capa."));
-      },
-      "image/webp",
-      quality
-    );
-  });
-
-const createCoverVariant = async ({
-  image,
-  variant,
-}: {
-  image: HTMLImageElement;
-  variant: CourseCoverVariant;
-}): Promise<GeneratedVariant> => {
-  const dimensions = COURSE_COVER_VARIANTS[variant];
-  const sourceRatio = image.naturalWidth / image.naturalHeight;
-  const targetRatio = dimensions.width / dimensions.height;
-  const sourceWidth =
-    sourceRatio > targetRatio
-      ? image.naturalHeight * targetRatio
-      : image.naturalWidth;
-  const sourceHeight =
-    sourceRatio > targetRatio
-      ? image.naturalHeight
-      : image.naturalWidth / targetRatio;
-  const sourceX = (image.naturalWidth - sourceWidth) / 2;
-  const sourceY = (image.naturalHeight - sourceHeight) / 2;
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Canvas indisponivel para gerar a capa.");
+const isValidCoverFile = (file: File): boolean => {
+  if (!ALLOWED_COVER_TYPES.has(file.type)) {
+    toast.error("Por favor, envie uma imagem JPG, PNG ou WebP.");
+    return false;
   }
 
-  canvas.width = dimensions.width;
-  canvas.height = dimensions.height;
-  context.drawImage(
-    image,
-    sourceX,
-    sourceY,
-    sourceWidth,
-    sourceHeight,
-    0,
-    0,
-    dimensions.width,
-    dimensions.height
-  );
-
-  const blob = await canvasToBlob(canvas, VARIANT_QUALITY[variant]);
-
-  return {
-    blob,
-    contentType: "image/webp",
-    sizeBytes: blob.size,
-    variant,
-  };
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const isSignedCoverUploadPayload = (
-  value: unknown
-): value is SignedCoverUploadPayload =>
-  isRecord(value) && Array.isArray(value.uploads) && Boolean(value.coverImage);
-
-const readUploadError = (value: unknown): string => {
-  if (isRecord(value) && typeof value.error === "string") {
-    return value.error;
+  if (file.size > MAX_COVER_BYTES) {
+    toast.error("A imagem deve ter no maximo 5MB.");
+    return false;
   }
 
-  return "Nao foi possivel preparar o upload da capa.";
+  return true;
 };
 
 export function CourseCoverUploadField({
-  courseId,
   defaultCoverImage,
   defaultThumbnailUrl,
 }: CourseCoverUploadFieldProps): React.JSX.Element {
@@ -160,111 +47,48 @@ export function CourseCoverUploadField({
     parsedCover ? JSON.stringify(parsedCover) : ""
   );
   const [previewUrl, setPreviewUrl] = useState(defaultThumbnailUrl ?? "");
-  const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
-  const [effectiveCourseId, setEffectiveCourseId] = useState<string | null>(
-    courseId || null
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
+    },
+    []
   );
 
-  useEffect(() => {
-    if (!courseId) {
-      setEffectiveCourseId(crypto.randomUUID());
+  const setLocalPreview = (file: File): boolean => {
+    if (!isValidCoverFile(file)) {
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+
+      return false;
     }
-  }, [courseId]);
 
-  const isNewCourse = !courseId;
-
-  if (!effectiveCourseId) {
-    return (
-      <div className="flex w-full flex-col gap-2 sm:w-[280px]">
-        <Skeleton className="aspect-video w-full rounded-xl" />
-      </div>
-    );
-  }
-
-  const uploadCover = async (file: File): Promise<void> => {
-    const toastId = toast.loading("Preparando capa...");
-    setIsUploading(true);
-
-    try {
-      const image = await readImage(file);
-      const variants = await Promise.all(
-        (Object.keys(COURSE_COVER_VARIANTS) as CourseCoverVariant[]).map(
-          (variant) => createCoverVariant({ image, variant })
-        )
-      );
-      const signedResponse = await fetch(
-        `/api/admin/courses/${effectiveCourseId}/cover/upload-url`,
-        {
-          body: JSON.stringify({
-            original: {
-              contentType: file.type,
-              fileName: file.name,
-              sizeBytes: file.size,
-            },
-            variants: variants.map(({ contentType, sizeBytes, variant }) => ({
-              contentType,
-              sizeBytes,
-              variant,
-            })),
-          }),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        }
-      );
-      const signedPayload: unknown = await signedResponse.json();
-
-      if (!(signedResponse.ok && isSignedCoverUploadPayload(signedPayload))) {
-        throw new Error(readUploadError(signedPayload));
-      }
-
-      const originalUpload = signedPayload.uploads.find(
-        (upload) => upload.variant === "original"
-      );
-
-      if (!originalUpload) {
-        throw new Error("Upload original da capa indisponivel.");
-      }
-
-      await uploadBlob({
-        blob: file,
-        contentType: file.type,
-        uploadUrl: originalUpload.uploadUrl,
-      });
-
-      for (const variant of variants) {
-        const upload = signedPayload.uploads.find(
-          (candidate) => candidate.variant === variant.variant
-        );
-
-        if (!upload) {
-          throw new Error("Upload de variante da capa indisponivel.");
-        }
-
-        await uploadBlob({
-          blob: variant.blob,
-          contentType: variant.contentType,
-          uploadUrl: upload.uploadUrl,
-        });
-      }
-
-      setCoverImageJson(JSON.stringify(signedPayload.coverImage));
-      setPreviewUrl(URL.createObjectURL(file));
-      toast.success("Capa enviada. Salve o curso para publicar.", {
-        id: toastId,
-      });
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Nao foi possivel enviar a capa.",
-        { id: toastId }
-      );
-    } finally {
-      setIsUploading(false);
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
     }
+
+    const nextPreviewUrl = URL.createObjectURL(file);
+    objectUrlRef.current = nextPreviewUrl;
+    setPreviewUrl(nextPreviewUrl);
+    toast.success("Capa selecionada. Salve o curso para enviar.");
+    return true;
+  };
+
+  const assignDroppedFile = (file: File): void => {
+    if (!(inputRef.current && isValidCoverFile(file))) {
+      return;
+    }
+
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    inputRef.current.files = dataTransfer.files;
+    setLocalPreview(file);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -284,15 +108,11 @@ export function CourseCoverUploadField({
     e.stopPropagation();
     setIsDragging(false);
 
-    if (isUploading) {
-      return;
-    }
-
     const file = e.dataTransfer.files?.[0];
     if (file?.type.startsWith("image/")) {
-      uploadCover(file).catch(() => undefined);
+      assignDroppedFile(file);
     } else if (file) {
-      toast.error("Por favor, envie um arquivo de imagem válido.");
+      toast.error("Por favor, envie um arquivo de imagem valido.");
     }
   };
 
@@ -308,6 +128,12 @@ export function CourseCoverUploadField({
     e.stopPropagation();
     setCoverImageJson("");
     setPreviewUrl("");
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -316,9 +142,6 @@ export function CourseCoverUploadField({
   return (
     <div className="flex w-full flex-col gap-2 sm:w-[280px]">
       <input name="coverImage" type="hidden" value={coverImageJson} />
-      {isNewCourse && (
-        <input name="pendingCourseId" type="hidden" value={effectiveCourseId} />
-      )}
 
       <div className="relative aspect-video w-full">
         {/* biome-ignore lint/a11y/useSemanticElements: div is required for drag-and-drop drop zone with flexible sizing */}
@@ -326,7 +149,6 @@ export function CourseCoverUploadField({
           className={cn(
             "group relative flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-[border-color,background-color] duration-200 ease-out focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
             isDragging ? "border-ring bg-muted" : "border-input hover:bg-muted",
-            isUploading ? "pointer-events-none opacity-80" : "",
             previewUrl ? "border-transparent border-solid" : ""
           )}
           onClick={() => inputRef.current?.click()}
@@ -340,13 +162,12 @@ export function CourseCoverUploadField({
           <input
             accept={COURSE_COVER_ACCEPT}
             className="sr-only"
-            disabled={isUploading}
+            name="coverFile"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
 
               if (file) {
-                uploadCover(file).catch(() => undefined);
+                setLocalPreview(file);
               }
             }}
             ref={inputRef}
@@ -355,7 +176,7 @@ export function CourseCoverUploadField({
 
           {previewUrl ? (
             <>
-              {/* biome-ignore lint/performance/noImgElement: preview is a blob URL, not optimizable by next/image */}
+              {/* biome-ignore lint/performance/noImgElement: preview may be a blob URL, not optimizable by next/image */}
               {/* biome-ignore lint/correctness/useImageSize: image fills container via CSS */}
               <img
                 alt="Capa do curso"
@@ -364,52 +185,32 @@ export function CourseCoverUploadField({
               />
               <div className="pointer-events-none absolute inset-0 rounded-xl border border-black/10 dark:border-white/10" />
 
-              <div
-                className={cn(
-                  "absolute inset-0 flex flex-col items-center justify-center bg-background/60 backdrop-blur-sm transition-opacity duration-200 ease-out",
-                  isUploading
-                    ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-                )}
-              >
-                {isUploading ? (
-                  <p className="animate-pulse font-medium text-sm">
-                    Processando capa...
-                  </p>
-                ) : (
-                  <p className="font-medium text-sm">
-                    Clique para alterar a capa
-                  </p>
-                )}
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/60 opacity-0 backdrop-blur-sm transition-opacity duration-200 ease-out group-hover:opacity-100 group-focus-visible:opacity-100">
+                <p className="font-medium text-sm">
+                  Clique para alterar a capa
+                </p>
               </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center p-6 text-center">
               <div className="mb-3 flex size-12 items-center justify-center rounded-full border bg-background">
                 <HugeiconsIcon
-                  className={cn(
-                    "text-muted-foreground opacity-60",
-                    isUploading && "animate-pulse"
-                  )}
+                  className="text-muted-foreground opacity-60"
                   icon={ImageUpload01Icon}
                   size={20}
                 />
               </div>
               <p className="mb-1 font-medium text-sm">
-                {isUploading
-                  ? "Enviando e processando..."
-                  : "Arraste ou clique para enviar a capa"}
+                Arraste ou clique para selecionar a capa
               </p>
               <p className="text-muted-foreground text-xs">
-                {isUploading
-                  ? "Isso pode levar alguns segundos"
-                  : "PNG, JPG ou WebP até 5MB"}
+                PNG, JPG ou WebP ate 5MB
               </p>
             </div>
           )}
         </div>
 
-        {previewUrl && !isUploading && (
+        {previewUrl && (
           <div className="absolute top-3 right-3 z-50">
             <TooltipProvider>
               <Tooltip>
@@ -441,23 +242,3 @@ export function CourseCoverUploadField({
     </div>
   );
 }
-
-const uploadBlob = async ({
-  blob,
-  contentType,
-  uploadUrl,
-}: {
-  blob: Blob;
-  contentType: string;
-  uploadUrl: string;
-}): Promise<void> => {
-  const response = await fetch(uploadUrl, {
-    body: blob,
-    headers: { "Content-Type": contentType },
-    method: "PUT",
-  });
-
-  if (!response.ok) {
-    throw new Error("Nao foi possivel enviar a capa para o R2.");
-  }
-};

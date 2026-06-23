@@ -7,13 +7,11 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import type { CourseCoverImage } from "@/features/storage/course-cover";
 import {
-  buildCourseCoverObjectKey,
-  COURSE_COVER_VARIANTS,
-  type CourseCoverImage,
-  type CourseCoverVariant,
-  validateCourseCoverUploadRequest,
-} from "@/features/storage/course-cover";
+  type CourseCoverFile,
+  createCourseCoverUploadParts,
+} from "@/features/storage/course-cover-upload";
 import {
   buildLessonResourceObjectKey,
   buildLessonResourcePreviewObjectKey,
@@ -47,19 +45,6 @@ interface R2LessonResource {
   };
   sizeBytes: number;
   storage: "r2";
-}
-
-type CourseCoverUploadVariantInput = Array<{
-  contentType: string;
-  sizeBytes: number;
-  variant: CourseCoverVariant;
-}>;
-
-interface CourseCoverUploadUrl {
-  contentType: string;
-  key: string;
-  uploadUrl: string;
-  variant: CourseCoverVariant | "original";
 }
 
 const readRequiredEnv = (key: string): string => {
@@ -204,122 +189,33 @@ export const createLessonResourceDownloadUrl = async ({
   );
 };
 
-const getExtensionForContentType = (contentType: string): string => {
-  if (contentType === "image/png") {
-    return "png";
-  }
-
-  if (contentType === "image/jpeg") {
-    return "jpg";
-  }
-
-  return "webp";
-};
-
-const createPutSignedUrl = async ({
-  bucketName,
-  client,
-  contentType,
-  key,
-}: {
-  bucketName: string;
-  client: S3Client;
-  contentType: string;
-  key: string;
-}): Promise<string> =>
-  await getSignedUrl(
-    client,
-    new PutObjectCommand({
-      Bucket: bucketName,
-      ContentType: contentType,
-      Key: key,
-    }),
-    {
-      expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
-      signableHeaders: new Set(["content-type"]),
-    }
-  );
-
-export const createCourseCoverUploadUrls = async ({
+export const uploadCourseCoverFile = async ({
   courseId,
-  original,
-  variants,
+  file,
 }: {
   courseId: string;
-  original: {
-    contentType: string;
-    fileName: string;
-    sizeBytes: number;
-  };
-  variants: CourseCoverUploadVariantInput;
-}): Promise<{
-  coverImage: CourseCoverImage;
-  uploads: CourseCoverUploadUrl[];
-}> => {
-  validateCourseCoverUploadRequest({ courseId, original, variants });
-
+  file: CourseCoverFile;
+}): Promise<CourseCoverImage> => {
+  const { coverImage, objects } = await createCourseCoverUploadParts({
+    courseId,
+    file,
+    nonce: randomUUID(),
+  });
   const config = getR2Config();
   const client = getR2Client(config);
-  const nonce = randomUUID();
-  const originalKey = buildCourseCoverObjectKey({
-    courseId,
-    extension: getExtensionForContentType(original.contentType),
-    nonce,
-    variant: "original",
-  });
-  const uploads: CourseCoverUploadUrl[] = [
-    {
-      contentType: original.contentType,
-      key: originalKey,
-      uploadUrl: await createPutSignedUrl({
-        bucketName: config.bucketName,
-        client,
-        contentType: original.contentType,
-        key: originalKey,
-      }),
-      variant: "original",
-    },
-  ];
-  const coverImage: CourseCoverImage = {
-    original: {
-      contentType: original.contentType,
-      fileName: original.fileName,
-      key: originalKey,
-      sizeBytes: original.sizeBytes,
-    },
-    variants: {},
-  };
 
-  for (const variantInput of variants) {
-    const dimensions = COURSE_COVER_VARIANTS[variantInput.variant];
-    const key = buildCourseCoverObjectKey({
-      courseId,
-      extension: getExtensionForContentType(variantInput.contentType),
-      nonce,
-      variant: variantInput.variant,
-    });
-
-    uploads.push({
-      contentType: variantInput.contentType,
-      key,
-      uploadUrl: await createPutSignedUrl({
-        bucketName: config.bucketName,
-        client,
-        contentType: variantInput.contentType,
-        key,
-      }),
-      variant: variantInput.variant,
-    });
-    coverImage.variants[variantInput.variant] = {
-      contentType: variantInput.contentType,
-      height: dimensions.height,
-      key,
-      sizeBytes: variantInput.sizeBytes,
-      width: dimensions.width,
-    };
+  for (const object of objects) {
+    await client.send(
+      new PutObjectCommand({
+        Body: object.body,
+        Bucket: config.bucketName,
+        ContentType: object.contentType,
+        Key: object.key,
+      })
+    );
   }
 
-  return { coverImage, uploads };
+  return coverImage;
 };
 
 export const createR2ObjectReadUrl = async ({

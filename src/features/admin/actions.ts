@@ -31,11 +31,16 @@ import {
 import { parsePriceToCents } from "@/features/payments/abacatepay";
 import { createAbacatePayCourseProduct } from "@/features/payments/server";
 import {
+  type CourseCoverImage,
   getCourseCoverStorageKeys,
   getCourseCoverVariantPath,
   parseCourseCoverImage,
 } from "@/features/storage/course-cover";
-import { deleteR2Objects } from "@/features/storage/r2";
+import {
+  type CourseCoverFile,
+  readCourseCoverFile,
+} from "@/features/storage/course-cover-upload";
+import { deleteR2Objects, uploadCourseCoverFile } from "@/features/storage/r2";
 import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
@@ -61,7 +66,9 @@ const parseJsonFormField = (formData: FormData, key: string): unknown => {
   }
 };
 
-const parseCourseCoverFormField = (formData: FormData): unknown => {
+const parseCourseCoverFormField = (
+  formData: FormData
+): CourseCoverImage | null => {
   const rawCoverImage = parseJsonFormField(formData, "coverImage");
 
   if (!rawCoverImage) {
@@ -85,6 +92,172 @@ const getCourseCoverUrl = ({
   coverImage: unknown;
 }): string | null =>
   getCourseCoverVariantPath({ courseId, coverImage, variant: "card" });
+
+const cleanupUploadedCourseCover = async (
+  coverImage: CourseCoverImage | null
+): Promise<void> => {
+  await deleteR2Objects(getCourseCoverStorageKeys(coverImage));
+};
+
+interface CourseFormValues {
+  accessDurationMonths: number;
+  description: string | null;
+  status: string;
+  subtitle: string | null;
+  title: string;
+}
+
+const readCourseFormValues = (formData: FormData): CourseFormValues => ({
+  accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
+  description: readString(formData, "description") || null,
+  status: readString(formData, "status") || "draft",
+  subtitle: readString(formData, "subtitle") || null,
+  title: readString(formData, "title"),
+});
+
+const updateExistingCourse = async ({
+  actorUserId,
+  courseId,
+  coverFile,
+  formData,
+  previousCoverKeys,
+  values,
+}: {
+  actorUserId: string;
+  courseId: string;
+  coverFile: CourseCoverFile | null;
+  formData: FormData;
+  previousCoverKeys: string[];
+  values: CourseFormValues;
+}): Promise<void> => {
+  let uploadedCoverImage: CourseCoverImage | null = null;
+
+  try {
+    const coverImage = coverFile
+      ? await uploadCourseCoverFile({ courseId, file: coverFile })
+      : parseCourseCoverFormField(formData);
+    uploadedCoverImage = coverFile ? coverImage : null;
+    const thumbnailUrl = getCourseCoverUrl({
+      courseId,
+      coverImage,
+    });
+
+    await getPool().query(
+      `
+        update courses
+        set title = $1,
+            subtitle = $2,
+            description = $3,
+            thumbnail_url = $4,
+            cover_image_json = $5::jsonb,
+            access_duration_months = $6,
+            status = $7,
+            updated_at = now()
+        where id = $8
+      `,
+      [
+        values.title,
+        values.subtitle,
+        values.description,
+        thumbnailUrl,
+        coverImage ? JSON.stringify(coverImage) : null,
+        values.accessDurationMonths,
+        values.status,
+        courseId,
+      ]
+    );
+    await audit({
+      action: "course.updated",
+      actorUserId,
+      targetId: courseId,
+      targetType: "course",
+    });
+    await deleteRemovedR2Objects({
+      nextKeys: getCourseCoverStorageKeys(coverImage),
+      previousKeys: previousCoverKeys,
+    });
+  } catch (error) {
+    await cleanupUploadedCourseCover(uploadedCoverImage);
+    throw error;
+  }
+};
+
+const createNewCourse = async ({
+  actorUserId,
+  courseId,
+  coverFile,
+  formData,
+  values,
+}: {
+  actorUserId: string;
+  courseId: string;
+  coverFile: CourseCoverFile | null;
+  formData: FormData;
+  values: CourseFormValues;
+}): Promise<void> => {
+  let uploadedCoverImage: CourseCoverImage | null = null;
+
+  try {
+    const coverImage = coverFile
+      ? await uploadCourseCoverFile({ courseId, file: coverFile })
+      : parseCourseCoverFormField(formData);
+    uploadedCoverImage = coverFile ? coverImage : null;
+    const insertedThumbnailUrl = getCourseCoverUrl({
+      courseId,
+      coverImage,
+    });
+    const slug = await resolveUniqueCourseSlug(values.title);
+    const priceInCents = parsePriceToCents(readString(formData, "price"));
+    const { productId } = await createAbacatePayCourseProduct({
+      courseId,
+      description: values.description,
+      imageUrl: insertedThumbnailUrl,
+      priceInCents,
+      title: values.title,
+    });
+    const inserted = await getPool().query<{ id: string }>(
+      `
+        insert into courses (
+          id,
+          slug,
+          title,
+          subtitle,
+          description,
+          price_in_cents,
+          thumbnail_url,
+          cover_image_json,
+          payment_provider_product_id,
+          access_duration_months,
+          status
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+        returning id
+      `,
+      [
+        courseId,
+        slug,
+        values.title,
+        values.subtitle,
+        values.description,
+        priceInCents,
+        insertedThumbnailUrl,
+        coverImage ? JSON.stringify(coverImage) : null,
+        productId,
+        values.accessDurationMonths,
+        values.status,
+      ]
+    );
+    await audit({
+      action: "course.created",
+      actorUserId,
+      targetId: inserted.rows[0]?.id,
+      targetType: "course",
+    });
+  } catch (error) {
+    await cleanupUploadedCourseCover(uploadedCoverImage);
+    throw error;
+  }
+};
 
 const revalidateAdmin = (): void => {
   for (const path of [
@@ -299,27 +472,8 @@ const cleanupUpdatedLessonAssets = async ({
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
-  const title = readString(formData, "title");
-  const subtitle = readString(formData, "subtitle") || null;
-  const description = readString(formData, "description") || null;
-  const coverImage = parseCourseCoverFormField(formData);
-  const accessDurationMonths = readNumber(formData, "accessDurationMonths", 12);
-  const status = readString(formData, "status") || "draft";
-  const thumbnailUrl = courseId
-    ? getCourseCoverUrl({
-        courseId,
-        coverImage,
-      })
-    : null;
-  const values = [
-    title,
-    subtitle,
-    description,
-    thumbnailUrl,
-    coverImage ? JSON.stringify(coverImage) : null,
-    accessDurationMonths,
-    status,
-  ];
+  const values = readCourseFormValues(formData);
+  const coverFile = readCourseCoverFile(formData.get("coverFile"));
   let savedCourseId = courseId;
   const previousCoverKeys = courseId
     ? (await getCourseR2ObjectKeys(courseId)).filter((key) =>
@@ -328,85 +482,23 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
     : [];
 
   if (courseId) {
-    await getPool().query(
-      `
-        update courses
-        set title = $1,
-            subtitle = $2,
-            description = $3,
-            thumbnail_url = $4,
-            cover_image_json = $5::jsonb,
-            access_duration_months = $6,
-            status = $7,
-            updated_at = now()
-        where id = $8
-      `,
-      [...values, courseId]
-    );
-    await audit({
-      action: "course.updated",
+    await updateExistingCourse({
       actorUserId: session.user.id,
-      targetId: courseId,
-      targetType: "course",
-    });
-    await deleteRemovedR2Objects({
-      nextKeys: getCourseCoverStorageKeys(coverImage),
-      previousKeys: previousCoverKeys,
+      courseId,
+      coverFile,
+      formData,
+      previousCoverKeys,
+      values,
     });
   } else {
-    const pendingCourseId = readString(formData, "pendingCourseId");
-    const insertedCourseId = pendingCourseId || randomUUID();
+    const insertedCourseId = randomUUID();
     savedCourseId = insertedCourseId;
-    const insertedThumbnailUrl = getCourseCoverUrl({
-      courseId: insertedCourseId,
-      coverImage,
-    });
-    const slug = await resolveUniqueCourseSlug(title);
-    const priceInCents = parsePriceToCents(readString(formData, "price"));
-    const { productId } = await createAbacatePayCourseProduct({
-      courseId: insertedCourseId,
-      description,
-      imageUrl: insertedThumbnailUrl,
-      priceInCents,
-      title,
-    });
-    const inserted = await getPool().query<{ id: string }>(
-      `
-        insert into courses (
-          id,
-          slug,
-          title,
-          subtitle,
-          description,
-          price_in_cents,
-          thumbnail_url,
-          cover_image_json,
-          payment_provider_product_id,
-          access_duration_months,
-          status
-        )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
-        returning id
-      `,
-      [
-        insertedCourseId,
-        slug,
-        title,
-        subtitle,
-        description,
-        priceInCents,
-        insertedThumbnailUrl,
-        coverImage ? JSON.stringify(coverImage) : null,
-        productId,
-        accessDurationMonths,
-        status,
-      ]
-    );
-    await audit({
-      action: "course.created",
+    await createNewCourse({
       actorUserId: session.user.id,
-      targetId: inserted.rows[0]?.id,
-      targetType: "course",
+      courseId: insertedCourseId,
+      coverFile,
+      formData,
+      values,
     });
   }
 
