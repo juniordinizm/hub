@@ -22,12 +22,14 @@ import {
 import type React from "react";
 import { useEffect, useState, useTransition } from "react";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody } from "@/components/ui/table";
 import {
   reorderLessonsAction,
   reorderModulesAction,
 } from "@/features/admin/actions";
 import type { getAdminManagementData } from "@/features/admin/server";
 import { SortableItem } from "./sortable-list";
+import { SortableTableRow } from "./sortable-table-row";
 
 type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
 type CourseData = AdminData["courses"][number];
@@ -270,25 +272,31 @@ export function CourseBuilderClient({
                     items={moduleLessons.map((l) => l.id)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {moduleLessons.length > 0 && <Separator />}
-                    <div className="divide-y">
-                      {moduleLessons.map((lesson) => (
-                        <SortableItem
-                          className="bg-background/20 transition-colors hover:bg-muted/10"
-                          data={{ type: "lesson" }}
-                          handleClassName="px-4 items-center"
-                          id={lesson.id}
-                          key={lesson.id}
-                        >
-                          {renderLesson(lesson, moduleData)}
-                        </SortableItem>
-                      ))}
-                      {moduleLessons.length === 0 && (
+                    {moduleLessons.length > 0 && (
+                      <div className="border-t">
+                        <Table>
+                          <TableBody>
+                            {moduleLessons.map((lesson) => (
+                              <SortableTableRow
+                                data={{ type: "lesson" }}
+                                id={lesson.id}
+                                key={lesson.id}
+                              >
+                                {renderLesson(lesson, moduleData)}
+                              </SortableTableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                    {moduleLessons.length === 0 && (
+                      <>
+                        <Separator />
                         <p className="px-5 py-4 text-muted-foreground text-sm">
                           Nenhuma aula cadastrada neste módulo.
                         </p>
-                      )}
-                    </div>
+                      </>
+                    )}
                   </SortableContext>
                 </SortableItem>
               );

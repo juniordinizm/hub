@@ -32,6 +32,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createLessonDraftAction,
@@ -148,40 +149,45 @@ export function LessonRow({
   const hasAnyContent = hasVideo || hasText;
 
   return (
-    <div className="flex flex-col gap-3 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-      <div className="grid gap-3 lg:grid-cols-[80px_1fr_160px_110px] lg:items-center">
-        <span className="font-mono text-muted-foreground text-xs">
-          Aula {lesson.sortOrder}
-        </span>
-        <div>
-          <p className="font-medium">{lesson.title}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-muted-foreground text-xs">
-            <span>{formatLessonDuration(lesson.durationSeconds)}</span>
-            <span>·</span>
-            {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
-            {hasText ? <Badge variant="secondary">Texto</Badge> : null}
-            {hasAnyContent ? null : (
-              <Badge variant="destructive">sem conteudo</Badge>
-            )}
-          </div>
+    <>
+      <TableCell className="w-[80px] min-w-[80px] font-mono text-muted-foreground text-xs">
+        Aula {lesson.sortOrder}
+      </TableCell>
+      <TableCell className="w-[300px] min-w-[300px] max-w-[300px] truncate font-medium">
+        {lesson.title}
+      </TableCell>
+      <TableCell className="w-[120px] min-w-[120px] text-center text-muted-foreground text-sm">
+        {formatLessonDuration(lesson.durationSeconds)}
+      </TableCell>
+      <TableCell className="w-[180px] min-w-[180px]">
+        <div className="flex items-center justify-center gap-2">
+          {hasVideo ? <Badge variant="secondary">Vídeo</Badge> : null}
+          {hasText ? <Badge variant="secondary">Texto</Badge> : null}
+          {hasAnyContent ? null : (
+            <Badge variant="destructive">Sem conteúdo</Badge>
+          )}
         </div>
-        <span className="truncate font-mono text-muted-foreground text-xs">
-          {lesson.videoExternalId ?? "sem hash"}
-        </span>
-        <Badge
-          className="w-fit"
-          variant={lesson.isPublished ? "default" : "outline"}
-        >
-          {lesson.isPublished ? "publicada" : "rascunho"}
-        </Badge>
-      </div>
-      <Button asChild size="sm" variant="ghost">
-        <Link href={route(`/admin/cursos/${courseId}/aulas/${lesson.id}`)}>
-          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
-          Editar
-        </Link>
-      </Button>
-    </div>
+      </TableCell>
+      <TableCell className="w-[130px] min-w-[130px]">
+        <div className="flex justify-center">
+          <Badge
+            className="w-fit"
+            variant={lesson.isPublished ? "default" : "outline"}
+          >
+            {lesson.isPublished ? "publicada" : "rascunho"}
+          </Badge>
+        </div>
+      </TableCell>
+      <TableCell className="w-full" />
+      <TableCell className="w-[100px] text-right">
+        <Button asChild size="sm" variant="ghost">
+          <Link href={route(`/admin/cursos/${courseId}/aulas/${lesson.id}`)}>
+            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+            Editar
+          </Link>
+        </Button>
+      </TableCell>
+    </>
   );
 }
 
