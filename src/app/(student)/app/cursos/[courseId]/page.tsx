@@ -15,6 +15,7 @@ import {
   getCoursePreviewOverviewData,
   getStudentCourseOverviewData,
 } from "@/features/courses/server";
+import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { CourseOverviewClient } from "./course-overview-client";
@@ -78,6 +79,14 @@ export default async function StudentCourseOverviewPage({
       previewMode
     )
   );
+
+  const totalDurationSeconds = data.modules.reduce(
+    (acc, m) =>
+      acc +
+      m.lessons.reduce((sum, l) => sum + Math.max(0, l.durationSeconds), 0),
+    0
+  );
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
@@ -108,7 +117,7 @@ export default async function StudentCourseOverviewPage({
                 <CourseMetric
                   icon={Clock01Icon}
                   label="Carga horária"
-                  value={`${data.course.workloadHours}h`}
+                  value={formatLessonDuration(totalDurationSeconds)}
                 />
 
                 <div className="flex min-w-[200px] flex-1 flex-col justify-center rounded-md border bg-card px-3 py-1 text-xs">
