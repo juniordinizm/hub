@@ -6,6 +6,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -248,14 +249,23 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
       <DialogBody>
         <FieldGroup>
           <input name="courseId" type="hidden" value={course?.id ?? ""} />
-          <Field>
-            <FieldLabel>Título</FieldLabel>
-            <Input defaultValue={course?.title ?? ""} name="title" required />
-          </Field>
-          <Field>
-            <FieldLabel>Subtítulo</FieldLabel>
-            <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
-          </Field>
+          <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
+            <Field className="row-span-2">
+              <CourseCoverUploadField
+                courseId={course?.id ?? ""}
+                defaultCoverImage={course?.coverImage}
+                defaultThumbnailUrl={course?.thumbnailUrl}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>Título</FieldLabel>
+              <Input defaultValue={course?.title ?? ""} name="title" required />
+            </Field>
+            <Field>
+              <FieldLabel>Subtítulo</FieldLabel>
+              <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
+            </Field>
+          </div>
           <Field>
             <FieldLabel>Descrição</FieldLabel>
             <Textarea

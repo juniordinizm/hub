@@ -1,4 +1,3 @@
-import { getPool } from "@/db";
 import {
   type CourseCoverVariant,
   isCourseCoverVariant,
@@ -75,13 +74,11 @@ const readVariants = (body: Record<string, unknown>) => {
   return variants;
 };
 
-const courseExists = async (courseId: string): Promise<boolean> => {
-  const { rowCount } = await getPool().query(
-    "select 1 from courses where id = $1 limit 1",
-    [courseId]
-  );
-  return Number(rowCount) > 0;
-};
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isValidCourseId = (courseId: string): boolean =>
+  UUID_PATTERN.test(courseId);
 
 export async function POST(
   request: Request,
@@ -91,8 +88,8 @@ export async function POST(
 
   const { courseId } = await context.params;
 
-  if (!(courseId && (await courseExists(courseId)))) {
-    return Response.json({ error: "Curso nao encontrado." }, { status: 404 });
+  if (!isValidCourseId(courseId)) {
+    return Response.json({ error: "ID de curso invalido." }, { status: 400 });
   }
 
   const body: unknown = await request.json();

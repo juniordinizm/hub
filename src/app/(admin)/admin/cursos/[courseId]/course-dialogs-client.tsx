@@ -139,7 +139,14 @@ export function CourseSettingsForm({
         <FieldGroup>
           <input name="courseId" type="hidden" value={course.id} />
 
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
+            <Field className="row-span-2">
+              <CourseCoverUploadField
+                courseId={course.id}
+                defaultCoverImage={course.coverImage}
+                defaultThumbnailUrl={course.thumbnailUrl}
+              />
+            </Field>
             <Field>
               <FieldLabel>Título</FieldLabel>
               <Input defaultValue={course.title} name="title" required />
@@ -147,14 +154,6 @@ export function CourseSettingsForm({
             <Field>
               <FieldLabel>Subtítulo</FieldLabel>
               <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-            </Field>
-            <Field>
-              <FieldLabel>Capa do curso</FieldLabel>
-              <CourseCoverUploadField
-                courseId={course.id}
-                defaultCoverImage={course.coverImage}
-                defaultThumbnailUrl={course.thumbnailUrl}
-              />
             </Field>
           </div>
 

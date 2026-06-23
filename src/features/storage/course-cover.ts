@@ -9,7 +9,7 @@ export type CourseCoverVariant = keyof typeof COURSE_COVER_VARIANTS;
 
 export const COURSE_COVER_ACCEPT = ".jpg,.jpeg,.png,.webp";
 
-const MAX_ORIGINAL_COVER_BYTES = 12 * 1024 * 1024;
+const MAX_ORIGINAL_COVER_BYTES = 5 * 1024 * 1024;
 const ALLOWED_ORIGINAL_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -109,7 +109,7 @@ const validateOriginalCover = (
   }
 
   if (original.sizeBytes > MAX_ORIGINAL_COVER_BYTES) {
-    throw new Error("Imagem original maior que 12 MB.");
+    throw new Error("Imagem original maior que 5 MB.");
   }
 };
 

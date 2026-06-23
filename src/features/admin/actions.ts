@@ -354,7 +354,8 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
       previousKeys: previousCoverKeys,
     });
   } else {
-    const insertedCourseId = randomUUID();
+    const pendingCourseId = readString(formData, "pendingCourseId");
+    const insertedCourseId = pendingCourseId || randomUUID();
     savedCourseId = insertedCourseId;
     const insertedThumbnailUrl = getCourseCoverUrl({
       courseId: insertedCourseId,
