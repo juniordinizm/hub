@@ -39,6 +39,17 @@ describe("lesson comments SQL contracts", () => {
     expect(source).toContain("insert into lesson_comments");
   });
 
+  it("filters hidden comments from non-moderators while preserving moderator review", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("const canModerateComments");
+    expect(source).toContain("lc.status = 'visible'");
+    expect(source).toContain("parent.status = 'visible'");
+  });
+
   it("hides comments without deleting their tree position", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
@@ -49,5 +60,17 @@ describe("lesson comments SQL contracts", () => {
     expect(source).toContain("hidden_by_user_id = $2");
     expect(source).toContain("hidden_at = now()");
     expect(source).not.toContain("delete from lesson_comments");
+  });
+
+  it("restores hidden comments by clearing moderation metadata", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("restoreLessonComment");
+    expect(source).toContain("status = 'visible'");
+    expect(source).toContain("hidden_by_user_id = null");
+    expect(source).toContain("hidden_at = null");
   });
 });

@@ -33,4 +33,21 @@ describe("lesson comments actions", () => {
       "revalidatePath(`/admin/cursos/${result.courseId}/aulas/${result.lessonId}`)"
     );
   });
+
+  it("restricts comment restoring to staff roles", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("restoreLessonCommentAction");
+    expect(source).toContain('requireRole(["admin", "support"])');
+    expect(source).toContain("restoreLessonComment");
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: matching literal source text
+    expect(source).toContain("revalidatePath(`/app/aulas/${result.lessonId}`)");
+    expect(source).toContain(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: matching literal source text
+      "revalidatePath(`/admin/cursos/${result.courseId}/aulas/${result.lessonId}`)"
+    );
+  });
 });

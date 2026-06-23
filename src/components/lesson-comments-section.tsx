@@ -2,6 +2,7 @@ import type * as React from "react";
 import {
   createLessonCommentAction,
   hideLessonCommentAction,
+  restoreLessonCommentAction,
 } from "@/features/comments/actions";
 import type { LessonCommentView } from "@/features/comments/rules";
 import type { AppRole } from "@/lib/session";
@@ -156,21 +157,37 @@ function CommentBody({
       </div>
 
       {comment.isHidden ? (
-        <p className="rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm italic">
-          Comentario ocultado pela equipe.
-        </p>
+        <div className="space-y-2 rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
+          <p className="italic">Comentario ocultado da area do aluno.</p>
+          {canModerate ? (
+            <p className="whitespace-pre-wrap break-words text-xs leading-5">
+              {comment.body}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <p className="whitespace-pre-wrap break-words text-sm leading-6">
           {comment.body}
         </p>
       )}
 
-      {canModerate && !comment.isHidden ? (
+      {canModerate ? (
         <form action={hideLessonCommentAction}>
           <input name="commentId" type="hidden" value={comment.id} />
-          <Button size="xs" type="submit" variant="ghost">
-            Ocultar
-          </Button>
+          {comment.isHidden ? (
+            <Button
+              formAction={restoreLessonCommentAction}
+              size="xs"
+              type="submit"
+              variant="outline"
+            >
+              Desocultar
+            </Button>
+          ) : (
+            <Button size="xs" type="submit" variant="ghost">
+              Ocultar
+            </Button>
+          )}
         </form>
       ) : null}
     </div>

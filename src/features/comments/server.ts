@@ -133,6 +133,7 @@ export const getLessonComments = async ({
     role,
     userId,
   });
+  const canModerateComments = role === "admin" || role === "support";
   const { rows } = await getPool().query<LessonCommentRow>(
     `
       select
@@ -150,9 +151,24 @@ export const getLessonComments = async ({
       left join users u on u.id = lc.author_user_id
       left join profiles p on p.user_id = u.id
       where lc.lesson_id = $1
+        and (
+          $2::boolean
+          or (
+            lc.status = 'visible'
+            and (
+              lc.parent_id is null
+              or exists (
+                select 1
+                from lesson_comments parent
+                where parent.id = lc.parent_id
+                  and parent.status = 'visible'
+              )
+            )
+          )
+        )
       order by lc.created_at asc, lc.id asc
     `,
-    [lessonId]
+    [lessonId, canModerateComments]
   );
 
   const records = rows.map(toLessonCommentRecord);
@@ -247,6 +263,41 @@ export const hideLessonComment = async ({
       returning l.id as lesson_id, m.course_id
     `,
     [commentId, actorUserId]
+  );
+  const result = rows[0];
+
+  if (!result) {
+    throw new Error("Comentario invalido.");
+  }
+
+  return {
+    courseId: result.course_id,
+    lessonId: result.lesson_id,
+  };
+};
+
+export const restoreLessonComment = async ({
+  commentId,
+}: {
+  commentId: string;
+}): Promise<{ courseId: string; lessonId: string }> => {
+  const { rows } = await getPool().query<{
+    course_id: string;
+    lesson_id: string;
+  }>(
+    `
+      update lesson_comments lc
+      set status = 'visible',
+          hidden_by_user_id = null,
+          hidden_at = null,
+          updated_at = now()
+      from lessons l
+      join modules m on m.id = l.module_id
+      where lc.id = $1
+        and l.id = lc.lesson_id
+      returning l.id as lesson_id, m.course_id
+    `,
+    [commentId]
   );
   const result = rows[0];
 

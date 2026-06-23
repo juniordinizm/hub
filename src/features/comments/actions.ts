@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   createLessonComment,
   hideLessonComment,
+  restoreLessonComment,
 } from "@/features/comments/server";
 import { canMutateStudentExperience } from "@/features/courses/preview";
 import { requireRole, requireSession } from "@/lib/session";
@@ -61,6 +62,22 @@ export const hideLessonCommentAction = async (
     actorUserId: session.user.id,
     commentId,
   });
+
+  revalidatePath(`/app/aulas/${result.lessonId}`);
+  revalidatePath(`/admin/cursos/${result.courseId}/aulas/${result.lessonId}`);
+};
+
+export const restoreLessonCommentAction = async (
+  formData: FormData
+): Promise<void> => {
+  await requireRole(["admin", "support"]);
+  const commentId = readString(formData, "commentId");
+
+  if (!commentId) {
+    throw new Error("Comentario invalido.");
+  }
+
+  const result = await restoreLessonComment({ commentId });
 
   revalidatePath(`/app/aulas/${result.lessonId}`);
   revalidatePath(`/admin/cursos/${result.courseId}/aulas/${result.lessonId}`);
