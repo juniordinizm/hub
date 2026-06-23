@@ -45,7 +45,7 @@ export function SortableItem({
       style={style}
     >
       <div
-        className={`flex cursor-grab items-center justify-center p-2 text-muted-foreground/40 transition-colors hover:text-foreground active:cursor-grabbing group-hover/sortable:text-muted-foreground ${handleClassName || ""}`}
+        className={`flex cursor-grab justify-center p-2 text-muted-foreground/40 transition-colors hover:text-foreground active:cursor-grabbing group-hover/sortable:text-muted-foreground ${handleClassName ?? "items-center"}`}
         {...attributes}
         {...listeners}
       >

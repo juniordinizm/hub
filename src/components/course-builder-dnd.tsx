@@ -261,7 +261,7 @@ export function CourseBuilderClient({
                 <SortableItem
                   className="rounded-lg border bg-card shadow-sm"
                   data={{ type: "module" }}
-                  handleClassName="px-4"
+                  handleClassName="px-4 pt-6 items-start"
                   id={moduleData.id}
                   key={moduleData.id}
                 >
@@ -276,7 +276,7 @@ export function CourseBuilderClient({
                         <SortableItem
                           className="bg-background/20 transition-colors hover:bg-muted/10"
                           data={{ type: "lesson" }}
-                          handleClassName="px-4"
+                          handleClassName="px-4 items-center"
                           id={lesson.id}
                           key={lesson.id}
                         >
