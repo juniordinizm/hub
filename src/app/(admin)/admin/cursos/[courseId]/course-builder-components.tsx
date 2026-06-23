@@ -156,10 +156,10 @@ export function LessonRow({
       <TableCell className="w-[300px] min-w-[300px] max-w-[300px] truncate font-medium">
         {lesson.title}
       </TableCell>
-      <TableCell className="w-[120px] min-w-[120px] text-center text-muted-foreground text-sm">
+      <TableCell className="w-[150px] min-w-[150px] text-center text-muted-foreground text-sm">
         {formatLessonDuration(lesson.durationSeconds)}
       </TableCell>
-      <TableCell className="w-[180px] min-w-[180px]">
+      <TableCell className="w-[200px] min-w-[200px]">
         <div className="flex items-center justify-center gap-2">
           {hasVideo ? <Badge variant="secondary">Vídeo</Badge> : null}
           {hasText ? <Badge variant="secondary">Texto</Badge> : null}
@@ -168,7 +168,7 @@ export function LessonRow({
           )}
         </div>
       </TableCell>
-      <TableCell className="w-[130px] min-w-[130px]">
+      <TableCell className="w-[180px] min-w-[180px]">
         <div className="flex justify-center">
           <Badge
             className="w-fit"
