@@ -2,8 +2,9 @@
 
 import { Cancel01Icon, ImageUpload01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
@@ -163,15 +164,25 @@ export function CourseCoverUploadField({
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const effectiveCourseId = useMemo(() => {
-    if (courseId) {
-      return courseId;
-    }
+  const [effectiveCourseId, setEffectiveCourseId] = useState<string | null>(
+    courseId || null
+  );
 
-    return crypto.randomUUID();
+  useEffect(() => {
+    if (!courseId) {
+      setEffectiveCourseId(crypto.randomUUID());
+    }
   }, [courseId]);
 
   const isNewCourse = !courseId;
+
+  if (!effectiveCourseId) {
+    return (
+      <div className="flex h-full w-full max-w-[280px] flex-col gap-2">
+        <Skeleton className="h-full min-h-[120px] w-full rounded-xl" />
+      </div>
+    );
+  }
 
   const uploadCover = async (file: File): Promise<void> => {
     const toastId = toast.loading("Preparando capa...");
