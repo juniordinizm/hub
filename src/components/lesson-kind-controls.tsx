@@ -46,58 +46,60 @@ export function LessonKindControls({
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="grid gap-4">
-        <Field>
-          <FieldLabel>Duracao em segundos</FieldLabel>
-          <Input
-            defaultValue={defaultDurationSeconds}
-            min={0}
-            name="durationSeconds"
-            step={1}
-            type="number"
-          />
-        </Field>
-      </div>
-      <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
-
-      <input name="videoProvider" type="hidden" value="jmvstream" />
-      <Tabs className="w-full" defaultValue="upload">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="upload">Envio Direto</TabsTrigger>
-          <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
-        </TabsList>
-        <TabsContent className="pt-4" value="upload">
-          <JmvstreamUploadPanel
-            asset={asset}
-            currentVideoHash={null}
-            lessonId={lessonId}
-          />
-        </TabsContent>
-        <TabsContent className="pt-4" value="link">
-          <div className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel>Link ou iframe JMVStream</FieldLabel>
-              <Input
-                defaultValue={defaultEmbedUrl}
-                name="videoEmbedUrl"
-                placeholder="https://player.jmvstream.com/... ou iframe oficial"
-              />
-            </Field>
-            <JmvstreamDurationDetector
-              defaultEmbedUrl={defaultEmbedUrl}
-              defaultProvider="jmvstream"
-            />
-          </div>
-        </TabsContent>
-      </Tabs>
-      {asset || defaultEmbedUrl ? (
-        <label className="flex w-fit items-center gap-2 text-muted-foreground text-sm">
-          <input className="size-4" name="removeVideo" type="checkbox" />
-          Remover video desta aula
-        </label>
-      ) : null}
-
       <div className="flex flex-col gap-4">
+        <div className="grid gap-4">
+          <Field>
+            <FieldLabel>Duracao em segundos</FieldLabel>
+            <Input
+              defaultValue={defaultDurationSeconds}
+              min={0}
+              name="durationSeconds"
+              step={1}
+              type="number"
+            />
+          </Field>
+        </div>
+        <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
+
+        <input name="videoProvider" type="hidden" value="jmvstream" />
+        <Tabs className="w-full" defaultValue="upload">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">Envio Direto</TabsTrigger>
+            <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
+          </TabsList>
+          <TabsContent className="pt-4" value="upload">
+            <JmvstreamUploadPanel
+              asset={asset}
+              currentVideoHash={null}
+              lessonId={lessonId}
+            />
+          </TabsContent>
+          <TabsContent className="pt-4" value="link">
+            <div className="flex flex-col gap-4">
+              <Field>
+                <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+                <Input
+                  defaultValue={defaultEmbedUrl}
+                  name="videoEmbedUrl"
+                  placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                />
+              </Field>
+              <JmvstreamDurationDetector
+                defaultEmbedUrl={defaultEmbedUrl}
+                defaultProvider="jmvstream"
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+        {asset || defaultEmbedUrl ? (
+          <label className="flex w-fit items-center gap-2 text-muted-foreground text-sm">
+            <input className="size-4" name="removeVideo" type="checkbox" />
+            Remover video desta aula
+          </label>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-4 border-border/50 border-t pt-10">
         <Field>
           <FieldLabel>Conteudo da aula</FieldLabel>
           <LessonRichTextEditor initialDocument={getTextDocument(content)} />

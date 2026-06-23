@@ -1,10 +1,15 @@
+import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { saveLessonAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminManagementData } from "@/features/admin/server";
-import { parseLessonContent } from "@/features/courses/lesson-content";
-import { formatLessonDuration } from "@/features/videos/jmvstream";
-import { LessonEditorForm } from "../../course-builder-components";
+import {
+  DeleteLessonDialog,
+  LessonEditorForm,
+} from "../../course-builder-components";
 
 export const dynamic = "force-dynamic";
 
@@ -43,14 +48,13 @@ export default async function AdminLessonEditPage({
   const asset = data.jmvstreamAssets.find(
     (item) => item.lessonId === lesson.id
   );
-  const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
-  const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
-  const hasAnyContent = hasVideo || hasText;
+
+  const publishedFieldId = `lesson-is-published-${lesson.id}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-lg border bg-card p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0 space-y-1">
+    <form action={saveLessonAction} className="space-y-6">
+      <div className="flex flex-col gap-6 rounded-lg border bg-card p-6 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <p className="font-medium text-muted-foreground text-sm">
             {course.title}
             {moduleData ? ` / ${moduleData.title}` : ""}
@@ -58,31 +62,34 @@ export default async function AdminLessonEditPage({
           <h1 className="font-semibold text-2xl tracking-tight">
             {lesson.title}
           </h1>
-          {lesson.description ? (
-            <p className="text-muted-foreground">{lesson.description}</p>
-          ) : null}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Badge variant={lesson.isPublished ? "default" : "outline"}>
-            {lesson.isPublished ? "publicada" : "rascunho"}
-          </Badge>
-          {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
-          {hasText ? <Badge variant="secondary">Texto</Badge> : null}
-          {hasAnyContent ? null : (
-            <Badge variant="destructive">Sem conteúdo</Badge>
-          )}
-          <Badge variant="outline">
-            {formatLessonDuration(lesson.durationSeconds)}
-          </Badge>
+        <div className="flex shrink-0 flex-wrap items-center gap-4 lg:justify-end">
+          <label
+            className="inline-flex cursor-pointer items-center gap-2 font-medium text-sm"
+            htmlFor={publishedFieldId}
+          >
+            <Checkbox
+              defaultChecked={lesson.isPublished}
+              id={publishedFieldId}
+              name="isPublished"
+            />
+            Publicada
+          </label>
+          <div className="h-6 w-px bg-border/50" />
+          <DeleteLessonDialog lesson={lesson} />
+          <Button type="submit">
+            <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            Salvar aula
+          </Button>
         </div>
       </div>
 
-      <section className="rounded-lg border bg-card p-5 shadow-sm">
+      <section className="rounded-lg border bg-card p-6 shadow-sm">
         <LessonEditorForm
           asset={asset ? toUploadAsset(asset) : undefined}
           lesson={lesson}
         />
       </section>
-    </div>
+    </form>
   );
 }

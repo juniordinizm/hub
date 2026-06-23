@@ -18,7 +18,6 @@ import type { JmvstreamUploadAsset } from "@/components/jmvstream-upload-panel";
 import { LessonKindControls } from "@/components/lesson-kind-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogBody,
@@ -38,7 +37,6 @@ import {
   createLessonDraftAction,
   deleteLessonAction,
   deleteModuleAction,
-  saveLessonAction,
   saveModuleAction,
 } from "@/features/admin/actions";
 import type { getAdminManagementData } from "@/features/admin/server";
@@ -271,64 +269,33 @@ export function LessonEditorForm({
   asset?: JmvstreamUploadAsset | undefined;
   lesson: LessonData;
 }): React.JSX.Element {
-  const publishedFieldId = `lesson-is-published-${lesson.id}`;
-
   return (
-    <div className="flex flex-col gap-4">
-      <form
-        action={saveLessonAction}
-        className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
-      >
-        <DialogBody>
-          <FieldGroup>
-            <input name="lessonId" type="hidden" value={lesson.id} />
-            <input name="moduleId" type="hidden" value={lesson.moduleId} />
-            <Field>
-              <FieldLabel>Título</FieldLabel>
-              <Input defaultValue={lesson.title} name="title" required />
-            </Field>
-            <Field>
-              <FieldLabel>Descrição</FieldLabel>
-              <Textarea
-                defaultValue={lesson.description ?? ""}
-                name="description"
-                required
-              />
-            </Field>
-            <div className="mt-8 grid gap-8 border-border/50 border-t pt-8">
-              <LessonKindControls
-                asset={asset}
-                defaultContentJson={lesson.contentJson}
-                defaultDurationSeconds={lesson.durationSeconds}
-                defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
-                defaultOrder={lesson.sortOrder}
-                lessonId={lesson.id}
-              />
-            </div>
-          </FieldGroup>
-        </DialogBody>
-        <DialogFooter className="sm:justify-between">
-          <div className="flex items-center gap-4">
-            <label
-              className="inline-flex cursor-pointer items-center gap-2 font-medium text-sm"
-              htmlFor={publishedFieldId}
-            >
-              <Checkbox
-                defaultChecked={lesson.isPublished}
-                id={publishedFieldId}
-                name="isPublished"
-              />
-              Publicada
-            </label>
-            <DeleteLessonDialog lesson={lesson} />
-          </div>
-          <Button type="submit">
-            <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-            Salvar aula
-          </Button>
-        </DialogFooter>
-      </form>
-    </div>
+    <FieldGroup>
+      <input name="lessonId" type="hidden" value={lesson.id} />
+      <input name="moduleId" type="hidden" value={lesson.moduleId} />
+      <Field>
+        <FieldLabel>Título</FieldLabel>
+        <Input defaultValue={lesson.title} name="title" required />
+      </Field>
+      <Field>
+        <FieldLabel>Descrição</FieldLabel>
+        <Textarea
+          defaultValue={lesson.description ?? ""}
+          name="description"
+          required
+        />
+      </Field>
+      <div className="mt-10 grid gap-4 border-border/50 border-t pt-10">
+        <LessonKindControls
+          asset={asset}
+          defaultContentJson={lesson.contentJson}
+          defaultDurationSeconds={lesson.durationSeconds}
+          defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
+          defaultOrder={lesson.sortOrder}
+          lessonId={lesson.id}
+        />
+      </div>
+    </FieldGroup>
   );
 }
 
