@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface CourseCoverUploadFieldProps {
+  className?: string;
   defaultCoverImage?: unknown;
   defaultThumbnailUrl?: string | null | undefined;
 }
@@ -39,6 +40,7 @@ const isValidCoverFile = (file: File): boolean => {
 };
 
 export function CourseCoverUploadField({
+  className,
   defaultCoverImage,
   defaultThumbnailUrl,
 }: CourseCoverUploadFieldProps): React.JSX.Element {
@@ -140,7 +142,7 @@ export function CourseCoverUploadField({
   };
 
   return (
-    <div className="flex w-full flex-col gap-2 sm:w-[280px]">
+    <div className={cn("flex w-full flex-col gap-2 sm:w-[280px]", className)}>
       <input name="coverImage" type="hidden" value={coverImageJson} />
 
       <div className="relative aspect-video w-full">
@@ -192,15 +194,15 @@ export function CourseCoverUploadField({
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center p-6 text-center">
-              <div className="mb-3 flex size-12 items-center justify-center rounded-full border bg-background">
+            <div className="flex flex-col items-center justify-center p-4 text-center">
+              <div className="mb-2 flex size-10 shrink-0 items-center justify-center rounded-full border bg-background">
                 <HugeiconsIcon
                   className="text-muted-foreground opacity-60"
                   icon={ImageUpload01Icon}
-                  size={20}
+                  size={18}
                 />
               </div>
-              <p className="mb-1 font-medium text-sm">
+              <p className="mb-1 font-medium text-sm leading-snug">
                 Arraste ou clique para selecionar a capa
               </p>
               <p className="text-muted-foreground text-xs">
