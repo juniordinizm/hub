@@ -76,3 +76,26 @@ export function LessonFocusToggle(): React.JSX.Element {
     </Button>
   );
 }
+
+export function LessonFocusContainer({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}): React.JSX.Element {
+  const { isFocusMode } = usePanelFocusMode();
+
+  return (
+    <div
+      className={cn(
+        "group/focus mx-auto w-full transition-[max-width] duration-200 ease-linear",
+        isFocusMode ? "max-w-full" : "max-w-5xl",
+        className
+      )}
+      data-focus-mode={isFocusMode}
+    >
+      {children}
+    </div>
+  );
+}

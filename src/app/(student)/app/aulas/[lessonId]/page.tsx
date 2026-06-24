@@ -17,6 +17,7 @@ import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonCommentsSection } from "@/components/lesson-comments-section";
 import {
+  LessonFocusContainer,
   LessonFocusHidden,
   LessonFocusLayout,
   LessonFocusToggle,
@@ -241,7 +242,7 @@ function LessonMainContent({
 
   if (lessonView.videoEmbedUrl) {
     return (
-      <div className="flex flex-col">
+      <LessonFocusContainer className="flex flex-col">
         {header}
         <LessonVideoPlayer
           durationSeconds={data.lesson.durationSeconds}
@@ -258,17 +259,17 @@ function LessonMainContent({
           {footer}
         </LessonVideoPlayer>
         {commentsSection}
-      </div>
+      </LessonFocusContainer>
     );
   }
 
   return (
-    <div className="flex flex-col">
+    <LessonFocusContainer className="flex flex-col">
       {header}
       <LessonContentFrame lesson={data.lesson} />
-      <div className="px-5 py-7 sm:px-9">{footer}</div>
+      <div className="px-5 py-7 sm:px-0">{footer}</div>
       {commentsSection}
-    </div>
+    </LessonFocusContainer>
   );
 }
 
@@ -280,7 +281,7 @@ function LessonHeader({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <div className="border-border/50 border-b bg-background px-5 py-3 sm:px-9">
+    <div className="border-border/50 border-b bg-background px-5 py-3 transition-[padding] duration-200 ease-linear sm:px-0 group-data-[focus-mode=true]/focus:sm:px-9">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-semibold text-base text-foreground tracking-tight">
@@ -363,8 +364,8 @@ function LessonContentFrame({
     const { document } = lesson.contentJson;
 
     return (
-      <article className="px-5 py-8 sm:px-9">
-        <div className="mx-auto flex max-w-3xl flex-col gap-8">
+      <article className="px-5 py-8 sm:px-0">
+        <div className="mx-auto flex max-w-5xl flex-col gap-8">
           <div className="text-base leading-8 [&_.lesson-rich-text_a]:font-medium [&_.lesson-rich-text_a]:text-primary [&_.lesson-rich-text_a]:underline [&_.lesson-rich-text_a]:underline-offset-4 [&_.lesson-rich-text_blockquote]:border-l-2 [&_.lesson-rich-text_blockquote]:pl-4 [&_.lesson-rich-text_blockquote]:text-muted-foreground [&_.lesson-rich-text_h2]:mt-6 [&_.lesson-rich-text_h2]:font-semibold [&_.lesson-rich-text_h2]:text-2xl [&_.lesson-rich-text_h3]:mt-5 [&_.lesson-rich-text_h3]:font-semibold [&_.lesson-rich-text_h3]:text-xl [&_.lesson-rich-text_ol]:ml-6 [&_.lesson-rich-text_ol]:list-decimal [&_.lesson-rich-text_p]:my-3 [&_.lesson-rich-text_ul]:ml-6 [&_.lesson-rich-text_ul]:list-disc">
             <LessonRichTextRenderer document={document} />
           </div>
@@ -375,7 +376,7 @@ function LessonContentFrame({
   }
 
   return (
-    <div className="px-5 py-12 text-center text-muted-foreground sm:px-9">
+    <div className="px-5 py-12 text-center text-muted-foreground sm:px-0">
       Conteudo em configuracao.
     </div>
   );

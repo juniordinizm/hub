@@ -245,7 +245,7 @@ export function LessonVideoPlayer({
         )}
       </AspectRatio>
 
-      <div className="px-5 py-7 sm:px-9">{children}</div>
+      <div className="px-5 py-7 sm:px-0">{children}</div>
     </>
   );
 }
