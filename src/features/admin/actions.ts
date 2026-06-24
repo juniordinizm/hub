@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import {
-  buildAdminCourseEditPath,
   buildAdminLessonEditPath,
   normalizeLessonDraftInput,
 } from "@/features/admin/lesson-drafts";
@@ -586,75 +585,6 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   });
   await recalculateCourseWorkloadHours(courseId);
   revalidateAdmin();
-};
-
-export const archiveModuleAction = async (
-  formData: FormData
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  const moduleId = readString(formData, "moduleId");
-
-  if (!moduleId) {
-    throw new Error("Modulo invalido.");
-  }
-
-  const courseId = await getCourseIdForModule(moduleId);
-  await getPool().query(
-    `
-      update modules
-      set status = $1,
-          updated_at = now()
-      where id = $2
-    `,
-    [ARCHIVED_CONTENT_STATUS, moduleId]
-  );
-  await audit({
-    action: "module.archived",
-    actorUserId: session.user.id,
-    targetId: moduleId,
-    targetType: "module",
-  });
-  if (courseId) {
-    await recalculateCourseWorkloadHours(courseId);
-  }
-  revalidateAdmin();
-};
-
-export const archiveLessonAction = async (
-  formData: FormData
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  const lessonId = readString(formData, "lessonId");
-
-  if (!lessonId) {
-    throw new Error("Aula invalida.");
-  }
-
-  const courseId = await getCourseIdForLesson(lessonId);
-  await getPool().query(
-    `
-      update lessons
-      set status = $1,
-          is_published = false,
-          updated_at = now()
-      where id = $2
-    `,
-    [ARCHIVED_CONTENT_STATUS, lessonId]
-  );
-  await audit({
-    action: "lesson.archived",
-    actorUserId: session.user.id,
-    targetId: lessonId,
-    targetType: "lesson",
-  });
-  if (courseId) {
-    await recalculateCourseWorkloadHours(courseId);
-  }
-  revalidateAdmin();
-  if (courseId) {
-    // biome-ignore lint/suspicious/noExplicitAny: Next.js typed routes workaround
-    redirect(buildAdminCourseEditPath(courseId) as any);
-  }
 };
 
 export const createLessonDraftAction = async (

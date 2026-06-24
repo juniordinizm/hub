@@ -2,8 +2,6 @@
 
 import {
   Add01Icon,
-  Cancel01Icon,
-  Delete02Icon,
   Edit01Icon,
   FloppyDiskIcon,
   PlayCircleIcon,
@@ -19,14 +17,8 @@ import { LessonKindControls } from "@/components/lesson-kind-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
   DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTriggerButton,
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -42,8 +34,6 @@ import { Separator } from "@/components/ui/separator";
 import { TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  archiveLessonAction,
-  archiveModuleAction,
   createLessonDraftAction,
   saveModuleAction,
 } from "@/features/admin/actions";
@@ -110,7 +100,7 @@ export function ModuleSection({
       <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <p className="text-muted-foreground text-xs">
-            Módulo {moduleData.sortOrder}
+            Modulo {moduleData.sortOrder}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{moduleData.title}</h3>
@@ -139,8 +129,8 @@ export function ModuleSection({
             />
           </DiscardAwareDialog>
           <DiscardAwareDialog
-            description="Atualize os dados deste módulo."
-            title="Editar módulo"
+            description="Atualize os dados deste modulo."
+            title="Editar modulo"
             trigger={
               <DialogTriggerButton size="sm" variant="secondary">
                 <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
@@ -181,10 +171,10 @@ export function LessonRow({
       </TableCell>
       <TableCell className="w-[200px] min-w-[200px]">
         <div className="flex items-center justify-center gap-2">
-          {hasVideo ? <Badge variant="secondary">Vídeo</Badge> : null}
+          {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
           {hasText ? <Badge variant="secondary">Texto</Badge> : null}
           {hasAnyContent ? null : (
-            <Badge variant="destructive">Sem conteúdo</Badge>
+            <Badge variant="destructive">Sem conteudo</Badge>
           )}
         </div>
       </TableCell>
@@ -249,7 +239,7 @@ export function ModuleForm({
               type="hidden"
             />
             <Field>
-              <FieldLabel>Título</FieldLabel>
+              <FieldLabel>Titulo</FieldLabel>
               <Input
                 defaultValue={moduleData?.title ?? ""}
                 name="title"
@@ -257,7 +247,7 @@ export function ModuleForm({
               />
             </Field>
             <Field>
-              <FieldLabel>Descrição</FieldLabel>
+              <FieldLabel>Descricao</FieldLabel>
               <Textarea
                 defaultValue={moduleData?.description ?? ""}
                 name="description"
@@ -283,19 +273,14 @@ export function ModuleForm({
             ) : null}
           </FieldGroup>
         </DialogBody>
-        <DialogFooter className="sm:justify-between">
-          <div className="flex items-center">
-            {moduleData ? (
-              <ArchiveModuleDialog moduleData={moduleData} />
-            ) : null}
-          </div>
+        <DialogFooter>
           <Button className="w-fit" type="submit">
             <HugeiconsIcon
               icon={moduleData ? FloppyDiskIcon : Add01Icon}
               size={18}
               strokeWidth={2}
             />
-            {moduleData ? "Salvar módulo" : "Criar módulo"}
+            {moduleData ? "Salvar modulo" : "Criar modulo"}
           </Button>
         </DialogFooter>
       </AutoCloseDialogForm>
@@ -315,11 +300,11 @@ export function LessonEditorForm({
       <input name="lessonId" type="hidden" value={lesson.id} />
       <input name="moduleId" type="hidden" value={lesson.moduleId} />
       <Field>
-        <FieldLabel>Título</FieldLabel>
+        <FieldLabel>Titulo</FieldLabel>
         <Input defaultValue={lesson.title} name="title" required />
       </Field>
       <Field>
-        <FieldLabel>Descrição</FieldLabel>
+        <FieldLabel>Descricao</FieldLabel>
         <Textarea
           defaultValue={lesson.description ?? ""}
           name="description"
@@ -360,11 +345,11 @@ export function CreateLessonDraftForm({
           <input name="moduleId" type="hidden" value={moduleId} />
           <input name="sortOrder" type="hidden" value={nextSortOrder} />
           <Field>
-            <FieldLabel>Título</FieldLabel>
+            <FieldLabel>Titulo</FieldLabel>
             <Input name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Descrição</FieldLabel>
+            <FieldLabel>Descricao</FieldLabel>
             <Textarea name="description" required />
           </Field>
         </FieldGroup>
@@ -376,111 +361,6 @@ export function CreateLessonDraftForm({
         </Button>
       </DialogFooter>
     </AutoCloseDialogForm>
-  );
-}
-
-export function ArchiveModuleDialog({
-  moduleData,
-}: {
-  moduleData: ModuleData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTriggerButton size="sm" type="button" variant="destructive">
-        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-        Arquivar modulo
-      </DialogTriggerButton>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Arquivar modulo?</DialogTitle>
-          <DialogDescription>
-            Esta acao tira o modulo da area publica e preserva aulas e
-            progressos vinculados.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <DeleteSummary
-            detail={`Módulo ${moduleData.sortOrder}`}
-            title={moduleData.title}
-          />
-        </DialogBody>
-        <AutoCloseDialogForm action={archiveModuleAction}>
-          <DialogFooter className="mt-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-                Cancelar
-              </Button>
-            </DialogClose>
-            <input name="moduleId" type="hidden" value={moduleData.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar arquivamento
-            </Button>
-          </DialogFooter>
-        </AutoCloseDialogForm>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function ArchiveLessonDialog({
-  lesson,
-}: {
-  lesson: LessonData;
-}): React.JSX.Element {
-  return (
-    <Dialog>
-      <DialogTriggerButton size="sm" type="button" variant="destructive">
-        <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-        Arquivar aula
-      </DialogTriggerButton>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Arquivar aula?</DialogTitle>
-          <DialogDescription>
-            Esta acao tira a aula da area publica e preserva seu conteudo e
-            progresso.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <DeleteSummary
-            detail={`Aula ${lesson.sortOrder}`}
-            title={lesson.title}
-          />
-        </DialogBody>
-        <AutoCloseDialogForm action={archiveLessonAction}>
-          <DialogFooter className="mt-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-                Cancelar
-              </Button>
-            </DialogClose>
-            <input name="lessonId" type="hidden" value={lesson.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar arquivamento
-            </Button>
-          </DialogFooter>
-        </AutoCloseDialogForm>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function DeleteSummary({
-  detail,
-  title,
-}: {
-  detail: string;
-  title: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-lg border bg-background/40 p-3">
-      <p className="font-semibold">{title}</p>
-      <p className="text-muted-foreground text-sm">{detail}</p>
-    </div>
   );
 }
 
@@ -578,11 +458,11 @@ export function CreateModuleDialog({
     <DiscardAwareDialog
       className="sm:max-w-3xl"
       description="Adicione uma unidade ao curso."
-      title="Novo módulo"
+      title="Novo modulo"
       trigger={
         <DialogTriggerButton>
           <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-          Novo módulo
+          Novo modulo
         </DialogTriggerButton>
       }
     >

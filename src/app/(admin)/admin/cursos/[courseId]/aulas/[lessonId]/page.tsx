@@ -15,10 +15,7 @@ import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminManagementData } from "@/features/admin/server";
 import { getLessonComments } from "@/features/comments/server";
 import { requireRole } from "@/lib/session";
-import {
-  ArchiveLessonDialog,
-  LessonEditorForm,
-} from "../../course-builder-components";
+import { LessonEditorForm } from "../../course-builder-components";
 
 export const dynamic = "force-dynamic";
 
@@ -91,8 +88,6 @@ export default async function AdminLessonEditPage({
                 <SelectItem value="archived">Arquivada</SelectItem>
               </SelectContent>
             </Select>
-            <div className="h-6 w-px bg-border/50" />
-            <ArchiveLessonDialog lesson={lesson} />
             <Button type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
               Salvar aula
