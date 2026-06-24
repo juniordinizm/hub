@@ -65,7 +65,7 @@ export default async function AdminLessonEditPage({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6">
       <form action={saveLessonAction} className="space-y-6">
         <div className="flex flex-col gap-6 rounded-lg border bg-card p-6 shadow-sm lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
