@@ -25,13 +25,6 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
@@ -296,19 +289,6 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
               />
             </Field>
           </div>
-          <Field>
-            <FieldLabel>Status</FieldLabel>
-            <Select defaultValue={course?.status ?? "draft"} name="status">
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="draft">Rascunho</SelectItem>
-                <SelectItem value="active">Ativo</SelectItem>
-                <SelectItem value="archived">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
         </FieldGroup>
       </DialogBody>
       <DialogFooter>

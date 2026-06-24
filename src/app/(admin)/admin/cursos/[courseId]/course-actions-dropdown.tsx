@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { route } from "@/lib/routes";
-import { type CourseData, DeleteCourseDialog } from "./course-dialogs-client";
+import { ArchiveCourseDialog, type CourseData } from "./course-dialogs-client";
 
 interface CourseActionsDropdownProps {
   course: CourseData;
@@ -24,7 +24,7 @@ interface CourseActionsDropdownProps {
 export function CourseActionsDropdown({
   course,
 }: CourseActionsDropdownProps): React.JSX.Element {
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
   return (
     <>
@@ -51,19 +51,19 @@ export function CourseActionsDropdown({
             className="text-destructive focus:text-destructive"
             onSelect={(e) => {
               e.preventDefault();
-              setIsDeleteDialogOpen(true);
+              setIsArchiveDialogOpen(true);
             }}
           >
             <HugeiconsIcon className="mr-2 h-4 w-4" icon={Delete02Icon} />
-            Excluir curso
+            Arquivar curso
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <DeleteCourseDialog
+      <ArchiveCourseDialog
         course={course}
-        onOpenChange={setIsDeleteDialogOpen}
-        open={isDeleteDialogOpen}
+        onOpenChange={setIsArchiveDialogOpen}
+        open={isArchiveDialogOpen}
       />
     </>
   );

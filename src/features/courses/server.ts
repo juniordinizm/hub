@@ -331,8 +331,8 @@ export const getStudentCourses = async (
         lp.completed_at
       from enrollments e
       join courses c on c.id = e.course_id
-      left join modules m on m.course_id = c.id
-      left join lessons l on l.module_id = m.id and l.is_published = true
+      left join modules m on m.course_id = c.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       where e.user_id = $1
         and e.status = 'active'
@@ -487,8 +487,8 @@ export const getStudentCourseCatalog = async (
       from courses c
       left join enrollments e on e.course_id = c.id
         and e.user_id = $1
-      left join modules m on m.course_id = c.id
-      left join lessons l on l.module_id = m.id and l.is_published = true
+      left join modules m on m.course_id = c.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
       where c.status = 'active'
       order by c.created_at desc, m.sort_order asc, l.sort_order asc
@@ -599,6 +599,8 @@ export const recalculateCourseWorkloadHours = async (
       from lessons l
       join modules m on m.id = l.module_id
       where m.course_id = $1
+        and m.status = 'active'
+        and l.status = 'active'
     `,
     [courseId]
   );
@@ -656,8 +658,8 @@ export const getStudentCourseOverviewData = async ({
       from enrollments e
       join courses c on c.id = e.course_id
       left join certificates cert on cert.course_id = c.id and cert.user_id = e.user_id
-      left join modules m on m.course_id = c.id
-      left join lessons l on l.module_id = m.id and l.is_published = true
+      left join modules m on m.course_id = c.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.user_id = $1
@@ -919,8 +921,8 @@ export const getStudentLessonData = async ({
       from target_course tc
       join enrollments e on e.course_id = tc.course_id and e.user_id = $1
       join courses c on c.id = e.course_id
-      join modules m on m.course_id = c.id
-      join lessons l on l.module_id = m.id and l.is_published = true
+      join modules m on m.course_id = c.id and m.status = 'active'
+      join lessons l on l.module_id = m.id and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.status = 'active'
@@ -1155,8 +1157,8 @@ export const completeLesson = async ({
         from courses c
         join enrollments e on e.course_id = c.id and e.user_id = $1
         join users u on u.id = e.user_id
-        join modules m on m.course_id = c.id
-        join lessons l on l.module_id = m.id and l.is_published = true
+        join modules m on m.course_id = c.id and m.status = 'active'
+        join lessons l on l.module_id = m.id and l.status = 'active'
         left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
         left join certificates cert on cert.user_id = e.user_id and cert.course_id = c.id
         where c.id = $2

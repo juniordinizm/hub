@@ -18,9 +18,7 @@ import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import {
   completeJmvstreamUpload,
-  deleteJmvstreamAssetsForCourse,
   deleteJmvstreamAssetsForLesson,
-  deleteJmvstreamAssetsForModule,
   ensureJmvstreamCourseFolder,
   initJmvstreamUpload,
   markJmvstreamUploadFailed,
@@ -44,6 +42,20 @@ import { deleteR2Objects, uploadCourseCoverFile } from "@/features/storage/r2";
 import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
+const CREATED_CONTENT_STATUS = "draft";
+const PUBLISHED_CONTENT_STATUS = "active";
+const ARCHIVED_CONTENT_STATUS = "archived";
+const CONTENT_STATUSES = new Set([
+  CREATED_CONTENT_STATUS,
+  PUBLISHED_CONTENT_STATUS,
+  ARCHIVED_CONTENT_STATUS,
+]);
+
+type ContentStatus =
+  | typeof CREATED_CONTENT_STATUS
+  | typeof PUBLISHED_CONTENT_STATUS
+  | typeof ARCHIVED_CONTENT_STATUS;
+
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
 
@@ -51,6 +63,9 @@ const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   const value = Number(formData.get(key));
   return Number.isFinite(value) ? value : fallback;
 };
+
+const readCheckbox = (formData: FormData, key: string): boolean =>
+  formData.get(key) === "on";
 
 const parseJsonFormField = (formData: FormData, key: string): unknown => {
   const value = readString(formData, key);
@@ -99,10 +114,20 @@ const cleanupUploadedCourseCover = async (
   await deleteR2Objects(getCourseCoverStorageKeys(coverImage));
 };
 
+const readContentStatus = (formData: FormData): ContentStatus => {
+  const status = readString(formData, "status");
+
+  if (CONTENT_STATUSES.has(status)) {
+    return status as ContentStatus;
+  }
+
+  return CREATED_CONTENT_STATUS;
+};
+
 interface CourseFormValues {
   accessDurationMonths: number;
   description: string | null;
-  status: string;
+  status: ContentStatus;
   subtitle: string | null;
   title: string;
 }
@@ -110,7 +135,7 @@ interface CourseFormValues {
 const readCourseFormValues = (formData: FormData): CourseFormValues => ({
   accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
   description: readString(formData, "description") || null,
-  status: readString(formData, "status") || "draft",
+  status: readContentStatus(formData),
   subtitle: readString(formData, "subtitle") || null,
   title: readString(formData, "title"),
 });
@@ -244,7 +269,7 @@ const createNewCourse = async ({
         coverImage ? JSON.stringify(coverImage) : null,
         productId,
         values.accessDurationMonths,
-        values.status,
+        CREATED_CONTENT_STATUS,
       ]
     );
     await audit({
@@ -401,15 +426,6 @@ const getLessonR2ObjectKeys = async (lessonId: string): Promise<string[]> => {
   return getLessonContentStorageKeys(rows[0]?.content_json);
 };
 
-const getModuleR2ObjectKeys = async (moduleId: string): Promise<string[]> => {
-  const { rows } = await getPool().query<{ content_json: unknown }>(
-    "select content_json from lessons where module_id = $1",
-    [moduleId]
-  );
-
-  return rows.flatMap((row) => getLessonContentStorageKeys(row.content_json));
-};
-
 const getCourseR2ObjectKeys = async (courseId: string): Promise<string[]> => {
   const [courseResult, lessonResult] = await Promise.all([
     getPool().query<{ cover_image_json: unknown }>(
@@ -514,6 +530,9 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   const description = readString(formData, "description") || null;
   const sortOrder = readNumber(formData, "sortOrder", 1);
   const color = readString(formData, "color") || "#326c71";
+  const status = moduleId
+    ? readContentStatus(formData)
+    : CREATED_CONTENT_STATUS;
 
   if (moduleId) {
     const previousCourseId = await getCourseIdForModule(moduleId);
@@ -525,10 +544,11 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
             description = $3,
             sort_order = $4,
             color = $5,
+            status = $6,
             updated_at = now()
-        where id = $6
+        where id = $7
       `,
-      [courseId, title, description, sortOrder, color, moduleId]
+      [courseId, title, description, sortOrder, color, status, moduleId]
     );
     await audit({
       action: "module.updated",
@@ -546,16 +566,17 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
 
   const inserted = await getPool().query<{ id: string }>(
     `
-      insert into modules (course_id, title, description, sort_order, color)
-      values ($1, $2, $3, $4, $5)
+      insert into modules (course_id, title, description, sort_order, color, status)
+      values ($1, $2, $3, $4, $5, $6)
       on conflict (course_id, sort_order) do update set
         title = excluded.title,
         description = excluded.description,
         color = excluded.color,
+        status = excluded.status,
         updated_at = now()
       returning id
     `,
-    [courseId, title, description, sortOrder, color]
+    [courseId, title, description, sortOrder, color, status]
   );
   await audit({
     action: "module.upserted",
@@ -567,7 +588,9 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
-export const deleteCourseAction = async (formData: FormData): Promise<void> => {
+export const archiveCourseAction = async (
+  formData: FormData
+): Promise<void> => {
   const session = await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
 
@@ -575,12 +598,17 @@ export const deleteCourseAction = async (formData: FormData): Promise<void> => {
     throw new Error("Curso invalido.");
   }
 
-  const r2ObjectKeys = await getCourseR2ObjectKeys(courseId);
-  await deleteR2Objects(r2ObjectKeys);
-  await deleteJmvstreamAssetsForCourse(courseId);
-  await getPool().query("delete from courses where id = $1", [courseId]);
+  await getPool().query(
+    `
+      update courses
+      set status = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [ARCHIVED_CONTENT_STATUS, courseId]
+  );
   await audit({
-    action: "course.deleted",
+    action: "course.archived",
     actorUserId: session.user.id,
     targetId: courseId,
     targetType: "course",
@@ -590,7 +618,9 @@ export const deleteCourseAction = async (formData: FormData): Promise<void> => {
   redirect("/admin/cursos" as any);
 };
 
-export const deleteModuleAction = async (formData: FormData): Promise<void> => {
+export const archiveModuleAction = async (
+  formData: FormData
+): Promise<void> => {
   const session = await requireRole(["admin"]);
   const moduleId = readString(formData, "moduleId");
 
@@ -599,12 +629,17 @@ export const deleteModuleAction = async (formData: FormData): Promise<void> => {
   }
 
   const courseId = await getCourseIdForModule(moduleId);
-  const r2ObjectKeys = await getModuleR2ObjectKeys(moduleId);
-  await deleteR2Objects(r2ObjectKeys);
-  await deleteJmvstreamAssetsForModule(moduleId);
-  await getPool().query("delete from modules where id = $1", [moduleId]);
+  await getPool().query(
+    `
+      update modules
+      set status = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [ARCHIVED_CONTENT_STATUS, moduleId]
+  );
   await audit({
-    action: "module.deleted",
+    action: "module.archived",
     actorUserId: session.user.id,
     targetId: moduleId,
     targetType: "module",
@@ -615,7 +650,9 @@ export const deleteModuleAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
-export const deleteLessonAction = async (formData: FormData): Promise<void> => {
+export const archiveLessonAction = async (
+  formData: FormData
+): Promise<void> => {
   const session = await requireRole(["admin"]);
   const lessonId = readString(formData, "lessonId");
 
@@ -624,12 +661,18 @@ export const deleteLessonAction = async (formData: FormData): Promise<void> => {
   }
 
   const courseId = await getCourseIdForLesson(lessonId);
-  const r2ObjectKeys = await getLessonR2ObjectKeys(lessonId);
-  await deleteR2Objects(r2ObjectKeys);
-  await deleteJmvstreamAssetsForLesson(lessonId);
-  await getPool().query("delete from lessons where id = $1", [lessonId]);
+  await getPool().query(
+    `
+      update lessons
+      set status = $1,
+          is_published = false,
+          updated_at = now()
+      where id = $2
+    `,
+    [ARCHIVED_CONTENT_STATUS, lessonId]
+  );
   await audit({
-    action: "lesson.deleted",
+    action: "lesson.archived",
     actorUserId: session.user.id,
     targetId: lessonId,
     targetType: "lesson",
@@ -667,12 +710,19 @@ export const createLessonDraftAction = async (
         content_json,
         duration_seconds,
         sort_order,
+        status,
         is_published
       )
-      values ($1, $2, $3, null, null, null, null, 0, $4, false)
+      values ($1, $2, $3, null, null, null, null, 0, $4, $5, false)
       returning id
     `,
-    [draft.moduleId, draft.title, draft.description, draft.sortOrder]
+    [
+      draft.moduleId,
+      draft.title,
+      draft.description,
+      draft.sortOrder,
+      CREATED_CONTENT_STATUS,
+    ]
   );
   const lessonId = inserted.rows[0]?.id;
 
@@ -718,6 +768,10 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
       ? readNumber(formData, "durationSeconds")
       : 0,
   });
+  const status = lessonId
+    ? readContentStatus(formData)
+    : CREATED_CONTENT_STATUS;
+  const isPublished = status === PUBLISHED_CONTENT_STATUS;
   const values = [
     readString(formData, "moduleId"),
     readString(formData, "title"),
@@ -732,7 +786,8 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     durationBreakdown.textDurationSeconds,
     durationBreakdown.textWordCount,
     readNumber(formData, "sortOrder", 1),
-    formData.get("isPublished") === "on",
+    status,
+    isPublished,
   ];
   const moduleCourseId = await getCourseIdForModule(String(values[0]));
   const previousR2Keys = lessonId ? await getLessonR2ObjectKeys(lessonId) : [];
@@ -755,9 +810,10 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
             text_duration_seconds = $11,
             text_word_count = $12,
             sort_order = $13,
-            is_published = $14,
+            status = $14,
+            is_published = $15,
             updated_at = now()
-        where id = $15
+        where id = $16
       `,
       [...values, lessonId]
     );
@@ -796,9 +852,10 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
           text_duration_seconds,
           text_word_count,
           sort_order,
+          status,
           is_published
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14, $15)
         returning id
       `,
       values
@@ -959,7 +1016,7 @@ export const saveFaqAction = async (formData: FormData): Promise<void> => {
     readString(formData, "answer"),
     readString(formData, "category") || "geral",
     readNumber(formData, "sortOrder"),
-    formData.get("isPublished") === "on",
+    readCheckbox(formData, "isPublished"),
   ];
 
   if (faqId) {

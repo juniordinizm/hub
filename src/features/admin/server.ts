@@ -148,6 +148,7 @@ export interface AdminManagementData {
     moduleTitle: string;
     description: string | null;
     sortOrder: number;
+    status: string;
     title: string;
     textDurationSeconds: number;
     textWordCount: number;
@@ -163,6 +164,7 @@ export interface AdminManagementData {
     description: string | null;
     id: string;
     sortOrder: number;
+    status: string;
     title: string;
   }>;
   orders: Array<{
@@ -236,10 +238,11 @@ export const getAdminManagementData =
         description: string | null;
         id: string;
         sort_order: number;
+        status: string;
         title: string;
       }>(
         `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.color
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.color, m.status
           from modules m
           join courses c on c.id = m.course_id
           order by c.title, m.sort_order
@@ -255,6 +258,7 @@ export const getAdminManagementData =
         module_id: string;
         module_title: string;
         sort_order: number;
+        status: string;
         text_duration_seconds: number;
         text_word_count: number;
         title: string;
@@ -269,7 +273,7 @@ export const getAdminManagementData =
                  l.duration_seconds, l.video_duration_seconds,
                  l.text_duration_seconds, l.text_word_count,
                  l.sort_order, l.video_provider,
-                 l.video_external_id, l.video_embed_url, l.is_published
+                 l.video_external_id, l.video_embed_url, l.status, l.is_published
           from lessons l
           join modules m on m.id = l.module_id
           join courses c on c.id = m.course_id
@@ -463,11 +467,12 @@ export const getAdminManagementData =
         courseTitle: row.course_title,
         durationSeconds: row.duration_seconds,
         id: row.id,
-        isPublished: row.is_published,
+        isPublished: row.status === "active",
         moduleId: row.module_id,
         moduleTitle: row.module_title,
         description: row.lesson_description,
         sortOrder: row.sort_order,
+        status: row.status,
         title: row.title,
         textDurationSeconds: row.text_duration_seconds,
         textWordCount: row.text_word_count,
@@ -483,6 +488,7 @@ export const getAdminManagementData =
         description: row.description,
         id: row.id,
         sortOrder: row.sort_order,
+        status: row.status,
         title: row.title,
       })),
       orders: orders.rows.map((row) => ({

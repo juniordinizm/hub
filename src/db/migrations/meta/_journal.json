@@ -155,6 +155,13 @@
       "when": 1782230400000,
       "tag": "0021_lesson_duration_breakdown",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1782316800000,
+      "tag": "0022_content_lifecycle_status",
+      "breakpoints": true
     }
   ]
 }

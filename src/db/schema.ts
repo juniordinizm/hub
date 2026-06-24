@@ -195,6 +195,7 @@ export const modules = pgTable(
     description: text("description"),
     sortOrder: integer("sort_order").notNull(),
     color: text("color").default("#326c71").notNull(),
+    status: courseStatusEnum("status").default("draft").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -227,6 +228,7 @@ export const lessons = pgTable(
     textDurationSeconds: integer("text_duration_seconds").default(0).notNull(),
     textWordCount: integer("text_word_count").default(0).notNull(),
     sortOrder: integer("sort_order").notNull(),
+    status: courseStatusEnum("status").default("draft").notNull(),
     isPublished: boolean("is_published").default(true).notNull(),
     ...timestamps,
   },

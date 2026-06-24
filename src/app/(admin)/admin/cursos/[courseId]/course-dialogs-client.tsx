@@ -31,7 +31,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { deleteCourseAction, saveCourseAction } from "@/features/admin/actions";
+import {
+  archiveCourseAction,
+  saveCourseAction,
+} from "@/features/admin/actions";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
@@ -49,7 +52,7 @@ export interface CourseData {
   workloadHours: number;
 }
 
-export function DeleteCourseDialog({
+export function ArchiveCourseDialog({
   course,
   onOpenChange,
   open,
@@ -74,24 +77,24 @@ export function DeleteCourseDialog({
       {!onOpenChange && (
         <DialogTriggerButton size="sm" variant="destructive">
           <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir curso
+          Arquivar curso
         </DialogTriggerButton>
       )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Excluir curso?</DialogTitle>
+          <DialogTitle>Arquivar curso?</DialogTitle>
           <DialogDescription>
-            Esta ação remove o curso e, em cascata, seus módulos, aulas,
-            matrículas, pedidos e certificados vinculados.
+            Esta acao tira o curso da area publica e preserva modulos, aulas,
+            matriculas, pedidos e certificados vinculados.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
           <DeleteSummary
-            detail="O identificador interno será preservado apenas no sistema."
+            detail="O conteudo continua disponivel no painel administrativo."
             title={course.title}
           />
         </DialogBody>
-        <AutoCloseDialogForm action={deleteCourseAction}>
+        <AutoCloseDialogForm action={archiveCourseAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -102,7 +105,7 @@ export function DeleteCourseDialog({
             <input name="courseId" type="hidden" value={course.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusão
+              Confirmar arquivamento
             </Button>
           </DialogFooter>
         </AutoCloseDialogForm>
@@ -121,14 +124,14 @@ export function CourseSettingsForm({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const toastId = toast.loading("Salvando configurações...");
+    const toastId = toast.loading("Salvando configuracoes...");
 
     startTransition(async () => {
       try {
         await saveCourseAction(formData);
-        toast.success("Configurações salvas com sucesso!", { id: toastId });
+        toast.success("Configuracoes salvas com sucesso!", { id: toastId });
       } catch {
-        toast.error("Não foi possível salvar o curso.", { id: toastId });
+        toast.error("Nao foi possivel salvar o curso.", { id: toastId });
       }
     });
   };
@@ -147,17 +150,17 @@ export function CourseSettingsForm({
               />
             </Field>
             <Field>
-              <FieldLabel>Título</FieldLabel>
+              <FieldLabel>Titulo</FieldLabel>
               <Input defaultValue={course.title} name="title" required />
             </Field>
             <Field>
-              <FieldLabel>Subtítulo</FieldLabel>
+              <FieldLabel>Subtitulo</FieldLabel>
               <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
             </Field>
           </div>
 
           <Field>
-            <FieldLabel>Descrição</FieldLabel>
+            <FieldLabel>Descricao</FieldLabel>
             <Textarea
               className="min-h-24 resize-y"
               defaultValue={course.description ?? ""}
@@ -167,7 +170,7 @@ export function CourseSettingsForm({
 
           <div className="grid gap-5 md:grid-cols-3">
             <Field>
-              <FieldLabel>Preço do curso</FieldLabel>
+              <FieldLabel>Preco do curso</FieldLabel>
               <Input
                 defaultValue={formatCurrencyInCents(course.priceInCents)}
                 disabled
@@ -190,7 +193,7 @@ export function CourseSettingsForm({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="draft">Rascunho</SelectItem>
-                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="active">Publicado</SelectItem>
                   <SelectItem value="archived">Arquivado</SelectItem>
                 </SelectContent>
               </Select>
@@ -201,7 +204,7 @@ export function CourseSettingsForm({
         <div className="mt-2 flex justify-end">
           <Button disabled={isPending} type="submit">
             <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-            {isPending ? "Salvando..." : "Salvar configurações"}
+            {isPending ? "Salvando..." : "Salvar configuracoes"}
           </Button>
         </div>
       </fieldset>

@@ -29,8 +29,8 @@ import {
   InfoRow,
 } from "./course-builder-components";
 import {
+  ArchiveCourseDialog,
   CourseSettingsForm,
-  DeleteCourseDialog,
 } from "./course-dialogs-client";
 
 export const dynamic = "force-dynamic";
@@ -118,7 +118,7 @@ export default async function AdminCourseDetailPage({
                   Ver como aluno
                 </a>
               </Button>
-              <DeleteCourseDialog course={course} />
+              <ArchiveCourseDialog course={course} />
             </div>
           </div>
         </header>

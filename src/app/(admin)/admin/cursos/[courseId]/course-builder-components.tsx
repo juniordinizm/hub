@@ -31,13 +31,20 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  archiveLessonAction,
+  archiveModuleAction,
   createLessonDraftAction,
-  deleteLessonAction,
-  deleteModuleAction,
   saveModuleAction,
 } from "@/features/admin/actions";
 import type { getAdminManagementData } from "@/features/admin/server";
@@ -49,6 +56,12 @@ type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
 type CourseData = AdminData["courses"][number];
 type ModuleData = AdminData["modules"][number];
 type LessonData = AdminData["lessons"][number];
+
+const CONTENT_STATUS_LABELS: Record<string, string> = {
+  active: "publicado",
+  archived: "arquivado",
+  draft: "rascunho",
+};
 
 export function CourseBuilderWrapper({
   course,
@@ -99,7 +112,14 @@ export function ModuleSection({
           <p className="text-muted-foreground text-xs">
             Módulo {moduleData.sortOrder}
           </p>
-          <h3 className="font-semibold">{moduleData.title}</h3>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h3 className="font-semibold">{moduleData.title}</h3>
+            <Badge
+              variant={moduleData.status === "active" ? "default" : "outline"}
+            >
+              {CONTENT_STATUS_LABELS[moduleData.status] ?? moduleData.status}
+            </Badge>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <DiscardAwareDialog
@@ -172,9 +192,9 @@ export function LessonRow({
         <div className="flex justify-center">
           <Badge
             className="w-fit"
-            variant={lesson.isPublished ? "default" : "outline"}
+            variant={lesson.status === "active" ? "default" : "outline"}
           >
-            {lesson.isPublished ? "publicada" : "rascunho"}
+            {CONTENT_STATUS_LABELS[lesson.status] ?? lesson.status}
           </Badge>
         </div>
       </TableCell>
@@ -243,11 +263,31 @@ export function ModuleForm({
                 name="description"
               />
             </Field>
+            {moduleData ? (
+              <Field>
+                <FieldLabel>Status</FieldLabel>
+                <Select
+                  defaultValue={moduleData.status ?? "draft"}
+                  name="status"
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Rascunho</SelectItem>
+                    <SelectItem value="active">Publicado</SelectItem>
+                    <SelectItem value="archived">Arquivado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
           </FieldGroup>
         </DialogBody>
         <DialogFooter className="sm:justify-between">
           <div className="flex items-center">
-            {moduleData ? <DeleteModuleDialog moduleData={moduleData} /> : null}
+            {moduleData ? (
+              <ArchiveModuleDialog moduleData={moduleData} />
+            ) : null}
           </div>
           <Button className="w-fit" type="submit">
             <HugeiconsIcon
@@ -339,7 +379,7 @@ export function CreateLessonDraftForm({
   );
 }
 
-export function DeleteModuleDialog({
+export function ArchiveModuleDialog({
   moduleData,
 }: {
   moduleData: ModuleData;
@@ -348,14 +388,14 @@ export function DeleteModuleDialog({
     <Dialog>
       <DialogTriggerButton size="sm" type="button" variant="destructive">
         <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-        Excluir módulo
+        Arquivar modulo
       </DialogTriggerButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Excluir módulo?</DialogTitle>
+          <DialogTitle>Arquivar modulo?</DialogTitle>
           <DialogDescription>
-            Esta ação remove o módulo e, em cascata, todas as aulas e progressos
-            vinculados a elas.
+            Esta acao tira o modulo da area publica e preserva aulas e
+            progressos vinculados.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -364,7 +404,7 @@ export function DeleteModuleDialog({
             title={moduleData.title}
           />
         </DialogBody>
-        <AutoCloseDialogForm action={deleteModuleAction}>
+        <AutoCloseDialogForm action={archiveModuleAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -375,7 +415,7 @@ export function DeleteModuleDialog({
             <input name="moduleId" type="hidden" value={moduleData.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusão
+              Confirmar arquivamento
             </Button>
           </DialogFooter>
         </AutoCloseDialogForm>
@@ -384,7 +424,7 @@ export function DeleteModuleDialog({
   );
 }
 
-export function DeleteLessonDialog({
+export function ArchiveLessonDialog({
   lesson,
 }: {
   lesson: LessonData;
@@ -393,14 +433,14 @@ export function DeleteLessonDialog({
     <Dialog>
       <DialogTriggerButton size="sm" type="button" variant="destructive">
         <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-        Excluir aula
+        Arquivar aula
       </DialogTriggerButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Excluir aula?</DialogTitle>
+          <DialogTitle>Arquivar aula?</DialogTitle>
           <DialogDescription>
-            Esta ação remove a aula e, em cascata, os progressos vinculados a
-            ela.
+            Esta acao tira a aula da area publica e preserva seu conteudo e
+            progresso.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -409,7 +449,7 @@ export function DeleteLessonDialog({
             title={lesson.title}
           />
         </DialogBody>
-        <AutoCloseDialogForm action={deleteLessonAction}>
+        <AutoCloseDialogForm action={archiveLessonAction}>
           <DialogFooter className="mt-2">
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -420,7 +460,7 @@ export function DeleteLessonDialog({
             <input name="lessonId" type="hidden" value={lesson.id} />
             <Button type="submit" variant="destructive">
               <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusão
+              Confirmar arquivamento
             </Button>
           </DialogFooter>
         </AutoCloseDialogForm>

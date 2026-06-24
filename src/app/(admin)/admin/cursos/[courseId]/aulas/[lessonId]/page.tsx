@@ -3,14 +3,20 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
 import { LessonCommentsSection } from "@/components/lesson-comments-section";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { saveLessonAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminManagementData } from "@/features/admin/server";
 import { getLessonComments } from "@/features/comments/server";
 import { requireRole } from "@/lib/session";
 import {
-  DeleteLessonDialog,
+  ArchiveLessonDialog,
   LessonEditorForm,
 } from "../../course-builder-components";
 
@@ -55,7 +61,6 @@ export default async function AdminLessonEditPage({
     (item) => item.lessonId === lesson.id
   );
 
-  const publishedFieldId = `lesson-is-published-${lesson.id}`;
   const commentsData = await getLessonComments({
     lessonId: lesson.id,
     role: session.role,
@@ -76,19 +81,18 @@ export default async function AdminLessonEditPage({
             </h1>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-4 lg:justify-end">
-            <label
-              className="inline-flex cursor-pointer items-center gap-2 font-medium text-sm"
-              htmlFor={publishedFieldId}
-            >
-              <Checkbox
-                defaultChecked={lesson.isPublished}
-                id={publishedFieldId}
-                name="isPublished"
-              />
-              Publicada
-            </label>
+            <Select defaultValue={lesson.status ?? "draft"} name="status">
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Rascunho</SelectItem>
+                <SelectItem value="active">Publicada</SelectItem>
+                <SelectItem value="archived">Arquivada</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="h-6 w-px bg-border/50" />
-            <DeleteLessonDialog lesson={lesson} />
+            <ArchiveLessonDialog lesson={lesson} />
             <Button type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
               Salvar aula

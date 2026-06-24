@@ -24,4 +24,42 @@ describe("admin course actions", () => {
     expect(source).not.toContain('readNumber(formData, "workloadHours"');
     expect(source).not.toContain("workload_hours = $7");
   });
+
+  it("creates courses, modules, and lessons as drafts regardless of form status", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain('const CREATED_CONTENT_STATUS = "draft"');
+    expect(source).toContain("values.status");
+    expect(source).toContain("CREATED_CONTENT_STATUS");
+    expect(source).not.toContain('status: readString(formData, "status")');
+    expect(source).not.toContain('formData.get("isPublished") === "on"');
+  });
+
+  it("archives courses, modules, and lessons instead of deleting rows", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("archiveCourseAction");
+    expect(source).toContain("archiveModuleAction");
+    expect(source).toContain("archiveLessonAction");
+    expect(source).not.toContain("delete from courses");
+    expect(source).not.toContain("delete from modules");
+    expect(source).not.toContain("delete from lessons");
+  });
+
+  it("stores module and lesson publication lifecycle status in the schema", async () => {
+    const schema = await readFile(
+      new URL("../../db/schema.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(schema).toContain('status: courseStatusEnum("status")');
+    expect(schema).toContain("modules");
+    expect(schema).toContain("lessons");
+  });
 });

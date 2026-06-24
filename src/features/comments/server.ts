@@ -89,8 +89,8 @@ export const ensureCanCommentOnLesson = async ({
         l.id as lesson_id,
         lp.completed_at
       from target_lesson tl
-      join modules m on m.course_id = tl.course_id
-      join lessons l on l.module_id = m.id and l.is_published = true
+      join modules m on m.course_id = tl.course_id and m.status = 'active'
+      join lessons l on l.module_id = m.id and l.status = 'active'
       join courses c on c.id = m.course_id
       join enrollments e on e.course_id = m.course_id and e.user_id = $1
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
