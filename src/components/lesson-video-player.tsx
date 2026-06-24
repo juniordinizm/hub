@@ -13,6 +13,7 @@ import {
   recordLessonWatchProgressAction,
   syncJmvstreamLessonDurationAction,
 } from "@/app/(student)/app/actions";
+import { LessonFocusContainer } from "@/components/lesson-focus-mode";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
   extractJmvstreamEmbedUrl,
@@ -227,25 +228,27 @@ export function LessonVideoPlayer({
 
   return (
     <>
-      <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
-        {iframeSrc ? (
-          <iframe
-            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="h-full w-full"
-            ref={iframeRef}
-            referrerPolicy="strict-origin-when-cross-origin"
-            src={iframeSrc}
-            title={title}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
-            Vídeo em configuração
-          </div>
-        )}
-      </AspectRatio>
+      <LessonFocusContainer>
+        <AspectRatio className="overflow-hidden bg-black" ratio={16 / 9}>
+          {iframeSrc ? (
+            <iframe
+              allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="h-full w-full"
+              ref={iframeRef}
+              referrerPolicy="strict-origin-when-cross-origin"
+              src={iframeSrc}
+              title={title}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center px-6 text-center text-muted-foreground">
+              Vídeo em configuração
+            </div>
+          )}
+        </AspectRatio>
+      </LessonFocusContainer>
 
-      <div className="px-5 py-7 sm:px-0">{children}</div>
+      {children}
     </>
   );
 }
