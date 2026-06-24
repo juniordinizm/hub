@@ -1,4 +1,6 @@
 import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
   CheckmarkCircle02Icon,
   CircleIcon,
   Download01Icon,
@@ -328,7 +330,16 @@ function LessonFooter({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <>
+    <div className="flex flex-col gap-6">
+      <LessonNextStepCard
+        courseHref={lessonView.courseHref}
+        isCompleted={data.lesson.isCompleted}
+        isPreview={Boolean(previewMode)}
+        lessonId={data.lesson.id}
+        nextLessonId={data.nextLessonId}
+        previewMode={previewMode}
+      />
+
       <div className="grid gap-3 md:grid-cols-2">
         <NavigationCard
           lesson={lessonView.previousLesson}
@@ -341,16 +352,7 @@ function LessonFooter({
           type="next"
         />
       </div>
-
-      <LessonNextStepCard
-        courseHref={lessonView.courseHref}
-        isCompleted={data.lesson.isCompleted}
-        isPreview={Boolean(previewMode)}
-        lessonId={data.lesson.id}
-        nextLessonId={data.nextLessonId}
-        previewMode={previewMode}
-      />
-    </>
+    </div>
   );
 }
 
@@ -704,7 +706,7 @@ function LessonNextStepCard({
 }): React.JSX.Element | null {
   if (!isCompleted) {
     return (
-      <div className="mt-7 flex justify-end">
+      <div className="flex justify-end">
         <CompleteLessonButton isPreview={isPreview} lessonId={lessonId} />
       </div>
     );
@@ -712,7 +714,7 @@ function LessonNextStepCard({
 
   if (!nextLessonId && isCompleted) {
     return (
-      <div className="mt-7 flex justify-end">
+      <div className="flex justify-end">
         <Button asChild>
           <Link href={courseHref}>Ir para a página do curso</Link>
         </Button>
@@ -824,29 +826,92 @@ function NavigationCard({
 
   if (!lesson) {
     return (
-      <div className="rounded-lg border bg-card/55 p-4 text-muted-foreground">
-        <p className="text-xs">{label}</p>
-        <p className="mt-1 font-medium text-sm">
-          {type === "previous" ? "Você está no início" : "Fim da trilha"}
-        </p>
+      <div
+        className={cn(
+          "flex flex-col rounded-xl border bg-card/55 p-4 text-muted-foreground/55",
+          type === "previous" ? "items-start text-left" : "items-end text-right"
+        )}
+      >
+        <span
+          className={cn(
+            "flex min-w-0 flex-col",
+            type === "previous"
+              ? "items-start text-left"
+              : "items-end text-right"
+          )}
+        >
+          <span className="flex items-center gap-1.5 text-muted-foreground/45 text-xs">
+            {type === "previous" && (
+              <HugeiconsIcon
+                className="shrink-0"
+                icon={ArrowLeftIcon}
+                size={14}
+                strokeWidth={2}
+              />
+            )}
+            {label}
+            {type === "next" && (
+              <HugeiconsIcon
+                className="shrink-0"
+                icon={ArrowRightIcon}
+                size={14}
+                strokeWidth={2}
+              />
+            )}
+          </span>
+          <span className="mt-1 block font-medium text-sm">
+            {type === "previous" ? "Você está no início" : "Fim da trilha"}
+          </span>
+        </span>
       </div>
     );
   }
 
   return (
-    <Button asChild className="h-auto justify-start p-4" variant="outline">
+    <Button
+      asChild
+      className={cn(
+        "h-auto rounded-xl p-4",
+        type === "previous"
+          ? "justify-start text-left"
+          : "justify-end text-right"
+      )}
+      variant="outline"
+    >
       <Link
         href={route(
           getPreviewAwareHref(`/app/aulas/${lesson.id}`, previewMode)
         )}
       >
-        <span className="min-w-0 text-left">
-          <span className="block text-muted-foreground text-xs">{label}</span>
-          <span className="mt-1 block truncate font-semibold">
-            {lesson.title}
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 flex-col",
+            type === "previous"
+              ? "items-start text-left"
+              : "items-end text-right"
+          )}
+        >
+          <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+            {type === "previous" && (
+              <HugeiconsIcon
+                className="shrink-0"
+                icon={ArrowLeftIcon}
+                size={14}
+                strokeWidth={2}
+              />
+            )}
+            {label}
+            {type === "next" && (
+              <HugeiconsIcon
+                className="shrink-0"
+                icon={ArrowRightIcon}
+                size={14}
+                strokeWidth={2}
+              />
+            )}
           </span>
-          <span className="mt-1 block truncate text-muted-foreground text-xs">
-            {lesson.moduleTitle}
+          <span className="mt-1 block w-full truncate font-semibold">
+            {lesson.title}
           </span>
         </span>
       </Link>
