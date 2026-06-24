@@ -1,3 +1,5 @@
+import { ArrowMoveUpLeftIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type * as React from "react";
 import {
   createLessonCommentAction,
@@ -68,7 +70,7 @@ export function LessonCommentsSection({
             Nenhum comentario ainda. Comece a conversa desta aula.
           </div>
         ) : (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-8">
             {comments.map((comment) => (
               <CommentThread
                 canComment={canComment}
@@ -120,7 +122,13 @@ function CommentThread({
 
         {canComment && !comment.isHidden ? (
           <details className="group/reply">
-            <summary className="w-fit cursor-pointer list-none text-muted-foreground text-sm transition hover:text-foreground">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-muted-foreground text-sm transition hover:text-foreground">
+              <HugeiconsIcon
+                className="shrink-0"
+                icon={ArrowMoveUpLeftIcon}
+                size={14}
+                strokeWidth={2}
+              />
               Responder
             </summary>
             <div className="mt-3">
