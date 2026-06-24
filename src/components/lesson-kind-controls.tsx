@@ -126,10 +126,6 @@ export function LessonKindControls({
           <FieldLabel>Conteudo da aula</FieldLabel>
           <LessonRichTextEditor initialDocument={getTextDocument(content)} />
         </Field>
-        <LessonResourcesFields
-          defaultResources={getResources(content)}
-          lessonId={lessonId}
-        />
       </div>
     </div>
   );
@@ -157,13 +153,16 @@ function DurationSummaryItem({
   );
 }
 
-function LessonResourcesFields({
+export function LessonResourcesFields({
   defaultResources,
+  formId,
   lessonId,
 }: {
   defaultResources: LessonResource[];
+  formId?: string | undefined;
   lessonId?: string | undefined;
 }): React.JSX.Element {
+  const formProps = formId ? { form: formId } : {};
   const [resources, setResources] = useState(() =>
     defaultResources.length > 0
       ? defaultResources.map(toEditableResource)
@@ -251,11 +250,13 @@ function LessonResourcesFields({
               name="resourceStorage[]"
               type="hidden"
               value={resource.storage}
+              {...formProps}
             />
             <Input
               defaultValue={resource.label}
               name="resourceLabel[]"
               placeholder="Nome do material"
+              {...formProps}
             />
             {resource.storage === "r2" ? (
               <div className="flex min-h-9 items-center rounded-md border bg-muted/40 px-3 text-muted-foreground text-sm">
@@ -267,25 +268,34 @@ function LessonResourcesFields({
                 name="resourceUrl[]"
                 placeholder="https://..."
                 type="url"
+                {...formProps}
               />
             )}
             {resource.storage === "r2" ? (
               <>
-                <input name="resourceUrl[]" type="hidden" value="" />
+                <input
+                  name="resourceUrl[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
                 <input
                   name="resourceKey[]"
                   type="hidden"
                   value={resource.key}
+                  {...formProps}
                 />
                 <input
                   name="resourceFileName[]"
                   type="hidden"
                   value={resource.fileName}
+                  {...formProps}
                 />
                 <input
                   name="resourceContentType[]"
                   type="hidden"
                   value={resource.contentType}
+                  {...formProps}
                 />
                 <input
                   name="resourcePreview[]"
@@ -293,20 +303,47 @@ function LessonResourcesFields({
                   value={
                     resource.preview ? JSON.stringify(resource.preview) : ""
                   }
+                  {...formProps}
                 />
                 <input
                   name="resourceSizeBytes[]"
                   type="hidden"
                   value={resource.sizeBytes}
+                  {...formProps}
                 />
               </>
             ) : (
               <>
-                <input name="resourceKey[]" type="hidden" value="" />
-                <input name="resourceFileName[]" type="hidden" value="" />
-                <input name="resourceContentType[]" type="hidden" value="" />
-                <input name="resourcePreview[]" type="hidden" value="" />
-                <input name="resourceSizeBytes[]" type="hidden" value="" />
+                <input
+                  name="resourceKey[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
+                <input
+                  name="resourceFileName[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
+                <input
+                  name="resourceContentType[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
+                <input
+                  name="resourcePreview[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
+                <input
+                  name="resourceSizeBytes[]"
+                  type="hidden"
+                  value=""
+                  {...formProps}
+                />
               </>
             )}
             <Button
@@ -599,12 +636,4 @@ const getTextDocument = (content: LessonContent | null): ProseMirrorJson => {
   }
 
   return EMPTY_TEXT_DOCUMENT;
-};
-
-const getResources = (content: LessonContent | null): LessonResource[] => {
-  if (content?.type === "text" && "resources" in content) {
-    return content.resources ?? [];
-  }
-
-  return [];
 };
