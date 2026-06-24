@@ -8,8 +8,6 @@ import {
   FileDownloadIcon,
   FileImageIcon,
   FileLinkIcon,
-  Maximize01Icon,
-  Minimize01Icon,
   Pdf01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -18,6 +16,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { completeLessonAction } from "@/app/(student)/app/actions";
 import { LessonCommentsSection } from "@/components/lesson-comments-section";
+import {
+  LessonFocusHidden,
+  LessonFocusLayout,
+  LessonFocusToggle,
+} from "@/components/lesson-focus-mode";
 import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
@@ -25,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
+  Sidebar,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -36,7 +40,6 @@ import { getLessonComments } from "@/features/comments/server";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
   canAccessStudentRoute,
-  getHrefWithSearchParams,
   getPreviewAwareHref,
   getStudentPreviewMode,
   type StudentPreviewMode,
@@ -64,7 +67,6 @@ type LessonPageData = NonNullable<
 type LessonCommentsData = Awaited<ReturnType<typeof getLessonComments>>;
 interface LessonSearchParams {
   busca?: string;
-  focus?: string;
   preview?: string | string[];
 }
 interface LessonWithModule {
@@ -123,28 +125,22 @@ export default async function LessonPage({
   });
 
   return (
-    <div
-      className={cn(
-        "grid bg-background text-foreground",
-        lessonView.isFocusMode
-          ? "grid-cols-1"
-          : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
-      )}
-    >
-      <section className="min-w-0">
-        {previewMode ? (
-          <RegisterPreviewCourseId courseId={data.course.id} />
-        ) : null}
+    <LessonFocusLayout
+      main={
+        <>
+          {previewMode ? (
+            <RegisterPreviewCourseId courseId={data.course.id} />
+          ) : null}
 
-        <LessonMainContent
-          commentsData={commentsData}
-          data={data}
-          lessonView={lessonView}
-          previewMode={previewMode}
-        />
-      </section>
-
-      {lessonView.isFocusMode ? null : (
+          <LessonMainContent
+            commentsData={commentsData}
+            data={data}
+            lessonView={lessonView}
+            previewMode={previewMode}
+          />
+        </>
+      }
+      sidebar={
         <LessonCourseSidebar
           activeLessonId={data.lesson.id}
           lessonsCount={lessonView.lessons.length}
@@ -152,8 +148,8 @@ export default async function LessonPage({
           previewMode={previewMode}
           progressPercent={data.progressPercent}
         />
-      )}
-    </div>
+      }
+    />
   );
 }
 
@@ -167,20 +163,11 @@ function getLessonViewState({
   query: LessonSearchParams;
 }) {
   const lessons = getLessonsWithModule(data);
-  const isFocusMode = query.focus === "1";
 
   return {
     courseHref: route(
       getPreviewAwareHref(`/app/cursos/${data.course.id}`, previewMode)
     ),
-    focusHref: route(
-      getHrefWithSearchParams(`/app/aulas/${data.lesson.id}`, {
-        ...(query.busca ? { busca: query.busca } : {}),
-        focus: isFocusMode ? undefined : "1",
-        preview: previewMode ?? undefined,
-      })
-    ),
-    isFocusMode,
     lessons,
     nextLesson: lessons.find(({ id }) => id === data.nextLessonId),
     previousLesson: lessons.find(({ id }) => id === data.previousLessonId),
@@ -230,13 +217,7 @@ function LessonMainContent({
   lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
-  const header = (
-    <LessonHeader
-      data={data}
-      lessonView={lessonView}
-      previewMode={previewMode}
-    />
-  );
+  const header = <LessonHeader data={data} previewMode={previewMode} />;
 
   const footer = (
     <LessonFooter
@@ -245,15 +226,17 @@ function LessonMainContent({
       previewMode={previewMode}
     />
   );
-  const commentsSection = lessonView.isFocusMode ? null : (
-    <LessonCommentsSection
-      canComment={!previewMode}
-      canModerate={false}
-      comments={commentsData.comments}
-      context="student"
-      lessonId={data.lesson.id}
-      totalCount={commentsData.totalCount}
-    />
+  const commentsSection = (
+    <LessonFocusHidden>
+      <LessonCommentsSection
+        canComment={!previewMode}
+        canModerate={false}
+        comments={commentsData.comments}
+        context="student"
+        lessonId={data.lesson.id}
+        totalCount={commentsData.totalCount}
+      />
+    </LessonFocusHidden>
   );
 
   if (lessonView.videoEmbedUrl) {
@@ -291,11 +274,9 @@ function LessonMainContent({
 
 function LessonHeader({
   data,
-  lessonView,
   previewMode,
 }: {
   data: LessonPageData;
-  lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
@@ -312,18 +293,7 @@ function LessonHeader({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href={lessonView.focusHref}>
-              <HugeiconsIcon
-                icon={lessonView.isFocusMode ? Minimize01Icon : Maximize01Icon}
-                size={16}
-                strokeWidth={2}
-              />
-              <span className="hidden sm:inline">
-                {lessonView.isFocusMode ? "Sair do foco" : "Modo foco"}
-              </span>
-            </Link>
-          </Button>
+          <LessonFocusToggle />
           {data.lesson.isCompleted ? (
             <Button className="gap-2" disabled size="sm" variant="secondary">
               <HugeiconsIcon
@@ -765,7 +735,11 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <aside className="sticky top-0 hidden h-[calc(100svh-4rem)] w-[340px] flex-col border-sidebar-border border-l bg-sidebar text-sidebar-foreground lg:flex">
+    <Sidebar
+      className="sticky top-0 hidden h-[calc(100svh-4rem)] w-[340px] shrink-0 border-sidebar-border border-l lg:flex"
+      collapsible="none"
+      side="right"
+    >
       <div className="shrink-0 border-sidebar-border border-b px-5 py-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -802,7 +776,7 @@ function LessonCourseSidebar({
           </p>
         ) : null}
       </div>
-    </aside>
+    </Sidebar>
   );
 }
 
