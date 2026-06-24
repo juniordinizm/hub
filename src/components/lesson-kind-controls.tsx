@@ -1,6 +1,16 @@
 "use client";
 
-import { Add01Icon, Delete02Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  CloudUploadIcon,
+  Delete02Icon,
+  File01Icon,
+  FileArchiveIcon,
+  FileDownloadIcon,
+  FileImageIcon,
+  FileLinkIcon,
+  Pdf01Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -10,6 +20,17 @@ import {
   JmvstreamUploadPanel,
 } from "@/components/jmvstream-upload-panel";
 import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -27,6 +48,7 @@ import {
   validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
+import { cn } from "@/lib/utils";
 
 export function LessonKindControls({
   asset,
@@ -153,6 +175,72 @@ function DurationSummaryItem({
   );
 }
 
+function getResourceExtension(resource: EditableLessonResource): string | null {
+  if (resource.storage !== "r2") {
+    return null;
+  }
+  const parts = resource.fileName.split(".");
+  return parts.length > 1 ? (parts.pop()?.toLowerCase() ?? null) : null;
+}
+
+function getResourceIcon(resource: EditableLessonResource) {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return FileLinkIcon;
+  }
+  if (resource.contentType?.startsWith("image/")) {
+    return FileImageIcon;
+  }
+  if (extension === "pdf") {
+    return Pdf01Icon;
+  }
+  if (extension === "zip") {
+    return FileArchiveIcon;
+  }
+  if (
+    extension &&
+    ["doc", "docx", "ppt", "pptx", "xls", "xlsx"].includes(extension)
+  ) {
+    return FileDownloadIcon;
+  }
+
+  return File01Icon;
+}
+
+function getResourceTone(resource: EditableLessonResource): string {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20";
+  }
+  if (resource.contentType?.startsWith("image/")) {
+    return "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border-fuchsia-500/20";
+  }
+  if (extension === "pdf") {
+    return "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20";
+  }
+  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20";
+  }
+  if (extension === "zip") {
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20";
+  }
+
+  return "bg-primary/10 text-primary border-primary/20";
+}
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) {
+    return "0 Bytes";
+  }
+  const k = 1024;
+  const dm = Math.max(0, decimals);
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${Number.parseFloat((bytes / k ** i).toFixed(dm))} ${sizes[i]}`;
+}
+
 export function LessonResourcesFields({
   defaultResources,
   formId,
@@ -164,21 +252,19 @@ export function LessonResourcesFields({
 }): React.JSX.Element {
   const formProps = formId ? { form: formId } : {};
   const [resources, setResources] = useState(() =>
-    defaultResources.length > 0
-      ? defaultResources.map(toEditableResource)
-      : [createEmptyExternalResource()]
+    defaultResources.length > 0 ? defaultResources.map(toEditableResource) : []
   );
+
+  const [uploadingFiles, setUploadingFiles] = useState<
+    { id: string; file: File; progress: number }[]
+  >([]);
 
   const addResource = (): void => {
     setResources((current) => [...current, createEmptyExternalResource()]);
   };
 
   const removeResource = (id: string): void => {
-    setResources((current) =>
-      current.length > 1
-        ? current.filter((resource) => resource.id !== id)
-        : [createEmptyExternalResource()]
-    );
+    setResources((current) => current.filter((resource) => resource.id !== id));
   };
 
   const uploadResource = async (file: File): Promise<void> => {
@@ -187,7 +273,20 @@ export function LessonResourcesFields({
       return;
     }
 
-    const toastId = toast.loading("Enviando anexo...");
+    const tempId = `temp-${Date.now()}`;
+    setUploadingFiles((prev) => [...prev, { id: tempId, file, progress: 0 }]);
+
+    const interval = setInterval(() => {
+      setUploadingFiles((prev) =>
+        prev.map((f) => {
+          if (f.id === tempId) {
+            const step = Math.random() * 15 + 5;
+            return { ...f, progress: Math.min(f.progress + step, 90) };
+          }
+          return f;
+        })
+      );
+    }, 200);
 
     try {
       const signedUpload = await prepareSignedResourceUpload({
@@ -196,170 +295,323 @@ export function LessonResourcesFields({
       });
       await uploadSignedResource({ file, signedUpload });
 
+      clearInterval(interval);
+      setUploadingFiles((prev) =>
+        prev.map((f) => (f.id === tempId ? { ...f, progress: 100 } : f))
+      );
+
+      // Delay for progress to reach 100% visually
+      await new Promise((r) => setTimeout(r, 400));
+
       setResources((current) => [
         ...current,
         toEditableResource(signedUpload.payload.resource),
       ]);
-      toast.success("Anexo enviado. Salve a aula para publicar o material.", {
-        id: toastId,
-      });
+      setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+      toast.success("Anexo enviado. Salve a aula para publicar o material.");
     } catch (error) {
+      clearInterval(interval);
+      setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.error(
-        error instanceof Error ? error.message : "Nao foi possivel enviar.",
-        { id: toastId }
+        error instanceof Error ? error.message : "Nao foi possivel enviar."
       );
     }
   };
 
   return (
-    <Field>
-      <div className="flex items-center justify-between gap-3">
-        <FieldLabel>Materiais da aula</FieldLabel>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Input
-            accept={LESSON_ATTACHMENT_ACCEPT}
-            aria-label="Enviar arquivo da aula"
-            className="max-w-56"
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = "";
-              if (file) {
-                uploadResource(file).catch(() => undefined);
-              }
-            }}
-            type="file"
-          />
-          <Button
-            onClick={addResource}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
-            Link
-          </Button>
+    <div className="flex flex-col gap-2">
+      <div className="relative flex min-h-52 flex-col overflow-hidden rounded-xl border border-border border-dashed p-4 transition-colors hover:border-ring/50">
+        <div className="flex w-full flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="truncate font-medium text-sm">
+              Anexos ({resources.length})
+            </h3>
+            <div className="flex gap-2">
+              <div className="relative">
+                <input
+                  accept={LESSON_ATTACHMENT_ACCEPT}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = "";
+                    if (file) {
+                      uploadResource(file).catch(() => undefined);
+                    }
+                  }}
+                  title="Enviar arquivo"
+                  type="file"
+                />
+                <Button
+                  className="pointer-events-none h-8 px-3"
+                  size="sm"
+                  variant="outline"
+                >
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    className="-ms-0.5 mr-1.5 opacity-60"
+                    icon={CloudUploadIcon}
+                    size={14}
+                  />
+                  Upload
+                </Button>
+              </div>
+              <Button
+                className="h-8 px-3"
+                onClick={addResource}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="-ms-0.5 mr-1.5 opacity-60"
+                  icon={Add01Icon}
+                  size={14}
+                />
+                Link
+              </Button>
+            </div>
+          </div>
+
+          {resources.length > 0 || uploadingFiles.length > 0 ? (
+            <div className="w-full space-y-2">
+              {resources.map((resource) => {
+                const Icon = getResourceIcon(resource);
+                const tone = getResourceTone(resource);
+                const extension = getResourceExtension(resource);
+                const typeLabel = extension
+                  ? extension.toUpperCase()
+                  : "ARQUIVO";
+
+                return (
+                  <div
+                    className="group flex flex-col gap-1 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300"
+                    key={resource.id}
+                  >
+                    <input
+                      name="resourceStorage[]"
+                      type="hidden"
+                      value={resource.storage}
+                      {...formProps}
+                    />
+                    {resource.storage === "r2" ? (
+                      <>
+                        <input
+                          name="resourceUrl[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceKey[]"
+                          type="hidden"
+                          value={resource.key}
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceFileName[]"
+                          type="hidden"
+                          value={resource.fileName}
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceContentType[]"
+                          type="hidden"
+                          value={resource.contentType}
+                          {...formProps}
+                        />
+                        <input
+                          name="resourcePreview[]"
+                          type="hidden"
+                          value={
+                            resource.preview
+                              ? JSON.stringify(resource.preview)
+                              : ""
+                          }
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceSizeBytes[]"
+                          type="hidden"
+                          value={resource.sizeBytes ?? ""}
+                          {...formProps}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          name="resourceKey[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceFileName[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceContentType[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                        <input
+                          name="resourcePreview[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                        <input
+                          name="resourceSizeBytes[]"
+                          type="hidden"
+                          value=""
+                          {...formProps}
+                        />
+                      </>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex w-full items-center gap-3 overflow-hidden">
+                        <div
+                          className={cn(
+                            "flex aspect-square size-10 shrink-0 items-center justify-center rounded border",
+                            tone
+                          )}
+                        >
+                          <HugeiconsIcon
+                            icon={Icon}
+                            size={20}
+                            strokeWidth={2.5}
+                          />
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <Input
+                            className="h-auto border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+                            defaultValue={resource.label}
+                            name="resourceLabel[]"
+                            placeholder="Nome do material"
+                            {...formProps}
+                          />
+                          {resource.storage === "r2" ? (
+                            <p className="truncate text-muted-foreground text-xs">
+                              {typeLabel} &bull;{" "}
+                              {formatBytes(resource.sizeBytes ?? 0)}
+                            </p>
+                          ) : (
+                            <Input
+                              className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+                              defaultValue={resource.url}
+                              name="resourceUrl[]"
+                              placeholder="https://..."
+                              type="url"
+                              {...formProps}
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            aria-label="Remover material"
+                            className="-me-2 size-8 text-muted-foreground opacity-50 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <HugeiconsIcon
+                              icon={Delete02Icon}
+                              size={16}
+                              strokeWidth={2}
+                            />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remover anexo</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja remover o anexo &quot;
+                              {resource.label || "Sem nome"}&quot;? Esta ação
+                              não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => removeResource(resource.id)}
+                            >
+                              Remover
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {uploadingFiles.map((f) => (
+                <div
+                  className="group flex flex-col gap-1 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300"
+                  key={f.id}
+                >
+                  <div className="flex items-center justify-between gap-2 opacity-50">
+                    <div className="flex w-full items-center gap-3 overflow-hidden">
+                      <div className="flex aspect-square size-10 shrink-0 items-center justify-center rounded border bg-muted/30">
+                        <HugeiconsIcon
+                          icon={CloudUploadIcon}
+                          size={20}
+                          strokeWidth={2.5}
+                        />
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <p className="truncate font-medium text-[13px]">
+                          {f.file.name}
+                        </p>
+                        <p className="truncate text-muted-foreground text-xs">
+                          {formatBytes(f.file.size)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 pl-[3.25rem]">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-primary transition-all duration-300 ease-out"
+                        style={{ width: `${f.progress}%` }}
+                      />
+                    </div>
+                    <span className="w-10 text-muted-foreground text-xs tabular-nums">
+                      {Math.round(f.progress)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-full flex-1 flex-col items-center justify-center px-4 py-8 text-center">
+              <div
+                aria-hidden="true"
+                className="mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border bg-background"
+              >
+                <HugeiconsIcon
+                  className="opacity-60"
+                  icon={FileImageIcon}
+                  size={18}
+                />
+              </div>
+              <p className="mb-1.5 font-medium text-sm">
+                Arraste seus arquivos aqui
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Suporta DOCs, XLSX, PPTX, PDF, Imagens e ZIP &bull; Máx 150 MB
+              </p>
+            </div>
+          )}
         </div>
       </div>
-      <div className="flex flex-col gap-3">
-        {resources.map((resource, index) => (
-          <div
-            className="grid gap-2 sm:grid-cols-[1fr_1.4fr_auto]"
-            key={resource.id}
-          >
-            <input
-              name="resourceStorage[]"
-              type="hidden"
-              value={resource.storage}
-              {...formProps}
-            />
-            <Input
-              defaultValue={resource.label}
-              name="resourceLabel[]"
-              placeholder="Nome do material"
-              {...formProps}
-            />
-            {resource.storage === "r2" ? (
-              <div className="flex min-h-9 items-center rounded-md border bg-muted/40 px-3 text-muted-foreground text-sm">
-                {resource.fileName}
-              </div>
-            ) : (
-              <Input
-                defaultValue={resource.url}
-                name="resourceUrl[]"
-                placeholder="https://..."
-                type="url"
-                {...formProps}
-              />
-            )}
-            {resource.storage === "r2" ? (
-              <>
-                <input
-                  name="resourceUrl[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-                <input
-                  name="resourceKey[]"
-                  type="hidden"
-                  value={resource.key}
-                  {...formProps}
-                />
-                <input
-                  name="resourceFileName[]"
-                  type="hidden"
-                  value={resource.fileName}
-                  {...formProps}
-                />
-                <input
-                  name="resourceContentType[]"
-                  type="hidden"
-                  value={resource.contentType}
-                  {...formProps}
-                />
-                <input
-                  name="resourcePreview[]"
-                  type="hidden"
-                  value={
-                    resource.preview ? JSON.stringify(resource.preview) : ""
-                  }
-                  {...formProps}
-                />
-                <input
-                  name="resourceSizeBytes[]"
-                  type="hidden"
-                  value={resource.sizeBytes}
-                  {...formProps}
-                />
-              </>
-            ) : (
-              <>
-                <input
-                  name="resourceKey[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-                <input
-                  name="resourceFileName[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-                <input
-                  name="resourceContentType[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-                <input
-                  name="resourcePreview[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-                <input
-                  name="resourceSizeBytes[]"
-                  type="hidden"
-                  value=""
-                  {...formProps}
-                />
-              </>
-            )}
-            <Button
-              aria-label={`Remover material ${index + 1}`}
-              onClick={() => removeResource(resource.id)}
-              size="icon"
-              title="Remover material"
-              type="button"
-              variant="ghost"
-            >
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </Field>
+    </div>
   );
 }
 

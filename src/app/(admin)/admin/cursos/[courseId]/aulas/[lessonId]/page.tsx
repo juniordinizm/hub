@@ -1,16 +1,6 @@
-import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
 import { LessonCommentsSection } from "@/components/lesson-comments-section";
 import { LessonResourcesFields } from "@/components/lesson-kind-controls";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { saveLessonAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminManagementData } from "@/features/admin/server";
@@ -19,6 +9,7 @@ import type { LessonResource } from "@/features/courses/lesson-content";
 import { parseLessonContent } from "@/features/courses/lesson-content";
 import { requireRole } from "@/lib/session";
 import { LessonEditorForm } from "../../course-builder-components";
+import { LessonSidebarActions } from "./lesson-sidebar-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -72,53 +63,23 @@ export default async function AdminLessonEditPage({
   const defaultResources = getDefaultResources(lesson.contentJson);
 
   return (
-    <div className="grid grid-cols-1 lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_340px]">
+    <div className="flex w-full max-w-[100vw] flex-col overflow-x-hidden lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* Coluna principal */}
-      <div className="custom-scrollbar lg:overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl space-y-6 px-5 pt-10 pb-10">
+      <div className="custom-scrollbar max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
+        <div className="order-3 mx-auto w-full max-w-5xl space-y-6 px-4 pt-6 pb-6 lg:order-none lg:px-5 lg:pt-10 lg:pb-10">
           <form
             action={saveLessonAction}
             className="space-y-6"
             id={LESSON_EDITOR_FORM_ID}
           >
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="font-medium text-muted-foreground text-sm">
-                  {course.title}
-                  {moduleData ? ` / ${moduleData.title}` : ""}
-                </p>
-                <h1 className="font-semibold text-2xl tracking-tight">
-                  {lesson.title}
-                </h1>
-              </div>
-              <div className="flex shrink-0 flex-wrap items-center gap-4 lg:justify-end">
-                <Select defaultValue={lesson.status ?? "draft"} name="status">
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Rascunho</SelectItem>
-                    <SelectItem value="active">Publicada</SelectItem>
-                    <SelectItem value="archived">Arquivada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button type="submit">
-                  <HugeiconsIcon
-                    icon={FloppyDiskIcon}
-                    size={18}
-                    strokeWidth={2}
-                  />
-                  Salvar aula
-                </Button>
-              </div>
-            </div>
-
             <LessonEditorForm
               asset={asset ? toUploadAsset(asset) : undefined}
               lesson={lesson}
             />
           </form>
+        </div>
 
+        <div className="order-5 mx-auto w-full max-w-5xl px-4 pb-10 lg:order-none lg:px-5">
           <LessonCommentsSection
             canComment
             canModerate
@@ -130,15 +91,31 @@ export default async function AdminLessonEditPage({
         </div>
       </div>
 
-      {/* Sidebar de materiais */}
-      <aside className="hidden border-l lg:flex lg:flex-col">
-        <div className="shrink-0 border-b px-5 py-5">
-          <p className="font-semibold text-sm">Anexos da aula</p>
-          <p className="mt-1 text-muted-foreground text-xs">
-            Materiais complementares e recursos para download
-          </p>
+      {/* Sidebar de materiais e ações */}
+      <aside className="bg-background max-lg:contents lg:flex lg:flex-col lg:border-l">
+        {/* Header da Aula no Sidebar (Mobile: Topo) */}
+        <div className="order-1 shrink-0 space-y-5 px-4 pt-5 pb-2 lg:order-none lg:border-b lg:px-5 lg:pb-5">
+          <div className="min-w-0">
+            <p className="truncate font-medium text-muted-foreground text-sm">
+              {course.title}
+              {moduleData ? ` / ${moduleData.title}` : ""}
+            </p>
+            <h1 className="mt-1 font-semibold text-xl tracking-tight">
+              {lesson.title}
+            </h1>
+          </div>
         </div>
-        <div className="custom-scrollbar flex-1 overflow-y-auto px-4 py-4">
+
+        {/* Rodapé Fixo de Ações (Mobile: Topo sob o header, Desktop: Rodapé) */}
+        <div className="sticky top-0 z-10 order-2 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
+          <LessonSidebarActions
+            formId={LESSON_EDITOR_FORM_ID}
+            initialStatus={lesson.status ?? "draft"}
+          />
+        </div>
+
+        {/* Anexos (Mobile: Antes dos Comentários) */}
+        <div className="custom-scrollbar order-4 flex-1 px-4 py-6 lg:order-none lg:overflow-y-auto lg:py-4 lg:pb-20">
           <LessonResourcesFields
             defaultResources={defaultResources}
             formId={LESSON_EDITOR_FORM_ID}
