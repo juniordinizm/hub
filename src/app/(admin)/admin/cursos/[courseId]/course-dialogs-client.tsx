@@ -1,26 +1,11 @@
 "use client";
-import {
-  Cancel01Icon,
-  Delete02Icon,
-  FloppyDiskIcon,
-} from "@hugeicons/core-free-icons";
+
+import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useTransition } from "react";
 import { toast } from "sonner";
-import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogBody,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTriggerButton,
-} from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,10 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  archiveCourseAction,
-  saveCourseAction,
-} from "@/features/admin/actions";
+import { saveCourseAction } from "@/features/admin/actions";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
@@ -50,68 +32,6 @@ export interface CourseData {
   thumbnailUrl: string | null;
   title: string;
   workloadHours: number;
-}
-
-export function ArchiveCourseDialog({
-  course,
-  onOpenChange,
-  open,
-}: {
-  course: CourseData;
-  onOpenChange?: (open: boolean) => void;
-  open?: boolean;
-}): React.JSX.Element {
-  const dialogProps: {
-    onOpenChange?: (open: boolean) => void;
-    open?: boolean;
-  } = {};
-  if (open !== undefined) {
-    dialogProps.open = open;
-  }
-  if (onOpenChange !== undefined) {
-    dialogProps.onOpenChange = onOpenChange;
-  }
-
-  return (
-    <Dialog {...dialogProps}>
-      {!onOpenChange && (
-        <DialogTriggerButton size="sm" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Arquivar curso
-        </DialogTriggerButton>
-      )}
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Arquivar curso?</DialogTitle>
-          <DialogDescription>
-            Esta acao tira o curso da area publica e preserva modulos, aulas,
-            matriculas, pedidos e certificados vinculados.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <DeleteSummary
-            detail="O conteudo continua disponivel no painel administrativo."
-            title={course.title}
-          />
-        </DialogBody>
-        <AutoCloseDialogForm action={archiveCourseAction}>
-          <DialogFooter className="mt-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-                Cancelar
-              </Button>
-            </DialogClose>
-            <input name="courseId" type="hidden" value={course.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar arquivamento
-            </Button>
-          </DialogFooter>
-        </AutoCloseDialogForm>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 export function CourseSettingsForm({
@@ -209,20 +129,5 @@ export function CourseSettingsForm({
         </div>
       </fieldset>
     </form>
-  );
-}
-
-function DeleteSummary({
-  detail,
-  title,
-}: {
-  detail: string;
-  title: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-lg border bg-background/40 p-3">
-      <p className="font-semibold">{title}</p>
-      <p className="text-muted-foreground text-sm">{detail}</p>
-    </div>
   );
 }

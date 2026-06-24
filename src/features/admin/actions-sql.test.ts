@@ -38,13 +38,14 @@ describe("admin course actions", () => {
     expect(source).not.toContain('formData.get("isPublished") === "on"');
   });
 
-  it("archives courses, modules, and lessons instead of deleting rows", async () => {
+  it("archives content without deleting course, module, or lesson rows", async () => {
     const source = await readFile(
       new URL("./actions.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain("archiveCourseAction");
+    expect(source).toContain("status = $7");
+    expect(source).toContain("values.status");
     expect(source).toContain("archiveModuleAction");
     expect(source).toContain("archiveLessonAction");
     expect(source).not.toContain("delete from courses");

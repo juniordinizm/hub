@@ -588,36 +588,6 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
-export const archiveCourseAction = async (
-  formData: FormData
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  const courseId = readString(formData, "courseId");
-
-  if (!courseId) {
-    throw new Error("Curso invalido.");
-  }
-
-  await getPool().query(
-    `
-      update courses
-      set status = $1,
-          updated_at = now()
-      where id = $2
-    `,
-    [ARCHIVED_CONTENT_STATUS, courseId]
-  );
-  await audit({
-    action: "course.archived",
-    actorUserId: session.user.id,
-    targetId: courseId,
-    targetType: "course",
-  });
-  revalidateAdmin();
-  // biome-ignore lint/suspicious/noExplicitAny: Next.js typed routes workaround
-  redirect("/admin/cursos" as any);
-};
-
 export const archiveModuleAction = async (
   formData: FormData
 ): Promise<void> => {

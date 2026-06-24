@@ -42,7 +42,11 @@ export const readCourseCoverFile = (value: unknown): CourseCoverFile | null => {
     return null;
   }
 
-  if (!(value.name || value.size > 0)) {
+  const isEmptyFormFile =
+    value.size === 0 &&
+    (!value.name.trim() || value.type === "application/octet-stream");
+
+  if (isEmptyFormFile) {
     return null;
   }
 

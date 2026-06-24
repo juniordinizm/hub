@@ -37,6 +37,14 @@ describe("course cover upload", () => {
     expect(readCourseCoverFile(file)).toBeNull();
   });
 
+  it("treats a phantom multipart file as no replacement", () => {
+    const file = new File([], "undefined", {
+      type: "application/octet-stream",
+    });
+
+    expect(readCourseCoverFile(file)).toBeNull();
+  });
+
   it("rejects invalid cover files before processing", async () => {
     const invalidType = new File(["<svg />"], "cover.png", {
       type: "image/svg+xml",
