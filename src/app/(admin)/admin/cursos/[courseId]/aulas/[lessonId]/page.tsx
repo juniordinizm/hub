@@ -65,9 +65,9 @@ export default async function AdminLessonEditPage({
   });
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pt-10">
       <form action={saveLessonAction} className="space-y-6">
-        <div className="flex flex-col gap-6 rounded-lg border bg-card p-6 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <p className="font-medium text-muted-foreground text-sm">
               {course.title}
@@ -95,24 +95,20 @@ export default async function AdminLessonEditPage({
           </div>
         </div>
 
-        <section className="rounded-lg border bg-card p-6 shadow-sm">
-          <LessonEditorForm
-            asset={asset ? toUploadAsset(asset) : undefined}
-            lesson={lesson}
-          />
-        </section>
+        <LessonEditorForm
+          asset={asset ? toUploadAsset(asset) : undefined}
+          lesson={lesson}
+        />
       </form>
 
-      <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
-        <LessonCommentsSection
-          canComment
-          canModerate
-          comments={commentsData.comments}
-          context="admin"
-          lessonId={lesson.id}
-          totalCount={commentsData.totalCount}
-        />
-      </section>
+      <LessonCommentsSection
+        canComment
+        canModerate
+        comments={commentsData.comments}
+        context="admin"
+        lessonId={lesson.id}
+        totalCount={commentsData.totalCount}
+      />
     </div>
   );
 }

@@ -87,7 +87,7 @@ export function LessonRichTextEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg bg-background shadow-[0_0_0_1px_rgba(0,0,0,0.08)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
+    <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <input name="textDocument" type="hidden" value={documentJson} />
       <div className="flex flex-wrap items-center gap-1 border-border/60 border-b p-2">
         <ToolbarButton
