@@ -736,7 +736,7 @@ function LessonCourseSidebar({
 }): React.JSX.Element {
   return (
     <Sidebar
-      className="sticky top-0 hidden h-[calc(100svh-4rem)] w-[340px] shrink-0 border-sidebar-border border-l lg:flex"
+      className="hidden h-full w-[340px] shrink-0 border-sidebar-border border-l lg:flex"
       collapsible="none"
       side="right"
     >

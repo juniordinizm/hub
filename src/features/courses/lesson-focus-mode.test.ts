@@ -45,6 +45,8 @@ describe("lesson focus mode UI state", () => {
       "utf8"
     );
 
+    expect(source).toContain("h-[calc(100svh-4rem)] overflow-hidden");
+    expect(source).toContain("custom-scrollbar min-w-0 overflow-y-auto");
     expect(source).toContain("transition-[grid-template-columns]");
     expect(source).toContain("lg:grid-cols-[minmax(0,1fr)_0px]");
     expect(source).not.toContain("isFocusMode ? null : sidebar");

@@ -19,17 +19,19 @@ export function LessonFocusLayout({
   return (
     <div
       className={cn(
-        "grid bg-background text-foreground transition-[grid-template-columns] duration-200 ease-linear",
+        "grid h-[calc(100svh-4rem)] overflow-hidden bg-background text-foreground transition-[grid-template-columns] duration-200 ease-linear",
         isFocusMode
           ? "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_0px]"
           : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
       )}
     >
-      <section className="min-w-0">{main}</section>
+      <section className="custom-scrollbar min-w-0 overflow-y-auto">
+        {main}
+      </section>
       <div
         aria-hidden={isFocusMode}
         className={cn(
-          "hidden min-w-0 overflow-hidden transition-opacity duration-200 ease-linear lg:block",
+          "hidden h-full min-w-0 overflow-hidden transition-opacity duration-200 ease-linear lg:block",
           isFocusMode && "pointer-events-none opacity-0"
         )}
       >
