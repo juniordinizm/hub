@@ -40,7 +40,7 @@ export function LessonCommentsSection({
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-xl tracking-tight">
-              Comentarios
+              Dúvidas e comentários
             </h2>
             <Badge variant="outline">
               {totalCount} {totalCount === 1 ? "comentario" : "comentarios"}
