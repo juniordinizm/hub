@@ -19,7 +19,6 @@ import {
   type JmvstreamUploadAsset,
   JmvstreamUploadPanel,
 } from "@/components/jmvstream-upload-panel";
-import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
 import { LessonVideoEditorPreview } from "@/components/lesson-video-editor-preview";
 import {
   AlertDialog,
@@ -40,13 +39,7 @@ import {
   getLessonVideoEditorMode,
   resolveLessonVideoPreviewUrl,
 } from "@/features/admin/lesson-video-form";
-import {
-  EMPTY_TEXT_DOCUMENT,
-  type LessonContent,
-  type LessonResource,
-  type ProseMirrorJson,
-  parseLessonContent,
-} from "@/features/courses/lesson-content";
+import type { LessonResource } from "@/features/courses/lesson-content";
 import {
   LESSON_ATTACHMENT_ACCEPT,
   LESSON_RESOURCE_IMAGE_PREVIEW,
@@ -54,9 +47,8 @@ import {
 } from "@/features/storage/r2-objects";
 import { cn } from "@/lib/utils";
 
-export function LessonKindControls({
+export function LessonVideoControls({
   asset,
-  defaultContentJson,
   defaultEmbedUrl,
   defaultOrder,
   defaultTitle,
@@ -65,7 +57,6 @@ export function LessonKindControls({
   lessonId,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
-  defaultContentJson: unknown;
   defaultEmbedUrl: string;
   defaultOrder: number;
   defaultTitle: string;
@@ -73,7 +64,6 @@ export function LessonKindControls({
   defaultVideoExternalId: null | string;
   lessonId?: string | undefined;
 }): React.JSX.Element {
-  const content = parseLessonContent(defaultContentJson);
   const initialVideoMode = getLessonVideoEditorMode({
     videoEmbedUrl: defaultEmbedUrl || null,
     videoExternalId: defaultVideoExternalId,
@@ -137,123 +127,116 @@ export function LessonKindControls({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-10">
-      <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
+      <input
+        defaultValue={defaultVideoDurationSeconds}
+        name="durationSeconds"
+        type="hidden"
+      />
+      <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
+      <input
+        name="videoEmbedUrl"
+        readOnly
+        type="hidden"
+        value={isRemovePending ? "" : appliedEmbedUrl}
+      />
+      {isRemovePending ? (
+        <input name="removeVideo" type="hidden" value="on" />
+      ) : null}
+
+      <input name="videoProvider" type="hidden" value="jmvstream" />
+      <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
+        <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
+          <TabsTrigger
+            className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+            value="upload"
+          >
+            Envio Direto
+          </TabsTrigger>
+          <TabsTrigger
+            className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+            value="link"
+          >
+            Colar Link Manual
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent className="pt-4" value="upload">
+          <JmvstreamUploadPanel
+            asset={asset}
+            currentVideoHash={defaultVideoExternalId}
+            isRemovePending={isRemovePending}
+            lessonId={lessonId}
+            onRestoreVideo={restoreSavedVideo}
+            {...(defaultVideoExternalId
+              ? { onRemoveVideo: removeVideoLocally }
+              : {})}
+          />
+        </TabsContent>
+        <TabsContent className="pt-4" value="link">
+          <div className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+                <Input
+                  className="min-w-0"
+                  onChange={(event) => {
+                    setLinkDraft(event.target.value);
+                    setLinkError(null);
+                  }}
+                  placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                  value={linkDraft}
+                />
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={!linkDraft.trim()}
+                  onClick={applyManualLink}
+                  type="button"
+                >
+                  Aplicar link
+                </Button>
+              </div>
+              {linkError ? (
+                <p className="text-destructive text-xs">{linkError}</p>
+              ) : null}
+            </Field>
+            {hasManualLinkApplied || isRemovePending ? (
+              <div className="flex flex-wrap gap-2">
+                {hasManualLinkApplied ? (
+                  <Button
+                    onClick={removeManualLink}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Remover link
+                  </Button>
+                ) : null}
+                {isRemovePending ? (
+                  <Button
+                    onClick={restoreSavedVideo}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Desfazer
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            <JmvstreamDurationDetector
+              defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
+              defaultProvider="jmvstream"
+              key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
+              showDetectedMessage={false}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
+      <div className="mt-2">
         <LessonVideoEditorPreview
           previewUrl={previewUrl}
           title={defaultTitle}
         />
-        <input
-          defaultValue={defaultVideoDurationSeconds}
-          name="durationSeconds"
-          type="hidden"
-        />
-        <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
-        <input
-          name="videoEmbedUrl"
-          readOnly
-          type="hidden"
-          value={isRemovePending ? "" : appliedEmbedUrl}
-        />
-        {isRemovePending ? (
-          <input name="removeVideo" type="hidden" value="on" />
-        ) : null}
-
-        <input name="videoProvider" type="hidden" value="jmvstream" />
-        <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
-          <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
-            <TabsTrigger
-              className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
-              value="upload"
-            >
-              Envio Direto
-            </TabsTrigger>
-            <TabsTrigger
-              className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
-              value="link"
-            >
-              Colar Link Manual
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent className="pt-4" value="upload">
-            <JmvstreamUploadPanel
-              asset={asset}
-              currentVideoHash={defaultVideoExternalId}
-              isRemovePending={isRemovePending}
-              lessonId={lessonId}
-              onRestoreVideo={restoreSavedVideo}
-              {...(defaultVideoExternalId
-                ? { onRemoveVideo: removeVideoLocally }
-                : {})}
-            />
-          </TabsContent>
-          <TabsContent className="pt-4" value="link">
-            <div className="flex flex-col gap-4">
-              <Field>
-                <FieldLabel>Link ou iframe JMVStream</FieldLabel>
-                <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                  <Input
-                    className="min-w-0"
-                    onChange={(event) => {
-                      setLinkDraft(event.target.value);
-                      setLinkError(null);
-                    }}
-                    placeholder="https://player.jmvstream.com/... ou iframe oficial"
-                    value={linkDraft}
-                  />
-                  <Button
-                    className="w-full sm:w-auto"
-                    disabled={!linkDraft.trim()}
-                    onClick={applyManualLink}
-                    type="button"
-                  >
-                    Aplicar link
-                  </Button>
-                </div>
-                {linkError ? (
-                  <p className="text-destructive text-xs">{linkError}</p>
-                ) : null}
-              </Field>
-              {hasManualLinkApplied || isRemovePending ? (
-                <div className="flex flex-wrap gap-2">
-                  {hasManualLinkApplied ? (
-                    <Button
-                      onClick={removeManualLink}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      Remover link
-                    </Button>
-                  ) : null}
-                  {isRemovePending ? (
-                    <Button
-                      onClick={restoreSavedVideo}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      Desfazer
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-              <JmvstreamDurationDetector
-                defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
-                defaultProvider="jmvstream"
-                key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
-                showDetectedMessage={false}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      <div className="flex min-w-0 flex-col gap-4 border-border/50 border-t pt-10">
-        <Field className="min-w-0">
-          <FieldLabel>Conteudo da aula</FieldLabel>
-          <LessonRichTextEditor initialDocument={getTextDocument(content)} />
-        </Field>
       </div>
     </div>
   );
@@ -946,12 +929,4 @@ const readUploadError = (value: unknown): string => {
   }
 
   return "Nao foi possivel preparar o upload.";
-};
-
-const getTextDocument = (content: LessonContent | null): ProseMirrorJson => {
-  if (content?.type === "text") {
-    return content.document;
-  }
-
-  return EMPTY_TEXT_DOCUMENT;
 };

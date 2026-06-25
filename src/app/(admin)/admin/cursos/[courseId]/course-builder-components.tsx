@@ -12,8 +12,6 @@ import type React from "react";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseBuilderClient } from "@/components/course-builder-dnd";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
-import type { JmvstreamUploadAsset } from "@/components/jmvstream-upload-panel";
-import { LessonKindControls } from "@/components/lesson-kind-controls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -288,41 +286,41 @@ export function ModuleForm({
   );
 }
 
-export function LessonEditorForm({
-  asset,
+export function LessonEditorSidebarFields({
+  formId,
   lesson,
 }: {
-  asset?: JmvstreamUploadAsset | undefined;
+  formId: string;
   lesson: LessonData;
 }): React.JSX.Element {
   return (
     <FieldGroup>
-      <input name="lessonId" type="hidden" value={lesson.id} />
-      <input name="moduleId" type="hidden" value={lesson.moduleId} />
+      <input form={formId} name="lessonId" type="hidden" value={lesson.id} />
+      <input
+        form={formId}
+        name="moduleId"
+        type="hidden"
+        value={lesson.moduleId}
+      />
       <Field>
-        <FieldLabel>Titulo</FieldLabel>
-        <Input defaultValue={lesson.title} name="title" required />
-      </Field>
-      <Field>
-        <FieldLabel>Descricao</FieldLabel>
-        <Textarea
-          defaultValue={lesson.description ?? ""}
-          name="description"
+        <FieldLabel>Titulo da aula</FieldLabel>
+        <Input
+          defaultValue={lesson.title}
+          form={formId}
+          name="title"
           required
         />
       </Field>
-      <div className="mt-10 grid min-w-0 gap-4 border-border/50 border-t pt-10">
-        <LessonKindControls
-          asset={asset}
-          defaultContentJson={lesson.contentJson}
-          defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
-          defaultOrder={lesson.sortOrder}
-          defaultTitle={lesson.title}
-          defaultVideoDurationSeconds={lesson.videoDurationSeconds}
-          defaultVideoExternalId={lesson.videoExternalId}
-          lessonId={lesson.id}
+      <Field>
+        <FieldLabel>Descrição (opcional)</FieldLabel>
+        <Textarea
+          className="resize-none"
+          defaultValue={lesson.description ?? ""}
+          form={formId}
+          name="description"
+          rows={4}
         />
-      </div>
+      </Field>
     </FieldGroup>
   );
 }

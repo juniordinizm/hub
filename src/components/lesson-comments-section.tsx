@@ -35,7 +35,7 @@ export function LessonCommentsSection({
   totalCount: number;
 }): React.JSX.Element {
   return (
-    <section className="border-border/50 border-t bg-background px-5 py-8 sm:px-0">
+    <section className="px-5 py-8 sm:px-0">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3">
