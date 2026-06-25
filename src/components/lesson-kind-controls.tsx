@@ -32,7 +32,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -86,13 +85,6 @@ export function LessonVideoControls({
     setAppliedEmbedUrl("");
     setIsRemovePending(true);
     setLinkDraft("");
-    setLinkError(null);
-  };
-
-  const restoreSavedVideo = (): void => {
-    setAppliedEmbedUrl(defaultEmbedUrl);
-    setIsRemovePending(false);
-    setLinkDraft(defaultEmbedUrl);
     setLinkError(null);
   };
 
@@ -166,26 +158,62 @@ export function LessonVideoControls({
             currentVideoHash={defaultVideoExternalId}
             isRemovePending={isRemovePending}
             lessonId={lessonId}
-            onRestoreVideo={restoreSavedVideo}
             {...(defaultVideoExternalId
               ? { onRemoveVideo: removeVideoLocally }
               : {})}
           />
         </TabsContent>
         <TabsContent className="pt-4" value="link">
-          <div className="flex flex-col gap-4">
-            <Field>
-              <FieldLabel>Link ou iframe</FieldLabel>
-              <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-                <Input
-                  className="min-w-0"
-                  onChange={(event) => {
-                    setLinkDraft(event.target.value);
-                    setLinkError(null);
-                  }}
-                  placeholder="https://player.jmvstream.com/... ou iframe oficial"
-                  value={linkDraft}
-                />
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-sm">Link ou iframe</h3>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  Insira o link direto ou o código iframe de incorporação do
+                  player da JMVStream.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Input
+                className="w-full"
+                onChange={(event) => {
+                  setLinkDraft(event.target.value);
+                  setLinkError(null);
+                }}
+                placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                value={linkDraft}
+              />
+              <div className="flex flex-col justify-end gap-2 sm:flex-row">
+                {hasManualLinkApplied ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        className="w-full sm:w-auto"
+                        type="button"
+                        variant="destructive"
+                      >
+                        Remover link
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remover link</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja remover o link deste vídeo?
+                          Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={removeManualLink}>
+                          Remover
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : null}
                 <Button
                   className="w-full sm:w-auto"
                   disabled={!linkDraft.trim()}
@@ -195,29 +223,18 @@ export function LessonVideoControls({
                   Aplicar link
                 </Button>
               </div>
-              {linkError ? (
-                <p className="text-destructive text-xs">{linkError}</p>
-              ) : null}
-            </Field>
-            {hasManualLinkApplied ? (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={removeManualLink}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  Remover link
-                </Button>
-              </div>
+            </div>
+
+            {linkError ? (
+              <p className="text-destructive text-xs">{linkError}</p>
             ) : null}
-            <JmvstreamDurationDetector
-              defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
-              defaultProvider="jmvstream"
-              key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
-              showDetectedMessage={false}
-            />
           </div>
+          <JmvstreamDurationDetector
+            defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
+            defaultProvider="jmvstream"
+            key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
+            showDetectedMessage={false}
+          />
         </TabsContent>
       </Tabs>
       {previewUrl ? (

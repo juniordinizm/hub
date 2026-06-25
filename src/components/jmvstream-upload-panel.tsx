@@ -2,6 +2,17 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,14 +45,12 @@ export function JmvstreamUploadPanel({
   isRemovePending = false,
   lessonId,
   onRemoveVideo,
-  onRestoreVideo,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
   currentVideoHash: null | string;
   isRemovePending?: boolean;
   lessonId?: string | undefined;
   onRemoveVideo?: () => void;
-  onRestoreVideo?: () => void;
 }): React.JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -179,47 +188,53 @@ export function JmvstreamUploadPanel({
             Hash JMVStream atual: {currentVideoHash}
           </p>
         ) : null}
-        {currentVideoHash && onRemoveVideo ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              disabled={isPending || isRemovePending}
-              onClick={onRemoveVideo}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              Remover vídeo
-            </Button>
-            {isRemovePending && onRestoreVideo ? (
-              <Button
-                disabled={isPending}
-                onClick={onRestoreVideo}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Desfazer
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+        <div className="flex flex-col gap-2">
           <Input
             accept="video/*"
-            className="min-w-0"
+            className="w-full"
             disabled={isPending || !lessonId}
             ref={inputRef}
             type="file"
           />
-          <Button
-            className="w-full sm:w-auto"
-            disabled={isPending || !lessonId}
-            onClick={uploadSelectedFile}
-            type="button"
-          >
-            Enviar video
-          </Button>
+          <div className="flex flex-col justify-end gap-2 sm:flex-row">
+            {currentVideoHash && onRemoveVideo ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    className="w-full sm:w-auto"
+                    disabled={isPending || isRemovePending}
+                    type="button"
+                    variant="destructive"
+                  >
+                    Remover vídeo
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover vídeo</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja remover o vídeo desta aula? Esta
+                      ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={onRemoveVideo}>
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : null}
+            <Button
+              className="w-full sm:w-auto"
+              disabled={isPending || !lessonId}
+              onClick={uploadSelectedFile}
+              type="button"
+            >
+              Enviar video
+            </Button>
+          </div>
         </div>
         {lessonId ? null : (
           <p className="text-muted-foreground text-xs">
