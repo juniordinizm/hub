@@ -148,16 +148,16 @@ export function LessonVideoControls({
       <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
         <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
           <TabsTrigger
-            className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+            className="min-w-0 whitespace-normal text-center leading-tight"
             value="upload"
           >
-            Envio Direto
+            Upload
           </TabsTrigger>
           <TabsTrigger
-            className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+            className="min-w-0 whitespace-normal text-center leading-tight"
             value="link"
           >
-            Colar Link Manual
+            Link
           </TabsTrigger>
         </TabsList>
         <TabsContent className="pt-4" value="upload">
@@ -175,7 +175,7 @@ export function LessonVideoControls({
         <TabsContent className="pt-4" value="link">
           <div className="flex flex-col gap-4">
             <Field>
-              <FieldLabel>Link ou iframe JMVStream</FieldLabel>
+              <FieldLabel>Link ou iframe</FieldLabel>
               <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
                 <Input
                   className="min-w-0"
