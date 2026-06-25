@@ -8,6 +8,7 @@ import {
   buildAdminLessonEditPath,
   normalizeLessonDraftInput,
 } from "@/features/admin/lesson-drafts";
+import { resolveLessonVideoFormState } from "@/features/admin/lesson-video-form";
 import {
   getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
@@ -38,7 +39,6 @@ import {
   readCourseCoverFile,
 } from "@/features/storage/course-cover-upload";
 import { deleteR2Objects, uploadCourseCoverFile } from "@/features/storage/r2";
-import { resolveLessonVideoEmbedUrl } from "@/features/videos/jmvstream";
 import { requireRole } from "@/lib/session";
 
 const CREATED_CONTENT_STATUS = "draft";
@@ -367,15 +367,27 @@ const getCourseIdForLesson = async (
   return rows[0]?.course_id ?? null;
 };
 
-const getVideoExternalIdForLesson = async (
+const getExistingVideoForLesson = async (
   lessonId: string
-): Promise<string | null> => {
-  const { rows } = await getPool().query<{ video_external_id: string | null }>(
-    "select video_external_id from lessons where id = $1 limit 1",
+): Promise<{
+  embedUrl: string | null;
+  externalId: string | null;
+} | null> => {
+  const { rows } = await getPool().query<{
+    video_embed_url: string | null;
+    video_external_id: string | null;
+  }>(
+    "select video_embed_url, video_external_id from lessons where id = $1 limit 1",
     [lessonId]
   );
+  const existingVideo = rows[0];
 
-  return rows[0]?.video_external_id ?? null;
+  return existingVideo
+    ? {
+        embedUrl: existingVideo.video_embed_url,
+        externalId: existingVideo.video_external_id,
+      }
+    : null;
 };
 
 const getLessonVideoFormState = async ({
@@ -392,27 +404,25 @@ const getLessonVideoFormState = async ({
   videoProvider: "jmvstream" | null;
 }> => {
   const shouldRemoveVideo = formData.get("removeVideo") === "on";
-  const existingVideoExternalId = lessonId
-    ? await getVideoExternalIdForLesson(lessonId)
+  const existingVideo = lessonId
+    ? await getExistingVideoForLesson(lessonId)
     : null;
-  const videoEmbedUrl = shouldRemoveVideo
-    ? null
-    : resolveLessonVideoEmbedUrl({
-        embedUrl: readString(formData, "videoEmbedUrl") || null,
-        provider: "jmvstream",
-      });
-  const hasVideoContent = Boolean(videoEmbedUrl || existingVideoExternalId);
-  const shouldKeepVideo = hasVideoContent && !shouldRemoveVideo;
-  const thumbnailUrl = shouldKeepVideo
+  const { hasVideoContent, videoEmbedUrl, videoExternalId, videoProvider } =
+    resolveLessonVideoFormState({
+      existingVideo,
+      shouldRemoveVideo,
+      submittedEmbedUrl: readString(formData, "videoEmbedUrl") || null,
+    });
+  const thumbnailUrl = hasVideoContent
     ? await resolveJmvstreamPlayerThumbnailUrl(videoEmbedUrl)
     : null;
 
   return {
-    hasVideoContent: shouldKeepVideo,
+    hasVideoContent,
     thumbnailUrl,
     videoEmbedUrl,
-    videoExternalId: shouldKeepVideo ? existingVideoExternalId : null,
-    videoProvider: shouldKeepVideo ? "jmvstream" : null,
+    videoExternalId,
+    videoProvider,
   };
 };
 

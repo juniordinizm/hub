@@ -55,6 +55,16 @@ describe("admin course actions", () => {
     expect(source).not.toContain("delete from lessons");
   });
 
+  it("preserves existing lesson video links when saving other lesson fields", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("select video_embed_url, video_external_id");
+    expect(source).toContain("resolveLessonVideoFormState");
+  });
+
   it("stores module and lesson publication lifecycle status in the schema", async () => {
     const schema = await readFile(
       new URL("../../db/schema.ts", import.meta.url),
