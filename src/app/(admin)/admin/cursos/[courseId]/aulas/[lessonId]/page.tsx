@@ -82,8 +82,8 @@ export default async function AdminLessonEditPage({
       <div className="custom-scrollbar bg-muted/20 max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
         <div className="order-4 mx-auto w-full max-w-5xl px-4 py-6 lg:order-none lg:px-8 lg:py-10">
           <Tabs className="w-full" defaultValue="video">
-            <div className="mb-8 overflow-x-auto pb-1">
-              <TabsList className="flex w-full p-1">
+            <div className="mb-8 pb-1">
+              <TabsList className="!h-auto grid w-full grid-cols-2 gap-1 p-1 sm:flex">
                 <TabsTrigger className="flex-1 py-1.5" value="video">
                   Vídeo
                 </TabsTrigger>
