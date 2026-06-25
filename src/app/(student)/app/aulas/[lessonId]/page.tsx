@@ -369,7 +369,7 @@ function LessonContentFrame({
     return (
       <article className="px-5 py-8 sm:px-0">
         <div className="mx-auto flex max-w-5xl flex-col gap-8">
-          <div className="text-base leading-8 [&_.lesson-rich-text_a]:font-medium [&_.lesson-rich-text_a]:text-primary [&_.lesson-rich-text_a]:underline [&_.lesson-rich-text_a]:underline-offset-4 [&_.lesson-rich-text_blockquote]:border-l-2 [&_.lesson-rich-text_blockquote]:pl-4 [&_.lesson-rich-text_blockquote]:text-muted-foreground [&_.lesson-rich-text_h2]:mt-6 [&_.lesson-rich-text_h2]:font-semibold [&_.lesson-rich-text_h2]:text-2xl [&_.lesson-rich-text_h3]:mt-5 [&_.lesson-rich-text_h3]:font-semibold [&_.lesson-rich-text_h3]:text-xl [&_.lesson-rich-text_ol]:ml-6 [&_.lesson-rich-text_ol]:list-decimal [&_.lesson-rich-text_p]:my-3 [&_.lesson-rich-text_ul]:ml-6 [&_.lesson-rich-text_ul]:list-disc">
+          <div className="text-base leading-8">
             <LessonRichTextRenderer document={document} />
           </div>
           <LessonResources lessonId={lesson.id} resources={resources ?? []} />

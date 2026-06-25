@@ -1,6 +1,6 @@
 import { renderToReactElement } from "@tiptap/static-renderer/pm/react";
 import type { ProseMirrorJson } from "@/features/courses/lesson-content";
-import { richTextExtensions } from "@/features/courses/rich-text-extensions";
+import { rendererExtensions } from "@/features/courses/rich-text-extensions";
 
 export function LessonRichTextRenderer({
   document,
@@ -10,7 +10,7 @@ export function LessonRichTextRenderer({
   return (
     <div className="lesson-rich-text">
       {renderToReactElement({
-        extensions: richTextExtensions,
+        extensions: rendererExtensions,
         content: document,
       })}
     </div>
