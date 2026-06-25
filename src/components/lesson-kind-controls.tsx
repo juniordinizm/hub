@@ -20,6 +20,7 @@ import {
   JmvstreamUploadPanel,
 } from "@/components/jmvstream-upload-panel";
 import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
+import { LessonVideoEditorPreview } from "@/components/lesson-video-editor-preview";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +56,7 @@ export function LessonKindControls({
   defaultContentJson,
   defaultEmbedUrl,
   defaultOrder,
+  defaultTitle,
   defaultVideoDurationSeconds,
   defaultVideoExternalId,
   lessonId,
@@ -63,6 +65,7 @@ export function LessonKindControls({
   defaultContentJson: unknown;
   defaultEmbedUrl: string;
   defaultOrder: number;
+  defaultTitle: string;
   defaultVideoDurationSeconds: number;
   defaultVideoExternalId: null | string;
   lessonId?: string | undefined;
@@ -78,6 +81,10 @@ export function LessonKindControls({
   return (
     <div className="flex min-w-0 flex-col gap-10">
       <div className="flex min-w-0 flex-col gap-4">
+        <LessonVideoEditorPreview
+          defaultEmbedUrl={defaultEmbedUrl}
+          title={defaultTitle}
+        />
         <div className="grid gap-4">
           <Field>
             <FieldLabel>Duração do video em segundos</FieldLabel>

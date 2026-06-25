@@ -35,6 +35,31 @@ export const getLessonVideoEditorMode = ({
   return videoEmbedUrl ? "link" : "upload";
 };
 
+export const resolveLessonVideoPreviewUrl = ({
+  savedEmbedUrl,
+  shouldRemoveVideo,
+  submittedEmbedUrl,
+}: {
+  savedEmbedUrl: string | null;
+  shouldRemoveVideo: boolean;
+  submittedEmbedUrl: string | null;
+}): string | null => {
+  if (shouldRemoveVideo) {
+    return null;
+  }
+
+  return (
+    resolveLessonVideoEmbedUrl({
+      embedUrl: submittedEmbedUrl,
+      provider: "jmvstream",
+    }) ??
+    resolveLessonVideoEmbedUrl({
+      embedUrl: savedEmbedUrl,
+      provider: "jmvstream",
+    })
+  );
+};
+
 export const resolveLessonVideoFormState = ({
   existingVideo,
   shouldRemoveVideo,

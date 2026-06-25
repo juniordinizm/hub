@@ -2,9 +2,47 @@ import { describe, expect, it } from "vitest";
 import {
   getLessonVideoEditorMode,
   resolveLessonVideoFormState,
+  resolveLessonVideoPreviewUrl,
 } from "./lesson-video-form";
 
 describe("lesson video form", () => {
+  it("previews the submitted manual link over the saved player url", () => {
+    expect(
+      resolveLessonVideoPreviewUrl({
+        savedEmbedUrl: "https://player.jmvstream.com/saved",
+        shouldRemoveVideo: false,
+        submittedEmbedUrl: "https://player.jmvstream.com/draft",
+      })
+    ).toBe("https://player.jmvstream.com/draft");
+  });
+
+  it("keeps the saved player preview when the submitted link is empty or invalid", () => {
+    expect(
+      resolveLessonVideoPreviewUrl({
+        savedEmbedUrl: "https://player.jmvstream.com/saved",
+        shouldRemoveVideo: false,
+        submittedEmbedUrl: "",
+      })
+    ).toBe("https://player.jmvstream.com/saved");
+    expect(
+      resolveLessonVideoPreviewUrl({
+        savedEmbedUrl: "https://player.jmvstream.com/saved",
+        shouldRemoveVideo: false,
+        submittedEmbedUrl: "https://example.com/video",
+      })
+    ).toBe("https://player.jmvstream.com/saved");
+  });
+
+  it("hides the preview when the remove video flag is selected", () => {
+    expect(
+      resolveLessonVideoPreviewUrl({
+        savedEmbedUrl: "https://player.jmvstream.com/saved",
+        shouldRemoveVideo: true,
+        submittedEmbedUrl: "https://player.jmvstream.com/draft",
+      })
+    ).toBeNull();
+  });
+
   it("opens the upload tab for uploaded or empty video states", () => {
     expect(
       getLessonVideoEditorMode({

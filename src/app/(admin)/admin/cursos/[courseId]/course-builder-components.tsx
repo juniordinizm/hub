@@ -317,6 +317,7 @@ export function LessonEditorForm({
           defaultContentJson={lesson.contentJson}
           defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
           defaultOrder={lesson.sortOrder}
+          defaultTitle={lesson.title}
           defaultVideoDurationSeconds={lesson.videoDurationSeconds}
           defaultVideoExternalId={lesson.videoExternalId}
           lessonId={lesson.id}
