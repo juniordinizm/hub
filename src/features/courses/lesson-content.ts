@@ -285,7 +285,7 @@ const hasSupportedNodeAttrs = (value: Record<string, unknown>): boolean => {
   }
 
   const attrs = isRecord(value.attrs) ? value.attrs : {};
-  return attrs.level === 2 || attrs.level === 3;
+  return attrs.level === 1 || attrs.level === 2 || attrs.level === 3;
 };
 
 const isSupportedProseMirrorJson = (

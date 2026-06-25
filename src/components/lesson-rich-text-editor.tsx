@@ -3,13 +3,11 @@
 import {
   CheckIcon,
   EraserIcon,
-  Heading2Icon,
-  Heading03Icon,
   LeftToRightBlockQuoteIcon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
   Link01Icon,
-  ParagraphIcon,
+  type ParagraphIcon,
   RedoIcon,
   TextBoldIcon,
   TextItalicIcon,
@@ -34,6 +32,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -59,6 +64,7 @@ interface ToolbarState {
   isBlockquote: boolean;
   isBold: boolean;
   isBulletList: boolean;
+  isHeading1: boolean;
   isHeading2: boolean;
   isHeading3: boolean;
   isItalic: boolean;
@@ -78,6 +84,7 @@ const emptyToolbarState: ToolbarState = {
   isBlockquote: false,
   isBold: false,
   isBulletList: false,
+  isHeading1: false,
   isHeading2: false,
   isHeading3: false,
   isItalic: false,
@@ -88,6 +95,39 @@ const emptyToolbarState: ToolbarState = {
 };
 
 const whitespacePattern = /\s/;
+
+const blockFormats = [
+  { label: "Parágrafo", value: "paragraph" },
+  { label: "Título 1", value: "heading-1" },
+  { label: "Título 2", value: "heading-2" },
+  { label: "Título 3", value: "heading-3" },
+] as const;
+
+type BlockFormatValue = (typeof blockFormats)[number]["value"];
+type BlockFormatState = Pick<
+  ToolbarState,
+  "isHeading1" | "isHeading2" | "isHeading3"
+>;
+
+export const getBlockFormatValue = ({
+  isHeading1,
+  isHeading2,
+  isHeading3,
+}: BlockFormatState): BlockFormatValue => {
+  if (isHeading1) {
+    return "heading-1";
+  }
+
+  if (isHeading2) {
+    return "heading-2";
+  }
+
+  if (isHeading3) {
+    return "heading-3";
+  }
+
+  return "paragraph";
+};
 
 export function LessonRichTextEditor({
   initialDocument,
@@ -136,6 +176,7 @@ export function LessonRichTextEditor({
           isBlockquote: currentEditor.isActive("blockquote"),
           isBold: currentEditor.isActive("bold"),
           isBulletList: currentEditor.isActive("bulletList"),
+          isHeading1: currentEditor.isActive("heading", { level: 1 }),
           isHeading2: currentEditor.isActive("heading", { level: 2 }),
           isHeading3: currentEditor.isActive("heading", { level: 3 }),
           isItalic: currentEditor.isActive("italic"),
@@ -171,47 +212,9 @@ function EditorToolbar({
   return (
     <div className="border-border/60 border-b bg-card/95">
       <ScrollArea className="w-full">
-        <div className="flex min-w-max items-center gap-1 px-2 py-1.5">
+        <div className="flex w-full min-w-max items-center gap-1 px-2 py-1.5">
           <ToolbarGroup>
-            <ToolbarButton
-              icon={UndoIcon}
-              isDisabled={!state.canUndo}
-              label="Desfazer"
-              onClick={() => editor?.chain().focus().undo().run()}
-            />
-            <ToolbarButton
-              icon={RedoIcon}
-              isDisabled={!state.canRedo}
-              label="Refazer"
-              onClick={() => editor?.chain().focus().redo().run()}
-            />
-          </ToolbarGroup>
-
-          <ToolbarSeparator />
-
-          <ToolbarGroup>
-            <ToolbarButton
-              icon={ParagraphIcon}
-              isActive={state.isParagraph}
-              label="Parágrafo"
-              onClick={() => editor?.chain().focus().setParagraph().run()}
-            />
-            <ToolbarButton
-              icon={Heading2Icon}
-              isActive={state.isHeading2}
-              label="Título"
-              onClick={() =>
-                editor?.chain().focus().toggleHeading({ level: 2 }).run()
-              }
-            />
-            <ToolbarButton
-              icon={Heading03Icon}
-              isActive={state.isHeading3}
-              label="Subtítulo"
-              onClick={() =>
-                editor?.chain().focus().toggleHeading({ level: 3 }).run()
-              }
-            />
+            <BlockFormatSelect editor={editor} state={state} />
           </ToolbarGroup>
 
           <ToolbarSeparator />
@@ -272,9 +275,77 @@ function EditorToolbar({
           <ToolbarSeparator />
 
           <LinkPopover editor={editor} isActive={state.isLink} />
+
+          <div className="w-4 flex-1" />
+
+          <ToolbarGroup>
+            <ToolbarButton
+              icon={UndoIcon}
+              isDisabled={!state.canUndo}
+              label="Desfazer"
+              onClick={() => editor?.chain().focus().undo().run()}
+            />
+            <ToolbarButton
+              icon={RedoIcon}
+              isDisabled={!state.canRedo}
+              label="Refazer"
+              onClick={() => editor?.chain().focus().redo().run()}
+            />
+          </ToolbarGroup>
         </div>
       </ScrollArea>
     </div>
+  );
+}
+
+function BlockFormatSelect({
+  editor,
+  state,
+}: {
+  editor: Editor | null;
+  state: BlockFormatState;
+}): React.JSX.Element {
+  const value = getBlockFormatValue(state);
+
+  const applyBlockFormat = (nextValue: BlockFormatValue) => {
+    const command = editor?.chain().focus();
+
+    if (!command) {
+      return;
+    }
+
+    if (nextValue === "paragraph") {
+      command.setParagraph().run();
+      return;
+    }
+
+    const level = Number(nextValue.replace("heading-", ""));
+    command.toggleHeading({ level: level as 1 | 2 | 3 }).run();
+  };
+
+  return (
+    <Select
+      disabled={!editor}
+      onValueChange={(nextValue) =>
+        applyBlockFormat(nextValue as BlockFormatValue)
+      }
+      value={value}
+    >
+      <SelectTrigger
+        aria-label="Tipo de bloco"
+        className="h-8 w-[8.75rem] bg-transparent"
+        size="sm"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start">
+        {blockFormats.map((format) => (
+          <SelectItem key={format.value} value={format.value}>
+            {format.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -414,26 +485,42 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
     editor,
     selector: ({ editor: currentEditor }) => ({
       isBold: currentEditor.isActive("bold"),
+      isBlockquote: currentEditor.isActive("blockquote"),
+      isBulletList: currentEditor.isActive("bulletList"),
+      isHeading1: currentEditor.isActive("heading", { level: 1 }),
+      isHeading2: currentEditor.isActive("heading", { level: 2 }),
+      isHeading3: currentEditor.isActive("heading", { level: 3 }),
       isItalic: currentEditor.isActive("italic"),
       isLink: currentEditor.isActive("link"),
+      isOrderedList: currentEditor.isActive("orderedList"),
+      isParagraph: currentEditor.isActive("paragraph"),
       isStrike: currentEditor.isActive("strike"),
     }),
   }) ?? {
+    isBlockquote: false,
     isBold: false,
+    isBulletList: false,
+    isHeading1: false,
+    isHeading2: false,
+    isHeading3: false,
     isItalic: false,
     isLink: false,
+    isOrderedList: false,
+    isParagraph: false,
     isStrike: false,
   };
 
   return (
     <BubbleMenu
       editor={editor}
-      options={{ offset: 8, placement: "top" }}
+      options={{ offset: 8, placement: "bottom" }}
       shouldShow={({ editor: currentEditor, from, to }) =>
         currentEditor.isEditable && currentEditor.isFocused && from !== to
       }
     >
       <div className="lesson-bubble-menu">
+        <BlockFormatSelect editor={editor} state={bubbleState} />
+        <BubbleSeparator />
         <BubbleButton
           isActive={bubbleState.isBold}
           label="Negrito"
@@ -459,6 +546,48 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
             strokeWidth={2}
           />
         </BubbleButton>
+        <BubbleButton
+          label="Limpar marcas"
+          onClick={() => editor.chain().focus().unsetAllMarks().run()}
+        >
+          <HugeiconsIcon icon={EraserIcon} size={15} strokeWidth={2} />
+        </BubbleButton>
+        <BubbleSeparator />
+        <BubbleButton
+          isActive={bubbleState.isBulletList}
+          label="Lista"
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <HugeiconsIcon
+            icon={LeftToRightListBulletIcon}
+            size={15}
+            strokeWidth={2}
+          />
+        </BubbleButton>
+        <BubbleButton
+          isActive={bubbleState.isOrderedList}
+          label="Lista numerada"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <HugeiconsIcon
+            icon={LeftToRightListNumberIcon}
+            size={15}
+            strokeWidth={2}
+          />
+        </BubbleButton>
+        <BubbleButton
+          isActive={bubbleState.isBlockquote}
+          label="Citação"
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        >
+          <HugeiconsIcon
+            icon={LeftToRightBlockQuoteIcon}
+            size={15}
+            strokeWidth={2}
+          />
+        </BubbleButton>
+        <BubbleSeparator />
+        <LinkPopover editor={editor} isActive={bubbleState.isLink} />
         {bubbleState.isLink ? (
           <BubbleButton
             isActive={true}
@@ -508,6 +637,10 @@ function ToolbarButton({
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
+}
+
+function BubbleSeparator(): React.JSX.Element {
+  return <span className="mx-0.5 h-5 w-px bg-border/70" />;
 }
 
 function ToolbarGroup({

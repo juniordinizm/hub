@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 
 const sharedStarterKit = StarterKit.configure({
   heading: {
-    levels: [2, 3],
+    levels: [1, 2, 3],
   },
   link: false,
 });

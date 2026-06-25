@@ -324,7 +324,7 @@ describe("lesson content", () => {
           content: [
             {
               type: "heading",
-              attrs: { level: 1 },
+              attrs: { level: 4 },
               content: [{ type: "text", text: "Heading fora do escopo" }],
             },
           ],
