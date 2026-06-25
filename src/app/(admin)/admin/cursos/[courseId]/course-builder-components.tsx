@@ -311,7 +311,7 @@ export function LessonEditorForm({
           required
         />
       </Field>
-      <div className="mt-10 grid gap-4 border-border/50 border-t pt-10">
+      <div className="mt-10 grid min-w-0 gap-4 border-border/50 border-t pt-10">
         <LessonKindControls
           asset={asset}
           defaultContentJson={lesson.contentJson}

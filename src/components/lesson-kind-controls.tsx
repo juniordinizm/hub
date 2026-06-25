@@ -74,8 +74,8 @@ export function LessonKindControls({
   const content = parseLessonContent(defaultContentJson);
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-10">
+      <div className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-4">
           <Field>
             <FieldLabel>Duracao do video em segundos</FieldLabel>
@@ -106,10 +106,20 @@ export function LessonKindControls({
         <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
 
         <input name="videoProvider" type="hidden" value="jmvstream" />
-        <Tabs className="w-full" defaultValue="upload">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="upload">Envio Direto</TabsTrigger>
-            <TabsTrigger value="link">Colar Link Manual</TabsTrigger>
+        <Tabs className="w-full min-w-0" defaultValue="upload">
+          <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
+            <TabsTrigger
+              className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+              value="upload"
+            >
+              Envio Direto
+            </TabsTrigger>
+            <TabsTrigger
+              className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
+              value="link"
+            >
+              Colar Link Manual
+            </TabsTrigger>
           </TabsList>
           <TabsContent className="pt-4" value="upload">
             <JmvstreamUploadPanel
@@ -143,8 +153,8 @@ export function LessonKindControls({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-4 border-border/50 border-t pt-10">
-        <Field>
+      <div className="flex min-w-0 flex-col gap-4 border-border/50 border-t pt-10">
+        <Field className="min-w-0">
           <FieldLabel>Conteudo da aula</FieldLabel>
           <LessonRichTextEditor initialDocument={getTextDocument(content)} />
         </Field>

@@ -142,10 +142,10 @@ export function JmvstreamUploadPanel({
   };
 
   return (
-    <section className="rounded-lg border bg-background/40 p-4">
-      <div className="flex flex-col gap-3">
+    <section className="min-w-0 rounded-lg border bg-background/40 p-4">
+      <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-sm">Upload JMVStream</h3>
             <p className="mt-1 text-muted-foreground text-xs">
               Envia o arquivo para a galeria do curso e vincula o hash nesta
@@ -174,14 +174,16 @@ export function JmvstreamUploadPanel({
           </p>
         ) : null}
 
-        <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
           <Input
             accept="video/*"
+            className="min-w-0"
             disabled={isPending || !lessonId}
             ref={inputRef}
             type="file"
           />
           <Button
+            className="w-full sm:w-auto"
             disabled={isPending || !lessonId}
             onClick={uploadSelectedFile}
             type="button"

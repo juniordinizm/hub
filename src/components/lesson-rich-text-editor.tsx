@@ -87,9 +87,9 @@ export function LessonRichTextEditor({
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+    <div className="min-w-0 max-w-full overflow-hidden rounded-lg border bg-card shadow-sm">
       <input name="textDocument" type="hidden" value={documentJson} />
-      <div className="flex flex-wrap items-center gap-1 border-border/60 border-b p-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1 border-border/60 border-b p-2">
         <ToolbarButton
           isActive={editor?.isActive("paragraph") ?? false}
           label="Paragrafo"
@@ -190,7 +190,7 @@ export function LessonRichTextEditor({
         >
           <HugeiconsIcon icon={RedoIcon} size={16} strokeWidth={2} />
         </ToolbarButton>
-        <div className="ml-auto flex min-w-56 flex-1 items-center gap-1">
+        <div className="flex min-w-0 basis-full items-center gap-1 sm:ml-auto sm:min-w-56 sm:flex-1 sm:basis-56">
           <Input
             aria-label="URL do link"
             className="h-8 min-w-0"
@@ -212,10 +212,10 @@ export function LessonRichTextEditor({
         </div>
       </div>
       <EditorContent
-        className="min-h-64 px-4 py-3 text-base leading-7 outline-none [&_.ProseMirror]:min-h-56 [&_.ProseMirror]:outline-none [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_h2]:font-semibold [&_h2]:text-2xl [&_h3]:font-semibold [&_h3]:text-xl [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-3 [&_ul]:ml-6 [&_ul]:list-disc"
+        className="min-h-64 min-w-0 px-4 py-3 text-base leading-7 outline-none [&_.ProseMirror]:min-h-56 [&_.ProseMirror]:break-words [&_.ProseMirror]:outline-none [&_.ProseMirror]:[overflow-wrap:anywhere] [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_h2]:font-semibold [&_h2]:text-2xl [&_h3]:font-semibold [&_h3]:text-xl [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-3 [&_ul]:ml-6 [&_ul]:list-disc"
         editor={editor}
       />
-      <div className="border-border/60 border-t px-4 py-2 text-muted-foreground text-xs">
+      <div className="break-words border-border/60 border-t px-4 py-2 text-muted-foreground text-xs">
         Estimativa de leitura: {readingStats.wordCount} palavras •{" "}
         {formatLessonDuration(readingStats.durationSeconds)} a{" "}
         {READING_WORDS_PER_MINUTE} ppm
