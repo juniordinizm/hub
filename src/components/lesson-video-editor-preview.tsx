@@ -1,58 +1,14 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { resolveLessonVideoPreviewUrl } from "@/features/admin/lesson-video-form";
 
 export function LessonVideoEditorPreview({
-  defaultEmbedUrl,
+  previewUrl,
   title,
 }: {
-  defaultEmbedUrl: string;
+  previewUrl: null | string;
   title: string;
 }): React.JSX.Element {
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(() =>
-    resolveLessonVideoPreviewUrl({
-      savedEmbedUrl: defaultEmbedUrl || null,
-      shouldRemoveVideo: false,
-      submittedEmbedUrl: null,
-    })
-  );
-
-  useEffect(() => {
-    const form = rootRef.current?.closest("form");
-
-    if (!form) {
-      return;
-    }
-
-    const syncPreview = () => {
-      const formData = new FormData(form);
-      setPreviewUrl(
-        resolveLessonVideoPreviewUrl({
-          savedEmbedUrl: defaultEmbedUrl || null,
-          shouldRemoveVideo: formData.get("removeVideo") === "on",
-          submittedEmbedUrl: String(formData.get("videoEmbedUrl") ?? ""),
-        })
-      );
-    };
-
-    form.addEventListener("change", syncPreview);
-    form.addEventListener("input", syncPreview);
-    syncPreview();
-
-    return () => {
-      form.removeEventListener("change", syncPreview);
-      form.removeEventListener("input", syncPreview);
-    };
-  }, [defaultEmbedUrl]);
-
   return (
-    <section
-      className="overflow-hidden rounded-lg border bg-card shadow-sm"
-      ref={rootRef}
-    >
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
       <div className="border-border/60 border-b px-3 py-2">
         <h3 className="font-medium text-sm">Prévia do vídeo</h3>
       </div>

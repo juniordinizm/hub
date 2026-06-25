@@ -36,7 +36,10 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getLessonVideoEditorMode } from "@/features/admin/lesson-video-form";
+import {
+  getLessonVideoEditorMode,
+  resolveLessonVideoPreviewUrl,
+} from "@/features/admin/lesson-video-form";
 import {
   EMPTY_TEXT_DOCUMENT,
   type LessonContent,
@@ -75,29 +78,86 @@ export function LessonKindControls({
     videoEmbedUrl: defaultEmbedUrl || null,
     videoExternalId: defaultVideoExternalId,
   });
-  const hasUploadedVideo = Boolean(defaultVideoExternalId);
-  const hasManualVideo = Boolean(defaultEmbedUrl && !defaultVideoExternalId);
+  const [appliedEmbedUrl, setAppliedEmbedUrl] = useState(defaultEmbedUrl);
+  const [linkDraft, setLinkDraft] = useState(defaultEmbedUrl);
+  const [isRemovePending, setIsRemovePending] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const previewUrl = resolveLessonVideoPreviewUrl({
+    savedEmbedUrl: defaultEmbedUrl || null,
+    shouldRemoveVideo: isRemovePending,
+    submittedEmbedUrl: appliedEmbedUrl || null,
+  });
+  const hasManualLinkApplied = Boolean(
+    appliedEmbedUrl &&
+      (!defaultVideoExternalId || appliedEmbedUrl !== defaultEmbedUrl)
+  );
+
+  const removeVideoLocally = (): void => {
+    setAppliedEmbedUrl("");
+    setIsRemovePending(true);
+    setLinkDraft("");
+    setLinkError(null);
+  };
+
+  const restoreSavedVideo = (): void => {
+    setAppliedEmbedUrl(defaultEmbedUrl);
+    setIsRemovePending(false);
+    setLinkDraft(defaultEmbedUrl);
+    setLinkError(null);
+  };
+
+  const applyManualLink = (): void => {
+    const normalizedUrl = resolveLessonVideoPreviewUrl({
+      savedEmbedUrl: null,
+      shouldRemoveVideo: false,
+      submittedEmbedUrl: linkDraft,
+    });
+
+    if (!normalizedUrl) {
+      setLinkError("Informe um link ou iframe valido da JMVStream.");
+      return;
+    }
+
+    setAppliedEmbedUrl(normalizedUrl);
+    setIsRemovePending(false);
+    setLinkDraft(normalizedUrl);
+    setLinkError(null);
+  };
+
+  const removeManualLink = (): void => {
+    if (defaultVideoExternalId && defaultEmbedUrl) {
+      setAppliedEmbedUrl(defaultEmbedUrl);
+      setLinkDraft("");
+      setIsRemovePending(false);
+      setLinkError(null);
+      return;
+    }
+
+    removeVideoLocally();
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
       <div className="flex min-w-0 flex-col gap-4">
         <LessonVideoEditorPreview
-          defaultEmbedUrl={defaultEmbedUrl}
+          previewUrl={previewUrl}
           title={defaultTitle}
         />
-        <div className="grid gap-4">
-          <Field>
-            <FieldLabel>Duração do video em segundos</FieldLabel>
-            <Input
-              defaultValue={defaultVideoDurationSeconds}
-              min={0}
-              name="durationSeconds"
-              step={1}
-              type="number"
-            />
-          </Field>
-        </div>
+        <input
+          defaultValue={defaultVideoDurationSeconds}
+          name="durationSeconds"
+          type="hidden"
+        />
         <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
+        <input
+          name="videoEmbedUrl"
+          readOnly
+          type="hidden"
+          value={isRemovePending ? "" : appliedEmbedUrl}
+        />
+        {isRemovePending ? (
+          <input name="removeVideo" type="hidden" value="on" />
+        ) : null}
 
         <input name="videoProvider" type="hidden" value="jmvstream" />
         <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
@@ -119,39 +179,74 @@ export function LessonKindControls({
             <JmvstreamUploadPanel
               asset={asset}
               currentVideoHash={defaultVideoExternalId}
-              hasManualVideo={hasManualVideo}
+              isRemovePending={isRemovePending}
               lessonId={lessonId}
+              onRestoreVideo={restoreSavedVideo}
+              {...(defaultVideoExternalId
+                ? { onRemoveVideo: removeVideoLocally }
+                : {})}
             />
           </TabsContent>
           <TabsContent className="pt-4" value="link">
             <div className="flex flex-col gap-4">
-              {hasUploadedVideo ? (
-                <p className="rounded-md border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
-                  Salvar um link manual substitui o upload atual e agenda a
-                  remoção do vídeo enviado na JMVStream.
-                </p>
-              ) : null}
               <Field>
                 <FieldLabel>Link ou iframe JMVStream</FieldLabel>
-                <Input
-                  defaultValue={defaultEmbedUrl}
-                  name="videoEmbedUrl"
-                  placeholder="https://player.jmvstream.com/... ou iframe oficial"
-                />
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+                  <Input
+                    className="min-w-0"
+                    onChange={(event) => {
+                      setLinkDraft(event.target.value);
+                      setLinkError(null);
+                    }}
+                    placeholder="https://player.jmvstream.com/... ou iframe oficial"
+                    value={linkDraft}
+                  />
+                  <Button
+                    className="w-full sm:w-auto"
+                    disabled={!linkDraft.trim()}
+                    onClick={applyManualLink}
+                    type="button"
+                  >
+                    Aplicar link
+                  </Button>
+                </div>
+                {linkError ? (
+                  <p className="text-destructive text-xs">{linkError}</p>
+                ) : null}
               </Field>
+              {hasManualLinkApplied || isRemovePending ? (
+                <div className="flex flex-wrap gap-2">
+                  {hasManualLinkApplied ? (
+                    <Button
+                      onClick={removeManualLink}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      Remover link
+                    </Button>
+                  ) : null}
+                  {isRemovePending ? (
+                    <Button
+                      onClick={restoreSavedVideo}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      Desfazer
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               <JmvstreamDurationDetector
-                defaultEmbedUrl={defaultEmbedUrl}
+                defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
                 defaultProvider="jmvstream"
+                key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
+                showDetectedMessage={false}
               />
             </div>
           </TabsContent>
         </Tabs>
-        {asset || defaultEmbedUrl ? (
-          <label className="flex w-fit items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
-            <input className="size-4" name="removeVideo" type="checkbox" />
-            Remover vídeo ao salvar
-          </label>
-        ) : null}
       </div>
 
       <div className="flex min-w-0 flex-col gap-4 border-border/50 border-t pt-10">

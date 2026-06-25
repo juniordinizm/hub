@@ -31,13 +31,17 @@ export interface JmvstreamUploadAsset {
 export function JmvstreamUploadPanel({
   asset,
   currentVideoHash,
-  hasManualVideo,
+  isRemovePending = false,
   lessonId,
+  onRemoveVideo,
+  onRestoreVideo,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
   currentVideoHash: null | string;
-  hasManualVideo?: boolean;
+  isRemovePending?: boolean;
   lessonId?: string | undefined;
+  onRemoveVideo?: () => void;
+  onRestoreVideo?: () => void;
 }): React.JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,10 +179,29 @@ export function JmvstreamUploadPanel({
             Hash JMVStream atual: {currentVideoHash}
           </p>
         ) : null}
-        {hasManualVideo ? (
-          <p className="rounded-md border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
-            Concluir um upload substitui o link manual salvo nesta aula.
-          </p>
+        {currentVideoHash && onRemoveVideo ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={isPending || isRemovePending}
+              onClick={onRemoveVideo}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Remover vídeo
+            </Button>
+            {isRemovePending && onRestoreVideo ? (
+              <Button
+                disabled={isPending}
+                onClick={onRestoreVideo}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Desfazer
+              </Button>
+            ) : null}
+          </div>
         ) : null}
 
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row">

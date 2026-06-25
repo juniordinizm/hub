@@ -14,9 +14,11 @@ const SYNC_INTERVAL_MS = 1500;
 export function JmvstreamDurationDetector({
   defaultEmbedUrl,
   defaultProvider,
+  showDetectedMessage = true,
 }: {
   defaultEmbedUrl: string;
   defaultProvider: string;
+  showDetectedMessage?: boolean;
 }): React.JSX.Element | null {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -139,7 +141,7 @@ export function JmvstreamDurationDetector({
           title="Detector de duração JMVStream"
         />
       ) : null}
-      {detectedSeconds ? (
+      {detectedSeconds && showDetectedMessage ? (
         <p className="text-muted-foreground text-xs">
           Duração detectada pela JMVStream:{" "}
           {formatLessonDuration(detectedSeconds)}.
