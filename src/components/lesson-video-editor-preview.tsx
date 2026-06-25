@@ -9,8 +9,8 @@ export function LessonVideoEditorPreview({
 }): React.JSX.Element {
   return (
     <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
-      <div className="border-border/60 border-b px-3 py-2">
-        <h3 className="font-medium text-sm">Prévia do vídeo</h3>
+      <div className="border-border/60 border-b px-3 py-1">
+        <h3 className="font-medium text-xs">Prévia do vídeo</h3>
       </div>
       <AspectRatio className="bg-black" ratio={16 / 9}>
         {previewUrl ? (

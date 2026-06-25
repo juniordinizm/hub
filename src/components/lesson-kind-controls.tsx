@@ -238,7 +238,7 @@ export function LessonVideoControls({
         </TabsContent>
       </Tabs>
       {previewUrl ? (
-        <div className="mt-2 border-t pt-2">
+        <div className="pt-4">
           <LessonVideoEditorPreview
             previewUrl={previewUrl}
             title={defaultTitle}
