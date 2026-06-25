@@ -19,13 +19,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ProseMirrorJson } from "@/features/courses/lesson-content";
-import {
-  countTextWords,
-  estimateReadingDurationSeconds,
-  READING_WORDS_PER_MINUTE,
-} from "@/features/courses/lesson-duration";
 import { richTextExtensions } from "@/features/courses/rich-text-extensions";
-import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { cn } from "@/lib/utils";
 
 interface LessonRichTextEditorProps {
@@ -38,9 +32,6 @@ export function LessonRichTextEditor({
   const [documentJson, setDocumentJson] = useState(() =>
     JSON.stringify(initialDocument)
   );
-  const [readingStats, setReadingStats] = useState(() =>
-    getReadingStats(initialDocument)
-  );
   const [linkUrl, setLinkUrl] = useState("");
   const editor = useEditor({
     extensions: richTextExtensions,
@@ -49,7 +40,6 @@ export function LessonRichTextEditor({
     onUpdate: ({ editor: currentEditor }) => {
       const nextDocument = currentEditor.getJSON();
       setDocumentJson(JSON.stringify(nextDocument));
-      setReadingStats(getReadingStats(nextDocument));
     },
   });
 
@@ -57,7 +47,6 @@ export function LessonRichTextEditor({
     command();
     const nextDocument = editor?.getJSON() ?? initialDocument;
     setDocumentJson(JSON.stringify(nextDocument));
-    setReadingStats(getReadingStats(nextDocument));
   };
 
   const applyLink = (): void => {
@@ -215,28 +204,9 @@ export function LessonRichTextEditor({
         className="min-h-64 min-w-0 px-4 py-3 text-base leading-7 outline-none [&_.ProseMirror]:min-h-56 [&_.ProseMirror]:break-words [&_.ProseMirror]:outline-none [&_.ProseMirror]:[overflow-wrap:anywhere] [&_blockquote]:border-l-2 [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground [&_h2]:font-semibold [&_h2]:text-2xl [&_h3]:font-semibold [&_h3]:text-xl [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-3 [&_ul]:ml-6 [&_ul]:list-disc"
         editor={editor}
       />
-      <div className="break-words border-border/60 border-t px-4 py-2 text-muted-foreground text-xs">
-        Estimativa de leitura: {readingStats.wordCount} palavras •{" "}
-        {formatLessonDuration(readingStats.durationSeconds)} a{" "}
-        {READING_WORDS_PER_MINUTE} ppm
-      </div>
     </div>
   );
 }
-
-const getReadingStats = (
-  document: ProseMirrorJson
-): {
-  durationSeconds: number;
-  wordCount: number;
-} => {
-  const wordCount = countTextWords(document);
-
-  return {
-    wordCount,
-    durationSeconds: estimateReadingDurationSeconds(wordCount),
-  };
-};
 
 function ToolbarButton({
   children,

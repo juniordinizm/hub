@@ -10,6 +10,7 @@ import { parseLessonContent } from "@/features/courses/lesson-content";
 import { requireRole } from "@/lib/session";
 import { LessonEditorForm } from "../../course-builder-components";
 import { LessonSidebarActions } from "./lesson-sidebar-actions";
+import { LessonSidebarDuration } from "./lesson-sidebar-duration";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export default async function AdminLessonEditPage({
     <div className="flex w-full max-w-[100vw] flex-col overflow-x-hidden lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* Coluna principal */}
       <div className="custom-scrollbar max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
-        <div className="order-3 mx-auto w-full max-w-5xl space-y-6 px-4 pt-6 pb-6 lg:order-none lg:px-5 lg:pt-10 lg:pb-10">
+        <div className="order-4 mx-auto w-full max-w-5xl space-y-6 px-4 pt-6 pb-6 lg:order-none lg:px-5 lg:pt-10 lg:pb-10">
           <form
             action={saveLessonAction}
             className="space-y-6"
@@ -79,7 +80,7 @@ export default async function AdminLessonEditPage({
           </form>
         </div>
 
-        <div className="order-5 mx-auto w-full max-w-5xl px-4 pb-10 lg:order-none lg:px-5">
+        <div className="order-6 mx-auto w-full max-w-5xl px-4 pb-10 lg:order-none lg:px-5">
           <LessonCommentsSection
             canComment
             canModerate
@@ -93,8 +94,17 @@ export default async function AdminLessonEditPage({
 
       {/* Sidebar de materiais e ações */}
       <aside className="bg-background max-lg:contents lg:flex lg:flex-col lg:border-l">
-        {/* Header da Aula no Sidebar (Mobile: Topo) */}
-        <div className="order-1 shrink-0 space-y-5 px-4 pt-5 pb-2 lg:order-none lg:border-b lg:px-5 lg:pb-5">
+        {/* Duração da Aula (Mobile: Topo) */}
+        <div className="order-1 shrink-0 px-4 pt-4 lg:order-none lg:border-b lg:px-5 lg:py-5">
+          <LessonSidebarDuration
+            durationSeconds={lesson.durationSeconds}
+            textDurationSeconds={lesson.textDurationSeconds}
+            videoDurationSeconds={lesson.videoDurationSeconds}
+          />
+        </div>
+
+        {/* Header da Aula no Sidebar (Mobile: Sob a duração) */}
+        <div className="order-2 shrink-0 space-y-5 px-4 pt-4 pb-2 lg:order-none lg:border-b lg:px-5 lg:pb-5">
           <div className="min-w-0">
             <p className="truncate font-medium text-muted-foreground text-sm">
               {course.title}
@@ -107,7 +117,7 @@ export default async function AdminLessonEditPage({
         </div>
 
         {/* Rodapé Fixo de Ações (Mobile: Topo sob o header, Desktop: Rodapé) */}
-        <div className="sticky top-0 z-10 order-2 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
+        <div className="sticky top-0 z-10 order-3 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
           <LessonSidebarActions
             formId={LESSON_EDITOR_FORM_ID}
             initialStatus={lesson.status ?? "draft"}
@@ -115,7 +125,7 @@ export default async function AdminLessonEditPage({
         </div>
 
         {/* Anexos (Mobile: Antes dos Comentários) */}
-        <div className="custom-scrollbar order-4 flex-1 px-4 py-6 lg:order-none lg:overflow-y-auto lg:py-4 lg:pb-20">
+        <div className="custom-scrollbar order-5 flex-1 px-4 py-6 lg:order-none lg:overflow-y-auto lg:py-4 lg:pb-20">
           <LessonResourcesFields
             defaultResources={defaultResources}
             formId={LESSON_EDITOR_FORM_ID}

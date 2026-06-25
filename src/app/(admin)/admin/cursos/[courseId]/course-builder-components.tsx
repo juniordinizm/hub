@@ -315,11 +315,8 @@ export function LessonEditorForm({
         <LessonKindControls
           asset={asset}
           defaultContentJson={lesson.contentJson}
-          defaultDurationSeconds={lesson.durationSeconds}
           defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
           defaultOrder={lesson.sortOrder}
-          defaultTextDurationSeconds={lesson.textDurationSeconds}
-          defaultTextWordCount={lesson.textWordCount}
           defaultVideoDurationSeconds={lesson.videoDurationSeconds}
           lessonId={lesson.id}
         />

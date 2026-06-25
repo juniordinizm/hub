@@ -47,27 +47,20 @@ import {
   LESSON_RESOURCE_IMAGE_PREVIEW,
   validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
-import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { cn } from "@/lib/utils";
 
 export function LessonKindControls({
   asset,
   defaultContentJson,
-  defaultDurationSeconds,
   defaultEmbedUrl,
   defaultOrder,
-  defaultTextDurationSeconds,
-  defaultTextWordCount,
   defaultVideoDurationSeconds,
   lessonId,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
-  defaultContentJson?: unknown;
-  defaultDurationSeconds: number;
+  defaultContentJson: unknown;
   defaultEmbedUrl: string;
   defaultOrder: number;
-  defaultTextDurationSeconds: number;
-  defaultTextWordCount: number;
   defaultVideoDurationSeconds: number;
   lessonId?: string | undefined;
 }): React.JSX.Element {
@@ -78,7 +71,7 @@ export function LessonKindControls({
       <div className="flex min-w-0 flex-col gap-4">
         <div className="grid gap-4">
           <Field>
-            <FieldLabel>Duracao do video em segundos</FieldLabel>
+            <FieldLabel>Duração do video em segundos</FieldLabel>
             <Input
               defaultValue={defaultVideoDurationSeconds}
               min={0}
@@ -87,21 +80,6 @@ export function LessonKindControls({
               type="number"
             />
           </Field>
-          <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 text-sm sm:grid-cols-3">
-            <DurationSummaryItem
-              label="Video"
-              value={formatLessonDuration(defaultVideoDurationSeconds)}
-            />
-            <DurationSummaryItem
-              helper={`${defaultTextWordCount} palavras`}
-              label="Texto"
-              value={formatLessonDuration(defaultTextDurationSeconds)}
-            />
-            <DurationSummaryItem
-              label="Total da aula"
-              value={formatLessonDuration(defaultDurationSeconds)}
-            />
-          </div>
         </div>
         <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
 
@@ -159,28 +137,6 @@ export function LessonKindControls({
           <LessonRichTextEditor initialDocument={getTextDocument(content)} />
         </Field>
       </div>
-    </div>
-  );
-}
-
-function DurationSummaryItem({
-  helper,
-  label,
-  value,
-}: {
-  helper?: string;
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div>
-      <p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {label}
-      </p>
-      <p className="font-semibold">{value}</p>
-      {helper ? (
-        <p className="text-muted-foreground text-xs">{helper}</p>
-      ) : null}
     </div>
   );
 }
