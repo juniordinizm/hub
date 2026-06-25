@@ -13,7 +13,6 @@ import {
   TextItalicIcon,
   TextStrikethroughIcon,
   UndoIcon,
-  Unlink01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
@@ -454,6 +453,16 @@ function LinkPopover({
             value={linkUrl}
           />
           <div className="flex items-center gap-1.5">
+            {isActive ? (
+              <Button
+                onClick={removeLink}
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                Remover
+              </Button>
+            ) : null}
             <Button
               className="flex-1"
               onClick={applyLink}
@@ -463,16 +472,6 @@ function LinkPopover({
               <HugeiconsIcon icon={CheckIcon} size={14} strokeWidth={2} />
               Aplicar
             </Button>
-            {isActive ? (
-              <Button
-                onClick={removeLink}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Remover
-              </Button>
-            ) : null}
           </div>
         </div>
       </PopoverContent>
@@ -546,12 +545,6 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
             strokeWidth={2}
           />
         </BubbleButton>
-        <BubbleButton
-          label="Limpar marcas"
-          onClick={() => editor.chain().focus().unsetAllMarks().run()}
-        >
-          <HugeiconsIcon icon={EraserIcon} size={15} strokeWidth={2} />
-        </BubbleButton>
         <BubbleSeparator />
         <BubbleButton
           isActive={bubbleState.isBulletList}
@@ -588,17 +581,6 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
         </BubbleButton>
         <BubbleSeparator />
         <LinkPopover editor={editor} isActive={bubbleState.isLink} />
-        {bubbleState.isLink ? (
-          <BubbleButton
-            isActive={true}
-            label="Remover link"
-            onClick={() =>
-              editor.chain().focus().extendMarkRange("link").unsetLink().run()
-            }
-          >
-            <HugeiconsIcon icon={Unlink01Icon} size={15} strokeWidth={2} />
-          </BubbleButton>
-        ) : null}
       </div>
     </BubbleMenu>
   );
@@ -672,21 +654,25 @@ function BubbleButton({
   onClick: () => void;
 }): React.JSX.Element {
   return (
-    <button
-      aria-label={label}
-      aria-pressed={isActive}
-      className={cn(
-        "flex size-8 items-center justify-center rounded-md transition-colors duration-100",
-        isActive
-          ? "bg-secondary text-secondary-foreground"
-          : "text-popover-foreground hover:bg-muted"
-      )}
-      onClick={onClick}
-      title={label}
-      type="button"
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          aria-label={label}
+          aria-pressed={isActive}
+          className={cn(
+            "flex size-8 items-center justify-center rounded-md transition-colors duration-100",
+            isActive
+              ? "bg-secondary text-secondary-foreground"
+              : "text-popover-foreground hover:bg-muted"
+          )}
+          onClick={onClick}
+          type="button"
+        >
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
   );
 }
 

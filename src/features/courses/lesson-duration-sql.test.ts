@@ -43,4 +43,21 @@ describe("lesson duration persistence", () => {
       "duration_seconds = $1 + coalesce(text_duration_seconds, 0)"
     );
   });
+
+  it("recalculates existing text durations without minute rounding", async () => {
+    const migration = await readFile(
+      new URL(
+        "../../db/migrations/0023_precise_text_reading_duration.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(migration).toContain("text_word_count::numeric / 260 * 60");
+    expect(migration).toContain("greatest(1, round");
+    expect(migration).toContain(
+      "duration_seconds = video_duration_seconds + recalculated_lessons.recalculated_text_duration_seconds"
+    );
+    expect(migration).toContain("workload_hours");
+  });
 });

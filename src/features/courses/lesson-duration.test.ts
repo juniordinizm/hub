@@ -30,11 +30,12 @@ describe("lesson duration estimation", () => {
     expect(countTextWords(document)).toBe(13);
   });
 
-  it("estimates reading duration at 260 words per minute rounded up to minutes", () => {
+  it("estimates reading duration at 260 words per minute without minute rounding", () => {
     expect(estimateReadingDurationSeconds(0)).toBe(0);
-    expect(estimateReadingDurationSeconds(1)).toBe(60);
+    expect(estimateReadingDurationSeconds(1)).toBe(1);
+    expect(estimateReadingDurationSeconds(13)).toBe(3);
     expect(estimateReadingDurationSeconds(260)).toBe(60);
-    expect(estimateReadingDurationSeconds(261)).toBe(120);
+    expect(estimateReadingDurationSeconds(261)).toBe(60);
   });
 
   it("sums video duration and estimated text duration into the lesson total", () => {
@@ -44,9 +45,9 @@ describe("lesson duration estimation", () => {
         videoDurationSeconds: 125,
       })
     ).toEqual({
-      textDurationSeconds: 60,
+      textDurationSeconds: 3,
       textWordCount: 13,
-      totalDurationSeconds: 185,
+      totalDurationSeconds: 128,
       videoDurationSeconds: 125,
     });
   });

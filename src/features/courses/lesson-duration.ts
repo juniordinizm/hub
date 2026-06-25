@@ -30,8 +30,9 @@ export const estimateReadingDurationSeconds = (wordCount: number): number => {
     return 0;
   }
 
-  const readingMinutes = wordCount / READING_WORDS_PER_MINUTE;
-  return Math.ceil(readingMinutes) * SECONDS_PER_MINUTE;
+  const readingSeconds =
+    (wordCount / READING_WORDS_PER_MINUTE) * SECONDS_PER_MINUTE;
+  return Math.max(1, Math.round(readingSeconds));
 };
 
 export const calculateLessonDurationBreakdown = ({
