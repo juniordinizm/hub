@@ -237,8 +237,73 @@ const createExternalResourceFromForm = ({
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
-const isProseMirrorJson = (value: unknown): value is ProseMirrorJson => {
+const allowedNodeTypes = new Set([
+  "blockquote",
+  "bulletList",
+  "doc",
+  "hardBreak",
+  "heading",
+  "listItem",
+  "orderedList",
+  "paragraph",
+  "text",
+]);
+
+const allowedMarkTypes = new Set(["bold", "italic", "link", "strike"]);
+
+const isSupportedMark = (value: unknown): boolean => {
   if (!(isRecord(value) && typeof value.type === "string")) {
+    return false;
+  }
+
+  if (!allowedMarkTypes.has(value.type)) {
+    return false;
+  }
+
+  if (value.type !== "link") {
+    return true;
+  }
+
+  const attrs = isRecord(value.attrs) ? value.attrs : {};
+  const href =
+    typeof attrs.href === "string" ? normalizeHttpUrl(attrs.href) : null;
+
+  return Boolean(href);
+};
+
+const hasOnlySupportedMarks = (value: Record<string, unknown>): boolean => {
+  if (value.marks === undefined) {
+    return true;
+  }
+
+  return Array.isArray(value.marks) && value.marks.every(isSupportedMark);
+};
+
+const hasSupportedNodeAttrs = (value: Record<string, unknown>): boolean => {
+  if (value.type !== "heading") {
+    return true;
+  }
+
+  const attrs = isRecord(value.attrs) ? value.attrs : {};
+  return attrs.level === 2 || attrs.level === 3;
+};
+
+const isSupportedProseMirrorJson = (
+  value: unknown
+): value is ProseMirrorJson => {
+  if (!(isRecord(value) && typeof value.type === "string")) {
+    return false;
+  }
+
+  if (!allowedNodeTypes.has(value.type)) {
+    return false;
+  }
+
+  if (value.type === "text" && typeof value.text !== "string") {
+    return false;
+  }
+
+  if (!(hasSupportedNodeAttrs(value) && hasOnlySupportedMarks(value))) {
     return false;
   }
 
@@ -248,7 +313,7 @@ const isProseMirrorJson = (value: unknown): value is ProseMirrorJson => {
 
   return (
     Array.isArray(value.content) &&
-    value.content.every((child) => isProseMirrorJson(child))
+    value.content.every((child) => isSupportedProseMirrorJson(child))
   );
 };
 
@@ -267,7 +332,7 @@ const parseTextDocument = (value: string): ProseMirrorJson | null => {
 
   try {
     const document: unknown = JSON.parse(value);
-    return isProseMirrorJson(document) ? document : null;
+    return isSupportedProseMirrorJson(document) ? document : null;
   } catch {
     return null;
   }
@@ -484,7 +549,12 @@ export const normalizeLessonContentFromForm = ({
 const parseRichTextLessonContent = (
   candidate: Record<string, unknown>
 ): LessonContent | null => {
-  if (!(candidate.type === "text" && isProseMirrorJson(candidate.document))) {
+  if (
+    !(
+      candidate.type === "text" &&
+      isSupportedProseMirrorJson(candidate.document)
+    )
+  ) {
     return null;
   }
 

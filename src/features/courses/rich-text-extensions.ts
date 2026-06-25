@@ -13,6 +13,10 @@ const sharedStarterKit = StarterKit.configure({
 const sharedLink = Link.configure({
   autolink: true,
   defaultProtocol: "https",
+  HTMLAttributes: {
+    rel: "noopener noreferrer",
+    target: "_blank",
+  },
   openOnClick: false,
   protocols: ["http", "https"],
 });

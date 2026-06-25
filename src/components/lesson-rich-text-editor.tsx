@@ -1,23 +1,31 @@
 "use client";
 
 import {
+  CheckIcon,
+  EraserIcon,
   Heading2Icon,
   Heading03Icon,
   LeftToRightBlockQuoteIcon,
   LeftToRightListBulletIcon,
   LeftToRightListNumberIcon,
   Link01Icon,
-  LinkSquare02Icon,
   ParagraphIcon,
   RedoIcon,
   TextBoldIcon,
   TextItalicIcon,
+  TextStrikethroughIcon,
   UndoIcon,
+  Unlink01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { type Editor, EditorContent, useEditor } from "@tiptap/react";
+import {
+  type Editor,
+  EditorContent,
+  useEditor,
+  useEditorState,
+} from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { useCallback, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -40,6 +49,46 @@ interface LessonRichTextEditorProps {
   initialDocument: ProseMirrorJson;
 }
 
+interface ToolbarState {
+  canBold: boolean;
+  canItalic: boolean;
+  canRedo: boolean;
+  canStrike: boolean;
+  canUndo: boolean;
+  canUnsetMarks: boolean;
+  isBlockquote: boolean;
+  isBold: boolean;
+  isBulletList: boolean;
+  isHeading2: boolean;
+  isHeading3: boolean;
+  isItalic: boolean;
+  isLink: boolean;
+  isOrderedList: boolean;
+  isParagraph: boolean;
+  isStrike: boolean;
+}
+
+const emptyToolbarState: ToolbarState = {
+  canBold: false,
+  canItalic: false,
+  canRedo: false,
+  canStrike: false,
+  canUndo: false,
+  canUnsetMarks: false,
+  isBlockquote: false,
+  isBold: false,
+  isBulletList: false,
+  isHeading2: false,
+  isHeading3: false,
+  isItalic: false,
+  isLink: false,
+  isOrderedList: false,
+  isParagraph: false,
+  isStrike: false,
+};
+
+const whitespacePattern = /\s/;
+
 export function LessonRichTextEditor({
   initialDocument,
 }: LessonRichTextEditorProps): React.JSX.Element {
@@ -51,24 +100,59 @@ export function LessonRichTextEditor({
     extensions: editorExtensions,
     content: initialDocument,
     immediatelyRender: false,
+    shouldRerenderOnTransaction: false,
+    editorProps: {
+      attributes: {
+        "aria-label": "Conteúdo da aula",
+        class: "lesson-rich-text-surface",
+      },
+    },
     onUpdate: ({ editor: currentEditor }) => {
-      const nextDocument = currentEditor.getJSON();
-      setDocumentJson(JSON.stringify(nextDocument));
+      const nextDocumentJson = JSON.stringify(currentEditor.getJSON());
+      queueMicrotask(() => setDocumentJson(nextDocumentJson));
     },
   });
 
+  const toolbarState =
+    useEditorState({
+      editor,
+      selector: ({ editor: currentEditor }) => {
+        if (!currentEditor) {
+          return emptyToolbarState;
+        }
+
+        return {
+          canBold: currentEditor.can().chain().focus().toggleBold().run(),
+          canItalic: currentEditor.can().chain().focus().toggleItalic().run(),
+          canRedo: currentEditor.can().chain().focus().redo().run(),
+          canStrike: currentEditor.can().chain().focus().toggleStrike().run(),
+          canUndo: currentEditor.can().chain().focus().undo().run(),
+          canUnsetMarks: currentEditor
+            .can()
+            .chain()
+            .focus()
+            .unsetAllMarks()
+            .run(),
+          isBlockquote: currentEditor.isActive("blockquote"),
+          isBold: currentEditor.isActive("bold"),
+          isBulletList: currentEditor.isActive("bulletList"),
+          isHeading2: currentEditor.isActive("heading", { level: 2 }),
+          isHeading3: currentEditor.isActive("heading", { level: 3 }),
+          isItalic: currentEditor.isActive("italic"),
+          isLink: currentEditor.isActive("link"),
+          isOrderedList: currentEditor.isActive("orderedList"),
+          isParagraph: currentEditor.isActive("paragraph"),
+          isStrike: currentEditor.isActive("strike"),
+        };
+      },
+    }) ?? emptyToolbarState;
+
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider delayDuration={350}>
       <div className="lesson-rich-text-editor min-w-0 max-w-full overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-1 focus-within:ring-ring/30">
         <input name="textDocument" type="hidden" value={documentJson} />
-
-        {/* Toolbar */}
-        <EditorToolbar editor={editor} />
-
-        {/* BubbleMenu */}
+        <EditorToolbar editor={editor} state={toolbarState} />
         {editor ? <EditorBubbleMenu editor={editor} /> : null}
-
-        {/* Editor Content */}
         <div className="lesson-rich-text">
           <EditorContent editor={editor} />
         </div>
@@ -77,108 +161,133 @@ export function LessonRichTextEditor({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Toolbar                                                             */
-/* ------------------------------------------------------------------ */
-
 function EditorToolbar({
   editor,
+  state,
 }: {
   editor: Editor | null;
+  state: ToolbarState;
 }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-0.5 border-border/60 border-b px-1.5 py-1.5">
-      {/* Grupo: Tipo de bloco */}
-      <ToolbarButton
-        icon={ParagraphIcon}
-        isActive={editor?.isActive("paragraph") ?? false}
-        label="Paragrafo"
-        onClick={() => editor?.chain().focus().setParagraph().run()}
-      />
-      <ToolbarButton
-        icon={Heading2Icon}
-        isActive={editor?.isActive("heading", { level: 2 }) ?? false}
-        label="Titulo"
-        onClick={() =>
-          editor?.chain().focus().toggleHeading({ level: 2 }).run()
-        }
-      />
-      <ToolbarButton
-        icon={Heading03Icon}
-        isActive={editor?.isActive("heading", { level: 3 }) ?? false}
-        label="Subtitulo"
-        onClick={() =>
-          editor?.chain().focus().toggleHeading({ level: 3 }).run()
-        }
-      />
+    <div className="border-border/60 border-b bg-card/95">
+      <ScrollArea className="w-full">
+        <div className="flex min-w-max items-center gap-1 px-2 py-1.5">
+          <ToolbarGroup>
+            <ToolbarButton
+              icon={UndoIcon}
+              isDisabled={!state.canUndo}
+              label="Desfazer"
+              onClick={() => editor?.chain().focus().undo().run()}
+            />
+            <ToolbarButton
+              icon={RedoIcon}
+              isDisabled={!state.canRedo}
+              label="Refazer"
+              onClick={() => editor?.chain().focus().redo().run()}
+            />
+          </ToolbarGroup>
 
-      <Separator className="mx-0.5 h-5" orientation="vertical" />
+          <ToolbarSeparator />
 
-      {/* Grupo: Formatação inline */}
-      <ToolbarButton
-        icon={TextBoldIcon}
-        isActive={editor?.isActive("bold") ?? false}
-        label="Negrito"
-        onClick={() => editor?.chain().focus().toggleBold().run()}
-      />
-      <ToolbarButton
-        icon={TextItalicIcon}
-        isActive={editor?.isActive("italic") ?? false}
-        label="Italico"
-        onClick={() => editor?.chain().focus().toggleItalic().run()}
-      />
+          <ToolbarGroup>
+            <ToolbarButton
+              icon={ParagraphIcon}
+              isActive={state.isParagraph}
+              label="Parágrafo"
+              onClick={() => editor?.chain().focus().setParagraph().run()}
+            />
+            <ToolbarButton
+              icon={Heading2Icon}
+              isActive={state.isHeading2}
+              label="Título"
+              onClick={() =>
+                editor?.chain().focus().toggleHeading({ level: 2 }).run()
+              }
+            />
+            <ToolbarButton
+              icon={Heading03Icon}
+              isActive={state.isHeading3}
+              label="Subtítulo"
+              onClick={() =>
+                editor?.chain().focus().toggleHeading({ level: 3 }).run()
+              }
+            />
+          </ToolbarGroup>
 
-      <Separator className="mx-0.5 h-5" orientation="vertical" />
+          <ToolbarSeparator />
 
-      {/* Grupo: Listas & Citação */}
-      <ToolbarButton
-        icon={LeftToRightListBulletIcon}
-        isActive={editor?.isActive("bulletList") ?? false}
-        label="Lista"
-        onClick={() => editor?.chain().focus().toggleBulletList().run()}
-      />
-      <ToolbarButton
-        icon={LeftToRightListNumberIcon}
-        isActive={editor?.isActive("orderedList") ?? false}
-        label="Lista numerada"
-        onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-      />
-      <ToolbarButton
-        icon={LeftToRightBlockQuoteIcon}
-        isActive={editor?.isActive("blockquote") ?? false}
-        label="Citacao"
-        onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-      />
+          <ToolbarGroup>
+            <ToolbarButton
+              icon={TextBoldIcon}
+              isActive={state.isBold}
+              isDisabled={!state.canBold}
+              label="Negrito"
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+            />
+            <ToolbarButton
+              icon={TextItalicIcon}
+              isActive={state.isItalic}
+              isDisabled={!state.canItalic}
+              label="Itálico"
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+            />
+            <ToolbarButton
+              icon={TextStrikethroughIcon}
+              isActive={state.isStrike}
+              isDisabled={!state.canStrike}
+              label="Tachado"
+              onClick={() => editor?.chain().focus().toggleStrike().run()}
+            />
+            <ToolbarButton
+              icon={EraserIcon}
+              isDisabled={!state.canUnsetMarks}
+              label="Limpar marcas"
+              onClick={() => editor?.chain().focus().unsetAllMarks().run()}
+            />
+          </ToolbarGroup>
 
-      <Separator className="mx-0.5 h-5" orientation="vertical" />
+          <ToolbarSeparator />
 
-      {/* Grupo: Undo / Redo */}
-      <ToolbarButton
-        icon={UndoIcon}
-        label="Desfazer"
-        onClick={() => editor?.chain().focus().undo().run()}
-      />
-      <ToolbarButton
-        icon={RedoIcon}
-        label="Refazer"
-        onClick={() => editor?.chain().focus().redo().run()}
-      />
+          <ToolbarGroup>
+            <ToolbarButton
+              icon={LeftToRightListBulletIcon}
+              isActive={state.isBulletList}
+              label="Lista"
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+            />
+            <ToolbarButton
+              icon={LeftToRightListNumberIcon}
+              isActive={state.isOrderedList}
+              label="Lista numerada"
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+            />
+            <ToolbarButton
+              icon={LeftToRightBlockQuoteIcon}
+              isActive={state.isBlockquote}
+              label="Citação"
+              onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+            />
+          </ToolbarGroup>
 
-      {/* Grupo: Link (popover) — alinhado à direita */}
-      <div className="ml-auto">
-        <LinkPopover editor={editor} />
-      </div>
+          <ToolbarSeparator />
+
+          <LinkPopover editor={editor} isActive={state.isLink} />
+        </div>
+      </ScrollArea>
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Link Popover                                                        */
-/* ------------------------------------------------------------------ */
-
-function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
+function LinkPopover({
+  editor,
+  isActive,
+}: {
+  editor: Editor | null;
+  isActive: boolean;
+}): React.JSX.Element {
   const [linkUrl, setLinkUrl] = useState("");
   const [open, setOpen] = useState(false);
+  const inputId = useId();
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -188,6 +297,7 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
           | undefined;
         setLinkUrl(existingHref ?? "");
       }
+
       setOpen(nextOpen);
     },
     [editor]
@@ -198,7 +308,7 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
       return;
     }
 
-    const normalizedUrl = linkUrl.trim();
+    const normalizedUrl = normalizeLinkUrl(linkUrl);
 
     if (normalizedUrl) {
       editor
@@ -207,12 +317,12 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
         .extendMarkRange("link")
         .setLink({
           href: normalizedUrl,
+          rel: "noopener noreferrer",
           target: "_blank",
-          rel: "noopener",
         })
         .run();
     } else {
-      editor.chain().focus().unsetLink().run();
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
     }
 
     setOpen(false);
@@ -223,12 +333,10 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
       return;
     }
 
-    editor.chain().focus().unsetLink().run();
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
     setLinkUrl("");
     setOpen(false);
   }, [editor]);
-
-  const isLinkActive = editor?.isActive("link") ?? false;
 
   return (
     <Popover onOpenChange={handleOpenChange} open={open}>
@@ -237,13 +345,15 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
           <PopoverTrigger asChild>
             <Button
               aria-label="Inserir link"
+              aria-pressed={isActive}
               className={cn(
-                isLinkActive && "bg-secondary text-secondary-foreground"
+                isActive && "bg-secondary text-secondary-foreground"
               )}
+              disabled={!editor}
               size="icon-sm"
               title="Inserir link"
               type="button"
-              variant={isLinkActive ? "secondary" : "ghost"}
+              variant={isActive ? "secondary" : "ghost"}
             >
               <HugeiconsIcon icon={Link01Icon} size={16} strokeWidth={2} />
             </Button>
@@ -254,10 +364,13 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
 
       <PopoverContent align="end" className="w-80 p-3">
         <div className="flex flex-col gap-2.5">
-          <p className="font-medium text-sm">Link</p>
+          <label className="font-medium text-sm" htmlFor={inputId}>
+            Link
+          </label>
           <Input
             aria-label="URL do link"
             className="h-8"
+            id={inputId}
             onChange={(event) => setLinkUrl(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
@@ -276,9 +389,10 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
               size="sm"
               type="button"
             >
+              <HugeiconsIcon icon={CheckIcon} size={14} strokeWidth={2} />
               Aplicar
             </Button>
-            {isLinkActive ? (
+            {isActive ? (
               <Button
                 onClick={removeLink}
                 size="sm"
@@ -295,70 +409,82 @@ function LinkPopover({ editor }: { editor: Editor | null }): React.JSX.Element {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Bubble Menu                                                         */
-/* ------------------------------------------------------------------ */
-
 function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
+  const bubbleState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => ({
+      isBold: currentEditor.isActive("bold"),
+      isItalic: currentEditor.isActive("italic"),
+      isLink: currentEditor.isActive("link"),
+      isStrike: currentEditor.isActive("strike"),
+    }),
+  }) ?? {
+    isBold: false,
+    isItalic: false,
+    isLink: false,
+    isStrike: false,
+  };
+
   return (
-    <BubbleMenu editor={editor}>
+    <BubbleMenu
+      editor={editor}
+      options={{ offset: 8, placement: "top" }}
+      shouldShow={({ editor: currentEditor, from, to }) =>
+        currentEditor.isEditable && currentEditor.isFocused && from !== to
+      }
+    >
       <div className="lesson-bubble-menu">
         <BubbleButton
-          isActive={editor.isActive("bold")}
+          isActive={bubbleState.isBold}
           label="Negrito"
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
           <HugeiconsIcon icon={TextBoldIcon} size={15} strokeWidth={2} />
         </BubbleButton>
         <BubbleButton
-          isActive={editor.isActive("italic")}
-          label="Italico"
+          isActive={bubbleState.isItalic}
+          label="Itálico"
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
           <HugeiconsIcon icon={TextItalicIcon} size={15} strokeWidth={2} />
         </BubbleButton>
         <BubbleButton
-          isActive={editor.isActive("link")}
-          label="Link"
-          onClick={() => {
-            if (editor.isActive("link")) {
-              editor.chain().focus().unsetLink().run();
-            } else {
-              const url = editor.getAttributes("link").href as
-                | string
-                | undefined;
-              editor
-                .chain()
-                .focus()
-                .extendMarkRange("link")
-                .setLink({
-                  href: url || "",
-                  target: "_blank",
-                  rel: "noopener",
-                })
-                .run();
-            }
-          }}
+          isActive={bubbleState.isStrike}
+          label="Tachado"
+          onClick={() => editor.chain().focus().toggleStrike().run()}
         >
-          <HugeiconsIcon icon={LinkSquare02Icon} size={15} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={TextStrikethroughIcon}
+            size={15}
+            strokeWidth={2}
+          />
         </BubbleButton>
+        {bubbleState.isLink ? (
+          <BubbleButton
+            isActive={true}
+            label="Remover link"
+            onClick={() =>
+              editor.chain().focus().extendMarkRange("link").unsetLink().run()
+            }
+          >
+            <HugeiconsIcon icon={Unlink01Icon} size={15} strokeWidth={2} />
+          </BubbleButton>
+        ) : null}
       </div>
     </BubbleMenu>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Shared toolbar button                                               */
-/* ------------------------------------------------------------------ */
-
 function ToolbarButton({
   icon,
   isActive = false,
+  isDisabled = false,
   label,
   onClick,
 }: {
   icon: typeof ParagraphIcon;
   isActive?: boolean;
+  isDisabled?: boolean;
   label: string;
   onClick: () => void;
 }): React.JSX.Element {
@@ -367,7 +493,9 @@ function ToolbarButton({
       <TooltipTrigger asChild>
         <Button
           aria-label={label}
+          aria-pressed={isActive}
           className={cn(isActive && "bg-secondary text-secondary-foreground")}
+          disabled={isDisabled}
           onClick={onClick}
           size="icon-sm"
           title={label}
@@ -379,6 +507,23 @@ function ToolbarButton({
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+function ToolbarGroup({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return <div className="flex items-center gap-0.5">{children}</div>;
+}
+
+function ToolbarSeparator(): React.JSX.Element {
+  return (
+    <Separator
+      className="mx-0.5 h-6 shrink-0 bg-border/70"
+      orientation="vertical"
+    />
   );
 }
 
@@ -396,6 +541,7 @@ function BubbleButton({
   return (
     <button
       aria-label={label}
+      aria-pressed={isActive}
       className={cn(
         "flex size-8 items-center justify-center rounded-md transition-colors duration-100",
         isActive
@@ -410,3 +556,25 @@ function BubbleButton({
     </button>
   );
 }
+
+const normalizeLinkUrl = (value: string): string | null => {
+  const trimmed = value.trim();
+
+  if (!trimmed || trimmed.includes("\n") || whitespacePattern.test(trimmed)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      trimmed.includes("://") ? trimmed : `https://${trimmed}`
+    );
+
+    if (!(url.protocol === "http:" || url.protocol === "https:")) {
+      return null;
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+};

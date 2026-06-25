@@ -291,6 +291,74 @@ describe("lesson content", () => {
     ).toBeNull();
   });
 
+  it("rejects unsupported rich text nodes and marks", () => {
+    const documentWithImage = {
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: { src: "https://example.com/image.png" },
+        },
+      ],
+    };
+    const imageFormData = new FormData();
+    imageFormData.set("textDocument", JSON.stringify(documentWithImage));
+
+    expect(
+      normalizeLessonContentFromForm({
+        formData: imageFormData,
+      })
+    ).toBeNull();
+    expect(
+      parseLessonContent({
+        type: "text",
+        document: documentWithImage,
+      })
+    ).toBeNull();
+
+    expect(
+      parseLessonContent({
+        type: "text",
+        document: {
+          type: "doc",
+          content: [
+            {
+              type: "heading",
+              attrs: { level: 1 },
+              content: [{ type: "text", text: "Heading fora do escopo" }],
+            },
+          ],
+        },
+      })
+    ).toBeNull();
+
+    expect(
+      parseLessonContent({
+        type: "text",
+        document: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  marks: [
+                    {
+                      type: "link",
+                      attrs: { href: "javascript:alert(1)" },
+                    },
+                  ],
+                  text: "link ruim",
+                },
+              ],
+            },
+          ],
+        },
+      })
+    ).toBeNull();
+  });
+
   it("marks lessons ready when video, text, or both are present", () => {
     expect(
       getLessonContentReadiness({
