@@ -51,9 +51,13 @@ export default async function AdminLessonEditPage({
   }
 
   const moduleData = data.modules.find((item) => item.id === lesson.moduleId);
-  const asset = data.jmvstreamAssets.find(
-    (item) => item.lessonId === lesson.id
-  );
+  const asset = lesson.videoExternalId
+    ? data.jmvstreamAssets.find(
+        (item) =>
+          item.lessonId === lesson.id &&
+          item.videoHash === lesson.videoExternalId
+      )
+    : undefined;
 
   const commentsData = await getLessonComments({
     lessonId: lesson.id,

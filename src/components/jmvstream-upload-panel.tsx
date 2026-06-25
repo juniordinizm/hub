@@ -31,10 +31,12 @@ export interface JmvstreamUploadAsset {
 export function JmvstreamUploadPanel({
   asset,
   currentVideoHash,
+  hasManualVideo,
   lessonId,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
   currentVideoHash: null | string;
+  hasManualVideo?: boolean;
   lessonId?: string | undefined;
 }): React.JSX.Element {
   const router = useRouter();
@@ -170,7 +172,12 @@ export function JmvstreamUploadPanel({
         ) : null}
         {!asset && currentVideoHash ? (
           <p className="rounded-md border bg-card px-3 py-2 text-muted-foreground text-xs">
-            Hash manual atual: {currentVideoHash}
+            Hash JMVStream atual: {currentVideoHash}
+          </p>
+        ) : null}
+        {hasManualVideo ? (
+          <p className="rounded-md border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
+            Concluir um upload substitui o link manual salvo nesta aula.
           </p>
         ) : null}
 

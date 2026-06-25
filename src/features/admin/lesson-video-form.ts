@@ -13,10 +13,27 @@ interface LessonVideoFormInput {
 
 interface LessonVideoFormState {
   hasVideoContent: boolean;
+  shouldKeepJmvstreamAsset: boolean;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
   videoProvider: "jmvstream" | null;
 }
+
+export type LessonVideoEditorMode = "link" | "upload";
+
+export const getLessonVideoEditorMode = ({
+  videoEmbedUrl,
+  videoExternalId,
+}: {
+  videoEmbedUrl: string | null;
+  videoExternalId: string | null;
+}): LessonVideoEditorMode => {
+  if (videoExternalId) {
+    return "upload";
+  }
+
+  return videoEmbedUrl ? "link" : "upload";
+};
 
 export const resolveLessonVideoFormState = ({
   existingVideo,
@@ -26,6 +43,7 @@ export const resolveLessonVideoFormState = ({
   if (shouldRemoveVideo) {
     return {
       hasVideoContent: false,
+      shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: null,
       videoExternalId: null,
       videoProvider: null,
@@ -36,13 +54,18 @@ export const resolveLessonVideoFormState = ({
     embedUrl: submittedEmbedUrl,
     provider: "jmvstream",
   });
+  const hasSubmittedEmbedUrl = Boolean(normalizedSubmittedEmbedUrl);
   const videoEmbedUrl =
     normalizedSubmittedEmbedUrl ?? existingVideo?.embedUrl ?? null;
-  const videoExternalId = existingVideo?.externalId ?? null;
+  const videoExternalId = hasSubmittedEmbedUrl
+    ? null
+    : (existingVideo?.externalId ?? null);
   const hasVideoContent = Boolean(videoEmbedUrl || videoExternalId);
+  const shouldKeepJmvstreamAsset = Boolean(videoExternalId);
 
   return {
     hasVideoContent,
+    shouldKeepJmvstreamAsset,
     videoEmbedUrl,
     videoExternalId,
     videoProvider: hasVideoContent ? "jmvstream" : null,

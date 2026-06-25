@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getLessonVideoEditorMode } from "@/features/admin/lesson-video-form";
 import {
   EMPTY_TEXT_DOCUMENT,
   type LessonContent,
@@ -55,6 +56,7 @@ export function LessonKindControls({
   defaultEmbedUrl,
   defaultOrder,
   defaultVideoDurationSeconds,
+  defaultVideoExternalId,
   lessonId,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
@@ -62,9 +64,16 @@ export function LessonKindControls({
   defaultEmbedUrl: string;
   defaultOrder: number;
   defaultVideoDurationSeconds: number;
+  defaultVideoExternalId: null | string;
   lessonId?: string | undefined;
 }): React.JSX.Element {
   const content = parseLessonContent(defaultContentJson);
+  const initialVideoMode = getLessonVideoEditorMode({
+    videoEmbedUrl: defaultEmbedUrl || null,
+    videoExternalId: defaultVideoExternalId,
+  });
+  const hasUploadedVideo = Boolean(defaultVideoExternalId);
+  const hasManualVideo = Boolean(defaultEmbedUrl && !defaultVideoExternalId);
 
   return (
     <div className="flex min-w-0 flex-col gap-10">
@@ -84,7 +93,7 @@ export function LessonKindControls({
         <input defaultValue={defaultOrder} name="sortOrder" type="hidden" />
 
         <input name="videoProvider" type="hidden" value="jmvstream" />
-        <Tabs className="w-full min-w-0" defaultValue="upload">
+        <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
           <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
             <TabsTrigger
               className="min-w-0 whitespace-normal py-1.5 text-center leading-tight"
@@ -102,12 +111,19 @@ export function LessonKindControls({
           <TabsContent className="pt-4" value="upload">
             <JmvstreamUploadPanel
               asset={asset}
-              currentVideoHash={null}
+              currentVideoHash={defaultVideoExternalId}
+              hasManualVideo={hasManualVideo}
               lessonId={lessonId}
             />
           </TabsContent>
           <TabsContent className="pt-4" value="link">
             <div className="flex flex-col gap-4">
+              {hasUploadedVideo ? (
+                <p className="rounded-md border bg-muted/30 px-3 py-2 text-muted-foreground text-xs">
+                  Salvar um link manual substitui o upload atual e agenda a
+                  remoção do vídeo enviado na JMVStream.
+                </p>
+              ) : null}
               <Field>
                 <FieldLabel>Link ou iframe JMVStream</FieldLabel>
                 <Input
@@ -124,9 +140,9 @@ export function LessonKindControls({
           </TabsContent>
         </Tabs>
         {asset || defaultEmbedUrl ? (
-          <label className="flex w-fit items-center gap-2 text-muted-foreground text-sm">
+          <label className="flex w-fit items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2 text-destructive text-sm">
             <input className="size-4" name="removeVideo" type="checkbox" />
-            Remover video desta aula
+            Remover vídeo ao salvar
           </label>
         ) : null}
       </div>

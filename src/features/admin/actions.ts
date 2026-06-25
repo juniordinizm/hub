@@ -398,6 +398,7 @@ const getLessonVideoFormState = async ({
   lessonId: string;
 }): Promise<{
   hasVideoContent: boolean;
+  shouldKeepJmvstreamAsset: boolean;
   thumbnailUrl: string | null;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
@@ -407,18 +408,24 @@ const getLessonVideoFormState = async ({
   const existingVideo = lessonId
     ? await getExistingVideoForLesson(lessonId)
     : null;
-  const { hasVideoContent, videoEmbedUrl, videoExternalId, videoProvider } =
-    resolveLessonVideoFormState({
-      existingVideo,
-      shouldRemoveVideo,
-      submittedEmbedUrl: readString(formData, "videoEmbedUrl") || null,
-    });
+  const {
+    hasVideoContent,
+    shouldKeepJmvstreamAsset,
+    videoEmbedUrl,
+    videoExternalId,
+    videoProvider,
+  } = resolveLessonVideoFormState({
+    existingVideo,
+    shouldRemoveVideo,
+    submittedEmbedUrl: readString(formData, "videoEmbedUrl") || null,
+  });
   const thumbnailUrl = hasVideoContent
     ? await resolveJmvstreamPlayerThumbnailUrl(videoEmbedUrl)
     : null;
 
   return {
     hasVideoContent,
+    shouldKeepJmvstreamAsset,
     thumbnailUrl,
     videoEmbedUrl,
     videoExternalId,
@@ -475,16 +482,16 @@ const deleteRemovedR2Objects = async ({
 
 const cleanupUpdatedLessonAssets = async ({
   contentJson,
-  hasVideoContent,
   lessonId,
   previousR2Keys,
+  shouldKeepJmvstreamAsset,
 }: {
   contentJson: unknown;
-  hasVideoContent: boolean;
   lessonId: string;
   previousR2Keys: string[];
+  shouldKeepJmvstreamAsset: boolean;
 }): Promise<void> => {
-  if (!hasVideoContent) {
+  if (!shouldKeepJmvstreamAsset) {
     await deleteJmvstreamAssetsForLesson(lessonId);
   }
 
@@ -662,6 +669,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
   });
   const {
     hasVideoContent,
+    shouldKeepJmvstreamAsset,
     thumbnailUrl,
     videoEmbedUrl,
     videoExternalId,
@@ -741,9 +749,9 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
     }
     await cleanupUpdatedLessonAssets({
       contentJson,
-      hasVideoContent,
       lessonId,
       previousR2Keys,
+      shouldKeepJmvstreamAsset,
     });
   } else {
     const inserted = await getPool().query<{ id: string }>(

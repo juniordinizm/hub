@@ -318,6 +318,7 @@ export function LessonEditorForm({
           defaultEmbedUrl={lesson.videoEmbedUrl ?? ""}
           defaultOrder={lesson.sortOrder}
           defaultVideoDurationSeconds={lesson.videoDurationSeconds}
+          defaultVideoExternalId={lesson.videoExternalId}
           lessonId={lesson.id}
         />
       </div>
