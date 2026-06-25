@@ -664,30 +664,8 @@ function getResourceIcon(resource: LessonResource) {
   return File01Icon;
 }
 
-function getResourceTone(resource: LessonResource): string {
-  const extension = getResourceExtension(resource);
-
-  if (resource.storage !== "r2") {
-    return "bg-sky-500/10 text-sky-600 dark:text-sky-300";
-  }
-
-  if (resource.contentType.startsWith("image/")) {
-    return "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300";
-  }
-
-  if (extension === "pdf") {
-    return "bg-red-500/10 text-red-600 dark:text-red-300";
-  }
-
-  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
-    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300";
-  }
-
-  if (extension === "zip") {
-    return "bg-amber-500/10 text-amber-600 dark:text-amber-300";
-  }
-
-  return "bg-primary/10 text-primary";
+function getResourceTone(_resource: LessonResource): string {
+  return "bg-muted/50 text-muted-foreground";
 }
 
 function LessonNextStepCard({

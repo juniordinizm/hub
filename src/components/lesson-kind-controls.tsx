@@ -174,26 +174,8 @@ function getResourceIcon(resource: EditableLessonResource) {
   return File01Icon;
 }
 
-function getResourceTone(resource: EditableLessonResource): string {
-  const extension = getResourceExtension(resource);
-
-  if (resource.storage !== "r2") {
-    return "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20";
-  }
-  if (resource.contentType?.startsWith("image/")) {
-    return "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 border-fuchsia-500/20";
-  }
-  if (extension === "pdf") {
-    return "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20";
-  }
-  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
-    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/20";
-  }
-  if (extension === "zip") {
-    return "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20";
-  }
-
-  return "bg-primary/10 text-primary border-primary/20";
+function getResourceTone(_resource: EditableLessonResource): string {
+  return "bg-muted/30 text-muted-foreground border-border";
 }
 
 function formatBytes(bytes: number, decimals = 2) {
