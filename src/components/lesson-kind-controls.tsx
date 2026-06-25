@@ -127,7 +127,7 @@ export function LessonVideoControls({
   };
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-background p-6 shadow-sm">
       <input
         defaultValue={defaultVideoDurationSeconds}
         name="durationSeconds"
@@ -199,28 +199,16 @@ export function LessonVideoControls({
                 <p className="text-destructive text-xs">{linkError}</p>
               ) : null}
             </Field>
-            {hasManualLinkApplied || isRemovePending ? (
+            {hasManualLinkApplied ? (
               <div className="flex flex-wrap gap-2">
-                {hasManualLinkApplied ? (
-                  <Button
-                    onClick={removeManualLink}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Remover link
-                  </Button>
-                ) : null}
-                {isRemovePending ? (
-                  <Button
-                    onClick={restoreSavedVideo}
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Desfazer
-                  </Button>
-                ) : null}
+                <Button
+                  onClick={removeManualLink}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Remover link
+                </Button>
               </div>
             ) : null}
             <JmvstreamDurationDetector
@@ -232,12 +220,14 @@ export function LessonVideoControls({
           </div>
         </TabsContent>
       </Tabs>
-      <div className="mt-2">
-        <LessonVideoEditorPreview
-          previewUrl={previewUrl}
-          title={defaultTitle}
-        />
-      </div>
+      {previewUrl ? (
+        <div className="mt-2 border-t pt-2">
+          <LessonVideoEditorPreview
+            previewUrl={previewUrl}
+            title={defaultTitle}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

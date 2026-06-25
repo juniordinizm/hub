@@ -111,7 +111,8 @@ export default async function AdminLessonEditPage({
 
             <form action={saveLessonAction} id={LESSON_EDITOR_FORM_ID}>
               <TabsContent
-                className="m-0 border-none p-0 focus-visible:ring-0"
+                className="m-0 border-none p-0 focus-visible:ring-0 data-[state=inactive]:hidden"
+                forceMount
                 value="video"
               >
                 <LessonVideoControls
@@ -126,7 +127,8 @@ export default async function AdminLessonEditPage({
               </TabsContent>
 
               <TabsContent
-                className="m-0 border-none p-0 focus-visible:ring-0"
+                className="m-0 border-none p-0 focus-visible:ring-0 data-[state=inactive]:hidden"
+                forceMount
                 value="text"
               >
                 <LessonRichTextEditor

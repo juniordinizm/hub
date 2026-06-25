@@ -148,7 +148,7 @@ export function JmvstreamUploadPanel({
   };
 
   return (
-    <section className="min-w-0 rounded-lg border bg-background/40 p-4">
+    <section className="min-w-0">
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
