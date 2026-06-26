@@ -283,18 +283,90 @@ function getResourceIcon(resource: EditableLessonResource) {
 }
 
 function getResourceTone(_resource: EditableLessonResource): string {
-  return "bg-muted/30 text-muted-foreground border-border";
+  return "bg-muted/50 text-muted-foreground";
 }
 
-function formatBytes(bytes: number, decimals = 2) {
-  if (!+bytes) {
-    return "0 Bytes";
+function AdminResourceVisual({
+  lessonId,
+  resource,
+}: {
+  lessonId?: string;
+  resource: EditableLessonResource;
+}): React.JSX.Element {
+  if (resource.storage === "r2" && resource.preview) {
+    const backgroundUrl =
+      resource.localPreviewUrl ||
+      (lessonId
+        ? `/api/lessons/${lessonId}/resources/${resource.id}/preview`
+        : null);
+
+    if (backgroundUrl) {
+      return (
+        <div
+          aria-label={`Preview de ${resource.label}`}
+          className="aspect-video overflow-hidden rounded-md bg-center bg-cover bg-muted shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+          role="img"
+          style={{
+            backgroundImage: `url(${backgroundUrl})`,
+          }}
+        />
+      );
+    }
   }
-  const k = 1024;
-  const dm = Math.max(0, decimals);
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Number.parseFloat((bytes / k ** i).toFixed(dm))} ${sizes[i]}`;
+
+  const Icon = getResourceIcon(resource);
+  const tone = getResourceTone(resource);
+
+  return (
+    <div
+      className={cn(
+        "flex aspect-video items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+        tone
+      )}
+    >
+      <HugeiconsIcon icon={Icon} size={22} strokeWidth={2} />
+    </div>
+  );
+}
+
+function formatFileSize(sizeBytes: number): string {
+  if (sizeBytes >= 1024 * 1024) {
+    return `${(sizeBytes / (1024 * 1024)).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
+    })} MB`;
+  }
+
+  return `${Math.max(1, Math.round(sizeBytes / 1024)).toLocaleString(
+    "pt-BR"
+  )} KB`;
+}
+
+function getFileTypeLabel(resource: EditableLessonResource): string {
+  const extension = getResourceExtension(resource);
+
+  if (resource.storage !== "r2") {
+    return "Link";
+  }
+  if (resource.contentType?.startsWith("image/")) {
+    return "Imagem";
+  }
+  if (extension === "pdf") {
+    return "PDF";
+  }
+  if (extension && ["doc", "docx"].includes(extension)) {
+    return "Documento";
+  }
+  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
+    return "Planilha";
+  }
+  if (extension && ["ppt", "pptx"].includes(extension)) {
+    return "Apresentação";
+  }
+  if (extension === "zip") {
+    return "Arquivo compactado";
+  }
+  return "Arquivo";
 }
 
 export function LessonResourcesFields({
@@ -359,10 +431,14 @@ export function LessonResourcesFields({
       // Delay for progress to reach 100% visually
       await new Promise((r) => setTimeout(r, 400));
 
-      setResources((current) => [
-        ...current,
-        toEditableResource(signedUpload.payload.resource),
-      ]);
+      const newResource = toEditableResource(signedUpload.payload.resource);
+      if (newResource.storage === "r2" && signedUpload.preview) {
+        newResource.localPreviewUrl = URL.createObjectURL(
+          signedUpload.preview.blob
+        );
+      }
+
+      setResources((current) => [...current, newResource]);
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.success("Anexo enviado. Salve a aula para publicar o material.");
     } catch (error) {
@@ -432,12 +508,10 @@ export function LessonResourcesFields({
           {resources.length > 0 || uploadingFiles.length > 0 ? (
             <div className="w-full space-y-2">
               {resources.map((resource) => {
-                const Icon = getResourceIcon(resource);
-                const tone = getResourceTone(resource);
                 const extension = getResourceExtension(resource);
-                const typeLabel = extension
-                  ? extension.toUpperCase()
-                  : "ARQUIVO";
+                const typeLabel = getFileTypeLabel(resource);
+                const badgeText =
+                  resource.storage === "r2" ? extension : "LINK";
 
                 return (
                   <div
@@ -528,50 +602,57 @@ export function LessonResourcesFields({
                       </>
                     )}
 
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex w-full items-center gap-3 overflow-hidden">
-                        <div
-                          className={cn(
-                            "flex aspect-square size-10 shrink-0 items-center justify-center rounded border",
-                            tone
-                          )}
-                        >
-                          <HugeiconsIcon
-                            icon={Icon}
-                            size={20}
-                            strokeWidth={2.5}
-                          />
-                        </div>
-                        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[72px_minmax(0,1fr)_auto]">
+                      <AdminResourceVisual
+                        lessonId={lessonId}
+                        resource={resource}
+                      />
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <div className="flex items-center gap-2">
                           <Input
-                            className="h-auto border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+                            className="h-auto min-w-0 flex-1 border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
                             defaultValue={resource.label}
                             name="resourceLabel[]"
                             placeholder="Nome do material"
                             {...formProps}
                           />
-                          {resource.storage === "r2" ? (
+                          {badgeText ? (
+                            <span className="shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+                              {badgeText}
+                            </span>
+                          ) : null}
+                        </div>
+                        {resource.storage === "r2" ? (
+                          <div className="flex items-center gap-2">
                             <p className="truncate text-muted-foreground text-xs">
                               {typeLabel} &bull;{" "}
-                              {formatBytes(resource.sizeBytes ?? 0)}
+                              {formatFileSize(resource.sizeBytes ?? 0)}
                             </p>
-                          ) : (
-                            <Input
-                              className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
-                              defaultValue={resource.url}
-                              name="resourceUrl[]"
-                              placeholder="https://..."
-                              type="url"
-                              {...formProps}
-                            />
-                          )}
-                        </div>
+                          </div>
+                        ) : (
+                          <Input
+                            className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+                            defaultValue={resource.url}
+                            name="resourceUrl[]"
+                            onBlur={(event) => {
+                              const normalized = normalizeExternalUrl(
+                                event.target.value
+                              );
+                              if (normalized) {
+                                event.target.value = normalized;
+                              }
+                            }}
+                            placeholder="https://..."
+                            type="url"
+                            {...formProps}
+                          />
+                        )}
                       </div>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
                             aria-label="Remover material"
-                            className="-me-2 size-8 text-muted-foreground opacity-50 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
+                            className="size-8 text-muted-foreground opacity-50 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
                             size="icon"
                             type="button"
                             variant="ghost"
@@ -609,38 +690,36 @@ export function LessonResourcesFields({
 
               {uploadingFiles.map((f) => (
                 <div
-                  className="group flex flex-col gap-1 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300"
+                  className="group grid grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300 sm:grid-cols-[72px_minmax(0,1fr)]"
                   key={f.id}
                 >
-                  <div className="flex items-center justify-between gap-2 opacity-50">
-                    <div className="flex w-full items-center gap-3 overflow-hidden">
-                      <div className="flex aspect-square size-10 shrink-0 items-center justify-center rounded border bg-muted/30">
-                        <HugeiconsIcon
-                          icon={CloudUploadIcon}
-                          size={20}
-                          strokeWidth={2.5}
+                  <div className="flex aspect-video items-center justify-center rounded-md bg-muted/50 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
+                    <HugeiconsIcon
+                      icon={CloudUploadIcon}
+                      size={22}
+                      strokeWidth={2}
+                    />
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex flex-col gap-0.5 opacity-60">
+                      <p className="truncate font-medium text-[13px]">
+                        {f.file.name}
+                      </p>
+                      <p className="truncate text-muted-foreground text-xs">
+                        {formatFileSize(f.file.size)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-primary transition-all duration-300 ease-out"
+                          style={{ width: `${f.progress}%` }}
                         />
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <p className="truncate font-medium text-[13px]">
-                          {f.file.name}
-                        </p>
-                        <p className="truncate text-muted-foreground text-xs">
-                          {formatBytes(f.file.size)}
-                        </p>
-                      </div>
+                      <span className="w-10 text-muted-foreground text-xs tabular-nums">
+                        {Math.round(f.progress)}%
+                      </span>
                     </div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 pl-[3.25rem]">
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-primary transition-all duration-300 ease-out"
-                        style={{ width: `${f.progress}%` }}
-                      />
-                    </div>
-                    <span className="w-10 text-muted-foreground text-xs tabular-nums">
-                      {Math.round(f.progress)}%
-                    </span>
                   </div>
                 </div>
               ))}
@@ -693,6 +772,7 @@ type EditableLessonResource =
       };
       sizeBytes: number;
       storage: "r2";
+      localPreviewUrl?: string;
     };
 
 interface SignedUploadPayload {
@@ -722,6 +802,30 @@ const toEditableResource = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const whitespacePattern = /\s/;
+
+const normalizeExternalUrl = (value: string): string | null => {
+  const trimmed = value.trim();
+
+  if (!trimmed || trimmed.includes("\n") || whitespacePattern.test(trimmed)) {
+    return null;
+  }
+
+  try {
+    const url = new URL(
+      trimmed.includes("://") ? trimmed : `https://${trimmed}`
+    );
+
+    if (!(url.protocol === "http:" || url.protocol === "https:")) {
+      return null;
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+};
 
 const isSignedUploadPayload = (
   value: unknown

@@ -431,6 +431,7 @@ function LessonResourceItem({
   const metadata = getResourceMetadata(resource);
   const href = getLessonResourceHref({ lessonId, resource });
   const isExternal = resource.storage !== "r2";
+  const badgeText = isExternal ? "LINK" : extension;
 
   return (
     <div className="group/resource grid h-full min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background/80 p-2 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-background sm:grid-cols-[72px_minmax(0,1fr)_auto] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
@@ -445,9 +446,9 @@ function LessonResourceItem({
               </span>
             ) : null}
           </p>
-          {extension ? (
+          {badgeText ? (
             <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
-              {extension}
+              {badgeText}
             </span>
           ) : null}
         </div>
