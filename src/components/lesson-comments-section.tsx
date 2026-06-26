@@ -40,14 +40,18 @@ export function LessonCommentsSection({
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-xl tracking-tight">
-              Dúvidas e comentários
+              {context === "admin"
+                ? "Comentários dos alunos"
+                : "Dúvidas e comentários"}
             </h2>
             <Badge variant="outline">
               {totalCount} {totalCount === 1 ? "comentario" : "comentarios"}
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm">
-            Compartilhe duvidas e acompanhe respostas da equipe nesta aula.
+            {context === "admin"
+              ? "Gerencie as dúvidas e interações enviadas nesta aula."
+              : "Compartilhe duvidas e deixe comentarios nesta aula."}
           </p>
         </div>
 
