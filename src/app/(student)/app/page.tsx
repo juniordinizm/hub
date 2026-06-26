@@ -98,7 +98,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
               ) : null}
 
               <CourseSection
-                courses={courses}
+                courses={groups.locked}
                 description="Explore todos os cursos disponíveis na plataforma."
                 title="Catálogo de cursos"
               />
