@@ -56,8 +56,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
 
   const courses = await getStudentCourseCatalog(session.user.id);
   const groups = groupStudentCatalogCourses(courses);
-  const completedCount = groups.completed.length;
-  const activeCount = groups.active.length + groups.completed.length;
+
   const _nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
 
   return (
@@ -76,12 +75,6 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
             </div>
           </div>
         </header>
-
-        <section className="grid grid-cols-3 gap-3 rounded-lg border bg-card p-4 md:max-w-md">
-          <Metric label="Acessos" value={activeCount.toString()} />
-          <Metric label="Concluídos" value={completedCount.toString()} />
-          <Metric label="Cursos" value={courses.length.toString()} />
-        </section>
 
         <div className="flex flex-col gap-12 pt-4">
           {courses.length === 0 ? (
@@ -114,21 +107,6 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
         </div>
       </div>
     </main>
-  );
-}
-
-function Metric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-md bg-background/45 px-3 py-3">
-      <p className="font-bold text-2xl tabular-nums">{value}</p>
-      <p className="text-muted-foreground text-xs">{label}</p>
-    </div>
   );
 }
 
