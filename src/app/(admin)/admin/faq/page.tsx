@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { getAdminManagementData } from "@/features/admin/server";
 import { FaqCreateDialog } from "./faq-dialogs";
 import { FaqTable } from "./faq-table";
@@ -19,8 +18,7 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
       <div className="flex flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Badge variant="outline">FAQ</Badge>
-            <h1 className="mt-3 font-bold text-3xl tracking-tight">
+            <h1 className="font-bold text-3xl tracking-tight">
               Perguntas frequentes
             </h1>
             <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
