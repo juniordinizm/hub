@@ -46,7 +46,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
           </div>
         </header>
 
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
           {faqs.length === 0 ? (
             <Card>
               <CardHeader>
@@ -79,7 +79,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
             </Accordion>
           )}
 
-          <div className="flex justify-start pt-4">
+          <div className="flex justify-end">
             <SupportRequestDialog triggerLabel="Falar com suporte" />
           </div>
         </div>
