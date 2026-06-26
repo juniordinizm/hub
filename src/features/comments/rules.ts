@@ -106,5 +106,5 @@ export const buildLessonCommentTree = (
     roots.get(comment.parentId)?.replies.push(sanitizeLessonComment(comment));
   }
 
-  return [...roots.values()];
+  return [...roots.values()].reverse();
 };
