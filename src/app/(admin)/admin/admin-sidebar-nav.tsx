@@ -26,8 +26,8 @@ const navItems = [
   ["Alunos", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
   ["FAQ", "/admin/faq", HelpCircleIcon],
-  ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
+  ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
 ] as const;
 
 export function AdminSidebarNav(): React.JSX.Element {
