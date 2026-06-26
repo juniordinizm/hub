@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { sendAccessReleasedEmail } from "@/features/email/server";
-import { getRenewedAccessWindow } from "@/features/enrollments/rules";
+import {
+  applyPaidWebhookAccess,
+  applyPaymentRevocation,
+} from "@/features/enrollments/server";
 import {
   type AbacatePayOrderPayload,
   type AbacatePayOrderTransition,
@@ -248,8 +251,11 @@ const upsertWebhookOrder = async ({
   shouldApplyPaidAccess: boolean;
   shouldApplyRefundRevocation: boolean;
   userId: string;
-}): Promise<number> => {
-  const result = await client.query<{ access_duration_months: number | null }>(
+}): Promise<{ accessDurationMonths: number; orderId: string }> => {
+  const result = await client.query<{
+    access_duration_months: number | null;
+    id: string;
+  }>(
     `
       insert into orders (
         course_id,
@@ -284,7 +290,7 @@ const upsertWebhookOrder = async ({
           excluded.access_duration_months
         ),
         updated_at = now()
-      returning access_duration_months
+      returning id, access_duration_months
     `,
     [
       courseId,
@@ -304,7 +310,16 @@ const upsertWebhookOrder = async ({
     ]
   );
 
-  return result.rows[0]?.access_duration_months ?? accessDurationMonths;
+  const order = result.rows[0];
+
+  if (!order) {
+    throw new Error("Nao foi possivel registrar o pedido AbacatePay.");
+  }
+
+  return {
+    accessDurationMonths: order.access_duration_months ?? accessDurationMonths,
+    orderId: order.id,
+  };
 };
 
 const applyWebhookEnrollmentTransition = async ({
@@ -332,38 +347,31 @@ const applyWebhookEnrollmentTransition = async ({
   to: string;
   userName: string;
 } | null> => {
-  if (shouldApplyPaidAccess) {
-    const enrollment = await client.query<{ expires_at: Date | null }>(
-      `
-        select expires_at
-        from enrollments
-        where user_id = $1 and course_id = $2
-        limit 1
-      `,
-      [userId, course.id]
-    );
-    const currentExpiresAt = enrollment.rows[0]?.expires_at ?? null;
-    const { expiresAt } = getRenewedAccessWindow({
-      accessDurationMonths,
-      currentExpiresAt,
-      paidAt: now,
-    });
+  const order = await client.query<{ id: string }>(
+    `
+      select id
+      from orders
+      where provider = 'abacatepay'
+        and provider_order_id = $1
+      limit 1
+    `,
+    [orderPayload.providerOrderId]
+  );
+  const orderId = order.rows[0]?.id;
 
-    await client.query(
-      `
-        insert into enrollments (user_id, course_id, status, starts_at, expires_at)
-        values ($1, $2, 'active', $3, $4)
-        on conflict (user_id, course_id) do update set
-          status = 'active',
-          expires_at = excluded.expires_at,
-          revoked_at = null,
-          revoked_reason = null,
-          expiry_warning_7d_sent_at = null,
-          expiry_warning_1d_sent_at = null,
-          updated_at = now()
-      `,
-      [userId, course.id, now, expiresAt]
-    );
+  if (!orderId) {
+    throw new Error("Pedido AbacatePay nao foi localizado.");
+  }
+
+  if (shouldApplyPaidAccess) {
+    await applyPaidWebhookAccess({
+      accessDurationMonths,
+      client,
+      courseId: course.id,
+      now,
+      orderId,
+      userId,
+    });
 
     return {
       courseTitle: course.title,
@@ -373,23 +381,16 @@ const applyWebhookEnrollmentTransition = async ({
   }
 
   if (shouldApplyRefundRevocation || shouldApplyDisputeRevocation) {
-    await client.query(
-      `
-        update enrollments
-        set status = 'revoked',
-            revoked_at = now(),
-            revoked_reason = $3,
-            updated_at = now()
-        where user_id = $1 and course_id = $2
-      `,
-      [
-        userId,
-        course.id,
-        shouldApplyDisputeRevocation
-          ? "abacatepay_dispute"
-          : "abacatepay_refund",
-      ]
-    );
+    await applyPaymentRevocation({
+      client,
+      courseId: course.id,
+      now,
+      orderId,
+      reason: shouldApplyDisputeRevocation
+        ? "abacatepay_dispute"
+        : "abacatepay_refund",
+      userId,
+    });
   }
 
   return null;
@@ -611,7 +612,7 @@ export const processAbacatePayWebhook = async (
       );
     }
 
-    const accessDurationMonths = await upsertWebhookOrder({
+    const { accessDurationMonths } = await upsertWebhookOrder({
       accessDurationMonths: course.access_duration_months,
       client,
       courseId: course.id,

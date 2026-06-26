@@ -290,7 +290,7 @@ function AdminResourceVisual({
   lessonId,
   resource,
 }: {
-  lessonId?: string;
+  lessonId: string | undefined;
   resource: EditableLessonResource;
 }): React.JSX.Element {
   if (resource.storage === "r2" && resource.preview) {

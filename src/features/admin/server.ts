@@ -300,7 +300,6 @@ export const getAdminManagementData =
           left join profiles p on p.user_id = u.id
           join courses c on c.id = e.course_id
           order by e.updated_at desc
-          limit 60
         `
       ),
       pool.query<{

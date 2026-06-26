@@ -1,7 +1,4 @@
-import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
-import { DatePickerField } from "@/components/date-picker-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,18 +9,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { updateEnrollmentAction } from "@/features/admin/actions";
+  extendEnrollmentExpirationAction,
+  setEnrollmentExpirationAction,
+} from "@/features/admin/actions";
 import { getAdminStudentDetail } from "@/features/admin/server";
 
 export const dynamic = "force-dynamic";
 
-const dateInputValue = (date: Date): string => date.toISOString().slice(0, 10);
+const formatDate = (date: Date): string =>
+  new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
 
 export default async function AdminStudentDetailPage({
   params,
@@ -52,51 +49,76 @@ export default async function AdminStudentDetailPage({
           <CardHeader>
             <CardTitle>Matriculas por curso</CardTitle>
             <CardDescription>
-              Atualize status e expiracao sem duplicar o cadastro do aluno.
+              Ajuste apenas a expiracao de acessos originados por pagamento.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {student.enrollments.map((enrollment) => (
-              <form
-                action={updateEnrollmentAction}
-                className="grid gap-3 rounded-lg border p-4 md:grid-cols-[1fr_140px_150px_auto]"
+              <div
+                className="grid gap-3 rounded-lg border p-4"
                 key={enrollment.id}
               >
-                <input
-                  name="enrollmentId"
-                  type="hidden"
-                  value={enrollment.id}
-                />
-                <input name="userId" type="hidden" value={student.userId} />
                 <div>
                   <p className="font-semibold">{enrollment.courseTitle}</p>
                   <p className="text-muted-foreground text-xs">
-                    Inicio: {dateInputValue(enrollment.startedAt)}
+                    Inicio: {formatDate(enrollment.startedAt)} | Expira:{" "}
+                    {formatDate(enrollment.expiresAt)} | {enrollment.status}
                   </p>
                 </div>
-                <Select defaultValue={enrollment.status} name="status">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativa</SelectItem>
-                    <SelectItem value="expired">Expirada</SelectItem>
-                    <SelectItem value="revoked">Revogada</SelectItem>
-                  </SelectContent>
-                </Select>
-                <DatePickerField
-                  defaultValue={dateInputValue(enrollment.expiresAt)}
-                  name="expiresAt"
-                />
-                <Button type="submit">
-                  <HugeiconsIcon
-                    icon={FloppyDiskIcon}
-                    size={18}
-                    strokeWidth={2}
+                <form
+                  action={extendEnrollmentExpirationAction}
+                  className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]"
+                >
+                  <input
+                    name="enrollmentId"
+                    type="hidden"
+                    value={enrollment.id}
                   />
-                  Atualizar
-                </Button>
-              </form>
+                  <input name="userId" type="hidden" value={student.userId} />
+                  <input
+                    aria-label="Motivo da extensao"
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                    name="reason"
+                    placeholder="Motivo obrigatorio"
+                    required
+                  />
+                  <Button name="days" type="submit" value="1">
+                    +1 dia
+                  </Button>
+                  <Button name="days" type="submit" value="7">
+                    +7 dias
+                  </Button>
+                  <Button name="months" type="submit" value="1">
+                    +1 mes
+                  </Button>
+                </form>
+                <form
+                  action={setEnrollmentExpirationAction}
+                  className="grid gap-2 md:grid-cols-[1fr_180px_auto]"
+                >
+                  <input
+                    name="enrollmentId"
+                    type="hidden"
+                    value={enrollment.id}
+                  />
+                  <input name="userId" type="hidden" value={student.userId} />
+                  <input
+                    aria-label="Motivo da data exata"
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                    name="reason"
+                    placeholder="Motivo obrigatorio"
+                    required
+                  />
+                  <input
+                    aria-label="Nova expiracao com horario local"
+                    className="rounded-md border bg-background px-3 py-2 text-sm"
+                    name="newExpiresAt"
+                    required
+                    type="datetime-local"
+                  />
+                  <Button type="submit">Definir data</Button>
+                </form>
+              </div>
             ))}
           </CardContent>
         </Card>

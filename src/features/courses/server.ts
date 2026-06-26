@@ -8,6 +8,10 @@ import {
 } from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
+import {
+  resolveCourseAccess,
+  resolveLessonAccess,
+} from "@/features/enrollments/server";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
 import {
   calculateCourseProgress,
@@ -568,24 +572,10 @@ export const getStudentCourseAccessStatus = async ({
   courseId: string;
   userId: string;
 }): Promise<StudentCourseAccessStatus> => {
-  const { rows } = await getPool().query<{ id: string }>(
-    `
-      select e.id
-      from enrollments e
-      join courses c on c.id = e.course_id
-      where e.user_id = $1
-        and e.course_id = $2
-        and e.status = 'active'
-        and e.starts_at <= now()
-        and e.expires_at >= now()
-        and c.status = 'active'
-      limit 1
-    `,
-    [userId, courseId]
-  );
+  const canAccess = await resolveCourseAccess({ courseId, userId });
 
   return {
-    canAccess: Boolean(rows[0]),
+    canAccess,
     redirectTo: `/app/cursos/${courseId}`,
   };
 };
@@ -888,6 +878,12 @@ export const getStudentLessonData = async ({
   userId: string;
   lessonId: string;
 }): Promise<StudentLessonData | null> => {
+  const canAccessLesson = await resolveLessonAccess({ lessonId, userId });
+
+  if (!canAccessLesson) {
+    return null;
+  }
+
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (

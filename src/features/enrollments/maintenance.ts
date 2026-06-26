@@ -31,6 +31,16 @@ export const processEnrollmentMaintenance = async ({
   now?: Date;
 } = {}): Promise<EnrollmentMaintenanceResult> => {
   const pool = getPool();
+  await pool.query(
+    `
+      update enrollment_grants
+      set status = 'expired',
+          updated_at = now()
+      where status = 'active'
+        and effective_expires_at < $1
+    `,
+    [now]
+  );
   const expired = await pool.query(
     `
       update enrollments

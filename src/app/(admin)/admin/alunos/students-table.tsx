@@ -4,17 +4,6 @@ import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -33,13 +22,9 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { updateEnrollmentAction } from "@/features/admin/actions";
+  extendEnrollmentExpirationAction,
+  setEnrollmentExpirationAction,
+} from "@/features/admin/actions";
 
 export interface StudentEnrollmentRow {
   courseTitle: string;
@@ -116,10 +101,75 @@ export function StudentsTable({
       <DataTable
         columns={columns}
         data={students}
-        emptyDescription="Você ainda não possui nenhum aluno cadastrado na plataforma."
+        emptyDescription="Voce ainda nao possui nenhum aluno cadastrado na plataforma."
         emptyTitle="Nenhum aluno encontrado"
         searchPlaceholder="Buscar por nome ou email"
       />
+    </div>
+  );
+}
+
+function EnrollmentExpirationControls({
+  enrollment,
+  userId,
+}: {
+  enrollment: StudentEnrollmentRow;
+  userId: string;
+}): React.JSX.Element {
+  return (
+    <div className="grid gap-3 rounded-lg border p-3">
+      <div>
+        <p className="font-semibold">{enrollment.courseTitle}</p>
+        <p className="text-muted-foreground text-xs">
+          Matricula: {formatDate(enrollment.startedAt)} | Expira:{" "}
+          {formatDate(enrollment.expiresAt)} | {enrollment.status}
+        </p>
+      </div>
+      <AutoCloseDialogForm
+        action={extendEnrollmentExpirationAction}
+        className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]"
+      >
+        <input name="enrollmentId" type="hidden" value={enrollment.id} />
+        <input name="userId" type="hidden" value={userId} />
+        <input
+          aria-label="Motivo da extensao"
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          name="reason"
+          placeholder="Motivo obrigatorio"
+          required
+        />
+        <Button name="days" type="submit" value="1">
+          +1 dia
+        </Button>
+        <Button name="days" type="submit" value="7">
+          +7 dias
+        </Button>
+        <Button name="months" type="submit" value="1">
+          +1 mes
+        </Button>
+      </AutoCloseDialogForm>
+      <AutoCloseDialogForm
+        action={setEnrollmentExpirationAction}
+        className="grid gap-2 md:grid-cols-[1fr_180px_auto]"
+      >
+        <input name="enrollmentId" type="hidden" value={enrollment.id} />
+        <input name="userId" type="hidden" value={userId} />
+        <input
+          aria-label="Motivo da data exata"
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          name="reason"
+          placeholder="Motivo obrigatorio"
+          required
+        />
+        <input
+          aria-label="Nova expiracao com horario local"
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          name="newExpiresAt"
+          required
+          type="datetime-local"
+        />
+        <Button type="submit">Definir data</Button>
+      </AutoCloseDialogForm>
     </div>
   );
 }
@@ -148,74 +198,18 @@ function StudentEnrollmentsDialog({
           <div className="grid gap-3">
             {student.enrollments.length ? (
               student.enrollments.map((enrollment) => (
-                <AutoCloseDialogForm
-                  action={updateEnrollmentAction}
-                  className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_140px_150px_auto]"
-                  id={`form-enrollment-${enrollment.id}`}
+                <EnrollmentExpirationControls
+                  enrollment={enrollment}
                   key={enrollment.id}
-                >
-                  <input
-                    name="enrollmentId"
-                    type="hidden"
-                    value={enrollment.id}
-                  />
-                  <input name="userId" type="hidden" value={student.userId} />
-                  <div>
-                    <p className="font-semibold">{enrollment.courseTitle}</p>
-                    <p className="text-muted-foreground text-xs">
-                      Matricula: {formatDate(enrollment.startedAt)}
-                    </p>
-                  </div>
-                  <Select defaultValue={enrollment.status} name="status">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Ativa</SelectItem>
-                      <SelectItem value="expired">Expirada</SelectItem>
-                      <SelectItem value="revoked">Revogada</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <input
-                    name="expiresAt"
-                    type="hidden"
-                    value={
-                      enrollment.expiresAt instanceof Date
-                        ? enrollment.expiresAt.toISOString()
-                        : enrollment.expiresAt
-                    }
-                  />
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button type="button">Atualizar</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Confirmar alteração</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Você está prestes a alterar o status da matrícula. Tem
-                          certeza que deseja continuar?
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          form={`form-enrollment-${enrollment.id}`}
-                          type="submit"
-                        >
-                          Confirmar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </AutoCloseDialogForm>
+                  userId={student.userId}
+                />
               ))
             ) : (
               <Empty>
                 <EmptyHeader>
-                  <EmptyTitle>Sem matrículas</EmptyTitle>
+                  <EmptyTitle>Sem matriculas</EmptyTitle>
                   <EmptyDescription>
-                    Este aluno ainda não possui matrículas ativas.
+                    Este aluno ainda nao possui matriculas ativas.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>

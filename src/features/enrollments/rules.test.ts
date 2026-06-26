@@ -3,8 +3,10 @@ import {
   addMonths,
   getEnrollmentAccessState,
   getEnrollmentExpiryWarningKind,
+  getExtendedEnrollmentExpiration,
   getRenewedAccessWindow,
   shouldExpireEnrollment,
+  validateEnrollmentAdjustmentReason,
 } from "./rules";
 
 describe("enrollment access rules", () => {
@@ -88,5 +90,45 @@ describe("enrollment access rules", () => {
         warning7dSentAt: null,
       })
     ).toBeNull();
+  });
+
+  it("extends active access from the current effective expiration", () => {
+    expect(
+      getExtendedEnrollmentExpiration({
+        currentEffectiveExpiresAt: new Date("2026-07-10T10:00:00.000Z"),
+        days: 1,
+        months: 0,
+        now: new Date("2026-06-26T10:00:00.000Z"),
+      })
+    ).toEqual(new Date("2026-07-11T10:00:00.000Z"));
+
+    expect(
+      getExtendedEnrollmentExpiration({
+        currentEffectiveExpiresAt: new Date("2026-07-10T10:00:00.000Z"),
+        days: 0,
+        months: 1,
+        now: new Date("2026-06-26T10:00:00.000Z"),
+      })
+    ).toEqual(new Date("2026-08-10T10:00:00.000Z"));
+  });
+
+  it("extends expired access from now instead of from the stale expiration", () => {
+    expect(
+      getExtendedEnrollmentExpiration({
+        currentEffectiveExpiresAt: new Date("2026-06-25T10:00:00.000Z"),
+        days: 1,
+        months: 0,
+        now: new Date("2026-06-26T15:30:00.000Z"),
+      })
+    ).toEqual(new Date("2026-06-27T15:30:00.000Z"));
+  });
+
+  it("requires an explicit admin reason for expiration adjustments", () => {
+    expect(validateEnrollmentAdjustmentReason("Problema de suporte")).toBe(
+      "Problema de suporte"
+    );
+    expect(() => validateEnrollmentAdjustmentReason(" ")).toThrow(
+      "Informe o motivo do ajuste de expiracao."
+    );
   });
 });

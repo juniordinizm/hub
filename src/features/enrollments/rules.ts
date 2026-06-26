@@ -11,6 +11,7 @@ export type EnrollmentAccessState =
     };
 
 const MILLISECONDS_PER_DAY = 86_400_000;
+const MILLISECONDS_PER_HOUR = 3_600_000;
 
 export type EnrollmentExpiryWarningKind = "7d" | "1d";
 
@@ -18,6 +19,37 @@ export const addMonths = (date: Date, months: number): Date => {
   const nextDate = new Date(date);
   nextDate.setUTCMonth(nextDate.getUTCMonth() + months);
   return nextDate;
+};
+
+export const addDays = (date: Date, days: number): Date =>
+  new Date(date.getTime() + days * 24 * MILLISECONDS_PER_HOUR);
+
+export const validateEnrollmentAdjustmentReason = (reason: string): string => {
+  const normalizedReason = reason.trim();
+
+  if (!normalizedReason) {
+    throw new Error("Informe o motivo do ajuste de expiracao.");
+  }
+
+  return normalizedReason;
+};
+
+export const getExtendedEnrollmentExpiration = ({
+  currentEffectiveExpiresAt,
+  days,
+  months,
+  now,
+}: {
+  currentEffectiveExpiresAt: Date;
+  days: number;
+  months: number;
+  now: Date;
+}): Date => {
+  const base =
+    currentEffectiveExpiresAt > now ? currentEffectiveExpiresAt : now;
+  const withMonths = months ? addMonths(base, months) : new Date(base);
+
+  return days ? addDays(withMonths, days) : withMonths;
 };
 
 export const getEnrollmentAccessState = ({

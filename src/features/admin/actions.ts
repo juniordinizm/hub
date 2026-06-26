@@ -63,6 +63,17 @@ const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+const readOptionalNumber = (formData: FormData, key: string): number | null => {
+  const rawValue = readString(formData, key);
+
+  if (!rawValue) {
+    return null;
+  }
+
+  const value = Number(rawValue);
+  return Number.isFinite(value) ? value : null;
+};
+
 const readCheckbox = (formData: FormData, key: string): boolean =>
   formData.get(key) === "on";
 
@@ -884,37 +895,64 @@ export const retryJmvstreamDeleteAction = async ({
   revalidateAdmin();
 };
 
-export const updateEnrollmentAction = async (
+export const extendEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requireRole(["admin", "support"]);
   const enrollmentId = readString(formData, "enrollmentId");
-  const status = readString(formData, "status");
-  const expiresAt = readString(formData, "expiresAt");
   const userId = readString(formData, "userId");
-
-  await getPool().query(
-    `
-      update enrollments
-      set status = $1::enrollment_status,
-          expires_at = $2::timestamptz,
-          revoked_at = case when $1::text = 'revoked' then now() else null end,
-          revoked_reason = case when $1::text = 'revoked' then 'admin_manual' else null end,
-          expiry_warning_7d_sent_at = case
-            when $1::text = 'active' then null
-            else expiry_warning_7d_sent_at
-          end,
-          expiry_warning_1d_sent_at = case
-            when $1::text = 'active' then null
-            else expiry_warning_1d_sent_at
-          end,
-          updated_at = now()
-      where id = $3
-    `,
-    [status, expiresAt, enrollmentId]
+  const reason = readString(formData, "reason");
+  const days = readOptionalNumber(formData, "days");
+  const months = readOptionalNumber(formData, "months");
+  const { extendEnrollmentExpiration } = await import(
+    "@/features/enrollments/server"
   );
+
+  await extendEnrollmentExpiration({
+    actorUserId: session.user.id,
+    enrollmentId,
+    reason,
+    ...(days === null ? {} : { days }),
+    ...(months === null ? {} : { months }),
+  });
   await audit({
-    action: "enrollment.updated",
+    action: "enrollment.expiration_extended",
+    actorUserId: session.user.id,
+    targetId: enrollmentId,
+    targetType: "enrollment",
+  });
+  revalidateAdmin();
+
+  if (userId) {
+    revalidatePath(`/admin/alunos/${userId}`);
+  }
+};
+
+export const setEnrollmentExpirationAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const enrollmentId = readString(formData, "enrollmentId");
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+  const newExpiresAtValue = readString(formData, "newExpiresAt");
+  const newExpiresAt = new Date(newExpiresAtValue);
+  const { setEnrollmentExpiration } = await import(
+    "@/features/enrollments/server"
+  );
+
+  if (!(newExpiresAtValue && Number.isFinite(newExpiresAt.getTime()))) {
+    throw new Error("Data de expiracao invalida.");
+  }
+
+  await setEnrollmentExpiration({
+    actorUserId: session.user.id,
+    enrollmentId,
+    newExpiresAt,
+    reason,
+  });
+  await audit({
+    action: "enrollment.expiration_set",
     actorUserId: session.user.id,
     targetId: enrollmentId,
     targetType: "enrollment",

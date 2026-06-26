@@ -41,6 +41,30 @@ export const enrollmentStatusEnum = pgEnum("enrollment_status", [
   "expired",
   "revoked",
 ]);
+export const enrollmentGrantStatusEnum = pgEnum("enrollment_grant_status", [
+  "active",
+  "expired",
+  "refunded",
+  "disputed",
+  "cancelled",
+]);
+export const enrollmentGrantSourceTypeEnum = pgEnum(
+  "enrollment_grant_source_type",
+  ["abacatepay_order"]
+);
+export const enrollmentAdjustmentTypeEnum = pgEnum(
+  "enrollment_adjustment_type",
+  ["extend_days", "extend_months", "set_exact_expiration", "reversal"]
+);
+export const enrollmentEventTypeEnum = pgEnum("enrollment_event_type", [
+  "payment_paid",
+  "payment_refunded",
+  "payment_disputed",
+  "expiration_extended",
+  "expiration_set",
+  "expiration_adjustment_reversed",
+  "projection_rebuilt",
+]);
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
   "paid",
@@ -357,6 +381,118 @@ export const enrollments = pgTable(
     ),
     index("enrollments_course_status_idx").on(table.courseId, table.status),
     index("enrollments_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+export const enrollmentGrants = pgTable(
+  "enrollment_grants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    sourceType: enrollmentGrantSourceTypeEnum("source_type").notNull(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    status: enrollmentGrantStatusEnum("status").default("active").notNull(),
+    startsAt: timestamp("starts_at", tz).notNull(),
+    baseExpiresAt: timestamp("base_expires_at", tz).notNull(),
+    effectiveExpiresAt: timestamp("effective_expires_at", tz).notNull(),
+    revokedAt: timestamp("revoked_at", tz),
+    revokedReason: text("revoked_reason"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("enrollment_grants_source_unique_idx").on(
+      table.sourceType,
+      table.sourceId
+    ),
+    index("enrollment_grants_user_course_status_idx").on(
+      table.userId,
+      table.courseId,
+      table.status
+    ),
+    index("enrollment_grants_effective_expires_at_idx").on(
+      table.effectiveExpiresAt
+    ),
+    check(
+      "enrollment_grants_effective_after_start",
+      sql`${table.effectiveExpiresAt} > ${table.startsAt}`
+    ),
+  ]
+);
+
+export const enrollmentExpirationAdjustments = pgTable(
+  "enrollment_expiration_adjustments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    grantId: uuid("grant_id")
+      .notNull()
+      .references(() => enrollmentGrants.id, { onDelete: "cascade" }),
+    adjustmentType: enrollmentAdjustmentTypeEnum("adjustment_type").notNull(),
+    deltaDays: integer("delta_days"),
+    deltaMonths: integer("delta_months"),
+    previousExpiresAt: timestamp("previous_expires_at", tz).notNull(),
+    newExpiresAt: timestamp("new_expires_at", tz).notNull(),
+    reason: text("reason").notNull(),
+    actorUserId: text("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reversedAdjustmentId: uuid("reversed_adjustment_id").references(
+      (): AnyPgColumn => enrollmentExpirationAdjustments.id,
+      { onDelete: "set null" }
+    ),
+    ...timestamps,
+  },
+  (table) => [
+    index("enrollment_adjustments_grant_created_idx").on(
+      table.grantId,
+      table.createdAt
+    ),
+    check(
+      "enrollment_adjustments_reason_not_empty",
+      sql`length(trim(${table.reason})) > 0`
+    ),
+  ]
+);
+
+export const enrollmentEvents = pgTable(
+  "enrollment_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: enrollmentEventTypeEnum("event_type").notNull(),
+    userId: text("user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    courseId: uuid("course_id").references(() => courses.id, {
+      onDelete: "cascade",
+    }),
+    enrollmentId: uuid("enrollment_id").references(() => enrollments.id, {
+      onDelete: "set null",
+    }),
+    grantId: uuid("grant_id").references(() => enrollmentGrants.id, {
+      onDelete: "set null",
+    }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    actorUserId: text("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+    createdAt: timestamp("created_at", tz).defaultNow().notNull(),
+  },
+  (table) => [
+    index("enrollment_events_user_course_created_idx").on(
+      table.userId,
+      table.courseId,
+      table.createdAt
+    ),
+    index("enrollment_events_grant_idx").on(table.grantId),
   ]
 );
 
