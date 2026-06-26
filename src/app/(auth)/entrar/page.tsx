@@ -22,9 +22,6 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
   if (session && !(session.role === "student" && session.platformBlockedAt)) {
     redirect(route(session.role === "student" ? "/app" : "/admin"));
   }
-  const isBlockedStudent = Boolean(
-    session?.role === "student" && session.platformBlockedAt
-  );
 
   return (
     <main className="grid min-h-screen bg-[#0f2224] text-teal-50 lg:grid-cols-[1fr_440px]">
@@ -41,16 +38,14 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
         <Card className="mx-auto w-full max-w-sm bg-card/95">
           <CardHeader>
             <CardDescription>PROTEA-R Hub</CardDescription>
-            <CardTitle className="text-3xl">
-              {isBlockedStudent ? "Acesso bloqueado" : "Bem-vinda de volta"}
-            </CardTitle>
+            <CardTitle className="text-3xl">Bem-vinda de volta</CardTitle>
             <CardDescription>
-              {isBlockedStudent
-                ? "Entre em contato com o suporte para revisar sua conta."
-                : "Acesse sua conta para continuar seus estudos."}
+              Acesse sua conta para continuar seus estudos.
             </CardDescription>
           </CardHeader>
-          <CardContent>{isBlockedStudent ? null : <SignInForm />}</CardContent>
+          <CardContent>
+            <SignInForm />
+          </CardContent>
         </Card>
       </section>
     </main>

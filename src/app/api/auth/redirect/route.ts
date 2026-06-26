@@ -8,6 +8,10 @@ export const GET = async (): Promise<NextResponse> => {
     return NextResponse.json({ redirectTo: "/entrar" }, { status: 401 });
   }
 
+  if (session.role === "student" && session.platformBlockedAt) {
+    return NextResponse.json({ error: "blocked" }, { status: 403 });
+  }
+
   return NextResponse.json({
     redirectTo: session.role === "student" ? "/app" : "/admin",
   });

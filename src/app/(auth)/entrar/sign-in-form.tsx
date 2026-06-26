@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -49,6 +50,20 @@ export function SignInForm(): React.JSX.Element {
       credentials: "same-origin",
       headers: { "ngrok-skip-browser-warning": "true" },
     });
+
+    if (redirectResponse.status === 403) {
+      await fetch("/api/auth/sign-out", { method: "POST" });
+      toast.error("Acesso bloqueado", {
+        description: "Entre em contato com o suporte para revisar sua conta.",
+        classNames: {
+          toast: "!bg-[#221516] !border-[#e07070]/30",
+          title: "!text-[#e07070] !font-medium",
+          description: "!text-[#e07070]/80 !text-sm",
+          icon: "!text-[#e07070]",
+        },
+      });
+      return;
+    }
 
     if (!redirectResponse.ok) {
       setError("Não foi possível confirmar sua sessão. Tente novamente.");
