@@ -65,12 +65,13 @@ export function CourseBuilderWrapper({
       course={course}
       initialLessons={lessons}
       initialModules={modules}
-      renderLesson={(lesson, _moduleData) => (
-        <LessonRow courseId={course.id} lesson={lesson} />
+      renderLesson={(lesson, _moduleData, index) => (
+        <LessonRow courseId={course.id} index={index} lesson={lesson} />
       )}
-      renderModule={(moduleData, moduleLessons) => (
+      renderModule={(moduleData, moduleLessons, index) => (
         <ModuleSection
           course={course}
+          index={index}
           moduleData={moduleData}
           moduleLessons={moduleLessons}
         />
@@ -83,10 +84,12 @@ export function ModuleSection({
   course,
   moduleData,
   moduleLessons,
+  index,
 }: {
   course: CourseData;
   moduleData: ModuleData;
   moduleLessons: LessonData[];
+  index: number;
 }): React.JSX.Element {
   const nextLessonSortOrder =
     moduleLessons.length > 0
@@ -97,9 +100,7 @@ export function ModuleSection({
     <>
       <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-muted-foreground text-xs">
-            Modulo {moduleData.sortOrder}
-          </p>
+          <p className="text-muted-foreground text-xs">Modulo {index + 1}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{moduleData.title}</h3>
             <Badge
@@ -148,9 +149,11 @@ export function ModuleSection({
 export function LessonRow({
   courseId,
   lesson,
+  index,
 }: {
   courseId: string;
   lesson: LessonData;
+  index: number;
 }): React.JSX.Element {
   const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
   const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
@@ -159,7 +162,7 @@ export function LessonRow({
   return (
     <>
       <TableCell className="w-[80px] min-w-[80px] font-mono text-muted-foreground text-xs">
-        Aula {lesson.sortOrder}
+        Aula {index + 1}
       </TableCell>
       <TableCell className="w-[300px] min-w-[300px] max-w-[300px] truncate font-medium">
         {lesson.title}

@@ -40,10 +40,15 @@ interface CourseBuilderClientProps {
   course: CourseData;
   initialLessons: LessonData[];
   initialModules: ModuleData[];
-  renderLesson: (lesson: LessonData, moduleData: ModuleData) => React.ReactNode;
+  renderLesson: (
+    lesson: LessonData,
+    moduleData: ModuleData,
+    index: number
+  ) => React.ReactNode;
   renderModule: (
     moduleData: ModuleData,
-    moduleLessons: LessonData[]
+    moduleLessons: LessonData[],
+    index: number
   ) => React.ReactNode;
 }
 
@@ -255,7 +260,7 @@ export function CourseBuilderClient({
           strategy={verticalListSortingStrategy}
         >
           <div className="mt-4 flex flex-col gap-8">
-            {modules.map((moduleData) => {
+            {modules.map((moduleData, moduleIndex) => {
               const moduleLessons = lessons.filter(
                 (l) => l.moduleId === moduleData.id
               );
@@ -267,7 +272,7 @@ export function CourseBuilderClient({
                   id={moduleData.id}
                   key={moduleData.id}
                 >
-                  {renderModule(moduleData, moduleLessons)}
+                  {renderModule(moduleData, moduleLessons, moduleIndex)}
                   <SortableContext
                     items={moduleLessons.map((l) => l.id)}
                     strategy={verticalListSortingStrategy}
@@ -276,13 +281,13 @@ export function CourseBuilderClient({
                       <div className="border-t">
                         <Table>
                           <TableBody>
-                            {moduleLessons.map((lesson) => (
+                            {moduleLessons.map((lesson, lessonIndex) => (
                               <SortableTableRow
                                 data={{ type: "lesson" }}
                                 id={lesson.id}
                                 key={lesson.id}
                               >
-                                {renderLesson(lesson, moduleData)}
+                                {renderLesson(lesson, moduleData, lessonIndex)}
                               </SortableTableRow>
                             ))}
                           </TableBody>
