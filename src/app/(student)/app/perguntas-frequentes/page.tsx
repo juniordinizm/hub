@@ -60,7 +60,12 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
               </CardContent>
             </Card>
           ) : (
-            <Accordion className="w-full" collapsible type="single">
+            <Accordion
+              className="w-full"
+              collapsible
+              defaultValue={faqs[0]?.id}
+              type="single"
+            >
               {faqs.map((faq) => (
                 <AccordionItem key={faq.id} value={faq.id}>
                   <AccordionTrigger className="text-left text-base">
