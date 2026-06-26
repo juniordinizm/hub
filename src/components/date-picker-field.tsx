@@ -47,7 +47,7 @@ export function DatePickerField({
       <PopoverTrigger asChild>
         <Button
           className={cn(
-            "w-full justify-start text-left font-normal",
+            "w-full justify-start text-left font-normal active:scale-100",
             !selected && "text-muted-foreground"
           )}
           type="button"

@@ -8,6 +8,23 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -141,11 +158,49 @@ function StudentEnrollmentsDialog({
         Ver
       </DialogTriggerButton>
       <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{student.name}</DialogTitle>
-          <DialogDescription>
-            Gerencie a conta do aluno na plataforma.
-          </DialogDescription>
+        <DialogHeader className="border-b pb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <DialogTitle className="text-xl">{student.name}</DialogTitle>
+              <DialogDescription className="mt-1">
+                {student.email}
+              </DialogDescription>
+            </div>
+            <Badge
+              variant={student.platformBlockedAt ? "destructive" : "outline"}
+            >
+              {student.platformBlockedAt ? "Bloqueado na Plataforma" : "Ativo"}
+            </Badge>
+          </div>
+
+          <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">
+                Primeiro acesso
+              </span>
+              <span className="font-medium">
+                {formatDate(student.firstEnrollmentAt)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">
+                Último acesso
+              </span>
+              <span className="font-medium">
+                {formatDate(student.lastAccessAt)}
+              </span>
+            </div>
+            {student.platformBlockedReason && (
+              <div className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-destructive text-xs">
+                  Motivo do bloqueio
+                </span>
+                <span className="font-medium text-destructive">
+                  {student.platformBlockedReason}
+                </span>
+              </div>
+            )}
+          </div>
         </DialogHeader>
         <DialogBody>
           <div className="grid gap-3">
@@ -175,26 +230,25 @@ export function StudentCoursesSummary({
   enrollments: StudentEnrollmentRow[];
 }): React.JSX.Element {
   return (
-    <section className="overflow-hidden rounded-md border bg-background">
-      <header className="border-b p-4">
-        <p className="font-semibold">Cursos matriculados</p>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Resumo dos cursos do aluno. Ajustes de curso ficam dentro do curso.
-        </p>
+    <section className="mt-2">
+      <header className="mb-3 px-1">
+        <p className="font-semibold text-sm">Cursos matriculados</p>
       </header>
-      <div className="divide-y">
+      <div className="grid gap-2">
         {enrollments.map((enrollment) => (
           <div
-            className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex items-center justify-between gap-4 rounded-md bg-muted/40 px-3 py-2.5 transition-colors hover:bg-muted/60"
             key={enrollment.id}
           >
-            <div className="min-w-0">
-              <p className="truncate font-medium">{enrollment.courseTitle}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium text-sm">
+                {enrollment.courseTitle}
+              </p>
               <p className="text-muted-foreground text-xs">
                 Expira em {formatDate(enrollment.expiresAt)}
               </p>
             </div>
-            <Badge className="w-fit" variant="outline">
+            <Badge className="w-fit" variant="secondary">
               {enrollment.status}
             </Badge>
           </div>
@@ -215,74 +269,101 @@ export function StudentPlatformAccessControls({
   const isBlocked = Boolean(student.platformBlockedAt);
 
   return (
-    <section className="overflow-hidden rounded-md border bg-background">
-      <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="font-semibold">Acesso a plataforma</p>
-          <p className="mt-1 text-muted-foreground text-sm">{student.email}</p>
-          {student.platformBlockedReason ? (
-            <p className="mt-2 text-muted-foreground text-xs">
-              Motivo: {student.platformBlockedReason}
-            </p>
-          ) : null}
-        </div>
-        <Badge
-          className="w-fit"
-          variant={isBlocked ? "destructive" : "outline"}
-        >
-          {isBlocked ? "Bloqueado" : "Ativo"}
-        </Badge>
-      </header>
-
+    <Accordion className="w-full" collapsible type="single">
       {isBlocked ? (
-        <AutoCloseDialogForm
-          action={restoreStudentPlatformAccessAction}
-          className="grid gap-4 p-4"
-        >
-          <input name="userId" type="hidden" value={student.userId} />
-          <label className="grid gap-1.5">
-            <span className="font-medium text-sm">Motivo da restauracao</span>
-            <input
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              name="reason"
-              placeholder="Ex.: conta revisada pelo suporte"
-              required
-            />
-          </label>
-          <div className="flex justify-end">
-            <Button type="submit" variant="outline">
-              <HugeiconsIcon icon={UndoIcon} size={16} strokeWidth={2} />
-              Restaurar na plataforma
-            </Button>
-          </div>
-        </AutoCloseDialogForm>
+        <AccordionItem className="border-none" value="restore-access">
+          <AccordionTrigger className="rounded-md px-4 py-3 text-sm hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/30">
+            Restaurar acesso na plataforma
+          </AccordionTrigger>
+          <AccordionContent className="border-t bg-muted/10 px-4 pt-4 pb-4">
+            <AutoCloseDialogForm
+              action={restoreStudentPlatformAccessAction}
+              className="grid gap-5"
+            >
+              <input name="userId" type="hidden" value={student.userId} />
+              <label className="grid gap-1.5">
+                <span className="font-medium text-sm">
+                  Motivo da restauração
+                </span>
+                <input
+                  className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  name="reason"
+                  placeholder="Ex.: conta revisada pelo suporte"
+                  required
+                />
+              </label>
+              <div className="flex justify-end pt-2">
+                <Button type="submit" variant="outline">
+                  <HugeiconsIcon icon={UndoIcon} size={16} strokeWidth={2} />
+                  Restaurar na plataforma
+                </Button>
+              </div>
+            </AutoCloseDialogForm>
+          </AccordionContent>
+        </AccordionItem>
       ) : (
-        <AutoCloseDialogForm
-          action={blockStudentPlatformAccessAction}
-          className="grid gap-4 p-4"
-        >
-          <input name="userId" type="hidden" value={student.userId} />
-          <label className="grid gap-1.5">
-            <span className="font-medium text-sm">Motivo do bloqueio</span>
-            <input
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-              name="reason"
-              placeholder="Ex.: revisao de seguranca da conta"
-              required
-            />
-          </label>
-          <div className="flex justify-end">
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon
-                icon={SquareLock02Icon}
-                size={16}
-                strokeWidth={2}
-              />
-              Bloquear na plataforma
-            </Button>
-          </div>
-        </AutoCloseDialogForm>
+        <AccordionItem className="border-none" value="block-access">
+          <AccordionTrigger className="rounded-md px-4 py-3 text-sm hover:bg-destructive/5 hover:text-destructive hover:no-underline data-[state=open]:bg-destructive/5 data-[state=open]:text-destructive">
+            Bloquear acesso na plataforma
+          </AccordionTrigger>
+          <AccordionContent className="border-destructive/10 border-t bg-destructive/5 px-4 pt-4 pb-4">
+            <AutoCloseDialogForm
+              action={blockStudentPlatformAccessAction}
+              className="grid gap-5"
+              id={`block-platform-${student.userId}`}
+            >
+              <input name="userId" type="hidden" value={student.userId} />
+              <label className="grid gap-1.5">
+                <span className="font-medium text-destructive text-sm">
+                  Motivo do bloqueio
+                </span>
+                <input
+                  className="rounded-md border-destructive/30 bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
+                  name="reason"
+                  placeholder="Ex.: revisão de segurança da conta"
+                  required
+                />
+              </label>
+              <div className="flex justify-end pt-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button type="button" variant="destructive">
+                      <HugeiconsIcon
+                        icon={SquareLock02Icon}
+                        size={16}
+                        strokeWidth={2}
+                      />
+                      Bloquear na plataforma
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Confirmar bloqueio da plataforma
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        O aluno perderá o acesso geral à plataforma e não
+                        conseguirá mais fazer login. Essa ação afetará todos os
+                        cursos. Deseja confirmar?
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        form={`block-platform-${student.userId}`}
+                        type="submit"
+                      >
+                        Confirmar bloqueio
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </AutoCloseDialogForm>
+          </AccordionContent>
+        </AccordionItem>
       )}
-    </section>
+    </Accordion>
   );
 }

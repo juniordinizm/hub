@@ -14,7 +14,11 @@ import {
   DialogTitle,
   DialogTriggerButton,
 } from "@/components/ui/dialog";
-import { EnrollmentExpirationControls } from "@/features/admin/enrollment-expiration-controls";
+import {
+  EnrollmentExpirationControls,
+  formatDateTime,
+  statusLabels,
+} from "@/features/admin/enrollment-expiration-controls";
 import type { getAdminManagementData } from "@/features/admin/server";
 
 type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
@@ -85,6 +89,13 @@ function EnrollmentEditDialog({
 }: {
   enrollment: CourseEnrollmentRow;
 }): React.JSX.Element {
+  let badgeVariant: "default" | "destructive" | "secondary" = "default";
+  if (enrollment.status === "revoked") {
+    badgeVariant = "destructive";
+  } else if (enrollment.status === "expired") {
+    badgeVariant = "secondary";
+  }
+
   return (
     <Dialog>
       <DialogTriggerButton size="sm" variant="outline">
@@ -92,11 +103,43 @@ function EnrollmentEditDialog({
         Ver
       </DialogTriggerButton>
       <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{enrollment.name}</DialogTitle>
-          <DialogDescription>
-            {enrollment.email} - Matricula em {enrollment.courseTitle}
-          </DialogDescription>
+        <DialogHeader className="border-b pb-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <DialogTitle className="text-xl">{enrollment.name}</DialogTitle>
+              <DialogDescription className="mt-1">
+                {enrollment.email} - Matrícula em {enrollment.courseTitle}
+              </DialogDescription>
+            </div>
+            <Badge variant={badgeVariant}>
+              {statusLabels[enrollment.status] ?? enrollment.status}
+            </Badge>
+          </div>
+
+          <div className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">Início</span>
+              <span className="font-medium">
+                {formatDateTime(enrollment.startsAt)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">
+                Expiração original
+              </span>
+              <span className="font-medium">
+                {formatDateTime(enrollment.originalExpiresAt)}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">
+                Expiração atual
+              </span>
+              <span className="font-medium">
+                {formatDateTime(enrollment.expiresAt)}
+              </span>
+            </div>
+          </div>
         </DialogHeader>
         <DialogBody>
           <EnrollmentExpirationControls
