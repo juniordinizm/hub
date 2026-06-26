@@ -29,7 +29,6 @@ import { deleteFaqAction, saveFaqAction } from "@/features/admin/actions";
 
 export interface FaqData {
   answer: string;
-  category: string;
   id: string;
   isPublished: boolean;
   question: string;
@@ -42,7 +41,11 @@ interface FaqDialogProps {
   open?: boolean;
 }
 
-export function FaqCreateDialog(): React.JSX.Element {
+export function FaqCreateDialog({
+  nextSortOrder,
+}: {
+  nextSortOrder: number;
+}): React.JSX.Element {
   return (
     <Dialog>
       <DialogTriggerButton>
@@ -71,16 +74,7 @@ export function FaqCreateDialog(): React.JSX.Element {
                 <FieldLabel>Resposta</FieldLabel>
                 <Textarea name="answer" required />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Categoria</FieldLabel>
-                  <Input name="category" />
-                </Field>
-                <Field>
-                  <FieldLabel>Ordem</FieldLabel>
-                  <Input name="sortOrder" type="number" />
-                </Field>
-              </div>
+              <input name="sortOrder" type="hidden" value={nextSortOrder} />
               <label
                 className="inline-flex items-center gap-2 text-sm"
                 htmlFor="faq-is-published-create"
@@ -150,20 +144,11 @@ export function FaqEditDialog({
                 <FieldLabel>Resposta</FieldLabel>
                 <Textarea defaultValue={faq.answer} name="answer" required />
               </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field>
-                  <FieldLabel>Categoria</FieldLabel>
-                  <Input defaultValue={faq.category} name="category" />
-                </Field>
-                <Field>
-                  <FieldLabel>Ordem</FieldLabel>
-                  <Input
-                    defaultValue={faq.sortOrder}
-                    name="sortOrder"
-                    type="number"
-                  />
-                </Field>
-              </div>
+              <input
+                defaultValue={faq.sortOrder}
+                name="sortOrder"
+                type="hidden"
+              />
               <label
                 className="inline-flex items-center gap-2 text-sm"
                 htmlFor={`faq-is-published-${faq.id}`}

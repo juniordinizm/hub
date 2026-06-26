@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { groupFaqItemsByCategory } from "@/features/courses/presentation";
 import { canMutateStudentExperience } from "@/features/courses/preview";
 import { getPublishedFaqItems } from "@/features/courses/server";
 import { route } from "@/lib/routes";
@@ -25,7 +24,6 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
   }
 
   const faqs = await getPublishedFaqItems();
-  const categories = groupFaqItemsByCategory(faqs);
 
   return (
     <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
@@ -46,7 +44,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
           <div className="flex flex-col gap-8">
-            {categories.length === 0 ? (
+            {faqs.length === 0 ? (
               <Card>
                 <CardHeader>
                   <CardDescription>FAQ</CardDescription>
@@ -54,76 +52,67 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground text-sm leading-6">
-                    Quando a equipe publicar respostas, elas aparecerão aqui
-                    organizadas por categoria.
+                    Quando a equipe publicar respostas, elas aparecerão aqui.
                   </p>
                 </CardContent>
               </Card>
             ) : (
-              categories.map((category) => (
-                <section className="flex flex-col gap-3" key={category.name}>
-                  <div>
-                    <h2 className="font-bold text-xl">{category.name}</h2>
-                    <p className="mt-1 text-muted-foreground text-sm">
-                      {category.items.length}{" "}
-                      {category.items.length === 1 ? "resposta" : "respostas"}
-                    </p>
-                  </div>
-                  <div className="grid gap-3">
-                    {category.items.map((faq) => (
-                      <Card key={faq.id} size="sm">
-                        <CardHeader>
-                          <CardTitle className="flex items-start gap-3 text-base">
-                            <HugeiconsIcon
-                              className="mt-0.5 text-primary"
-                              icon={HelpCircleIcon}
-                            />
-                            {faq.question}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <p className="text-muted-foreground text-sm leading-7">
-                            {faq.answer}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </section>
-              ))
+              <section className="flex flex-col gap-3">
+                <div className="grid gap-3">
+                  {faqs.map((faq) => (
+                    <Card key={faq.id} size="sm">
+                      <CardHeader>
+                        <CardTitle className="flex items-start gap-3 text-base">
+                          <HugeiconsIcon
+                            className="mt-0.5 text-primary"
+                            icon={HelpCircleIcon}
+                          />
+                          {faq.question}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-muted-foreground text-sm leading-7">
+                          {faq.answer}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
             )}
           </div>
-        </div>
 
-        <aside className="lg:sticky lg:top-6">
-          <Card>
-            <CardHeader>
-              <CardDescription>Atendimento</CardDescription>
-              <CardTitle>Precisa de ajuda?</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-3 text-muted-foreground text-sm leading-6">
-                <p>
-                  Se a resposta não estiver aqui, envie uma mensagem para o
-                  suporte com seu e-mail de acesso e o nome do curso.
-                </p>
-                <div className="rounded-md border bg-background/45 p-3">
-                  <div className="flex items-center gap-2 font-medium text-foreground">
-                    <HugeiconsIcon icon={Shield01Icon} />
-                    Acesso e pagamento
-                  </div>
-                  <p className="mt-1">
-                    Tenha em mãos comprovante, pedido ou e-mail usado na compra.
+          <aside className="lg:sticky lg:top-6">
+            <Card>
+              <CardHeader>
+                <CardDescription>Atendimento</CardDescription>
+                <CardTitle>Precisa de ajuda?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-3 text-muted-foreground text-sm leading-6">
+                  <p>
+                    Se a resposta não estiver aqui, envie uma mensagem para o
+                    suporte com seu e-mail de acesso e o nome do curso.
                   </p>
+                  <div className="rounded-md border bg-background/45 p-3">
+                    <div className="flex items-center gap-2 font-medium text-foreground">
+                      <HugeiconsIcon icon={Shield01Icon} />
+                      Acesso e pagamento
+                    </div>
+                    <p className="mt-1">
+                      Tenha em mãos comprovante, pedido ou e-mail usado na
+                      compra.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <SupportRequestDialog
-                triggerClassName="mt-5 w-full"
-                triggerLabel="Falar com suporte"
-              />
-            </CardContent>
-          </Card>
-        </aside>
+                <SupportRequestDialog
+                  triggerClassName="mt-5 w-full"
+                  triggerLabel="Falar com suporte"
+                />
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
       </div>
     </main>
   );

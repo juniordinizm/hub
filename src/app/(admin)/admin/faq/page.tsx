@@ -8,6 +8,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminFaqPage(): Promise<React.JSX.Element> {
   const data = await getAdminManagementData();
 
+  const sortedFaqs = [...data.faqs].sort((a, b) => a.sortOrder - b.sortOrder);
+  const nextSortOrder =
+    sortedFaqs.length > 0
+      ? Math.max(...sortedFaqs.map((f) => f.sortOrder)) + 1
+      : 1;
+
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
@@ -22,11 +28,11 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
               operacionais.
             </p>
           </div>
-          <FaqCreateDialog />
+          <FaqCreateDialog nextSortOrder={nextSortOrder} />
         </header>
 
         <section>
-          <FaqTable faqs={data.faqs} />
+          <FaqTable faqs={sortedFaqs} />
         </section>
       </div>
     </main>

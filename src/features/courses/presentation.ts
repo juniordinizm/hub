@@ -67,15 +67,6 @@ export interface StudentCatalogCourseGroups<
   locked: TCourse[];
 }
 
-export interface FaqCategoryGroupingInput {
-  category: string;
-}
-
-export interface FaqCategoryGroup<TItem extends FaqCategoryGroupingInput> {
-  items: TItem[];
-  name: string;
-}
-
 const getDaysUntil = (date: Date, now: Date): number =>
   Math.max(
     0,
@@ -190,22 +181,6 @@ export const groupStudentCatalogCourses = <
   }
 
   return groups;
-};
-
-export const groupFaqItemsByCategory = <TItem extends FaqCategoryGroupingInput>(
-  items: readonly TItem[]
-): FaqCategoryGroup<TItem>[] => {
-  const groups = new Map<string, TItem[]>();
-
-  for (const item of items) {
-    const name = item.category.trim() || "Geral";
-    groups.set(name, [...(groups.get(name) ?? []), item]);
-  }
-
-  return [...groups.entries()].map(([name, groupItems]) => ({
-    name,
-    items: groupItems,
-  }));
 };
 
 export const summarizeCoursePublicationReadiness = ({

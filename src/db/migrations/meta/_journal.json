@@ -162,6 +162,13 @@
       "when": 1782316800000,
       "tag": "0022_content_lifecycle_status",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782512913667,
+      "tag": "0023_remove_category_from_faq",
+      "breakpoints": true
     }
   ]
 }

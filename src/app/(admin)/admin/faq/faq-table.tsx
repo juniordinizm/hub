@@ -1,6 +1,21 @@
 "use client";
 
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import {
   Delete02Icon,
   Edit01Icon,
   HelpSquareIcon,
@@ -13,7 +28,8 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { SortableTableRow } from "@/components/sortable-table-row";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,13 +53,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { reorderFaqsAction } from "@/features/admin/actions";
 import { type FaqData, FaqDeleteDialog, FaqEditDialog } from "./faq-dialogs";
 
 interface FaqTableProps {
   faqs: FaqData[];
 }
 
-export function FaqTable({ faqs }: FaqTableProps): React.JSX.Element {
+export function FaqTable({
+  faqs: initialFaqs,
+}: FaqTableProps): React.JSX.Element {
+  const [faqs, setFaqs] = useState(initialFaqs);
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    setFaqs(initialFaqs);
+  }, [initialFaqs]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = faqs.findIndex((f) => f.id === active.id);
+    const newIndex = faqs.findIndex((f) => f.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newFaqs = arrayMove(faqs, oldIndex, newIndex);
+      setFaqs(newFaqs);
+      startTransition(() => {
+        reorderFaqsAction(newFaqs.map((f) => f.id));
+      });
+    }
+  }
+
   const columns: ColumnDef<FaqData>[] = [
     {
       accessorKey: "question",
@@ -57,14 +106,6 @@ export function FaqTable({ faqs }: FaqTableProps): React.JSX.Element {
           </span>
         </div>
       ),
-    },
-    {
-      accessorKey: "category",
-      header: "Categoria",
-    },
-    {
-      accessorKey: "sortOrder",
-      header: "Ordem",
     },
     {
       accessorKey: "isPublished",
@@ -105,40 +146,53 @@ export function FaqTable({ faqs }: FaqTableProps): React.JSX.Element {
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
+    <DndContext
+      collisionDetection={closestCenter}
+      id="faq-dnd"
+      onDragEnd={handleDragEnd}
+      sensors={sensors}
+    >
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                <TableHead className="w-[40px]" />
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <SortableContext
+            items={faqs.map((f) => f.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <SortableTableRow id={row.original.id} key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
                       )}
-                </TableHead>
+                    </TableCell>
+                  ))}
+                </SortableTableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              data-state={row.getIsSelected() && "selected"}
-              key={row.id}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+            </TableBody>
+          </SortableContext>
+        </Table>
+      </div>
+    </DndContext>
   );
 }
 

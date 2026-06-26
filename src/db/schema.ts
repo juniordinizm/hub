@@ -695,7 +695,6 @@ export const faqItems = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     question: text("question").notNull(),
     answer: text("answer").notNull(),
-    category: text("category").default("geral").notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     isPublished: boolean("is_published").default(true).notNull(),
     ...timestamps,

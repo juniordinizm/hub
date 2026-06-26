@@ -1215,7 +1215,6 @@ export const saveFaqAction = async (formData: FormData): Promise<void> => {
   const values = [
     readString(formData, "question"),
     readString(formData, "answer"),
-    readString(formData, "category") || "geral",
     readNumber(formData, "sortOrder"),
     readCheckbox(formData, "isPublished"),
   ];
@@ -1226,19 +1225,18 @@ export const saveFaqAction = async (formData: FormData): Promise<void> => {
         update faq_items
         set question = $1,
             answer = $2,
-            category = $3,
-            sort_order = $4,
-            is_published = $5,
+            sort_order = $3,
+            is_published = $4,
             updated_at = now()
-        where id = $6
+        where id = $5
       `,
       [...values, faqId]
     );
   } else {
     await getPool().query(
       `
-        insert into faq_items (question, answer, category, sort_order, is_published)
-        values ($1, $2, $3, $4, $5)
+        insert into faq_items (question, answer, sort_order, is_published)
+        values ($1, $2, $3, $4)
       `,
       values
     );
@@ -1266,6 +1264,48 @@ export const deleteFaqAction = async (formData: FormData): Promise<void> => {
     action: "faq.deleted",
     actorUserId: session.user.id,
     targetId: faqId,
+    targetType: "faq",
+  });
+  revalidateAdmin();
+};
+
+export const reorderFaqsAction = async (
+  orderedFaqIds: string[]
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Pass 1: Set to temporary negative order to avoid unique constraint violations
+    for (let i = 0; i < orderedFaqIds.length; i++) {
+      await client.query("update faq_items set sort_order = $1 where id = $2", [
+        -(i + 1),
+        orderedFaqIds[i],
+      ]);
+    }
+
+    // Pass 2: Set to final correct order
+    for (let i = 0; i < orderedFaqIds.length; i++) {
+      await client.query(
+        "update faq_items set sort_order = $1, updated_at = now() where id = $2",
+        [i + 1, orderedFaqIds[i]]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit({
+    action: "faq.reordered",
+    actorUserId: session.user.id,
     targetType: "faq",
   });
   revalidateAdmin();

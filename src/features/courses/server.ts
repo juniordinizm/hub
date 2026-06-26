@@ -75,7 +75,6 @@ export interface StudentCourseModule {
 
 export interface FaqItem {
   answer: string;
-  category: string;
   id: string;
   question: string;
 }
@@ -851,12 +850,11 @@ export const getCoursePreviewOverviewData = async ({
 export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
   const { rows } = await getPool().query<{
     answer: string;
-    category: string;
     id: string;
     question: string;
   }>(
     `
-      select id, question, answer, category
+      select id, question, answer
       from faq_items
       where is_published = true
       order by sort_order asc, question asc
@@ -865,7 +863,6 @@ export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
 
   return rows.map((row) => ({
     answer: row.answer,
-    category: row.category,
     id: row.id,
     question: row.question,
   }));

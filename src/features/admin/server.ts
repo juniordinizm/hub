@@ -124,7 +124,6 @@ export interface AdminManagementData {
   }>;
   faqs: Array<{
     answer: string;
-    category: string;
     id: string;
     isPublished: boolean;
     question: string;
@@ -351,13 +350,12 @@ export const getAdminManagementData =
       ),
       pool.query<{
         answer: string;
-        category: string;
         id: string;
         is_published: boolean;
         question: string;
         sort_order: number;
       }>(
-        "select id, question, answer, category, sort_order, is_published from faq_items order by sort_order, question"
+        "select id, question, answer, sort_order, is_published from faq_items order by sort_order, question"
       ),
       pool.query<{
         certificate_signer_name: string | null;
@@ -495,7 +493,6 @@ export const getAdminManagementData =
       enrollments: enrollmentRows,
       faqs: faqs.rows.map((row) => ({
         answer: row.answer,
-        category: row.category,
         id: row.id,
         isPublished: row.is_published,
         question: row.question,
