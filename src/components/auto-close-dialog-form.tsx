@@ -17,10 +17,12 @@ export function AutoCloseDialogForm({
   action,
   children,
   className,
+  id,
 }: {
   action: (formData: FormData) => Promise<void>;
   children: ReactNode;
   className?: string;
+  id?: string;
 }): React.JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,7 @@ export function AutoCloseDialogForm({
     <form
       aria-busy={isPending}
       className={cn(className)}
+      id={id}
       onSubmit={handleSubmit}
     >
       <fieldset className="contents" disabled={isPending}>

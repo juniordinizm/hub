@@ -20,7 +20,6 @@ import {
   formatCourseWorkload,
   summarizeCoursePublicationReadiness,
 } from "@/features/courses/presentation";
-import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import {
   CourseBuilderWrapper,
@@ -29,6 +28,7 @@ import {
   InfoRow,
 } from "./course-builder-components";
 import { CourseSettingsForm } from "./course-dialogs-client";
+import { CourseEnrollmentsTable } from "./course-enrollments-table";
 
 export const dynamic = "force-dynamic";
 
@@ -261,32 +261,7 @@ export default async function AdminCourseDetailPage({
                   Últimas matrículas e situação de acesso.
                 </p>
               </div>
-              <div className="divide-y">
-                {enrollments.map((enrollment) => (
-                  <div
-                    className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(0,1fr)_130px_170px]"
-                    key={enrollment.id}
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{enrollment.name}</p>
-                      <p className="truncate text-muted-foreground text-sm">
-                        {enrollment.email}
-                      </p>
-                    </div>
-                    <Badge className="w-fit" variant="outline">
-                      {enrollment.status}
-                    </Badge>
-                    <p className="text-muted-foreground text-sm">
-                      Expira em {formatDate(enrollment.expiresAt)}
-                    </p>
-                  </div>
-                ))}
-                {enrollments.length === 0 ? (
-                  <p className="px-5 py-4 text-muted-foreground text-sm">
-                    Nenhuma matrícula encontrada para este curso.
-                  </p>
-                ) : null}
-              </div>
+              <CourseEnrollmentsTable enrollments={enrollments} />
             </section>
           </TabsContent>
 
