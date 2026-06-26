@@ -50,7 +50,10 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
     enrollments: enrollmentsByUserId.get(student.userId) ?? [],
     firstEnrollmentAt: student.firstEnrollmentAt?.toISOString() ?? null,
     lastAccessAt: student.lastAccessAt?.toISOString() ?? null,
+    latestExpiration: student.latestExpiration?.toISOString() ?? null,
     name: student.name,
+    platformBlockedAt: student.platformBlockedAt?.toISOString() ?? null,
+    platformBlockedReason: student.platformBlockedReason,
     userId: student.userId,
   }));
 

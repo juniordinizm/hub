@@ -20,5 +20,7 @@ describe("admin audit enrollment events", () => {
     expect(pageSource).toContain("enrollment.payment_disputed");
     expect(pageSource).toContain("enrollment.access_blocked");
     expect(pageSource).toContain("enrollment.access_restored");
+    expect(pageSource).toContain("student.platform_blocked");
+    expect(pageSource).toContain("student.platform_restored");
   });
 });

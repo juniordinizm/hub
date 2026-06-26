@@ -1139,6 +1139,76 @@ export const restoreEnrollmentAccessAction = async (
   revalidateEnrollmentAdminPaths(userId);
 };
 
+export const blockStudentPlatformAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+
+  if (!userId) {
+    throw new Error("Aluno invalido.");
+  }
+
+  if (!reason) {
+    throw new Error("Informe o motivo do bloqueio.");
+  }
+
+  await getPool().query(
+    `
+      update profiles
+      set platform_blocked_at = now(),
+          platform_blocked_reason = $2,
+          updated_at = now()
+      where user_id = $1
+        and role = 'student'
+    `,
+    [userId, reason]
+  );
+  await audit({
+    action: "student.platform_blocked",
+    actorUserId: session.user.id,
+    targetId: userId,
+    targetType: "student",
+  });
+  revalidateEnrollmentAdminPaths(userId);
+};
+
+export const restoreStudentPlatformAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+
+  if (!userId) {
+    throw new Error("Aluno invalido.");
+  }
+
+  if (!reason) {
+    throw new Error("Informe o motivo da restauracao.");
+  }
+
+  await getPool().query(
+    `
+      update profiles
+      set platform_blocked_at = null,
+          platform_blocked_reason = null,
+          updated_at = now()
+      where user_id = $1
+        and role = 'student'
+    `,
+    [userId]
+  );
+  await audit({
+    action: "student.platform_restored",
+    actorUserId: session.user.id,
+    targetId: userId,
+    targetType: "student",
+  });
+  revalidateEnrollmentAdminPaths(userId);
+};
+
 export const saveFaqAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   const faqId = readString(formData, "faqId");

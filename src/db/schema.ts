@@ -170,6 +170,8 @@ export const profiles = pgTable(
     phone: text("phone"),
     invitedAt: timestamp("invited_at", tz),
     lastAccessAt: timestamp("last_access_at", tz),
+    platformBlockedAt: timestamp("platform_blocked_at", tz),
+    platformBlockedReason: text("platform_blocked_reason"),
     ...timestamps,
   },
   (table) => [index("profiles_role_idx").on(table.role)]

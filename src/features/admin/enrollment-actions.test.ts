@@ -13,6 +13,8 @@ describe("admin enrollment actions", () => {
     expect(source).toContain("adjustEnrollmentExpirationAction");
     expect(source).toContain("blockEnrollmentAccessAction");
     expect(source).toContain("restoreEnrollmentAccessAction");
+    expect(source).toContain("blockStudentPlatformAccessAction");
+    expect(source).toContain("restoreStudentPlatformAccessAction");
     expect(source).toContain("extendEnrollmentExpiration");
     expect(source).not.toContain("insert into enrollments");
   });

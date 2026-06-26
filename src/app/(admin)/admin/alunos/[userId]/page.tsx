@@ -7,8 +7,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { EnrollmentExpirationControls } from "@/features/admin/enrollment-expiration-controls";
 import { getAdminStudentDetail } from "@/features/admin/server";
+import {
+  StudentCoursesSummary,
+  StudentPlatformAccessControls,
+} from "../students-table";
 
 export const dynamic = "force-dynamic";
 
@@ -37,21 +40,31 @@ export default async function AdminStudentDetailPage({
 
         <Card className="border-border/40 bg-background/50 shadow-sm">
           <CardHeader>
-            <CardTitle>Matriculas por curso</CardTitle>
+            <CardTitle>Aluno na plataforma</CardTitle>
             <CardDescription>
-              Ajuste apenas a expiracao de acessos originados por pagamento.
+              Gerencie o acesso geral do aluno e consulte os cursos vinculados.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {student.enrollments.map((enrollment) => (
-              <EnrollmentExpirationControls
-                enrollment={{
-                  ...enrollment,
-                  userId: student.userId,
-                }}
-                key={enrollment.id}
-              />
-            ))}
+            <StudentPlatformAccessControls
+              student={{
+                email: student.email,
+                name: student.name,
+                platformBlockedAt:
+                  student.platformBlockedAt?.toISOString() ?? null,
+                platformBlockedReason: student.platformBlockedReason,
+                userId: student.userId,
+              }}
+            />
+            <StudentCoursesSummary
+              enrollments={student.enrollments.map((enrollment) => ({
+                ...enrollment,
+                expiresAt: enrollment.expiresAt.toISOString(),
+                originalExpiresAt: enrollment.originalExpiresAt.toISOString(),
+                startedAt: enrollment.startedAt.toISOString(),
+                userId: student.userId,
+              }))}
+            />
           </CardContent>
         </Card>
       </div>

@@ -14,6 +14,8 @@ export interface AdminStudentProfileInput {
   email: string;
   lastAccessAt: Date | null;
   name: string;
+  platformBlockedAt: Date | null;
+  platformBlockedReason: string | null;
   userId: string;
 }
 
@@ -25,6 +27,8 @@ export interface AdminStudentSummary {
   lastAccessAt: Date | null;
   latestExpiration: Date | null;
   name: string;
+  platformBlockedAt: Date | null;
+  platformBlockedReason: string | null;
   revokedEnrollments: number;
   status: string;
   userId: string;
@@ -40,8 +44,10 @@ const createEmptyStudentSummary = (
   lastAccessAt: student.lastAccessAt,
   latestExpiration: null,
   name: student.name,
+  platformBlockedAt: student.platformBlockedAt,
+  platformBlockedReason: student.platformBlockedReason,
   revokedEnrollments: 0,
-  status: "not_enrolled",
+  status: student.platformBlockedAt ? "blocked" : "not_enrolled",
   userId: student.userId,
 });
 
@@ -55,6 +61,8 @@ const createStudentSummary = (
   lastAccessAt: enrollment.lastAccessAt,
   latestExpiration: enrollment.expiresAt,
   name: enrollment.name,
+  platformBlockedAt: null,
+  platformBlockedReason: null,
   revokedEnrollments: enrollment.status === "revoked" ? 1 : 0,
   status: enrollment.status,
   userId: enrollment.userId,
@@ -82,7 +90,9 @@ const mergeEnrollmentIntoSummary = (
   current.courseCount += 1;
   current.activeEnrollments += enrollment.status === "active" ? 1 : 0;
   current.revokedEnrollments += enrollment.status === "revoked" ? 1 : 0;
-  current.status = resolveAggregateStatus(current.status, enrollment.status);
+  current.status = current.platformBlockedAt
+    ? "blocked"
+    : resolveAggregateStatus(current.status, enrollment.status);
 
   if (
     !current.latestExpiration ||

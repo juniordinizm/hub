@@ -71,6 +71,10 @@ function formatAuditMessage(log: {
       return `Cadastrou o aluno ${target}`;
     case "student.updated":
       return `Atualizou os dados do aluno ${target}`;
+    case "student.platform_blocked":
+      return `Bloqueou ${target} na plataforma`;
+    case "student.platform_restored":
+      return `Restaurou ${target} na plataforma`;
 
     case "settings.updated":
       return "Atualizou as configurações globais do sistema";

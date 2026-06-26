@@ -27,3 +27,7 @@ _Avoid_: Matricula manual
 **Bloqueio manual**:
 Uma acao do suporte que impede o aluno de acessar um curso ja pago quando o estado do pagamento ou uma excecao operacional precisa ser corrigida manualmente.
 _Avoid_: Excluir matricula, reembolso manual
+
+**Bloqueio da plataforma**:
+Uma acao do suporte que impede o aluno de usar a plataforma inteira, independentemente dos cursos que ele possui.
+_Avoid_: Bloqueio de curso

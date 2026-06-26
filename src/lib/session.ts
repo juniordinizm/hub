@@ -10,6 +10,8 @@ import { route } from "@/lib/routes";
 export type AppRole = "admin" | "support" | "student";
 
 export interface AppSession {
+  platformBlockedAt: Date | null;
+  platformBlockedReason: string | null;
   role: AppRole;
   user: {
     id: string;
@@ -28,12 +30,18 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
   }
 
   const [profile] = await getDb()
-    .select({ role: profiles.role })
+    .select({
+      platformBlockedAt: profiles.platformBlockedAt,
+      platformBlockedReason: profiles.platformBlockedReason,
+      role: profiles.role,
+    })
     .from(profiles)
     .where(eq(profiles.userId, session.user.id))
     .limit(1);
 
   return {
+    platformBlockedAt: profile?.platformBlockedAt ?? null,
+    platformBlockedReason: profile?.platformBlockedReason ?? null,
     user: {
       id: session.user.id,
       name: session.user.name,
@@ -47,6 +55,10 @@ export const requireSession = async (): Promise<AppSession> => {
   const session = await getCurrentSession();
 
   if (!session) {
+    redirect(route("/entrar"));
+  }
+
+  if (session.role === "student" && session.platformBlockedAt) {
     redirect(route("/entrar"));
   }
 

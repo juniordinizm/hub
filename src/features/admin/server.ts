@@ -199,6 +199,8 @@ export interface AdminStudentDetail {
     status: string;
   }>;
   name: string;
+  platformBlockedAt: Date | null;
+  platformBlockedReason: string | null;
   userId: string;
 }
 
@@ -410,10 +412,13 @@ export const getAdminManagementData =
         email: string;
         last_access_at: Date | null;
         name: string;
+        platform_blocked_at: Date | null;
+        platform_blocked_reason: string | null;
         user_id: string;
       }>(
         `
-          select u.id as user_id, u.name, u.email, p.last_access_at
+          select u.id as user_id, u.name, u.email, p.last_access_at,
+                 p.platform_blocked_at, p.platform_blocked_reason
           from profiles p
           join users u on u.id = p.user_id
           where p.role = 'student'
@@ -547,6 +552,8 @@ export const getAdminManagementData =
           email: row.email,
           lastAccessAt: row.last_access_at,
           name: row.name,
+          platformBlockedAt: row.platform_blocked_at,
+          platformBlockedReason: row.platform_blocked_reason,
           userId: row.user_id,
         }))
       ),
@@ -571,6 +578,8 @@ export const getAdminStudentDetail = async (
     id: string;
     name: string;
     original_expires_at: Date;
+    platform_blocked_at: Date | null;
+    platform_blocked_reason: string | null;
     revoked_reason: string | null;
     starts_at: Date;
     status: string;
@@ -580,9 +589,10 @@ export const getAdminStudentDetail = async (
       select e.id, e.user_id, u.name, u.email, c.title as course_title,
              e.status, e.starts_at, e.expires_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
-             e.revoked_reason
+             e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
       from enrollments e
       join users u on u.id = e.user_id
+      left join profiles p on p.user_id = u.id
       join courses c on c.id = e.course_id
       left join lateral (
         select eg.base_expires_at
@@ -616,6 +626,8 @@ export const getAdminStudentDetail = async (
       status: row.status,
     })),
     name: firstRow.name,
+    platformBlockedAt: firstRow.platform_blocked_at,
+    platformBlockedReason: firstRow.platform_blocked_reason,
     userId: firstRow.user_id,
   };
 };
