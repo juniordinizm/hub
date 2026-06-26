@@ -3,8 +3,6 @@
 import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
@@ -21,15 +19,14 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  extendEnrollmentExpirationAction,
-  setEnrollmentExpirationAction,
-} from "@/features/admin/actions";
+import { EnrollmentExpirationControls } from "@/features/admin/enrollment-expiration-controls";
 
 export interface StudentEnrollmentRow {
   courseTitle: string;
   expiresAt: string;
   id: string;
+  originalExpiresAt: string;
+  revokedReason: string | null;
   startedAt: string;
   status: string;
   userId: string;
@@ -109,71 +106,6 @@ export function StudentsTable({
   );
 }
 
-function EnrollmentExpirationControls({
-  enrollment,
-  userId,
-}: {
-  enrollment: StudentEnrollmentRow;
-  userId: string;
-}): React.JSX.Element {
-  return (
-    <div className="grid gap-3 rounded-lg border p-3">
-      <div>
-        <p className="font-semibold">{enrollment.courseTitle}</p>
-        <p className="text-muted-foreground text-xs">
-          Matricula: {formatDate(enrollment.startedAt)} | Expira:{" "}
-          {formatDate(enrollment.expiresAt)} | {enrollment.status}
-        </p>
-      </div>
-      <AutoCloseDialogForm
-        action={extendEnrollmentExpirationAction}
-        className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]"
-      >
-        <input name="enrollmentId" type="hidden" value={enrollment.id} />
-        <input name="userId" type="hidden" value={userId} />
-        <input
-          aria-label="Motivo da extensao"
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-          name="reason"
-          placeholder="Motivo obrigatorio"
-          required
-        />
-        <Button name="days" type="submit" value="1">
-          +1 dia
-        </Button>
-        <Button name="days" type="submit" value="7">
-          +7 dias
-        </Button>
-        <Button name="months" type="submit" value="1">
-          +1 mes
-        </Button>
-      </AutoCloseDialogForm>
-      <AutoCloseDialogForm
-        action={setEnrollmentExpirationAction}
-        className="grid gap-2 md:grid-cols-[1fr_180px_auto]"
-      >
-        <input name="enrollmentId" type="hidden" value={enrollment.id} />
-        <input name="userId" type="hidden" value={userId} />
-        <input
-          aria-label="Motivo da data exata"
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-          name="reason"
-          placeholder="Motivo obrigatorio"
-          required
-        />
-        <input
-          aria-label="Nova expiracao com horario local"
-          className="rounded-md border bg-background px-3 py-2 text-sm"
-          name="newExpiresAt"
-          required
-          type="datetime-local"
-        />
-        <Button type="submit">Definir data</Button>
-      </AutoCloseDialogForm>
-    </div>
-  );
-}
-
 function StudentEnrollmentsDialog({
   student,
 }: {
@@ -199,9 +131,11 @@ function StudentEnrollmentsDialog({
             {student.enrollments.length ? (
               student.enrollments.map((enrollment) => (
                 <EnrollmentExpirationControls
-                  enrollment={enrollment}
+                  enrollment={{
+                    ...enrollment,
+                    userId: student.userId,
+                  }}
                   key={enrollment.id}
-                  userId={student.userId}
                 />
               ))
             ) : (

@@ -6,12 +6,42 @@ import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDiscardDialog } from "./discard-aware-dialog";
 
+interface SubmitterValue {
+  disabled?: boolean;
+  name?: string;
+  value?: string;
+}
+
 const isRedirectError = (error: unknown): boolean =>
   typeof error === "object" &&
   error !== null &&
   "digest" in error &&
   typeof (error as { digest?: unknown }).digest === "string" &&
   ((error as { digest?: string }).digest?.startsWith("NEXT_REDIRECT") ?? false);
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error
+    ? error.message
+    : "Nao foi possivel salvar. Tente novamente.";
+
+const getSubmitter = (event: Event): SubmitterValue | null => {
+  if (!("submitter" in event)) {
+    return null;
+  }
+
+  return (event as SubmitEvent).submitter as SubmitterValue | null;
+};
+
+export const appendSubmitterValue = (
+  formData: FormData,
+  submitter: SubmitterValue | null
+): void => {
+  if (!(submitter?.name && !submitter.disabled)) {
+    return;
+  }
+
+  formData.append(submitter.name, submitter.value ?? "");
+};
 
 export function AutoCloseDialogForm({
   action,
@@ -34,6 +64,7 @@ export function AutoCloseDialogForm({
   ): Promise<void> => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    appendSubmitterValue(formData, getSubmitter(event.nativeEvent));
     setError(null);
     setIsPending(true);
 
@@ -49,8 +80,9 @@ export function AutoCloseDialogForm({
         toast.dismiss(toastId);
         throw err;
       }
-      toast.error("Não foi possível salvar.", { id: toastId });
-      setError("Não foi possível salvar. Tente novamente.");
+      const message = getErrorMessage(err);
+      toast.error(message, { id: toastId });
+      setError(message);
     } finally {
       setIsPending(false);
     }

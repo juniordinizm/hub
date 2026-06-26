@@ -57,6 +57,8 @@ export const enrollmentAdjustmentTypeEnum = pgEnum(
   ["extend_days", "extend_months", "set_exact_expiration", "reversal"]
 );
 export const enrollmentEventTypeEnum = pgEnum("enrollment_event_type", [
+  "access_manual_block_removed",
+  "access_manually_blocked",
   "payment_paid",
   "payment_refunded",
   "payment_disputed",

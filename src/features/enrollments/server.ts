@@ -21,6 +21,8 @@ interface EnrollmentEventInput {
   courseId: string;
   enrollmentId?: string | null;
   eventType:
+    | "access_manual_block_removed"
+    | "access_manually_blocked"
     | "expiration_adjustment_reversed"
     | "expiration_extended"
     | "expiration_set"
@@ -50,12 +52,51 @@ interface EnrollmentProjectionRow {
 }
 
 interface EnrollmentGrantRow {
+  base_expires_at: Date;
   course_id: string;
   effective_expires_at: Date;
   id: string;
   status: EnrollmentGrantStatus;
   user_id: string;
 }
+
+interface EnrollmentCourseAccessRow {
+  course_id: string;
+  user_id: string;
+}
+
+interface EnrollmentGrantAccessRow extends EnrollmentGrantRow {
+  revoked_reason: string | null;
+}
+
+const MANUAL_ACCESS_BLOCK_REASON = "manual_access_block";
+
+export type ExpirationChangeType = "extension" | "reduction" | "unchanged";
+
+export interface ExpirationChangeResult {
+  baseExpiresAt: Date;
+  changeType: ExpirationChangeType;
+  newExpiresAt: Date;
+  previousExpiresAt: Date;
+}
+
+const resolveExpirationChangeType = ({
+  newExpiresAt,
+  previousExpiresAt,
+}: {
+  newExpiresAt: Date;
+  previousExpiresAt: Date;
+}): ExpirationChangeType => {
+  if (newExpiresAt > previousExpiresAt) {
+    return "extension";
+  }
+
+  if (newExpiresAt < previousExpiresAt) {
+    return "reduction";
+  }
+
+  return "unchanged";
+};
 
 const insertEnrollmentEvent = async (
   client: PoolClient,
@@ -322,15 +363,29 @@ export const applyPaidWebhookAccess = async ({
       )
       values ($1, $2, 'abacatepay_order', $3, 'active', $4, $5, $5, null, null)
       on conflict (source_type, source_id) do update set
-        status = 'active',
-        starts_at = excluded.starts_at,
-        base_expires_at = excluded.base_expires_at,
-        effective_expires_at = greatest(
-          enrollment_grants.effective_expires_at,
-          excluded.effective_expires_at
-        ),
-        revoked_at = null,
-        revoked_reason = null,
+        status = case
+          when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
+            then enrollment_grants.status
+          else 'active'::enrollment_grant_status
+        end,
+        effective_expires_at = case
+          when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
+            then enrollment_grants.effective_expires_at
+          else greatest(
+            enrollment_grants.effective_expires_at,
+            excluded.effective_expires_at
+          )
+        end,
+        revoked_at = case
+          when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
+            then enrollment_grants.revoked_at
+          else null
+        end,
+        revoked_reason = case
+          when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
+            then enrollment_grants.revoked_reason
+          else null
+        end,
         updated_at = now()
       returning id
     `,
@@ -406,6 +461,7 @@ const getActivePaidGrantForEnrollment = async ({
         eg.user_id,
         eg.course_id,
         eg.status,
+        eg.base_expires_at,
         eg.effective_expires_at
       from enrollments e
       join enrollment_grants eg
@@ -426,6 +482,65 @@ const getActivePaidGrantForEnrollment = async ({
   }
 
   return grant;
+};
+
+const getEnrollmentCourseAccess = async ({
+  client,
+  enrollmentId,
+}: {
+  client: PoolClient;
+  enrollmentId: string;
+}): Promise<EnrollmentCourseAccessRow> => {
+  const { rows } = await client.query<EnrollmentCourseAccessRow>(
+    `
+      select user_id, course_id
+      from enrollments
+      where id = $1
+      limit 1
+    `,
+    [enrollmentId]
+  );
+  const enrollment = rows[0];
+
+  if (!enrollment) {
+    throw new Error("Matricula invalida.");
+  }
+
+  return enrollment;
+};
+
+const getPaidAccessGrantsForEnrollment = async ({
+  client,
+  enrollmentId,
+  statuses,
+}: {
+  client: PoolClient;
+  enrollmentId: string;
+  statuses: EnrollmentGrantStatus[];
+}): Promise<EnrollmentGrantAccessRow[]> => {
+  const { rows } = await client.query<EnrollmentGrantAccessRow>(
+    `
+      select
+        eg.id,
+        eg.user_id,
+        eg.course_id,
+        eg.status,
+        eg.base_expires_at,
+        eg.effective_expires_at,
+        eg.revoked_reason
+      from enrollments e
+      join enrollment_grants eg
+        on eg.user_id = e.user_id
+       and eg.course_id = e.course_id
+      where e.id = $1
+        and eg.source_type = 'abacatepay_order'
+        and eg.status = any($2::enrollment_grant_status[])
+      order by eg.effective_expires_at desc
+    `,
+    [enrollmentId, statuses]
+  );
+
+  return rows;
 };
 
 export const extendEnrollmentExpiration = async ({
@@ -538,9 +653,11 @@ export const setEnrollmentExpiration = async ({
   newExpiresAt: Date;
   now?: Date;
   reason: string;
-}): Promise<void> => {
+}): Promise<ExpirationChangeResult> => {
   const normalizedReason = validateEnrollmentAdjustmentReason(reason);
   const client = await getPool().connect();
+  let result: ExpirationChangeResult | null = null;
+
   try {
     await client.query("begin");
 
@@ -548,6 +665,15 @@ export const setEnrollmentExpiration = async ({
       client,
       enrollmentId,
     });
+    result = {
+      baseExpiresAt: grant.base_expires_at,
+      changeType: resolveExpirationChangeType({
+        newExpiresAt,
+        previousExpiresAt: grant.effective_expires_at,
+      }),
+      newExpiresAt,
+      previousExpiresAt: grant.effective_expires_at,
+    };
 
     await client.query(
       `
@@ -587,7 +713,13 @@ export const setEnrollmentExpiration = async ({
       courseId: grant.course_id,
       eventType: "expiration_set",
       grantId: grant.id,
-      metadata: { newExpiresAt: newExpiresAt.toISOString() },
+      metadata: {
+        changeType: result.changeType,
+        baseExpiresAt: grant.base_expires_at.toISOString(),
+        newExpiresAt: newExpiresAt.toISOString(),
+        previousExpiresAt: grant.effective_expires_at.toISOString(),
+        reason: normalizedReason,
+      },
       userId: grant.user_id,
     });
     await rebuildEnrollmentProjection({
@@ -604,6 +736,12 @@ export const setEnrollmentExpiration = async ({
   } finally {
     client.release();
   }
+
+  if (!result) {
+    throw new Error("Nao foi possivel ajustar a expiracao.");
+  }
+
+  return result;
 };
 
 export const reverseExpirationAdjustment = async ({
@@ -691,6 +829,153 @@ export const reverseExpirationAdjustment = async ({
       courseId: adjustment.course_id,
       now,
       userId: adjustment.user_id,
+    });
+
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const blockEnrollmentAccess = async ({
+  actorUserId,
+  enrollmentId,
+  now = new Date(),
+  reason,
+}: {
+  actorUserId: string;
+  enrollmentId: string;
+  now?: Date;
+  reason: string;
+}): Promise<void> => {
+  const normalizedReason = validateEnrollmentAdjustmentReason(reason);
+  const client = await getPool().connect();
+
+  try {
+    await client.query("begin");
+
+    const enrollment = await getEnrollmentCourseAccess({
+      client,
+      enrollmentId,
+    });
+    const grants = await getPaidAccessGrantsForEnrollment({
+      client,
+      enrollmentId,
+      statuses: ["active", "expired"],
+    });
+
+    if (grants.length === 0) {
+      throw new Error("Nao ha acesso pago ajustavel para bloquear.");
+    }
+
+    await client.query(
+      `
+        update enrollment_grants
+        set status = 'cancelled',
+            revoked_at = $2,
+            revoked_reason = $3,
+            updated_at = now()
+        where id = any($1::uuid[])
+      `,
+      [grants.map((grant) => grant.id), now, MANUAL_ACCESS_BLOCK_REASON]
+    );
+
+    for (const grant of grants) {
+      await insertEnrollmentEvent(client, {
+        actorUserId,
+        courseId: grant.course_id,
+        enrollmentId,
+        eventType: "access_manually_blocked",
+        grantId: grant.id,
+        metadata: { reason: normalizedReason },
+        userId: grant.user_id,
+      });
+    }
+
+    await rebuildEnrollmentProjection({
+      client,
+      courseId: enrollment.course_id,
+      now,
+      userId: enrollment.user_id,
+    });
+
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const restoreEnrollmentAccess = async ({
+  actorUserId,
+  enrollmentId,
+  now = new Date(),
+  reason,
+}: {
+  actorUserId: string;
+  enrollmentId: string;
+  now?: Date;
+  reason: string;
+}): Promise<void> => {
+  const normalizedReason = validateEnrollmentAdjustmentReason(reason);
+  const client = await getPool().connect();
+
+  try {
+    await client.query("begin");
+
+    const enrollment = await getEnrollmentCourseAccess({
+      client,
+      enrollmentId,
+    });
+    const grants = (
+      await getPaidAccessGrantsForEnrollment({
+        client,
+        enrollmentId,
+        statuses: ["cancelled"],
+      })
+    ).filter((grant) => grant.revoked_reason === MANUAL_ACCESS_BLOCK_REASON);
+
+    if (grants.length === 0) {
+      throw new Error("Nao ha bloqueio manual para restaurar.");
+    }
+
+    await client.query(
+      `
+        update enrollment_grants
+        set status = case
+              when effective_expires_at < $2 then 'expired'::enrollment_grant_status
+              else 'active'::enrollment_grant_status
+            end,
+            revoked_at = null,
+            revoked_reason = null,
+            updated_at = now()
+        where id = any($1::uuid[])
+      `,
+      [grants.map((grant) => grant.id), now]
+    );
+
+    for (const grant of grants) {
+      await insertEnrollmentEvent(client, {
+        actorUserId,
+        courseId: grant.course_id,
+        enrollmentId,
+        eventType: "access_manual_block_removed",
+        grantId: grant.id,
+        metadata: { reason: normalizedReason },
+        userId: grant.user_id,
+      });
+    }
+
+    await rebuildEnrollmentProjection({
+      client,
+      courseId: enrollment.course_id,
+      now,
+      userId: enrollment.user_id,
     });
 
     await client.query("commit");

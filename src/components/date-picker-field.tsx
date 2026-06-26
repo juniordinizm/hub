@@ -2,7 +2,7 @@
 
 import { Calendar03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { format, parse } from "date-fns";
+import { format, parse, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,13 +23,23 @@ const parseDateValue = (value: string): Date | undefined => {
 
 export function DatePickerField({
   defaultValue,
+  minDate,
   name,
+  placeholder = "Selecionar data",
 }: {
   defaultValue: string;
+  minDate?: Date;
   name: string;
+  placeholder?: string;
 }): React.JSX.Element {
   const [value, setValue] = useState(defaultValue);
   const selected = useMemo(() => parseDateValue(value), [value]);
+  const minimumDate = useMemo(
+    () => (minDate ? startOfDay(minDate) : null),
+    [minDate]
+  );
+  const isDateDisabled = (date: Date): boolean =>
+    Boolean(minimumDate && startOfDay(date) < minimumDate);
 
   return (
     <Popover>
@@ -44,12 +54,13 @@ export function DatePickerField({
           variant="outline"
         >
           <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} />
-          {selected ? format(selected, "dd/MM/yyyy") : "Selecionar data"}
+          {selected ? format(selected, "dd/MM/yyyy") : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-auto p-0">
         <Calendar
           autoFocus
+          disabled={isDateDisabled}
           locale={ptBR}
           mode="single"
           onSelect={(date) => {

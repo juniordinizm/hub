@@ -116,6 +116,8 @@ export interface AdminManagementData {
     id: string;
     lastAccessAt: Date | null;
     name: string;
+    originalExpiresAt: Date;
+    revokedReason: string | null;
     startsAt: Date;
     status: string;
     userId: string;
@@ -191,6 +193,8 @@ export interface AdminStudentDetail {
     courseTitle: string;
     expiresAt: Date;
     id: string;
+    originalExpiresAt: Date;
+    revokedReason: string | null;
     startedAt: Date;
     status: string;
   }>;
@@ -288,17 +292,29 @@ export const getAdminManagementData =
         id: string;
         last_access_at: Date | null;
         name: string;
+        original_expires_at: Date;
+        revoked_reason: string | null;
         starts_at: Date;
         status: string;
         user_id: string;
       }>(
         `
           select e.id, e.user_id, u.name, u.email, c.title as course_title,
-                 c.id as course_id, e.status, e.starts_at, e.expires_at, p.last_access_at
+                 c.id as course_id, e.status, e.starts_at, e.expires_at,
+                 coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
+                 e.revoked_reason, p.last_access_at
           from enrollments e
           join users u on u.id = e.user_id
           left join profiles p on p.user_id = u.id
           join courses c on c.id = e.course_id
+          left join lateral (
+            select eg.base_expires_at
+            from enrollment_grants eg
+            where eg.user_id = e.user_id
+              and eg.course_id = e.course_id
+            order by eg.effective_expires_at desc, eg.updated_at desc
+            limit 1
+          ) latest_grant on true
           order by e.updated_at desc
         `
       ),
@@ -356,18 +372,36 @@ export const getAdminManagementData =
         target_type: string;
       }>(
         `
-          select a.action, a.target_type, a.target_id, a.created_at, u.email as actor_email,
-                 coalesce(
-                   (select title from courses where id::text = a.target_id),
-                   (select title from modules where id::text = a.target_id),
-                   (select title from lessons where id::text = a.target_id),
-                   (select name from users where id::text = a.target_id),
-                   (select question from faq_items where id::text = a.target_id),
-                   (select u2.email from enrollments e2 join users u2 on u2.id = e2.user_id where e2.id::text = a.target_id limit 1)
-                 ) as target_name
-          from audit_logs a
-          left join users u on u.id = a.actor_user_id
-          order by a.created_at desc
+          select *
+          from (
+            select a.action, a.target_type, a.target_id, a.created_at, u.email as actor_email,
+                   coalesce(
+                     (select title from courses where id::text = a.target_id),
+                     (select title from modules where id::text = a.target_id),
+                     (select title from lessons where id::text = a.target_id),
+                     (select name from users where id::text = a.target_id),
+                     (select question from faq_items where id::text = a.target_id),
+                     (select u2.email from enrollments e2 join users u2 on u2.id = e2.user_id where e2.id::text = a.target_id limit 1)
+                   ) as target_name
+            from audit_logs a
+            left join users u on u.id = a.actor_user_id
+
+            union all
+
+            select
+              concat('enrollment.', ee.event_type) as action,
+              'enrollment' as target_type,
+              ee.enrollment_id::text as target_id,
+              ee.created_at,
+              actor.email as actor_email,
+              nullif(concat_ws(' - ', student.email, c.title), '') as target_name
+            from enrollment_events ee
+            left join users actor on actor.id = ee.actor_user_id
+            left join users student on student.id = ee.user_id
+            left join courses c on c.id = ee.course_id
+            where ee.event_type in ('payment_paid', 'payment_refunded', 'payment_disputed')
+          ) audit_feed
+          order by created_at desc
           limit 30
         `
       ),
@@ -416,6 +450,8 @@ export const getAdminManagementData =
       id: row.id,
       lastAccessAt: row.last_access_at,
       name: row.name,
+      originalExpiresAt: row.original_expires_at,
+      revokedReason: row.revoked_reason,
       startsAt: row.starts_at,
       status: row.status,
       userId: row.user_id,
@@ -534,16 +570,28 @@ export const getAdminStudentDetail = async (
     expires_at: Date;
     id: string;
     name: string;
+    original_expires_at: Date;
+    revoked_reason: string | null;
     starts_at: Date;
     status: string;
     user_id: string;
   }>(
     `
       select e.id, e.user_id, u.name, u.email, c.title as course_title,
-             e.status, e.starts_at, e.expires_at
+             e.status, e.starts_at, e.expires_at,
+             coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
+             e.revoked_reason
       from enrollments e
       join users u on u.id = e.user_id
       join courses c on c.id = e.course_id
+      left join lateral (
+        select eg.base_expires_at
+        from enrollment_grants eg
+        where eg.user_id = e.user_id
+          and eg.course_id = e.course_id
+        order by eg.effective_expires_at desc, eg.updated_at desc
+        limit 1
+      ) latest_grant on true
       where e.user_id = $1
       order by c.title
     `,
@@ -562,6 +610,8 @@ export const getAdminStudentDetail = async (
       courseTitle: row.course_title,
       expiresAt: row.expires_at,
       id: row.id,
+      originalExpiresAt: row.original_expires_at,
+      revokedReason: row.revoked_reason,
       startedAt: row.starts_at,
       status: row.status,
     })),

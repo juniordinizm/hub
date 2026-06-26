@@ -35,6 +35,8 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
       courseTitle: enrollment.courseTitle,
       expiresAt: dateInputValue(enrollment.expiresAt),
       id: enrollment.id,
+      originalExpiresAt: dateInputValue(enrollment.originalExpiresAt),
+      revokedReason: enrollment.revokedReason,
       startedAt: dateInputValue(enrollment.startsAt),
       status: enrollment.status,
       userId: enrollment.userId,

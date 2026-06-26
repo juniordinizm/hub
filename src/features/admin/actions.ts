@@ -16,6 +16,7 @@ import {
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
+import type { ExpirationChangeResult } from "@/features/enrollments/server";
 import {
   completeJmvstreamUpload,
   deleteJmvstreamAssetsForLesson,
@@ -76,6 +77,55 @@ const readOptionalNumber = (formData: FormData, key: string): number | null => {
 
 const readCheckbox = (formData: FormData, key: string): boolean =>
   formData.get(key) === "on";
+
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const getStartOfToday = (): Date => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+};
+
+const assertExpirationDateIsNotInPast = (date: Date): void => {
+  const selectedDayStart = new Date(date);
+  selectedDayStart.setHours(0, 0, 0, 0);
+
+  if (selectedDayStart < getStartOfToday()) {
+    throw new Error("A data de expiracao nao pode ser anterior a hoje.");
+  }
+};
+
+const parseExpirationDateSelection = (value: string): Date => {
+  const match = DATE_ONLY_PATTERN.exec(value);
+
+  if (!match) {
+    const parsed = new Date(value);
+
+    if (Number.isFinite(parsed.getTime())) {
+      assertExpirationDateIsNotInPast(parsed);
+      return parsed;
+    }
+
+    throw new Error("Informe a nova data de expiracao.");
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const selectedDayStart = new Date(year, month - 1, day);
+
+  if (
+    selectedDayStart.getFullYear() !== year ||
+    selectedDayStart.getMonth() !== month - 1 ||
+    selectedDayStart.getDate() !== day
+  ) {
+    throw new Error("Informe a nova data de expiracao.");
+  }
+
+  assertExpirationDateIsNotInPast(selectedDayStart);
+
+  return new Date(year, month - 1, day, 23, 59, 59, 999);
+};
 
 const parseJsonFormField = (formData: FormData, key: string): unknown => {
   const value = readString(formData, key);
@@ -328,6 +378,40 @@ const audit = async ({
     `,
     [actorUserId, action, targetType, targetId ?? null]
   );
+};
+
+const auditEnrollmentExpirationChange = async ({
+  actorUserId,
+  enrollmentId,
+  result,
+}: {
+  actorUserId: string;
+  enrollmentId: string;
+  result: ExpirationChangeResult;
+}): Promise<void> => {
+  const actionByChangeType: Record<
+    ExpirationChangeResult["changeType"],
+    string
+  > = {
+    extension: "enrollment.expiration_extended",
+    reduction: "enrollment.expiration_reduced",
+    unchanged: "enrollment.expiration_set",
+  };
+
+  await audit({
+    action: actionByChangeType[result.changeType],
+    actorUserId,
+    targetId: enrollmentId,
+    targetType: "enrollment",
+  });
+};
+
+const revalidateEnrollmentAdminPaths = (userId: string): void => {
+  revalidateAdmin();
+
+  if (userId) {
+    revalidatePath(`/admin/alunos/${userId}`);
+  }
 };
 
 const resolveUniqueCourseSlug = async (title: string): Promise<string> => {
@@ -936,32 +1020,123 @@ export const setEnrollmentExpirationAction = async (
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
   const newExpiresAtValue = readString(formData, "newExpiresAt");
-  const newExpiresAt = new Date(newExpiresAtValue);
+  const newExpiresAt = parseExpirationDateSelection(newExpiresAtValue);
   const { setEnrollmentExpiration } = await import(
     "@/features/enrollments/server"
   );
 
-  if (!(newExpiresAtValue && Number.isFinite(newExpiresAt.getTime()))) {
-    throw new Error("Data de expiracao invalida.");
-  }
-
-  await setEnrollmentExpiration({
+  const result = await setEnrollmentExpiration({
     actorUserId: session.user.id,
     enrollmentId,
     newExpiresAt,
     reason,
   });
-  await audit({
-    action: "enrollment.expiration_set",
+  await auditEnrollmentExpirationChange({
     actorUserId: session.user.id,
-    targetId: enrollmentId,
-    targetType: "enrollment",
+    enrollmentId,
+    result,
   });
   revalidateAdmin();
 
   if (userId) {
     revalidatePath(`/admin/alunos/${userId}`);
   }
+};
+
+export const adjustEnrollmentExpirationAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const adjustment = readString(formData, "adjustment");
+  const enrollmentId = readString(formData, "enrollmentId");
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+
+  if (!enrollmentId) {
+    throw new Error("Matricula invalida.");
+  }
+
+  if (adjustment === "set_exact") {
+    const newExpiresAtValue = readString(formData, "newExpiresAt");
+    const newExpiresAt = parseExpirationDateSelection(newExpiresAtValue);
+
+    const { setEnrollmentExpiration } = await import(
+      "@/features/enrollments/server"
+    );
+    const result = await setEnrollmentExpiration({
+      actorUserId: session.user.id,
+      enrollmentId,
+      newExpiresAt,
+      reason,
+    });
+    await auditEnrollmentExpirationChange({
+      actorUserId: session.user.id,
+      enrollmentId,
+      result,
+    });
+    revalidateEnrollmentAdminPaths(userId);
+    return;
+  }
+
+  throw new Error("Escolha uma nova data de expiracao.");
+};
+
+export const blockEnrollmentAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const enrollmentId = readString(formData, "enrollmentId");
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+
+  if (!enrollmentId) {
+    throw new Error("Matricula invalida.");
+  }
+
+  const { blockEnrollmentAccess } = await import(
+    "@/features/enrollments/server"
+  );
+  await blockEnrollmentAccess({
+    actorUserId: session.user.id,
+    enrollmentId,
+    reason,
+  });
+  await audit({
+    action: "enrollment.access_blocked",
+    actorUserId: session.user.id,
+    targetId: enrollmentId,
+    targetType: "enrollment",
+  });
+  revalidateEnrollmentAdminPaths(userId);
+};
+
+export const restoreEnrollmentAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const enrollmentId = readString(formData, "enrollmentId");
+  const userId = readString(formData, "userId");
+  const reason = readString(formData, "reason");
+
+  if (!enrollmentId) {
+    throw new Error("Matricula invalida.");
+  }
+
+  const { restoreEnrollmentAccess } = await import(
+    "@/features/enrollments/server"
+  );
+  await restoreEnrollmentAccess({
+    actorUserId: session.user.id,
+    enrollmentId,
+    reason,
+  });
+  await audit({
+    action: "enrollment.access_restored",
+    actorUserId: session.user.id,
+    targetId: enrollmentId,
+    targetType: "enrollment",
+  });
+  revalidateEnrollmentAdminPaths(userId);
 };
 
 export const saveFaqAction = async (formData: FormData): Promise<void> => {

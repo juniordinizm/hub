@@ -50,6 +50,23 @@ function formatAuditMessage(log: {
     case "enrollment.deleted":
       return `Cancelou a matrícula de ${target}`;
 
+    case "enrollment.expiration_extended":
+      return `Estendeu o prazo da matricula de ${target}`;
+    case "enrollment.expiration_reduced":
+      return `Reduziu o prazo da matricula de ${target}`;
+    case "enrollment.expiration_set":
+      return `Alterou o prazo da matricula de ${target}`;
+    case "enrollment.payment_paid":
+      return `Pagamento aprovado liberou acesso para ${target}`;
+    case "enrollment.payment_refunded":
+      return `Reembolso revogou acesso para ${target}`;
+    case "enrollment.payment_disputed":
+      return `Disputa revogou acesso para ${target}`;
+    case "enrollment.access_blocked":
+      return `Bloqueou o acesso de ${target}`;
+    case "enrollment.access_restored":
+      return `Restaurou o acesso de ${target}`;
+
     case "student.created":
       return `Cadastrou o aluno ${target}`;
     case "student.updated":
