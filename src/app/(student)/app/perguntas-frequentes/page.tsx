@@ -63,7 +63,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
             <Accordion
               className="w-full"
               collapsible
-              defaultValue={faqs[0]?.id}
+              defaultValue={faqs[0]?.id ?? ""}
               type="single"
             >
               {faqs.map((faq) => (

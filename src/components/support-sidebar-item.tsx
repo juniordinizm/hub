@@ -57,8 +57,8 @@ export function SupportSidebarItem(): React.JSX.Element {
                 <Field>
                   <FieldLabel>Assunto</FieldLabel>
                   <Input
-                    defaultValue="Preciso de ajuda com meu acesso"
                     name="subject"
+                    placeholder="Preciso de ajuda com meu acesso"
                     required
                   />
                 </Field>

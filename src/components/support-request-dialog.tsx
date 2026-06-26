@@ -97,7 +97,7 @@ export function SupportRequestDialog({
               ) : null}
               <Field>
                 <FieldLabel>Assunto</FieldLabel>
-                <Input defaultValue={subject} name="subject" required />
+                <Input name="subject" placeholder={subject} required />
               </Field>
               <Field>
                 <FieldLabel>Mensagem</FieldLabel>
