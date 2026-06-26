@@ -165,14 +165,20 @@ export function LessonVideoPlayer({
             return;
           }
 
-          completedByVideoRef.current = true;
+          const isVideoEnded = playerEvent.eventName === "jmvplayerout-end";
 
-          if (result.nextLessonId) {
-            router.replace(route(`/app/aulas/${result.nextLessonId}`));
-            return;
+          if (isVideoEnded) {
+            completedByVideoRef.current = true;
+
+            if (result.nextLessonId) {
+              router.replace(route(`/app/aulas/${result.nextLessonId}`));
+              return;
+            }
+
+            router.replace(route(`/app/cursos/${result.courseId}`));
+          } else if (!completedByVideoRef.current) {
+            router.refresh();
           }
-
-          router.replace(route(`/app/cursos/${result.courseId}`));
         } catch {
           lastWatchProgressSyncRef.current = {
             percent: watchedPercent,
