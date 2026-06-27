@@ -221,10 +221,7 @@ export function ModuleForm({
           <FieldGroup>
             <input name="moduleId" type="hidden" value={moduleData?.id ?? ""} />
             <input name="courseId" type="hidden" value={course.id} />
-            <Field>
-              <FieldLabel>Curso</FieldLabel>
-              <Input disabled value={course.title} />
-            </Field>
+
             <input
               defaultValue={moduleData?.sortOrder ?? nextSortOrder ?? 1}
               name="sortOrder"
