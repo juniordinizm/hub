@@ -6,12 +6,10 @@ describe("getAllowedDevOrigins", () => {
     expect(
       getAllowedDevOrigins({
         BETTER_AUTH_TRUSTED_ORIGINS:
-          "http://localhost:3000,https://horacio-unlaundered-mercurially.ngrok-free.dev",
-        BETTER_AUTH_URL:
-          "https://horacio-unlaundered-mercurially.ngrok-free.dev",
+          "http://localhost:3000,https://register-available-shaft.ngrok-free.dev/",
+        BETTER_AUTH_URL: "https://register-available-shaft.ngrok-free.dev/",
         NEXT_ALLOWED_DEV_ORIGINS: "",
-        NEXT_PUBLIC_APP_URL:
-          "https://horacio-unlaundered-mercurially.ngrok-free.dev",
+        NEXT_PUBLIC_APP_URL: "https://register-available-shaft.ngrok-free.dev/",
       })
     ).toEqual(["horacio-unlaundered-mercurially.ngrok-free.dev"]);
   });
