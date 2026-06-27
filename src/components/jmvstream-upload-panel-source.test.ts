@@ -35,4 +35,28 @@ describe("JmvstreamUploadPanel upload lifecycle", () => {
       "Video removido da aula. Exclusao na JMVStream pendente."
     );
   });
+
+  it("notifies the lesson editor when the official player url is ready", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("onPlayerReady?: (playerUrl: string) => void");
+    expect(source).toContain("onPlayerReady?.(playerSync.playerUrl)");
+    expect(source).toContain("playerUrl: playerSync.playerUrl");
+  });
+
+  it("shows retry delete failures without relying on a thrown server action error", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain(
+      "const retryResult = await retryJmvstreamDeleteAction"
+    );
+    expect(source).toContain("if (!retryResult.ok)");
+    expect(source).toContain("throw new Error(retryResult.error)");
+  });
 });

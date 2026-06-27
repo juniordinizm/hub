@@ -11,7 +11,7 @@ describe("getAllowedDevOrigins", () => {
         NEXT_ALLOWED_DEV_ORIGINS: "",
         NEXT_PUBLIC_APP_URL: "https://register-available-shaft.ngrok-free.dev/",
       })
-    ).toEqual(["horacio-unlaundered-mercurially.ngrok-free.dev"]);
+    ).toEqual(["https://register-available-shaft.ngrok-free.dev/app"]);
   });
 
   it("keeps explicit allowed dev origins and removes duplicates", () => {

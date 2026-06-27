@@ -66,6 +66,19 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("return false");
   });
 
+  it("treats missing remote videos as deleted after a failed delete response", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("const videos = await client.listVideos()");
+    expect(source).toContain(
+      "!findJmvstreamVideoByHash(videos, asset.video_hash)"
+    );
+    expect(source).toContain("await markJmvstreamAssetDeleted(assetId)");
+  });
+
   it("uses course folders as the upload gallery", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),

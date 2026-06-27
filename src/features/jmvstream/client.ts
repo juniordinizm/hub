@@ -81,6 +81,7 @@ const IMAGE_URL_PATTERN =
 const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
 const JMVSTREAM_THUMBNAIL_HOSTNAME = "cdn.vod.br1.jmvstream.com";
 const JWT_REFRESH_WINDOW_SECONDS = 60;
+const OD_PLAN_ID_PATTERN = /^OD-(\d+)$/i;
 
 const readString = (value: unknown): string | null =>
   typeof value === "string" && value.trim().length > 0 ? value : null;
@@ -184,6 +185,13 @@ export const normalizeJmvstreamApiBaseUrl = (apiBaseUrl: string): string => {
   url.search = "";
   url.hash = "";
   return url.toString().replace(TRAILING_SLASH_PATTERN, "");
+};
+
+const normalizeJmvstreamPlanIdForPath = (planId: string): string => {
+  const trimmedPlanId = planId.trim();
+  const odPlanId = trimmedPlanId.match(OD_PLAN_ID_PATTERN);
+
+  return odPlanId?.[1] ?? trimmedPlanId;
 };
 
 export const normalizeJmvstreamUploadParts = (
@@ -359,8 +367,10 @@ export const createJmvstreamClient = ({
     },
 
     deleteVideo: async (videoHash: string): Promise<void> => {
+      const deletePlanId = normalizeJmvstreamPlanIdForPath(planId);
+
       await request<unknown>(
-        `/v1/videos/deleteVideo/${encodeURIComponent(videoHash)}/${encodeURIComponent(planId)}`,
+        `/v1/videos/deleteVideo/${encodeURIComponent(videoHash)}/${encodeURIComponent(deletePlanId)}`,
         { method: "DELETE" }
       );
     },

@@ -1014,10 +1014,22 @@ export const retryJmvstreamDeleteAction = async ({
   assetId,
 }: {
   assetId: string;
-}): Promise<void> => {
+}): Promise<{ error: string; ok: false } | { ok: true }> => {
   await requireRole(["admin"]);
-  await retryJmvstreamAssetDelete(assetId);
-  revalidateAdmin();
+  try {
+    await retryJmvstreamAssetDelete(assetId);
+    revalidateAdmin();
+    return { ok: true };
+  } catch (error) {
+    revalidateAdmin();
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel apagar o video na JMVStream.",
+    };
+  }
 };
 
 export const extendEnrollmentExpirationAction = async (

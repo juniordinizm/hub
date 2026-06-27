@@ -46,12 +46,14 @@ export function JmvstreamUploadPanel({
   isRemovePending = false,
   lessonId,
   onRemoveVideo,
+  onPlayerReady,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
   currentVideoHash: null | string;
   isRemovePending?: boolean;
   lessonId?: string | undefined;
   onRemoveVideo?: () => void;
+  onPlayerReady?: (playerUrl: string) => void;
 }): React.JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,7 +115,11 @@ export function JmvstreamUploadPanel({
         uploadCompleted = true;
         setProgress(100);
         setStatus("Video enviado. Sincronizando player oficial...");
-        setStatus(await syncJmvstreamPlayerStatus(lessonId));
+        const playerSync = await syncJmvstreamPlayerStatus(lessonId);
+        setStatus(playerSync.status);
+        if (playerSync.playerUrl) {
+          onPlayerReady?.(playerSync.playerUrl);
+        }
         router.refresh();
       } catch (uploadError) {
         const errorMessage = getUploadErrorMessage(uploadError);
@@ -139,7 +145,12 @@ export function JmvstreamUploadPanel({
     startTransition(async () => {
       try {
         setError(null);
-        await retryJmvstreamDeleteAction({ assetId: asset.id });
+        const retryResult = await retryJmvstreamDeleteAction({
+          assetId: asset.id,
+        });
+        if (!retryResult.ok) {
+          throw new Error(retryResult.error);
+        }
         router.refresh();
       } catch (retryError) {
         setError(
@@ -296,12 +307,17 @@ export function JmvstreamUploadPanel({
   );
 }
 
-const waitForJmvstreamPlayer = async (lessonId: string): Promise<boolean> => {
+const waitForJmvstreamPlayer = async (
+  lessonId: string
+): Promise<{ playerUrl: null | string; ready: boolean }> => {
   for (let attempt = 0; attempt < PLAYER_SYNC_ATTEMPTS; attempt += 1) {
     const result = await syncJmvstreamLessonPlayerAction({ lessonId });
 
     if (result.ready) {
-      return true;
+      return {
+        playerUrl: result.playerUrl,
+        ready: true,
+      };
     }
 
     await new Promise((resolve) =>
@@ -309,21 +325,35 @@ const waitForJmvstreamPlayer = async (lessonId: string): Promise<boolean> => {
     );
   }
 
-  return false;
+  return {
+    playerUrl: null,
+    ready: false,
+  };
 };
 
-const syncJmvstreamPlayerStatus = async (lessonId: string): Promise<string> => {
+const syncJmvstreamPlayerStatus = async (
+  lessonId: string
+): Promise<{ playerUrl: null | string; status: string }> => {
   try {
-    const playerReady = await waitForJmvstreamPlayer(lessonId);
+    const playerSync = await waitForJmvstreamPlayer(lessonId);
 
-    if (playerReady) {
-      return "Video pronto para as alunas.";
+    if (playerSync.ready) {
+      return {
+        playerUrl: playerSync.playerUrl,
+        status: "Video pronto para as alunas.",
+      };
     }
   } catch {
-    return "Video enviado. Aguardando processamento na JMVStream.";
+    return {
+      playerUrl: null,
+      status: "Video enviado. Aguardando processamento na JMVStream.",
+    };
   }
 
-  return "Video enviado. Aguardando processamento na JMVStream.";
+  return {
+    playerUrl: null,
+    status: "Video enviado. Aguardando processamento na JMVStream.",
+  };
 };
 
 const getUploadErrorMessage = (uploadError: unknown): string => {

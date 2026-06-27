@@ -1072,26 +1072,28 @@ const deleteAssetById = async (assetId: string): Promise<boolean> => {
     [assetId]
   );
 
+  const client = await getConfiguredClient();
+
   try {
-    const client = await getConfiguredClient();
     await client.deleteVideo(asset.video_hash);
-    await getPool().query(
-      `
-        update jmvstream_video_assets
-        set delete_status = 'deleted',
-            lesson_id = null,
-            last_error = null,
-            updated_at = now()
-        where id = $1
-      `,
-      [assetId]
-    );
+    await markJmvstreamAssetDeleted(assetId);
     return true;
   } catch (error) {
     const deleteError =
       error instanceof Error
         ? error
         : new Error("Nao foi possivel apagar o video na JMVStream.");
+
+    try {
+      const videos = await client.listVideos();
+
+      if (!findJmvstreamVideoByHash(videos, asset.video_hash)) {
+        await markJmvstreamAssetDeleted(assetId);
+        return true;
+      }
+    } catch {
+      // Keep the original delete error as the actionable retry reason.
+    }
 
     await getPool().query(
       `
@@ -1105,6 +1107,20 @@ const deleteAssetById = async (assetId: string): Promise<boolean> => {
     );
     return false;
   }
+};
+
+const markJmvstreamAssetDeleted = async (assetId: string): Promise<void> => {
+  await getPool().query(
+    `
+      update jmvstream_video_assets
+      set delete_status = 'deleted',
+          lesson_id = null,
+          last_error = null,
+          updated_at = now()
+      where id = $1
+    `,
+    [assetId]
+  );
 };
 
 const markStaleJmvstreamUploadsFailed = async (): Promise<void> => {

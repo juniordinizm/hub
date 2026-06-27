@@ -118,6 +118,13 @@ export function LessonVideoControls({
     removeVideoLocally();
   };
 
+  const applyUploadedPlayerUrl = (playerUrl: string): void => {
+    setAppliedEmbedUrl(playerUrl);
+    setLinkDraft(playerUrl);
+    setIsRemovePending(false);
+    setLinkError(null);
+  };
+
   return (
     <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-background p-6 shadow-sm">
       <input
@@ -158,6 +165,7 @@ export function LessonVideoControls({
             currentVideoHash={defaultVideoExternalId}
             isRemovePending={isRemovePending}
             lessonId={lessonId}
+            onPlayerReady={applyUploadedPlayerUrl}
             {...(defaultVideoExternalId
               ? { onRemoveVideo: removeVideoLocally }
               : {})}

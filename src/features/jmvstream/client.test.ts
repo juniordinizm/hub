@@ -440,6 +440,25 @@ describe("JMVStream API client", () => {
     );
   });
 
+  it("uses the numeric JMVStream plan id when deleting OD videos", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(createJsonResponse({}));
+    const client = createJmvstreamClient({
+      apiBaseUrl: "https://api.jmvstream.com/v1",
+      apiToken: "token-123",
+      fetcher,
+      planId: "OD-20790",
+    });
+
+    await client.deleteVideo("video-hash");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/videos/deleteVideo/video-hash/20790",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
   it("deletes folders by UUID", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
