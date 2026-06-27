@@ -232,6 +232,17 @@ export function JmvstreamUploadPanel({
             type="file"
           />
           <div className="flex flex-col justify-end gap-2 sm:flex-row">
+            {asset?.deleteStatus === "failed" ? (
+              <Button
+                className="w-full sm:w-auto"
+                disabled={isPending}
+                onClick={retryDelete}
+                type="button"
+                variant="outline"
+              >
+                Tentar apagar novamente
+              </Button>
+            ) : null}
             {currentVideoHash && onRemoveVideo ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -286,19 +297,6 @@ export function JmvstreamUploadPanel({
               status={asset?.uploadStatus ?? null}
             />
           </div>
-        ) : null}
-
-        {asset?.deleteStatus === "failed" ? (
-          <Button
-            className="w-fit"
-            disabled={isPending}
-            onClick={retryDelete}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Tentar apagar novamente
-          </Button>
         ) : null}
 
         {error ? <p className="text-destructive text-xs">{error}</p> : null}
