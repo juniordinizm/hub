@@ -56,6 +56,16 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("await client.deleteVideo(asset.video_hash)");
   });
 
+  it("records remote delete failures for retry without blocking local unlink", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("const deleteError =");
+    expect(source).toContain("return false");
+  });
+
   it("uses course folders as the upload gallery", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),

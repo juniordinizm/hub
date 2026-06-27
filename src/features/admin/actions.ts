@@ -957,6 +957,50 @@ export const syncJmvstreamLessonPlayerAction = async (input: {
   return result;
 };
 
+export const removeJmvstreamVideoFromLessonAction = async (input: {
+  lessonId: string;
+}): Promise<{ deletePending: boolean }> => {
+  const session = await requireRole(["admin"]);
+  const lessonId = input.lessonId.trim();
+
+  if (!lessonId) {
+    throw new Error("Aula invalida.");
+  }
+
+  const courseId = await getCourseIdForLesson(lessonId);
+
+  if (!courseId) {
+    throw new Error("Aula invalida.");
+  }
+
+  const deleteResult = await deleteJmvstreamAssetsForLesson(lessonId);
+  await getPool().query(
+    `
+      update lessons
+      set video_provider = null,
+          video_external_id = null,
+          video_embed_url = null,
+          thumbnail_url = null,
+          video_duration_seconds = 0,
+          duration_seconds = text_duration_seconds,
+          updated_at = now()
+      where id = $1
+    `,
+    [lessonId]
+  );
+  await audit({
+    action: "lesson.video_removed",
+    actorUserId: session.user.id,
+    targetId: lessonId,
+    targetType: "lesson",
+  });
+  await recalculateCourseWorkloadHours(courseId);
+  revalidateAdmin();
+  revalidatePath(buildAdminLessonEditPath({ courseId, lessonId }));
+
+  return { deletePending: deleteResult.failed > 0 };
+};
+
 export const markJmvstreamUploadFailedAction = async (input: {
   lastError: string;
   videoHash: string;

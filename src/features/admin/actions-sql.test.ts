@@ -46,7 +46,7 @@ describe("admin course actions", () => {
 
     expect(source).toContain("status = $7");
     expect(source).toContain("values.status");
-    expect(source).toContain("status = $6");
+    expect(source).toContain("status = $5");
     expect(source).toContain("status = $14");
     expect(source).not.toContain("archiveModuleAction");
     expect(source).not.toContain("archiveLessonAction");
@@ -63,6 +63,34 @@ describe("admin course actions", () => {
 
     expect(source).toContain("select video_embed_url, video_external_id");
     expect(source).toContain("resolveLessonVideoFormState");
+  });
+
+  it("exposes an immediate action to remove a lesson JMVStream video", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("removeJmvstreamVideoFromLessonAction");
+    expect(source).toContain(
+      "const deleteResult = await deleteJmvstreamAssetsForLesson(lessonId)"
+    );
+    expect(source).toContain("video_external_id = null");
+    expect(source).toContain("video_embed_url = null");
+    expect(source).toContain("deletePending: deleteResult.failed > 0");
+  });
+
+  it("keeps failed JMVStream delete assets visible after unlinking a lesson video", async () => {
+    const source = await readFile(
+      new URL(
+        "../../app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/page.tsx",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain('item.deleteStatus === "failed"');
+    expect(source).toContain("item.lessonId === lesson.id");
   });
 
   it("stores module and lesson publication lifecycle status in the schema", async () => {

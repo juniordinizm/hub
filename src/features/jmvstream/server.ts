@@ -60,6 +60,11 @@ interface LessonContext {
   module_title: string;
 }
 
+export interface JmvstreamDeleteResult {
+  attempted: number;
+  failed: number;
+}
+
 let cachedApiToken: string | null = null;
 const STALE_UPLOAD_INTERVAL = "6 hours";
 
@@ -696,36 +701,33 @@ export const syncManualJmvstreamVideoAsset = async ({
   );
 };
 
-export const deleteJmvstreamAssetsForCourse = async (
+export const deleteJmvstreamAssetsForCourse = (
   courseId: string
-): Promise<void> => {
-  await deleteAssetsByQuery("course_id = $1", [courseId]);
-};
+): Promise<JmvstreamDeleteResult> =>
+  deleteAssetsByQuery("course_id = $1", [courseId]);
 
 export const deleteJmvstreamAssetsForLesson = async (
   lessonId: string
-): Promise<void> => {
+): Promise<JmvstreamDeleteResult> => {
   const { rows } = await getPool().query<{
     video_external_id: string | null;
   }>("select video_external_id from lessons where id = $1 limit 1", [lessonId]);
   const videoHash = rows[0]?.video_external_id;
 
   if (videoHash) {
-    await deleteAssetsByQuery("(lesson_id = $1 or video_hash = $2)", [
+    return deleteAssetsByQuery("(lesson_id = $1 or video_hash = $2)", [
       lessonId,
       videoHash,
     ]);
-    return;
   }
 
-  await deleteAssetsByQuery("lesson_id = $1", [lessonId]);
+  return deleteAssetsByQuery("lesson_id = $1", [lessonId]);
 };
 
-export const deleteJmvstreamAssetsForModule = async (
+export const deleteJmvstreamAssetsForModule = (
   moduleId: string
-): Promise<void> => {
-  await deleteAssetsByQuery("module_id = $1", [moduleId]);
-};
+): Promise<JmvstreamDeleteResult> =>
+  deleteAssetsByQuery("module_id = $1", [moduleId]);
 
 export const retryJmvstreamAssetDelete = async (
   assetId: string
@@ -739,7 +741,11 @@ export const retryJmvstreamAssetDelete = async (
     throw new Error("Asset JMVStream invalido.");
   }
 
-  await deleteAssetById(assetId);
+  const deleted = await deleteAssetById(assetId);
+
+  if (!deleted) {
+    throw new Error("Nao foi possivel apagar o video na JMVStream.");
+  }
 };
 
 const syncFolder = async ({
@@ -1021,7 +1027,7 @@ const deleteActiveAssetsForLesson = async (
 const deleteAssetsByQuery = async (
   whereClause: string,
   values: unknown[]
-): Promise<void> => {
+): Promise<JmvstreamDeleteResult> => {
   const { rows } = await getPool().query<{ id: string }>(
     `
       select id
@@ -1030,13 +1036,20 @@ const deleteAssetsByQuery = async (
     `,
     values
   );
+  const result: JmvstreamDeleteResult = { attempted: rows.length, failed: 0 };
 
   for (const row of rows) {
-    await deleteAssetById(row.id);
+    const deleted = await deleteAssetById(row.id);
+
+    if (!deleted) {
+      result.failed += 1;
+    }
   }
+
+  return result;
 };
 
-const deleteAssetById = async (assetId: string): Promise<void> => {
+const deleteAssetById = async (assetId: string): Promise<boolean> => {
   const { rows } = await getPool().query<{
     video_hash: string;
   }>("select video_hash from jmvstream_video_assets where id = $1 limit 1", [
@@ -1045,7 +1058,7 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
   const asset = rows[0];
 
   if (!asset) {
-    return;
+    return true;
   }
 
   await getPool().query(
@@ -1073,7 +1086,13 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
       `,
       [assetId]
     );
+    return true;
   } catch (error) {
+    const deleteError =
+      error instanceof Error
+        ? error
+        : new Error("Nao foi possivel apagar o video na JMVStream.");
+
     await getPool().query(
       `
         update jmvstream_video_assets
@@ -1082,13 +1101,9 @@ const deleteAssetById = async (assetId: string): Promise<void> => {
             updated_at = now()
         where id = $1
       `,
-      [
-        assetId,
-        error instanceof Error
-          ? error.message
-          : "Nao foi possivel apagar o video na JMVStream.",
-      ]
+      [assetId, deleteError.message]
     );
+    return false;
   }
 };
 

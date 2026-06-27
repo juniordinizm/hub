@@ -21,6 +21,7 @@ import {
   completeJmvstreamUploadAction,
   initJmvstreamUploadAction,
   markJmvstreamUploadFailedAction,
+  removeJmvstreamVideoFromLessonAction,
   retryJmvstreamDeleteAction,
   syncJmvstreamLessonPlayerAction,
 } from "@/features/admin/actions";
@@ -74,6 +75,7 @@ export function JmvstreamUploadPanel({
 
     startTransition(async () => {
       let activeVideoHash: string | null = null;
+      let uploadCompleted = false;
       try {
         setError(null);
         setProgress(2);
@@ -108,30 +110,23 @@ export function JmvstreamUploadPanel({
           uploadId: init.uploadId,
           videoHash: init.videoHash,
         });
+        uploadCompleted = true;
         setProgress(100);
         setStatus("Video enviado. Sincronizando player oficial...");
-        const playerReady = await waitForJmvstreamPlayer(lessonId);
-        setStatus(
-          playerReady
-            ? "Video pronto para as alunas."
-            : "Video enviado. Aguardando processamento na JMVStream."
-        );
+        setStatus(await syncJmvstreamPlayerStatus(lessonId));
         router.refresh();
       } catch (uploadError) {
-        const errorMessage =
-          uploadError instanceof Error
-            ? uploadError.message
-            : "Nao foi possivel enviar o video.";
+        const errorMessage = getUploadErrorMessage(uploadError);
 
-        if (activeVideoHash) {
+        if (activeVideoHash && !uploadCompleted) {
           await markJmvstreamUploadFailedAction({
             lastError: errorMessage,
             videoHash: activeVideoHash,
           });
         }
 
-        setError(errorMessage);
-        setStatus(null);
+        setError(uploadCompleted ? null : errorMessage);
+        setStatus(getUploadFailureStatus(uploadCompleted));
       }
     });
   };
@@ -152,6 +147,35 @@ export function JmvstreamUploadPanel({
             ? retryError.message
             : "Nao foi possivel apagar o video na JMVStream."
         );
+      }
+    });
+  };
+
+  const removeVideo = (): void => {
+    if (!lessonId) {
+      setError("Aula invalida.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setError(null);
+        setStatus("Removendo video da JMVStream...");
+        const result = await removeJmvstreamVideoFromLessonAction({ lessonId });
+        onRemoveVideo?.();
+        setStatus(
+          result.deletePending
+            ? "Video removido da aula. Exclusao na JMVStream pendente."
+            : "Video removido."
+        );
+        router.refresh();
+      } catch (removeError) {
+        setError(
+          removeError instanceof Error
+            ? removeError.message
+            : "Nao foi possivel remover o video da JMVStream."
+        );
+        setStatus(null);
       }
     });
   };
@@ -219,7 +243,7 @@ export function JmvstreamUploadPanel({
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={onRemoveVideo}>
+                    <AlertDialogAction onClick={removeVideo}>
                       Remover
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -287,6 +311,33 @@ const waitForJmvstreamPlayer = async (lessonId: string): Promise<boolean> => {
 
   return false;
 };
+
+const syncJmvstreamPlayerStatus = async (lessonId: string): Promise<string> => {
+  try {
+    const playerReady = await waitForJmvstreamPlayer(lessonId);
+
+    if (playerReady) {
+      return "Video pronto para as alunas.";
+    }
+  } catch {
+    return "Video enviado. Aguardando processamento na JMVStream.";
+  }
+
+  return "Video enviado. Aguardando processamento na JMVStream.";
+};
+
+const getUploadErrorMessage = (uploadError: unknown): string => {
+  if (uploadError instanceof Error) {
+    return uploadError.message;
+  }
+
+  return "Nao foi possivel enviar o video.";
+};
+
+const getUploadFailureStatus = (uploadCompleted: boolean): null | string =>
+  uploadCompleted
+    ? "Video enviado. Aguardando processamento na JMVStream."
+    : null;
 
 function UploadTimeline({
   progress,
