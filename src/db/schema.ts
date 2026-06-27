@@ -222,7 +222,6 @@ export const modules = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     sortOrder: integer("sort_order").notNull(),
-    color: text("color").default("#326c71").notNull(),
     status: courseStatusEnum("status").default("draft").notNull(),
     ...timestamps,
   },

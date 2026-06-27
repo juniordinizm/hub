@@ -640,7 +640,6 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
   const title = readString(formData, "title");
   const description = readString(formData, "description") || null;
   const sortOrder = readNumber(formData, "sortOrder", 1);
-  const color = readString(formData, "color") || "#326c71";
   const status = moduleId
     ? readContentStatus(formData)
     : CREATED_CONTENT_STATUS;
@@ -654,12 +653,11 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
             title = $2,
             description = $3,
             sort_order = $4,
-            color = $5,
-            status = $6,
+            status = $5,
             updated_at = now()
-        where id = $7
+        where id = $6
       `,
-      [courseId, title, description, sortOrder, color, status, moduleId]
+      [courseId, title, description, sortOrder, status, moduleId]
     );
     await audit({
       action: "module.updated",
@@ -677,17 +675,16 @@ export const saveModuleAction = async (formData: FormData): Promise<void> => {
 
   const inserted = await getPool().query<{ id: string }>(
     `
-      insert into modules (course_id, title, description, sort_order, color, status)
-      values ($1, $2, $3, $4, $5, $6)
+      insert into modules (course_id, title, description, sort_order, status)
+      values ($1, $2, $3, $4, $5)
       on conflict (course_id, sort_order) do update set
         title = excluded.title,
         description = excluded.description,
-        color = excluded.color,
         status = excluded.status,
         updated_at = now()
       returning id
     `,
-    [courseId, title, description, sortOrder, color, status]
+    [courseId, title, description, sortOrder, status]
   );
   await audit({
     action: "module.upserted",

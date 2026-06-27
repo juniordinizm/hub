@@ -63,7 +63,6 @@ export interface StudentCatalogCourseCard {
 }
 
 export interface StudentCourseModule {
-  color: string;
   completedCount: number;
   id: string;
   nextLessonId: string | null;
@@ -80,7 +79,6 @@ export interface FaqItem {
 }
 
 export interface ModuleWithLessons {
-  color: string;
   id: string;
   lessons: Array<{
     id: string;
@@ -109,7 +107,6 @@ export interface StudentCourseOverviewData {
   };
   isPreview: boolean;
   modules: Array<{
-    color: string;
     description: string | null;
     id: string;
     lessons: Array<{
@@ -175,7 +172,6 @@ interface LessonRow {
   lesson_id: string;
   lesson_sort_order: number;
   lesson_title: string;
-  module_color: string;
   module_id: string;
   module_sort_order: number;
   module_title: string;
@@ -227,7 +223,6 @@ interface CourseOverviewRow {
   lesson_sort_order: number | null;
   lesson_thumbnail_url: string | null;
   lesson_title: string | null;
-  module_color: string | null;
   module_description: string | null;
   module_id: string | null;
   module_sort_order: number | null;
@@ -250,7 +245,6 @@ interface CoursePreviewOverviewRow {
   lesson_sort_order: number | null;
   lesson_thumbnail_url: string | null;
   lesson_title: string | null;
-  module_color: string | null;
   module_description: string | null;
   module_id: string | null;
   module_sort_order: number | null;
@@ -274,7 +268,6 @@ const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
       id: row.module_id,
       title: row.module_title,
       sortOrder: row.module_sort_order,
-      color: row.module_color,
       lessons: [],
     };
 
@@ -306,7 +299,6 @@ export const getStudentCourses = async (
     course_id: string;
     expires_at: Date;
     lesson_id: string | null;
-    module_color: string | null;
     module_id: string | null;
     module_sort_order: number | null;
     module_title: string | null;
@@ -329,7 +321,6 @@ export const getStudentCourses = async (
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
-        m.color as module_color,
         l.id as lesson_id,
         lp.completed_at
       from enrollments e
@@ -381,7 +372,6 @@ export const getStudentCourses = async (
         id: row.module_id,
         title: row.module_title,
         sortOrder: row.module_sort_order,
-        color: row.module_color ?? "#326c71",
         totalCount: 0,
         completedCount: 0,
         progressPercent: 0,
@@ -414,7 +404,6 @@ export const getStudentCourses = async (
           id: moduleData.id,
           title: moduleData.title,
           sortOrder: moduleData.sortOrder,
-          color: moduleData.color,
           totalCount: moduleProgress.totalCount,
           completedCount: moduleProgress.completedCount,
           progressPercent: moduleProgress.percent,
@@ -633,7 +622,6 @@ export const getStudentCourseOverviewData = async ({
         m.title as module_title,
         m.description as module_description,
         m.sort_order as module_sort_order,
-        m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
         l.thumbnail_url as lesson_thumbnail_url,
@@ -690,7 +678,6 @@ export const getStudentCourseOverviewData = async ({
       title: row.module_title,
       description: row.module_description,
       sortOrder: row.module_sort_order,
-      color: row.module_color ?? "#326c71",
       lessons: [],
     };
 
@@ -760,7 +747,6 @@ export const getCoursePreviewOverviewData = async ({
         m.title as module_title,
         m.description as module_description,
         m.sort_order as module_sort_order,
-        m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
         l.thumbnail_url as lesson_thumbnail_url,
@@ -800,7 +786,6 @@ export const getCoursePreviewOverviewData = async ({
       title: row.module_title,
       description: row.module_description,
       sortOrder: row.module_sort_order,
-      color: row.module_color ?? "#326c71",
       lessons: [],
     };
 
@@ -895,7 +880,6 @@ export const getStudentLessonData = async ({
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
-        m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
@@ -1002,7 +986,6 @@ export const getPreviewLessonData = async ({
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
-        m.color as module_color,
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,

@@ -159,7 +159,6 @@ export interface AdminManagementData {
     videoProvider: string | null;
   }>;
   modules: Array<{
-    color: string;
     courseId: string;
     courseTitle: string;
     description: string | null;
@@ -237,7 +236,6 @@ export const getAdminManagementData =
         "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
       ),
       pool.query<{
-        color: string;
         course_id: string;
         course_title: string;
         description: string | null;
@@ -247,7 +245,7 @@ export const getAdminManagementData =
         title: string;
       }>(
         `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.color, m.status
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
           from modules m
           join courses c on c.id = m.course_id
           order by c.title, m.sort_order
@@ -519,7 +517,6 @@ export const getAdminManagementData =
         videoProvider: row.video_provider,
       })),
       modules: modules.rows.map((row) => ({
-        color: row.color,
         courseId: row.course_id,
         courseTitle: row.course_title,
         description: row.description,
