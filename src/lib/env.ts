@@ -17,6 +17,13 @@ const serverEnvSchema = z.object({
   ABACATEPAY_API_KEY: optionalNonEmptyString,
   ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
   ABACATE_PAY_API_KEY: optionalNonEmptyString,
+  AUTH_PUBLIC_SIGNUP_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  BETTER_AUTH_API_KEY: optionalNonEmptyString,
+  BETTER_AUTH_API_URL: optionalNonEmptyString,
+  BETTER_AUTH_KV_URL: optionalNonEmptyString,
   BETTER_AUTH_SECRET: optionalNonEmptyString,
   BETTER_AUTH_TRUSTED_ORIGINS: optionalNonEmptyString,
   BETTER_AUTH_URL: z.string().url().default("http://localhost:3000"),
@@ -53,6 +60,10 @@ export const getServerEnv = () => {
     ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
     ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
+    AUTH_PUBLIC_SIGNUP_ENABLED: process.env.AUTH_PUBLIC_SIGNUP_ENABLED,
+    BETTER_AUTH_API_KEY: process.env.BETTER_AUTH_API_KEY,
+    BETTER_AUTH_API_URL: process.env.BETTER_AUTH_API_URL,
+    BETTER_AUTH_KV_URL: process.env.BETTER_AUTH_KV_URL,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,

@@ -105,6 +105,21 @@ export function EnrollmentExpirationControls({
                   />
                   <input name="adjustment" type="hidden" value="set_exact" />
 
+                  <dl className="grid gap-3 rounded-md border bg-background/60 p-3 text-sm sm:grid-cols-2">
+                    <div className="grid gap-1">
+                      <dt className="font-medium text-muted-foreground">
+                        Expiracao original
+                      </dt>
+                      <dd>{formatDateTime(enrollment.originalExpiresAt)}</dd>
+                    </div>
+                    <div className="grid gap-1">
+                      <dt className="font-medium text-muted-foreground">
+                        Expiracao atual
+                      </dt>
+                      <dd>{formatDateTime(enrollment.expiresAt)}</dd>
+                    </div>
+                  </dl>
+
                   <div className="grid gap-1.5">
                     <span className="font-medium text-sm">
                       Nova data de expiração

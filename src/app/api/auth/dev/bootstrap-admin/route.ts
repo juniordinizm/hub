@@ -2,22 +2,22 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { getBootstrapAdminDecision } from "@/lib/auth-policy";
 import { getServerEnv } from "@/lib/env";
 
 export const POST = async (request: Request) => {
   const env = getServerEnv();
+  const decision = getBootstrapAdminDecision({
+    authorization: request.headers.get("authorization"),
+    nodeEnv: env.NODE_ENV,
+    secret: env.INTERNAL_BOOTSTRAP_SECRET,
+  });
 
-  if (env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "not_found" }, { status: 404 });
-  }
-
-  const authorization = request.headers.get("authorization");
-
-  if (
-    env.INTERNAL_BOOTSTRAP_SECRET &&
-    authorization !== `Bearer ${env.INTERNAL_BOOTSTRAP_SECRET}`
-  ) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!decision.allowed) {
+    return NextResponse.json(
+      { error: decision.error },
+      { status: decision.status }
+    );
   }
 
   const body = (await request.json()) as {

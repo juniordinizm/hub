@@ -1,15 +1,36 @@
 import "server-only";
+import { dash, sentinel } from "@better-auth/infra";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { getDb } from "@/db";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 import { sendPasswordResetEmail } from "@/features/email/server";
+import { getResolvedBetterAuthInfraConfig } from "@/lib/auth-policy";
 import { getServerEnv } from "@/lib/env";
 import { parseTrustedOrigins } from "@/lib/trusted-origins";
 
 const createAuth = () => {
   const env = getServerEnv();
+  const betterAuthInfraConfig = getResolvedBetterAuthInfraConfig({
+    apiKey: env.BETTER_AUTH_API_KEY,
+    apiUrl: env.BETTER_AUTH_API_URL,
+    kvUrl: env.BETTER_AUTH_KV_URL,
+  });
+  const infraPlugins = betterAuthInfraConfig
+    ? [
+        dash(betterAuthInfraConfig),
+        sentinel({
+          ...betterAuthInfraConfig,
+          security: {
+            credentialStuffing: {
+              enabled: true,
+              thresholds: { block: 5, challenge: 3 },
+            },
+          },
+        }),
+      ]
+    : [];
 
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
@@ -45,7 +66,7 @@ const createAuth = () => {
         });
       },
     },
-    plugins: [nextCookies()],
+    plugins: [...infraPlugins, nextCookies()],
   });
 };
 

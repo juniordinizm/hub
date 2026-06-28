@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { getPasswordResetRedirectUrl } from "@/lib/auth-policy";
 
 export function RequestPasswordResetForm(): React.JSX.Element {
   const [message, setMessage] = useState<string | null>(null);
@@ -20,7 +21,10 @@ export function RequestPasswordResetForm(): React.JSX.Element {
     const response = await fetch("/api/auth/request-password-reset", {
       body: JSON.stringify({
         email: formData.get("email"),
-        redirectTo: `${window.location.origin}/redefinir-senha`,
+        redirectTo: getPasswordResetRedirectUrl({
+          appUrl: process.env.NEXT_PUBLIC_APP_URL,
+          fallbackOrigin: window.location.origin,
+        }),
       }),
       headers: { "Content-Type": "application/json" },
       method: "POST",

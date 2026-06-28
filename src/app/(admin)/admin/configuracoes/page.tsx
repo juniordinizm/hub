@@ -14,10 +14,13 @@ import { Input } from "@/components/ui/input";
 import { saveSettingsAction } from "@/features/admin/actions";
 import { getAdminManagementData } from "@/features/admin/server";
 import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
+import { requirePermission } from "@/lib/auth-permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
+  await requirePermission("manageSettings");
+
   const [data, jmvstreamHealth] = await Promise.all([
     getAdminManagementData(),
     getJmvstreamHealthSummary(),

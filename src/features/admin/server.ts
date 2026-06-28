@@ -5,6 +5,7 @@ import {
   summarizeAdminStudents,
 } from "@/features/admin/students";
 import { getJmvstreamAssets } from "@/features/jmvstream/server";
+import { requirePermission } from "@/lib/auth-permissions";
 
 export interface AdminOverview {
   activeEnrollments: number;
@@ -21,6 +22,8 @@ export interface AdminOverview {
 }
 
 export const getAdminOverview = async (): Promise<AdminOverview> => {
+  await requirePermission("viewAdminPanel");
+
   const pool = getPool();
   const [counts, webhooks] = await Promise.all([
     pool.query<{
@@ -204,6 +207,8 @@ export interface AdminStudentDetail {
 
 export const getAdminManagementData =
   async (): Promise<AdminManagementData> => {
+    await requirePermission("viewAdminPanel");
+
     const pool = getPool();
     const [
       courses,
@@ -564,6 +569,8 @@ export const getAdminManagementData =
 export const getAdminStudentDetail = async (
   userId: string
 ): Promise<AdminStudentDetail | null> => {
+  await requirePermission("viewAdminPanel");
+
   const pool = getPool();
   const result = await pool.query<{
     course_title: string;

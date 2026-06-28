@@ -26,6 +26,7 @@ import {
   getAdminManagementData,
   getAdminOverview,
 } from "@/features/admin/server";
+import { requirePermission } from "@/lib/auth-permissions";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
@@ -49,6 +50,8 @@ const webhookStatusLabels: Record<string, string> = {
 };
 
 export default async function AdminFinancePage(): Promise<React.JSX.Element> {
+  await requirePermission("viewFinancials");
+
   const [overview, data] = await Promise.all([
     getAdminOverview(),
     getAdminManagementData(),

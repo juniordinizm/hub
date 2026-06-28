@@ -11,6 +11,7 @@
 - `DATABASE_URL_DIRECT`
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
+- `AUTH_PUBLIC_SIGNUP_ENABLED=false` salvo decisao explicita de cadastro aberto.
 - `NEXT_PUBLIC_APP_URL`
 - `CERTIFICATE_PUBLIC_BASE_URL`
 - `RESEND_API_KEY`
@@ -20,6 +21,7 @@
 - `JMVSTREAM_AUTH_EMAIL`
 - `JMVSTREAM_AUTH_PASSWORD`
 - `JMVSTREAM_AUTH_RESOURCE` com UUID do recurso/aplicacao, nao JWT
+- Opcional recomendado: `BETTER_AUTH_API_KEY`, `BETTER_AUTH_API_URL` e `BETTER_AUTH_KV_URL` para habilitar Better Auth Dash/Sentinel.
 
 ## Provedores
 - Dominio de envio validado no Resend.
@@ -38,6 +40,8 @@
 ## Smoke pos-deploy
 - `GET /api/health` retorna `ok: true`.
 - Admin consegue entrar.
+- `POST /api/auth/dev/bootstrap-admin` retorna 503 sem `INTERNAL_BOOTSTRAP_SECRET` e 401 com bearer incorreto em preview/dev.
+- `POST /api/auth/sign-up/email` retorna 404 quando `AUTH_PUBLIC_SIGNUP_ENABLED=false`.
 - Admin cria ou atualiza curso, confirma a galeria JMVStream do curso, modulo e aula.
 - Admin envia video pela aula e confirma que a aluna ve o player.
 - Admin cria aluna e reenvia acesso por reset de senha.
