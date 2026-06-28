@@ -65,6 +65,19 @@ describe("admin course actions", () => {
     expect(source).toContain("resolveLessonVideoFormState");
   });
 
+  it("does not delete JMVStream assets from lesson save without explicit replacement or removal", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("shouldDeleteJmvstreamAsset");
+    expect(source).toContain(
+      "if (shouldDeleteJmvstreamAsset && !shouldKeepJmvstreamAsset)"
+    );
+    expect(source).not.toContain("if (!shouldKeepJmvstreamAsset)");
+  });
+
   it("exposes an immediate action to remove a lesson JMVStream video", async () => {
     const source = await readFile(
       new URL("./actions.ts", import.meta.url),

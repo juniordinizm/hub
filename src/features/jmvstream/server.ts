@@ -420,7 +420,6 @@ export const completeJmvstreamUpload = async ({
     throw error;
   }
 
-  await deleteActiveAssetsForLesson(lessonId, videoHash);
   const videos = await client.listVideos();
   const syncedVideo = findJmvstreamVideoByHash(videos, videoHash);
   await moveJmvstreamVideoToCourseFolder({
@@ -480,6 +479,7 @@ export const completeJmvstreamUpload = async ({
     `,
     [videoHash, lessonId, playerUrl, thumbnailUrl]
   );
+  await deleteActiveAssetsForLesson(lessonId, videoHash);
 };
 
 export const syncJmvstreamLessonPlayer = async (

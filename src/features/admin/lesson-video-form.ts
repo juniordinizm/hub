@@ -13,6 +13,7 @@ interface LessonVideoFormInput {
 
 interface LessonVideoFormState {
   hasVideoContent: boolean;
+  shouldDeleteJmvstreamAsset: boolean;
   shouldKeepJmvstreamAsset: boolean;
   videoEmbedUrl: string | null;
   videoExternalId: string | null;
@@ -68,6 +69,7 @@ export const resolveLessonVideoFormState = ({
   if (shouldRemoveVideo) {
     return {
       hasVideoContent: false,
+      shouldDeleteJmvstreamAsset: Boolean(existingVideo?.externalId),
       shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: null,
       videoExternalId: null,
@@ -90,10 +92,14 @@ export const resolveLessonVideoFormState = ({
     ? null
     : (existingVideo?.externalId ?? null);
   const hasVideoContent = Boolean(videoEmbedUrl || videoExternalId);
+  const shouldDeleteJmvstreamAsset = Boolean(
+    existingVideo?.externalId && hasManualLink
+  );
   const shouldKeepJmvstreamAsset = Boolean(videoExternalId);
 
   return {
     hasVideoContent,
+    shouldDeleteJmvstreamAsset,
     shouldKeepJmvstreamAsset,
     videoEmbedUrl,
     videoExternalId,

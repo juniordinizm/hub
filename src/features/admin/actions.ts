@@ -496,6 +496,7 @@ const getLessonVideoFormState = async ({
   lessonId: string;
 }): Promise<{
   hasVideoContent: boolean;
+  shouldDeleteJmvstreamAsset: boolean;
   shouldKeepJmvstreamAsset: boolean;
   thumbnailUrl: string | null;
   videoEmbedUrl: string | null;
@@ -508,6 +509,7 @@ const getLessonVideoFormState = async ({
     : null;
   const {
     hasVideoContent,
+    shouldDeleteJmvstreamAsset,
     shouldKeepJmvstreamAsset,
     videoEmbedUrl,
     videoExternalId,
@@ -530,6 +532,7 @@ const getLessonVideoFormState = async ({
 
   return {
     hasVideoContent,
+    shouldDeleteJmvstreamAsset,
     shouldKeepJmvstreamAsset,
     thumbnailUrl,
     videoEmbedUrl,
@@ -589,14 +592,16 @@ const cleanupUpdatedLessonAssets = async ({
   contentJson,
   lessonId,
   previousR2Keys,
+  shouldDeleteJmvstreamAsset,
   shouldKeepJmvstreamAsset,
 }: {
   contentJson: unknown;
   lessonId: string;
   previousR2Keys: string[];
+  shouldDeleteJmvstreamAsset: boolean;
   shouldKeepJmvstreamAsset: boolean;
 }): Promise<void> => {
-  if (!shouldKeepJmvstreamAsset) {
+  if (shouldDeleteJmvstreamAsset && !shouldKeepJmvstreamAsset) {
     await deleteJmvstreamAssetsForLesson(lessonId);
   }
 
@@ -771,6 +776,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
   });
   const {
     hasVideoContent,
+    shouldDeleteJmvstreamAsset,
     shouldKeepJmvstreamAsset,
     thumbnailUrl,
     videoEmbedUrl,
@@ -853,6 +859,7 @@ export const saveLessonAction = async (formData: FormData): Promise<void> => {
       contentJson,
       lessonId,
       previousR2Keys,
+      shouldDeleteJmvstreamAsset,
       shouldKeepJmvstreamAsset,
     });
   } else {

@@ -28,6 +28,8 @@ O admin usa o fluxo S3 atual do playground da JMVStream:
 7. A aula recebe o `video_hash`. O player so e gravado se a JMVStream retornar uma URL oficial `https://player.jmvstream.com/...`.
 8. Se o player ainda nao existir, o asset fica `processing`, o admin e a aluna mostram placeholder explicito e a rota cron `/api/cron/jmvstream` reconcilia periodicamente.
 
+O upload e independente do botao `Salvar aula`: completar o upload vincula o `video_hash` a aula imediatamente. O botao `Salvar aula` preserva uploads ativos e videos ja vinculados, e so limpa assets JMVStream quando houver intencao explicita de remocao ou substituicao por link manual. Ao trocar um upload por outro, o video antigo so entra no fluxo de delecao depois que a aula ja aponta para o novo hash.
+
 Se a JMVStream ainda nao retornar o player oficial, a aula fica aguardando processamento/player e nao conta como video pronto na saude do curso. Se o usuario sair da pagina durante o upload, a sessao continua visivel na aula como pendente/falha, com acao de retry/limpeza, em vez de virar um video orfao invisivel.
 
 ## Pastas

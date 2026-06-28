@@ -35,6 +35,22 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("video_hash = $3");
   });
 
+  it("links the replacement upload to the lesson before deleting the previous asset", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    const lessonUpdateIndex = source.indexOf("update lessons");
+    const cleanupIndex = source.indexOf(
+      "await deleteActiveAssetsForLesson(lessonId, videoHash);"
+    );
+
+    expect(lessonUpdateIndex).toBeGreaterThan(-1);
+    expect(cleanupIndex).toBeGreaterThan(-1);
+    expect(cleanupIndex).toBeGreaterThan(lessonUpdateIndex);
+  });
+
   it("deletes JMVStream assets by lesson and persisted video hash", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),

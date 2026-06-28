@@ -71,6 +71,28 @@ CRON_SECRET=
    - asset `ready`
 8. Se a JMVStream ainda nao retornar player, a aula recebe `video_external_id`, mas `video_embed_url` fica `null` e o asset fica `processing`.
 
+## Contrato entre aula e video
+
+O video da aula e um lifecycle independente do formulario editorial da aula.
+
+- `Salvar aula` salva titulo, descricao, conteudo, ordem, status e duracao.
+- Upload JMVStream nao depende do botao `Salvar aula`: quando o complete termina, o servidor grava `lessons.video_external_id` imediatamente.
+- Remover video JMVStream tambem e acao imediata: limpa a aula e tenta deletar o video remoto.
+- O save da aula nao pode apagar assets JMVStream por inferencia quando o formulario nao trouxe video. Isso preserva uploads `uploading`/`processing` e evita videos remotos orfaos quando o admin salva metadados durante um upload.
+- A limpeza de asset JMVStream no save so acontece quando existe intencao explicita de substituicao/remocao, como trocar um upload salvo por link manual ou marcar `removeVideo`.
+
+### Troca de video
+
+Ao trocar um upload existente por outro upload:
+
+1. O video antigo continua sendo o video atual da aula enquanto o novo arquivo e enviado.
+2. O novo upload cria uma nova sessao vinculada a mesma aula.
+3. Depois do complete, a aula passa a apontar para o novo `video_hash`.
+4. So depois desse vinculo local existir o sistema tenta apagar assets antigos da aula.
+5. Se a JMVStream falhar ao apagar o antigo, o asset fica com `delete_status = 'failed'` e retry visivel no admin; a aula ja permanece vinculada ao novo video.
+
+Ao trocar um upload existente por link manual, o save passa a ter uma intencao explicita de substituicao: o link manual e salvo na aula e o asset JMVStream antigo entra no fluxo de delecao/retry.
+
 ## Estados
 
 ### `uploading`

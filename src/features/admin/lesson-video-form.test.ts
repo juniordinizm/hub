@@ -79,6 +79,7 @@ describe("lesson video form", () => {
       })
     ).toEqual({
       hasVideoContent: true,
+      shouldDeleteJmvstreamAsset: false,
       shouldKeepJmvstreamAsset: true,
       videoEmbedUrl: "https://player.jmvstream.com/uploaded",
       videoExternalId: "asset-hash",
@@ -98,6 +99,7 @@ describe("lesson video form", () => {
       })
     ).toEqual({
       hasVideoContent: true,
+      shouldDeleteJmvstreamAsset: false,
       shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: "https://player.jmvstream.com/lQm9WyK7",
       videoExternalId: null,
@@ -117,6 +119,7 @@ describe("lesson video form", () => {
       })
     ).toEqual({
       hasVideoContent: true,
+      shouldDeleteJmvstreamAsset: false,
       shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: "https://player.jmvstream.com/new",
       videoExternalId: null,
@@ -136,10 +139,28 @@ describe("lesson video form", () => {
       })
     ).toEqual({
       hasVideoContent: true,
+      shouldDeleteJmvstreamAsset: true,
       shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: "https://player.jmvstream.com/manual",
       videoExternalId: null,
       videoProvider: "jmvstream",
+    });
+  });
+
+  it("does not delete JMVStream assets when a save happens before upload completion", () => {
+    expect(
+      resolveLessonVideoFormState({
+        existingVideo: null,
+        shouldRemoveVideo: false,
+        submittedEmbedUrl: null,
+      })
+    ).toEqual({
+      hasVideoContent: false,
+      shouldDeleteJmvstreamAsset: false,
+      shouldKeepJmvstreamAsset: false,
+      videoEmbedUrl: null,
+      videoExternalId: null,
+      videoProvider: null,
     });
   });
 
@@ -155,6 +176,7 @@ describe("lesson video form", () => {
       })
     ).toEqual({
       hasVideoContent: false,
+      shouldDeleteJmvstreamAsset: true,
       shouldKeepJmvstreamAsset: false,
       videoEmbedUrl: null,
       videoExternalId: null,

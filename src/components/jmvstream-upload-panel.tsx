@@ -446,7 +446,7 @@ export function JmvstreamUploadPanel({
                       icon={ReloadIcon}
                       size={14}
                     />
-                    Verificar
+                    Verificar player agora
                   </Button>
                 )}
                 {asset?.deleteStatus === "failed" && (
