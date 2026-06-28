@@ -79,10 +79,14 @@ export const resolveLessonVideoFormState = ({
     embedUrl: submittedEmbedUrl,
     provider: "jmvstream",
   });
-  const hasSubmittedEmbedUrl = Boolean(normalizedSubmittedEmbedUrl);
+  const isExistingUrl =
+    Boolean(existingVideo?.embedUrl) &&
+    normalizedSubmittedEmbedUrl === existingVideo?.embedUrl;
+  const hasManualLink = Boolean(normalizedSubmittedEmbedUrl) && !isExistingUrl;
+
   const videoEmbedUrl =
     normalizedSubmittedEmbedUrl ?? existingVideo?.embedUrl ?? null;
-  const videoExternalId = hasSubmittedEmbedUrl
+  const videoExternalId = hasManualLink
     ? null
     : (existingVideo?.externalId ?? null);
   const hasVideoContent = Boolean(videoEmbedUrl || videoExternalId);

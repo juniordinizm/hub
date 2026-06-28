@@ -467,12 +467,14 @@ const getExistingVideoForLesson = async (
 ): Promise<{
   embedUrl: string | null;
   externalId: string | null;
+  thumbnailUrl: string | null;
 } | null> => {
   const { rows } = await getPool().query<{
+    thumbnail_url: string | null;
     video_embed_url: string | null;
     video_external_id: string | null;
   }>(
-    "select video_embed_url, video_external_id from lessons where id = $1 limit 1",
+    "select video_embed_url, video_external_id, thumbnail_url from lessons where id = $1 limit 1",
     [lessonId]
   );
   const existingVideo = rows[0];
@@ -481,6 +483,7 @@ const getExistingVideoForLesson = async (
     ? {
         embedUrl: existingVideo.video_embed_url,
         externalId: existingVideo.video_external_id,
+        thumbnailUrl: existingVideo.thumbnail_url,
       }
     : null;
 };
@@ -514,9 +517,16 @@ const getLessonVideoFormState = async ({
     shouldRemoveVideo,
     submittedEmbedUrl: readString(formData, "videoEmbedUrl") || null,
   });
-  const thumbnailUrl = hasVideoContent
-    ? await resolveJmvstreamPlayerThumbnailUrl(videoEmbedUrl)
-    : null;
+  const urlChanged = videoEmbedUrl && videoEmbedUrl !== existingVideo?.embedUrl;
+  let thumbnailUrl: string | null = null;
+
+  if (hasVideoContent) {
+    if (urlChanged || !existingVideo?.thumbnailUrl) {
+      thumbnailUrl = await resolveJmvstreamPlayerThumbnailUrl(videoEmbedUrl);
+    } else {
+      thumbnailUrl = existingVideo.thumbnailUrl;
+    }
+  }
 
   return {
     hasVideoContent,
