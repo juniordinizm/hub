@@ -30,6 +30,7 @@
 - JMVStream/S3 configurado para aceitar PUT direto do navegador e expor `ETag` em CORS/Expose-Headers.
 - Upload via admin validado com um MP4 pequeno.
 - Upload grande validado sem proxy pela Vercel; bytes de video devem ir direto para URLs assinadas.
+- Cron `/api/cron/jmvstream` configurado no `vercel.json` e protegido por `CRON_SECRET`.
 - `Admin > Configuracoes > JMVStream` mostra conexao ativa e galerias de curso acessiveis.
 - Aulas enviadas pelo admin ficam com player oficial antes de contar como prontas.
 - `JMVSTREAM_API_TOKEN` e apenas fallback manual; prefira credenciais de auth server-only para renovar JWT expirado.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +29,7 @@ import { uploadFileParts } from "@/features/jmvstream/upload";
 
 const PLAYER_SYNC_ATTEMPTS = 18;
 const PLAYER_SYNC_INTERVAL_MS = 5000;
+const PROCESSING_POLL_INTERVAL_MS = 15_000;
 
 export interface JmvstreamUploadAsset {
   deleteStatus: string;
@@ -59,8 +60,64 @@ export function JmvstreamUploadPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
+  const isProcessing = asset?.uploadStatus === "processing";
+
+  const syncProcessingPlayer = useCallback(async (): Promise<void> => {
+    if (!lessonId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setStatus("Verificando player na JMVStream...");
+      const result = await syncJmvstreamLessonPlayerAction({ lessonId });
+
+      if (result.ready && result.playerUrl) {
+        onPlayerReady?.(result.playerUrl);
+        setStatus("Video pronto para as alunas.");
+        router.refresh();
+        return;
+      }
+
+      setStatus("Video enviado. Aguardando processamento na JMVStream.");
+    } catch (syncError) {
+      setError(
+        syncError instanceof Error
+          ? syncError.message
+          : "Nao foi possivel verificar o player na JMVStream."
+      );
+    }
+  }, [lessonId, onPlayerReady, router]);
+
+  useEffect(() => {
+    if (!isUploading) {
+      return;
+    }
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isUploading]);
+
+  useEffect(() => {
+    if (!(isProcessing && lessonId)) {
+      return;
+    }
+
+    const interval = window.setInterval(
+      syncProcessingPlayer,
+      PROCESSING_POLL_INTERVAL_MS
+    );
+
+    return () => window.clearInterval(interval);
+  }, [isProcessing, lessonId, syncProcessingPlayer]);
 
   const uploadSelectedFile = (): void => {
     const file = inputRef.current?.files?.[0];
@@ -80,6 +137,7 @@ export function JmvstreamUploadPanel({
       let uploadCompleted = false;
       try {
         setError(null);
+        setIsUploading(true);
         setProgress(2);
         setStatus("Preparando upload na JMVStream...");
         const initResult = await initJmvstreamUploadAction({
@@ -101,6 +159,7 @@ export function JmvstreamUploadPanel({
           presignedUrls: init.presignedUrls,
         });
 
+        setIsUploading(false);
         setStatus("Finalizando processamento...");
         await completeJmvstreamUploadAction({
           filename: file.name,
@@ -122,6 +181,7 @@ export function JmvstreamUploadPanel({
         }
         router.refresh();
       } catch (uploadError) {
+        setIsUploading(false);
         const errorMessage = getUploadErrorMessage(uploadError);
 
         if (activeVideoHash && !uploadCompleted) {
@@ -213,6 +273,9 @@ export function JmvstreamUploadPanel({
             <p className="mt-1 break-all text-muted-foreground">
               {asset.videoHash}
             </p>
+            <p className="mt-2 text-muted-foreground">
+              {getAssetStatusLabel(asset.uploadStatus)}
+            </p>
             {asset.lastError ? (
               <p className="mt-2 text-destructive">{asset.lastError}</p>
             ) : null}
@@ -232,6 +295,17 @@ export function JmvstreamUploadPanel({
             type="file"
           />
           <div className="flex flex-col justify-end gap-2 sm:flex-row">
+            {isProcessing ? (
+              <Button
+                className="w-full sm:w-auto"
+                disabled={isPending}
+                onClick={syncProcessingPlayer}
+                type="button"
+                variant="outline"
+              >
+                Verificar player agora
+              </Button>
+            ) : null}
             {asset?.deleteStatus === "failed" ? (
               <Button
                 className="w-full sm:w-auto"
@@ -287,6 +361,17 @@ export function JmvstreamUploadPanel({
             Crie a aula para habilitar o upload do arquivo.
           </p>
         )}
+
+        {isProcessing && !status ? (
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/35 px-3 py-2">
+            <p className="font-medium text-xs">Video em processamento</p>
+            <p className="text-muted-foreground text-xs">
+              O arquivo ja foi enviado. A JMVStream esta preparando o player e
+              as qualidades de reproducao.
+            </p>
+            <UploadTimeline progress={100} status="processing" />
+          </div>
+        ) : null}
 
         {status ? (
           <div className="flex flex-col gap-2">
@@ -366,6 +451,26 @@ const getUploadFailureStatus = (uploadCompleted: boolean): null | string =>
   uploadCompleted
     ? "Video enviado. Aguardando processamento na JMVStream."
     : null;
+
+const getAssetStatusLabel = (uploadStatus: string): string => {
+  if (uploadStatus === "ready") {
+    return "Player oficial pronto.";
+  }
+
+  if (uploadStatus === "processing") {
+    return "Processando na JMVStream.";
+  }
+
+  if (uploadStatus === "uploading") {
+    return "Upload iniciado.";
+  }
+
+  if (uploadStatus === "failed") {
+    return "Upload falhou.";
+  }
+
+  return "Status JMVStream desconhecido.";
+};
 
 function UploadTimeline({
   progress,

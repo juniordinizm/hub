@@ -59,4 +59,26 @@ describe("JmvstreamUploadPanel upload lifecycle", () => {
     expect(source).toContain("if (!retryResult.ok)");
     expect(source).toContain("throw new Error(retryResult.error)");
   });
+
+  it("keeps processing uploads visible and allows manual player sync", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain('asset?.uploadStatus === "processing"');
+    expect(source).toContain("Verificar player agora");
+    expect(source).toContain("syncProcessingPlayer");
+  });
+
+  it("warns before leaving the page while video bytes are uploading", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain('window.addEventListener("beforeunload"');
+    expect(source).toContain("isUploading");
+    expect(source).toContain("event.preventDefault()");
+  });
 });

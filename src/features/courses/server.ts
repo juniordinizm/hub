@@ -154,6 +154,7 @@ export interface StudentLessonData {
       watchedPercent: number;
     } | null;
     videoEmbedUrl: string | null;
+    videoExternalId: string | null;
     videoProvider: string | null;
   };
   modules: ModuleWithLessons[];
@@ -958,6 +959,7 @@ export const getStudentLessonData = async ({
               watchedPercent: activeLesson.watch_percent,
             },
       videoEmbedUrl,
+      videoExternalId: activeLesson.video_external_id,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(rows),
@@ -1040,6 +1042,7 @@ export const getPreviewLessonData = async ({
       isCompleted: false,
       watchProgress: null,
       videoEmbedUrl,
+      videoExternalId: activeLesson.video_external_id,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(

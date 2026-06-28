@@ -76,6 +76,10 @@ export function LessonVideoControls({
     shouldRemoveVideo: isRemovePending,
     submittedEmbedUrl: appliedEmbedUrl || null,
   });
+  const isUploadedVideoProcessing =
+    !(previewUrl || isRemovePending) &&
+    Boolean(defaultVideoExternalId) &&
+    asset?.uploadStatus === "processing";
   const hasManualLinkApplied = Boolean(
     appliedEmbedUrl &&
       (!defaultVideoExternalId || appliedEmbedUrl !== defaultEmbedUrl)
@@ -245,9 +249,10 @@ export function LessonVideoControls({
           />
         </TabsContent>
       </Tabs>
-      {previewUrl ? (
+      {previewUrl || isUploadedVideoProcessing ? (
         <div className="pt-4">
           <LessonVideoEditorPreview
+            isProcessing={isUploadedVideoProcessing}
             previewUrl={previewUrl}
             title={defaultTitle}
           />

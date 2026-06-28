@@ -2,6 +2,8 @@
 
 Este projeto usa JMVStream como provedor padrao de video das aulas.
 
+Documento tecnico completo do modulo: `docs/JMVSTREAM_UPLOAD_MODULE.md`.
+
 ## Como preparar na JMVStream
 
 1. Contrate ou habilite um plano com acesso a video hosting e API.
@@ -24,6 +26,7 @@ O admin usa o fluxo S3 atual do playground da JMVStream:
 5. Se a JMVStream/S3 bloquear o PUT no navegador por CORS ou nao expuser o header `ETag`, o upload falha com uma mensagem acionavel para configurar CORS/`Expose-Headers: ETag`.
 6. O servidor finaliza em `/v2/upload/multipart/complete` com `filename`, `size`, `video_hash`, `objectName`, `uploadId`, `uploadSessionId` e `parts`. A `gallery` e enviada apenas no init; reenviar no complete faz a JMVStream/S3 responder `NoSuchUpload`.
 7. A aula recebe o `video_hash`. O player so e gravado se a JMVStream retornar uma URL oficial `https://player.jmvstream.com/...`.
+8. Se o player ainda nao existir, o asset fica `processing`, o admin e a aluna mostram placeholder explicito e a rota cron `/api/cron/jmvstream` reconcilia periodicamente.
 
 Se a JMVStream ainda nao retornar o player oficial, a aula fica aguardando processamento/player e nao conta como video pronto na saude do curso. Se o usuario sair da pagina durante o upload, a sessao continua visivel na aula como pendente/falha, com acao de retry/limpeza, em vez de virar um video orfao invisivel.
 
@@ -61,5 +64,6 @@ Na Vercel, cadastre essas variaveis em Production e Preview. O sistema reutiliza
 - O upload TUS direto no frontend nao e usado porque a JMVStream confirmou que ele exige o JWT Bearer normal e nao existe token temporario/scoped.
 - O header `ETag` precisa estar disponivel no PUT direto; sem ele o upload nao e finalizado.
 - O player e renderizado em iframe dentro da area autenticada da aluna.
+- A JMVStream nao fornece webhook de VOD pronto; o Hub usa `GET /v1/videos/application`, botao manual e cron para sincronizar `processing` -> `ready`.
 - O controle real de acesso continua sendo feito pela plataforma: apenas alunas com matricula ativa e aula desbloqueada conseguem abrir a pagina da aula.
 - A protecao adicional contra hotlink deve ser configurada no painel JMVStream.

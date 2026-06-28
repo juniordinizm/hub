@@ -65,6 +65,13 @@ export interface JmvstreamDeleteResult {
   failed: number;
 }
 
+export interface JmvstreamPlayerSyncSummary {
+  checked: number;
+  failed: number;
+  pending: number;
+  ready: number;
+}
+
 let cachedApiToken: string | null = null;
 const STALE_UPLOAD_INTERVAL = "6 hours";
 
@@ -537,6 +544,45 @@ export const syncJmvstreamLessonPlayer = async (
   );
 
   return { playerUrl, ready: true, thumbnailUrl };
+};
+
+export const syncPendingJmvstreamPlayers = async (
+  limit = 20
+): Promise<JmvstreamPlayerSyncSummary> => {
+  const { rows } = await getPool().query<{ lesson_id: string }>(
+    `
+      select lesson_id
+      from jmvstream_video_assets
+      where upload_status = 'processing'
+        and delete_status = 'none'
+        and lesson_id is not null
+      order by jmvstream_video_assets.updated_at asc
+      limit $1
+    `,
+    [limit]
+  );
+  const summary: JmvstreamPlayerSyncSummary = {
+    checked: rows.length,
+    failed: 0,
+    pending: 0,
+    ready: 0,
+  };
+
+  for (const row of rows) {
+    try {
+      const result = await syncJmvstreamLessonPlayer(row.lesson_id);
+
+      if (result.ready) {
+        summary.ready += 1;
+      } else {
+        summary.pending += 1;
+      }
+    } catch {
+      summary.failed += 1;
+    }
+  }
+
+  return summary;
 };
 
 const moveJmvstreamVideoToCourseFolder = async ({

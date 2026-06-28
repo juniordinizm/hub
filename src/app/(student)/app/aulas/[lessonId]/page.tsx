@@ -240,6 +240,11 @@ function LessonMainContent({
       />
     </LessonFocusHidden>
   );
+  const videoProcessing = Boolean(
+    data.lesson.videoProvider === "jmvstream" &&
+      data.lesson.videoExternalId &&
+      !lessonView.videoEmbedUrl
+  );
 
   if (lessonView.videoEmbedUrl) {
     return (
@@ -261,6 +266,30 @@ function LessonMainContent({
             {footer}
           </div>
         </LessonVideoPlayer>
+        {commentsSection}
+      </div>
+    );
+  }
+
+  if (videoProcessing) {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-0">
+          <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border bg-muted/35 px-6 text-center">
+            <p className="font-semibold text-foreground">
+              Video em processamento
+            </p>
+            <p className="max-w-lg text-muted-foreground text-sm">
+              O arquivo ja foi enviado e a JMVStream esta preparando o player.
+              Esta aula fica disponivel automaticamente em alguns minutos.
+            </p>
+          </div>
+        </div>
+        <LessonContentFrame lesson={data.lesson} />
+        <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-0">
+          {footer}
+        </div>
         {commentsSection}
       </div>
     );

@@ -112,4 +112,15 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("markJmvstreamAssetMovePending");
     expect(source).toContain("findJmvstreamVideoByHash(videos, videoHash)");
   });
+
+  it("reconciles processing uploads without depending on an open browser tab", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("syncPendingJmvstreamPlayers");
+    expect(source).toContain("where upload_status = 'processing'");
+    expect(source).toContain("await syncJmvstreamLessonPlayer(row.lesson_id)");
+  });
 });
