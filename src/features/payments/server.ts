@@ -19,6 +19,8 @@ import {
   type PersistedOrderStatus,
 } from "@/features/payments/abacatepay";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
+import { normalizeBuyerEmail } from "@/features/payments/public-checkout-policy";
+import { getAuth } from "@/lib/auth";
 import { getServerEnv } from "@/lib/env";
 
 interface WebhookResult {
@@ -60,6 +62,8 @@ const appUrl = (path: string): string =>
 
 const notifyAccessReleased = async (
   payload: {
+    activationRequired: boolean;
+    courseId: string;
     courseTitle: string;
     to: string;
     userName: string;
@@ -70,10 +74,45 @@ const notifyAccessReleased = async (
   }
 
   try {
-    await sendAccessReleasedEmail(payload);
+    if (payload.activationRequired) {
+      await getAuth().api.requestPasswordReset({
+        body: {
+          email: payload.to,
+          redirectTo: appUrl("/redefinir-senha"),
+        },
+      });
+      return;
+    }
+
+    await sendAccessReleasedEmail({
+      courseId: payload.courseId,
+      courseTitle: payload.courseTitle,
+      to: payload.to,
+      userName: payload.userName,
+    });
   } catch {
     // E-mail failure must not block paid webhook processing.
   }
+};
+
+const hasCredentialAccount = async ({
+  client,
+  userId,
+}: {
+  client: PoolClient;
+  userId: string;
+}): Promise<boolean> => {
+  const credentialAccount = await client.query<{ id: string }>(
+    `
+      select id from accounts
+      where user_id = $1
+        and provider_id = 'credential'
+      limit 1
+    `,
+    [userId]
+  );
+
+  return Boolean(credentialAccount.rows[0]);
 };
 
 const resolveWebhookUserId = async ({
@@ -105,14 +144,42 @@ const resolveWebhookUserId = async ({
     return metadataUserId;
   }
 
+  const normalizedEmail = normalizeBuyerEmail(customerEmail);
+  const existingUserByEmail = await client.query<{ id: string }>(
+    `
+      select id
+      from users
+      where lower(email) = $1
+      limit 1
+    `,
+    [normalizedEmail]
+  );
+
+  if (existingUserByEmail.rows[0]) {
+    await client.query(
+      `
+        update users
+        set name = $2,
+            email = $3,
+            updated_at = now()
+        where id = $1
+      `,
+      [existingUserByEmail.rows[0].id, customerName, normalizedEmail]
+    );
+
+    return existingUserByEmail.rows[0].id;
+  }
+
   const userResult = await client.query<{ id: string }>(
     `
       insert into users (id, name, email, email_verified)
       values ($1, $2, $3, true)
-      on conflict (email) do update set name = excluded.name
+      on conflict (email) do update set
+        name = excluded.name,
+        email = excluded.email
       returning id
     `,
-    [randomUUID(), customerName, customerEmail]
+    [randomUUID(), customerName, normalizedEmail]
   );
   const userId = userResult.rows[0]?.id;
 
@@ -343,6 +410,8 @@ const applyWebhookEnrollmentTransition = async ({
   shouldApplyRefundRevocation: boolean;
   userId: string;
 }): Promise<{
+  activationRequired: boolean;
+  courseId: string;
   courseTitle: string;
   to: string;
   userName: string;
@@ -364,6 +433,11 @@ const applyWebhookEnrollmentTransition = async ({
   }
 
   if (shouldApplyPaidAccess) {
+    const activationRequired = !(await hasCredentialAccount({
+      client,
+      userId,
+    }));
+
     await applyPaidWebhookAccess({
       accessDurationMonths,
       client,
@@ -374,6 +448,8 @@ const applyWebhookEnrollmentTransition = async ({
     });
 
     return {
+      activationRequired,
+      courseId: course.id,
       courseTitle: course.title,
       to: orderPayload.customerEmail,
       userName: orderPayload.customerName,
@@ -527,6 +603,8 @@ export const processAbacatePayWebhook = async (
   const client = await pool.connect();
   const warnings: string[] = [];
   let accessEmailPayload: {
+    activationRequired: boolean;
+    courseId: string;
     courseTitle: string;
     to: string;
     userName: string;

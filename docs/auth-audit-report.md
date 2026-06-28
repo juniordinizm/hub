@@ -29,6 +29,8 @@ Implementado em 2026-06-28:
 - Reset de senha usa URL canonica de `NEXT_PUBLIC_APP_URL` com fallback validado para origem atual.
 - Better Auth Dash e Sentinel foram adicionados via `@better-auth/infra`, habilitados somente com `BETTER_AUTH_API_KEY`.
 - `docs/AUTH_MODULE.md`, `.env.example` e `docs/DEPLOY_CHECKLIST.md` documentam as novas decisoes operacionais.
+- Compra externa por landing page agora segue cadastro fechado: checkout publico sem sessao, webhook confirmado cria/localiza usuario pelo e-mail normalizado, concede matricula e aciona criacao/redefinicao de senha quando necessario.
+- E-mails de usuarios agora sao protegidos contra duplicidade case-insensitive por indice unico em `lower(email)`.
 
 Decisoes mantidas:
 

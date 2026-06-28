@@ -106,14 +106,20 @@ export const jmvstreamDeleteStatusEnum = pgEnum("jmvstream_delete_status", [
   "failed",
 ]);
 
-export const users = pgTable("users", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  ...timestamps,
-});
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("users_email_lower_unique_idx").on(sql`lower(${table.email})`),
+  ]
+);
 
 export const sessions = pgTable(
   "sessions",

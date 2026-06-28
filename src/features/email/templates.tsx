@@ -14,6 +14,7 @@ interface CourseEmailProps {
   actionUrl?: string;
   courseTitle?: string;
   name: string;
+  resetUrl?: string;
 }
 
 interface CertificateEmailProps extends CourseEmailProps {
@@ -92,12 +93,16 @@ export const PasswordResetEmail = ({
   actionUrl,
   name,
 }: CourseEmailProps): React.JSX.Element => (
-  <EmailShell preview="Redefina sua senha do PROTEA-R Hub.">
-    <Heading>Redefinir senha</Heading>
+  <EmailShell preview="Crie ou redefina sua senha do PROTEA-R Hub.">
+    <Heading>Criar ou redefinir senha</Heading>
     <Text style={styles.text}>Ola, {name}.</Text>
     <Text style={styles.text}>
-      Recebemos uma solicitacao para redefinir sua senha. O link expira em breve
-      por seguranca.
+      Use este link para criar ou redefinir sua senha. Ele expira em breve por
+      seguranca.
+    </Text>
+    <Text style={styles.text}>
+      Se voce acabou de comprar um curso, este e o link de primeiro acesso.
+      Depois de criar a senha, entre na plataforma para acessar suas aulas.
     </Text>
     {actionUrl ? (
       <Section>
@@ -136,6 +141,7 @@ export const AccessReleasedEmail = ({
   actionUrl,
   courseTitle,
   name,
+  resetUrl,
 }: CourseEmailProps): React.JSX.Element => (
   <EmailShell preview="Sua matricula esta ativa no PROTEA-R Hub.">
     <Heading>Acesso liberado</Heading>
@@ -150,6 +156,11 @@ export const AccessReleasedEmail = ({
           Acessar curso
         </Button>
       </Section>
+    ) : null}
+    {resetUrl ? (
+      <Text style={styles.muted}>
+        Se nao lembrar sua senha, recupere o acesso por aqui: {resetUrl}
+      </Text>
     ) : null}
   </EmailShell>
 );

@@ -42,10 +42,13 @@
 - Admin consegue entrar.
 - `POST /api/auth/dev/bootstrap-admin` retorna 503 sem `INTERNAL_BOOTSTRAP_SECRET` e 401 com bearer incorreto em preview/dev.
 - `POST /api/auth/sign-up/email` retorna 404 quando `AUTH_PUBLIC_SIGNUP_ENABLED=false`.
+- `POST /api/checkouts/course` com curso ativo retorna URL de checkout sem exigir login.
+- `GET /checkout/sucesso` abre sem sessao e nao libera acesso sozinho.
 - Admin cria ou atualiza curso, confirma a galeria JMVStream do curso, modulo e aula.
 - Admin envia video pela aula e confirma que a aluna ve o player.
 - Admin cria aluna e reenvia acesso por reset de senha.
 - Webhook de pagamento aprovado cria pedido e matricula ativa.
+- Webhook de pagamento aprovado vindo da landing cria/localiza usuario pelo e-mail normalizado e envia link de criar senha quando a conta ainda nao tem credential.
 - Aluna entra, acessa dashboard e assiste a primeira aula.
 - Bloqueio sequencial impede acesso direto a aula futura.
 - Conclusao de 100% emite certificado e pagina publica valida o codigo.

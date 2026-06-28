@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { normalizeBuyerEmail } from "@/features/payments/public-checkout-policy";
 
 export type PersistedOrderStatus =
   | "pending"
@@ -57,6 +58,7 @@ export interface AbacatePayOrderPayload {
   providerOrderId: string;
   providerProductId: string | null;
   receiptUrl: string | null;
+  source: string | null;
   userId: string | null;
 }
 
@@ -80,7 +82,8 @@ export interface AbacatePayCheckoutRequest {
   metadata: {
     accessDurationMonths: number;
     courseId: string;
-    userId: string;
+    source?: string;
+    userId?: string;
   };
   methods: string[];
   returnUrl: string;
@@ -324,6 +327,7 @@ export const buildAbacatePayCheckoutRequest = ({
   externalId,
   productId,
   returnUrl,
+  source,
   userId,
 }: {
   accessDurationMonths: number;
@@ -332,20 +336,32 @@ export const buildAbacatePayCheckoutRequest = ({
   externalId: string;
   productId: string;
   returnUrl: string;
-  userId: string;
-}): AbacatePayCheckoutRequest => ({
-  completionUrl,
-  externalId,
-  frequency: "ONE_TIME",
-  items: [{ id: productId, quantity: 1 }],
-  metadata: {
+  source?: string;
+  userId?: string;
+}): AbacatePayCheckoutRequest => {
+  const metadata: AbacatePayCheckoutRequest["metadata"] = {
     accessDurationMonths,
     courseId,
-    userId,
-  },
-  methods: [...DEFAULT_PAYMENT_METHODS],
-  returnUrl,
-});
+  };
+
+  if (userId) {
+    metadata.userId = userId;
+  }
+
+  if (source) {
+    metadata.source = source;
+  }
+
+  return {
+    completionUrl,
+    externalId,
+    frequency: "ONE_TIME",
+    items: [{ id: productId, quantity: 1 }],
+    metadata,
+    methods: [...DEFAULT_PAYMENT_METHODS],
+    returnUrl,
+  };
+};
 
 export const getAbacatePayEventKey = (
   payload: AbacatePayWebhookPayload
@@ -388,7 +404,11 @@ export const getAbacatePayOrderPayload = (
     : [];
   const metadata =
     typeof order.metadata === "object" && order.metadata !== null
-      ? (order.metadata as { courseId?: unknown; userId?: unknown })
+      ? (order.metadata as {
+          courseId?: unknown;
+          source?: unknown;
+          userId?: unknown;
+        })
       : null;
   const firstItem = rawItems.find(
     (item): item is { id: string } =>
@@ -405,9 +425,10 @@ export const getAbacatePayOrderPayload = (
     paidAmountInCents: isNumber(order.paidAmount) ? order.paidAmount : null,
     paymentMethod: firstMethod,
     receiptUrl: isString(order.receiptUrl) ? order.receiptUrl : null,
-    customerEmail: customer.email,
+    customerEmail: normalizeBuyerEmail(customer.email),
     customerName: customer.name,
     courseId: isString(metadata?.courseId) ? metadata.courseId : null,
+    source: isString(metadata?.source) ? metadata.source : null,
     userId: isString(metadata?.userId) ? metadata.userId : null,
   };
 };

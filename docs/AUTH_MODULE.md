@@ -8,6 +8,7 @@ Stack: Next.js App Router, Better Auth, Drizzle/Postgres.
 - A plataforma opera como cadastro fechado.
 - `POST /api/auth/sign-up/email` fica bloqueado por padrao.
 - Contas de alunas entram por fluxo controlado: pagamento/webhook, criacao administrativa ou reset de senha enviado pelo admin.
+- Compra vinda de landing page nao exige login antes do pagamento. O webhook confirmado cria ou localiza a conta pelo e-mail do comprador e envia link para criar/redefinir senha quando necessario.
 - `emailVerified` e metadado do provedor de auth, nao gate de acesso da aplicacao neste momento. Como o cadastro publico esta fechado, a identidade da aluna deve vir do fluxo operacional que criou a conta.
 - `support` pode operar acesso/matriculas, mas nao pode alterar conteudo, configuracoes ou financeiro.
 
@@ -19,6 +20,9 @@ Stack: Next.js App Router, Better Auth, Drizzle/Postgres.
 - `src/lib/auth-policy.ts`: politica pura e testavel de permissoes, bootstrap, sign-up e redirects.
 - `src/lib/auth-permissions.ts`: wrapper server-only para exigir permissoes em paginas, Server Actions e DAL.
 - `src/app/api/auth/dev/bootstrap-admin/route.ts`: bootstrap protegido para ambiente nao produtivo.
+- `src/app/api/checkouts/course/route.ts`: checkout publico para landing pages.
+- `src/features/payments/public-checkout.ts`: criacao de checkout guest e rate limit local por IP/curso.
+- `src/features/payments/server.ts`: reconciliacao de webhook, usuario, pedido e matricula.
 
 ## Variaveis
 
@@ -81,9 +85,32 @@ So altere para `true` se o produto decidir abrir cadastro publico. Nesse caso, a
 3. Adicionar rate limit/WAF especifico para sign-up.
 4. Testar abuso de cadastro e reset de senha.
 
+## Compra por landing page
+
+Landing pages devem iniciar checkout por `POST /api/checkouts/course`, enviando `courseId` ou `courseSlug`. Essa rota:
+
+- Nao exige sessao.
+- Aceita apenas cursos ativos, com preco e produto AbacatePay configurado.
+- Cria checkout com `metadata.courseId` e `metadata.source = "landing"`.
+- Nao envia `metadata.userId`, porque o comprador ainda pode nao ter conta.
+- Aplica rate limit em memoria por IP/curso para reduzir abuso.
+- Redireciona o provedor para `/checkout/sucesso`, uma pagina publica que nao libera acesso por si so.
+
+O acesso so e liberado pelo webhook confirmado do AbacatePay. No webhook:
+
+- Se `metadata.userId` existir, o pedido e vinculado ao usuario autenticado do checkout interno.
+- Se `metadata.userId` nao existir, o usuario e resolvido por e-mail normalizado do comprador.
+- Se o e-mail ainda nao existir, o sistema cria `users` e `profiles` com role `student`.
+- Se o usuario ainda nao tiver `accounts.provider_id = 'credential'`, o sistema envia fluxo Better Auth de criar/redefinir senha.
+- Se o usuario ja tiver senha, o sistema envia e-mail de acesso liberado apontando para o curso.
+
+A migration `0027_case_insensitive_user_email.sql` adiciona indice unico em `lower(email)` para impedir duplicidade por caixa diferente.
+
 ## Password reset
 
 O reset usa URL canonica de `NEXT_PUBLIC_APP_URL` para gerar `/redefinir-senha`. Se a URL canonica estiver invalida no cliente, o helper cai para a origem atual. O token expira em 1 hora e o Better Auth revoga sessoes apos reset.
+
+O mesmo fluxo tambem serve como ativacao de conta comprada por landing page: Better Auth cria a conta `credential` quando um usuario existente sem senha redefine/cria sua senha.
 
 ## Dash e Sentinel
 

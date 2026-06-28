@@ -111,7 +111,34 @@ describe("AbacatePay webhook mapping", () => {
       customerEmail: "aluna@example.com",
       customerName: "Aluna Teste",
       courseId: "course_123",
+      source: null,
       userId: "user_123",
+    });
+  });
+
+  it("extracts guest checkout metadata and normalizes the buyer email", () => {
+    expect(
+      getAbacatePayOrderPayload({
+        event: "checkout.paid",
+        data: {
+          checkout: {
+            id: "bill_guest",
+            externalId: "order_guest",
+            items: [{ id: "prod_protea" }],
+            amount: 10_000,
+            metadata: { courseId: "course_123", source: "landing" },
+          },
+          customer: {
+            email: "  ALUNA@Example.COM ",
+            name: "Aluna Teste",
+          },
+        },
+      })
+    ).toMatchObject({
+      customerEmail: "aluna@example.com",
+      courseId: "course_123",
+      source: "landing",
+      userId: null,
     });
   });
 });
@@ -271,6 +298,32 @@ describe("AbacatePay v2 requests", () => {
       },
       methods: ["PIX", "CARD"],
       returnUrl: "https://example.com/app",
+    });
+  });
+
+  it("builds a guest landing checkout without user metadata", () => {
+    expect(
+      buildAbacatePayCheckoutRequest({
+        accessDurationMonths: 6,
+        completionUrl: "https://example.com/checkout/sucesso",
+        courseId: "course_123",
+        externalId: "order_guest",
+        productId: "prod_123",
+        returnUrl: "https://example.com",
+        source: "landing",
+      })
+    ).toEqual({
+      completionUrl: "https://example.com/checkout/sucesso",
+      externalId: "order_guest",
+      frequency: "ONE_TIME",
+      items: [{ id: "prod_123", quantity: 1 }],
+      metadata: {
+        accessDurationMonths: 6,
+        courseId: "course_123",
+        source: "landing",
+      },
+      methods: ["PIX", "CARD"],
+      returnUrl: "https://example.com",
     });
   });
 });

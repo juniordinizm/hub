@@ -29,24 +29,29 @@ export const sendPasswordResetEmail = async ({
 }): Promise<void> =>
   sendTransactionalEmail({
     react: PasswordResetEmail({ actionUrl: resetUrl, name: userName }),
-    subject: "Redefinir senha do PROTEA-R Hub",
+    subject: "Criar ou redefinir senha do PROTEA-R Hub",
     to,
   });
 
 export const sendAccessReleasedEmail = async ({
+  courseId,
   courseTitle,
   to,
   userName,
 }: {
+  courseId?: string;
   courseTitle: string;
   to: string;
   userName: string;
 }): Promise<void> =>
   sendTransactionalEmail({
     react: AccessReleasedEmail({
-      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app`,
+      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}${
+        courseId ? `/app/cursos/${courseId}` : "/app"
+      }`,
       courseTitle,
       name: userName,
+      resetUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/recuperar-senha`,
     }),
     subject: "Acesso liberado no PROTEA-R Hub",
     to,
