@@ -9,6 +9,7 @@ import {
   FileDownloadIcon,
   FileImageIcon,
   FileLinkIcon,
+  Link04Icon,
   Pdf01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -33,11 +34,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  getLessonVideoEditorMode,
-  resolveLessonVideoPreviewUrl,
-} from "@/features/admin/lesson-video-form";
+import { resolveLessonVideoPreviewUrl } from "@/features/admin/lesson-video-form";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
   LESSON_ATTACHMENT_ACCEPT,
@@ -63,12 +60,10 @@ export function LessonVideoControls({
   defaultVideoExternalId: null | string;
   lessonId?: string | undefined;
 }): React.JSX.Element {
-  const initialVideoMode = getLessonVideoEditorMode({
-    videoEmbedUrl: defaultEmbedUrl || null,
-    videoExternalId: defaultVideoExternalId,
-  });
-  const [appliedEmbedUrl, setAppliedEmbedUrl] = useState(defaultEmbedUrl);
-  const [linkDraft, setLinkDraft] = useState(defaultEmbedUrl);
+  const isJmvstreamUpload = Boolean(defaultVideoExternalId);
+  const initialEmbedUrl = isJmvstreamUpload ? "" : defaultEmbedUrl;
+  const [appliedEmbedUrl, setAppliedEmbedUrl] = useState(initialEmbedUrl);
+  const [linkDraft, setLinkDraft] = useState(initialEmbedUrl);
   const [isRemovePending, setIsRemovePending] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const previewUrl = resolveLessonVideoPreviewUrl({
@@ -129,8 +124,100 @@ export function LessonVideoControls({
     setLinkError(null);
   };
 
+  const manualLinkSlot = (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative w-full flex-1">
+          <HugeiconsIcon
+            className="absolute top-2.5 left-3 text-muted-foreground"
+            icon={Link04Icon}
+            size={18}
+          />
+          <Input
+            className="w-full pl-10"
+            onChange={(event) => {
+              setLinkDraft(event.target.value);
+              setLinkError(null);
+            }}
+            placeholder="Cole o link do YouTube, Vimeo ou JMVStream..."
+            value={linkDraft}
+          />
+        </div>
+        <Button
+          className="w-full shrink-0 sm:w-auto"
+          disabled={!linkDraft.trim()}
+          onClick={applyManualLink}
+          type="button"
+        >
+          Aplicar link
+        </Button>
+      </div>
+      {linkError && <p className="text-destructive text-xs">{linkError}</p>}
+    </div>
+  );
+
+  const manualLinkActiveCard = (
+    <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all duration-300 ease-out">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <HugeiconsIcon icon={FileLinkIcon} size={20} />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1 pt-0.5">
+            <p className="truncate font-medium text-sm">Link de Vídeo</p>
+            <p className="truncate text-muted-foreground text-xs">
+              {appliedEmbedUrl}
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                className="transition-transform active:scale-[0.97]"
+                size="sm"
+                type="button"
+                variant="destructive"
+              >
+                <HugeiconsIcon
+                  className="mr-1.5 -ml-0.5"
+                  icon={Delete02Icon}
+                  size={14}
+                />
+                Remover
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remover link</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja remover o link deste vídeo? Esta ação
+                  não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={removeManualLink}>
+                  Remover
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="flex min-w-0 flex-col gap-4 rounded-xl border bg-background p-6 shadow-sm">
+    <div className="flex min-w-0 flex-col gap-5 rounded-xl border bg-background p-6 shadow-sm">
+      <div className="flex flex-col gap-1">
+        <h3 className="font-semibold text-base">Vídeo da aula</h3>
+        <p className="text-muted-foreground text-sm">
+          Adicione o conteúdo em vídeo colando um link externo ou enviando o
+          arquivo.
+        </p>
+      </div>
+
       <input
         defaultValue={defaultVideoDurationSeconds}
         name="durationSeconds"
@@ -148,107 +235,28 @@ export function LessonVideoControls({
       ) : null}
 
       <input name="videoProvider" type="hidden" value="jmvstream" />
-      <Tabs className="w-full min-w-0" defaultValue={initialVideoMode}>
-        <TabsList className="grid h-auto min-h-9 w-full min-w-0 grid-cols-2">
-          <TabsTrigger
-            className="min-w-0 whitespace-normal text-center leading-tight"
-            value="upload"
-          >
-            Upload
-          </TabsTrigger>
-          <TabsTrigger
-            className="min-w-0 whitespace-normal text-center leading-tight"
-            value="link"
-          >
-            Link
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent className="pt-4" value="upload">
-          <JmvstreamUploadPanel
-            asset={asset}
-            currentVideoHash={defaultVideoExternalId}
-            isRemovePending={isRemovePending}
-            lessonId={lessonId}
-            onPlayerReady={applyUploadedPlayerUrl}
-            {...(defaultVideoExternalId
-              ? { onRemoveVideo: removeVideoLocally }
-              : {})}
-          />
-        </TabsContent>
-        <TabsContent className="pt-4" value="link">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-sm">Link ou iframe</h3>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Insira o link direto ou o código iframe de incorporação do
-                  player da JMVStream.
-                </p>
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-2">
-              <Input
-                className="w-full"
-                onChange={(event) => {
-                  setLinkDraft(event.target.value);
-                  setLinkError(null);
-                }}
-                placeholder="https://player.jmvstream.com/... ou iframe oficial"
-                value={linkDraft}
-              />
-              <div className="flex flex-col justify-end gap-2 sm:flex-row">
-                {hasManualLinkApplied ? (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        className="w-full sm:w-auto"
-                        type="button"
-                        variant="destructive"
-                      >
-                        Remover link
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Remover link</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Tem certeza que deseja remover o link deste vídeo?
-                          Esta ação não pode ser desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={removeManualLink}>
-                          Remover
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                ) : null}
-                <Button
-                  className="w-full sm:w-auto"
-                  disabled={!linkDraft.trim()}
-                  onClick={applyManualLink}
-                  type="button"
-                >
-                  Aplicar link
-                </Button>
-              </div>
-            </div>
+      <JmvstreamUploadPanel
+        asset={asset}
+        currentVideoHash={defaultVideoExternalId}
+        hasManualLinkApplied={hasManualLinkApplied}
+        isRemovePending={isRemovePending}
+        lessonId={lessonId}
+        manualLinkActiveCard={manualLinkActiveCard}
+        manualLinkSlot={manualLinkSlot}
+        onPlayerReady={applyUploadedPlayerUrl}
+        {...(defaultVideoExternalId
+          ? { onRemoveVideo: removeVideoLocally }
+          : {})}
+      />
 
-            {linkError ? (
-              <p className="text-destructive text-xs">{linkError}</p>
-            ) : null}
-          </div>
-          <JmvstreamDurationDetector
-            defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
-            defaultProvider="jmvstream"
-            key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
-            showDetectedMessage={false}
-          />
-        </TabsContent>
-      </Tabs>
+      <JmvstreamDurationDetector
+        defaultEmbedUrl={isRemovePending ? "" : appliedEmbedUrl}
+        defaultProvider="jmvstream"
+        key={`${isRemovePending ? "removed" : "active"}:${appliedEmbedUrl}`}
+        showDetectedMessage={false}
+      />
+
       {previewUrl || isUploadedVideoProcessing ? (
         <div className="pt-4">
           <LessonVideoEditorPreview

@@ -1,7 +1,17 @@
 "use client";
 
+import {
+  Alert01Icon,
+  CloudUploadIcon,
+  Delete02Icon,
+  Loading02Icon,
+  ReloadIcon,
+  Video01Icon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,10 +23,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   completeJmvstreamUploadAction,
   initJmvstreamUploadAction,
@@ -41,29 +49,51 @@ export interface JmvstreamUploadAsset {
   videoHash: string;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Upload component requires complex state handling
 export function JmvstreamUploadPanel({
   asset,
   currentVideoHash,
+  hasManualLinkApplied = false,
   isRemovePending = false,
   lessonId,
-  onRemoveVideo,
+  manualLinkActiveCard,
+  manualLinkSlot,
   onPlayerReady,
+  onRemoveVideo,
 }: {
   asset?: JmvstreamUploadAsset | undefined;
   currentVideoHash: null | string;
+  hasManualLinkApplied?: boolean;
   isRemovePending?: boolean;
   lessonId?: string | undefined;
-  onRemoveVideo?: () => void;
+  manualLinkActiveCard?: React.ReactNode;
+  manualLinkSlot?: React.ReactNode;
   onPlayerReady?: (playerUrl: string) => void;
+  onRemoveVideo?: () => void;
 }): React.JSX.Element {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
+  const [isLocalProcessing, setIsLocalProcessing] = useState(false);
+  const [localFilename, setLocalFilename] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (asset) {
+      setIsLocalProcessing(false);
+    }
+  }, [asset]);
   const [status, setStatus] = useState<string | null>(null);
-  const isProcessing = asset?.uploadStatus === "processing";
+  const isProcessing =
+    asset?.uploadStatus === "processing" || isLocalProcessing;
+  const isUploadActive = Boolean(
+    asset ||
+      isUploading ||
+      isProcessing ||
+      (currentVideoHash && !hasManualLinkApplied)
+  );
 
   const syncProcessingPlayer = useCallback(async (): Promise<void> => {
     if (!lessonId) {
@@ -119,8 +149,8 @@ export function JmvstreamUploadPanel({
     return () => window.clearInterval(interval);
   }, [isProcessing, lessonId, syncProcessingPlayer]);
 
-  const uploadSelectedFile = (): void => {
-    const file = inputRef.current?.files?.[0];
+  const uploadSelectedFile = (droppedFile?: File): void => {
+    const file = droppedFile || inputRef.current?.files?.[0];
 
     if (!lessonId) {
       setError("Crie a aula antes de enviar o video.");
@@ -132,14 +162,17 @@ export function JmvstreamUploadPanel({
       return;
     }
 
+    // Feedback visual imediato fora da transition
+    setError(null);
+    setIsUploading(true);
+    setLocalFilename(file.name);
+    setProgress(2);
+    setStatus("Etapa 1/4: Iniciando conexão segura...");
+
     startTransition(async () => {
       let activeVideoHash: string | null = null;
       let uploadCompleted = false;
       try {
-        setError(null);
-        setIsUploading(true);
-        setProgress(2);
-        setStatus("Preparando upload na JMVStream...");
         const initResult = await initJmvstreamUploadAction({
           fileName: file.name,
           fileSize: file.size,
@@ -152,7 +185,7 @@ export function JmvstreamUploadPanel({
 
         const init = initResult.data;
         activeVideoHash = init.videoHash;
-        setStatus("Enviando partes do video...");
+        setStatus("Etapa 2/4: Enviando arquivo para a nuvem...");
         const parts = await uploadFileParts({
           file,
           onProgress: setProgress,
@@ -160,7 +193,9 @@ export function JmvstreamUploadPanel({
         });
 
         setIsUploading(false);
-        setStatus("Finalizando processamento...");
+        setIsLocalProcessing(true);
+        setStatus("Etapa 3/4: Montando arquivo final...");
+        toast.info("Upload concluído. Processando na JMVStream...");
         await completeJmvstreamUploadAction({
           filename: file.name,
           lessonId,
@@ -173,11 +208,16 @@ export function JmvstreamUploadPanel({
         });
         uploadCompleted = true;
         setProgress(100);
-        setStatus("Video enviado. Sincronizando player oficial...");
+        setStatus("Etapa 4/4: Sincronizando o player oficial...");
         const playerSync = await syncJmvstreamPlayerStatus(lessonId);
         setStatus(playerSync.status);
         if (playerSync.playerUrl) {
           onPlayerReady?.(playerSync.playerUrl);
+          toast.success("Vídeo pronto para reprodução!");
+        } else {
+          toast.success(
+            "Vídeo enviado com sucesso. Processamento continua em background."
+          );
         }
         router.refresh();
       } catch (uploadError) {
@@ -193,6 +233,9 @@ export function JmvstreamUploadPanel({
 
         setError(uploadCompleted ? null : errorMessage);
         setStatus(getUploadFailureStatus(uploadCompleted));
+        if (!uploadCompleted) {
+          toast.error(`Falha no upload: ${errorMessage}`);
+        }
       }
     });
   };
@@ -202,15 +245,16 @@ export function JmvstreamUploadPanel({
       return;
     }
 
+    setError(null);
     startTransition(async () => {
       try {
-        setError(null);
         const retryResult = await retryJmvstreamDeleteAction({
           assetId: asset.id,
         });
         if (!retryResult.ok) {
           throw new Error(retryResult.error);
         }
+        toast.success("Solicitação de exclusão reenviada.");
         router.refresh();
       } catch (retryError) {
         setError(
@@ -228,10 +272,11 @@ export function JmvstreamUploadPanel({
       return;
     }
 
+    setError(null);
+    setStatus("Removendo video da JMVStream...");
+    const toastId = toast.loading("Removendo vídeo...");
     startTransition(async () => {
       try {
-        setError(null);
-        setStatus("Removendo video da JMVStream...");
         const result = await removeJmvstreamVideoFromLessonAction({ lessonId });
         onRemoveVideo?.();
         setStatus(
@@ -239,6 +284,7 @@ export function JmvstreamUploadPanel({
             ? "Video removido da aula. Exclusao na JMVStream pendente."
             : "Video removido."
         );
+        toast.success("Vídeo removido com sucesso.", { id: toastId });
         router.refresh();
       } catch (removeError) {
         setError(
@@ -247,144 +293,244 @@ export function JmvstreamUploadPanel({
             : "Nao foi possivel remover o video da JMVStream."
         );
         setStatus(null);
+        toast.error("Erro ao remover o vídeo.", { id: toastId });
       }
     });
   };
 
   return (
     <section className="min-w-0">
-      <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-sm">Upload JMVStream</h3>
-            <p className="mt-1 text-muted-foreground text-xs">
-              Envia o arquivo para a galeria do curso e vincula o hash nesta
-              aula.
-            </p>
-          </div>
-          <Badge variant={asset ? "default" : "outline"}>
-            {asset ? asset.deleteStatus : "sem asset"}
-          </Badge>
-        </div>
+      <div className="flex min-w-0 flex-col gap-4">
+        {!(isUploadActive || hasManualLinkApplied) && (
+          <div className="flex flex-col gap-6">
+            {manualLinkSlot && (
+              <div className="flex flex-col gap-5">
+                {manualLinkSlot}
+                <div className="relative flex items-center">
+                  <div className="grow border-t" />
+                  <span className="shrink-0 px-4 font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
+                    OU
+                  </span>
+                  <div className="grow border-t" />
+                </div>
+              </div>
+            )}
 
-        {asset ? (
-          <div className="rounded-md border bg-card px-3 py-2 text-xs">
-            <p className="font-medium">{asset.filename}</p>
-            <p className="mt-1 break-all text-muted-foreground">
-              {asset.videoHash}
-            </p>
-            <p className="mt-2 text-muted-foreground">
-              {getAssetStatusLabel(asset.uploadStatus)}
-            </p>
-            {asset.lastError ? (
-              <p className="mt-2 text-destructive">{asset.lastError}</p>
-            ) : null}
-          </div>
-        ) : null}
-        {!asset && currentVideoHash ? (
-          <p className="rounded-md border bg-card px-3 py-2 text-muted-foreground text-xs">
-            Hash JMVStream atual: {currentVideoHash}
-          </p>
-        ) : null}
-        <div className="flex flex-col gap-2">
-          <Input
-            accept="video/*"
-            className="w-full"
-            disabled={isPending || !lessonId}
-            ref={inputRef}
-            type="file"
-          />
-          <div className="flex flex-col justify-end gap-2 sm:flex-row">
-            {isProcessing ? (
-              <Button
-                className="w-full sm:w-auto"
-                disabled={isPending}
-                onClick={syncProcessingPlayer}
-                type="button"
-                variant="outline"
-              >
-                Verificar player agora
-              </Button>
-            ) : null}
-            {asset?.deleteStatus === "failed" ? (
-              <Button
-                className="w-full sm:w-auto"
-                disabled={isPending}
-                onClick={retryDelete}
-                type="button"
-                variant="outline"
-              >
-                Tentar apagar novamente
-              </Button>
-            ) : null}
-            {currentVideoHash && onRemoveVideo ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    className="w-full sm:w-auto"
-                    disabled={isPending || isRemovePending}
-                    type="button"
-                    variant="destructive"
-                  >
-                    Remover vídeo
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Remover vídeo</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Tem certeza que deseja remover o vídeo desta aula? Esta
-                      ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={removeVideo}>
-                      Remover
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : null}
-            <Button
-              className="w-full sm:w-auto"
-              disabled={isPending || !lessonId}
-              onClick={uploadSelectedFile}
-              type="button"
+            {/* biome-ignore lint/a11y/useKeyWithClickEvents: Dropzone Container */}
+            {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: Dropzone Container */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: Dropzone Container */}
+            <div
+              className="group relative flex cursor-pointer flex-col items-center justify-between gap-4 rounded-xl border border-border border-dashed bg-muted/20 p-5 transition-colors hover:border-ring/50 hover:bg-muted/30 sm:flex-row"
+              onClick={() => inputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  uploadSelectedFile(file);
+                }
+              }}
             >
-              Enviar video
-            </Button>
+              <Input
+                accept="video/*"
+                className="hidden"
+                disabled={isPending || !lessonId}
+                onChange={() => uploadSelectedFile()}
+                ref={inputRef}
+                type="file"
+              />
+
+              <div className="flex items-center gap-3 text-left">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background shadow-sm transition-transform duration-300 ease-out group-hover:scale-105">
+                  <HugeiconsIcon
+                    className="text-muted-foreground"
+                    icon={CloudUploadIcon}
+                    size={20}
+                  />
+                </div>
+                <div>
+                  <h4 className="font-medium text-sm">Upload de vídeo</h4>
+                  <p className="text-muted-foreground text-xs">
+                    Arraste para cá ou clique para buscar
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                className="w-full shrink-0 transition-transform active:scale-[0.97] sm:w-auto"
+                disabled={isPending || !lessonId}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.click();
+                }}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                Procurar arquivo
+              </Button>
+            </div>
+
+            {error && !currentVideoHash && (
+              <div className="relative z-20 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-xs">
+                <HugeiconsIcon
+                  className="shrink-0"
+                  icon={Alert01Icon}
+                  size={14}
+                />
+                <p className="truncate">{error}</p>
+              </div>
+            )}
+
+            {!lessonId && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
+                <p className="font-medium text-muted-foreground text-sm">
+                  Crie a aula primeiro para habilitar o upload
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-        {lessonId ? null : (
-          <p className="text-muted-foreground text-xs">
-            Crie a aula para habilitar o upload do arquivo.
-          </p>
         )}
 
-        {isProcessing && !status ? (
-          <div className="flex flex-col gap-2 rounded-md border bg-muted/35 px-3 py-2">
-            <p className="font-medium text-xs">Video em processamento</p>
-            <p className="text-muted-foreground text-xs">
-              O arquivo ja foi enviado. A JMVStream esta preparando o player e
-              as qualidades de reproducao.
-            </p>
-            <UploadTimeline progress={100} status="processing" />
-          </div>
-        ) : null}
+        {isUploadActive && (
+          <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 starting:opacity-0 shadow-sm transition-all duration-300 ease-out">
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <HugeiconsIcon
+                    className={
+                      isUploading || isProcessing ? "animate-spin" : ""
+                    }
+                    icon={
+                      isUploading || isProcessing ? Loading02Icon : Video01Icon
+                    }
+                    size={20}
+                  />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1 pt-0.5">
+                  <p className="truncate font-medium text-sm">
+                    {asset?.filename || localFilename || "Arquivo de vídeo"}
+                  </p>
+                  {currentVideoHash && (
+                    <p className="truncate font-mono text-muted-foreground text-xs">
+                      Hash: {currentVideoHash}
+                    </p>
+                  )}
+                  <p className="text-muted-foreground text-xs">
+                    {isUploading
+                      ? status
+                      : getAssetStatusLabel(
+                          asset?.uploadStatus ||
+                            (isLocalProcessing ? "processing" : "ready")
+                        )}
+                  </p>
+                </div>
+              </div>
 
-        {status ? (
-          <div className="flex flex-col gap-2">
-            <Progress className="h-2" value={progress} />
-            <p className="text-muted-foreground text-xs">{status}</p>
-            <UploadTimeline
-              progress={progress}
-              status={asset?.uploadStatus ?? null}
-            />
-          </div>
-        ) : null}
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {isProcessing && (
+                  <Button
+                    className="transition-transform active:scale-[0.97]"
+                    disabled={isPending}
+                    onClick={syncProcessingPlayer}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <HugeiconsIcon
+                      className="mr-1.5 -ml-0.5"
+                      icon={ReloadIcon}
+                      size={14}
+                    />
+                    Verificar
+                  </Button>
+                )}
+                {asset?.deleteStatus === "failed" && (
+                  <Button
+                    className="transition-transform active:scale-[0.97]"
+                    disabled={isPending}
+                    onClick={retryDelete}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Tentar apagar novamente
+                  </Button>
+                )}
+                {currentVideoHash && onRemoveVideo && !isUploading && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        className="transition-transform active:scale-[0.97]"
+                        disabled={isPending || isRemovePending}
+                        size="sm"
+                        type="button"
+                        variant="destructive"
+                      >
+                        <HugeiconsIcon
+                          className={
+                            isPending
+                              ? "mr-1.5 -ml-0.5 animate-spin"
+                              : "mr-1.5 -ml-0.5"
+                          }
+                          icon={isPending ? Loading02Icon : Delete02Icon}
+                          size={14}
+                        />
+                        {isPending ? "Removendo..." : "Remover"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Remover vídeo</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja remover o vídeo desta aula?
+                          Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={removeVideo}>
+                          Remover
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
+            </div>
 
-        {error ? <p className="text-destructive text-xs">{error}</p> : null}
+            {isUploading && (
+              <div className="flex items-center gap-3">
+                <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-primary transition-all duration-300 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-xs">
+                <HugeiconsIcon
+                  className="shrink-0"
+                  icon={Alert01Icon}
+                  size={14}
+                />
+                <p>{error}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {hasManualLinkApplied && !isUploadActive && manualLinkActiveCard}
       </div>
     </section>
   );
@@ -429,13 +575,15 @@ const syncJmvstreamPlayerStatus = async (
   } catch {
     return {
       playerUrl: null,
-      status: "Video enviado. Aguardando processamento na JMVStream.",
+      status:
+        "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)...",
     };
   }
 
   return {
     playerUrl: null,
-    status: "Video enviado. Aguardando processamento na JMVStream.",
+    status:
+      "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)...",
   };
 };
 
@@ -458,7 +606,7 @@ const getAssetStatusLabel = (uploadStatus: string): string => {
   }
 
   if (uploadStatus === "processing") {
-    return "Processando na JMVStream.";
+    return "Processando qualidades e player...";
   }
 
   if (uploadStatus === "uploading") {
@@ -471,29 +619,3 @@ const getAssetStatusLabel = (uploadStatus: string): string => {
 
   return "Status JMVStream desconhecido.";
 };
-
-function UploadTimeline({
-  progress,
-  status,
-}: {
-  progress: number;
-  status: null | string;
-}): React.JSX.Element {
-  const steps = [
-    ["Preparando", progress >= 2],
-    ["Enviando", progress > 2],
-    ["Finalizando", progress >= 90],
-    ["Processando", progress === 100 || status === "processing"],
-    ["Pronto", status === "ready"],
-  ] as const;
-
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {steps.map(([label, isActive]) => (
-        <Badge key={label} variant={isActive ? "default" : "outline"}>
-          {label}
-        </Badge>
-      ))}
-    </div>
-  );
-}
