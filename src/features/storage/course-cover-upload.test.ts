@@ -54,12 +54,12 @@ describe("course cover upload", () => {
       "Tipo de imagem nao permitido."
     );
 
-    const oversized = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "x.png", {
+    const oversized = new File([new Uint8Array(4 * 1024 * 1024 + 1)], "x.png", {
       type: "image/png",
     });
 
     expect(() => readCourseCoverFile(oversized)).toThrow(
-      "Imagem original maior que 5 MB."
+      "Imagem original maior que 4 MB."
     );
 
     const invalidExtension = await createImageFile({

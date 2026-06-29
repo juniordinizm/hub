@@ -22,7 +22,7 @@ interface CourseCoverUploadFieldProps {
   defaultThumbnailUrl?: string | null | undefined;
 }
 
-const MAX_COVER_BYTES = 5 * 1024 * 1024;
+const MAX_COVER_BYTES = 4 * 1024 * 1024;
 const ALLOWED_COVER_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const isValidCoverFile = (file: File): boolean => {
@@ -32,7 +32,7 @@ const isValidCoverFile = (file: File): boolean => {
   }
 
   if (file.size > MAX_COVER_BYTES) {
-    toast.error("A imagem deve ter no maximo 5MB.");
+    toast.error("A imagem deve ter no maximo 4MB.");
     return false;
   }
 
@@ -206,7 +206,7 @@ export function CourseCoverUploadField({
                 Arraste ou clique para selecionar a capa
               </p>
               <p className="text-muted-foreground text-xs">
-                PNG, JPG ou WebP ate 5MB
+                PNG, JPG ou WebP ate 4MB
               </p>
             </div>
           )}

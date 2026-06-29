@@ -42,9 +42,10 @@ export const readCourseCoverFile = (value: unknown): CourseCoverFile | null => {
     return null;
   }
 
+  const fileName = typeof value.name === "string" ? value.name : "";
   const isEmptyFormFile =
     value.size === 0 &&
-    (!value.name.trim() || value.type === "application/octet-stream");
+    (!fileName.trim() || value.type === "application/octet-stream");
 
   if (isEmptyFormFile) {
     return null;
@@ -53,7 +54,7 @@ export const readCourseCoverFile = (value: unknown): CourseCoverFile | null => {
   const coverFile = {
     contentType: value.type,
     file: value,
-    fileName: value.name,
+    fileName,
     sizeBytes: value.size,
   };
 
