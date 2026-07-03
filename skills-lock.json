@@ -139,6 +139,12 @@
       "skillPath": "skills/deprecated/request-refactor-plan/SKILL.md",
       "computedHash": "6811250488d1dafcb111e7ef0dc1124211369c5f6f47ce820b7527c255489178"
     },
+    "revenue-centric-design": {
+      "source": "heliocosta-dev/revenue-centric-design",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "54906b2e77daabfd8adf57562dea9c2a174050ecf9c950342e4e5fa9b0b6e954"
+    },
     "review": {
       "source": "mattpocock/skills",
       "sourceType": "github",
