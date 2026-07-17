@@ -35,10 +35,39 @@ describe("server environment", () => {
     );
   });
 
+  it("requires canonical auth and app URLs in production", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("BETTER_AUTH_SECRET", "production-secret");
+    setEnv("BETTER_AUTH_URL", "https://app.example.com");
+    setEnv("NEXT_PUBLIC_APP_URL", "https://app.example.com");
+    setEnv("CERTIFICATE_PUBLIC_BASE_URL", undefined);
+
+    expect(() => getServerEnv()).toThrow(
+      "CERTIFICATE_PUBLIC_BASE_URL is required in production."
+    );
+  });
+
   it("keeps public sign-up disabled by default", () => {
     setEnv("NODE_ENV", "development");
     setEnv("AUTH_PUBLIC_SIGNUP_ENABLED", undefined);
 
     expect(getServerEnv().AUTH_PUBLIC_SIGNUP_ENABLED).toBe(false);
+  });
+
+  it("keeps destructive retention disabled by default", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("DATA_RETENTION_ENABLED", undefined);
+
+    expect(getServerEnv().DATA_RETENTION_ENABLED).toBe(false);
+  });
+
+  it("requires a legal approval reference before enabling retention", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("DATA_RETENTION_ENABLED", "true");
+    setEnv("LEGAL_APPROVAL_REFERENCE", undefined);
+
+    expect(() => getServerEnv()).toThrow(
+      "LEGAL_APPROVAL_REFERENCE is required when DATA_RETENTION_ENABLED is true."
+    );
   });
 });

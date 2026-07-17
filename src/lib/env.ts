@@ -32,6 +32,10 @@ const serverEnvSchema = z.object({
     .url()
     .default("http://localhost:3000"),
   CRON_SECRET: optionalNonEmptyString,
+  DATA_RETENTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
   INTERNAL_BOOTSTRAP_SECRET: optionalNonEmptyString,
@@ -41,6 +45,7 @@ const serverEnvSchema = z.object({
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
   JMVSTREAM_API_TOKEN: optionalNonEmptyString,
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
+  LEGAL_APPROVAL_REFERENCE: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -69,6 +74,7 @@ export const getServerEnv = () => {
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,
     CRON_SECRET: process.env.CRON_SECRET,
+    DATA_RETENTION_ENABLED: process.env.DATA_RETENTION_ENABLED,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
     INTERNAL_BOOTSTRAP_SECRET: process.env.INTERNAL_BOOTSTRAP_SECRET,
@@ -78,6 +84,7 @@ export const getServerEnv = () => {
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
     JMVSTREAM_API_TOKEN: process.env.JMVSTREAM_API_TOKEN,
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
+    LEGAL_APPROVAL_REFERENCE: process.env.LEGAL_APPROVAL_REFERENCE,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
@@ -88,6 +95,30 @@ export const getServerEnv = () => {
 
   if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
     throw new Error("BETTER_AUTH_SECRET is required in production.");
+  }
+
+  if (env.NODE_ENV === "production" && !process.env.BETTER_AUTH_URL?.trim()) {
+    throw new Error("BETTER_AUTH_URL is required in production.");
+  }
+
+  if (
+    env.NODE_ENV === "production" &&
+    !process.env.NEXT_PUBLIC_APP_URL?.trim()
+  ) {
+    throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
+  }
+
+  if (env.DATA_RETENTION_ENABLED && !env.LEGAL_APPROVAL_REFERENCE) {
+    throw new Error(
+      "LEGAL_APPROVAL_REFERENCE is required when DATA_RETENTION_ENABLED is true."
+    );
+  }
+
+  if (
+    env.NODE_ENV === "production" &&
+    !process.env.CERTIFICATE_PUBLIC_BASE_URL?.trim()
+  ) {
+    throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
   }
 
   return {

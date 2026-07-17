@@ -5,7 +5,6 @@ import { canMutateStudentExperience } from "@/features/courses/preview";
 import {
   completeLesson,
   recordLessonWatchProgress,
-  syncJmvstreamLessonDuration,
 } from "@/features/courses/server";
 import { sendSupportRequestEmail } from "@/features/email/server";
 import { route } from "@/lib/routes";
@@ -37,30 +36,6 @@ export const completeLessonAction = async (formData: FormData) => {
   }
 
   redirect(route(`/app/cursos/${result.courseId}`));
-};
-
-export const syncJmvstreamLessonDurationAction = async ({
-  durationSeconds,
-  lessonId,
-}: {
-  durationSeconds: number;
-  lessonId: string;
-}): Promise<void> => {
-  const session = await requireSession();
-
-  if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite gravar duracao.");
-  }
-
-  if (!lessonId) {
-    throw new Error("Aula invalida.");
-  }
-
-  await syncJmvstreamLessonDuration({
-    durationSeconds,
-    lessonId,
-    userId: session.user.id,
-  });
 };
 
 export const recordLessonWatchProgressAction = async ({

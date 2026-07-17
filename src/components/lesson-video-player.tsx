@@ -9,10 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import {
-  recordLessonWatchProgressAction,
-  syncJmvstreamLessonDurationAction,
-} from "@/app/(student)/app/actions";
+import { recordLessonWatchProgressAction } from "@/app/(student)/app/actions";
 import { LessonFocusContainer } from "@/components/lesson-focus-mode";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
@@ -50,7 +47,6 @@ export function LessonVideoPlayer({
 }): React.JSX.Element {
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const syncedDurationRef = useRef(durationSeconds);
   const completedByVideoRef = useRef(false);
   const lastWatchProgressSyncRef = useRef({
     percent: initialWatchedPercent,
@@ -95,31 +91,8 @@ export function LessonVideoPlayer({
       ) {
         setDisplayDurationSeconds(detectedSeconds);
       }
-
-      if (
-        isPreview ||
-        !shouldApplyDetectedDuration({
-          currentSeconds: syncedDurationRef.current,
-          detectedSeconds,
-          userEdited: false,
-        })
-      ) {
-        return;
-      }
-
-      syncedDurationRef.current = detectedSeconds;
-      startTransition(async () => {
-        try {
-          await syncJmvstreamLessonDurationAction({
-            durationSeconds: detectedSeconds,
-            lessonId,
-          });
-        } catch {
-          syncedDurationRef.current = displayDurationSeconds;
-        }
-      });
     },
-    [displayDurationSeconds, isPreview, lessonId]
+    [displayDurationSeconds]
   );
 
   const handlePlayerEvent = useCallback(

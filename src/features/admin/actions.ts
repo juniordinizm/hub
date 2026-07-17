@@ -40,6 +40,7 @@ import {
   readCourseCoverFile,
 } from "@/features/storage/course-cover-upload";
 import { deleteR2Objects, uploadCourseCoverFile } from "@/features/storage/r2";
+import { rolesForPermission } from "@/lib/auth-policy";
 import { requireRole } from "@/lib/session";
 
 const CREATED_CONTENT_STATUS = "draft";
@@ -1052,7 +1053,9 @@ export const retryJmvstreamDeleteAction = async ({
 export const extendEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const enrollmentId = readString(formData, "enrollmentId");
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
@@ -1085,7 +1088,9 @@ export const extendEnrollmentExpirationAction = async (
 export const setEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const enrollmentId = readString(formData, "enrollmentId");
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
@@ -1116,7 +1121,9 @@ export const setEnrollmentExpirationAction = async (
 export const adjustEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const adjustment = readString(formData, "adjustment");
   const enrollmentId = readString(formData, "enrollmentId");
   const userId = readString(formData, "userId");
@@ -1154,7 +1161,9 @@ export const adjustEnrollmentExpirationAction = async (
 export const blockEnrollmentAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const enrollmentId = readString(formData, "enrollmentId");
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
@@ -1183,7 +1192,9 @@ export const blockEnrollmentAccessAction = async (
 export const restoreEnrollmentAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const enrollmentId = readString(formData, "enrollmentId");
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
@@ -1212,7 +1223,9 @@ export const restoreEnrollmentAccessAction = async (
 export const blockStudentPlatformAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
 
@@ -1247,7 +1260,9 @@ export const blockStudentPlatformAccessAction = async (
 export const restoreStudentPlatformAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requireRole(
+    rolesForPermission("manageEnrollmentAccess")
+  );
   const userId = readString(formData, "userId");
   const reason = readString(formData, "reason");
 

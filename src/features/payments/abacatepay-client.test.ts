@@ -92,6 +92,42 @@ describe("AbacatePayClient", () => {
     });
   });
 
+  it("requests an integral checkout refund with an auditable reason", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          data: { refundPublicId: "ref_123" },
+          error: null,
+        }),
+        { status: 200 }
+      )
+    );
+    const client = new AbacatePayClient({
+      apiKey: "abc_prod_token",
+      baseUrl: "https://api.abacatepay.com/v2",
+      fetcher: fetchMock,
+    });
+
+    await expect(
+      client.refundCheckout({
+        checkoutId: "bill_123",
+        reason: "Solicitacao da aluna",
+      })
+    ).resolves.toEqual({ refundPublicId: "ref_123" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.abacatepay.com/v2/checkouts/refund",
+      expect.objectContaining({
+        body: JSON.stringify({
+          id: "bill_123",
+          reason: "Solicitacao da aluna",
+        }),
+        method: "POST",
+      })
+    );
+  });
+
   it("throws a readable error when the API rejects the request", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

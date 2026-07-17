@@ -32,16 +32,15 @@ describe("lesson duration persistence", () => {
     expect(source).toContain("durationBreakdown.totalDurationSeconds");
   });
 
-  it("keeps text duration when JMVStream later syncs video duration", async () => {
+  it("keeps editorial duration persistence in the admin module", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("../admin/actions.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain("video_duration_seconds = $1");
-    expect(source).toContain(
-      "duration_seconds = $1 + coalesce(text_duration_seconds, 0)"
-    );
+    expect(source).toContain("calculateLessonDurationBreakdown");
+    expect(source).toContain("durationBreakdown.videoDurationSeconds");
+    expect(source).toContain("durationBreakdown.totalDurationSeconds");
   });
 
   it("recalculates existing text durations without minute rounding", async () => {

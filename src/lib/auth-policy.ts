@@ -1,22 +1,39 @@
 import type { AppRole } from "@/lib/session";
 
 export type AuthPermission =
+  | "executeRefund"
+  | "manageCertificates"
   | "manageContent"
   | "manageEnrollmentAccess"
+  | "managePrivacyRequests"
+  | "executePrivacyAnonymization"
   | "manageSettings"
+  | "retryWebhook"
   | "viewAdminPanel"
   | "viewFinancials";
 
 const rolePermissions: Record<AppRole, AuthPermission[]> = {
   admin: [
+    "executeRefund",
+    "executePrivacyAnonymization",
+    "manageCertificates",
     "manageContent",
     "manageEnrollmentAccess",
+    "managePrivacyRequests",
     "manageSettings",
+    "retryWebhook",
     "viewAdminPanel",
     "viewFinancials",
   ],
   student: [],
-  support: ["manageEnrollmentAccess", "viewAdminPanel"],
+  support: [
+    "executeRefund",
+    "manageCertificates",
+    "manageEnrollmentAccess",
+    "managePrivacyRequests",
+    "viewAdminPanel",
+    "viewFinancials",
+  ],
 };
 
 export const canPerform = (

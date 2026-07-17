@@ -15,6 +15,7 @@ import {
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
   getAbacatePayOrderTransition,
+  getPaymentReviewRequired,
   mapAbacatePayEventToOrderStatus,
   type PersistedOrderStatus,
 } from "@/features/payments/abacatepay";
@@ -41,6 +42,11 @@ interface WebhookCourse {
   id: string;
   payment_provider_product_id: string | null;
   title: string;
+}
+
+interface PersistedWebhookOrder {
+  amountInCents: number;
+  status: PersistedOrderStatus;
 }
 
 const getAbacatePayClient = (): AbacatePayClient => {
@@ -271,20 +277,19 @@ const resolveWebhookCourse = async ({
   return course;
 };
 
-const getWebhookTransition = async ({
+const getWebhookOrder = async ({
   client,
-  incomingOrderStatus,
   providerOrderId,
 }: {
   client: PoolClient;
-  incomingOrderStatus: PersistedOrderStatus;
   providerOrderId: string;
-}): Promise<AbacatePayOrderTransition> => {
+}): Promise<PersistedWebhookOrder | null> => {
   const existingOrder = await client.query<{
+    amount_in_cents: number;
     status: PersistedOrderStatus;
   }>(
     `
-      select status
+      select status, amount_in_cents
       from orders
       where provider = 'abacatepay'
         and provider_order_id = $1
@@ -292,10 +297,96 @@ const getWebhookTransition = async ({
     `,
     [providerOrderId]
   );
-  return getAbacatePayOrderTransition({
-    currentStatus: existingOrder.rows[0]?.status ?? null,
-    incomingStatus: incomingOrderStatus,
-  });
+  const order = existingOrder.rows[0];
+
+  return order
+    ? { amountInCents: order.amount_in_cents, status: order.status }
+    : null;
+};
+
+const createPaymentReview = async ({
+  client,
+  orderId,
+  reason,
+  type,
+  webhookEventId,
+}: {
+  client: PoolClient;
+  orderId: string;
+  reason: string;
+  type: "amount_mismatch" | "terminal_conflict";
+  webhookEventId: string;
+}): Promise<void> => {
+  await client.query(
+    `
+      insert into payment_reviews (order_id, webhook_event_id, type, reason)
+      values ($1, $2, $3, $4)
+    `,
+    [orderId, webhookEventId, type, reason]
+  );
+};
+
+const confirmRefundRequest = async ({
+  client,
+  orderId,
+}: {
+  client: PoolClient;
+  orderId: string;
+}): Promise<void> => {
+  await client.query(
+    `
+      update refund_requests
+      set status = 'confirmed',
+          confirmed_at = now(),
+          updated_at = now()
+      where order_id = $1
+        and status = 'requested'
+    `,
+    [orderId]
+  );
+};
+
+const registerWebhookEvent = async ({
+  client,
+  eventKey,
+  eventName,
+  payload,
+  retryFailed,
+}: {
+  client: PoolClient;
+  eventKey: string;
+  eventName: string;
+  payload: Record<string, unknown>;
+  retryFailed: boolean;
+}): Promise<string | null> => {
+  const inserted = await client.query<{ id: string }>(
+    `
+      insert into webhook_events (provider, event_key, event_name, payload)
+      values ('abacatepay', $1, $2, $3::jsonb)
+      on conflict (provider, event_key) do nothing
+      returning id
+    `,
+    [eventKey, eventName, JSON.stringify(payload)]
+  );
+  const insertedId = inserted.rows[0]?.id;
+
+  if (insertedId || !retryFailed) {
+    return insertedId ?? null;
+  }
+
+  const retried = await client.query<{ id: string }>(
+    `
+      update webhook_events
+      set status = 'received', error_message = null, processed_at = null
+      where provider = 'abacatepay'
+        and event_key = $1
+        and status = 'failed'
+      returning id
+    `,
+    [eventKey]
+  );
+
+  return retried.rows[0]?.id ?? null;
 };
 
 const upsertWebhookOrder = async ({
@@ -305,6 +396,7 @@ const upsertWebhookOrder = async ({
   finalOrderStatus,
   now,
   orderPayload,
+  preserveExistingOrder,
   shouldApplyPaidAccess,
   shouldApplyRefundRevocation,
   userId,
@@ -315,6 +407,7 @@ const upsertWebhookOrder = async ({
   finalOrderStatus: PersistedOrderStatus;
   now: Date;
   orderPayload: AbacatePayOrderPayload;
+  preserveExistingOrder: boolean;
   shouldApplyPaidAccess: boolean;
   shouldApplyRefundRevocation: boolean;
   userId: string;
@@ -342,16 +435,16 @@ const upsertWebhookOrder = async ({
       )
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       on conflict (provider, provider_order_id) do update set
-        user_id = excluded.user_id,
-        status = excluded.status,
-        amount_in_cents = excluded.amount_in_cents,
-        paid_amount_in_cents = excluded.paid_amount_in_cents,
-        payment_method = excluded.payment_method,
-        receipt_url = excluded.receipt_url,
-        paid_at = coalesce(orders.paid_at, excluded.paid_at),
-        refunded_at = coalesce(excluded.refunded_at, orders.refunded_at),
-        customer_email = excluded.customer_email,
-        customer_name = excluded.customer_name,
+        user_id = case when $15 then orders.user_id else excluded.user_id end,
+        status = case when $15 then orders.status else excluded.status end,
+        amount_in_cents = orders.amount_in_cents,
+        paid_amount_in_cents = case when $15 then orders.paid_amount_in_cents else excluded.paid_amount_in_cents end,
+        payment_method = case when $15 then orders.payment_method else excluded.payment_method end,
+        receipt_url = case when $15 then orders.receipt_url else excluded.receipt_url end,
+        paid_at = case when $15 then orders.paid_at else coalesce(orders.paid_at, excluded.paid_at) end,
+        refunded_at = case when $15 then orders.refunded_at else coalesce(excluded.refunded_at, orders.refunded_at) end,
+        customer_email = case when $15 then orders.customer_email else excluded.customer_email end,
+        customer_name = case when $15 then orders.customer_name else excluded.customer_name end,
         access_duration_months = coalesce(
           orders.access_duration_months,
           excluded.access_duration_months
@@ -374,6 +467,7 @@ const upsertWebhookOrder = async ({
       orderPayload.customerEmail,
       orderPayload.customerName,
       accessDurationMonths,
+      preserveExistingOrder,
     ]
   );
 
@@ -416,17 +510,18 @@ const applyWebhookEnrollmentTransition = async ({
   to: string;
   userName: string;
 } | null> => {
-  const order = await client.query<{ id: string }>(
-    `
-      select id
-      from orders
-      where provider = 'abacatepay'
-        and provider_order_id = $1
-      limit 1
-    `,
-    [orderPayload.providerOrderId]
-  );
-  const orderId = order.rows[0]?.id;
+  const orderId = await client
+    .query<{ id: string }>(
+      `
+        select id
+        from orders
+        where provider = 'abacatepay'
+          and provider_order_id = $1
+        limit 1
+      `,
+      [orderPayload.providerOrderId]
+    )
+    .then((result) => result.rows[0]?.id);
 
   if (!orderId) {
     throw new Error("Pedido AbacatePay nao foi localizado.");
@@ -467,6 +562,10 @@ const applyWebhookEnrollmentTransition = async ({
         : "abacatepay_refund",
       userId,
     });
+
+    if (shouldApplyRefundRevocation) {
+      await confirmRefundRequest({ client, orderId });
+    }
   }
 
   return null;
@@ -593,7 +692,8 @@ export const createCourseCheckout = async ({
 };
 
 export const processAbacatePayWebhook = async (
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  { retryFailed = false }: { retryFailed?: boolean } = {}
 ): Promise<WebhookResult> => {
   const eventName =
     typeof payload.event === "string" ? payload.event : "unknown";
@@ -613,17 +713,15 @@ export const processAbacatePayWebhook = async (
   try {
     await client.query("begin");
 
-    const inserted = await client.query<{ id: string }>(
-      `
-        insert into webhook_events (provider, event_key, event_name, payload)
-        values ('abacatepay', $1, $2, $3::jsonb)
-        on conflict (provider, event_key) do nothing
-        returning id
-      `,
-      [eventKey, eventName, JSON.stringify(payload)]
-    );
+    const webhookEventId = await registerWebhookEvent({
+      client,
+      eventKey,
+      eventName,
+      payload,
+      retryFailed,
+    });
 
-    if (inserted.rows.length === 0) {
+    if (!webhookEventId) {
       await client.query("rollback");
       return { status: "duplicate", eventKey };
     }
@@ -678,38 +776,71 @@ export const processAbacatePayWebhook = async (
       [userId]
     );
 
-    const transition = await getWebhookTransition({
+    const existingOrder = await getWebhookOrder({
       client,
-      incomingOrderStatus,
       providerOrderId: orderPayload.providerOrderId,
     });
+    const review = getPaymentReviewRequired({
+      currentAmountInCents: existingOrder?.amountInCents ?? null,
+      currentStatus: existingOrder?.status ?? null,
+      incomingAmountInCents:
+        orderPayload.paidAmountInCents ?? orderPayload.amountInCents,
+      incomingStatus: incomingOrderStatus,
+    });
+    const transition = getAbacatePayOrderTransition({
+      currentStatus: existingOrder?.status ?? null,
+      incomingStatus: incomingOrderStatus,
+    });
+    const effectiveTransition: AbacatePayOrderTransition = review
+      ? {
+          finalOrderStatus: existingOrder?.status ?? "pending",
+          shouldApplyDisputeRevocation: false,
+          shouldApplyPaidAccess: false,
+          shouldApplyRefundRevocation: false,
+        }
+      : transition;
 
-    if (incomingOrderStatus !== transition.finalOrderStatus) {
+    if (review) {
+      warnings.push(`Revisao financeira pendente: ${review.reason}`);
+    } else if (incomingOrderStatus !== transition.finalOrderStatus) {
       warnings.push(
         `Evento ${incomingOrderStatus} preservou status terminal ${transition.finalOrderStatus}.`
       );
     }
 
-    const { accessDurationMonths } = await upsertWebhookOrder({
+    const order = await upsertWebhookOrder({
       accessDurationMonths: course.access_duration_months,
       client,
       courseId: course.id,
-      finalOrderStatus: transition.finalOrderStatus,
+      finalOrderStatus: effectiveTransition.finalOrderStatus,
       now,
       orderPayload,
-      shouldApplyPaidAccess: transition.shouldApplyPaidAccess,
-      shouldApplyRefundRevocation: transition.shouldApplyRefundRevocation,
+      preserveExistingOrder: Boolean(review && existingOrder),
+      shouldApplyPaidAccess: effectiveTransition.shouldApplyPaidAccess,
+      shouldApplyRefundRevocation:
+        effectiveTransition.shouldApplyRefundRevocation,
       userId,
     });
+    if (review) {
+      await createPaymentReview({
+        client,
+        orderId: order.orderId,
+        reason: review.reason,
+        type: review.type,
+        webhookEventId,
+      });
+    }
     accessEmailPayload = await applyWebhookEnrollmentTransition({
-      accessDurationMonths,
+      accessDurationMonths: order.accessDurationMonths,
       client,
       course,
       now,
       orderPayload,
-      shouldApplyDisputeRevocation: transition.shouldApplyDisputeRevocation,
-      shouldApplyPaidAccess: transition.shouldApplyPaidAccess,
-      shouldApplyRefundRevocation: transition.shouldApplyRefundRevocation,
+      shouldApplyDisputeRevocation:
+        effectiveTransition.shouldApplyDisputeRevocation,
+      shouldApplyPaidAccess: effectiveTransition.shouldApplyPaidAccess,
+      shouldApplyRefundRevocation:
+        effectiveTransition.shouldApplyRefundRevocation,
       userId,
     });
 
@@ -743,4 +874,164 @@ export const processAbacatePayWebhook = async (
   } finally {
     client.release();
   }
+};
+
+export const resolvePaymentReview = async ({
+  actorUserId,
+  canResolveTerminalConflicts,
+  decision,
+  decisionReason,
+  reviewId,
+}: {
+  actorUserId: string;
+  canResolveTerminalConflicts: boolean;
+  decision: "approved" | "rejected";
+  decisionReason: string;
+  reviewId: string;
+}): Promise<void> => {
+  if (!decisionReason.trim()) {
+    throw new Error("Informe o motivo da decisao financeira.");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const review = await client.query<{
+      access_duration_months: number | null;
+      course_id: string;
+      order_id: string;
+      status: "pending" | "paid" | "cancelled" | "refunded" | "disputed";
+      type: "amount_mismatch" | "terminal_conflict";
+      user_id: string | null;
+    }>(
+      `
+        select
+          payment_reviews.order_id,
+          payment_reviews.type,
+          orders.status,
+          orders.course_id,
+          orders.user_id,
+          orders.access_duration_months
+        from payment_reviews
+        join orders on orders.id = payment_reviews.order_id
+        where payment_reviews.id = $1
+          and payment_reviews.status = 'pending'
+        for update of payment_reviews, orders
+      `,
+      [reviewId]
+    );
+    const selectedReview = review.rows[0];
+
+    if (!selectedReview) {
+      throw new Error("Revisao financeira invalida ou ja resolvida.");
+    }
+
+    if (
+      selectedReview.type === "terminal_conflict" &&
+      !canResolveTerminalConflicts
+    ) {
+      throw new Error("Somente administradores resolvem conflitos terminais.");
+    }
+
+    if (selectedReview.type === "amount_mismatch" && decision === "approved") {
+      if (!(selectedReview.user_id && selectedReview.access_duration_months)) {
+        throw new Error("Pedido sem dados suficientes para liberar o acesso.");
+      }
+
+      const paid = await client.query<{ id: string }>(
+        `
+          update orders
+          set status = 'paid', paid_at = coalesce(paid_at, now()), updated_at = now()
+          where id = $1 and status = 'pending'
+          returning id
+        `,
+        [selectedReview.order_id]
+      );
+
+      if (!paid.rows[0]) {
+        throw new Error(
+          "O pedido nao esta mais pendente para liberacao manual."
+        );
+      }
+
+      await applyPaidWebhookAccess({
+        accessDurationMonths: selectedReview.access_duration_months,
+        client,
+        courseId: selectedReview.course_id,
+        now: new Date(),
+        orderId: selectedReview.order_id,
+        userId: selectedReview.user_id,
+      });
+    }
+
+    await client.query(
+      `
+        update payment_reviews
+        set status = $2,
+            decision_reason = $3,
+            resolved_by_user_id = $4,
+            resolved_at = now(),
+            updated_at = now()
+        where id = $1
+      `,
+      [reviewId, decision, decisionReason.trim(), actorUserId]
+    );
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, $2, 'payment_review', $3, jsonb_build_object('decision', $4, 'reason', $5))
+      `,
+      [
+        actorUserId,
+        "payment_review.resolved",
+        reviewId,
+        decision,
+        decisionReason.trim(),
+      ]
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const retryFailedAbacatePayWebhook = async ({
+  actorUserId,
+  webhookEventId,
+}: {
+  actorUserId: string;
+  webhookEventId: string;
+}): Promise<WebhookResult> => {
+  const event = await getPool().query<{ payload: Record<string, unknown> }>(
+    `
+      select payload
+      from webhook_events
+      where id = $1
+        and provider = 'abacatepay'
+        and status = 'failed'
+      limit 1
+    `,
+    [webhookEventId]
+  );
+  const payload = event.rows[0]?.payload;
+
+  if (!payload) {
+    throw new Error(
+      "Somente webhooks AbacatePay falhos podem ser reprocessados."
+    );
+  }
+
+  const result = await processAbacatePayWebhook(payload, { retryFailed: true });
+  await getPool().query(
+    `
+      insert into audit_logs (actor_user_id, action, target_type, target_id)
+      values ($1, 'webhook.retried', 'webhook_event', $2)
+    `,
+    [actorUserId, webhookEventId]
+  );
+  return result;
 };

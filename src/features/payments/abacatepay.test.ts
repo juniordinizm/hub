@@ -5,6 +5,7 @@ import {
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
   getAbacatePayOrderTransition,
+  getPaymentReviewRequired,
   mapAbacatePayEventToOrderStatus,
   parseAbacatePayWebhookPayload,
   parsePriceToCents,
@@ -38,6 +39,12 @@ describe("AbacatePay webhook mapping", () => {
     );
   });
 
+  it("maps cancellation without treating it as a payment reversal", () => {
+    expect(mapAbacatePayEventToOrderStatus("checkout.cancelled")).toBe(
+      "cancelled"
+    );
+  });
+
   it("does not reopen refunded or disputed orders with late paid events", () => {
     expect(
       resolveAbacatePayOrderStatus({
@@ -57,6 +64,35 @@ describe("AbacatePay webhook mapping", () => {
         incomingStatus: "disputed",
       })
     ).toBe("disputed");
+  });
+
+  it("keeps the first terminal payment outcome when a later terminal event conflicts", () => {
+    expect(
+      resolveAbacatePayOrderStatus({
+        currentStatus: "refunded",
+        incomingStatus: "disputed",
+      })
+    ).toBe("refunded");
+    expect(
+      resolveAbacatePayOrderStatus({
+        currentStatus: "disputed",
+        incomingStatus: "refunded",
+      })
+    ).toBe("disputed");
+  });
+
+  it("does not revoke paid access when a paid order receives a cancellation", () => {
+    expect(
+      getAbacatePayOrderTransition({
+        currentStatus: "paid",
+        incomingStatus: "cancelled",
+      })
+    ).toEqual({
+      finalOrderStatus: "paid",
+      shouldApplyDisputeRevocation: false,
+      shouldApplyPaidAccess: false,
+      shouldApplyRefundRevocation: false,
+    });
   });
 
   it("does not apply paid access twice for the same already paid checkout", () => {
@@ -225,6 +261,41 @@ describe("AbacatePay webhook security", () => {
         signature: `t=${timestamp},v1=${hash}`,
       })
     ).toBe(true);
+  });
+});
+
+describe("Payment review policy", () => {
+  it("requires review when a paid amount differs from the checkout snapshot", () => {
+    expect(
+      getPaymentReviewRequired({
+        currentAmountInCents: 10_000,
+        currentStatus: "pending",
+        incomingAmountInCents: 9000,
+        incomingStatus: "paid",
+      })
+    ).toMatchObject({ type: "amount_mismatch" });
+  });
+
+  it("requires review when a later terminal event conflicts with the first one", () => {
+    expect(
+      getPaymentReviewRequired({
+        currentAmountInCents: 10_000,
+        currentStatus: "refunded",
+        incomingAmountInCents: 10_000,
+        incomingStatus: "disputed",
+      })
+    ).toMatchObject({ type: "terminal_conflict" });
+  });
+
+  it("accepts an exact first paid event", () => {
+    expect(
+      getPaymentReviewRequired({
+        currentAmountInCents: 10_000,
+        currentStatus: "pending",
+        incomingAmountInCents: 10_000,
+        incomingStatus: "paid",
+      })
+    ).toBeNull();
   });
 });
 

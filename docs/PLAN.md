@@ -1,3 +1,5 @@
+> **Status: planejamento histórico, não normativo.** Este documento registra intenções e decisões da fase inicial. Para o estado observado da aplicação, consulte `docs/business-rules/discovery/`; para decisões ainda pendentes e a priorização de correções, consulte `docs/business-rules/decision-register.md` e `docs/remediation-pr-plan.md`.
+
 # Roadmap PROTEA-R Hub
 
 ## Summary

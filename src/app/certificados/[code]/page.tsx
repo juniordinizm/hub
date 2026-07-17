@@ -1,6 +1,8 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { consumePublicCertificateLookup } from "@/features/certificates/public-rate-limit";
 import { getCertificateByCode } from "@/features/certificates/server";
 import { formatDate } from "@/lib/formatters";
 
@@ -12,6 +14,11 @@ export default async function CertificateValidationPage({
   params: Promise<{ code: string }>;
 }): Promise<React.JSX.Element> {
   const { code } = await params;
+  const limit = await consumePublicCertificateLookup(await headers());
+
+  if (limit === "limited") {
+    notFound();
+  }
   const certificate = await getCertificateByCode(code);
 
   if (!certificate) {
@@ -23,7 +30,9 @@ export default async function CertificateValidationPage({
       <Card className="mx-auto max-w-2xl">
         <CardHeader>
           <Badge className="w-fit" variant="outline">
-            Certificado valido
+            {certificate.status === "valid"
+              ? "Certificado valido"
+              : "Certificado revogado"}
           </Badge>
           <CardTitle className="text-3xl">{certificate.courseTitle}</CardTitle>
         </CardHeader>

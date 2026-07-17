@@ -74,6 +74,13 @@ describe("auth policy", () => {
     expect(canPerform("admin", "manageContent")).toBe(true);
     expect(canPerform("support", "manageContent")).toBe(false);
     expect(canPerform("support", "manageEnrollmentAccess")).toBe(true);
+    expect(canPerform("support", "manageCertificates")).toBe(true);
+    expect(canPerform("support", "executeRefund")).toBe(true);
+    expect(canPerform("support", "managePrivacyRequests")).toBe(true);
+    expect(canPerform("support", "executePrivacyAnonymization")).toBe(false);
+    expect(canPerform("admin", "executePrivacyAnonymization")).toBe(true);
+    expect(canPerform("support", "retryWebhook")).toBe(false);
+    expect(canPerform("admin", "retryWebhook")).toBe(true);
     expect(canPerform("student", "viewAdminPanel")).toBe(false);
   });
 

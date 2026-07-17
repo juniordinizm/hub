@@ -1,3 +1,5 @@
+> **Status: visão inicial/histórica, não normativa.** Alguns provedores, tabelas e fluxos descritos abaixo não representam o AS-IS. A fonte de descoberta atual é `docs/business-rules/discovery/`; não use este arquivo como contrato de schema, integrações ou regras vigentes.
+
 # PROTEA-R — Arquitetura da Área do Aluno
 
 ## 1. Visão geral do projeto

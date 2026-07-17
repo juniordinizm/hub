@@ -4,6 +4,14 @@
     {
       "path": "/api/cron/enrollments",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/jmvstream",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "0 4 * * *"
     }
   ]
 }

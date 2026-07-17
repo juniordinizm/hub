@@ -12,6 +12,7 @@ export interface AdminOverview {
   courses: number;
   paidOrders: number;
   recentWebhooks: Array<{
+    id: string;
     eventKey: string;
     eventName: string;
     errorMessage: string | null;
@@ -42,13 +43,14 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
     ),
     pool.query<{
       event_key: string;
+      id: string;
       event_name: string;
       error_message: string | null;
       status: string;
       created_at: Date;
     }>(
       `
-        select event_key, event_name, status, error_message, created_at
+        select id, event_key, event_name, status, error_message, created_at
         from webhook_events
         order by created_at desc
         limit 8
@@ -63,6 +65,7 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
     activeEnrollments: countRow?.active_enrollments ?? 0,
     paidOrders: countRow?.paid_orders ?? 0,
     recentWebhooks: webhooks.rows.map((row) => ({
+      id: row.id,
       eventKey: row.event_key,
       eventName: row.event_name,
       errorMessage: row.error_message,
@@ -181,6 +184,14 @@ export interface AdminManagementData {
     providerOrderId: string;
     status: string;
   }>;
+  paymentReviews: Array<{
+    id: string;
+    orderId: string;
+    providerOrderId: string;
+    reason: string;
+    status: "approved" | "pending" | "rejected";
+    type: "amount_mismatch" | "terminal_conflict";
+  }>;
   settings: {
     certificateSignerName: string | null;
     certificateSignerRole: string | null;
@@ -212,6 +223,7 @@ export const getAdminManagementData =
     const pool = getPool();
     const [
       courses,
+      paymentReviews,
       modules,
       lessons,
       enrollments,
@@ -239,6 +251,22 @@ export const getAdminManagementData =
         workload_hours: number;
       }>(
         "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, status from courses order by created_at desc"
+      ),
+      pool.query<{
+        id: string;
+        order_id: string;
+        provider_order_id: string;
+        reason: string;
+        status: "approved" | "pending" | "rejected";
+        type: "amount_mismatch" | "terminal_conflict";
+      }>(
+        `
+          select pr.id, pr.order_id, pr.type, pr.status, pr.reason, o.provider_order_id
+          from payment_reviews pr
+          join orders o on o.id = pr.order_id
+          order by pr.created_at desc
+          limit 40
+        `
       ),
       pool.query<{
         course_id: string;
@@ -540,6 +568,14 @@ export const getAdminManagementData =
         paidAt: row.paid_at,
         providerOrderId: row.provider_order_id,
         status: row.status,
+      })),
+      paymentReviews: paymentReviews.rows.map((row) => ({
+        id: row.id,
+        orderId: row.order_id,
+        providerOrderId: row.provider_order_id,
+        reason: row.reason,
+        status: row.status,
+        type: row.type,
       })),
       settings: {
         certificateSignerName: settingsRow?.certificate_signer_name ?? null,

@@ -31,6 +31,11 @@ import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
 import { CoursesRevenueTable } from "./courses-revenue-table";
+import {
+  PaymentReviewOperation,
+  RefundOperation,
+  RetryWebhookOperation,
+} from "./financial-operations";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +55,7 @@ const webhookStatusLabels: Record<string, string> = {
 };
 
 export default async function AdminFinancePage(): Promise<React.JSX.Element> {
-  await requirePermission("viewFinancials");
+  const session = await requirePermission("viewFinancials");
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
@@ -231,6 +236,9 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                         {order.providerOrderId}
                       </span>
                     </div>
+                    {order.status === "paid" ? (
+                      <RefundOperation orderId={order.id} />
+                    ) : null}
                   </div>
                 ))
               ) : (
@@ -295,6 +303,9 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                     <p className="mt-2 text-muted-foreground text-xs tabular-nums">
                       {formatDate(event.createdAt)}
                     </p>
+                    {event.status === "failed" && session.role === "admin" ? (
+                      <RetryWebhookOperation webhookEventId={event.id} />
+                    ) : null}
                   </div>
                 ))
               ) : (
@@ -352,6 +363,30 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
             </CardContent>
           </Card>
         </section>
+
+        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-base">Revisoes financeiras</CardTitle>
+            <CardDescription className="mt-1">
+              Divergencias nao alteram acesso ate uma decisao registrada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-2">
+            {data.paymentReviews.length ? (
+              data.paymentReviews.map((review) => (
+                <PaymentReviewOperation
+                  canResolveTerminalConflicts={session.role === "admin"}
+                  key={review.id}
+                  review={review}
+                />
+              ))
+            ) : (
+              <p className="text-muted-foreground text-sm">
+                Nenhuma revisao financeira pendente ou recente.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

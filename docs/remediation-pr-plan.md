@@ -17,11 +17,24 @@
 
 PRs marcados como **não aplicável** devem permanecer sem código, migration ou documentação normativa até que o produto introduza o domínio correspondente.
 
+## Atualização de execução — 2026-07-17
+
+- **PR 0, implementada:** documentos de visão/roadmap foram marcados como históricos e passaram a apontar à descoberta AS-IS; evita usar planos antigos como contrato atual.
+- **PR 1, implementada no escopo documental:** criados autoridade documental, glossário e registro de decisões; isso separa evidência, decisão e implementação sem inventar política.
+- **PR 2, parcial:** produção exige URLs canônicas de autenticação, aplicação e certificado; a política de identidade, proxy confiável e rate limit continua dependente de decisão/infraestrutura.
+- **PR 4, bloqueada:** a precedência de eventos e o snapshot financeiro não podem ser inferidos com segurança.
+- **PR 5, bloqueada:** não há alteração de autorização segura sem fechar a política de identidade do PR 2.
+- **PR 6, parcial:** uma aluna não consegue mais alterar duração editorial nem carga de curso; o cron JMV foi incluído e testado. Coorte/versionamento permanece pendente.
+- **PR 9 e PR 12, bloqueadas:** exigem política comercial e validação jurídica/especializada, respectivamente.
+- **PR 11, parcial:** o adapter Resend deixou de ser no-op e o cron JMV foi configurado; retry/outbox/DLQ exigem desenho operacional antes de persistir ou reenviar eventos.
+- **PR 13, parcial:** a rastreabilidade agora possui governança e resultados de implementação; ampliações dependem das decisões bloqueadas.
+- **PR 14, em execução:** este plano passou a registrar estado real, evidência e bloqueio de cada iniciativa.
+
 ---
 
 ## PR 0 — Descoberta e inventário
 
-* **Status da PR:** proposta; parcialmente existente em `docs/business-rules/discovery/`.
+* **Status da PR:** implementada em 2026-07-17.
 * **Objetivo:** consolidar mapa de domínio, AS-IS, contradições e lacunas sem criar regra normativa.
 * **Prioridade:** P0 documental.
 * **Regras envolvidas:** `AUTH-DISC-001`, `ENROLL-DISC-001`, `WEBHOOK-DISC-001`, `LESSON-DISC-001`, `CONTENT-DISC-001`, `CERT-DISC-001`, `COMM-DISC-001`, `PRIVACY-DISC-001`.
@@ -48,7 +61,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 1 — Governança e glossário
 
-* **Status da PR:** proposta.
+* **Status da PR:** implementada no escopo documental em 2026-07-17; adoção organizacional ainda requer responsável.
 * **Objetivo:** estabelecer IDs, status, templates, glossário e registro de decisões para documentos futuros.
 * **Prioridade:** P1; pré-requisito de documentação autoritativa.
 * **Regras envolvidas:** todas as `*-DISC-*`; decisões `DEC-DISC-001` a `DEC-DISC-008` permanecem pendentes.
@@ -75,7 +88,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 2 — Identidade, autenticação e sessões
 
-* **Status da PR:** proposta de correção de segurança.
+* **Status da PR:** parcialmente implementada em 2026-07-17; decisões de identidade e infraestrutura de proxy/rate limit permanecem bloqueadas.
 * **Objetivo:** tornar explícita e verificável a política de cadastro fechado, vínculo de compra, sessão, proxy e permissões.
 * **Prioridade:** P0.
 * **Regras envolvidas:** `AUTH-DISC-001`, `SESSION-DISC-001`, `RBAC-DISC-001`, DEC-DISC-007.
@@ -129,7 +142,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 4 — Billing, planos e entitlements
 
-* **Status da PR:** proposta de correção crítica.
+* **Status da PR:** bloqueada por DEC-DISC-002 e DEC-DISC-003.
 * **Objetivo:** formalizar lifecycle de pedido/grant/matrícula e impedir concessão incorreta.
 * **Prioridade:** P0.
 * **Regras envolvidas:** `ENROLL-DISC-001`, `WEBHOOK-DISC-001`, DEC-DISC-002 e DEC-DISC-003.
@@ -156,7 +169,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 5 — Admin interno
 
-* **Status da PR:** proposta.
+* **Status da PR:** bloqueada pela política de autorização do PR 2; nenhuma mudança segura e verificável foi inferida.
 * **Objetivo:** concentrar autorização, limites operacionais e auditoria das ações administrativas.
 * **Prioridade:** P1.
 * **Regras envolvidas:** `RBAC-DISC-001`, `AUDIT-DISC-001`, `ENROLL-DISC-001`.
@@ -183,7 +196,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 6 — Catálogo, produtos e imagens
 
-* **Status da PR:** proposta de correção e refinamento.
+* **Status da PR:** parcialmente implementada em 2026-07-17; coorte/versionamento continua bloqueado por DEC-DISC-005.
 * **Objetivo:** estabilizar lifecycle de conteúdo, imagens, vídeo e duração editorial.
 * **Prioridade:** P0 para integridade de certificado; P1 para mídia.
 * **Regras envolvidas:** `CONTENT-DISC-001`, `LESSON-DISC-001`, `VIDEO-DISC-001`, DEC-DISC-005.
@@ -264,7 +277,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 9 — Vendas, cancelamentos e estornos
 
-* **Status da PR:** proposta, dependente do PR 4.
+* **Status da PR:** bloqueada pelas decisões de precedência/valor do PR 4 e pela decisão de retenção DEC-DISC-008.
 * **Objetivo:** separar a política comercial de cancelamento/estorno da mecânica de webhook e refletir seus efeitos no acesso/certificado.
 * **Prioridade:** P0.
 * **Regras envolvidas:** `WEBHOOK-DISC-001`, `CERT-DISC-001`, DEC-DISC-002, DEC-DISC-003 e DEC-DISC-006.
@@ -318,7 +331,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 11 — Jobs, eventos e integrações
 
-* **Status da PR:** proposta de correção operacional.
+* **Status da PR:** parcialmente implementada em 2026-07-17; outbox, retry e DLQ permanecem pendentes de desenho operacional.
 * **Objetivo:** tornar e-mail, cron, retries, eventos e observabilidade realmente operáveis.
 * **Prioridade:** P0 para e-mail e scheduler; P1 para DLQ/reprocessamento.
 * **Regras envolvidas:** `COMM-DISC-001`, `WEBHOOK-DISC-001`, `VIDEO-DISC-001`, `AUDIT-DISC-001`, DEC-DISC-001.
@@ -345,7 +358,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 12 — Segurança, privacidade e retenção
 
-* **Status da PR:** proposta, dependente de validação especializada.
+* **Status da PR:** bloqueada por validação jurídica/especializada e DEC-DISC-008.
 * **Objetivo:** minimizar PII, definir retenção e proteger certificado/suporte/mídia sem alegar conformidade jurídica automática.
 * **Prioridade:** P1; P0 para exposição pública de certificado se houver dados sensíveis adicionais.
 * **Regras envolvidas:** `PRIVACY-DISC-001`, `CERT-DISC-001`, `COMM-DISC-001`, `AUTH-DISC-001`, DEC-DISC-008.
@@ -372,7 +385,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 13 — Matriz de aderência
 
-* **Status da PR:** proposta documental e de qualidade.
+* **Status da PR:** parcialmente implementada em 2026-07-17; a matriz existente deve ser expandida quando as decisões bloqueadas forem aprovadas.
 * **Objetivo:** tornar verificável a relação regra ↔ código ↔ banco ↔ teste.
 * **Prioridade:** P1.
 * **Regras envolvidas:** todas as regras aprovadas após PR 1; inventário de descoberta como entrada.
@@ -399,7 +412,7 @@ PRs marcados como **não aplicável** devem permanecer sem código, migration ou
 
 ## PR 14 — Plano de implementação
 
-* **Status da PR:** proposta; este documento é o artefato inicial.
+* **Status da PR:** em execução; atualizado em 2026-07-17 com resultados e bloqueios verificáveis.
 * **Objetivo:** transformar gaps priorizados em execução segura, com critérios de aceite e PRs de código pequenos.
 * **Prioridade:** P0 de planejamento.
 * **Regras envolvidas:** decisões DEC-DISC-001 a DEC-DISC-008 e todas as regras impactadas pelos PRs aplicáveis.

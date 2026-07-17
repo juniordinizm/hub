@@ -1,5 +1,7 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import PDFDocument from "pdfkit";
+import type { PoolClient } from "pg";
 import QRCode from "qrcode";
 import { getPool } from "@/db";
 import { getCertificateValidationPath } from "@/features/certificates/rules";
@@ -9,9 +11,269 @@ export interface CertificateRecord {
   code: string;
   courseTitle: string;
   issuedAt: Date;
+  status: "revoked" | "valid";
   studentName: string;
   workloadHours: number;
 }
+
+const auditCertificate = async ({
+  action,
+  actorUserId,
+  certificateId,
+  client,
+}: {
+  action: string;
+  actorUserId: string;
+  certificateId: string;
+  client: PoolClient;
+}): Promise<void> => {
+  await client.query(
+    `
+      insert into audit_logs (actor_user_id, action, target_type, target_id)
+      values ($1, $2, 'certificate', $3)
+    `,
+    [actorUserId, action, certificateId]
+  );
+};
+
+const issueCertificate = async ({
+  actorUserId,
+  client,
+  courseId,
+  replacesCertificateId,
+  userId,
+}: {
+  actorUserId: string;
+  client: PoolClient;
+  courseId: string;
+  replacesCertificateId?: string;
+  userId: string;
+}): Promise<{ id: string }> => {
+  const snapshot = await client.query<{
+    course_title: string;
+    student_name: string;
+    workload_hours: number;
+  }>(
+    `
+      select u.name as student_name, c.title as course_title, c.workload_hours
+      from users u
+      cross join courses c
+      where u.id = $1 and c.id = $2
+      limit 1
+    `,
+    [userId, courseId]
+  );
+  const source = snapshot.rows[0];
+
+  if (!source) {
+    throw new Error("Aluna ou curso nao localizado.");
+  }
+
+  const certificate = await client.query<{ id: string }>(
+    `
+      insert into certificates (
+        user_id,
+        course_id,
+        code,
+        student_name_snapshot,
+        course_title_snapshot,
+        workload_hours_snapshot,
+        replaces_certificate_id
+      )
+      values ($1, $2, $3, $4, $5, $6, $7)
+      returning id
+    `,
+    [
+      userId,
+      courseId,
+      randomUUID(),
+      source.student_name,
+      source.course_title,
+      source.workload_hours,
+      replacesCertificateId ?? null,
+    ]
+  );
+  const certificateId = certificate.rows[0]?.id;
+
+  if (!certificateId) {
+    throw new Error("Nao foi possivel emitir o certificado.");
+  }
+
+  await auditCertificate({
+    action: replacesCertificateId
+      ? "certificate.reissued"
+      : "certificate.issued",
+    actorUserId,
+    certificateId,
+    client,
+  });
+  return { id: certificateId };
+};
+
+export const issueManualCertificate = async ({
+  actorUserId,
+  courseId,
+  reason,
+  userId,
+}: {
+  actorUserId: string;
+  courseId: string;
+  reason: string;
+  userId: string;
+}): Promise<{ id: string }> => {
+  if (!reason.trim()) {
+    throw new Error("Informe o motivo da emissao manual.");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const certificate = await issueCertificate({
+      actorUserId,
+      client,
+      courseId,
+      userId,
+    });
+    await client.query(
+      `
+        update audit_logs
+        set metadata = jsonb_build_object('reason', $2::text)
+        where target_type = 'certificate'
+          and target_id = $1
+          and action = 'certificate.issued'
+      `,
+      [certificate.id, reason.trim()]
+    );
+    await client.query("commit");
+    return certificate;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const revokeCertificate = async ({
+  actorUserId,
+  certificateId,
+  reason,
+}: {
+  actorUserId: string;
+  certificateId: string;
+  reason: string;
+}): Promise<void> => {
+  if (!reason.trim()) {
+    throw new Error("Informe o motivo da revogacao.");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query<{ id: string }>(
+      `
+        update certificates
+        set status = 'revoked',
+            revoked_at = now(),
+            revoked_reason = $2,
+            revoked_by_user_id = $3,
+            updated_at = now()
+        where id = $1
+          and status = 'valid'
+        returning id
+      `,
+      [certificateId, reason.trim(), actorUserId]
+    );
+
+    if (!result.rows[0]) {
+      throw new Error("Certificado invalido ou ja revogado.");
+    }
+
+    await auditCertificate({
+      action: "certificate.revoked",
+      actorUserId,
+      certificateId,
+      client,
+    });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const reissueCertificate = async ({
+  actorUserId,
+  certificateId,
+  reason,
+}: {
+  actorUserId: string;
+  certificateId: string;
+  reason: string;
+}): Promise<{ id: string }> => {
+  if (!reason.trim()) {
+    throw new Error("Informe o motivo da reemissao.");
+  }
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const previous = await client.query<{ course_id: string; user_id: string }>(
+      `
+        update certificates
+        set status = 'revoked',
+            revoked_at = now(),
+            revoked_reason = $2,
+            revoked_by_user_id = $3,
+            updated_at = now()
+        where id = $1
+          and status = 'valid'
+        returning user_id, course_id
+      `,
+      [certificateId, reason.trim(), actorUserId]
+    );
+    const previousCertificate = previous.rows[0];
+
+    if (!previousCertificate) {
+      throw new Error("Certificado invalido ou ja revogado.");
+    }
+
+    await auditCertificate({
+      action: "certificate.revoked_for_reissue",
+      actorUserId,
+      certificateId,
+      client,
+    });
+    const replacement = await issueCertificate({
+      actorUserId,
+      client,
+      courseId: previousCertificate.course_id,
+      replacesCertificateId: certificateId,
+      userId: previousCertificate.user_id,
+    });
+    await client.query(
+      `
+        update audit_logs
+        set metadata = jsonb_build_object('reason', $2::text)
+        where target_type = 'certificate'
+          and target_id in ($1, $3)
+      `,
+      [certificateId, reason.trim(), replacement.id]
+    );
+    await client.query("commit");
+    return replacement;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
 
 export const getCertificateByCode = async (
   code: string
@@ -22,6 +284,7 @@ export const getCertificateByCode = async (
     course_title_snapshot: string;
     workload_hours_snapshot: number;
     issued_at: Date;
+    status: "revoked" | "valid";
   }>(
     `
       select
@@ -29,7 +292,8 @@ export const getCertificateByCode = async (
         student_name_snapshot,
         course_title_snapshot,
         workload_hours_snapshot,
-        issued_at
+        issued_at,
+        status
       from certificates
       where code = $1
       limit 1
@@ -48,6 +312,7 @@ export const getCertificateByCode = async (
     courseTitle: row.course_title_snapshot,
     workloadHours: row.workload_hours_snapshot,
     issuedAt: row.issued_at,
+    status: row.status,
   };
 };
 
@@ -60,6 +325,7 @@ export const getCertificatesForUser = async (
     course_title_snapshot: string;
     workload_hours_snapshot: number;
     issued_at: Date;
+    status: "revoked" | "valid";
   }>(
     `
       select
@@ -67,7 +333,8 @@ export const getCertificatesForUser = async (
         student_name_snapshot,
         course_title_snapshot,
         workload_hours_snapshot,
-        issued_at
+        issued_at,
+        status
       from certificates
       where user_id = $1
       order by issued_at desc
@@ -81,6 +348,7 @@ export const getCertificatesForUser = async (
     courseTitle: row.course_title_snapshot,
     workloadHours: row.workload_hours_snapshot,
     issuedAt: row.issued_at,
+    status: row.status,
   }));
 };
 
@@ -123,6 +391,12 @@ export const renderCertificatePdf = async (
     .text(`Carga horaria: ${certificate.workloadHours} horas`, 60, 375)
     .text(`Codigo: ${certificate.code}`, 60, 398)
     .text(`Validacao: ${validationUrl}`, 60, 421, { width: 560 });
+  if (certificate.status === "revoked") {
+    doc
+      .fillColor("#b42318")
+      .fontSize(18)
+      .text("CERTIFICADO REVOGADO", 60, 456, { width: 560 });
+  }
   doc.image(qrBuffer, 660, 365, { height: 110, width: 110 });
   doc.end();
 

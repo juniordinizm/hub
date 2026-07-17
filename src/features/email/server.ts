@@ -1,4 +1,5 @@
 import "server-only";
+import { Resend } from "resend";
 import {
   AccessExpiryWarningEmail,
   AccessReleasedEmail,
@@ -15,8 +16,30 @@ interface SendEmailInput {
   to: string;
 }
 
-export const sendTransactionalEmail = (_input: SendEmailInput): Promise<void> =>
-  Promise.resolve();
+export const sendTransactionalEmail = async ({
+  react,
+  replyTo,
+  subject,
+  to,
+}: SendEmailInput): Promise<void> => {
+  const env = getServerEnv();
+
+  if (!env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is required to send transactional email.");
+  }
+
+  const { error } = await new Resend(env.RESEND_API_KEY).emails.send({
+    from: env.RESEND_FROM_EMAIL,
+    react,
+    ...(replyTo ? { replyTo } : {}),
+    subject,
+    to,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+};
 
 export const sendPasswordResetEmail = async ({
   resetUrl,

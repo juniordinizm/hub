@@ -19,10 +19,7 @@ import {
   getNextAvailableLessonId,
   isLessonAvailable,
 } from "@/features/progress/rules";
-import {
-  shouldApplyDetectedDuration,
-  shouldCompleteLessonFromJmvstreamEvent,
-} from "@/features/videos/jmvstream";
+import { shouldCompleteLessonFromJmvstreamEvent } from "@/features/videos/jmvstream";
 
 const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
 
@@ -635,7 +632,9 @@ export const getStudentCourseOverviewData = async ({
         lwp.watched_percent
       from enrollments e
       join courses c on c.id = e.course_id
-      left join certificates cert on cert.course_id = c.id and cert.user_id = e.user_id
+      left join certificates cert on cert.course_id = c.id
+        and cert.user_id = e.user_id
+        and cert.status = 'valid'
       left join modules m on m.course_id = c.id and m.status = 'active'
       left join lessons l on l.module_id = m.id and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
@@ -1139,7 +1138,9 @@ export const completeLesson = async ({
         join modules m on m.course_id = c.id and m.status = 'active'
         join lessons l on l.module_id = m.id and l.status = 'active'
         left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
-        left join certificates cert on cert.user_id = e.user_id and cert.course_id = c.id
+        left join certificates cert on cert.user_id = e.user_id
+          and cert.course_id = c.id
+          and cert.status = 'valid'
         where c.id = $2
         group by c.id
       `,
@@ -1168,7 +1169,7 @@ export const completeLesson = async ({
             workload_hours_snapshot
           )
           values ($1, $2, $3, $4, $5, $6)
-          on conflict (user_id, course_id) do nothing
+          on conflict do nothing
         `,
         [
           userId,
@@ -1345,52 +1346,4 @@ export const recordLessonWatchProgress = async ({
     nextLessonId: result.nextLessonId,
     watchedPercent,
   };
-};
-
-export const syncJmvstreamLessonDuration = async ({
-  durationSeconds,
-  lessonId,
-  userId,
-}: {
-  durationSeconds: number;
-  lessonId: string;
-  userId: string;
-}): Promise<void> => {
-  if (
-    !Number.isFinite(durationSeconds) ||
-    durationSeconds <= 0 ||
-    durationSeconds > MAX_LESSON_DURATION_SECONDS
-  ) {
-    throw new Error("Duracao de aula invalida.");
-  }
-
-  const data = await getStudentLessonData({ userId, lessonId });
-
-  if (data?.lesson.videoProvider !== "jmvstream") {
-    return;
-  }
-
-  const roundedDurationSeconds = Math.round(durationSeconds);
-
-  if (
-    !shouldApplyDetectedDuration({
-      currentSeconds: data.lesson.videoDurationSeconds,
-      detectedSeconds: roundedDurationSeconds,
-      userEdited: false,
-    })
-  ) {
-    return;
-  }
-
-  await getPool().query(
-    `
-      update lessons
-      set video_duration_seconds = $1,
-          duration_seconds = $1 + coalesce(text_duration_seconds, 0),
-          updated_at = now()
-      where id = $2
-    `,
-    [roundedDurationSeconds, lessonId]
-  );
-  await recalculateCourseWorkloadHours(data.course.id);
 };

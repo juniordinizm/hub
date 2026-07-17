@@ -25,6 +25,10 @@ interface CheckoutResponse {
   url: string;
 }
 
+interface RefundResponse {
+  refundPublicId: string;
+}
+
 const TRAILING_SLASH_RE = /\/+$/;
 
 const trimTrailingSlash = (value: string): string =>
@@ -91,6 +95,25 @@ export class AbacatePayClient {
 
     if (!(response.id && response.url)) {
       throw new Error("AbacatePay nao retornou a URL de checkout.");
+    }
+
+    return response;
+  }
+
+  async refundCheckout({
+    checkoutId,
+    reason,
+  }: {
+    checkoutId: string;
+    reason: string;
+  }): Promise<RefundResponse> {
+    const response = await this.post<
+      { id: string; reason: string },
+      RefundResponse
+    >("/checkouts/refund", { id: checkoutId, reason });
+
+    if (!response.refundPublicId) {
+      throw new Error("AbacatePay nao retornou o identificador do reembolso.");
     }
 
     return response;

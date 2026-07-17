@@ -15,6 +15,13 @@ export interface AbacatePayOrderTransition {
   shouldApplyRefundRevocation: boolean;
 }
 
+export type PaymentReviewType = "amount_mismatch" | "terminal_conflict";
+
+export interface PaymentReviewRequired {
+  reason: string;
+  type: PaymentReviewType;
+}
+
 const ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY =
   "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
 const COURSE_PRICE_INVALID_MESSAGE = "Preco do curso invalido.";
@@ -96,7 +103,9 @@ const paidEvents = new Set([
 ]);
 const refundedEvents = new Set(["checkout.refunded", "transparent.refunded"]);
 const disputedEvents = new Set(["checkout.disputed"]);
+const cancelledEvents = new Set(["checkout.cancelled"]);
 const terminalOrderStatuses = new Set<PersistedOrderStatus>([
+  "cancelled",
   "refunded",
   "disputed",
 ]);
@@ -214,6 +223,10 @@ export const mapAbacatePayEventToOrderStatus = (event: string): OrderStatus => {
     return "disputed";
   }
 
+  if (cancelledEvents.has(event)) {
+    return "cancelled";
+  }
+
   return "ignored";
 };
 
@@ -224,11 +237,11 @@ export const resolveAbacatePayOrderStatus = ({
   currentStatus: PersistedOrderStatus | null;
   incomingStatus: PersistedOrderStatus;
 }): PersistedOrderStatus => {
-  if (
-    currentStatus &&
-    terminalOrderStatuses.has(currentStatus) &&
-    incomingStatus === "paid"
-  ) {
+  if (currentStatus && terminalOrderStatuses.has(currentStatus)) {
+    return currentStatus;
+  }
+
+  if (currentStatus === "paid" && incomingStatus === "cancelled") {
     return currentStatus;
   }
 
@@ -262,6 +275,45 @@ export const getAbacatePayOrderTransition = ({
       finalOrderStatus === "disputed" &&
       currentStatus !== "disputed",
   };
+};
+
+export const getPaymentReviewRequired = ({
+  currentAmountInCents,
+  currentStatus,
+  incomingAmountInCents,
+  incomingStatus,
+}: {
+  currentAmountInCents: number | null;
+  currentStatus: PersistedOrderStatus | null;
+  incomingAmountInCents: number;
+  incomingStatus: PersistedOrderStatus;
+}): PaymentReviewRequired | null => {
+  if (
+    currentStatus &&
+    terminalOrderStatuses.has(currentStatus) &&
+    incomingStatus !== currentStatus
+  ) {
+    return {
+      type: "terminal_conflict",
+      reason: `O pedido ja esta terminal em ${currentStatus}; evento posterior recebido como ${incomingStatus}.`,
+    };
+  }
+
+  if (
+    incomingStatus === "paid" &&
+    (currentAmountInCents === null ||
+      currentAmountInCents !== incomingAmountInCents)
+  ) {
+    return {
+      type: "amount_mismatch",
+      reason:
+        currentAmountInCents === null
+          ? "Pagamento recebido sem snapshot interno de checkout para validacao."
+          : `Valor recebido (${incomingAmountInCents}) diverge do snapshot do checkout (${currentAmountInCents}).`,
+    };
+  }
+
+  return null;
 };
 
 export const parsePriceToCents = (value: string): number => {

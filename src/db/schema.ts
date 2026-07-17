@@ -80,6 +80,30 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "ignored",
   "failed",
 ]);
+export const paymentReviewTypeEnum = pgEnum("payment_review_type", [
+  "amount_mismatch",
+  "terminal_conflict",
+]);
+export const paymentReviewStatusEnum = pgEnum("payment_review_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+export const refundRequestStatusEnum = pgEnum("refund_request_status", [
+  "requested",
+  "failed",
+  "confirmed",
+]);
+export const certificateStatusEnum = pgEnum("certificate_status", [
+  "valid",
+  "revoked",
+]);
+export const privacyRequestStatusEnum = pgEnum("privacy_request_status", [
+  "requested",
+  "approved",
+  "completed",
+  "rejected",
+]);
 export const lessonCommentStatusEnum = pgEnum("lesson_comment_status", [
   "visible",
   "hidden",
@@ -666,6 +690,58 @@ export const webhookEvents = pgTable(
   ]
 );
 
+export const paymentReviews = pgTable(
+  "payment_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    webhookEventId: uuid("webhook_event_id").references(
+      () => webhookEvents.id,
+      {
+        onDelete: "set null",
+      }
+    ),
+    type: paymentReviewTypeEnum("type").notNull(),
+    status: paymentReviewStatusEnum("status").default("pending").notNull(),
+    reason: text("reason").notNull(),
+    decisionReason: text("decision_reason"),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    index("payment_reviews_order_status_idx").on(table.orderId, table.status),
+    index("payment_reviews_status_idx").on(table.status),
+  ]
+);
+
+export const refundRequests = pgTable(
+  "refund_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    requestedByUserId: text("requested_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    reason: text("reason").notNull(),
+    status: refundRequestStatusEnum("status").default("requested").notNull(),
+    providerRefundId: text("provider_refund_id"),
+    errorMessage: text("error_message"),
+    confirmedAt: timestamp("confirmed_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("refund_requests_order_unique_idx").on(table.orderId),
+    index("refund_requests_status_idx").on(table.status),
+  ]
+);
+
 export const certificates = pgTable(
   "certificates",
   {
@@ -684,13 +760,60 @@ export const certificates = pgTable(
       .notNull(),
     issuedAt: timestamp("issued_at", tz).defaultNow().notNull(),
     pdfUrl: text("pdf_url"),
+    status: certificateStatusEnum("status").default("valid").notNull(),
+    revokedAt: timestamp("revoked_at", tz),
+    revokedReason: text("revoked_reason"),
+    revokedByUserId: text("revoked_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    replacesCertificateId: uuid("replaces_certificate_id").references(
+      (): AnyPgColumn => certificates.id,
+      { onDelete: "set null" }
+    ),
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("certificates_user_course_unique_idx").on(
-      table.userId,
-      table.courseId
-    ),
+    uniqueIndex("certificates_user_course_active_unique_idx")
+      .on(table.userId, table.courseId)
+      .where(sql`${table.status} = 'valid'`),
+    index("certificates_status_idx").on(table.status),
+  ]
+);
+
+export const privacyRequests = pgTable(
+  "privacy_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    requestedByUserId: text("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    status: privacyRequestStatusEnum("status").default("requested").notNull(),
+    reason: text("reason").notNull(),
+    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    index("privacy_requests_user_status_idx").on(table.userId, table.status),
+  ]
+);
+
+export const publicCertificateRateLimits = pgTable(
+  "public_certificate_rate_limits",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    windowStartedAt: timestamp("window_started_at", tz).defaultNow().notNull(),
+    requestCount: integer("request_count").default(0).notNull(),
+    expiresAt: timestamp("expires_at", tz).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("public_certificate_rate_limits_expires_at_idx").on(table.expiresAt),
   ]
 );
 
