@@ -1,34 +1,30 @@
-export const MAX_BANNER_BYTES = 5 * 1024 * 1024; // 5MB
+import sharp from "sharp";
+import {
+  BANNER_IMAGE_HEIGHT,
+  BANNER_IMAGE_WIDTH,
+  validateBannerUploadRequest,
+} from "./banner-image";
 
-export const BANNER_IMAGE_PREVIEW = {
-  aspectRatio: "21:9",
-  maxSizeBytes: MAX_BANNER_BYTES,
-} as const;
+export const validateBannerImageFile = async (file: File): Promise<void> => {
+  validateBannerUploadRequest({
+    contentType: file.type,
+    sizeBytes: file.size,
+  });
 
-export const BANNER_ACCEPT = ".jpeg,.jpg,.png,.webp";
+  let metadata: sharp.Metadata;
 
-const ALLOWED_BANNER_CONTENT_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-]);
-
-export const validateBannerUploadRequest = ({
-  contentType,
-  sizeBytes,
-}: {
-  contentType: string;
-  sizeBytes: number;
-}): void => {
-  if (!ALLOWED_BANNER_CONTENT_TYPES.has(contentType)) {
-    throw new Error("Formato de imagem nao suportado para banners.");
+  try {
+    metadata = await sharp(Buffer.from(await file.arrayBuffer())).metadata();
+  } catch {
+    throw new Error("Nao foi possivel ler a imagem do banner.");
   }
 
-  if (!(Number.isInteger(sizeBytes) && sizeBytes > 0)) {
-    throw new Error("Tamanho de arquivo invalido.");
-  }
-
-  if (sizeBytes > MAX_BANNER_BYTES) {
-    throw new Error("A imagem do banner excede o limite de 5MB.");
+  if (
+    metadata.width !== BANNER_IMAGE_WIDTH ||
+    metadata.height !== BANNER_IMAGE_HEIGHT
+  ) {
+    throw new Error(
+      `O banner deve ter ${BANNER_IMAGE_WIDTH} × ${BANNER_IMAGE_HEIGHT} px.`
+    );
   }
 };

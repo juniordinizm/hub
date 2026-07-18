@@ -53,7 +53,7 @@ export function SortableBannerItem({
       />
 
       <ResourceItemVisual
-        className={`aspect-[21/9] w-24 sm:w-32 ${
+        className={`aspect-[4/1] w-24 sm:w-32 ${
           banner.isActive ? "" : "opacity-50 grayscale"
         }`}
       >

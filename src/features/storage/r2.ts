@@ -9,7 +9,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { validateBannerUploadRequest } from "@/features/storage/banner-upload";
+import { validateBannerUploadRequest } from "@/features/storage/banner-image";
+import { validateBannerImageFile } from "@/features/storage/banner-upload";
 import type { CourseCoverImage } from "@/features/storage/course-cover";
 import {
   type CourseCoverFile,
@@ -400,10 +401,7 @@ export const uploadDashboardBannerFile = async ({
 }: {
   file: File;
 }): Promise<string> => {
-  validateBannerUploadRequest({
-    contentType: file.type,
-    sizeBytes: file.size,
-  });
+  await validateBannerImageFile(file);
   const config = getR2Config();
   const client = getR2Client(config);
 

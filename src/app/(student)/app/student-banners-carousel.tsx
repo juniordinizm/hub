@@ -36,6 +36,7 @@ export function StudentBannersCarousel({
           opts={{
             loop: true,
             align: "center",
+            watchDrag: banners.length > 1,
           }}
           plugins={[
             Autoplay({
@@ -47,7 +48,7 @@ export function StudentBannersCarousel({
           <CarouselContent>
             {banners.map((banner) => (
               <CarouselItem
-                className="relative aspect-[21/9] w-full"
+                className="relative aspect-[4/1] w-full"
                 key={banner.id}
               >
                 <div className="absolute inset-0">

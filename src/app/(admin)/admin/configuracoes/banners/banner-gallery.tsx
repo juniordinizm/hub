@@ -35,8 +35,14 @@ import {
   saveBannerAction,
 } from "@/features/admin/actions";
 import type { AdminBanner } from "@/features/admin/server";
+import { BannerCropDialog } from "@/features/banners/banner-crop-dialog";
+import {
+  BANNER_ACCEPT,
+  validateBannerUploadRequest,
+} from "@/features/storage/banner-image";
 import { cn } from "@/lib/utils";
 import { BannerEditModal } from "./banner-edit-modal";
+import { readBannerFileSelection } from "./banner-file-selection";
 import { SortableBannerItem } from "./sortable-banner-item";
 
 interface BannerGalleryProps {
@@ -54,6 +60,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   const [uploadingFiles, setUploadingFiles] = useState<
     { id: string; file: File }[]
   >([]);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
 
   // Auto-open modal when a new banner finishes uploading and is available in props
   useEffect(() => {
@@ -203,6 +210,32 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
     setIsDragging(true);
   }, []);
 
+  const handleFileSelection = useCallback((files: FileList | File[]) => {
+    try {
+      const file = readBannerFileSelection(files);
+      validateBannerUploadRequest({
+        contentType: file.type,
+        sizeBytes: file.size,
+      });
+      setErrors([]);
+      setPendingCropFile(file);
+    } catch (error: unknown) {
+      setErrors([
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel ler o banner.",
+      ]);
+    }
+  }, []);
+
+  const handleCropComplete = useCallback(
+    async (file: File) => {
+      setPendingCropFile(null);
+      await handleFiles([file]);
+    },
+    [handleFiles]
+  );
+
   const onDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -216,10 +249,10 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       setIsDragging(false);
       const files = e.dataTransfer.files;
       if (files.length > 0) {
-        handleFiles(files);
+        handleFileSelection(files);
       }
     },
-    [handleFiles]
+    [handleFileSelection]
   );
 
   const removeBanner = (id: string) => {
@@ -257,13 +290,12 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
               banners.length < maxFiles && (
                 <div className="relative">
                   <input
-                    accept="image/*"
+                    accept={BANNER_ACCEPT}
                     className="absolute inset-0 cursor-pointer opacity-0"
-                    multiple
                     onChange={(event) => {
                       const files = event.currentTarget.files;
                       if (files && files.length > 0) {
-                        handleFiles(files);
+                        handleFileSelection(files);
                       }
                       event.currentTarget.value = "";
                     }}
@@ -281,7 +313,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
                       icon={CloudUploadIcon}
                       size={14}
                     />
-                    Upload (Max 5)
+                    Adicionar banner
                   </Button>
                 </div>
               )
@@ -347,6 +379,12 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
           open={!!editingBanner}
         />
       )}
+
+      <BannerCropDialog
+        file={pendingCropFile}
+        onCancel={() => setPendingCropFile(null)}
+        onComplete={handleCropComplete}
+      />
     </div>
   );
 }
