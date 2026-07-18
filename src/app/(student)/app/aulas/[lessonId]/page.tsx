@@ -273,15 +273,23 @@ function LessonMainContent({
     return (
       <div className="flex flex-col">
         {header}
-        <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-0">
-          <div className="flex aspect-video flex-col items-center justify-center gap-2 rounded-xl border bg-muted/35 px-6 text-center">
-            <p className="font-semibold text-foreground">
-              Video em processamento
-            </p>
-            <p className="max-w-lg text-muted-foreground text-sm">
-              O arquivo ja foi enviado e a JMVStream esta preparando o player.
-              Esta aula fica disponivel automaticamente em alguns minutos.
-            </p>
+        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-0">
+          <div className="flex aspect-video flex-col items-center justify-center gap-6 rounded-none bg-background px-6 text-center">
+            <div className="relative flex h-16 w-16 items-center justify-center">
+              <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10" />
+              <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/5">
+                <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-primary border-t-transparent" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="font-medium text-foreground text-xs uppercase tracking-widest">
+                Processando Vídeo
+              </p>
+              <p className="mx-auto max-w-md font-light text-muted-foreground text-sm">
+                A infraestrutura está otimizando a qualidade da aula. Ela estará
+                disponível automaticamente em instantes.
+              </p>
+            </div>
           </div>
         </div>
         <LessonContentFrame lesson={data.lesson} />
@@ -311,14 +319,14 @@ function LessonHeader({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <div className="mx-auto w-full max-w-5xl border-border/50 border-b bg-background px-5 py-3 sm:px-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-semibold text-base text-foreground tracking-tight">
+          <h1 className="truncate font-medium text-foreground text-lg tracking-normal">
             {data.lesson.title}
           </h1>
           {data.lesson.description ? (
-            <p className="truncate text-muted-foreground text-sm">
+            <p className="mt-1 truncate font-light text-muted-foreground text-sm">
               {data.lesson.description}
             </p>
           ) : null}
@@ -406,7 +414,7 @@ function LessonContentFrame({
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-12 text-center text-muted-foreground sm:px-0">
+    <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-0">
       Conteudo em configuracao.
     </div>
   );
@@ -424,16 +432,21 @@ function LessonResources({
   }
 
   return (
-    <section className="rounded-xl bg-muted/35 p-3 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] sm:p-4 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.1)]">
-      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+    <section className="mt-8">
+      <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold text-sm">Materiais da aula</h2>
-          <p className="text-muted-foreground text-xs">
-            {resources.length} {resources.length === 1 ? "item" : "itens"}
+          <h2 className="font-medium text-foreground text-sm uppercase tracking-wider">
+            Materiais Complementares
+          </h2>
+          <p className="mt-1 font-light text-muted-foreground text-xs">
+            {resources.length}{" "}
+            {resources.length === 1
+              ? "documento anexado"
+              : "documentos anexados"}
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="flex flex-col gap-2">
         {resources.map((resource) => (
           <LessonResourceItem
             key={resource.id}
@@ -461,29 +474,34 @@ function LessonResourceItem({
   const badgeText = isExternal ? "LINK" : extension;
 
   return (
-    <div className="group/resource grid h-full min-w-0 grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-background/80 p-2 shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-background sm:grid-cols-[72px_minmax(0,1fr)_auto] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.09)]">
+    <div className="group/resource grid min-w-0 grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-4 border-border/30 border-b py-3 transition-colors last:border-0 hover:bg-muted/10">
       <ResourceVisual lessonId={lessonId} resource={resource} />
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="min-w-0 flex-1 truncate font-medium text-sm">
+          <p className="min-w-0 flex-1 truncate font-normal text-sm">
             {displayName.base}
             {displayName.extension ? (
-              <span className="text-muted-foreground">
+              <span className="font-light text-muted-foreground">
                 .{displayName.extension}
               </span>
             ) : null}
           </p>
           {badgeText ? (
-            <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+            <span className="shrink-0 font-medium text-[10px] text-muted-foreground uppercase tracking-widest">
               {badgeText}
             </span>
           ) : null}
         </div>
-        <p className="mt-1 truncate text-muted-foreground text-xs">
+        <p className="mt-1 truncate font-light text-muted-foreground text-xs">
           {metadata}
         </p>
       </div>
-      <Button asChild size="icon-sm" variant="ghost">
+      <Button
+        asChild
+        className="opacity-70 hover:opacity-100"
+        size="icon-sm"
+        variant="ghost"
+      >
         <a
           aria-label={isExternal ? "Abrir material" : "Baixar material"}
           href={href}
@@ -494,7 +512,7 @@ function LessonResourceItem({
           <HugeiconsIcon
             icon={isExternal ? ExternalLinkIcon : Download01Icon}
             size={16}
-            strokeWidth={2}
+            strokeWidth={1.5}
           />
         </a>
       </Button>
@@ -513,7 +531,7 @@ function ResourceVisual({
     return (
       <div
         aria-label={`Preview de ${resource.label}`}
-        className="aspect-video overflow-hidden rounded-md bg-center bg-cover bg-muted shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+        className="aspect-square overflow-hidden rounded-md bg-center bg-cover bg-muted/20"
         role="img"
         style={{
           backgroundImage: `url(${getLessonResourcePreviewHref({
@@ -531,11 +549,11 @@ function ResourceVisual({
   return (
     <div
       className={cn(
-        "flex aspect-video items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+        "flex aspect-square items-center justify-center rounded-md bg-muted/10",
         tone
       )}
     >
-      <HugeiconsIcon icon={Icon} size={22} strokeWidth={2} />
+      <HugeiconsIcon icon={Icon} size={20} strokeWidth={1.5} />
     </div>
   );
 }
@@ -746,11 +764,11 @@ function LessonCourseSidebar({
 }): React.JSX.Element {
   return (
     <Sidebar
-      className="hidden h-full w-[340px] shrink-0 border-sidebar-border border-l lg:flex"
+      className="hidden h-full w-[340px] shrink-0 border-l-0 lg:flex"
       collapsible="none"
       side="right"
     >
-      <div className="shrink-0 border-sidebar-border border-b px-5 py-5">
+      <div className="shrink-0 border-b-0 px-6 py-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="font-semibold text-sm">Conteúdo do curso</p>
