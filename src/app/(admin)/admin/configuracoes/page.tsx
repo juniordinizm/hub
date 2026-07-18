@@ -15,26 +15,38 @@ import { Input } from "@/components/ui/input";
 import { saveSettingsAction } from "@/features/admin/actions";
 import {
   getAdminBannersData,
+  getAdminFaqData,
   getAdminSettingsData,
 } from "@/features/admin/server";
 import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { BannerGallery } from "./banners/banner-gallery";
+import { FaqCreateDialog } from "./faq/faq-dialogs";
+import { FaqTable } from "./faq/faq-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
   await requirePermission("manageSettings");
 
-  const [data, jmvstreamHealth, bannersData] = await Promise.all([
+  const [data, jmvstreamHealth, bannersData, faqData] = await Promise.all([
     getAdminSettingsData(),
     getJmvstreamHealthSummary(),
     getAdminBannersData(),
+    getAdminFaqData(),
   ]);
 
   const sortedBanners = [...bannersData.banners].sort(
     (a, b) => a.sortOrder - b.sortOrder
   );
+
+  const sortedFaqs = [...faqData.faqs].sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+  const nextSortOrder =
+    sortedFaqs.length > 0
+      ? Math.max(...sortedFaqs.map((f) => f.sortOrder)) + 1
+      : 1;
 
   return (
     <PageContainer>
@@ -142,6 +154,25 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
             </CardHeader>
             <CardContent>
               <BannerGallery initialBanners={sortedBanners} />
+            </CardContent>
+          </Card>
+          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">
+                    Perguntas frequentes
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Conteudo exibido na area do aluno para reduzir duvidas
+                    operacionais.
+                  </CardDescription>
+                </div>
+                <FaqCreateDialog nextSortOrder={nextSortOrder} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <FaqTable faqs={sortedFaqs} />
             </CardContent>
           </Card>
         </section>
