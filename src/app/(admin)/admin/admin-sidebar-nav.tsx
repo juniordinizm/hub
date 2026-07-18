@@ -6,6 +6,7 @@ import {
   Book01Icon,
   HelpCircleIcon,
   HistoryIcon,
+  Image01Icon,
   Invoice01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
@@ -28,6 +29,7 @@ const navItems = [
   ["FAQ", "/admin/faq", HelpCircleIcon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
   ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
+  ["Banners", "/admin/configuracoes/banners", Image01Icon],
 ] as const;
 
 export function AdminSidebarNav(): React.JSX.Element {

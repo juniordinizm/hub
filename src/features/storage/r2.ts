@@ -7,6 +7,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { validateBannerUploadRequest } from "@/features/storage/banner-upload";
 import type { CourseCoverImage } from "@/features/storage/course-cover";
 import {
   type CourseCoverFile,
@@ -169,6 +170,46 @@ export const createLessonResourceUploadUrl = async ({
   };
 };
 
+const buildBannerObjectKey = ({
+  nonce,
+  extension,
+}: {
+  nonce: string;
+  extension: string;
+}): string => `dashboard/banners/${nonce}.${extension}`;
+
+export const createBannerUploadUrl = async ({
+  contentType,
+  sizeBytes,
+  extension,
+}: {
+  contentType: string;
+  sizeBytes: number;
+  extension: string;
+}): Promise<{ uploadUrl: string; key: string }> => {
+  validateBannerUploadRequest({ contentType, sizeBytes });
+
+  const config = getR2Config();
+  const nonce = randomUUID();
+  const key = buildBannerObjectKey({ nonce, extension });
+
+  const client = getR2Client(config);
+  const uploadUrl = await getSignedUrl(
+    client,
+    new PutObjectCommand({
+      Bucket: config.bucketName,
+      ContentType: contentType,
+      Key: key,
+    }),
+    {
+      expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+      signableHeaders: new Set(["content-type"]),
+    }
+  );
+
+  return { uploadUrl, key };
+};
+
 export const createLessonResourceDownloadUrl = async ({
   fileName,
   key,
@@ -277,4 +318,28 @@ export const deleteR2Objects = async (keys: string[]): Promise<void> => {
       );
     }
   }
+};
+
+export const uploadDashboardBannerFile = async ({
+  file,
+}: {
+  file: File;
+}): Promise<string> => {
+  const config = getR2Config();
+  const client = getR2Client(config);
+
+  const buffer = await file.arrayBuffer();
+  const extension = file.name.split(".").pop()?.toLowerCase() || "webp";
+  const key = `banners/${randomUUID()}.${extension}`;
+
+  await client.send(
+    new PutObjectCommand({
+      Body: Buffer.from(buffer),
+      Bucket: config.bucketName,
+      ContentType: file.type,
+      Key: key,
+    })
+  );
+
+  return key;
 };

@@ -983,3 +983,40 @@ export const getAdminStudentDetail = async (
     userId: firstRow.user_id,
   };
 };
+
+export interface AdminBanner {
+  buttonText: string | null;
+  id: string;
+  imageUrl: string;
+  isActive: boolean;
+  linkUrl: string | null;
+  sortOrder: number;
+}
+
+export const getAdminBannersData = async (): Promise<{
+  banners: AdminBanner[];
+}> => {
+  await requireAdminReadAccess();
+
+  const { rows } = await getPool().query<{
+    id: string;
+    image_url: string;
+    link_url: string | null;
+    button_text: string | null;
+    is_active: boolean;
+    sort_order: number;
+  }>(
+    "select id, image_url, link_url, button_text, is_active, sort_order from dashboard_banners order by sort_order"
+  );
+
+  const banners = rows.map((row) => ({
+    id: row.id,
+    imageUrl: row.image_url,
+    linkUrl: row.link_url,
+    buttonText: row.button_text,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
+  }));
+
+  return { banners };
+};

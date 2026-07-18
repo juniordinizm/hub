@@ -169,6 +169,13 @@
       "when": 1782512913667,
       "tag": "0023_remove_category_from_faq",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784376669707,
+      "tag": "0024_dashboard_banners",
+      "breakpoints": true
     }
   ]
 }

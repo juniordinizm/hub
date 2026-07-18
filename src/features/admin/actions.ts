@@ -21,6 +21,7 @@ import {
   retryJmvstreamAssetDelete,
   syncJmvstreamLessonPlayer,
 } from "@/features/jmvstream/server";
+import { uploadDashboardBannerFile } from "@/features/storage/r2";
 import { rolesForPermission } from "@/lib/auth-policy";
 import { requireRole } from "@/lib/session";
 
@@ -786,6 +787,131 @@ export const reorderLessonsAction = async (
     actorUserId: session.user.id,
     targetId: moduleId,
     targetType: "module",
+  });
+  revalidateAdmin();
+};
+
+export const saveBannerAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const bannerId = readString(formData, "bannerId");
+  const linkUrl = readString(formData, "linkUrl") || null;
+  const buttonText = readString(formData, "buttonText") || null;
+  const isActive = readCheckbox(formData, "isActive");
+  const imageFile = formData.get("imageFile") as File | null;
+
+  const pool = getPool();
+
+  if (bannerId) {
+    if (imageFile && imageFile.size > 0) {
+      if (imageFile.size > 5 * 1024 * 1024) {
+        throw new Error("A imagem não pode ter mais de 5MB.");
+      }
+      const imageUrl = await uploadDashboardBannerFile({ file: imageFile });
+      await pool.query(
+        "update dashboard_banners set image_url = $1, link_url = $2, button_text = $3, is_active = $4, updated_at = now() where id = $5",
+        [imageUrl, linkUrl, buttonText, isActive, bannerId]
+      );
+    } else {
+      await pool.query(
+        "update dashboard_banners set link_url = $1, button_text = $2, is_active = $3, updated_at = now() where id = $4",
+        [linkUrl, buttonText, isActive, bannerId]
+      );
+    }
+  } else {
+    if (!imageFile || imageFile.size === 0) {
+      throw new Error("A imagem do banner é obrigatória.");
+    }
+    if (imageFile.size > 5 * 1024 * 1024) {
+      throw new Error("A imagem não pode ter mais de 5MB.");
+    }
+
+    const countRes = await pool.query("select count(*) from dashboard_banners");
+    if (Number(countRes.rows[0].count) >= 5) {
+      throw new Error(
+        "Limite de 5 banners atingido. Remova um antes de adicionar outro."
+      );
+    }
+
+    const imageUrl = await uploadDashboardBannerFile({ file: imageFile });
+    const maxSortRes = await pool.query(
+      "select coalesce(max(sort_order), 0) as max_sort from dashboard_banners"
+    );
+    const nextSortOrder = Number(maxSortRes.rows[0].max_sort) + 1;
+
+    await pool.query(
+      `
+        insert into dashboard_banners (image_url, link_url, button_text, is_active, sort_order)
+        values ($1, $2, $3, $4, $5)
+      `,
+      [imageUrl, linkUrl, buttonText, isActive, nextSortOrder]
+    );
+  }
+
+  await audit({
+    action: "banner.saved",
+    actorUserId: session.user.id,
+    targetId: bannerId || undefined,
+    targetType: "banner",
+  });
+  revalidateAdmin();
+};
+
+export const deleteBannerAction = async (formData: FormData): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+  const bannerId = readString(formData, "bannerId");
+
+  if (!bannerId) {
+    throw new Error("Banner inválido.");
+  }
+
+  await getPool().query("delete from dashboard_banners where id = $1", [
+    bannerId,
+  ]);
+  await audit({
+    action: "banner.deleted",
+    actorUserId: session.user.id,
+    targetId: bannerId,
+    targetType: "banner",
+  });
+  revalidateAdmin();
+};
+
+export const reorderBannersAction = async (
+  orderedBannerIds: string[]
+): Promise<void> => {
+  const session = await requireRole(["admin", "support"]);
+
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    for (let i = 0; i < orderedBannerIds.length; i++) {
+      await client.query(
+        "update dashboard_banners set sort_order = $1 where id = $2",
+        [-(i + 1), orderedBannerIds[i]]
+      );
+    }
+
+    for (let i = 0; i < orderedBannerIds.length; i++) {
+      await client.query(
+        "update dashboard_banners set sort_order = $1, updated_at = now() where id = $2",
+        [i + 1, orderedBannerIds[i]]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await audit({
+    action: "banners.reordered",
+    actorUserId: session.user.id,
+    targetType: "banner",
   });
   revalidateAdmin();
 };

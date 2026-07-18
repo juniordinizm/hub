@@ -852,3 +852,13 @@ export const appSettings = pgTable("app_settings", {
   certificateSignerRole: text("certificate_signer_role"),
   ...timestamps,
 });
+
+export const dashboardBanners = pgTable("dashboard_banners", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  imageUrl: text("image_url").notNull(),
+  linkUrl: text("link_url"),
+  buttonText: text("button_text"),
+  isActive: boolean("is_active").default(true).notNull(),
+  sortOrder: integer("sort_order").notNull(),
+  ...timestamps,
+});

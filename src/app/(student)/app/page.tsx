@@ -21,6 +21,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
+import { getActiveBannersData } from "@/features/banners/server";
 import {
   formatCourseWorkload,
   getStudentCatalogAccessPresentation,
@@ -34,6 +35,7 @@ import { startCourseCheckoutAction } from "@/features/payments/actions";
 import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+import { StudentBannersCarousel } from "./student-banners-carousel";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +58,15 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
 
   const courses = await getStudentCourseCatalog(session.user.id);
   const groups = groupStudentCatalogCourses(courses);
+  const { banners } = await getActiveBannersData();
 
   const _nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+    <main className="min-h-screen bg-background px-6 pb-8 text-foreground sm:px-10 lg:px-12">
       <div className="flex flex-col gap-8">
+        {banners.length > 0 && <StudentBannersCarousel banners={banners} />}
+
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 space-y-1">
