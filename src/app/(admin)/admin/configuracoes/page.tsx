@@ -13,19 +13,28 @@ import {
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { saveSettingsAction } from "@/features/admin/actions";
-import { getAdminSettingsData } from "@/features/admin/server";
+import {
+  getAdminBannersData,
+  getAdminSettingsData,
+} from "@/features/admin/server";
 import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { BannerGallery } from "./banners/banner-gallery";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
   await requirePermission("manageSettings");
 
-  const [data, jmvstreamHealth] = await Promise.all([
+  const [data, jmvstreamHealth, bannersData] = await Promise.all([
     getAdminSettingsData(),
     getJmvstreamHealthSummary(),
+    getAdminBannersData(),
   ]);
+
+  const sortedBanners = [...bannersData.banners].sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
 
   return (
     <PageContainer>
@@ -121,6 +130,18 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                   </Button>
                 </FieldGroup>
               </form>
+            </CardContent>
+          </Card>
+          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base">Banners do Dashboard</CardTitle>
+              <CardDescription className="mt-1">
+                Configure os banners rotativos exibidos na página inicial da
+                área do aluno. Arraste para reordenar. (Máx. 5 imagens)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <BannerGallery initialBanners={sortedBanners} />
             </CardContent>
           </Card>
         </section>

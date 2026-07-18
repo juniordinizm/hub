@@ -277,7 +277,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
 
   return (
     <div className="w-full">
-      <div className="mb-8">
+      <div>
         <ResourceListContainer
           className={cn(
             isDragging ? "border-primary bg-primary/5" : "",
