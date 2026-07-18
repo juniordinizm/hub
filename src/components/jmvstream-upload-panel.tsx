@@ -27,6 +27,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
@@ -565,6 +566,9 @@ export function JmvstreamUploadPanel({
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
+                        <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                          <HugeiconsIcon icon={Delete02Icon} />
+                        </AlertDialogMedia>
                         <AlertDialogTitle>Remover vídeo</AlertDialogTitle>
                         <AlertDialogDescription>
                           Tem certeza que deseja remover o vídeo desta aula?

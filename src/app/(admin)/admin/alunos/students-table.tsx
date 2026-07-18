@@ -22,6 +22,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
@@ -338,6 +339,9 @@ export function StudentPlatformAccessControls({
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
+                      <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                        <HugeiconsIcon icon={SquareLock02Icon} />
+                      </AlertDialogMedia>
                       <AlertDialogTitle>
                         Confirmar bloqueio da plataforma
                       </AlertDialogTitle>

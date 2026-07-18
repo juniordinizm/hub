@@ -9,12 +9,23 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogBody,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -191,41 +202,46 @@ export function FaqDeleteDialog({
   }
 
   return (
-    <Dialog {...dialogProps}>
+    <AlertDialog {...dialogProps}>
       {!onOpenChange && (
-        <DialogTriggerButton size="sm" variant="destructive">
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-          Excluir FAQ
-        </DialogTriggerButton>
+        <AlertDialogTrigger asChild>
+          <Button size="sm" variant="destructive">
+            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            Excluir FAQ
+          </Button>
+        </AlertDialogTrigger>
       )}
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Excluir FAQ?</DialogTitle>
-          <DialogDescription>
+      <AlertDialogContent className="max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogMedia className="bg-destructive/10 text-destructive">
+            <HugeiconsIcon icon={Delete02Icon} />
+          </AlertDialogMedia>
+          <AlertDialogTitle>Excluir FAQ?</AlertDialogTitle>
+          <AlertDialogDescription>
             Esta ação removerá a pergunta permanentemente.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <div className="rounded-lg border bg-background/40 p-3">
-            <p className="font-semibold">{faq.question}</p>
-          </div>
-        </DialogBody>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
-              Cancelar
-            </Button>
-          </DialogClose>
-          <form action={deleteFaqAction}>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="rounded-lg border bg-background/40 p-3">
+          <p className="font-semibold">{faq.question}</p>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>
+            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+            Cancelar
+          </AlertDialogCancel>
+          <form action={deleteFaqAction} id={`delete-faq-${faq.id}`}>
             <input name="faqId" type="hidden" value={faq.id} />
-            <Button type="submit" variant="destructive">
-              <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
-              Confirmar exclusão
-            </Button>
           </form>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <AlertDialogAction
+            form={`delete-faq-${faq.id}`}
+            type="submit"
+            variant="destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            Confirmar exclusão
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
