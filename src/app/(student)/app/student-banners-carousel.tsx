@@ -65,7 +65,7 @@ export function StudentBannersCarousel({
                     <div className="absolute right-4 bottom-4 z-10 sm:right-6 sm:bottom-6 lg:right-8 lg:bottom-8">
                       <Button
                         asChild
-                        className="bg-primary text-primary-foreground shadow-sm transition-transform hover:bg-primary/90 active:scale-96"
+                        className="bg-primary text-primary-foreground shadow-sm transition-transform hover:bg-primary/90 active:scale-96 max-sm:h-7 max-sm:gap-1 max-sm:px-2 max-sm:text-[10px]"
                         size="default"
                       >
                         <Link
@@ -75,7 +75,7 @@ export function StudentBannersCarousel({
                         >
                           {banner.buttonText}
                           <HugeiconsIcon
-                            className="ml-2 h-4 w-4"
+                            className="ml-2 h-4 w-4 max-sm:ml-1 max-sm:h-3 max-sm:w-3"
                             icon={Link01Icon}
                           />
                         </Link>
