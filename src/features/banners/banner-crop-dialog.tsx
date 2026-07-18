@@ -1,6 +1,10 @@
 "use client";
 
-import { ZoomInAreaIcon, ZoomOutAreaIcon } from "@hugeicons/core-free-icons";
+import {
+  CropIcon,
+  ZoomInAreaIcon,
+  ZoomOutAreaIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
@@ -14,10 +18,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import {
   BANNER_IMAGE_ASPECT_RATIO,
-  BANNER_IMAGE_HEIGHT,
-  BANNER_IMAGE_WIDTH,
   validateBannerUploadRequest,
 } from "@/features/storage/banner-image";
 import { type BannerCropArea, createBannerCropFile } from "./banner-crop";
@@ -96,16 +99,15 @@ export function BannerCropDialog({
     <Dialog onOpenChange={(open) => !open && onCancel()} open={file !== null}>
       <DialogContent className="max-w-4xl" showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>Ajustar enquadramento</DialogTitle>
+          <DialogTitle>Ajustar imagem</DialogTitle>
           <p className="text-muted-foreground text-sm">
-            Arraste a imagem e ajuste o zoom. O banner final tera{" "}
-            {BANNER_IMAGE_WIDTH} × {BANNER_IMAGE_HEIGHT} px.
+            Arraste e use o zoom para definir o enquadramento do banner.
           </p>
         </DialogHeader>
 
-        <DialogBody className="p-0">
+        <DialogBody className="space-y-6 p-4 sm:p-6">
           {sourceUrl ? (
-            <div className="relative h-72 bg-black sm:h-105">
+            <div className="relative h-72 overflow-hidden rounded-2xl border border-black/5 bg-muted/30 shadow-inner sm:h-105 dark:border-white/5">
               <Cropper
                 aspect={BANNER_IMAGE_ASPECT_RATIO}
                 crop={crop}
@@ -120,35 +122,34 @@ export function BannerCropDialog({
               />
             </div>
           ) : null}
-        </DialogBody>
 
-        <DialogFooter className="items-center sm:justify-between">
-          <div className="flex w-full items-center gap-3 sm:max-w-sm">
+          <div className="mx-auto flex w-full max-w-md items-center gap-4">
             <HugeiconsIcon
               aria-hidden="true"
               className="shrink-0 text-muted-foreground"
               icon={ZoomOutAreaIcon}
-              size={16}
+              size={18}
             />
-            <input
+            <Slider
               aria-label="Zoom da imagem"
-              className="w-full accent-primary"
-              max="3"
-              min="1"
-              onChange={(event) => setZoom(Number(event.target.value))}
-              step="0.05"
-              type="range"
-              value={zoom}
+              className="flex-1"
+              max={3}
+              min={1}
+              onValueChange={(values) => setZoom(values[0] ?? 1)}
+              step={0.05}
+              value={[zoom]}
             />
             <HugeiconsIcon
               aria-hidden="true"
               className="shrink-0 text-muted-foreground"
               icon={ZoomInAreaIcon}
-              size={16}
+              size={18}
             />
           </div>
+        </DialogBody>
 
-          <div className="flex w-full justify-end gap-2 sm:w-auto">
+        <DialogFooter className="items-center sm:justify-end">
+          <div className="flex w-full justify-end gap-3 sm:w-auto">
             <Button
               disabled={isPreparing}
               onClick={onCancel}
@@ -162,7 +163,14 @@ export function BannerCropDialog({
               onClick={handleComplete}
               type="button"
             >
-              {isPreparing ? "Preparando..." : "Usar recorte"}
+              {isPreparing ? (
+                "Preparando..."
+              ) : (
+                <>
+                  <HugeiconsIcon className="mr-2" icon={CropIcon} size={16} />
+                  Confirmar
+                </>
+              )}
             </Button>
           </div>
         </DialogFooter>
