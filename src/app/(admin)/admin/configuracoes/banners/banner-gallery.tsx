@@ -139,6 +139,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
 
         if (res?.bannerId) {
           const optimisticBanner: AdminBanner = {
+            blurDataUrl: null,
             id: res.bannerId,
             imageUrl: URL.createObjectURL(file),
             isActive: true,

@@ -985,6 +985,7 @@ export const getAdminStudentDetail = async (
 };
 
 export interface AdminBanner {
+  blurDataUrl: string | null;
   buttonText: string | null;
   id: string;
   imageUrl: string;
@@ -999,6 +1000,7 @@ export const getAdminBannersData = async (): Promise<{
   await requireAdminReadAccess();
 
   const { rows } = await getPool().query<{
+    blur_data_url: string | null;
     id: string;
     image_url: string;
     link_url: string | null;
@@ -1006,10 +1008,11 @@ export const getAdminBannersData = async (): Promise<{
     is_active: boolean;
     sort_order: number;
   }>(
-    "select id, image_url, link_url, button_text, is_active, sort_order from dashboard_banners order by sort_order"
+    "select id, image_url, blur_data_url, link_url, button_text, is_active, sort_order from dashboard_banners order by sort_order"
   );
 
   const banners = rows.map((row) => ({
+    blurDataUrl: row.blur_data_url,
     id: row.id,
     imageUrl: row.image_url,
     linkUrl: row.link_url,

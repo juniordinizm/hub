@@ -850,28 +850,39 @@ export const saveBannerAction = async (
   assertBannerLink({ buttonText, linkUrl });
 
   const pool = getPool();
+  let previousBlurDataUrl: string | null = null;
   let previousImageKey: string | null = null;
+  let nextBlurDataUrl: string | null = null;
   let nextImageKey: string | null = null;
 
   if (bannerId) {
-    const previous = await pool.query<{ image_url: string }>(
-      "select image_url from dashboard_banners where id = $1 limit 1",
+    const previous = await pool.query<{
+      blur_data_url: string | null;
+      image_url: string;
+    }>(
+      "select image_url, blur_data_url from dashboard_banners where id = $1 limit 1",
       [bannerId]
     );
     previousImageKey = previous.rows[0]?.image_url ?? null;
+    previousBlurDataUrl = previous.rows[0]?.blur_data_url ?? null;
 
     if (!previousImageKey) {
       throw new Error("Banner inválido.");
     }
 
     if (imageFile && imageFile.size > 0) {
-      nextImageKey = await uploadDashboardBannerFile({ file: imageFile });
+      const uploadedBanner = await uploadDashboardBannerFile({
+        file: imageFile,
+      });
+      nextImageKey = uploadedBanner.key;
+      nextBlurDataUrl = uploadedBanner.blurDataUrl;
       await pool.query(
-        "update dashboard_banners set image_url = $1, link_url = $2, button_text = $3, is_active = $4, updated_at = now() where id = $5",
-        [nextImageKey, linkUrl, buttonText, isActive, bannerId]
+        "update dashboard_banners set image_url = $1, blur_data_url = $2, link_url = $3, button_text = $4, is_active = $5, updated_at = now() where id = $6",
+        [nextImageKey, nextBlurDataUrl, linkUrl, buttonText, isActive, bannerId]
       );
     } else {
       nextImageKey = previousImageKey;
+      nextBlurDataUrl = previousBlurDataUrl;
       await pool.query(
         "update dashboard_banners set link_url = $1, button_text = $2, is_active = $3, updated_at = now() where id = $4",
         [linkUrl, buttonText, isActive, bannerId]
@@ -889,7 +900,11 @@ export const saveBannerAction = async (
       );
     }
 
-    nextImageKey = await uploadDashboardBannerFile({ file: imageFile });
+    const uploadedBanner = await uploadDashboardBannerFile({
+      file: imageFile,
+    });
+    nextImageKey = uploadedBanner.key;
+    nextBlurDataUrl = uploadedBanner.blurDataUrl;
     const maxSortRes = await pool.query(
       "select coalesce(max(sort_order), 0) as max_sort from dashboard_banners"
     );
@@ -897,11 +912,18 @@ export const saveBannerAction = async (
 
     const insertRes = await pool.query(
       `
-        insert into dashboard_banners (image_url, link_url, button_text, is_active, sort_order)
-        values ($1, $2, $3, $4, $5)
+        insert into dashboard_banners (image_url, blur_data_url, link_url, button_text, is_active, sort_order)
+        values ($1, $2, $3, $4, $5, $6)
         returning id
       `,
-      [nextImageKey, linkUrl, buttonText, isActive, nextSortOrder]
+      [
+        nextImageKey,
+        nextBlurDataUrl,
+        linkUrl,
+        buttonText,
+        isActive,
+        nextSortOrder,
+      ]
     );
     bannerId = insertRes.rows[0].id;
   }

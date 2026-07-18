@@ -28,3 +28,12 @@ export const validateBannerImageFile = async (file: File): Promise<void> => {
     );
   }
 };
+
+export const createBannerBlurDataUrl = async (file: File): Promise<string> => {
+  const blurBuffer = await sharp(Buffer.from(await file.arrayBuffer()))
+    .resize({ width: 10 })
+    .webp({ quality: 20 })
+    .toBuffer();
+
+  return `data:image/webp;base64,${blurBuffer.toString("base64")}`;
+};

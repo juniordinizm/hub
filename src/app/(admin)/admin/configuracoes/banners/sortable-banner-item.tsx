@@ -7,7 +7,6 @@ import {
   PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   ResourceDeleteAction,
@@ -18,6 +17,7 @@ import {
   ResourceItemVisual,
 } from "@/components/ui/resource-list";
 import type { AdminBanner } from "@/features/admin/server";
+import { BannerImage } from "@/features/banners/banner-image";
 
 interface SortableBannerItemProps {
   banner: AdminBanner;
@@ -57,10 +57,12 @@ export function SortableBannerItem({
           banner.isActive ? "" : "opacity-50 grayscale"
         }`}
       >
-        <Image
+        <BannerImage
           alt="Banner preview"
+          blurDataUrl={banner.blurDataUrl}
           className="pointer-events-none object-cover"
-          fill
+          key={banner.imageUrl}
+          sizes="128px"
           src={`/api/banners/${banner.id}/image`}
           unoptimized
         />

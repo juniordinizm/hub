@@ -854,6 +854,7 @@ export const appSettings = pgTable("app_settings", {
 });
 
 export const dashboardBanners = pgTable("dashboard_banners", {
+  blurDataUrl: text("blur_data_url"),
   id: uuid("id").primaryKey().defaultRandom(),
   imageUrl: text("image_url").notNull(),
   linkUrl: text("link_url"),

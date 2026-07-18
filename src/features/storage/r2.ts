@@ -10,7 +10,10 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { validateBannerUploadRequest } from "@/features/storage/banner-image";
-import { validateBannerImageFile } from "@/features/storage/banner-upload";
+import {
+  createBannerBlurDataUrl,
+  validateBannerImageFile,
+} from "@/features/storage/banner-upload";
 import type { CourseCoverImage } from "@/features/storage/course-cover";
 import {
   type CourseCoverFile,
@@ -400,12 +403,15 @@ export const uploadDashboardBannerFile = async ({
   file,
 }: {
   file: File;
-}): Promise<string> => {
+}): Promise<{ blurDataUrl: string; key: string }> => {
   await validateBannerImageFile(file);
   const config = getR2Config();
   const client = getR2Client(config);
 
-  const buffer = await file.arrayBuffer();
+  const [blurDataUrl, buffer] = await Promise.all([
+    createBannerBlurDataUrl(file),
+    file.arrayBuffer(),
+  ]);
   const extension = file.name.split(".").pop()?.toLowerCase() || "webp";
   const key = `banners/${randomUUID()}.${extension}`;
 
@@ -418,5 +424,5 @@ export const uploadDashboardBannerFile = async ({
     })
   );
 
-  return key;
+  return { blurDataUrl, key };
 };

@@ -1,6 +1,9 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { validateBannerImageFile } from "./banner-upload";
+import {
+  createBannerBlurDataUrl,
+  validateBannerImageFile,
+} from "./banner-upload";
 
 const createBannerFile = async ({
   height,
@@ -26,6 +29,17 @@ const createBannerFile = async ({
 };
 
 describe("banner upload", () => {
+  it("creates a compact WebP blur data URL", async () => {
+    const file = await createBannerFile({ height: 420, width: 1680 });
+
+    const blurDataUrl = await createBannerBlurDataUrl(file);
+    const blurBuffer = Buffer.from(blurDataUrl.split(",")[1] ?? "", "base64");
+    const metadata = await sharp(blurBuffer).metadata();
+
+    expect(blurDataUrl.startsWith("data:image/webp;base64,")).toBe(true);
+    expect(metadata.width).toBeLessThanOrEqual(10);
+  });
+
   it("accepts a canonical 1680 by 420 WebP banner", async () => {
     await expect(
       validateBannerImageFile(

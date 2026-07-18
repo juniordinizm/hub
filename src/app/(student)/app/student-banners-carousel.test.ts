@@ -19,4 +19,14 @@ describe("student banners carousel", () => {
 
     expect(source).toContain("watchDrag: banners.length > 1");
   });
+
+  it("preloads only the initially visible banner", () => {
+    const source = readFileSync(
+      "src/app/(student)/app/student-banners-carousel.tsx",
+      "utf8"
+    );
+
+    expect(source).toContain("preload={index === 0}");
+    expect(source).toContain('sizes="100vw"');
+  });
 });

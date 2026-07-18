@@ -3,7 +3,6 @@
 import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Autoplay from "embla-carousel-autoplay";
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +11,7 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import type { AdminBanner } from "@/features/admin/server";
+import { BannerImage } from "@/features/banners/banner-image";
 
 interface StudentBannersCarouselProps {
   banners: AdminBanner[];
@@ -46,17 +46,18 @@ export function StudentBannersCarousel({
           ]}
         >
           <CarouselContent>
-            {banners.map((banner) => (
+            {banners.map((banner, index) => (
               <CarouselItem
                 className="relative aspect-[4/1] w-full"
                 key={banner.id}
               >
                 <div className="absolute inset-0">
-                  <Image
+                  <BannerImage
                     alt="Banner"
-                    className="object-cover"
-                    fill
-                    priority
+                    blurDataUrl={banner.blurDataUrl}
+                    key={banner.imageUrl}
+                    preload={index === 0}
+                    sizes="100vw"
                     src={banner.imageUrl}
                     unoptimized
                   />
