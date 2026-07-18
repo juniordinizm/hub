@@ -3,6 +3,7 @@
 import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,12 +51,13 @@ export function StudentBannersCarousel({
                 key={banner.id}
               >
                 <div className="absolute inset-0">
-                  {/* biome-ignore lint/correctness/useImageSize: Dynamic banner image */}
-                  {/* biome-ignore lint/performance/noImgElement: Native img required */}
-                  <img
+                  <Image
                     alt="Banner"
-                    className="h-full w-full object-cover"
+                    className="object-cover"
+                    fill
+                    priority
                     src={`/api/banners/${banner.id}/image`}
+                    unoptimized
                   />
 
                   {banner.linkUrl && banner.buttonText && (

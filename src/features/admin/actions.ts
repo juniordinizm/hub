@@ -799,6 +799,12 @@ export const saveBannerAction = async (formData: FormData): Promise<void> => {
   const isActive = readCheckbox(formData, "isActive");
   const imageFile = formData.get("imageFile") as File | null;
 
+  if ((linkUrl && !buttonText) || (!linkUrl && buttonText)) {
+    throw new Error(
+      "Se você informar um link, o texto do botão é obrigatório, e vice-versa."
+    );
+  }
+
   const pool = getPool();
 
   if (bannerId) {

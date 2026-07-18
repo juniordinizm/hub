@@ -1,6 +1,5 @@
 import { getAdminBannersData } from "@/features/admin/server";
-import { BannerCreateDialog } from "./banner-dialogs";
-import { BannerTable } from "./banner-table";
+import { BannerGallery } from "./banner-gallery";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +20,13 @@ export default async function AdminBannersPage(): Promise<React.JSX.Element> {
             </h1>
             <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
               Configure os banners rotativos exibidos na página inicial da área
-              do aluno. (Máx. 5 imagens)
+              do aluno. Arraste para reordenar. (Máx. 5 imagens)
             </p>
           </div>
-          <BannerCreateDialog />
         </header>
 
         <section>
-          <BannerTable banners={sortedBanners} />
+          <BannerGallery initialBanners={sortedBanners} />
         </section>
       </div>
     </main>

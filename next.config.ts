@@ -17,6 +17,11 @@ const nextConfig: NextConfig = {
         pathname: "/vod/**",
         protocol: "https",
       },
+      {
+        hostname: "*.r2.cloudflarestorage.com",
+        pathname: "/**",
+        protocol: "https",
+      },
     ],
   },
   reactCompiler: true,
