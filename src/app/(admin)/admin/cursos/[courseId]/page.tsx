@@ -7,6 +7,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -64,7 +65,7 @@ export default async function AdminCourseDetailPage({
     modules.length > 0 ? Math.max(...modules.map((m) => m.sortOrder)) + 1 : 1;
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="flex flex-col gap-6 border-b pb-6">
           <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
@@ -267,6 +268,6 @@ export default async function AdminCourseDetailPage({
           </TabsContent>
         </Tabs>
       </div>
-    </main>
+    </PageContainer>
   );
 }

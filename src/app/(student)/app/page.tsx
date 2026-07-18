@@ -10,6 +10,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,7 +64,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
   const _nextCourse = groups.active[0] ?? groups.completed[0] ?? courses[0];
 
   return (
-    <main className="min-h-screen bg-background px-6 pb-8 text-foreground sm:px-10 lg:px-12">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <div className="flex flex-col gap-8">
         {banners.length > 0 && <StudentBannersCarousel banners={banners} />}
 
@@ -111,7 +112,7 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           )}
         </div>
       </div>
-    </main>
+    </PageContainer>
   );
 }
 

@@ -114,7 +114,7 @@ export function CourseOverviewClient({
   return (
     <>
       {continueWatchingLessons.length > 0 && (
-        <section className="border-border/50 border-b bg-muted/20 px-6 pt-9 pb-6 sm:px-10 lg:px-12">
+        <section className="mt-8 rounded-xl border border-border/50 bg-muted/20 px-6 py-6 sm:px-8">
           <div>
             <h2 className="font-bold text-xl tracking-tight">
               {previewMode ? "Preview da trilha" : "Continuar assistindo"}
@@ -132,7 +132,7 @@ export function CourseOverviewClient({
         </section>
       )}
 
-      <section className="px-6 py-9 sm:px-10 lg:px-12">
+      <section className="pt-9">
         <div className="mb-10">
           <h2 className="font-bold text-2xl tracking-tight">Trilha do curso</h2>
           <p className="mt-1 text-muted-foreground text-sm">

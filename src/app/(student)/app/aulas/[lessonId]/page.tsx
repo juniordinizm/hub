@@ -261,9 +261,7 @@ function LessonMainContent({
           {data.lesson.contentJson ? (
             <LessonContentFrame lesson={data.lesson} />
           ) : null}
-          <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-0">
-            {footer}
-          </div>
+          <div className="mx-auto w-full max-w-5xl py-7">{footer}</div>
         </LessonVideoPlayer>
         {commentsSection}
       </div>
@@ -274,11 +272,11 @@ function LessonMainContent({
     return (
       <div className="flex flex-col">
         {header}
-        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-0">
+        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
           <LessonVideoProcessing />
         </div>
         <LessonContentFrame lesson={data.lesson} />
-        <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-0">
+        <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
           {footer}
         </div>
         {commentsSection}
@@ -290,7 +288,9 @@ function LessonMainContent({
     <div className="flex flex-col">
       {header}
       <LessonContentFrame lesson={data.lesson} />
-      <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-0">{footer}</div>
+      <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
+        {footer}
+      </div>
       {commentsSection}
     </div>
   );
@@ -304,7 +304,7 @@ function LessonHeader({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-0">
+    <div className="mx-auto w-full max-w-5xl py-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-medium text-foreground text-lg tracking-normal">
@@ -387,7 +387,7 @@ function LessonContentFrame({
     const { document } = lesson.contentJson;
 
     return (
-      <article className="px-5 py-8 sm:px-0">
+      <article className="px-5 py-8 sm:px-8 lg:px-10">
         <div className="mx-auto flex max-w-5xl flex-col gap-8">
           <div className="text-base leading-8">
             <LessonRichTextRenderer document={document} />
@@ -399,7 +399,7 @@ function LessonContentFrame({
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-0">
+    <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-8 lg:px-10">
       Conteudo em configuracao.
     </div>
   );

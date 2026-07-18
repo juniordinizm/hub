@@ -2,6 +2,7 @@ import { BookOpen01Icon, Clock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -88,8 +89,8 @@ export default async function StudentCourseOverviewPage({
   );
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <section className="px-6 py-8 sm:px-10 lg:px-12 lg:py-10">
+    <PageContainer className="min-h-screen bg-background text-foreground">
+      <div className="flex flex-col gap-8">
         <div className="flex flex-col gap-8">
           {previewMode ? (
             <RegisterPreviewCourseId courseId={data.course.id} />
@@ -162,14 +163,14 @@ export default async function StudentCourseOverviewPage({
             </div>
           </header>
         </div>
-      </section>
+      </div>
 
       <CourseOverviewClient
         modules={data.modules}
         nextLessonId={data.nextLessonId}
         previewMode={previewMode}
       />
-    </main>
+    </PageContainer>
   );
 }
 
