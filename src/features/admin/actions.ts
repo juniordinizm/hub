@@ -791,9 +791,11 @@ export const reorderLessonsAction = async (
   revalidateAdmin();
 };
 
-export const saveBannerAction = async (formData: FormData): Promise<void> => {
+export const saveBannerAction = async (
+  formData: FormData
+): Promise<{ bannerId?: string } | undefined> => {
   const session = await requireRole(["admin", "support"]);
-  const bannerId = readString(formData, "bannerId");
+  let bannerId = readString(formData, "bannerId");
   const linkUrl = readString(formData, "linkUrl") || null;
   const buttonText = readString(formData, "buttonText") || null;
   const isActive = readCheckbox(formData, "isActive");
@@ -844,13 +846,15 @@ export const saveBannerAction = async (formData: FormData): Promise<void> => {
     );
     const nextSortOrder = Number(maxSortRes.rows[0].max_sort) + 1;
 
-    await pool.query(
+    const insertRes = await pool.query(
       `
         insert into dashboard_banners (image_url, link_url, button_text, is_active, sort_order)
         values ($1, $2, $3, $4, $5)
+        returning id
       `,
       [imageUrl, linkUrl, buttonText, isActive, nextSortOrder]
     );
+    bannerId = insertRes.rows[0].id;
   }
 
   await audit({
@@ -860,6 +864,7 @@ export const saveBannerAction = async (formData: FormData): Promise<void> => {
     targetType: "banner",
   });
   revalidateAdmin();
+  return { bannerId };
 };
 
 export const deleteBannerAction = async (formData: FormData): Promise<void> => {

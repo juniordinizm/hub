@@ -46,7 +46,19 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   const [errors, setErrors] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const [editingBanner, setEditingBanner] = useState<AdminBanner | null>(null);
+  const [autoOpenBannerId, setAutoOpenBannerId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Auto-open modal when a new banner finishes uploading and is available in props
+  useEffect(() => {
+    if (autoOpenBannerId) {
+      const found = banners.find((b) => b.id === autoOpenBannerId);
+      if (found) {
+        setEditingBanner(found);
+        setAutoOpenBannerId(null);
+      }
+    }
+  }, [banners, autoOpenBannerId]);
 
   useEffect(() => {
     setBanners(initialBanners);
@@ -107,16 +119,20 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       formData.append("isActive", "on");
 
       try {
-        await saveBannerAction(formData);
+        const res = await saveBannerAction(formData);
         toast.success("Banner enviado com sucesso.");
+        if (res?.bannerId) {
+          return { bannerId: res.bannerId };
+        }
       } catch (error: unknown) {
-        return error instanceof Error
-          ? error.message
-          : "Erro ao enviar banner.";
+        return {
+          error:
+            error instanceof Error ? error.message : "Erro ao enviar banner.",
+        };
       } finally {
         setIsUploading(false);
       }
-      return null;
+      return {};
     },
     [banners.length]
   );
@@ -132,15 +148,26 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       }
 
       setErrors([]);
+      let firstNewBannerId: string | null = null;
       for (const file of filesArray) {
-        const error = await uploadFile(file);
-        if (error) {
-          newErrors.push(`${file.name}: ${error}`);
+        const result = await uploadFile(file);
+        if (typeof result === "object" && result?.error) {
+          newErrors.push(`${file.name}: ${result.error}`);
+        } else if (
+          typeof result === "object" &&
+          result?.bannerId &&
+          !firstNewBannerId
+        ) {
+          firstNewBannerId = result.bannerId;
         }
       }
 
       if (newErrors.length > 0) {
         setErrors(newErrors);
+      }
+
+      if (firstNewBannerId) {
+        setAutoOpenBannerId(firstNewBannerId);
       }
     },
     [banners.length, uploadFile]
