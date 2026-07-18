@@ -25,7 +25,7 @@ export function StudentBannersCarousel({
   }
 
   return (
-    <section className="relative mb-8 w-full">
+    <section className="relative w-full">
       {/* 
         We use an inner div to apply the concentric border-radius & subtle outline 
         ensuring the carousel itself masks overflow correctly. 
