@@ -25,6 +25,7 @@ import {
 } from "@/components/lesson-focus-mode";
 import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
+import { LessonVideoProcessing } from "@/components/lesson-video-processing";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -274,23 +275,7 @@ function LessonMainContent({
       <div className="flex flex-col">
         {header}
         <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-0">
-          <div className="flex aspect-video flex-col items-center justify-center gap-6 rounded-none bg-background px-6 text-center">
-            <div className="relative flex h-16 w-16 items-center justify-center">
-              <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10" />
-              <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/5">
-                <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-primary border-t-transparent" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="font-medium text-foreground text-xs uppercase tracking-widest">
-                Processando Vídeo
-              </p>
-              <p className="mx-auto max-w-md font-light text-muted-foreground text-sm">
-                A infraestrutura está otimizando a qualidade da aula. Ela estará
-                disponível automaticamente em instantes.
-              </p>
-            </div>
-          </div>
+          <LessonVideoProcessing />
         </div>
         <LessonContentFrame lesson={data.lesson} />
         <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-0">

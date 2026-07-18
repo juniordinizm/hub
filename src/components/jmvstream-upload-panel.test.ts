@@ -164,6 +164,28 @@ describe("Jmvstream upload helpers", () => {
 
     expect(uploadedSizes).toEqual([8, 2]);
   });
+
+  it("retries a transient part failure before abandoning the upload", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(null, {
+          headers: { ETag: '"etag-value"' },
+          status: 200,
+        })
+      );
+
+    await expect(
+      uploadFileParts({
+        fetcher,
+        file: createFile(),
+        onProgress: vi.fn(),
+        presignedUrls: [{ partNumber: 1, url: "https://s3.local/part-1" }],
+      })
+    ).resolves.toEqual([{ ETag: '"etag-value"', PartNumber: 1 }]);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
 });
 
 const waitUntil = async (predicate: () => boolean): Promise<void> => {

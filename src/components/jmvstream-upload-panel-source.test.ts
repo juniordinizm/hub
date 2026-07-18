@@ -81,4 +81,47 @@ describe("JmvstreamUploadPanel upload lifecycle", () => {
     expect(source).toContain("isUploading");
     expect(source).toContain("event.preventDefault()");
   });
+
+  it("keeps failed uploads recoverable with a replacement and discard path", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain('asset?.uploadStatus === "failed"');
+    expect(source).toContain("Selecionar outro arquivo");
+    expect(source).toContain("Descartar sessao");
+    expect(source).toContain("discardJmvstreamUploadAction");
+  });
+
+  it("uses the file input button instead of a non-semantic clickable dropzone", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("<label");
+    expect(source).toContain("htmlFor={inputId}");
+    expect(source).not.toContain("useKeyWithClickEvents: Dropzone Container");
+  });
+
+  it("keeps the manual-link replacement path available while a video is active", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("Substituir por link");
+    expect(source).toContain("manualLinkSlot &&");
+  });
+
+  it("lets the administrator cancel an in-progress browser transfer", async () => {
+    const source = await readFile(
+      new URL("./jmvstream-upload-panel.tsx", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("AbortController");
+    expect(source).toContain("Cancelar upload");
+  });
 });

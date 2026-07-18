@@ -10,7 +10,14 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -27,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   completeJmvstreamUploadAction,
+  discardJmvstreamUploadAction,
   initJmvstreamUploadAction,
   markJmvstreamUploadFailedAction,
   removeJmvstreamVideoFromLessonAction,
@@ -72,10 +80,13 @@ export function JmvstreamUploadPanel({
   onRemoveVideo?: () => void;
 }): React.JSX.Element {
   const router = useRouter();
+  const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadAbortControllerRef = useRef<AbortController | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
+  const [isCancellingUpload, setIsCancellingUpload] = useState(false);
   const [isLocalProcessing, setIsLocalProcessing] = useState(false);
   const [localFilename, setLocalFilename] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -88,8 +99,9 @@ export function JmvstreamUploadPanel({
   const [status, setStatus] = useState<string | null>(null);
   const isProcessing =
     asset?.uploadStatus === "processing" || isLocalProcessing;
+  const hasFailedUpload = asset?.uploadStatus === "failed";
   const isUploadActive = Boolean(
-    asset ||
+    (asset && !hasFailedUpload) ||
       isUploading ||
       isProcessing ||
       (currentVideoHash && !hasManualLinkApplied)
@@ -168,7 +180,10 @@ export function JmvstreamUploadPanel({
     setLocalFilename(file.name);
     setProgress(2);
     setStatus("Etapa 1/4: Iniciando conexão segura...");
+    const abortController = new AbortController();
+    uploadAbortControllerRef.current = abortController;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: This coordinates the provider upload lifecycle and its recovery states.
     startTransition(async () => {
       let activeVideoHash: string | null = null;
       let uploadCompleted = false;
@@ -191,6 +206,7 @@ export function JmvstreamUploadPanel({
           file,
           onProgress: setProgress,
           presignedUrls: init.presignedUrls,
+          signal: abortController.signal,
         });
 
         setIsUploading(false);
@@ -223,7 +239,9 @@ export function JmvstreamUploadPanel({
         router.refresh();
       } catch (uploadError) {
         setIsUploading(false);
-        const errorMessage = getUploadErrorMessage(uploadError);
+        const errorMessage = abortController.signal.aborted
+          ? "Upload cancelado. Escolha um arquivo para iniciar novamente."
+          : getUploadErrorMessage(uploadError);
 
         if (activeVideoHash && !uploadCompleted) {
           await markJmvstreamUploadFailedAction({
@@ -235,10 +253,28 @@ export function JmvstreamUploadPanel({
         setError(uploadCompleted ? null : errorMessage);
         setStatus(getUploadFailureStatus(uploadCompleted));
         if (!uploadCompleted) {
-          toast.error(`Falha no upload: ${errorMessage}`);
+          if (abortController.signal.aborted) {
+            toast.info("Upload cancelado.");
+          } else {
+            toast.error(`Falha no upload: ${errorMessage}`);
+          }
+        }
+      } finally {
+        if (uploadAbortControllerRef.current === abortController) {
+          uploadAbortControllerRef.current = null;
+          setIsCancellingUpload(false);
         }
       }
     });
+  };
+
+  const cancelUpload = (): void => {
+    if (!(isUploading && uploadAbortControllerRef.current)) {
+      return;
+    }
+
+    setIsCancellingUpload(true);
+    uploadAbortControllerRef.current.abort();
   };
 
   const retryDelete = (): void => {
@@ -262,6 +298,27 @@ export function JmvstreamUploadPanel({
           retryError instanceof Error
             ? retryError.message
             : "Nao foi possivel apagar o video na JMVStream."
+        );
+      }
+    });
+  };
+
+  const discardFailedUpload = (): void => {
+    if (!(asset && hasFailedUpload)) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await discardJmvstreamUploadAction({ assetId: asset.id });
+        setError(null);
+        toast.success("Sessao de upload descartada.");
+        router.refresh();
+      } catch (discardError) {
+        setError(
+          discardError instanceof Error
+            ? discardError.message
+            : "Nao foi possivel descartar a sessao de upload."
         );
       }
     });
@@ -317,73 +374,84 @@ export function JmvstreamUploadPanel({
               </div>
             )}
 
-            {/* biome-ignore lint/a11y/useKeyWithClickEvents: Dropzone Container */}
-            {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: Dropzone Container */}
-            {/* biome-ignore lint/a11y/noStaticElementInteractions: Dropzone Container */}
-            <div
-              className="group relative flex cursor-pointer flex-col items-center justify-between gap-4 rounded-xl border border-border border-dashed bg-muted/20 p-5 transition-colors hover:border-ring/50 hover:bg-muted/30 sm:flex-row"
-              onClick={() => inputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const file = e.dataTransfer.files?.[0];
-                if (file) {
-                  uploadSelectedFile(file);
-                }
-              }}
-            >
+            <div className="flex flex-col items-center gap-4 sm:flex-row">
               <Input
                 accept="video/*"
                 className="hidden"
                 disabled={isPending || !lessonId}
+                id={inputId}
                 onChange={() => uploadSelectedFile()}
                 ref={inputRef}
                 type="file"
               />
-
-              <div className="flex items-center gap-3 text-left">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background shadow-sm transition-transform duration-300 ease-out group-hover:scale-105">
-                  <HugeiconsIcon
-                    className="text-muted-foreground"
-                    icon={CloudUploadIcon}
-                    size={20}
-                  />
+              {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: Drag-and-drop supplements the labelled file input. */}
+              <label
+                className="group relative flex w-full flex-1 cursor-pointer flex-col items-center justify-between gap-4 rounded-xl border border-border border-dashed bg-muted/20 p-5 transition-colors hover:border-ring/50 hover:bg-muted/30 sm:flex-row"
+                htmlFor={inputId}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    uploadSelectedFile(file);
+                  }
+                }}
+              >
+                <div className="flex items-center gap-3 text-left">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background shadow-sm transition-transform duration-300 ease-out group-hover:scale-105">
+                    <HugeiconsIcon
+                      className="text-muted-foreground"
+                      icon={CloudUploadIcon}
+                      size={20}
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-sm">Upload de vídeo</h4>
+                    <p className="text-muted-foreground text-xs">
+                      Arraste para cá ou use o botão para buscar
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-medium text-sm">Upload de vídeo</h4>
-                  <p className="text-muted-foreground text-xs">
-                    Arraste para cá ou clique para buscar
-                  </p>
-                </div>
-              </div>
-
+              </label>
               <Button
                 className="w-full shrink-0 transition-transform active:scale-[0.97] sm:w-auto"
                 disabled={isPending || !lessonId}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  inputRef.current?.click();
-                }}
+                onClick={() => inputRef.current?.click()}
                 size="sm"
                 type="button"
                 variant="secondary"
               >
-                Procurar arquivo
+                {hasFailedUpload
+                  ? "Selecionar outro arquivo"
+                  : "Procurar arquivo"}
               </Button>
             </div>
 
-            {error && !currentVideoHash && (
+            {(error || hasFailedUpload) && !currentVideoHash && (
               <div className="relative z-20 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-xs">
                 <HugeiconsIcon
                   className="shrink-0"
                   icon={Alert01Icon}
                   size={14}
                 />
-                <p className="truncate">{error}</p>
+                <p className="min-w-0 flex-1">
+                  {error || asset?.lastError || "O upload falhou."}
+                </p>
+                {hasFailedUpload && (
+                  <Button
+                    disabled={isPending}
+                    onClick={discardFailedUpload}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    Descartar sessao
+                  </Button>
+                )}
               </div>
             )}
 
@@ -462,6 +530,17 @@ export function JmvstreamUploadPanel({
                     Tentar apagar novamente
                   </Button>
                 )}
+                {isUploading && (
+                  <Button
+                    disabled={isCancellingUpload}
+                    onClick={cancelUpload}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    {isCancellingUpload ? "Cancelando..." : "Cancelar upload"}
+                  </Button>
+                )}
                 {currentVideoHash && onRemoveVideo && !isUploading && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -531,7 +610,22 @@ export function JmvstreamUploadPanel({
           </div>
         )}
 
-        {hasManualLinkApplied && !isUploadActive && manualLinkActiveCard}
+        {isUploadActive &&
+          currentVideoHash &&
+          manualLinkSlot &&
+          !hasManualLinkApplied && (
+            <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4">
+              <div>
+                <h4 className="font-medium text-sm">Substituir por link</h4>
+                <p className="text-muted-foreground text-xs">
+                  O vídeo atual continua disponível até salvar a substituição.
+                </p>
+              </div>
+              {manualLinkSlot}
+            </div>
+          )}
+
+        {hasManualLinkApplied && manualLinkActiveCard}
       </div>
     </section>
   );

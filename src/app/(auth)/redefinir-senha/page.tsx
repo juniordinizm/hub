@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthShell } from "@/components/auth-shell";
 import {
   Card,
   CardContent,
@@ -23,7 +24,7 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center bg-background px-6 py-10">
+    <AuthShell>
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
@@ -44,6 +45,6 @@ export default async function ResetPasswordPage({
           </Link>
         </CardFooter>
       </Card>
-    </main>
+    </AuthShell>
   );
 }

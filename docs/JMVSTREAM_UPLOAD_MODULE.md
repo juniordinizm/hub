@@ -38,8 +38,6 @@ Nenhuma chave JMVStream deve ser `NEXT_PUBLIC_*`.
 ```env
 JMVSTREAM_API_BASE_URL=https://api.jmvstream.com
 JMVSTREAM_PLAN_ID=
-JMVSTREAM_AUTH_EMAIL=
-JMVSTREAM_AUTH_PASSWORD=
 JMVSTREAM_AUTH_RESOURCE=
 JMVSTREAM_API_TOKEN=
 CRON_SECRET=
@@ -164,7 +162,7 @@ Para funcionar, a JMVStream/S3 precisa permitir CORS para o dominio do admin e e
 - Player demora varios minutos: asset fica `processing`, admin/aluna veem placeholder e cron reconcilia.
 - JMVStream retorna 500 ao deletar: sistema verifica se o hash ainda existe; se existir, deixa retry.
 - Video fica em `default`: sync tenta mover para a pasta do curso.
-- JWT expira: servidor renova via `POST /v1/authenticate` quando credenciais server-only existem.
+- JWT expira: servidor renova via `POST /v2/authenticate` usando o UUID server-only do recurso.
 
 ## Checklist manual
 

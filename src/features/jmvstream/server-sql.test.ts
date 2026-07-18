@@ -88,10 +88,7 @@ describe("JMVStream server SQL", () => {
       "utf8"
     );
 
-    expect(source).toContain("const videos = await client.listVideos()");
-    expect(source).toContain(
-      "!findJmvstreamVideoByHash(videos, asset.video_hash)"
-    );
+    expect(source).toContain("await client.getVideo(asset.video_hash)");
     expect(source).toContain("await markJmvstreamAssetDeleted(assetId)");
   });
 
@@ -118,7 +115,7 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("video.folderUuid !== galleryUuid");
   });
 
-  it("defers moving videos until they are visible in the JMVStream video list", async () => {
+  it("defers moving videos until they are visible through the focused JMVStream lookup", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
       "utf8"
@@ -126,7 +123,7 @@ describe("JMVStream server SQL", () => {
 
     expect(source).toContain("if (!video) {");
     expect(source).toContain("markJmvstreamAssetMovePending");
-    expect(source).toContain("findJmvstreamVideoByHash(videos, videoHash)");
+    expect(source).toContain("await client.getVideo(videoHash)");
   });
 
   it("reconciles processing uploads without depending on an open browser tab", async () => {
@@ -138,5 +135,26 @@ describe("JMVStream server SQL", () => {
     expect(source).toContain("syncPendingJmvstreamPlayers");
     expect(source).toContain("where upload_status = 'processing'");
     expect(source).toContain("await syncJmvstreamLessonPlayer(row.lesson_id)");
+  });
+
+  it("reconciles each lesson through a focused video lookup and conversion job", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("await client.getVideo(videoHash)");
+    expect(source).toContain("await client.getVideoJobStatus(videoHash)");
+    expect(source).toContain('jobStatus === "ERROR"');
+  });
+
+  it("expires abandoned uploads before processing pending players", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("export const expireStaleJmvstreamUploads");
+    expect(source).toContain("await expireStaleJmvstreamUploads()");
   });
 });

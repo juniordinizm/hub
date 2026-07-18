@@ -16,7 +16,6 @@ import {
   useMemo,
   useState,
 } from "react";
-import { NotificationsButton } from "@/components/notifications-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -379,7 +378,6 @@ function PanelLayoutInner({
                   width={400}
                 />
               </div>
-              <NotificationsButton />
             </div>
           </header>
           <ScrollArea className="h-[calc(100svh-4rem)] w-full">

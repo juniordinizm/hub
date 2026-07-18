@@ -1,5 +1,7 @@
 import { JMVSTREAM_UPLOAD_CONCURRENCY } from "./upload-config";
 
+const JMVSTREAM_UPLOAD_PART_ATTEMPTS = 3;
+
 export interface JmvstreamUploadPart {
   ETag: string;
   PartNumber: number;
@@ -29,12 +31,14 @@ export const uploadFileParts = async ({
   file,
   onProgress,
   presignedUrls,
+  signal,
 }: {
   chunkSize?: number | undefined;
   fetcher?: typeof fetch;
   file: File;
   onProgress: (value: number) => void;
   presignedUrls: JmvstreamPresignedUrl[];
+  signal?: AbortSignal;
 }): Promise<JmvstreamUploadPart[]> => {
   const urls = normalizePresignedUrls(presignedUrls);
   const resolvedChunkSize = chunkSize ?? Math.ceil(file.size / urls.length);
@@ -62,6 +66,7 @@ export const uploadFileParts = async ({
     const etag = await uploadPart({
       chunk,
       fetcher,
+      ...(signal ? { signal } : {}),
       url: item.url,
     });
 
@@ -84,19 +89,42 @@ export const uploadFileParts = async ({
 const uploadPart = async ({
   chunk,
   fetcher,
+  signal,
   url,
 }: {
   chunk: Blob;
   fetcher: typeof fetch;
+  signal?: AbortSignal;
   url: string;
 }): Promise<string> => {
-  try {
-    const response = await fetcher(url, {
-      body: chunk,
-      method: "PUT",
-    });
+  for (
+    let attempt = 1;
+    attempt <= JMVSTREAM_UPLOAD_PART_ATTEMPTS;
+    attempt += 1
+  ) {
+    let response: Response;
+
+    try {
+      response = await fetcher(url, {
+        body: chunk,
+        method: "PUT",
+        ...(signal ? { signal } : {}),
+      });
+    } catch (error) {
+      if (isBrowserNetworkBlock(error)) {
+        throw new Error(
+          "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3."
+        );
+      }
+
+      throw error;
+    }
 
     if (!response.ok) {
+      if (response.status >= 500 && attempt < JMVSTREAM_UPLOAD_PART_ATTEMPTS) {
+        continue;
+      }
+
       throw new Error("A JMVStream recusou uma parte do upload.");
     }
 
@@ -109,15 +137,9 @@ const uploadPart = async ({
     }
 
     return etag;
-  } catch (error) {
-    if (isBrowserNetworkBlock(error)) {
-      throw new Error(
-        "O navegador bloqueou o upload direto para a JMVStream/S3. Configure CORS/Expose-Headers: ETag na JMV/S3."
-      );
-    }
-
-    throw error;
   }
+
+  throw new Error("A JMVStream recusou uma parte do upload.");
 };
 
 const isBrowserNetworkBlock = (error: unknown): boolean =>

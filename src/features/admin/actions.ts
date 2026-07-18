@@ -14,6 +14,7 @@ import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
 import type { ExpirationChangeResult } from "@/features/enrollments/server";
 import {
   completeJmvstreamUpload,
+  discardJmvstreamUpload,
   ensureJmvstreamCourseFolder,
   initJmvstreamUpload,
   markJmvstreamUploadFailed,
@@ -293,6 +294,14 @@ export const markJmvstreamUploadFailedAction = async (input: {
 }): Promise<void> => {
   await requireRole(["admin"]);
   await markJmvstreamUploadFailed(input);
+  revalidateAdmin();
+};
+
+export const discardJmvstreamUploadAction = async (input: {
+  assetId: string;
+}): Promise<void> => {
+  await requireRole(["admin"]);
+  await discardJmvstreamUpload(input);
   revalidateAdmin();
 };
 

@@ -33,7 +33,7 @@ describe("JMVStream API client", () => {
     expect(isJmvstreamJwtUsable("not-a-jwt", now)).toBe(false);
   });
 
-  it("authenticates with email, password, and resource when a fresh token is needed", async () => {
+  it("authenticates with the documented v2 resource-only payload when a fresh token is needed", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       createJsonResponse({
         token: "jwt-token",
@@ -43,19 +43,15 @@ describe("JMVStream API client", () => {
     await expect(
       authenticateJmvstreamApi({
         apiBaseUrl: "https://api.jmvstream.com/v1",
-        email: "admin@example.com",
         fetcher,
-        password: "secret",
         resource: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
       })
     ).resolves.toBe("jwt-token");
 
     expect(fetcher).toHaveBeenCalledWith(
-      "https://api.jmvstream.com/v1/authenticate",
+      "https://api.jmvstream.com/v2/authenticate",
       expect.objectContaining({
         body: JSON.stringify({
-          email: "admin@example.com",
-          password: "secret",
           resource: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
         }),
         method: "POST",
@@ -69,9 +65,7 @@ describe("JMVStream API client", () => {
     await expect(
       authenticateJmvstreamApi({
         apiBaseUrl: "https://api.jmvstream.com/v1",
-        email: "admin@example.com",
         fetcher,
-        password: "secret",
         resource: createJwt({
           planUuid: "91cc1413-16c8-4700-9f2b-c51107bac1e5",
         }),
@@ -108,6 +102,7 @@ describe("JMVStream API client", () => {
       expect.objectContaining({
         body: JSON.stringify({
           name: "Modulo 1",
+          parent: "course-folder",
         }),
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
@@ -361,6 +356,46 @@ describe("JMVStream API client", () => {
     );
   });
 
+  it("finds a video by hash without depending on the paginated video list", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      createJsonResponse({
+        folder_uuid: "folder-uuid",
+        hash: "video-hash",
+        name: "Aula.mp4",
+        playerSource:
+          "https://player.jmvstream.com/e2qGHOjxbs1eIaRI2gzKdr9dp6d5Fj/video-hash",
+        status: "COMPLETED",
+      })
+    );
+    const client = createClient(fetcher);
+
+    await expect(client.getVideo("video-hash")).resolves.toMatchObject({
+      hash: "video-hash",
+      status: "COMPLETED",
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/videos/video-hash",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("reads the normalized conversion job status by video hash", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        createJsonResponse({ progress: 100, status: "COMPLETED" })
+      );
+    const client = createClient(fetcher);
+
+    await expect(client.getVideoJobStatus("video-hash")).resolves.toEqual(
+      "COMPLETED"
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api.jmvstream.com/v1/videos/job-status/video-hash",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
   it("finds JMVStream videos by hash", () => {
     expect(
       findJmvstreamVideoByHash(
@@ -473,7 +508,7 @@ describe("JMVStream API client", () => {
     expect(fetcher).toHaveBeenCalledWith(
       "https://api.jmvstream.com/v1/videos/moveVideo/video-hash",
       expect.objectContaining({
-        body: JSON.stringify({ folder_uuid: "folder-uuid" }),
+        body: JSON.stringify({ gallery: "folder-uuid" }),
         method: "PUT",
       })
     );

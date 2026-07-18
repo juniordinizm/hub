@@ -9,7 +9,7 @@ Documento tecnico completo do modulo: `docs/JMVSTREAM_UPLOAD_MODULE.md`.
 1. Contrate ou habilite um plano com acesso a video hosting e API.
 2. Entre no painel da JMVStream.
 3. Obtenha o `planId` e o `resource` usados pela API.
-4. Crie ou confirme um usuario de API capaz de autenticar em `POST /v1/authenticate`.
+4. Guarde o UUID do recurso para autenticar em `POST /v2/authenticate`.
 5. Se usar protecao por dominio/hotlink, libere os dominios da plataforma:
    - dominio de producao;
    - dominio de preview da Vercel, se for testar videos em preview;
@@ -47,15 +47,13 @@ Nenhuma variavel da JMVStream deve usar `NEXT_PUBLIC_*`.
 ```env
 JMVSTREAM_API_BASE_URL=https://api.jmvstream.com
 JMVSTREAM_PLAN_ID=
-JMVSTREAM_AUTH_EMAIL=
-JMVSTREAM_AUTH_PASSWORD=
-# UUID do recurso/aplicacao JMVStream usado no POST /v1/authenticate. Nao use JWT/Bearer token aqui.
+# UUID do recurso/aplicacao JMVStream usado no POST /v2/authenticate. Nao use JWT/Bearer token aqui.
 JMVSTREAM_AUTH_RESOURCE=
 # Fallback manual opcional. Expira e deve ser renovado se usado sem as credenciais acima.
 JMVSTREAM_API_TOKEN=
 ```
 
-Na Vercel, cadastre essas variaveis em Production e Preview. O sistema reutiliza JWT valido, renova automaticamente com as credenciais e mostra erro acionavel quando a autenticacao falha. Se voce tiver apenas um JWT antigo, leia o payload e use o `planUuid` como `JMVSTREAM_AUTH_RESOURCE`; o JWT em si deve ficar apenas em `JMVSTREAM_API_TOKEN` quando usado como fallback manual.
+Na Vercel, cadastre essas variaveis em Production e Preview. O sistema reutiliza JWT valido e o renova automaticamente com `JMVSTREAM_AUTH_RESOURCE`. Se voce tiver apenas um JWT antigo, leia o payload e use o `planUuid` como `JMVSTREAM_AUTH_RESOURCE`; o JWT em si deve ficar apenas em `JMVSTREAM_API_TOKEN` quando usado como fallback manual.
 
 ## Observacoes tecnicas
 

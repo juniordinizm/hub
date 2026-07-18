@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AuthShell } from "@/components/auth-shell";
 import {
   Card,
   CardContent,
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 
 export default function RequestPasswordResetPage(): React.JSX.Element {
   return (
-    <main className="flex min-h-screen items-center bg-background px-6 py-10">
+    <AuthShell>
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
@@ -38,6 +39,6 @@ export default function RequestPasswordResetPage(): React.JSX.Element {
           </Link>
         </CardFooter>
       </Card>
-    </main>
+    </AuthShell>
   );
 }

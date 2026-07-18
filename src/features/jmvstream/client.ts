@@ -124,21 +124,17 @@ export const isJmvstreamJwtUsable = (
 
 export const authenticateJmvstreamApi = async ({
   apiBaseUrl,
-  email,
   fetcher = fetch,
-  password,
   resource,
 }: {
   apiBaseUrl: string;
-  email: string;
   fetcher?: typeof fetch;
-  password: string;
   resource: string;
 }): Promise<string> => {
   assertValidJmvstreamResource(resource);
   const baseUrl = normalizeJmvstreamApiBaseUrl(apiBaseUrl);
-  const response = await fetcher(`${baseUrl}/v1/authenticate`, {
-    body: JSON.stringify({ email, password, resource }),
+  const response = await fetcher(`${baseUrl}/v2/authenticate`, {
+    body: JSON.stringify({ resource }),
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -336,6 +332,7 @@ export const createJmvstreamClient = ({
 
     createFolder: async ({
       name,
+      parentFolderUuid,
     }: {
       name: string;
       parentFolderUuid?: string | null;
@@ -343,6 +340,7 @@ export const createJmvstreamClient = ({
       const response = await request<UnknownRecord>("/v1/folders", {
         body: JSON.stringify({
           name,
+          ...(parentFolderUuid ? { parent: parentFolderUuid } : {}),
         }),
         method: "POST",
       });
@@ -380,6 +378,27 @@ export const createJmvstreamClient = ({
       await request<unknown>(`/v1/folders/${encodeURIComponent(folderUuid)}`, {
         method: "DELETE",
       });
+    },
+
+    getVideo: async (videoHash: string): Promise<JmvstreamVideoResponse> => {
+      const response = await request<UnknownRecord>(
+        `/v1/videos/${encodeURIComponent(videoHash)}`,
+        { method: "GET" }
+      );
+
+      return parseVideoResponse(
+        isRecord(response.data) ? response.data : response
+      );
+    },
+
+    getVideoJobStatus: async (videoHash: string): Promise<string | null> => {
+      const response = await request<UnknownRecord>(
+        `/v1/videos/job-status/${encodeURIComponent(videoHash)}`,
+        { method: "GET" }
+      );
+      const payload = isRecord(response.data) ? response.data : response;
+
+      return readString(payload.status);
     },
 
     initMultipartUpload: async (
@@ -429,7 +448,7 @@ export const createJmvstreamClient = ({
       await request<unknown>(
         `/v1/videos/moveVideo/${encodeURIComponent(videoHash)}`,
         {
-          body: JSON.stringify({ folder_uuid: folderUuid }),
+          body: JSON.stringify({ gallery: folderUuid }),
           method: "PUT",
         }
       );
