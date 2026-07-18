@@ -1,9 +1,27 @@
 "use client";
 
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Add01Icon,
   CloudUploadIcon,
   Delete02Icon,
+  DragDropVerticalIcon,
   File01Icon,
   FileArchiveIcon,
   FileDownloadIcon,
@@ -34,6 +52,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  ResourceDeleteAction,
+  ResourceDropzoneEmpty,
+  ResourceItem,
+  ResourceItemActions,
+  ResourceItemContent,
+  ResourceItemDragHandle,
+  ResourceItemVisual,
+  ResourceListBody,
+  ResourceListContainer,
+  ResourceListHeader,
+  ResourceUploadProgressItem,
+} from "@/components/ui/resource-list";
 import { resolveLessonVideoPreviewUrl } from "@/features/admin/lesson-video-form";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
@@ -325,7 +356,7 @@ function AdminResourceVisual({
       return (
         <div
           aria-label={`Preview de ${resource.label}`}
-          className="aspect-video overflow-hidden rounded-md bg-center bg-cover bg-muted shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
+          className="absolute inset-0 overflow-hidden bg-center bg-cover shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]"
           role="img"
           style={{
             backgroundImage: `url(${backgroundUrl})`,
@@ -341,7 +372,7 @@ function AdminResourceVisual({
   return (
     <div
       className={cn(
-        "flex aspect-video items-center justify-center rounded-md shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
+        "absolute inset-0 flex items-center justify-center shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]",
         tone
       )}
     >
@@ -388,6 +419,162 @@ function getFileTypeLabel(resource: EditableLessonResource): string {
     return "Arquivo compactado";
   }
   return "Arquivo";
+}
+
+function SortableLessonResourceItem({
+  resource,
+  lessonId,
+  formProps,
+  onRemove,
+}: {
+  resource: EditableLessonResource;
+  lessonId?: string | undefined;
+  formProps: Record<string, unknown>;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: resource.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const extension = getResourceExtension(resource);
+  const typeLabel = getFileTypeLabel(resource);
+  const badgeText = resource.storage === "r2" ? extension : "LINK";
+
+  return (
+    <ResourceItem isDragging={isDragging} nodeRef={setNodeRef} style={style}>
+      <input
+        name="resourceStorage[]"
+        type="hidden"
+        value={resource.storage}
+        {...formProps}
+      />
+      {resource.storage === "r2" ? (
+        <>
+          <input name="resourceUrl[]" type="hidden" value="" {...formProps} />
+          <input
+            name="resourceKey[]"
+            type="hidden"
+            value={resource.key}
+            {...formProps}
+          />
+          <input
+            name="resourceFileName[]"
+            type="hidden"
+            value={resource.fileName}
+            {...formProps}
+          />
+          <input
+            name="resourceContentType[]"
+            type="hidden"
+            value={resource.contentType}
+            {...formProps}
+          />
+          <input
+            name="resourcePreview[]"
+            type="hidden"
+            value={resource.preview ? JSON.stringify(resource.preview) : ""}
+            {...formProps}
+          />
+          <input
+            name="resourceSizeBytes[]"
+            type="hidden"
+            value={resource.sizeBytes ?? ""}
+            {...formProps}
+          />
+        </>
+      ) : (
+        <>
+          <input name="resourceKey[]" type="hidden" value="" {...formProps} />
+          <input
+            name="resourceFileName[]"
+            type="hidden"
+            value=""
+            {...formProps}
+          />
+          <input
+            name="resourceContentType[]"
+            type="hidden"
+            value=""
+            {...formProps}
+          />
+          <input
+            name="resourcePreview[]"
+            type="hidden"
+            value=""
+            {...formProps}
+          />
+          <input
+            name="resourceSizeBytes[]"
+            type="hidden"
+            value=""
+            {...formProps}
+          />
+        </>
+      )}
+
+      <ResourceItemDragHandle
+        attributes={attributes}
+        icon={DragDropVerticalIcon}
+        listeners={listeners}
+      />
+      <ResourceItemVisual>
+        <AdminResourceVisual lessonId={lessonId} resource={resource} />
+      </ResourceItemVisual>
+
+      <ResourceItemContent>
+        <div className="flex items-center gap-2">
+          <Input
+            className="h-auto min-w-0 flex-1 border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+            defaultValue={resource.label}
+            name="resourceLabel[]"
+            placeholder="Nome do material"
+            {...formProps}
+          />
+          {badgeText ? (
+            <span className="shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+              {badgeText}
+            </span>
+          ) : null}
+        </div>
+        {resource.storage === "r2" ? (
+          <div className="flex items-center gap-2">
+            <p className="truncate text-muted-foreground text-xs">
+              {typeLabel} &bull; {formatFileSize(resource.sizeBytes ?? 0)}
+            </p>
+          </div>
+        ) : (
+          <Input
+            className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
+            defaultValue={resource.url}
+            name="resourceUrl[]"
+            onBlur={(event) => {
+              const normalized = normalizeExternalUrl(event.target.value);
+              if (normalized) {
+                event.target.value = normalized;
+              }
+            }}
+            placeholder="https://..."
+            type="url"
+            {...formProps}
+          />
+        )}
+      </ResourceItemContent>
+
+      <ResourceItemActions>
+        <ResourceDeleteAction onDelete={onRemove} />
+      </ResourceItemActions>
+    </ResourceItem>
+  );
 }
 
 export function LessonResourcesFields({
@@ -471,303 +658,111 @@ export function LessonResourcesFields({
     }
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setResources((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="relative flex min-h-52 flex-col overflow-hidden rounded-xl border border-border border-dashed p-4 transition-colors hover:border-ring/50">
-        <div className="flex w-full flex-col gap-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="truncate font-medium text-sm">
-              Anexos ({resources.length})
-            </h3>
-            <div className="flex gap-2">
-              <div className="relative">
-                <input
-                  accept={LESSON_ATTACHMENT_ACCEPT}
-                  className="absolute inset-0 cursor-pointer opacity-0"
-                  onChange={(event) => {
-                    const file = event.currentTarget.files?.[0];
-                    event.currentTarget.value = "";
-                    if (file) {
-                      uploadResource(file).catch(() => undefined);
-                    }
-                  }}
-                  title="Enviar arquivo"
-                  type="file"
-                />
-                <Button
-                  className="pointer-events-none h-8 px-3"
-                  size="sm"
-                  variant="outline"
-                >
-                  <HugeiconsIcon
-                    aria-hidden="true"
-                    className="-ms-0.5 mr-1.5 opacity-60"
-                    icon={CloudUploadIcon}
-                    size={14}
-                  />
-                  Upload
-                </Button>
-              </div>
+    <ResourceListContainer>
+      <ResourceListHeader
+        actions={
+          <>
+            <div className="relative">
+              <input
+                accept={LESSON_ATTACHMENT_ACCEPT}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  if (file) {
+                    uploadResource(file).catch(() => undefined);
+                  }
+                  event.currentTarget.value = "";
+                }}
+                title="Enviar arquivo"
+                type="file"
+              />
               <Button
-                className="h-8 px-3"
-                onClick={addResource}
+                className="pointer-events-none h-8 px-3"
                 size="sm"
-                type="button"
                 variant="outline"
               >
                 <HugeiconsIcon
                   aria-hidden="true"
                   className="-ms-0.5 mr-1.5 opacity-60"
-                  icon={Add01Icon}
+                  icon={CloudUploadIcon}
                   size={14}
                 />
-                Link
+                Upload
               </Button>
             </div>
-          </div>
-
-          {resources.length > 0 || uploadingFiles.length > 0 ? (
-            <div className="w-full space-y-2">
-              {resources.map((resource) => {
-                const extension = getResourceExtension(resource);
-                const typeLabel = getFileTypeLabel(resource);
-                const badgeText =
-                  resource.storage === "r2" ? extension : "LINK";
-
-                return (
-                  <div
-                    className="group flex flex-col gap-1 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300"
-                    key={resource.id}
-                  >
-                    <input
-                      name="resourceStorage[]"
-                      type="hidden"
-                      value={resource.storage}
-                      {...formProps}
-                    />
-                    {resource.storage === "r2" ? (
-                      <>
-                        <input
-                          name="resourceUrl[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceKey[]"
-                          type="hidden"
-                          value={resource.key}
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceFileName[]"
-                          type="hidden"
-                          value={resource.fileName}
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceContentType[]"
-                          type="hidden"
-                          value={resource.contentType}
-                          {...formProps}
-                        />
-                        <input
-                          name="resourcePreview[]"
-                          type="hidden"
-                          value={
-                            resource.preview
-                              ? JSON.stringify(resource.preview)
-                              : ""
-                          }
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceSizeBytes[]"
-                          type="hidden"
-                          value={resource.sizeBytes ?? ""}
-                          {...formProps}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          name="resourceKey[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceFileName[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceContentType[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                        <input
-                          name="resourcePreview[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                        <input
-                          name="resourceSizeBytes[]"
-                          type="hidden"
-                          value=""
-                          {...formProps}
-                        />
-                      </>
-                    )}
-
-                    <div className="grid grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[72px_minmax(0,1fr)_auto]">
-                      <AdminResourceVisual
-                        lessonId={lessonId}
-                        resource={resource}
-                      />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <Input
-                            className="h-auto min-w-0 flex-1 border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
-                            defaultValue={resource.label}
-                            name="resourceLabel[]"
-                            placeholder="Nome do material"
-                            {...formProps}
-                          />
-                          {badgeText ? (
-                            <span className="shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
-                              {badgeText}
-                            </span>
-                          ) : null}
-                        </div>
-                        {resource.storage === "r2" ? (
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-muted-foreground text-xs">
-                              {typeLabel} &bull;{" "}
-                              {formatFileSize(resource.sizeBytes ?? 0)}
-                            </p>
-                          </div>
-                        ) : (
-                          <Input
-                            className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
-                            defaultValue={resource.url}
-                            name="resourceUrl[]"
-                            onBlur={(event) => {
-                              const normalized = normalizeExternalUrl(
-                                event.target.value
-                              );
-                              if (normalized) {
-                                event.target.value = normalized;
-                              }
-                            }}
-                            placeholder="https://..."
-                            type="url"
-                            {...formProps}
-                          />
-                        )}
-                      </div>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            aria-label="Remover material"
-                            className="size-8 text-muted-foreground opacity-50 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
-                            size="icon"
-                            type="button"
-                            variant="ghost"
-                          >
-                            <HugeiconsIcon
-                              icon={Delete02Icon}
-                              size={16}
-                              strokeWidth={2}
-                            />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remover anexo</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Tem certeza que deseja remover o anexo &quot;
-                              {resource.label || "Sem nome"}&quot;? Esta ação
-                              não pode ser desfeita.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => removeResource(resource.id)}
-                            >
-                              Remover
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {uploadingFiles.map((f) => (
-                <div
-                  className="group grid grid-cols-[56px_minmax(0,1fr)] items-center gap-3 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300 sm:grid-cols-[72px_minmax(0,1fr)]"
-                  key={f.id}
-                >
-                  <div className="flex aspect-video items-center justify-center rounded-md bg-muted/50 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-                    <HugeiconsIcon
-                      icon={CloudUploadIcon}
-                      size={22}
-                      strokeWidth={2}
-                    />
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-1.5">
-                    <div className="flex flex-col gap-0.5 opacity-60">
-                      <p className="truncate font-medium text-[13px]">
-                        {f.file.name}
-                      </p>
-                      <p className="truncate text-muted-foreground text-xs">
-                        {formatFileSize(f.file.size)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full bg-primary transition-all duration-300 ease-out"
-                          style={{ width: `${f.progress}%` }}
-                        />
-                      </div>
-                      <span className="w-10 text-muted-foreground text-xs tabular-nums">
-                        {Math.round(f.progress)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex h-full flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-              <div
+            <Button
+              className="h-8 px-3"
+              onClick={addResource}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <HugeiconsIcon
                 aria-hidden="true"
-                className="mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border bg-background"
-              >
-                <HugeiconsIcon
-                  className="opacity-60"
-                  icon={FileImageIcon}
-                  size={18}
+                className="-ms-0.5 mr-1.5 opacity-60"
+                icon={Add01Icon}
+                size={14}
+              />
+              Link
+            </Button>
+          </>
+        }
+        count={resources.length}
+        title="Anexos"
+      />
+
+      {resources.length > 0 || uploadingFiles.length > 0 ? (
+        <ResourceListBody>
+          <DndContext
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            sensors={sensors}
+          >
+            <SortableContext
+              items={resources}
+              strategy={verticalListSortingStrategy}
+            >
+              {resources.map((resource) => (
+                <SortableLessonResourceItem
+                  formProps={formProps}
+                  key={resource.id}
+                  lessonId={lessonId}
+                  onRemove={() => removeResource(resource.id)}
+                  resource={resource}
                 />
-              </div>
-              <p className="mb-1.5 font-medium text-sm">
-                Arraste seus arquivos aqui
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Suporta DOCs, XLSX, PPTX, PDF, Imagens e ZIP &bull; Máx 150 MB
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+              ))}
+            </SortableContext>
+          </DndContext>
+          {uploadingFiles.map((f) => (
+            <ResourceUploadProgressItem
+              fileName={f.file.name}
+              fileSize={formatFileSize(f.file.size)}
+              key={f.id}
+              progress={f.progress}
+            />
+          ))}
+        </ResourceListBody>
+      ) : (
+        <ResourceDropzoneEmpty />
+      )}
+    </ResourceListContainer>
   );
 }
 

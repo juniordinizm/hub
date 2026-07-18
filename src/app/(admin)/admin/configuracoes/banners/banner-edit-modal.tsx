@@ -2,6 +2,7 @@
 
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ export function BannerEditModal({
   open,
   onClose,
 }: BannerEditModalProps) {
+  const [linkUrl, setLinkUrl] = useState(banner.linkUrl ?? "");
+
   const handleSubmit = async (formData: FormData) => {
     try {
       await saveBannerAction(formData);
@@ -59,18 +62,24 @@ export function BannerEditModal({
               <Field>
                 <FieldLabel>Link de destino (Opcional)</FieldLabel>
                 <Input
-                  defaultValue={banner.linkUrl ?? ""}
                   name="linkUrl"
+                  onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://"
                   type="url"
+                  value={linkUrl}
                 />
               </Field>
               <Field>
-                <FieldLabel>Texto do botão (Opcional)</FieldLabel>
+                <FieldLabel>
+                  Texto do botão {linkUrl ? "" : "(Requer Link)"}
+                </FieldLabel>
                 <Input
                   defaultValue={banner.buttonText ?? ""}
+                  disabled={!linkUrl}
+                  maxLength={30}
                   name="buttonText"
                   placeholder="Ex: Acessar"
+                  required={!!linkUrl}
                 />
               </Field>
               <label
