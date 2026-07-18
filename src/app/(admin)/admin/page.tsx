@@ -26,7 +26,7 @@ import {
   summarizeAdminCourseHealth,
 } from "@/features/admin/presentation";
 import {
-  getAdminManagementData,
+  getAdminDashboardData,
   getAdminOverview,
 } from "@/features/admin/server";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
@@ -65,7 +65,7 @@ const metrics = [
 export default async function AdminPage(): Promise<React.JSX.Element> {
   const [overview, data] = await Promise.all([
     getAdminOverview(),
-    getAdminManagementData(),
+    getAdminDashboardData(),
   ]);
   const courseHealth = summarizeAdminCourseHealth(
     data.courses.map((course) => {

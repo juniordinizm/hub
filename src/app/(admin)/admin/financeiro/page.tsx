@@ -23,7 +23,7 @@ import {
   summarizeAdminFinancialHealth,
 } from "@/features/admin/presentation";
 import {
-  getAdminManagementData,
+  getAdminFinancialData,
   getAdminOverview,
 } from "@/features/admin/server";
 import { requirePermission } from "@/lib/auth-permissions";
@@ -59,7 +59,7 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
-    getAdminManagementData(),
+    getAdminFinancialData(),
   ]);
   const financialHealth = summarizeAdminFinancialHealth(data.orders);
   const financialSignal = getAdminFinancialSignal(financialHealth);

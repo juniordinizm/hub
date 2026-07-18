@@ -24,18 +24,20 @@ export const normalizePresignedUrls = (
   });
 
 export const uploadFileParts = async ({
+  chunkSize,
   fetcher = fetch,
   file,
   onProgress,
   presignedUrls,
 }: {
+  chunkSize?: number | undefined;
   fetcher?: typeof fetch;
   file: File;
   onProgress: (value: number) => void;
   presignedUrls: JmvstreamPresignedUrl[];
 }): Promise<JmvstreamUploadPart[]> => {
   const urls = normalizePresignedUrls(presignedUrls);
-  const chunkSize = Math.ceil(file.size / urls.length);
+  const resolvedChunkSize = chunkSize ?? Math.ceil(file.size / urls.length);
   const parts = new Array<JmvstreamUploadPart>(urls.length);
   const workerCount = Math.min(JMVSTREAM_UPLOAD_CONCURRENCY, urls.length);
   let nextIndex = 0;
@@ -54,8 +56,8 @@ export const uploadFileParts = async ({
     if (!item) {
       return;
     }
-    const start = index * chunkSize;
-    const end = Math.min(start + chunkSize, file.size);
+    const start = index * resolvedChunkSize;
+    const end = Math.min(start + resolvedChunkSize, file.size);
     const chunk = file.slice(start, end);
     const etag = await uploadPart({
       chunk,

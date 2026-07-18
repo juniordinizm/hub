@@ -1,11 +1,11 @@
-import { getAdminManagementData } from "@/features/admin/server";
+import { getAdminFaqData } from "@/features/admin/server";
 import { FaqCreateDialog } from "./faq-dialogs";
 import { FaqTable } from "./faq-table";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminFaqPage(): Promise<React.JSX.Element> {
-  const data = await getAdminManagementData();
+  const data = await getAdminFaqData();
 
   const sortedFaqs = [...data.faqs].sort((a, b) => a.sortOrder - b.sortOrder);
   const nextSortOrder =

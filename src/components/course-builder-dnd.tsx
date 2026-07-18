@@ -27,14 +27,17 @@ import {
   reorderLessonsAction,
   reorderModulesAction,
 } from "@/features/admin/actions";
-import type { getAdminManagementData } from "@/features/admin/server";
+import type {
+  AdminCourse,
+  AdminLesson,
+  AdminModule,
+} from "@/features/admin/server";
 import { SortableItem } from "./sortable-list";
 import { SortableTableRow } from "./sortable-table-row";
 
-type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
-type CourseData = AdminData["courses"][number];
-type ModuleData = AdminData["modules"][number];
-type LessonData = AdminData["lessons"][number];
+type CourseData = AdminCourse;
+type ModuleData = AdminModule;
+type LessonData = AdminLesson;
 
 interface CourseBuilderClientProps {
   course: CourseData;

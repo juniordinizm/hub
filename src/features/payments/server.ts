@@ -20,7 +20,7 @@ import {
   type PersistedOrderStatus,
 } from "@/features/payments/abacatepay";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
-import { normalizeBuyerEmail } from "@/features/payments/public-checkout-policy";
+import { normalizeBuyerEmail } from "@/features/payments/buyer-identity";
 import { getAuth } from "@/lib/auth";
 import { getServerEnv } from "@/lib/env";
 

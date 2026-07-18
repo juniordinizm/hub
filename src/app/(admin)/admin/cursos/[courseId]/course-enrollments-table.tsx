@@ -19,10 +19,9 @@ import {
   formatDateTime,
   statusLabels,
 } from "@/features/admin/enrollment-expiration-controls";
-import type { getAdminManagementData } from "@/features/admin/server";
+import type { AdminEnrollment } from "@/features/admin/server";
 
-type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
-export type CourseEnrollmentRow = AdminData["enrollments"][number];
+export type CourseEnrollmentRow = AdminEnrollment;
 
 const formatDate = (value: Date | string | null): string => {
   if (!value) {

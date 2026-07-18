@@ -1,18 +1,18 @@
-export type JmvstreamUploadType = "direct" | "multipart";
+type JmvstreamUploadType = "direct" | "multipart";
 
-export interface JmvstreamUploadPartInput {
+interface JmvstreamUploadPartInput {
   ETag?: string;
   etag?: string;
   PartNumber?: number;
   partNumber?: number;
 }
 
-export interface JmvstreamUploadPart {
-  ETag: string;
-  PartNumber: number;
+interface JmvstreamUploadPart {
+  etag: string;
+  partNumber: number;
 }
 
-export interface JmvstreamClientConfig {
+interface JmvstreamClientConfig {
   apiBaseUrl: string;
   apiToken: string;
   fetcher?: typeof fetch;
@@ -28,7 +28,7 @@ export interface JmvstreamInitUploadInput {
   uploadType: JmvstreamUploadType;
 }
 
-export interface JmvstreamInitUploadResponse {
+interface JmvstreamInitUploadResponse {
   objectName: string;
   presignedUrls: Array<string | { partNumber?: number; url: string }>;
   uploadId: string;
@@ -62,7 +62,7 @@ export interface JmvstreamFolderResponse {
   uuid: string;
 }
 
-export interface JmvstreamVideoResponse {
+interface JmvstreamVideoResponse {
   folderUuid: string | null;
   hash: string;
   name: string;
@@ -89,7 +89,7 @@ const readString = (value: unknown): string | null =>
 const normalizeFolderName = (name: string): string =>
   name.trim().toLocaleLowerCase();
 
-export class JmvstreamApiError extends Error {
+class JmvstreamApiError extends Error {
   readonly body: unknown;
   readonly status: number;
 
@@ -161,7 +161,7 @@ export const authenticateJmvstreamApi = async ({
   );
 };
 
-export const assertValidJmvstreamResource = (resource: string): void => {
+const assertValidJmvstreamResource = (resource: string): void => {
   if (GUID_PATTERN.test(resource.trim())) {
     return;
   }
@@ -179,7 +179,7 @@ export const assertValidJmvstreamResource = (resource: string): void => {
   );
 };
 
-export const normalizeJmvstreamApiBaseUrl = (apiBaseUrl: string): string => {
+const normalizeJmvstreamApiBaseUrl = (apiBaseUrl: string): string => {
   const url = new URL(apiBaseUrl);
   url.pathname = "";
   url.search = "";
@@ -194,7 +194,7 @@ const normalizeJmvstreamPlanIdForPath = (planId: string): string => {
   return odPlanId?.[1] ?? trimmedPlanId;
 };
 
-export const normalizeJmvstreamUploadParts = (
+const normalizeJmvstreamUploadParts = (
   parts: JmvstreamUploadPartInput[]
 ): JmvstreamUploadPart[] =>
   parts
@@ -207,11 +207,11 @@ export const normalizeJmvstreamUploadParts = (
       }
 
       return {
-        ETag: etag,
-        PartNumber: partNumber,
+        etag,
+        partNumber,
       };
     })
-    .sort((left, right) => left.PartNumber - right.PartNumber);
+    .sort((left, right) => left.partNumber - right.partNumber);
 
 export const findJmvstreamFolderByName = (
   folders: JmvstreamFolderResponse[],
@@ -314,6 +314,7 @@ export const createJmvstreamClient = ({
         {
           body: JSON.stringify({
             filename: input.filename,
+            gallery: input.galleryUuid,
             objectName: input.objectName,
             parts: normalizeJmvstreamUploadParts(input.parts),
             size: input.size,

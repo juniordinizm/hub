@@ -8,7 +8,7 @@ import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveLessonAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
-import { getAdminManagementData } from "@/features/admin/server";
+import { getAdminLessonEditorData } from "@/features/admin/server";
 import { getLessonComments } from "@/features/comments/server";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
@@ -36,40 +36,15 @@ export default async function AdminLessonEditPage({
 }: AdminLessonEditPageProps): Promise<React.JSX.Element> {
   const { courseId, lessonId } = await params;
   const [data, session] = await Promise.all([
-    getAdminManagementData(),
+    getAdminLessonEditorData({ courseId, lessonId }),
     requireRole(["admin", "support"]),
   ]);
-  const course = data.courses.find((item) => item.id === courseId);
 
-  if (!course) {
+  if (!data) {
     notFound();
   }
 
-  const moduleIds = new Set(
-    data.modules
-      .filter((moduleData) => moduleData.courseId === course.id)
-      .map((moduleData) => moduleData.id)
-  );
-  const lesson = data.lessons.find(
-    (item) => item.id === lessonId && moduleIds.has(item.moduleId)
-  );
-
-  if (!lesson) {
-    notFound();
-  }
-
-  const moduleData = data.modules.find((item) => item.id === lesson.moduleId);
-  const asset =
-    (lesson.videoExternalId
-      ? data.jmvstreamAssets.find(
-          (item) =>
-            item.lessonId === lesson.id &&
-            item.videoHash === lesson.videoExternalId
-        )
-      : undefined) ??
-    data.jmvstreamAssets.find(
-      (item) => item.lessonId === lesson.id && item.deleteStatus === "failed"
-    );
+  const { asset, course, lesson, module: moduleData } = data;
 
   const commentsData = await getLessonComments({
     lessonId: lesson.id,

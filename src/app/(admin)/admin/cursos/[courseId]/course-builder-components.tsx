@@ -35,15 +35,18 @@ import {
   createLessonDraftAction,
   saveModuleAction,
 } from "@/features/admin/actions";
-import type { getAdminManagementData } from "@/features/admin/server";
+import type {
+  AdminCourse,
+  AdminLesson,
+  AdminModule,
+} from "@/features/admin/server";
 import { parseLessonContent } from "@/features/courses/lesson-content";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 
-type AdminData = Awaited<ReturnType<typeof getAdminManagementData>>;
-type CourseData = AdminData["courses"][number];
-type ModuleData = AdminData["modules"][number];
-type LessonData = AdminData["lessons"][number];
+type CourseData = AdminCourse;
+type ModuleData = AdminModule;
+type LessonData = AdminLesson;
 
 const CONTENT_STATUS_LABELS: Record<string, string> = {
   active: "publicado",

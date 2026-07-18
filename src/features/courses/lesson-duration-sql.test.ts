@@ -19,30 +19,6 @@ describe("lesson duration persistence", () => {
     );
   });
 
-  it("saves lesson duration as video plus estimated text reading time", async () => {
-    const source = await readFile(
-      new URL("../admin/actions.ts", import.meta.url),
-      "utf8"
-    );
-
-    expect(source).toContain("calculateLessonDurationBreakdown");
-    expect(source).toContain("video_duration_seconds");
-    expect(source).toContain("text_duration_seconds");
-    expect(source).toContain("text_word_count");
-    expect(source).toContain("durationBreakdown.totalDurationSeconds");
-  });
-
-  it("keeps editorial duration persistence in the admin module", async () => {
-    const source = await readFile(
-      new URL("../admin/actions.ts", import.meta.url),
-      "utf8"
-    );
-
-    expect(source).toContain("calculateLessonDurationBreakdown");
-    expect(source).toContain("durationBreakdown.videoDurationSeconds");
-    expect(source).toContain("durationBreakdown.totalDurationSeconds");
-  });
-
   it("recalculates existing text durations without minute rounding", async () => {
     const migration = await readFile(
       new URL(

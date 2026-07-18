@@ -15,7 +15,7 @@ import {
   getAdminCourseContentSignal,
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
-import { getAdminManagementData } from "@/features/admin/server";
+import { getAdminCourseDetailData } from "@/features/admin/server";
 import {
   formatCourseWorkload,
   summarizeCoursePublicationReadiness,
@@ -37,32 +37,18 @@ export default async function AdminCourseDetailPage({
 }: {
   params: Promise<{ courseId: string }>;
 }): Promise<React.JSX.Element> {
-  const [{ courseId }, data] = await Promise.all([
-    params,
-    getAdminManagementData(),
-  ]);
-  const course = data.courses.find((item) => item.id === courseId);
+  const { courseId } = await params;
+  const data = await getAdminCourseDetailData(courseId);
 
-  if (!course) {
+  if (!data) {
     notFound();
   }
 
-  const modules = data.modules
-    .filter((item) => item.courseId === course.id)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  const lessons = data.lessons.filter((lesson) =>
-    modules.some((moduleData) => moduleData.id === lesson.moduleId)
-  );
+  const { certificates, course, enrollments, lessons, modules, orders } = data;
+  modules.sort((a, b) => a.sortOrder - b.sortOrder);
   const publishedLessons = lessons.filter((lesson) => lesson.isPublished);
-  const enrollments = data.enrollments.filter(
-    (enrollment) => enrollment.courseId === course.id
-  );
   const activeEnrollments = enrollments.filter(
     (enrollment) => enrollment.status === "active"
-  );
-  const orders = data.orders.filter((order) => order.courseId === course.id);
-  const certificates = data.certificates.filter(
-    (certificate) => certificate.courseId === course.id
   );
   const contentSummary = summarizeAdminCourseContent({ lessons, modules });
   const contentSignal = getAdminCourseContentSignal(contentSummary);

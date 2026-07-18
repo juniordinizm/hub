@@ -46,10 +46,7 @@ import {
   getStudentPreviewMode,
   type StudentPreviewMode,
 } from "@/features/courses/preview";
-import {
-  getPreviewLessonData,
-  getStudentLessonData,
-} from "@/features/courses/server";
+import { getStudentLessonWorkspace } from "@/features/courses/server";
 import {
   formatLessonDuration,
   resolveLessonVideoEmbedUrl,
@@ -64,7 +61,7 @@ export const dynamic = "force-dynamic";
 const RESOURCE_NAME_QUERY_PATTERN = /[?#]/;
 
 type LessonPageData = NonNullable<
-  Awaited<ReturnType<typeof getStudentLessonData>>
+  Awaited<ReturnType<typeof getStudentLessonWorkspace>>
 >;
 type LessonCommentsData = Awaited<ReturnType<typeof getLessonComments>>;
 interface LessonSearchParams {
@@ -104,12 +101,13 @@ export default async function LessonPage({
     redirect(route("/admin"));
   }
 
-  const data = previewMode
-    ? await getPreviewLessonData({ lessonId })
-    : await getStudentLessonData({
-        userId: session.user.id,
-        lessonId,
-      });
+  const data = await getStudentLessonWorkspace({
+    lessonId,
+    viewer: {
+      role: session.role,
+      userId: session.user.id,
+    },
+  });
 
   if (!data) {
     notFound();

@@ -27,7 +27,10 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
-import { getAdminManagementData } from "@/features/admin/server";
+import {
+  type AdminCourse,
+  getAdminCourseCatalogData,
+} from "@/features/admin/server";
 import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
@@ -36,9 +39,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
-type CourseData = Awaited<
-  ReturnType<typeof getAdminManagementData>
->["courses"][number];
+type CourseData = AdminCourse;
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
   active: {
@@ -68,7 +69,7 @@ const getInitials = (title: string): string =>
     .join("");
 
 export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
-  const data = await getAdminManagementData();
+  const data = await getAdminCourseCatalogData();
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">

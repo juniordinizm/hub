@@ -27,6 +27,17 @@ export interface JmvstreamAsset {
   videoHash: string;
 }
 
+interface JmvstreamAssetRow {
+  delete_status: string;
+  filename: string;
+  gallery_uuid: string | null;
+  id: string;
+  last_error: string | null;
+  lesson_id: string | null;
+  upload_status: string;
+  video_hash: string;
+}
+
 export interface JmvstreamHealthSummary {
   auth: "error" | "ok";
   failedDeletes: number;
@@ -150,25 +161,31 @@ export const resolveJmvstreamPlayerThumbnailUrl = async (
   }
 };
 
-export const getJmvstreamAssets = async (): Promise<JmvstreamAsset[]> => {
-  const { rows } = await getPool().query<{
-    delete_status: string;
-    filename: string;
-    gallery_uuid: string | null;
-    id: string;
-    last_error: string | null;
-    lesson_id: string | null;
-    upload_status: string;
-    video_hash: string;
-  }>(
-    `
-      select id, lesson_id, video_hash, gallery_uuid, filename,
-             upload_status, delete_status, last_error
-      from jmvstream_video_assets
-      where delete_status <> 'deleted'
-      order by jmvstream_video_assets.updated_at desc
-    `
-  );
+export const getJmvstreamAssets = (): Promise<JmvstreamAsset[]> =>
+  readJmvstreamAssets();
+
+export const getJmvstreamAssetsForLesson = (
+  lessonId: string
+): Promise<JmvstreamAsset[]> => readJmvstreamAssets({ lessonId });
+
+const readJmvstreamAssets = async ({
+  lessonId,
+}: {
+  lessonId?: string;
+} = {}): Promise<JmvstreamAsset[]> => {
+  const pool = getPool();
+  const lessonScope = lessonId ? "and lesson_id = $1" : "";
+  const query = `
+    select id, lesson_id, video_hash, gallery_uuid, filename,
+           upload_status, delete_status, last_error
+    from jmvstream_video_assets
+    where delete_status <> 'deleted'
+    ${lessonScope}
+    order by jmvstream_video_assets.updated_at desc
+  `;
+  const { rows } = lessonId
+    ? await pool.query<JmvstreamAssetRow>(query, [lessonId])
+    : await pool.query<JmvstreamAssetRow>(query);
 
   return rows.map((row) => ({
     deleteStatus: row.delete_status,
@@ -365,6 +382,7 @@ export const initJmvstreamUpload = async ({
 
   return {
     ...init,
+    ...(chunkSize ? { chunkSize } : {}),
     uploadSessionId,
   };
 };

@@ -1,14 +1,84 @@
-import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-describe("course access contract", () => {
-  it("uses the central enrollment access interface for course and lesson gates", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+const {
+  query,
+  resolveCourseAccess,
+  resolveLessonAccess,
+  syncJmvstreamLessonPlayer,
+} = vi.hoisted(() => ({
+  query: vi.fn(),
+  resolveCourseAccess: vi.fn(),
+  resolveLessonAccess: vi.fn(),
+  syncJmvstreamLessonPlayer: vi.fn(),
+}));
 
-    expect(source).toContain("resolveCourseAccess");
-    expect(source).toContain("resolveLessonAccess");
+vi.mock("server-only", () => ({}));
+vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
+vi.mock("@/features/enrollments/server", () => ({
+  resolveCourseAccess,
+  resolveLessonAccess,
+}));
+vi.mock("@/features/jmvstream/server", () => ({
+  syncJmvstreamLessonPlayer,
+}));
+
+import {
+  getStudentCourseAccessStatus,
+  getStudentLessonWorkspace,
+} from "./server";
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  query.mockResolvedValue({ rows: [] });
+  syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
+});
+
+describe("student course read access", () => {
+  it("returns the course access decision from the Matrícula seam", async () => {
+    resolveCourseAccess.mockResolvedValue(true);
+
+    await expect(
+      getStudentCourseAccessStatus({
+        courseId: "course-1",
+        userId: "student-1",
+      })
+    ).resolves.toEqual({
+      canAccess: true,
+      redirectTo: "/app/cursos/course-1",
+    });
+
+    expect(resolveCourseAccess).toHaveBeenCalledWith({
+      courseId: "course-1",
+      userId: "student-1",
+    });
+  });
+
+  it("does not query lesson content after Matrícula access is denied", async () => {
+    resolveLessonAccess.mockResolvedValue(false);
+
+    await expect(
+      getStudentLessonWorkspace({
+        lessonId: "lesson-1",
+        viewer: { role: "student", userId: "student-1" },
+      })
+    ).resolves.toBeNull();
+
+    expect(resolveLessonAccess).toHaveBeenCalledWith({
+      lessonId: "lesson-1",
+      userId: "student-1",
+    });
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("keeps preview reads independent from a Matrícula", async () => {
+    await expect(
+      getStudentLessonWorkspace({
+        lessonId: "missing-lesson",
+        viewer: { role: "support", userId: "support-1" },
+      })
+    ).resolves.toBeNull();
+
+    expect(resolveLessonAccess).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith(expect.any(String), ["missing-lesson"]);
   });
 });

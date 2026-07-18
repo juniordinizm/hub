@@ -1,10 +1,10 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { getPool } from "@/db";
-import { getPublicCertificateRateLimitDecision } from "@/features/certificates/public-rate-limit-policy";
 import { getServerEnv } from "@/lib/env";
 
 const WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 20;
 
 const getRequestAddress = (requestHeaders: Headers): string =>
   requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -49,7 +49,7 @@ export const consumePublicCertificateLookup = async (
     [keyHash, expiresAt]
   );
 
-  return getPublicCertificateRateLimitDecision({
-    requestCount: result.rows[0]?.request_count ?? Number.MAX_SAFE_INTEGER,
-  });
+  const requestCount = result.rows[0]?.request_count ?? Number.MAX_SAFE_INTEGER;
+
+  return requestCount > MAX_REQUESTS_PER_WINDOW ? "limited" : "allowed";
 };

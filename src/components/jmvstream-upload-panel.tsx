@@ -187,6 +187,7 @@ export function JmvstreamUploadPanel({
         activeVideoHash = init.videoHash;
         setStatus("Etapa 2/4: Enviando arquivo para a nuvem...");
         const parts = await uploadFileParts({
+          chunkSize: init.chunkSize,
           file,
           onProgress: setProgress,
           presignedUrls: init.presignedUrls,

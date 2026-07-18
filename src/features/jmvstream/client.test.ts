@@ -6,8 +6,6 @@ import {
   findJmvstreamVideoByHash,
   getJmvstreamThumbnailUrlFromPlayerHtml,
   isJmvstreamJwtUsable,
-  normalizeJmvstreamApiBaseUrl,
-  normalizeJmvstreamUploadParts,
 } from "./client";
 
 const createJsonResponse = (body: unknown, status = 200): Response =>
@@ -82,12 +80,6 @@ describe("JMVStream API client", () => {
       "JMVSTREAM_AUTH_RESOURCE precisa ser o UUID do recurso/aplicacao da JMVStream"
     );
     expect(fetcher).not.toHaveBeenCalled();
-  });
-
-  it("normalizes configured base URL to the API origin", () => {
-    expect(normalizeJmvstreamApiBaseUrl("https://api.jmvstream.com/v1")).toBe(
-      "https://api.jmvstream.com"
-    );
   });
 
   it("creates galleries with the documented folder payload", async () => {
@@ -236,17 +228,7 @@ describe("JMVStream API client", () => {
     );
   });
 
-  it("finalizes multipart upload without resending the gallery", async () => {
-    expect(
-      normalizeJmvstreamUploadParts([
-        { etag: '"def"', partNumber: 2 },
-        { ETag: '"abc"', PartNumber: 1 },
-      ])
-    ).toEqual([
-      { ETag: '"abc"', PartNumber: 1 },
-      { ETag: '"def"', PartNumber: 2 },
-    ]);
-
+  it("finalizes multipart upload using JMVStream's documented part shape", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       createJsonResponse({
         jobId: "job-1",
@@ -260,7 +242,10 @@ describe("JMVStream API client", () => {
       filename: "aula.mp4",
       galleryUuid: "gallery-uuid",
       objectName: "uploads/video.mp4",
-      parts: [{ etag: '"abc"', partNumber: 1 }],
+      parts: [
+        { etag: '"def"', partNumber: 2 },
+        { ETag: '"abc"', PartNumber: 1 },
+      ],
       size: 10_000,
       uploadId: "upload-1",
       videoHash: "video-hash",
@@ -271,8 +256,12 @@ describe("JMVStream API client", () => {
       expect.objectContaining({
         body: JSON.stringify({
           filename: "aula.mp4",
+          gallery: "gallery-uuid",
           objectName: "uploads/video.mp4",
-          parts: [{ ETag: '"abc"', PartNumber: 1 }],
+          parts: [
+            { etag: '"abc"', partNumber: 1 },
+            { etag: '"def"', partNumber: 2 },
+          ],
           size: 10_000,
           uploadId: "upload-1",
           video_hash: "video-hash",

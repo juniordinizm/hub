@@ -138,6 +138,32 @@ describe("Jmvstream upload helpers", () => {
     );
     expect(maxActiveUploads).toBe(JMVSTREAM_UPLOAD_CONCURRENCY);
   });
+
+  it("uses the multipart chunk size negotiated during initialization", async () => {
+    const uploadedSizes: number[] = [];
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+      uploadedSizes.push((init?.body as Blob).size);
+      return Promise.resolve(
+        new Response(null, {
+          headers: { ETag: '"etag-value"' },
+          status: 200,
+        })
+      );
+    });
+
+    await uploadFileParts({
+      chunkSize: 8,
+      fetcher,
+      file: new File(["abcdefghij"], "aula.mp4", { type: "video/mp4" }),
+      onProgress: vi.fn(),
+      presignedUrls: [
+        { partNumber: 1, url: "https://s3.local/part-1" },
+        { partNumber: 2, url: "https://s3.local/part-2" },
+      ],
+    });
+
+    expect(uploadedSizes).toEqual([8, 2]);
+  });
 });
 
 const waitUntil = async (predicate: () => boolean): Promise<void> => {

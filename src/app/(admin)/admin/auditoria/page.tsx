@@ -7,7 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { getAdminManagementData } from "@/features/admin/server";
+import { getAdminAuditData } from "@/features/admin/server";
 import { formatDate } from "@/lib/formatters";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ function formatAuditMessage(log: {
 }
 
 export default async function AuditoriaPage(): Promise<React.JSX.Element> {
-  const data = await getAdminManagementData();
+  const data = await getAdminAuditData();
 
   return (
     <main className="px-6 py-8 sm:px-10 lg:px-12">

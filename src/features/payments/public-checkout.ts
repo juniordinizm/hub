@@ -3,8 +3,10 @@ import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import { buildAbacatePayCheckoutRequest } from "@/features/payments/abacatepay";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
-import { getPublicCheckoutRateLimitDecision } from "@/features/payments/public-checkout-policy";
 import { getServerEnv } from "@/lib/env";
+
+const PUBLIC_CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
+const PUBLIC_CHECKOUT_MAX_ATTEMPTS = 5;
 
 interface PublicCheckoutRateLimitState {
   count: number;
@@ -30,11 +32,45 @@ const publicCheckoutRateLimitState = new Map<
 >();
 
 export class PublicCheckoutRateLimitError extends Error {
-  constructor() {
+  readonly retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number) {
     super("Muitas tentativas de checkout. Tente novamente em breve.");
     this.name = "PublicCheckoutRateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
+
+const consumePublicCheckoutAttempt = ({
+  courseKey,
+  ipAddress,
+}: {
+  courseKey: string;
+  ipAddress: string;
+}): { allowed: true } | { allowed: false; retryAfterSeconds: number } => {
+  const key = `${ipAddress}:${courseKey}`;
+  const timestamp = Date.now();
+  const current = publicCheckoutRateLimitState.get(key);
+
+  if (!current || current.resetAt <= timestamp) {
+    publicCheckoutRateLimitState.set(key, {
+      count: 1,
+      resetAt: timestamp + PUBLIC_CHECKOUT_WINDOW_MS,
+    });
+    return { allowed: true };
+  }
+
+  if (current.count >= PUBLIC_CHECKOUT_MAX_ATTEMPTS) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil((current.resetAt - timestamp) / 1000),
+    };
+  }
+
+  current.count += 1;
+  publicCheckoutRateLimitState.set(key, current);
+  return { allowed: true };
+};
 
 const getAbacatePayClient = (): AbacatePayClient => {
   const env = getServerEnv();
@@ -100,21 +136,19 @@ export const createPublicCourseCheckout = async ({
   courseSlug?: string;
   ipAddress: string;
 }): Promise<PublicCourseCheckoutResult> => {
-  const courseKey = courseId ?? courseSlug ?? "unknown";
-  const rateLimit = getPublicCheckoutRateLimitDecision({
-    courseKey,
-    ipAddress,
-    state: publicCheckoutRateLimitState,
-  });
-
-  if (!rateLimit.allowed) {
-    throw new PublicCheckoutRateLimitError();
-  }
-
   const course = await getPublicCheckoutCourse({
     ...(courseId ? { courseId } : {}),
     ...(courseSlug ? { courseSlug } : {}),
   });
+  const rateLimit = consumePublicCheckoutAttempt({
+    courseKey: course.id,
+    ipAddress,
+  });
+
+  if (!rateLimit.allowed) {
+    throw new PublicCheckoutRateLimitError(rateLimit.retryAfterSeconds);
+  }
+
   const productId = course.payment_provider_product_id;
 
   if (!productId) {

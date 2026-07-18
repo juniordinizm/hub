@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { summarizeAdminStudentAccess } from "@/features/admin/presentation";
-import { getAdminManagementData } from "@/features/admin/server";
+import { getAdminStudentsData } from "@/features/admin/server";
 import { AdminMetricCard } from "../admin-metric-card";
 import {
   type StudentEnrollmentRow,
@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 const dateInputValue = (date: Date): string => date.toISOString().slice(0, 10);
 
 export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
-  const data = await getAdminManagementData();
+  const data = await getAdminStudentsData();
   const enrollmentsByUserId = new Map<string, StudentEnrollmentRow[]>();
   const studentAccessSummary = summarizeAdminStudentAccess(data.students);
 

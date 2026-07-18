@@ -14,10 +14,7 @@ import {
   getPreviewAwareHref,
   getStudentPreviewMode,
 } from "@/features/courses/preview";
-import {
-  getCoursePreviewOverviewData,
-  getStudentCourseOverviewData,
-} from "@/features/courses/server";
+import { getStudentCourseOverview } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { CourseOverviewClient } from "./course-overview-client";
@@ -61,12 +58,13 @@ export default async function StudentCourseOverviewPage({
     redirect(route("/admin"));
   }
 
-  const data = previewMode
-    ? await getCoursePreviewOverviewData({ courseId })
-    : await getStudentCourseOverviewData({
-        courseId,
-        userId: session.user.id,
-      });
+  const data = await getStudentCourseOverview({
+    courseId,
+    viewer: {
+      role: session.role,
+      userId: session.user.id,
+    },
+  });
 
   if (!data) {
     notFound();

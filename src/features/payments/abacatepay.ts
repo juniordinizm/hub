@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { normalizeBuyerEmail } from "@/features/payments/public-checkout-policy";
+import { normalizeBuyerEmail } from "@/features/payments/buyer-identity";
 
 export type PersistedOrderStatus =
   | "pending"

@@ -7,6 +7,7 @@ import {
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
+import { isPreviewRole } from "@/features/courses/preview";
 import { sendCertificateIssuedEmail } from "@/features/email/server";
 import {
   resolveCourseAccess,
@@ -20,6 +21,7 @@ import {
   isLessonAvailable,
 } from "@/features/progress/rules";
 import { shouldCompleteLessonFromJmvstreamEvent } from "@/features/videos/jmvstream";
+import type { AppRole } from "@/lib/session";
 
 const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
 
@@ -128,6 +130,11 @@ export interface StudentCourseOverviewData {
 export interface StudentCourseAccessStatus {
   canAccess: boolean;
   redirectTo: string;
+}
+
+export interface StudentExperienceViewer {
+  role: AppRole;
+  userId: string;
 }
 
 export interface StudentLessonData {
@@ -597,7 +604,7 @@ export const recalculateCourseWorkloadHours = async (
   return workloadHours;
 };
 
-export const getStudentCourseOverviewData = async ({
+const getEnrolledCourseOverview = async ({
   courseId,
   userId,
 }: {
@@ -728,7 +735,7 @@ export const getStudentCourseOverviewData = async ({
   };
 };
 
-export const getCoursePreviewOverviewData = async ({
+const getPreviewCourseOverview = async ({
   courseId,
 }: {
   courseId: string;
@@ -832,6 +839,23 @@ export const getCoursePreviewOverviewData = async ({
   };
 };
 
+export const getStudentCourseOverview = async ({
+  courseId,
+  viewer,
+}: {
+  courseId: string;
+  viewer: StudentExperienceViewer;
+}): Promise<StudentCourseOverviewData | null> => {
+  if (isPreviewRole(viewer.role)) {
+    return await getPreviewCourseOverview({ courseId });
+  }
+
+  return await getEnrolledCourseOverview({
+    courseId,
+    userId: viewer.userId,
+  });
+};
+
 export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
   const { rows } = await getPool().query<{
     answer: string;
@@ -853,7 +877,7 @@ export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
   }));
 };
 
-export const getStudentLessonData = async ({
+const getEnrolledLessonWorkspace = async ({
   userId,
   lessonId,
 }: {
@@ -968,7 +992,7 @@ export const getStudentLessonData = async ({
   };
 };
 
-export const getPreviewLessonData = async ({
+const getPreviewLessonWorkspace = async ({
   lessonId,
 }: {
   lessonId: string;
@@ -1062,6 +1086,23 @@ export const getPreviewLessonData = async ({
   };
 };
 
+export const getStudentLessonWorkspace = async ({
+  lessonId,
+  viewer,
+}: {
+  lessonId: string;
+  viewer: StudentExperienceViewer;
+}): Promise<StudentLessonData | null> => {
+  if (isPreviewRole(viewer.role)) {
+    return await getPreviewLessonWorkspace({ lessonId });
+  }
+
+  return await getEnrolledLessonWorkspace({
+    lessonId,
+    userId: viewer.userId,
+  });
+};
+
 const resolveStudentLessonVideoEmbedUrl = async (
   lesson: Pick<
     LessonRow,
@@ -1095,7 +1136,7 @@ export const completeLesson = async ({
   courseId: string;
   nextLessonId: string | null;
 }> => {
-  const data = await getStudentLessonData({ userId, lessonId });
+  const data = await getEnrolledLessonWorkspace({ userId, lessonId });
 
   if (!data) {
     throw new Error("Aula indisponivel para esta matricula.");
@@ -1242,7 +1283,7 @@ export const recordLessonWatchProgress = async ({
     throw new Error("Progresso de video invalido.");
   }
 
-  const data = await getStudentLessonData({ userId, lessonId });
+  const data = await getEnrolledLessonWorkspace({ userId, lessonId });
 
   if (!data) {
     throw new Error("Aula indisponivel para esta matricula.");
