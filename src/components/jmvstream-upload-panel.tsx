@@ -419,7 +419,7 @@ export function JmvstreamUploadPanel({
                 </div>
               </label>
               <Button
-                className="w-full shrink-0 transition-transform active:scale-[0.97] sm:w-auto"
+                className="w-full shrink-0 sm:w-auto"
                 disabled={isPending || !lessonId}
                 onClick={() => inputRef.current?.click()}
                 size="sm"
@@ -504,7 +504,6 @@ export function JmvstreamUploadPanel({
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {isProcessing && (
                   <Button
-                    className="transition-transform active:scale-[0.97]"
                     disabled={isPending}
                     onClick={syncProcessingPlayer}
                     size="sm"
@@ -521,7 +520,6 @@ export function JmvstreamUploadPanel({
                 )}
                 {asset?.deleteStatus === "failed" && (
                   <Button
-                    className="transition-transform active:scale-[0.97]"
                     disabled={isPending}
                     onClick={retryDelete}
                     size="sm"
@@ -546,7 +544,6 @@ export function JmvstreamUploadPanel({
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
-                        className="transition-transform active:scale-[0.97]"
                         disabled={isPending || isRemovePending}
                         size="sm"
                         type="button"

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   confirmRefundPasswordAction,
   requestFullRefundAction,
@@ -90,13 +91,14 @@ export function RefundOperation({
               required
             />
           </div>
-          <button
-            className="rounded-md bg-destructive px-3 py-2 text-destructive-foreground"
+          <Button
+            className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
+            variant="destructive"
           >
             {pending ? "Solicitando..." : "Confirmar estorno integral"}
-          </button>
+          </Button>
         </form>
       ) : (
         <form action={confirmPassword} className="mt-3 grid gap-3">
@@ -114,13 +116,14 @@ export function RefundOperation({
               type="password"
             />
           </div>
-          <button
-            className="rounded-md border px-3 py-2"
+          <Button
+            className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
+            variant="outline"
           >
             {pending ? "Verificando..." : "Confirmar senha"}
-          </button>
+          </Button>
         </form>
       )}
       {error ? (
@@ -207,13 +210,14 @@ export function PaymentReviewOperation({
               required
             />
           </div>
-          <button
-            className="rounded-md border px-3 py-2"
+          <Button
+            className="w-full sm:w-auto"
             disabled={pending}
             type="submit"
+            variant="outline"
           >
             {pending ? "Salvando..." : "Registrar decisao"}
-          </button>
+          </Button>
         </form>
       ) : (
         <p className="mt-3 text-muted-foreground text-sm">
@@ -261,14 +265,15 @@ export function RetryWebhookOperation({
 
   return (
     <div className="mt-3">
-      <button
-        className="rounded-md border px-3 py-2 text-sm"
+      <Button
         disabled={pending}
         onClick={retry}
+        size="sm"
         type="button"
+        variant="outline"
       >
         {pending ? "Reprocessando..." : "Reprocessar webhook falho"}
-      </button>
+      </Button>
       {error ? (
         <p
           aria-live="polite"

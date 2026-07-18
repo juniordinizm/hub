@@ -219,7 +219,7 @@ export function CourseCoverUploadField({
                 <TooltipTrigger asChild>
                   <button
                     aria-label="Remover imagem"
-                    className="flex size-7 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-destructive-foreground shadow-sm outline-none backdrop-blur-md transition-colors hover:bg-destructive focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="flex size-7 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-destructive-foreground shadow-sm outline-none backdrop-blur-md transition duration-150 hover:bg-destructive focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.96]"
                     onClick={removeFile}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {

@@ -175,7 +175,7 @@ export function ResourceDeleteAction({
       <AlertDialogTrigger asChild>
         <Button
           aria-label="Remover"
-          className="size-8 text-muted-foreground opacity-50 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-100"
+          className="size-8 text-muted-foreground opacity-50 hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-100"
           size="icon"
           type="button"
           variant="ghost"

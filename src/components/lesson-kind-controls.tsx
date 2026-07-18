@@ -216,7 +216,7 @@ export function LessonVideoControls({
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
-                className="transition-transform active:scale-[0.97]"
+                className=""
                 size="sm"
                 type="button"
                 variant="destructive"
@@ -590,7 +590,7 @@ export function SortableLessonResourceItem({
       <ResourceItemActions>
         <Button
           aria-label="Editar anexo"
-          className="size-8 text-muted-foreground transition-colors hover:text-foreground"
+          className="size-8 text-muted-foreground hover:text-foreground"
           onClick={onEdit}
           size="icon"
           type="button"
