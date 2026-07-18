@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { getAdminFaqData } from "@/features/admin/server";
 import { FaqCreateDialog } from "./faq-dialogs";
 import { FaqTable } from "./faq-table";
@@ -14,7 +15,7 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
       : 1;
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -33,6 +34,6 @@ export default async function AdminFaqPage(): Promise<React.JSX.Element> {
           <FaqTable faqs={sortedFaqs} />
         </section>
       </div>
-    </main>
+    </PageContainer>
   );
 }

@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import {
   Table,
   TableBody,
@@ -95,7 +96,7 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
   const data = await getAdminAuditData();
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -150,6 +151,6 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
           </Table>
         </div>
       </div>
-    </main>
+    </PageContainer>
   );
 }

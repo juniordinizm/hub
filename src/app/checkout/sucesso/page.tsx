@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { route } from "@/lib/routes";
@@ -9,7 +10,7 @@ export const revalidate = 0;
 
 export default function PublicCheckoutSuccessPage(): React.JSX.Element {
   return (
-    <main className="min-h-screen bg-background px-6 py-10 text-foreground sm:px-10 lg:px-12">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <Badge variant="outline">Pagamento em confirmacao</Badge>
         <h1 className="mt-4 font-bold text-2xl tracking-tight">
@@ -29,6 +30,6 @@ export default function PublicCheckoutSuccessPage(): React.JSX.Element {
           </Button>
         </div>
       </section>
-    </main>
+    </PageContainer>
   );
 }

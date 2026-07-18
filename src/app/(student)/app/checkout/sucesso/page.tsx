@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { canMutateStudentExperience } from "@/features/courses/preview";
@@ -37,7 +38,7 @@ export default async function CheckoutSuccessPage({
   }
 
   return (
-    <main className="min-h-screen bg-background px-6 py-10 text-foreground sm:px-10 lg:px-12">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <Badge variant="outline">Compra confirmada</Badge>
         <h1 className="mt-4 font-bold text-2xl tracking-tight">
@@ -57,6 +58,6 @@ export default async function CheckoutSuccessPage({
           </Button>
         </div>
       </section>
-    </main>
+    </PageContainer>
   );
 }

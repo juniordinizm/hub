@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -70,7 +71,7 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
   );
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -388,7 +389,7 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
           </CardContent>
         </Card>
       </div>
-    </main>
+    </PageContainer>
   );
 }
 

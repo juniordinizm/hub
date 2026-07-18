@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import {
   Accordion,
@@ -30,7 +31,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
   const faqs = await getPublishedFaqItems();
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4">
@@ -84,6 +85,6 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
           </div>
         </div>
       </div>
-    </main>
+    </PageContainer>
   );
 }

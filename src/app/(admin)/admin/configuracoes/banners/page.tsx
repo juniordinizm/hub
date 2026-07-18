@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/page-container";
 import { getAdminBannersData } from "@/features/admin/server";
 import { BannerGallery } from "./banner-gallery";
 
@@ -11,7 +12,7 @@ export default async function AdminBannersPage(): Promise<React.JSX.Element> {
   );
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -29,6 +30,6 @@ export default async function AdminBannersPage(): Promise<React.JSX.Element> {
           <BannerGallery initialBanners={sortedBanners} />
         </section>
       </div>
-    </main>
+    </PageContainer>
   );
 }

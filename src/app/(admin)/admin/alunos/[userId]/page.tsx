@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -28,7 +29,7 @@ export default async function AdminStudentDetailPage({
   }
 
   return (
-    <main className="px-6 py-8 sm:px-10 lg:px-12">
+    <PageContainer>
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <Badge variant="outline">Aluno</Badge>
@@ -68,6 +69,6 @@ export default async function AdminStudentDetailPage({
           </CardContent>
         </Card>
       </div>
-    </main>
+    </PageContainer>
   );
 }

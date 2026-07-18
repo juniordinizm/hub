@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { consumePublicCertificateLookup } from "@/features/certificates/public-rate-limit";
@@ -26,7 +27,7 @@ export default async function CertificateValidationPage({
   }
 
   return (
-    <main className="min-h-screen bg-background px-5 py-12 text-foreground">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <Card className="mx-auto max-w-2xl">
         <CardHeader>
           <Badge className="w-fit" variant="outline">
@@ -61,6 +62,6 @@ export default async function CertificateValidationPage({
           </dl>
         </CardContent>
       </Card>
-    </main>
+    </PageContainer>
   );
 }

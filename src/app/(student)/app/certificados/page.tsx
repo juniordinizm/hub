@@ -8,6 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -35,7 +36,7 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
   const certificates = await getCertificatesForUser(session.user.id);
 
   return (
-    <main className="min-h-screen bg-background px-6 py-8 text-foreground sm:px-10 lg:px-12">
+    <PageContainer className="min-h-screen bg-background text-foreground">
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -102,7 +103,7 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
           )}
         </section>
       </div>
-    </main>
+    </PageContainer>
   );
 }
 
