@@ -70,11 +70,11 @@ import {
   ResourceItemActions,
   ResourceItemContent,
   ResourceItemDragHandle,
+  ResourceItemSkeleton,
   ResourceItemVisual,
   ResourceListBody,
   ResourceListContainer,
   ResourceListHeader,
-  ResourceUploadProgressItem,
 } from "@/components/ui/resource-list";
 import { resolveLessonVideoPreviewUrl } from "@/features/admin/lesson-video-form";
 import type { LessonResource } from "@/features/courses/lesson-content";
@@ -745,6 +745,7 @@ export function LessonResourcesFields({
       return;
     }
 
+    const toastId = toast.loading("Enviando anexo...");
     const tempId = `temp-${Date.now()}`;
     setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
@@ -765,11 +766,14 @@ export function LessonResourcesFields({
       setResources((current) => [...current, newResource]);
       setEditingResourceId(newResource.id);
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
-      toast.success("Anexo enviado. Salve a aula para publicar o material.");
+      toast.success("Anexo enviado. Salve a aula para publicar o material.", {
+        id: toastId,
+      });
     } catch (error) {
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.error(
-        error instanceof Error ? error.message : "Nao foi possivel enviar."
+        error instanceof Error ? error.message : "Nao foi possivel enviar.",
+        { id: toastId }
       );
     }
   };
@@ -874,11 +878,7 @@ export function LessonResourcesFields({
             </SortableContext>
           </DndContext>
           {uploadingFiles.map((f) => (
-            <ResourceUploadProgressItem
-              fileName={f.file.name}
-              fileSize={formatFileSize(f.file.size)}
-              key={f.id}
-            />
+            <ResourceItemSkeleton key={f.id} />
           ))}
         </ResourceListBody>
       ) : (

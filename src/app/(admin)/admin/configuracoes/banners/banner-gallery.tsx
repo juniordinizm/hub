@@ -24,10 +24,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   ResourceDropzoneEmpty,
+  ResourceItemSkeleton,
   ResourceListBody,
   ResourceListContainer,
   ResourceListHeader,
-  ResourceUploadProgressItem,
 } from "@/components/ui/resource-list";
 import {
   deleteBannerAction,
@@ -91,18 +91,6 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   const maxFiles = 5;
   const maxSize = 5 * 1024 * 1024; // 5MB
 
-  function formatFileSize(sizeBytes: number): string {
-    if (sizeBytes >= 1024 * 1024) {
-      return `${(sizeBytes / (1024 * 1024)).toLocaleString("pt-BR", {
-        maximumFractionDigits: 1,
-        minimumFractionDigits: 0,
-      })} MB`;
-    }
-    return `${Math.max(1, Math.round(sizeBytes / 1024)).toLocaleString(
-      "pt-BR"
-    )} KB`;
-  }
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -138,6 +126,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
         return { error: "Limite de 5 banners atingido." };
       }
 
+      const toastId = toast.loading("Enviando banner...");
       const tempId = `temp-${Date.now()}`;
       setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
@@ -148,7 +137,19 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       try {
         const res = await saveBannerAction(formData);
 
-        toast.success("Banner enviado com sucesso.");
+        if (res?.bannerId) {
+          const optimisticBanner: AdminBanner = {
+            id: res.bannerId,
+            imageUrl: URL.createObjectURL(file),
+            isActive: true,
+            linkUrl: null,
+            buttonText: null,
+            sortOrder: banners.length + 1,
+          };
+          setBanners((prev) => [...prev, optimisticBanner]);
+        }
+
+        toast.success("Banner enviado com sucesso.", { id: toastId });
         setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
 
         if (res?.bannerId) {
@@ -156,6 +157,10 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
         }
       } catch (error: unknown) {
         setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
+        toast.error(
+          error instanceof Error ? error.message : "Erro ao enviar banner.",
+          { id: toastId }
+        );
         return {
           error:
             error instanceof Error ? error.message : "Erro ao enviar banner.",
@@ -256,14 +261,15 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   );
 
   const removeBanner = (id: string) => {
+    const toastId = toast.loading("Removendo...");
     const formData = new FormData();
     formData.append("bannerId", id);
     startTransition(async () => {
       try {
         await deleteBannerAction(formData);
-        toast.success("Banner excluído.");
+        toast.success("Banner excluído.", { id: toastId });
       } catch {
-        toast.error("Erro ao excluir o banner.");
+        toast.error("Erro ao excluir o banner.", { id: toastId });
       }
     });
   };
@@ -345,11 +351,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
               </DndContext>
 
               {uploadingFiles.map((f) => (
-                <ResourceUploadProgressItem
-                  fileName={f.file.name}
-                  fileSize={formatFileSize(f.file.size)}
-                  key={f.id}
-                />
+                <ResourceItemSkeleton key={f.id} />
               ))}
             </ResourceListBody>
           ) : (

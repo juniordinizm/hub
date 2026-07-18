@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  CloudUploadIcon,
-  Delete02Icon,
-  FileImageIcon,
-} from "@hugeicons/core-free-icons";
+import { Delete02Icon, FileImageIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type React from "react";
 import {
@@ -20,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface ResourceListContainerProps
@@ -200,57 +197,27 @@ export function ResourceDeleteAction({
   );
 }
 
-export function ResourceUploadProgressItem({
-  fileName,
-  fileSize,
-  progress,
-}: {
-  fileName: string;
-  fileSize: string;
-  progress?: number;
-}) {
+export function ResourceItemSkeleton() {
   return (
-    <ResourceItem className="transition-opacity duration-300">
+    <ResourceItem className="fade-in zoom-in-[0.98] animate-in duration-300">
       <div
         aria-hidden="true"
         className="flex w-8 shrink-0 items-center justify-center opacity-0"
       >
-        {/* Placeholder invisible for alignment */}
+        {/* Placeholder for handle alignment */}
       </div>
 
-      <ResourceItemVisual className="bg-muted/50 text-muted-foreground">
-        <HugeiconsIcon
-          className="animate-pulse"
-          icon={CloudUploadIcon}
-          size={22}
-          strokeWidth={2}
-        />
+      <ResourceItemVisual className="border-0 bg-transparent">
+        <Skeleton className="size-full rounded-md" />
       </ResourceItemVisual>
 
-      <ResourceItemContent className="opacity-60">
+      <ResourceItemContent>
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
-            {fileName}
-          </p>
-          <span className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
-            {typeof progress === "number"
-              ? `${Math.round(progress)}%`
-              : "Enviando"}
-          </span>
+          <Skeleton className="h-4 w-3/4 max-w-[200px]" />
+          <Skeleton className="h-4 w-12" />
         </div>
-        <p className="truncate text-muted-foreground text-xs">{fileSize}</p>
+        <Skeleton className="h-3 w-1/3" />
       </ResourceItemContent>
-
-      {typeof progress === "number" ? (
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-muted/50">
-          <div
-            className="h-full bg-primary transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      ) : (
-        <div className="absolute inset-x-0 bottom-0 h-1 animate-pulse bg-primary/60" />
-      )}
     </ResourceItem>
   );
 }
