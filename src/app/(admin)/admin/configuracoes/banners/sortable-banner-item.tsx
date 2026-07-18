@@ -67,25 +67,23 @@ export function SortableBannerItem({
       </ResourceItemVisual>
 
       <ResourceItemContent>
-        <p className="truncate font-medium text-[13px]">
-          {banner.linkUrl ? banner.linkUrl : "Sem link configurado"}
-        </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
+            {banner.linkUrl ? banner.linkUrl : "Sem link configurado"}
+          </p>
           <span
-            className={`font-semibold text-[11px] uppercase tracking-wide ${
+            className={`shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] uppercase tracking-normal ${
               banner.isActive
-                ? "text-green-600 dark:text-green-500"
-                : "text-muted-foreground"
+                ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400"
+                : "bg-muted/80 text-muted-foreground"
             }`}
           >
             {banner.isActive ? "Ativo" : "Inativo"}
           </span>
-          {banner.buttonText && (
-            <span className="truncate text-muted-foreground text-xs">
-              &bull; Botão: {banner.buttonText}
-            </span>
-          )}
         </div>
+        <p className="truncate text-muted-foreground text-xs">
+          {banner.buttonText ? `Botão: ${banner.buttonText}` : "Sem botão"}
+        </p>
       </ResourceItemContent>
 
       <ResourceItemActions>

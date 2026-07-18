@@ -29,9 +29,10 @@ import {
   FileLinkIcon,
   Link04Icon,
   Pdf01Icon,
+  PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { JmvstreamDurationDetector } from "@/components/jmvstream-duration-detector";
 import {
@@ -51,6 +52,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   ResourceDeleteAction,
@@ -421,16 +431,18 @@ function getFileTypeLabel(resource: EditableLessonResource): string {
   return "Arquivo";
 }
 
-function SortableLessonResourceItem({
-  resource,
-  lessonId,
+export function SortableLessonResourceItem({
   formProps,
+  lessonId,
   onRemove,
+  onEdit,
+  resource,
 }: {
   resource: EditableLessonResource;
   lessonId?: string | undefined;
   formProps: Record<string, unknown>;
   onRemove: () => void;
+  onEdit: () => void;
 }) {
   const {
     attributes,
@@ -460,7 +472,12 @@ function SortableLessonResourceItem({
       />
       {resource.storage === "r2" ? (
         <>
-          <input name="resourceUrl[]" type="hidden" value="" {...formProps} />
+          <input
+            name="resourceUrl[]"
+            type="hidden"
+            value={"url" in resource ? (resource.url as string) : ""}
+            {...formProps}
+          />
           <input
             name="resourceKey[]"
             type="hidden"
@@ -522,6 +539,19 @@ function SortableLessonResourceItem({
         </>
       )}
 
+      <input
+        name="resourceLabel[]"
+        type="hidden"
+        value={resource.label}
+        {...formProps}
+      />
+      <input
+        name="resourceUrl[]"
+        type="hidden"
+        value={"url" in resource ? (resource.url as string) : ""}
+        {...formProps}
+      />
+
       <ResourceItemDragHandle
         attributes={attributes}
         icon={DragDropVerticalIcon}
@@ -532,14 +562,10 @@ function SortableLessonResourceItem({
       </ResourceItemVisual>
 
       <ResourceItemContent>
-        <div className="flex items-center gap-2">
-          <Input
-            className="h-auto min-w-0 flex-1 border-transparent bg-transparent p-0 font-medium text-[13px] shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
-            defaultValue={resource.label}
-            name="resourceLabel[]"
-            placeholder="Nome do material"
-            {...formProps}
-          />
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
+            {resource.label}
+          </p>
           {badgeText ? (
             <span className="shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
               {badgeText}
@@ -547,33 +573,121 @@ function SortableLessonResourceItem({
           ) : null}
         </div>
         {resource.storage === "r2" ? (
-          <div className="flex items-center gap-2">
-            <p className="truncate text-muted-foreground text-xs">
-              {typeLabel} &bull; {formatFileSize(resource.sizeBytes ?? 0)}
-            </p>
-          </div>
+          <p className="truncate text-muted-foreground text-xs">
+            {typeLabel} &bull; {formatFileSize(resource.sizeBytes ?? 0)}
+          </p>
         ) : (
-          <Input
-            className="h-auto border-transparent bg-transparent p-0 text-muted-foreground text-xs shadow-none hover:border-input focus-visible:border-input focus-visible:bg-background focus-visible:ring-0 focus-visible:ring-offset-0"
-            defaultValue={resource.url}
-            name="resourceUrl[]"
-            onBlur={(event) => {
-              const normalized = normalizeExternalUrl(event.target.value);
-              if (normalized) {
-                event.target.value = normalized;
-              }
-            }}
-            placeholder="https://..."
-            type="url"
-            {...formProps}
-          />
+          <p className="truncate text-muted-foreground text-xs">
+            {"url" in resource ? resource.url : ""}
+          </p>
         )}
       </ResourceItemContent>
 
       <ResourceItemActions>
+        <Button
+          aria-label="Editar anexo"
+          className="size-8 text-muted-foreground transition-colors hover:text-foreground"
+          onClick={onEdit}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <HugeiconsIcon icon={PencilEdit01Icon} size={16} strokeWidth={2} />
+        </Button>
         <ResourceDeleteAction onDelete={onRemove} />
       </ResourceItemActions>
     </ResourceItem>
+  );
+}
+
+function ResourceEditModal({
+  resource,
+  open,
+  onClose,
+  onUpdate,
+}: {
+  resource: EditableLessonResource | undefined;
+  open: boolean;
+  onClose: () => void;
+  onUpdate: (id: string, updates: Partial<EditableLessonResource>) => void;
+}) {
+  const [editLabel, setEditLabel] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+
+  useEffect(() => {
+    if (resource && open) {
+      setEditLabel(resource.label);
+      setEditUrl("url" in resource ? (resource.url as string) : "");
+    }
+  }, [resource, open]);
+
+  if (!resource) {
+    return null;
+  }
+
+  return (
+    <Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar Anexo</DialogTitle>
+          <DialogDescription>
+            Altere os detalhes do material anexo a esta aula.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <div className="grid gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="font-medium text-sm" htmlFor="edit-label">
+                Nome do material
+              </label>
+              <Input
+                id="edit-label"
+                onChange={(e) => setEditLabel(e.target.value)}
+                placeholder="Nome do material"
+                value={editLabel}
+              />
+            </div>
+            {resource.storage === "external" && (
+              <div className="flex flex-col gap-2">
+                <label className="font-medium text-sm" htmlFor="edit-url">
+                  URL do Link
+                </label>
+                <Input
+                  id="edit-url"
+                  onBlur={(e) => {
+                    const normalized = normalizeExternalUrl(e.target.value);
+                    if (normalized) {
+                      setEditUrl(normalized);
+                    }
+                  }}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  placeholder="https://..."
+                  type="url"
+                  value={editUrl}
+                />
+              </div>
+            )}
+          </div>
+        </DialogBody>
+        <DialogFooter>
+          <Button onClick={onClose} type="button" variant="outline">
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onUpdate(resource.id, {
+                label: editLabel,
+                url: editUrl,
+              } as Partial<EditableLessonResource>);
+              onClose();
+            }}
+            type="button"
+          >
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -594,13 +708,31 @@ export function LessonResourcesFields({
   const [uploadingFiles, setUploadingFiles] = useState<
     { id: string; file: File; progress: number }[]
   >([]);
+  const [editingResourceId, setEditingResourceId] = useState<string | null>(
+    null
+  );
 
   const addResource = (): void => {
-    setResources((current) => [...current, createEmptyExternalResource()]);
+    const newResource = createEmptyExternalResource();
+    setResources((current) => [...current, newResource]);
+    setEditingResourceId(newResource.id);
   };
 
   const removeResource = (id: string): void => {
     setResources((current) => current.filter((resource) => resource.id !== id));
+  };
+
+  const updateResource = (
+    id: string,
+    updates: Partial<EditableLessonResource>
+  ): void => {
+    setResources((current) =>
+      current.map((resource) =>
+        resource.id === id
+          ? ({ ...resource, ...updates } as EditableLessonResource)
+          : resource
+      )
+    );
   };
 
   const uploadResource = async (file: File): Promise<void> => {
@@ -647,6 +779,7 @@ export function LessonResourcesFields({
       }
 
       setResources((current) => [...current, newResource]);
+      setEditingResourceId(newResource.id);
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.success("Anexo enviado. Salve a aula para publicar o material.");
     } catch (error) {
@@ -676,6 +809,12 @@ export function LessonResourcesFields({
 
   return (
     <ResourceListContainer>
+      <ResourceEditModal
+        onClose={() => setEditingResourceId(null)}
+        onUpdate={updateResource}
+        open={!!editingResourceId}
+        resource={resources.find((r) => r.id === editingResourceId)}
+      />
       <ResourceListHeader
         actions={
           <>
@@ -744,6 +883,7 @@ export function LessonResourcesFields({
                   formProps={formProps}
                   key={resource.id}
                   lessonId={lessonId}
+                  onEdit={() => setEditingResourceId(resource.id)}
                   onRemove={() => removeResource(resource.id)}
                   resource={resource}
                 />

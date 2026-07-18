@@ -35,7 +35,7 @@ export function ResourceListContainer({
   return (
     <div
       className={cn(
-        "relative flex min-h-52 flex-col overflow-hidden rounded-xl border border-border border-dashed p-4 transition-colors hover:border-ring/50",
+        "relative flex flex-col overflow-hidden rounded-xl border border-border border-dashed p-4 transition-colors hover:border-ring/50",
         className
       )}
       {...props}
@@ -71,21 +71,21 @@ export function ResourceListBody({ children }: { children: React.ReactNode }) {
 export function ResourceItem({
   children,
   isDragging,
-  className,
   nodeRef,
   style,
+  className,
 }: {
   children: React.ReactNode;
   isDragging?: boolean;
-  className?: string;
-  nodeRef?: React.Ref<HTMLDivElement>;
+  nodeRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
+  className?: string;
 }) {
   return (
     <div
       className={cn(
-        "group flex items-center gap-3 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300",
-        isDragging && "relative z-50 opacity-50 drop-shadow-md",
+        "group relative flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border bg-background p-1.5 pe-3 transition-colors",
+        isDragging && "z-50 opacity-50 shadow-md ring-1 ring-ring",
         className
       )}
       ref={nodeRef}
@@ -101,9 +101,12 @@ export function ResourceItemDragHandle({
   listeners,
   icon: Icon,
 }: {
-  attributes: Record<string, unknown> | undefined;
-  listeners: Record<string, unknown> | undefined;
-  icon: React.ElementType;
+  // biome-ignore lint/suspicious/noExplicitAny: dnd-kit typings
+  attributes: any;
+  // biome-ignore lint/suspicious/noExplicitAny: dnd-kit typings
+  listeners: any;
+  // biome-ignore lint/suspicious/noExplicitAny: icon typings
+  icon: any;
 }) {
   return (
     <div
@@ -203,28 +206,42 @@ export function ResourceUploadProgressItem({
   progress: number;
 }) {
   return (
-    <div className="group flex items-center gap-3 rounded-lg border bg-background p-2 pe-3 transition-opacity duration-300">
-      <div className="flex aspect-video w-14 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.06)] sm:w-[72px] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]">
-        <HugeiconsIcon icon={CloudUploadIcon} size={22} strokeWidth={2} />
+    <ResourceItem className="transition-opacity duration-300">
+      <div
+        aria-hidden="true"
+        className="flex w-8 shrink-0 items-center justify-center opacity-0"
+      >
+        {/* Placeholder invisible for alignment */}
       </div>
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <div className="flex flex-col gap-0.5 opacity-60">
-          <p className="truncate font-medium text-[13px]">{fileName}</p>
-          <p className="truncate text-muted-foreground text-xs">{fileSize}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <span className="w-10 text-muted-foreground text-xs tabular-nums">
+
+      <ResourceItemVisual className="bg-muted/50 text-muted-foreground">
+        <HugeiconsIcon
+          className="animate-pulse"
+          icon={CloudUploadIcon}
+          size={22}
+          strokeWidth={2}
+        />
+      </ResourceItemVisual>
+
+      <ResourceItemContent className="opacity-60">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
+            {fileName}
+          </p>
+          <span className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tabular-nums tracking-normal">
             {Math.round(progress)}%
           </span>
         </div>
+        <p className="truncate text-muted-foreground text-xs">{fileSize}</p>
+      </ResourceItemContent>
+
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-muted/50">
+        <div
+          className="h-full bg-primary transition-all duration-300 ease-out"
+          style={{ width: `${progress}%` }}
+        />
       </div>
-    </div>
+    </ResourceItem>
   );
 }
 
