@@ -1,8 +1,10 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import {
+  CopyObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -13,6 +15,7 @@ import {
   type CourseCoverFile,
   createCourseCoverUploadParts,
 } from "@/features/storage/course-cover-upload";
+import { buildPublicMediaUrl } from "@/features/storage/public-media";
 import {
   buildLessonResourceObjectKey,
   buildLessonResourcePreviewObjectKey,
@@ -29,6 +32,10 @@ interface R2Config {
   accountId: string;
   bucketName: string;
   secretAccessKey: string;
+}
+
+interface PublicR2Config extends R2Config {
+  publicBucketName: string;
 }
 
 interface R2LessonResource {
@@ -63,6 +70,11 @@ const getR2Config = (): R2Config => ({
   accountId: readRequiredEnv("R2_ACCOUNT_ID"),
   bucketName: readRequiredEnv("R2_BUCKET_NAME"),
   secretAccessKey: readRequiredEnv("R2_SECRET_ACCESS_KEY"),
+});
+
+const getPublicR2Config = (): PublicR2Config => ({
+  ...getR2Config(),
+  publicBucketName: readRequiredEnv("R2_PUBLIC_BUCKET_NAME"),
 });
 
 const getR2Client = (config: R2Config): S3Client =>
@@ -276,6 +288,46 @@ export const createR2ObjectReadUrl = async ({
   );
 };
 
+export const getPublicMediaUrl = (key: string): string =>
+  buildPublicMediaUrl({
+    baseUrl: readRequiredEnv("R2_PUBLIC_BASE_URL"),
+    key,
+  });
+
+export const publishR2Object = async (key: string): Promise<void> => {
+  const config = getPublicR2Config();
+
+  await getR2Client(config).send(
+    new CopyObjectCommand({
+      Bucket: config.publicBucketName,
+      CopySource: `/${config.bucketName}/${encodeURIComponent(key)}`,
+      Key: key,
+    })
+  );
+};
+
+export const confirmLessonResourceUpload = async ({
+  contentType,
+  key,
+  sizeBytes,
+}: {
+  contentType: string;
+  key: string;
+  sizeBytes: number;
+}): Promise<void> => {
+  const config = getR2Config();
+  const object = await getR2Client(config).send(
+    new HeadObjectCommand({ Bucket: config.bucketName, Key: key })
+  );
+
+  if (
+    object.ContentLength !== sizeBytes ||
+    object.ContentType !== contentType
+  ) {
+    throw new Error("O arquivo enviado não corresponde ao material preparado.");
+  }
+};
+
 const chunkKeys = (keys: string[]): string[][] => {
   const chunks: string[][] = [];
 
@@ -320,11 +372,38 @@ export const deleteR2Objects = async (keys: string[]): Promise<void> => {
   }
 };
 
+export const deletePublicR2Objects = async (keys: string[]): Promise<void> => {
+  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+
+  if (uniqueKeys.length === 0) {
+    return;
+  }
+
+  const config = getPublicR2Config();
+  const client = getR2Client(config);
+
+  for (const keyBatch of chunkKeys(uniqueKeys)) {
+    await client.send(
+      new DeleteObjectsCommand({
+        Bucket: config.publicBucketName,
+        Delete: {
+          Objects: keyBatch.map((key) => ({ Key: key })),
+          Quiet: true,
+        },
+      })
+    );
+  }
+};
+
 export const uploadDashboardBannerFile = async ({
   file,
 }: {
   file: File;
 }): Promise<string> => {
+  validateBannerUploadRequest({
+    contentType: file.type,
+    sizeBytes: file.size,
+  });
   const config = getR2Config();
   const client = getR2Client(config);
 

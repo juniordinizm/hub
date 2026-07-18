@@ -1,6 +1,7 @@
 import "server-only";
 import { getPool } from "@/db";
 import type { AdminBanner } from "@/features/admin/server";
+import { getPublicMediaUrl } from "@/features/storage/r2";
 
 export const getActiveBannersData = async (): Promise<{
   banners: AdminBanner[];
@@ -18,7 +19,7 @@ export const getActiveBannersData = async (): Promise<{
 
   const banners = rows.map((row) => ({
     id: row.id,
-    imageUrl: row.image_url,
+    imageUrl: getPublicMediaUrl(row.image_url),
     linkUrl: row.link_url,
     buttonText: row.button_text,
     isActive: row.is_active,

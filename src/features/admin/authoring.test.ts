@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   createAbacatePayCourseProduct,
+  confirmLessonResourceUpload,
+  deletePublicR2Objects,
   deleteJmvstreamAssetsForLesson,
   deleteR2Objects,
   ensureJmvstreamCourseFolder,
@@ -9,8 +11,11 @@ const {
   recalculateCourseWorkloadHours,
   resolveJmvstreamPlayerThumbnailUrl,
   uploadCourseCoverFile,
+  publishR2Object,
 } = vi.hoisted(() => ({
   createAbacatePayCourseProduct: vi.fn(),
+  confirmLessonResourceUpload: vi.fn(),
+  deletePublicR2Objects: vi.fn(),
   deleteJmvstreamAssetsForLesson: vi.fn(),
   deleteR2Objects: vi.fn(),
   ensureJmvstreamCourseFolder: vi.fn(),
@@ -18,6 +23,7 @@ const {
   recalculateCourseWorkloadHours: vi.fn(),
   resolveJmvstreamPlayerThumbnailUrl: vi.fn(),
   uploadCourseCoverFile: vi.fn(),
+  publishR2Object: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -34,7 +40,10 @@ vi.mock("@/features/payments/server", () => ({
   createAbacatePayCourseProduct,
 }));
 vi.mock("@/features/storage/r2", () => ({
+  confirmLessonResourceUpload,
+  deletePublicR2Objects,
   deleteR2Objects,
+  publishR2Object,
   uploadCourseCoverFile,
 }));
 
@@ -84,12 +93,15 @@ const textDocument = {
 const setDefaultMocks = (): void => {
   query.mockResolvedValue({ rows: [] });
   createAbacatePayCourseProduct.mockResolvedValue({ productId: "product-1" });
+  confirmLessonResourceUpload.mockResolvedValue(undefined);
+  deletePublicR2Objects.mockResolvedValue(undefined);
   deleteJmvstreamAssetsForLesson.mockResolvedValue({ attempted: 0, failed: 0 });
   deleteR2Objects.mockResolvedValue(undefined);
   ensureJmvstreamCourseFolder.mockResolvedValue(null);
   recalculateCourseWorkloadHours.mockResolvedValue(undefined);
   resolveJmvstreamPlayerThumbnailUrl.mockResolvedValue(null);
   uploadCourseCoverFile.mockResolvedValue(coverImage);
+  publishR2Object.mockResolvedValue(undefined);
 };
 
 beforeEach(() => {
@@ -358,6 +370,43 @@ describe("admin authoring", () => {
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "lesson.created", "lesson", "lesson-created"]
     );
+  });
+
+  it("confirms an uploaded lesson resource before persisting its metadata", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("select course_id from modules")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+      if (sql.includes("select content_json from lessons")) {
+        return { rows: [{ content_json: null }] };
+      }
+      if (sql.includes("from lessons l")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+
+      return { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-1");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula completa");
+    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.append("resourceStorage[]", "r2");
+    formData.append("resourceLabel[]", "Apostila");
+    formData.append("resourceUrl[]", "");
+    formData.append("resourceKey[]", "lessons/lesson-1/resources/upload.pdf");
+    formData.append("resourceFileName[]", "apostila.pdf");
+    formData.append("resourceContentType[]", "application/pdf");
+    formData.append("resourcePreview[]", "");
+    formData.append("resourceSizeBytes[]", "1024");
+
+    await saveLesson({ actorUserId: "admin-1", formData });
+
+    expect(confirmLessonResourceUpload).toHaveBeenCalledWith({
+      contentType: "application/pdf",
+      key: "lessons/lesson-1/resources/upload.pdf",
+      sizeBytes: 1024,
+    });
   });
 
   it("saves lesson content while preserving its existing uploaded video", async () => {

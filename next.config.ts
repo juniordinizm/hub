@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
+const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
+  ? new URL(process.env.R2_PUBLIC_BASE_URL)
+  : null;
 
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
@@ -22,6 +25,17 @@ const nextConfig: NextConfig = {
         pathname: "/**",
         protocol: "https",
       },
+      ...(publicMediaOrigin
+        ? [
+            {
+              hostname: publicMediaOrigin.hostname,
+              pathname: "/**",
+              protocol: publicMediaOrigin.protocol.replace(":", "") as
+                | "http"
+                | "https",
+            },
+          ]
+        : []),
     ],
   },
   reactCompiler: true,

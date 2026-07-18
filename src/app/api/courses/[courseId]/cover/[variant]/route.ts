@@ -3,7 +3,11 @@ import {
   isCourseCoverVariant,
   parseCourseCoverImage,
 } from "@/features/storage/course-cover";
-import { createR2ObjectReadUrl } from "@/features/storage/r2";
+import {
+  createR2ObjectReadUrl,
+  getPublicMediaUrl,
+} from "@/features/storage/r2";
+import { requireRole } from "@/lib/session";
 
 export const runtime = "nodejs";
 
@@ -17,16 +21,24 @@ export async function GET(
     return Response.json({ error: "Variante invalida." }, { status: 404 });
   }
 
-  const { rows } = await getPool().query<{ cover_image_json: unknown }>(
-    "select cover_image_json from courses where id = $1 limit 1",
-    [courseId]
-  );
+  const { rows } = await getPool().query<{
+    cover_image_json: unknown;
+    status: string;
+  }>("select cover_image_json, status from courses where id = $1 limit 1", [
+    courseId,
+  ]);
   const coverImage = parseCourseCoverImage(rows[0]?.cover_image_json);
   const image = coverImage?.variants[variant] ?? coverImage?.variants.card;
 
   if (!image) {
     return Response.json({ error: "Capa nao encontrada." }, { status: 404 });
   }
+
+  if (rows[0]?.status === "active") {
+    return Response.redirect(getPublicMediaUrl(image.key), 302);
+  }
+
+  await requireRole(["admin", "support"]);
 
   const signedUrl = await createR2ObjectReadUrl({ key: image.key });
 

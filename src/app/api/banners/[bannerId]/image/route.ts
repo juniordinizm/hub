@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPool } from "@/db";
 import { createR2ObjectReadUrl } from "@/features/storage/r2";
+import { requireRole } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ bannerId: string }> }
 ): Promise<NextResponse> {
+  await requireRole(["admin", "support"]);
   const { bannerId } = await params;
 
   const { rows } = await getPool().query<{ image_url: string }>(

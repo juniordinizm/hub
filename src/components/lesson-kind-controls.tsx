@@ -710,7 +710,7 @@ export function LessonResourcesFields({
   );
 
   const [uploadingFiles, setUploadingFiles] = useState<
-    { id: string; file: File; progress: number }[]
+    { id: string; file: File }[]
   >([]);
   const [editingResourceId, setEditingResourceId] = useState<string | null>(
     null
@@ -746,19 +746,7 @@ export function LessonResourcesFields({
     }
 
     const tempId = `temp-${Date.now()}`;
-    setUploadingFiles((prev) => [...prev, { id: tempId, file, progress: 0 }]);
-
-    const interval = setInterval(() => {
-      setUploadingFiles((prev) =>
-        prev.map((f) => {
-          if (f.id === tempId) {
-            const step = Math.random() * 15 + 5;
-            return { ...f, progress: Math.min(f.progress + step, 90) };
-          }
-          return f;
-        })
-      );
-    }, 200);
+    setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
     try {
       const signedUpload = await prepareSignedResourceUpload({
@@ -766,14 +754,6 @@ export function LessonResourcesFields({
         lessonId,
       });
       await uploadSignedResource({ file, signedUpload });
-
-      clearInterval(interval);
-      setUploadingFiles((prev) =>
-        prev.map((f) => (f.id === tempId ? { ...f, progress: 100 } : f))
-      );
-
-      // Delay for progress to reach 100% visually
-      await new Promise((r) => setTimeout(r, 400));
 
       const newResource = toEditableResource(signedUpload.payload.resource);
       if (newResource.storage === "r2" && signedUpload.preview) {
@@ -787,7 +767,6 @@ export function LessonResourcesFields({
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.success("Anexo enviado. Salve a aula para publicar o material.");
     } catch (error) {
-      clearInterval(interval);
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.error(
         error instanceof Error ? error.message : "Nao foi possivel enviar."
@@ -899,7 +878,6 @@ export function LessonResourcesFields({
               fileName={f.file.name}
               fileSize={formatFileSize(f.file.size)}
               key={f.id}
-              progress={f.progress}
             />
           ))}
         </ResourceListBody>

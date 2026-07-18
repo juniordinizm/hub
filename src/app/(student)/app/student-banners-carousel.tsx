@@ -47,7 +47,7 @@ export function StudentBannersCarousel({
           <CarouselContent>
             {banners.map((banner) => (
               <CarouselItem
-                className="relative aspect-[4/1] w-full sm:aspect-[5/1] lg:aspect-[6/1]"
+                className="relative aspect-[21/9] w-full"
                 key={banner.id}
               >
                 <div className="absolute inset-0">
@@ -56,7 +56,7 @@ export function StudentBannersCarousel({
                     className="object-cover"
                     fill
                     priority
-                    src={`/api/banners/${banner.id}/image`}
+                    src={banner.imageUrl}
                     unoptimized
                   />
 

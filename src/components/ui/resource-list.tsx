@@ -207,7 +207,7 @@ export function ResourceUploadProgressItem({
 }: {
   fileName: string;
   fileSize: string;
-  progress: number;
+  progress?: number;
 }) {
   return (
     <ResourceItem className="transition-opacity duration-300">
@@ -232,19 +232,25 @@ export function ResourceUploadProgressItem({
           <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
             {fileName}
           </p>
-          <span className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tabular-nums tracking-normal">
-            {Math.round(progress)}%
+          <span className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+            {typeof progress === "number"
+              ? `${Math.round(progress)}%`
+              : "Enviando"}
           </span>
         </div>
         <p className="truncate text-muted-foreground text-xs">{fileSize}</p>
       </ResourceItemContent>
 
-      <div className="absolute inset-x-0 bottom-0 h-1 bg-muted/50">
-        <div
-          className="h-full bg-primary transition-all duration-300 ease-out"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
+      {typeof progress === "number" ? (
+        <div className="absolute inset-x-0 bottom-0 h-1 bg-muted/50">
+          <div
+            className="h-full bg-primary transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      ) : (
+        <div className="absolute inset-x-0 bottom-0 h-1 animate-pulse bg-primary/60" />
+      )}
     </ResourceItem>
   );
 }

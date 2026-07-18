@@ -7,6 +7,7 @@ import { resolveLessonVideoFormState } from "@/features/admin/lesson-video-form"
 import {
   getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
+  parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
@@ -28,7 +29,13 @@ import {
   type CourseCoverFile,
   readCourseCoverFile,
 } from "@/features/storage/course-cover-upload";
-import { deleteR2Objects, uploadCourseCoverFile } from "@/features/storage/r2";
+import {
+  confirmLessonResourceUpload,
+  deletePublicR2Objects,
+  deleteR2Objects,
+  publishR2Object,
+  uploadCourseCoverFile,
+} from "@/features/storage/r2";
 
 const CREATED_CONTENT_STATUS = "draft";
 const PUBLISHED_CONTENT_STATUS = "active";
@@ -110,6 +117,20 @@ const cleanupUploadedCourseCover = async (
   coverImage: CourseCoverImage | null
 ): Promise<void> => {
   await deleteR2Objects(getCourseCoverStorageKeys(coverImage));
+};
+
+const cleanupPublishedCourseCover = async (
+  coverImage: CourseCoverImage | null
+): Promise<void> => {
+  await deletePublicR2Objects(getCourseCoverStorageKeys(coverImage));
+};
+
+const publishCourseCover = async (
+  coverImage: CourseCoverImage | null
+): Promise<void> => {
+  await Promise.all(
+    getCourseCoverStorageKeys(coverImage).map((key) => publishR2Object(key))
+  );
 };
 
 const readContentStatus = (formData: FormData): ContentStatus => {
@@ -347,6 +368,37 @@ const cleanupUpdatedLessonAssets = async ({
   });
 };
 
+const confirmLessonResourceUploads = async (
+  contentJson: unknown
+): Promise<void> => {
+  const content = parseLessonContent(contentJson);
+
+  if (content?.type !== "text" || !("resources" in content)) {
+    return;
+  }
+
+  await Promise.all(
+    (content.resources ?? [])
+      .filter((resource) => resource.storage === "r2")
+      .flatMap((resource) => [
+        confirmLessonResourceUpload({
+          contentType: resource.contentType,
+          key: resource.key,
+          sizeBytes: resource.sizeBytes,
+        }),
+        ...(resource.preview
+          ? [
+              confirmLessonResourceUpload({
+                contentType: resource.preview.contentType,
+                key: resource.preview.key,
+                sizeBytes: resource.preview.sizeBytes,
+              }),
+            ]
+          : []),
+      ])
+  );
+};
+
 const updateExistingCourse = async ({
   actorUserId,
   courseId,
@@ -363,6 +415,7 @@ const updateExistingCourse = async ({
   values: CourseFormValues;
 }): Promise<void> => {
   let uploadedCoverImage: CourseCoverImage | null = null;
+  let didPersistCourse = false;
 
   try {
     const coverImage = coverFile
@@ -370,6 +423,12 @@ const updateExistingCourse = async ({
       : parseCourseCoverFormField(formData);
     uploadedCoverImage = coverFile ? coverImage : null;
     const thumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
+
+    if (values.status === PUBLISHED_CONTENT_STATUS) {
+      await publishCourseCover(coverImage);
+    } else {
+      await cleanupPublishedCourseCover(coverImage);
+    }
 
     await getPool().query(
       `
@@ -395,20 +454,33 @@ const updateExistingCourse = async ({
         courseId,
       ]
     );
+    didPersistCourse = true;
     await audit({
       action: "course.updated",
       actorUserId,
       targetId: courseId,
       targetType: "course",
     });
-    await deleteRemovedR2Objects({
-      nextKeys: getCourseCoverStorageKeys(coverImage),
-      previousKeys: previousCoverKeys,
-    });
   } catch (error) {
-    await cleanupUploadedCourseCover(uploadedCoverImage);
+    if (!didPersistCourse) {
+      await Promise.all([
+        cleanupUploadedCourseCover(uploadedCoverImage),
+        cleanupPublishedCourseCover(uploadedCoverImage),
+      ]);
+    }
     throw error;
   }
+
+  const nextCoverKeys = getCourseCoverStorageKeys(
+    coverFile ? uploadedCoverImage : parseCourseCoverFormField(formData)
+  );
+  const removedKeys = previousCoverKeys.filter(
+    (key) => !nextCoverKeys.includes(key)
+  );
+  await Promise.all([
+    deleteR2Objects(removedKeys),
+    deletePublicR2Objects(removedKeys),
+  ]);
 };
 
 const createNewCourse = async ({
@@ -671,6 +743,8 @@ export const saveLesson = async ({
   if (!(hasVideoContent || contentJson)) {
     throw new Error("Adicione video ou texto antes de salvar a aula.");
   }
+
+  await confirmLessonResourceUploads(contentJson);
 
   const durationBreakdown = calculateLessonDurationBreakdown({
     textDocument: contentJson?.document ?? null,

@@ -52,7 +52,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   const [editingBanner, setEditingBanner] = useState<AdminBanner | null>(null);
   const [autoOpenBannerId, setAutoOpenBannerId] = useState<string | null>(null);
   const [uploadingFiles, setUploadingFiles] = useState<
-    { id: string; file: File; progress: number }[]
+    { id: string; file: File }[]
   >([]);
 
   // Auto-open modal when a new banner finishes uploading and is available in props
@@ -132,19 +132,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       }
 
       const tempId = `temp-${Date.now()}`;
-      setUploadingFiles((prev) => [...prev, { id: tempId, file, progress: 0 }]);
-
-      const interval = setInterval(() => {
-        setUploadingFiles((prev) =>
-          prev.map((f) => {
-            if (f.id === tempId) {
-              const step = Math.random() * 15 + 5;
-              return { ...f, progress: Math.min(f.progress + step, 90) };
-            }
-            return f;
-          })
-        );
-      }, 200);
+      setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
       const formData = new FormData();
       formData.append("imageFile", file);
@@ -153,12 +141,6 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       try {
         const res = await saveBannerAction(formData);
 
-        clearInterval(interval);
-        setUploadingFiles((prev) =>
-          prev.map((f) => (f.id === tempId ? { ...f, progress: 100 } : f))
-        );
-        await new Promise((r) => setTimeout(r, 400));
-
         toast.success("Banner enviado com sucesso.");
         setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
 
@@ -166,7 +148,6 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
           return { bannerId: res.bannerId };
         }
       } catch (error: unknown) {
-        clearInterval(interval);
         setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
         return {
           error:
@@ -336,7 +317,6 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
                   fileName={f.file.name}
                   fileSize={formatFileSize(f.file.size)}
                   key={f.id}
-                  progress={f.progress}
                 />
               ))}
             </ResourceListBody>

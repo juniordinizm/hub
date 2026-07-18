@@ -21,7 +21,12 @@ import {
   retryJmvstreamAssetDelete,
   syncJmvstreamLessonPlayer,
 } from "@/features/jmvstream/server";
-import { uploadDashboardBannerFile } from "@/features/storage/r2";
+import {
+  deletePublicR2Objects,
+  deleteR2Objects,
+  publishR2Object,
+  uploadDashboardBannerFile,
+} from "@/features/storage/r2";
 import { rolesForPermission } from "@/lib/auth-policy";
 import { requireRole } from "@/lib/session";
 
@@ -791,6 +796,47 @@ export const reorderLessonsAction = async (
   revalidateAdmin();
 };
 
+const assertBannerLink = ({
+  buttonText,
+  linkUrl,
+}: {
+  buttonText: string | null;
+  linkUrl: string | null;
+}): void => {
+  if ((linkUrl && !buttonText) || (!linkUrl && buttonText)) {
+    throw new Error(
+      "Se você informar um link, o texto do botão é obrigatório, e vice-versa."
+    );
+  }
+};
+
+const synchronizeBannerObjects = async ({
+  isActive,
+  nextImageKey,
+  previousImageKey,
+}: {
+  isActive: boolean;
+  nextImageKey: string | null;
+  previousImageKey: string | null;
+}): Promise<void> => {
+  if (!nextImageKey) {
+    throw new Error("Imagem do banner indisponível.");
+  }
+
+  if (isActive) {
+    await publishR2Object(nextImageKey);
+  } else {
+    await deletePublicR2Objects([nextImageKey]);
+  }
+
+  if (previousImageKey && previousImageKey !== nextImageKey) {
+    await Promise.all([
+      deleteR2Objects([previousImageKey]),
+      deletePublicR2Objects([previousImageKey]),
+    ]);
+  }
+};
+
 export const saveBannerAction = async (
   formData: FormData
 ): Promise<{ bannerId?: string } | undefined> => {
@@ -801,25 +847,31 @@ export const saveBannerAction = async (
   const isActive = readCheckbox(formData, "isActive");
   const imageFile = formData.get("imageFile") as File | null;
 
-  if ((linkUrl && !buttonText) || (!linkUrl && buttonText)) {
-    throw new Error(
-      "Se você informar um link, o texto do botão é obrigatório, e vice-versa."
-    );
-  }
+  assertBannerLink({ buttonText, linkUrl });
 
   const pool = getPool();
+  let previousImageKey: string | null = null;
+  let nextImageKey: string | null = null;
 
   if (bannerId) {
+    const previous = await pool.query<{ image_url: string }>(
+      "select image_url from dashboard_banners where id = $1 limit 1",
+      [bannerId]
+    );
+    previousImageKey = previous.rows[0]?.image_url ?? null;
+
+    if (!previousImageKey) {
+      throw new Error("Banner inválido.");
+    }
+
     if (imageFile && imageFile.size > 0) {
-      if (imageFile.size > 5 * 1024 * 1024) {
-        throw new Error("A imagem não pode ter mais de 5MB.");
-      }
-      const imageUrl = await uploadDashboardBannerFile({ file: imageFile });
+      nextImageKey = await uploadDashboardBannerFile({ file: imageFile });
       await pool.query(
         "update dashboard_banners set image_url = $1, link_url = $2, button_text = $3, is_active = $4, updated_at = now() where id = $5",
-        [imageUrl, linkUrl, buttonText, isActive, bannerId]
+        [nextImageKey, linkUrl, buttonText, isActive, bannerId]
       );
     } else {
+      nextImageKey = previousImageKey;
       await pool.query(
         "update dashboard_banners set link_url = $1, button_text = $2, is_active = $3, updated_at = now() where id = $4",
         [linkUrl, buttonText, isActive, bannerId]
@@ -829,9 +881,6 @@ export const saveBannerAction = async (
     if (!imageFile || imageFile.size === 0) {
       throw new Error("A imagem do banner é obrigatória.");
     }
-    if (imageFile.size > 5 * 1024 * 1024) {
-      throw new Error("A imagem não pode ter mais de 5MB.");
-    }
 
     const countRes = await pool.query("select count(*) from dashboard_banners");
     if (Number(countRes.rows[0].count) >= 5) {
@@ -840,7 +889,7 @@ export const saveBannerAction = async (
       );
     }
 
-    const imageUrl = await uploadDashboardBannerFile({ file: imageFile });
+    nextImageKey = await uploadDashboardBannerFile({ file: imageFile });
     const maxSortRes = await pool.query(
       "select coalesce(max(sort_order), 0) as max_sort from dashboard_banners"
     );
@@ -852,10 +901,16 @@ export const saveBannerAction = async (
         values ($1, $2, $3, $4, $5)
         returning id
       `,
-      [imageUrl, linkUrl, buttonText, isActive, nextSortOrder]
+      [nextImageKey, linkUrl, buttonText, isActive, nextSortOrder]
     );
     bannerId = insertRes.rows[0].id;
   }
+
+  await synchronizeBannerObjects({
+    isActive,
+    nextImageKey,
+    previousImageKey,
+  });
 
   await audit({
     action: "banner.saved",
@@ -875,8 +930,21 @@ export const deleteBannerAction = async (formData: FormData): Promise<void> => {
     throw new Error("Banner inválido.");
   }
 
-  await getPool().query("delete from dashboard_banners where id = $1", [
-    bannerId,
+  const pool = getPool();
+  const previous = await pool.query<{ image_url: string }>(
+    "select image_url from dashboard_banners where id = $1 limit 1",
+    [bannerId]
+  );
+  const imageKey = previous.rows[0]?.image_url;
+
+  if (!imageKey) {
+    throw new Error("Banner inválido.");
+  }
+
+  await pool.query("delete from dashboard_banners where id = $1", [bannerId]);
+  await Promise.all([
+    deleteR2Objects([imageKey]),
+    deletePublicR2Objects([imageKey]),
   ]);
   await audit({
     action: "banner.deleted",
