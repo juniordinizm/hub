@@ -32,7 +32,8 @@ import {
   type AdminCourse,
   getAdminCourseCatalogData,
 } from "@/features/admin/server";
-import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
+import { CourseCoverImage } from "@/features/courses/course-cover-image";
+import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
@@ -153,14 +154,14 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 >
                   <div className="absolute inset-0 z-0">
                     {course.thumbnailUrl ? (
-                      <div
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-center bg-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
-                        style={{
-                          backgroundImage: getCourseCoverBackgroundImage(
-                            course.thumbnailUrl
-                          ),
-                        }}
+                      <CourseCoverImage
+                        alt=""
+                        blurDataUrl={getCourseCoverBlurDataUrl(
+                          course.coverImage
+                        )}
+                        className="opacity-70 transition-transform duration-500 group-hover:scale-105"
+                        sizes="340px"
+                        src={course.thumbnailUrl}
                       />
                     ) : (
                       <>

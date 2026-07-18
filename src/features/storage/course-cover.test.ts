@@ -115,6 +115,7 @@ describe("course cover storage", () => {
         },
       })
     ).toEqual({
+      blurDataUrl: undefined,
       original: {
         contentType: "image/png",
         fileName: "capa.png",

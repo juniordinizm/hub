@@ -34,6 +34,7 @@ export interface CourseCoverVariantImage {
 }
 
 export interface CourseCoverImage {
+  blurDataUrl?: string;
   original: CourseCoverOriginal;
   variants: Partial<Record<CourseCoverVariant, CourseCoverVariantImage>>;
 }
@@ -225,8 +226,17 @@ export const parseCourseCoverImage = (
     }
   }
 
-  return { original, variants };
+  return {
+    ...(typeof value.blurDataUrl === "string"
+      ? { blurDataUrl: value.blurDataUrl }
+      : {}),
+    original,
+    variants,
+  };
 };
+
+export const getCourseCoverBlurDataUrl = (coverImage: unknown): string | null =>
+  parseCourseCoverImage(coverImage)?.blurDataUrl ?? null;
 
 export const getCourseCoverVariantPath = ({
   courseId,

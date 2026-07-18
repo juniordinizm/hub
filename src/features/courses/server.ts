@@ -20,6 +20,7 @@ import {
   getNextAvailableLessonId,
   isLessonAvailable,
 } from "@/features/progress/rules";
+import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
 import { shouldCompleteLessonFromJmvstreamEvent } from "@/features/videos/jmvstream";
 import type { AppRole } from "@/lib/session";
 
@@ -45,6 +46,7 @@ export interface StudentCatalogCourseCard {
   accessStatus: "active" | "expired" | "none" | "revoked";
   completedCount: number;
   courseId: string;
+  coverBlurDataUrl: string | null;
   description: string | null;
   expiresAt: Date | null;
   isEnrolled: boolean;
@@ -440,6 +442,7 @@ export const getStudentCourseCatalog = async (
   const { rows } = await getPool().query<{
     access_status: "active" | "expired" | "none" | "revoked";
     completed_at: Date | null;
+    cover_image_json: unknown;
     course_description: string | null;
     course_id: string;
     duration_seconds: number;
@@ -463,6 +466,7 @@ export const getStudentCourseCatalog = async (
         c.description as course_description,
         c.workload_hours,
         c.price_in_cents,
+        c.cover_image_json,
         c.thumbnail_url,
         e.expires_at,
         e.revoked_reason,
@@ -503,6 +507,7 @@ export const getStudentCourseCatalog = async (
       description: row.course_description,
       workloadHours: row.workload_hours,
       priceInCents: row.price_in_cents,
+      coverBlurDataUrl: getCourseCoverBlurDataUrl(row.cover_image_json),
       thumbnailUrl: row.thumbnail_url,
       expiresAt: row.expires_at,
       isEnrolled: row.is_enrolled,
@@ -542,6 +547,7 @@ export const getStudentCourseCatalog = async (
       description: course.description,
       workloadHours: course.workloadHours,
       priceInCents: course.priceInCents,
+      coverBlurDataUrl: course.coverBlurDataUrl,
       thumbnailUrl: course.thumbnailUrl,
       expiresAt: course.expiresAt,
       isEnrolled: course.isEnrolled,

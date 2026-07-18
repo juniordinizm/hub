@@ -101,6 +101,15 @@ describe("course cover upload", () => {
       key: "courses/course-1/cover/upload-1-thumb.webp",
       width: 480,
     });
+    expect(
+      parts.coverImage.blurDataUrl?.startsWith("data:image/webp;base64,")
+    ).toBe(true);
+    const blurBuffer = Buffer.from(
+      parts.coverImage.blurDataUrl?.split(",")[1] ?? "",
+      "base64"
+    );
+    const blurMetadata = await sharp(blurBuffer).metadata();
+    expect(blurMetadata.width).toBeLessThanOrEqual(10);
     expect(parts.objects).toHaveLength(3);
     expect(parts.objects.every((object) => object.body.length > 0)).toBe(true);
   });

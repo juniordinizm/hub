@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { getActiveBannersData } from "@/features/banners/server";
+import { CourseCoverImage } from "@/features/courses/course-cover-image";
 import {
   formatCourseWorkload,
   getStudentCatalogAccessPresentation,
@@ -33,7 +34,6 @@ import { canMutateStudentExperience } from "@/features/courses/preview";
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
 import { startCourseCheckoutAction } from "@/features/payments/actions";
-import { getCourseCoverBackgroundImage } from "@/features/storage/course-cover";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { StudentBannersCarousel } from "./student-banners-carousel";
@@ -226,14 +226,12 @@ function CourseCard({
     <article className="group relative flex w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
       <div className="absolute inset-0 z-0">
         {course.thumbnailUrl ? (
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-center bg-cover opacity-70 transition-transform duration-500 group-hover:scale-105"
-            style={{
-              backgroundImage: getCourseCoverBackgroundImage(
-                course.thumbnailUrl
-              ),
-            }}
+          <CourseCoverImage
+            alt=""
+            blurDataUrl={course.coverBlurDataUrl}
+            className="opacity-70 transition-transform duration-500 group-hover:scale-105"
+            sizes="340px"
+            src={course.thumbnailUrl}
           />
         ) : (
           <>

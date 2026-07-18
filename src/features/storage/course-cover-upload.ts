@@ -95,6 +95,13 @@ export const createCourseCoverUploadParts = async ({
   }
 
   const originalBuffer = Buffer.from(await file.file.arrayBuffer());
+  const blurDataUrl = `data:image/webp;base64,${(
+    await sharp(originalBuffer)
+      .rotate()
+      .resize({ width: 10 })
+      .webp({ quality: 20 })
+      .toBuffer()
+  ).toString("base64")}`;
   const originalKey = buildCourseCoverObjectKey({
     courseId,
     extension: getExtensionForContentType(file.contentType),
@@ -102,6 +109,7 @@ export const createCourseCoverUploadParts = async ({
     variant: "original",
   });
   const coverImage: CourseCoverImage = {
+    blurDataUrl,
     original: {
       contentType: file.contentType,
       fileName: file.fileName,

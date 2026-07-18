@@ -49,6 +49,10 @@ export function CourseCoverUploadField({
     parsedCover ? JSON.stringify(parsedCover) : ""
   );
   const [previewUrl, setPreviewUrl] = useState(defaultThumbnailUrl ?? "");
+  const [previewBlurDataUrl, setPreviewBlurDataUrl] = useState(
+    parsedCover?.blurDataUrl ?? null
+  );
+  const [isPreviewLoaded, setIsPreviewLoaded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -77,6 +81,8 @@ export function CourseCoverUploadField({
 
     const nextPreviewUrl = URL.createObjectURL(file);
     objectUrlRef.current = nextPreviewUrl;
+    setPreviewBlurDataUrl(null);
+    setIsPreviewLoaded(false);
     setPreviewUrl(nextPreviewUrl);
     toast.success("Capa selecionada. Salve o curso para enviar.");
     return true;
@@ -129,6 +135,8 @@ export function CourseCoverUploadField({
     e.preventDefault();
     e.stopPropagation();
     setCoverImageJson("");
+    setPreviewBlurDataUrl(null);
+    setIsPreviewLoaded(false);
     setPreviewUrl("");
 
     if (objectUrlRef.current) {
@@ -178,11 +186,32 @@ export function CourseCoverUploadField({
 
           {previewUrl ? (
             <>
+              {isPreviewLoaded ? null : (
+                <div
+                  aria-hidden="true"
+                  className={cn(
+                    "absolute inset-0 bg-muted",
+                    previewBlurDataUrl
+                      ? "scale-105 bg-center bg-cover blur-sm"
+                      : "animate-pulse motion-reduce:animate-none"
+                  )}
+                  style={
+                    previewBlurDataUrl
+                      ? { backgroundImage: `url(${previewBlurDataUrl})` }
+                      : undefined
+                  }
+                />
+              )}
               {/* biome-ignore lint/performance/noImgElement: preview may be a blob URL, not optimizable by next/image */}
               {/* biome-ignore lint/correctness/useImageSize: image fills container via CSS */}
+              {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onLoad only controls the non-interactive visual placeholder */}
               <img
                 alt="Capa do curso"
-                className="absolute inset-0 size-full object-cover"
+                className={cn(
+                  "absolute inset-0 size-full object-cover transition-opacity duration-200 motion-reduce:transition-none",
+                  isPreviewLoaded ? "opacity-100" : "opacity-0"
+                )}
+                onLoad={() => setIsPreviewLoaded(true)}
                 src={previewUrl}
               />
               <div className="pointer-events-none absolute inset-0 rounded-xl border border-black/10 dark:border-white/10" />
