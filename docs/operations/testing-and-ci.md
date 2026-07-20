@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 172b5b6261e47c5f67b948ac0b5d700bb0f15b79
+last_verified_commit: 6e741cf0569556907bf94a628ae941ca45678716
 ---
 
 # Testes e CI
@@ -57,8 +57,9 @@ para o antigo projeto de CI em PostgreSQL 17.
 `bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador visual, e roda
 Chromium em modo headless. A configuração está em `playwright.config.ts`.
 
-O setup `tests/e2e/global-setup.ts` chama `seedE2e`, em `scripts/seed-e2e.ts`. Ele só funciona
-com `E2E_TEST_MODE=true` e `DATABASE_URL`; cria contas pela API real `getAuth().api.signUpEmail`,
+O setup `tests/e2e/global-setup.ts` executa `bun run test:e2e:seed`, que carrega `seedE2e` em
+`scripts/seed-e2e.ts` com a condição `react-server`. Ele só funciona com `E2E_TEST_MODE=true` e
+`DATABASE_URL`; cria contas pela API real `getAuth().api.signUpEmail`,
 atribui papel no perfil e gera Concessão manual seguida da projeção de Matrícula. Não usa o endpoint
 de bootstrap, cookie forjado nem bypass de autorização.
 

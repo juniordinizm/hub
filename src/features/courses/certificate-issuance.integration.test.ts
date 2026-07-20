@@ -171,7 +171,7 @@ describe("emissao concorrente de certificado", () => {
     try {
       await firstClient.query("begin");
       await secondClient.query("begin");
-      const first = tryIssueAutomaticCompletionCertificate({
+      const firstCode = await tryIssueAutomaticCompletionCertificate({
         client: firstClient,
         courseId: fixture.courseId,
         courseTitle: "Curso de concorrencia",
@@ -188,7 +188,6 @@ describe("emissao concorrente de certificado", () => {
         workloadHours: 8,
       });
 
-      const firstCode = await first;
       await firstClient.query("commit");
       const secondCode = await second;
       await secondClient.query("commit");
