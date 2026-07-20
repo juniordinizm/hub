@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 6caecf9c2d73bf6021a238e73c3ccb43e1682ca9
 ---
 
 # Identidade e autorização
@@ -72,6 +72,8 @@ Server Actions e páginas devem checar a capacidade apropriada; esconder botão 
 - Dash/Sentinel opcionais quando `BETTER_AUTH_API_KEY` existe.
 
 O uso desses componentes foi conferido com a documentação oficial Better Auth v1.6, mas a configuração do painel Infra não foi verificada.
+
+A página `/entrar` aguarda uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 
 ## Fronteira Admin/Aluna
 

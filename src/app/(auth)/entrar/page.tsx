@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { AuthShell } from "@/components/auth-shell";
 import {
   Card,
@@ -17,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default async function SignInPage(): Promise<React.JSX.Element> {
+  await connection();
   const session = await getCurrentSession();
 
   if (session && !(session.role === "student" && session.platformBlockedAt)) {
