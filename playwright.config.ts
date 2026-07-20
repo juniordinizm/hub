@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const serverCommand = process.env.CI
+  ? "bun run build && bun run start -- --port 3100"
+  : "bun run dev -- --port 3100";
+
 export default defineConfig({
   fullyParallel: false,
   globalSetup: "./tests/e2e/global-setup.ts",
@@ -19,7 +23,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "bun run dev -- --port 3100",
+    command: serverCommand,
     reuseExistingServer: false,
     timeout: 120_000,
     url: "http://127.0.0.1:3100",

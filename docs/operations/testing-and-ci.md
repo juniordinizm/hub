@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 6e741cf0569556907bf94a628ae941ca45678716
+last_verified_commit: c72b18e1f25197c5a6b3d8a44d9971a55c3456d9
 ---
 
 # Testes e CI
@@ -55,7 +55,9 @@ para o antigo projeto de CI em PostgreSQL 17.
 ## E2E
 
 `bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador visual, e roda
-Chromium em modo headless. A configuração está em `playwright.config.ts`.
+Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, compila e inicia
+`next start`, evitando HMR e verificando a aplicação de produção. A configuração está em
+`playwright.config.ts`.
 
 O setup `tests/e2e/global-setup.ts` executa `bun run test:e2e:seed`, que carrega `seedE2e` em
 `scripts/seed-e2e.ts` com a condição `react-server`. Ele só funciona com `E2E_TEST_MODE=true` e
