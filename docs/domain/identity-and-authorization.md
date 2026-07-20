@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 6caecf9c2d73bf6021a238e73c3ccb43e1682ca9
+last_verified_commit: 89fbab04260d44f0f8a75c19bf69b1c8c368d566
 ---
 
 # Identidade e autorização
@@ -73,7 +73,7 @@ Server Actions e páginas devem checar a capacidade apropriada; esconder botão 
 
 O uso desses componentes foi conferido com a documentação oficial Better Auth v1.6, mas a configuração do painel Infra não foi verificada.
 
-A página `/entrar` aguarda uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
+As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 
 ## Fronteira Admin/Aluna
 
