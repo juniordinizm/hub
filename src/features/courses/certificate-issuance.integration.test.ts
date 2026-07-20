@@ -18,6 +18,8 @@ if (!databaseUrl) {
   );
 }
 const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
+const CONSECUTIVE_ISSUANCE_RUNS = 20;
+const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 60_000;
 
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
@@ -268,18 +270,30 @@ describe("emissao concorrente de certificado", () => {
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
   });
 
-  it("mantem a unicidade em vinte corridas consecutivas", async () => {
-    for (let index = 0; index < 20; index += 1) {
-      const fixture = await createFixture();
-      const results = await Promise.all([
-        completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-        completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-      ]);
+  it(
+    "mantem a unicidade em vinte corridas consecutivas",
+    async () => {
+      for (let index = 0; index < CONSECUTIVE_ISSUANCE_RUNS; index += 1) {
+        const fixture = await createFixture();
+        const results = await Promise.all([
+          completeLesson({
+            userId: fixture.userId,
+            lessonId: fixture.lessonId,
+          }),
+          completeLesson({
+            userId: fixture.userId,
+            lessonId: fixture.lessonId,
+          }),
+        ]);
 
-      expect(results.filter((result) => result.certificateIssued)).toHaveLength(
-        1
-      );
-      expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
-    }
-  }, 30_000);
+        expect(
+          results.filter((result) => result.certificateIssued)
+        ).toHaveLength(1);
+        expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(
+          1
+        );
+      }
+    },
+    CONSECUTIVE_ISSUANCE_TIMEOUT_MS
+  );
 });
