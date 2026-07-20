@@ -20,10 +20,27 @@ const signIn = async (
     : import("@playwright/test").Page,
   credentials: { email: string; password: string }
 ): Promise<void> => {
-  await page.goto("/entrar");
+  await page.goto("/entrar", { waitUntil: "networkidle" });
   await page.getByLabel("E-mail").fill(credentials.email);
   await page.getByLabel("Senha").fill(credentials.password);
   await page.getByRole("button", { name: "Entrar" }).click();
+};
+
+const expectAuthenticationRedirect = async (
+  page: import("@playwright/test").Page,
+  expectedUrl: RegExp
+): Promise<void> => {
+  try {
+    await expect(page).toHaveURL(expectedUrl);
+  } catch {
+    const visibleError = await page
+      .getByRole("alert")
+      .textContent()
+      .catch(() => null);
+    throw new Error(
+      `Authentication did not redirect to ${expectedUrl}. Current URL: ${page.url()}. Visible error: ${visibleError ?? "none"}.`
+    );
+  }
 };
 
 test.describe.configure({ mode: "serial" });
@@ -33,7 +50,7 @@ test("login and password recovery do not enumerate accounts", async ({
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithGrant);
-  await expect(page).toHaveURL(APP_URL_PATTERN);
+  await expectAuthenticationRedirect(page, APP_URL_PATTERN);
 
   await page.goto("/recuperar-senha");
   await page.getByLabel("E-mail").fill(fixture.studentWithGrant.email);
