@@ -110,7 +110,7 @@ test("completion persists and advances to the next lesson", async ({
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
-  await page.getByRole("button", { name: "Concluir aula" }).click();
+  await page.getByRole("button", { name: "Concluir aula e avançar" }).click();
   await expect(page).toHaveURL(
     new RegExp(`/app/aulas/${fixture.course.lessonTwoId}$`)
   );

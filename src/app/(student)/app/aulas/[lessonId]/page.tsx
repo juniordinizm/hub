@@ -329,6 +329,7 @@ function LessonHeader({
             </Button>
           ) : (
             <CompleteLessonButton
+              accessibleLabel="Concluir aula no cabeçalho"
               isPreview={Boolean(previewMode)}
               lessonId={data.lesson.id}
               size="sm"
@@ -716,7 +717,11 @@ function LessonNextStepCard({
   if (!isCompleted) {
     return (
       <div className="flex justify-end">
-        <CompleteLessonButton isPreview={isPreview} lessonId={lessonId} />
+        <CompleteLessonButton
+          accessibleLabel="Concluir aula e avançar"
+          isPreview={isPreview}
+          lessonId={lessonId}
+        />
       </div>
     );
   }
@@ -794,10 +799,12 @@ function LessonCourseSidebar({
 }
 
 function CompleteLessonButton({
+  accessibleLabel,
   isPreview,
   lessonId,
   size,
 }: {
+  accessibleLabel: string;
   isPreview: boolean;
   lessonId: string;
   size?: "default" | "sm";
@@ -814,7 +821,13 @@ function CompleteLessonButton({
   return (
     <form action={completeLessonAction}>
       <input name="lessonId" type="hidden" value={lessonId} />
-      <Button className="gap-2" size={size} type="submit" variant="secondary">
+      <Button
+        aria-label={accessibleLabel}
+        className="gap-2"
+        size={size}
+        type="submit"
+        variant="secondary"
+      >
         <HugeiconsIcon icon={CircleIcon} size={16} strokeWidth={2} />
         Concluir aula
       </Button>
