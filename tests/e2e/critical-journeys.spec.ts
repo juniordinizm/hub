@@ -18,19 +18,28 @@ const signIn = async (
   page: Parameters<typeof test>[0] extends never
     ? never
     : import("@playwright/test").Page,
-  credentials: { email: string; password: string }
-): Promise<void> => {
-  await page.goto("/entrar", { waitUntil: "networkidle" });
-  await page.getByLabel("E-mail").fill(credentials.email);
-  await page.getByLabel("Senha").fill(credentials.password);
-  await page.getByRole("button", { name: "Entrar" }).click();
-};
-
-const expectAuthenticationRedirect = async (
-  page: import("@playwright/test").Page,
+  credentials: { email: string; password: string },
   expectedUrl: RegExp
 ): Promise<void> => {
+  const browserErrors: string[] = [];
+  const captureConsoleError = (
+    message: import("@playwright/test").ConsoleMessage
+  ): void => {
+    if (message.type() === "error") {
+      browserErrors.push(message.text());
+    }
+  };
+  const capturePageError = (error: Error): void => {
+    browserErrors.push(error.message);
+  };
+
+  page.on("console", captureConsoleError);
+  page.on("pageerror", capturePageError);
   try {
+    await page.goto("/entrar", { waitUntil: "networkidle" });
+    await page.getByLabel("E-mail").fill(credentials.email);
+    await page.getByLabel("Senha").fill(credentials.password);
+    await page.getByRole("button", { name: "Entrar" }).click();
     await expect(page).toHaveURL(expectedUrl);
   } catch {
     const visibleError = await page
@@ -38,8 +47,11 @@ const expectAuthenticationRedirect = async (
       .textContent()
       .catch(() => null);
     throw new Error(
-      `Authentication did not redirect to ${expectedUrl}. Current URL: ${page.url()}. Visible error: ${visibleError ?? "none"}.`
+      `Authentication did not redirect to ${expectedUrl}. Current URL: ${page.url()}. Visible error: ${visibleError ?? "none"}. Browser errors: ${browserErrors.join(" | ") || "none"}.`
     );
+  } finally {
+    page.off("console", captureConsoleError);
+    page.off("pageerror", capturePageError);
   }
 };
 
@@ -49,8 +61,7 @@ test("login and password recovery do not enumerate accounts", async ({
   page,
 }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithGrant);
-  await expectAuthenticationRedirect(page, APP_URL_PATTERN);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
 
   await page.goto("/recuperar-senha");
   await page.getByLabel("E-mail").fill(fixture.studentWithGrant.email);
@@ -64,7 +75,7 @@ test("login and password recovery do not enumerate accounts", async ({
 
 test("student with a grant opens the first lesson", async ({ page }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithGrant);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   await expect(
     page.getByRole("heading", { name: "Primeira aula" })
@@ -75,14 +86,14 @@ test("student without a grant cannot access lesson material", async ({
   page,
 }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithoutGrant);
+  await signIn(page, fixture.studentWithoutGrant, APP_URL_PATTERN);
   const response = await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   expect(response?.status()).toBe(404);
 });
 
 test("sequencing keeps a future lesson locked", async ({ page }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithGrant);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   await expect(
     page.getByText("Libere concluindo a aula anterior")
@@ -96,7 +107,7 @@ test("completion persists and advances to the next lesson", async ({
   page,
 }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithGrant);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   await page.getByRole("button", { name: "Concluir aula" }).click();
   await expect(page).toHaveURL(
@@ -111,13 +122,12 @@ test("admin is authorized and a student is redirected away from admin", async ({
   page,
 }) => {
   const fixture = await readFixture();
-  await signIn(page, fixture.studentWithGrant);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto("/admin");
   await expect(page).toHaveURL(APP_URL_PATTERN);
 
   await page.context().clearCookies();
-  await signIn(page, fixture.admin);
-  await expect(page).toHaveURL(ADMIN_URL_PATTERN);
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
 });
 
 test("public checkout exposes a safe configuration error", async ({
@@ -152,7 +162,7 @@ test("keyboard reaches the login form and student sidebar", async ({
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Senha")).toBeFocused();
 
-  await signIn(page, fixture.studentWithGrant);
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await expect(page.getByRole("link", { name: "Início" })).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(page.locator(":focus-visible")).toHaveCount(1);
