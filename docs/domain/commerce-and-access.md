@@ -52,8 +52,9 @@ Esse comportamento existe, mas aguarda ratificação em [DEC-DISC-002](../decisi
 
 **Invariantes implementados:**
 
-- a fonte atual é `abacatepay_order`;
-- uma Concessão mantém `source_id` único;
+- `abacatepay_order` representa o Pedido financeiro em `order_id`; `manual` representa concessão
+  auditável sem Pedido em `manual_reference`, usada pelo bootstrap local;
+- cada Pedido e cada referência manual possuem Concessão única;
 - Concessão financeira terminal não é reativada por novo evento pago do mesmo Pedido;
 - Matrícula ativa usa a janela efetiva das Concessões ativas;
 - sem Concessão elegível, projeção vira `expired` ou `revoked` conforme o último estado.
@@ -106,6 +107,6 @@ Não confundir com reembolso/disputa nem bloqueio da plataforma. Ambos registram
 
 - [ADR-0004](../adr/0004-access-grants-and-enrollment-projection.md), proposto.
 - [ADR-0005](../adr/0005-financial-precedence-and-manual-review.md), proposto.
-- `db:seed:student` viola REG-COM-004 ao criar Matrícula sem Concessão.
+- `db:seed:student` cria Concessão `manual` e recompõe a Matrícula pela projeção oficial.
 - Ausência de outbox pode separar commit financeiro e e-mail.
 - Infraestrutura AbacatePay e dados reais não verificados.

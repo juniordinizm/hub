@@ -145,36 +145,22 @@
     {
       "idx": 20,
       "version": "7",
-      "when": 1782144000000,
-      "tag": "0020_lesson_comments",
+      "when": 1782140400001,
+      "tag": "0020_reconcile_schema_after_manual_changes",
       "breakpoints": true
     },
     {
       "idx": 21,
       "version": "7",
-      "when": 1782230400000,
-      "tag": "0021_lesson_duration_breakdown",
+      "when": 1782140400002,
+      "tag": "0021_add_manual_grant_source",
       "breakpoints": true
     },
     {
       "idx": 22,
       "version": "7",
-      "when": 1782316800000,
-      "tag": "0022_content_lifecycle_status",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1782512913667,
-      "tag": "0023_remove_category_from_faq",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1784376669707,
-      "tag": "0024_dashboard_banners",
+      "when": 1782140400003,
+      "tag": "0022_manual_enrollment_grants",
       "breakpoints": true
     }
   ]

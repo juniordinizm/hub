@@ -23,6 +23,7 @@ interface EnrollmentEventInput {
   eventType:
     | "access_manual_block_removed"
     | "access_manually_blocked"
+    | "manual_access_granted"
     | "expiration_adjustment_reversed"
     | "expiration_extended"
     | "expiration_set"
@@ -353,7 +354,7 @@ export const applyPaidWebhookAccess = async ({
         user_id,
         course_id,
         source_type,
-        source_id,
+        order_id,
         status,
         starts_at,
         base_expires_at,
@@ -362,7 +363,7 @@ export const applyPaidWebhookAccess = async ({
         revoked_reason
       )
       values ($1, $2, 'abacatepay_order', $3, 'active', $4, $5, $5, null, null)
-      on conflict (source_type, source_id) do update set
+      on conflict (order_id) do update set
         status = case
           when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
             then enrollment_grants.status
@@ -404,6 +405,63 @@ export const applyPaidWebhookAccess = async ({
   await rebuildEnrollmentProjection({ client, courseId, now, userId });
 };
 
+export const createManualAccessGrant = async ({
+  client,
+  courseId,
+  expiresAt,
+  manualReference,
+  now = new Date(),
+  reason,
+  userId,
+}: {
+  client: PoolClient;
+  courseId: string;
+  expiresAt: Date;
+  manualReference: string;
+  now?: Date;
+  reason: string;
+  userId: string;
+}): Promise<void> => {
+  const { rows } = await client.query<{ id: string }>(
+    `
+      insert into enrollment_grants (
+        user_id,
+        course_id,
+        source_type,
+        order_id,
+        manual_reference,
+        status,
+        starts_at,
+        base_expires_at,
+        effective_expires_at,
+        revoked_at,
+        revoked_reason
+      )
+      values ($1, $2, 'manual', null, $3, 'active', $4, $5, $5, null, null)
+      on conflict (manual_reference) do update set
+        status = 'active',
+        starts_at = excluded.starts_at,
+        base_expires_at = excluded.base_expires_at,
+        effective_expires_at = excluded.effective_expires_at,
+        revoked_at = null,
+        revoked_reason = null,
+        updated_at = now()
+      returning id
+    `,
+    [userId, courseId, manualReference, now, expiresAt]
+  );
+  const grantId = rows[0]?.id ?? null;
+
+  await insertEnrollmentEvent(client, {
+    courseId,
+    eventType: "manual_access_granted",
+    grantId,
+    metadata: { reason },
+    userId,
+  });
+  await rebuildEnrollmentProjection({ client, courseId, now, userId });
+};
+
 export const applyPaymentRevocation = async ({
   client,
   courseId,
@@ -428,7 +486,7 @@ export const applyPaymentRevocation = async ({
           revoked_reason = $3,
           updated_at = now()
       where source_type = 'abacatepay_order'
-        and source_id = $4
+        and order_id = $4
       returning id
     `,
     [status, now, reason, orderId]

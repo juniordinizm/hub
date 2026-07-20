@@ -10,7 +10,7 @@ last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
 
 Use `.env.local`, nunca versione secrets. Parta de `.env.example`. Banco e provedores externos devem ser ambientes de desenvolvimento.
 
-O bootstrap de banco está bloqueado. Para trabalhar localmente, obtenha uma branch Postgres já compatível com o schema. Não execute `db:migrate`, `db:reset`, `db:seed` ou `db:seed:student`; veja [Banco e migrations](database-and-migrations.md).
+Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banco descartável compatível com o schema. `db:reset`, `db:seed` e `db:seed:student` recusam host remoto; siga o [runbook de banco](database-and-migrations.md) antes de executá-los.
 
 ## Matriz única de variáveis
 
@@ -20,6 +20,8 @@ O bootstrap de banco está bloqueado. Para trabalhar localmente, obtenha uma bra
 |---|---|---|---|---|
 | `DATABASE_URL` | todo ambiente com banco | nenhum | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | migrations/admin de banco | fallback para `DATABASE_URL` no Drizzle config | `drizzle.config.ts` | sim |
+| `LOCAL_DATABASE_NAMES` | obrigatória para `db:reset:local` | nenhum | `assertSafeLocalDatabaseCommand` | não |
+| `SMOKE_DATABASE_URL` | opcional, necessário para `db:smoke:empty` | fallback para `DATABASE_URL_DIRECT`/`DATABASE_URL` | `smoke-empty-database.ts` | sim |
 | `BETTER_AUTH_SECRET` | produção obrigatória | segredo inseguro só em dev/test | `getAuth` | sim |
 | `BETTER_AUTH_URL` | produção obrigatória | `http://localhost:3000` | Better Auth | não |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | quando há origens extras | vazio | `parseTrustedOrigins` | não |

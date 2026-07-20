@@ -16,7 +16,7 @@ Pré-requisitos:
 - acesso a um banco Postgres já compatível com o schema atual;
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
-Há um bloqueio conhecido no bootstrap do banco: sete migrations SQL não constam no journal do Drizzle. Até a correção, **não use** `db:migrate`, `db:reset`, `db:seed` nem `db:seed:student` como onboarding. Detalhes e evidências em [Banco e migrations](docs/operations/database-and-migrations.md).
+O histórico de migrations está reconciliado até `0022_manual_enrollment_grants`. Para um banco local descartável, use os comandos de reset, seed e smoke somente conforme o [runbook de banco](docs/operations/database-and-migrations.md): eles recusam host remoto e exigem confirmação quando destrutivos.
 
 ## Desenvolvimento local com banco existente
 

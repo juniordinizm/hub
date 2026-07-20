@@ -28,4 +28,7 @@ Tratar `enrollment_grants` como ledger de direitos por fonte e `enrollments` com
 
 ## Estado
 
-Implementado no código, aguardando ratificação de produto. `db:seed:student` viola a proposta e está bloqueado.
+Implementado no código, aguardando ratificação de produto. `db:seed:student` respeita a proposta:
+cria uma Concessão `manual` idempotente, identificada por `manual_reference`, e recompõe a
+Matrícula pela projeção oficial. As migrations `0021` e `0022` foram promovidas para produção
+em 2026-07-20.

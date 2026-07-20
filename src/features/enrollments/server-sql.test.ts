@@ -20,21 +20,30 @@ describe("enrollment server SQL contracts", () => {
       "utf8"
     );
 
-    expect(source).toContain("base_expires_at");
-    expect(source).toContain("baseExpiresAt: grant.base_expires_at");
-    expect(source).not.toContain("base_expires_at = excluded.base_expires_at");
+    const paidAccessSource = source.slice(
+      source.indexOf("export const applyPaidWebhookAccess"),
+      source.indexOf("export const createManualAccessGrant")
+    );
+
+    expect(paidAccessSource).toContain("base_expires_at");
+    expect(paidAccessSource).not.toContain(
+      "base_expires_at = excluded.base_expires_at"
+    );
   });
 
-  it("supports audited expiration adjustments without creating manual grants", async () => {
+  it("creates manual grants through the same enrollment projection", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain("extendEnrollmentExpiration");
-    expect(source).toContain("insert into enrollment_expiration_adjustments");
-    expect(source).toContain("expiration_extended");
-    expect(source).not.toContain("source_type = 'manual'");
+    expect(source).toContain("createManualAccessGrant");
+    expect(source).toContain(
+      "source_type,\n        order_id,\n        manual_reference"
+    );
+    expect(source).toContain("'manual'");
+    expect(source).toContain("manual_access_granted");
+    expect(source).toContain("rebuildEnrollmentProjection");
   });
 
   it("supports manual access blocking without deleting enrollments", async () => {

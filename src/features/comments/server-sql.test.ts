@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 describe("lesson comments SQL contracts", () => {
   it("stores comments with lesson, author, parent and hidden metadata", async () => {
     const migration = await readFile(
-      new URL("../../db/migrations/0020_lesson_comments.sql", import.meta.url),
+      new URL(
+        "../../db/migrations/0020_reconcile_schema_after_manual_changes.sql",
+        import.meta.url
+      ),
       "utf8"
     );
 

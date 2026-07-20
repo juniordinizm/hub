@@ -50,7 +50,7 @@ export const enrollmentGrantStatusEnum = pgEnum("enrollment_grant_status", [
 ]);
 export const enrollmentGrantSourceTypeEnum = pgEnum(
   "enrollment_grant_source_type",
-  ["abacatepay_order"]
+  ["abacatepay_order", "manual"]
 );
 export const enrollmentAdjustmentTypeEnum = pgEnum(
   "enrollment_adjustment_type",
@@ -59,6 +59,7 @@ export const enrollmentAdjustmentTypeEnum = pgEnum(
 export const enrollmentEventTypeEnum = pgEnum("enrollment_event_type", [
   "access_manual_block_removed",
   "access_manually_blocked",
+  "manual_access_granted",
   "payment_paid",
   "payment_refunded",
   "payment_disputed",
@@ -428,9 +429,10 @@ export const enrollmentGrants = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
     sourceType: enrollmentGrantSourceTypeEnum("source_type").notNull(),
-    sourceId: uuid("source_id")
-      .notNull()
-      .references(() => orders.id, { onDelete: "cascade" }),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "cascade",
+    }),
+    manualReference: text("manual_reference"),
     status: enrollmentGrantStatusEnum("status").default("active").notNull(),
     startsAt: timestamp("starts_at", tz).notNull(),
     baseExpiresAt: timestamp("base_expires_at", tz).notNull(),
@@ -440,9 +442,9 @@ export const enrollmentGrants = pgTable(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("enrollment_grants_source_unique_idx").on(
-      table.sourceType,
-      table.sourceId
+    uniqueIndex("enrollment_grants_order_unique_idx").on(table.orderId),
+    uniqueIndex("enrollment_grants_manual_reference_unique_idx").on(
+      table.manualReference
     ),
     index("enrollment_grants_user_course_status_idx").on(
       table.userId,
@@ -455,6 +457,10 @@ export const enrollmentGrants = pgTable(
     check(
       "enrollment_grants_effective_after_start",
       sql`${table.effectiveExpiresAt} > ${table.startsAt}`
+    ),
+    check(
+      "enrollment_grants_source_shape_check",
+      sql`(${table.sourceType} = 'abacatepay_order' and ${table.orderId} is not null and ${table.manualReference} is null) or (${table.sourceType} = 'manual' and ${table.orderId} is null and ${table.manualReference} is not null)`
     ),
   ]
 );
