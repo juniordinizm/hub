@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canPerform,
+  getBetterAuthRateLimitConfig,
   getBootstrapAdminDecision,
   getPasswordResetRedirectUrl,
   getResolvedBetterAuthInfraConfig,
@@ -103,6 +104,15 @@ describe("auth policy", () => {
       apiKey: "dash-key",
       apiUrl: "https://api.example.com",
       kvUrl: "https://kv.example.com",
+    });
+  });
+
+  it("only raises the sign-in limit in isolated E2E mode", () => {
+    expect(getBetterAuthRateLimitConfig(false)).toBeUndefined();
+    expect(getBetterAuthRateLimitConfig(true)).toEqual({
+      customRules: {
+        "/sign-in/email": { max: 20, window: 10 },
+      },
     });
   });
 });

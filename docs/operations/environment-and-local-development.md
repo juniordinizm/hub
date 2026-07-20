@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 7d36a71f6846e12456a7e05e1e9ca97f473cb85e
 ---
 
 # Ambiente e desenvolvimento local
@@ -20,6 +20,7 @@ Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banc
 |---|---|---|---|---|
 | `DATABASE_URL` | todo ambiente com banco | nenhum | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | migrations/admin de banco | fallback para `DATABASE_URL` no Drizzle config | `drizzle.config.ts` | sim |
+| `E2E_TEST_MODE` | somente CI E2E, com `CI=true` | `false` | limite de login do Better Auth | não |
 | `LOCAL_DATABASE_NAMES` | obrigatória para `db:reset:local` | nenhum | `assertSafeLocalDatabaseCommand` | não |
 | `SMOKE_DATABASE_URL` | opcional, necessário para `db:smoke:empty` | fallback para `DATABASE_URL_DIRECT`/`DATABASE_URL` | `smoke-empty-database.ts` | sim |
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | opcional, necessário para o teste de integração de certificados | nenhum | `certificate-issuance.integration.test.ts` | sim |
@@ -58,6 +59,8 @@ Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banc
 | `VERCEL` | fornecida pela Vercel | vazio | runtime | não |
 
 Não configure os dois aliases AbacatePay com valores diferentes. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`.
+
+`E2E_TEST_MODE` não é uma variável de deploy: ela só eleva o limite de `POST /sign-in/email` no banco efêmero da CI, para que jornadas independentes não compartilhem o mesmo bucket de IP. Fora de CI, a validação do ambiente a recusa.
 
 ## Setup com banco compatível
 

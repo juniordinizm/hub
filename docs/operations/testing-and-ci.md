@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: c72b18e1f25197c5a6b3d8a44d9971a55c3456d9
+last_verified_commit: 7d36a71f6846e12456a7e05e1e9ca97f473cb85e
 ---
 
 # Testes e CI
@@ -77,6 +77,10 @@ As jornadas atuais verificam:
 
 A negação sem Concessão retorna `404` no comportamento implementado, em vez de revelar a Aula.
 O teste protege a impossibilidade de obter o material, não presume um `403` inexistente.
+
+Como todas as jornadas Chromium saem do mesmo IP do runner, `E2E_TEST_MODE=true` eleva apenas o
+limite de `POST /sign-in/email` para 20 tentativas por 10 segundos. O modo exige `CI=true`, usa a
+branch Neon efêmera e não altera o limite padrão do Better Auth em deploys.
 
 ## Inventário dos testes que inspecionam fonte
 

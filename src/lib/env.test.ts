@@ -54,6 +54,17 @@ describe("server environment", () => {
     expect(getServerEnv().AUTH_PUBLIC_SIGNUP_ENABLED).toBe(false);
   });
 
+  it("only permits E2E mode in CI", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("E2E_TEST_MODE", "true");
+    setEnv("CI", undefined);
+
+    expect(() => getServerEnv()).toThrow("E2E_TEST_MODE requires CI=true.");
+
+    setEnv("CI", "true");
+    expect(getServerEnv().E2E_TEST_MODE).toBe(true);
+  });
+
   it("keeps destructive retention disabled by default", () => {
     setEnv("NODE_ENV", "development");
     setEnv("DATA_RETENTION_ENABLED", undefined);

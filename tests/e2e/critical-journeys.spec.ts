@@ -66,11 +66,14 @@ test("login and password recovery do not enumerate accounts", async ({
   await page.goto("/recuperar-senha");
   await page.getByLabel("E-mail").fill(fixture.studentWithGrant.email);
   await page.getByRole("button", { name: "Enviar link" }).click();
-  const knownMessage = await page.getByRole("alert").textContent();
+  const resetConfirmation = page
+    .locator("form [role='alert']")
+    .filter({ hasText: "Se o e-mail estiver cadastrado" });
+  const knownMessage = await resetConfirmation.textContent();
 
   await page.getByLabel("E-mail").fill("missing@example.test");
   await page.getByRole("button", { name: "Enviar link" }).click();
-  await expect(page.getByRole("alert")).toHaveText(knownMessage ?? "");
+  await expect(resetConfirmation).toHaveText(knownMessage ?? "");
 });
 
 test("student with a grant opens the first lesson", async ({ page }) => {

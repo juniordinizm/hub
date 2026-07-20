@@ -120,6 +120,20 @@ export interface BetterAuthInfraConfig {
   kvUrl?: string;
 }
 
+const E2E_SIGN_IN_RATE_LIMIT = {
+  max: 20,
+  window: 10,
+} as const;
+
+export const getBetterAuthRateLimitConfig = (
+  isE2eTestMode: boolean
+):
+  | { customRules: { "/sign-in/email": typeof E2E_SIGN_IN_RATE_LIMIT } }
+  | undefined =>
+  isE2eTestMode
+    ? { customRules: { "/sign-in/email": E2E_SIGN_IN_RATE_LIMIT } }
+    : undefined;
+
 export const getResolvedBetterAuthInfraConfig = ({
   apiKey,
   apiUrl,

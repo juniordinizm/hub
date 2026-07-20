@@ -38,6 +38,10 @@ const serverEnvSchema = z.object({
     .transform((value) => value === "true"),
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
+  E2E_TEST_MODE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   INTERNAL_BOOTSTRAP_SECRET: optionalNonEmptyString,
   JMVSTREAM_API_BASE_URL: z.string().url().default("https://api.jmvstream.com"),
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
@@ -75,6 +79,7 @@ export const getServerEnv = () => {
     DATA_RETENTION_ENABLED: process.env.DATA_RETENTION_ENABLED,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
+    E2E_TEST_MODE: process.env.E2E_TEST_MODE,
     INTERNAL_BOOTSTRAP_SECRET: process.env.INTERNAL_BOOTSTRAP_SECRET,
     JMVSTREAM_API_BASE_URL: process.env.JMVSTREAM_API_BASE_URL,
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
@@ -108,6 +113,10 @@ export const getServerEnv = () => {
     throw new Error(
       "LEGAL_APPROVAL_REFERENCE is required when DATA_RETENTION_ENABLED is true."
     );
+  }
+
+  if (env.E2E_TEST_MODE && process.env.CI !== "true") {
+    throw new Error("E2E_TEST_MODE requires CI=true.");
   }
 
   if (

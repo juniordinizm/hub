@@ -6,7 +6,10 @@ import { nextCookies } from "better-auth/next-js";
 import { getDb } from "@/db";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 import { sendPasswordResetEmail } from "@/features/email/server";
-import { getResolvedBetterAuthInfraConfig } from "@/lib/auth-policy";
+import {
+  getBetterAuthRateLimitConfig,
+  getResolvedBetterAuthInfraConfig,
+} from "@/lib/auth-policy";
 import { getServerEnv } from "@/lib/env";
 import { parseTrustedOrigins } from "@/lib/trusted-origins";
 
@@ -36,6 +39,7 @@ const createAuth = () => {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
     basePath: "/api/auth",
+    rateLimit: getBetterAuthRateLimitConfig(env.E2E_TEST_MODE),
     advanced: {
       trustedProxyHeaders: true,
     },
