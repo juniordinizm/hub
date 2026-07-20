@@ -2,6 +2,8 @@ import { AdminSidebarNav } from "@/app/(admin)/admin/admin-sidebar-nav";
 import { PanelLayout } from "@/components/panel-layout";
 import { requireRole } from "@/lib/session";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>): Promise<React.JSX.Element> {

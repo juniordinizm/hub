@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 6736265734ebff52ab5db76d1c2dbffff292932f
 ---
 
 # Arquitetura
@@ -23,6 +23,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 - `src/app/certificados/[code]`: validação pública e PDF.
 
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
+Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
 
 ### Camadas
 
