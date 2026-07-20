@@ -8,7 +8,6 @@ const fixturePath = resolve(
 );
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
-const SECOND_LESSON_PATTERN = /Segunda aula/;
 const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
 
 const readFixture = async (): Promise<E2eFixture> =>
@@ -101,9 +100,8 @@ test("sequencing keeps a future lesson locked", async ({ page }) => {
   await expect(
     page.getByText("Libere concluindo a aula anterior")
   ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: SECOND_LESSON_PATTERN })
-  ).toHaveCount(0);
+  const response = await page.goto(`/app/aulas/${fixture.course.lessonTwoId}`);
+  expect(response?.status()).toBe(404);
 });
 
 test("completion persists and advances to the next lesson", async ({
