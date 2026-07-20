@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
+import { VerifiedBadge } from "./ui/verified-badge";
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   dateStyle: "short",
@@ -161,7 +162,16 @@ function CommentBody({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-medium text-sm">{comment.author.name}</span>
+        <span className="flex items-center gap-1 font-medium text-sm">
+          {comment.author.name}
+          {(comment.author.role === "admin" ||
+            comment.author.role === "support") && (
+            <VerifiedBadge
+              aria-label="Verificado"
+              className="size-[14px] text-blue-500"
+            />
+          )}
+        </span>
         <RoleBadge role={comment.author.role} />
         <span className="text-muted-foreground text-xs">
           {dateFormatter.format(comment.createdAt)}
