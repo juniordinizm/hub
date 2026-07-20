@@ -37,9 +37,9 @@ Módulos e Aulas usam `sort_order`. `reorderModulesAction` e `reorderLessonsActi
 
 Aula inexistente na sequência é negada. A regra atua depois da autorização de Matrícula.
 
-### REG-LEA-004 Conclusão atual é manual ou vídeo JMVStream em 95%
+### REG-LEA-004 Conclusão atual é manual ou vídeo JMVStream em 98%
 
-`completeLesson` registra conclusão idempotente. `shouldCompleteLessonFromJmvstreamEvent`, em `src/features/videos/jmvstream.ts`, conclui quando evento reconhecido informa pelo menos 95% assistido.
+`completeLesson` registra conclusão idempotente. `shouldCompleteLessonFromJmvstreamEvent`, em `src/features/videos/jmvstream.ts`, conclui quando evento reconhecido informa pelo menos 98% assistido.
 
 Esse limiar e a conclusão manual estão implementados, mas aguardam ratificação pedagógica em [DEC-DISC-004](../decisions.md#dec-disc-004).
 

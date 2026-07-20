@@ -25,6 +25,8 @@ Resend envia redefinição, acesso, aviso de expiração, Certificado e suporte 
 
 **Aguardando decisão:** exigência de outbox, idempotency key, retentativa e alertas. A API oficial da Resend suporta chave idempotente por 24 horas; o código atual não a usa.
 
+**Decisão:** Seguir a com o melhor para o projeto
+
 ## DEC-DISC-002
 
 **Tema:** precedência financeira.
@@ -34,6 +36,8 @@ Resend envia redefinição, acesso, aviso de expiração, Certificado e suporte 
 `resolveAbacatePayOrderStatus` e `getAbacatePayOrderTransition` impedem sobrescrita silenciosa de estado terminal; conflito cria revisão manual.
 
 **Ratificar:** matriz exata entre `paid`, `refunded`, `disputed` e `cancelled`, incluindo eventos fora de ordem. Proposta em [ADR-0005](adr/0005-financial-precedence-and-manual-review.md).
+
+**Decisão:** Seguir a com o melhor para o projeto
 
 ## DEC-DISC-003
 
@@ -45,15 +49,19 @@ Pagamento cujo valor não corresponde ao snapshot gera revisão `amount_mismatch
 
 **Ratificar:** tolerância zero versus arredondamento, autoridade para aprovar e efeito da aprovação.
 
+**Decisão:** Seguir a com o melhor para o projeto
+
 ## DEC-DISC-004
 
 **Tema:** conclusão de Aula e Curso.
 
 **Estado:** implementação aguardando ratificação pedagógica.
 
-Aula pode ser concluída manualmente ou por vídeo JMVStream em 95%; Curso conclui quando todas as Aulas ativas estão concluídas.
+Aula pode ser concluída manualmente ou por vídeo JMVStream em 98%; Curso conclui quando todas as Aulas ativas estão concluídas.
 
 **Decidir:** se o botão manual permanece, limiar por tipo de Aula, efeito de conteúdo adicionado e regra para Curso vazio.
+
+**Decisão:** Seguir a com o melhor para o projeto
 
 ## DEC-DISC-005
 
@@ -65,6 +73,8 @@ Não existem coortes. Ativar, ordenar ou remover conteúdo altera a grade vigent
 
 **Decidir:** conteúdo por data de compra/coorte, política de migração e efeito no progresso/Certificado.
 
+**Decisão:** Seguir a com o melhor para o projeto
+
 ## DEC-DISC-006
 
 **Tema:** lifecycle de Certificados.
@@ -74,6 +84,8 @@ Não existem coortes. Ativar, ordenar ou remover conteúdo altera a grade vigent
 Certificados têm snapshots, código público, estado válido/revogado e reemissão. Proposta formal em [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 **Ratificar:** motivos permitidos, autoridade de Suporte, informação pública e efeito de mudança posterior no nome/carga horária.
+
+**Decisão:** Seguir a com o melhor para o projeto
 
 ## DEC-DISC-007
 
@@ -85,6 +97,8 @@ Cadastro público está fechado; Conta pode surgir do fluxo de compra; recupera�
 
 **Decidir:** vínculo quando Compradora e Aluna diferem, prova de posse do e-mail, duplicidade prévia e atendimento de Conta sem acesso.
 
+**Decisão:** Seguir a com o melhor para o projeto
+
 ## DEC-DISC-008
 
 **Tema:** retenção, privacidade e acessibilidade.
@@ -94,6 +108,8 @@ Cadastro público está fechado; Conta pode surgir do fluxo de compra; recupera�
 Há solicitações de privacidade, aprovação, anonimização controlada, retenção opt-in de dados técnicos e práticas de interface no código. Isso não constitui aprovação jurídica nem auditoria completa de acessibilidade.
 
 **Decidir:** base legal, prazos por categoria, exceções financeiras, conteúdo da anonimização, autoridade final e padrão/teste de acessibilidade.
+
+**Decisão:** Seguir a com o melhor para o projeto
 
 ## Outras ratificações necessárias
 

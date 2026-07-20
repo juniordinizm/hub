@@ -79,7 +79,7 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 1. `getStudentCourseAccessStatus` e `resolveCourseAccess` negam acesso sem Conta/Matrícula válidas.
 2. `getStudentCourseOverview` devolve Módulos/Aulas publicáveis.
 3. `isLessonAvailable` aplica sequência.
-4. `recordLessonWatchProgress` registra posição; evento JMVStream pode concluir em 95%.
+4. `recordLessonWatchProgress` registra posição; evento JMVStream pode concluir em 98%.
 5. `completeLesson` permite conclusão manual.
 6. `calculateCourseProgress` calcula percentual e próxima Aula.
 
