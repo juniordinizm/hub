@@ -1,7 +1,6 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
-import { createCertificateCode } from "@/features/certificates/rules";
+import { tryIssueAutomaticCompletionCertificate } from "@/features/certificates/server";
 import {
   type LessonContent,
   parseLessonContent,
@@ -1187,7 +1186,6 @@ export const completeLesson = async ({
         left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
         left join certificates cert on cert.user_id = e.user_id
           and cert.course_id = c.id
-          and cert.status = 'valid'
         where c.id = $2
         group by c.id
       `,
@@ -1204,30 +1202,15 @@ export const completeLesson = async ({
       summary.completed_lessons >= summary.total_lessons &&
       !summary.certificate_id
     ) {
-      certificateCode = createCertificateCode(randomUUID());
-      await client.query(
-        `
-          insert into certificates (
-            user_id,
-            course_id,
-            code,
-            student_name_snapshot,
-            course_title_snapshot,
-            workload_hours_snapshot
-          )
-          values ($1, $2, $3, $4, $5, $6)
-          on conflict do nothing
-        `,
-        [
-          userId,
-          data.course.id,
-          certificateCode,
-          summary.student_name,
-          summary.course_title,
-          summary.workload_hours,
-        ]
-      );
-      certificateIssued = true;
+      certificateCode = await tryIssueAutomaticCompletionCertificate({
+        client,
+        courseId: data.course.id,
+        courseTitle: summary.course_title,
+        studentName: summary.student_name,
+        userId,
+        workloadHours: summary.workload_hours,
+      });
+      certificateIssued = Boolean(certificateCode);
     }
 
     await client.query("commit");

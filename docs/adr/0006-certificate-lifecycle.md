@@ -29,4 +29,6 @@ Persistir snapshots no momento da emissão. Revogar com motivo/autoria/data. Ree
 
 ## Estado
 
-Implementado por `issueManualCertificate`, `revokeCertificate` e `reissueCertificate`; política pendente em DEC-DISC-006.
+Implementado por `issueManualCertificate`, `revokeCertificate` e `reissueCertificate`. A política
+de que revogação bloqueia nova emissão automática, exigindo reemissão manual, foi ratificada em
+2026-07-20. Autoridade, motivos e dados públicos continuam pendentes em DEC-DISC-006.

@@ -79,9 +79,12 @@ Não existem coortes. Ativar, ordenar ou remover conteúdo altera a grade vigent
 
 **Tema:** lifecycle de Certificados.
 
-**Estado:** implementação aguardando ratificação.
+**Estado:** parcialmente ratificado.
 
 Certificados têm snapshots, código público, estado válido/revogado e reemissão. Proposta formal em [ADR-0006](adr/0006-certificate-lifecycle.md).
+
+**Decidido em 2026-07-20:** certificado revogado bloqueia emissão automática; somente a
+reemissão manual pode criar um novo certificado válido.
 
 **Ratificar:** motivos permitidos, autoridade de Suporte, informação pública e efeito de mudança posterior no nome/carga horária.
 

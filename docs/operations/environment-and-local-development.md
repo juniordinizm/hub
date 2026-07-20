@@ -22,6 +22,7 @@ Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banc
 | `DATABASE_URL_DIRECT` | migrations/admin de banco | fallback para `DATABASE_URL` no Drizzle config | `drizzle.config.ts` | sim |
 | `LOCAL_DATABASE_NAMES` | obrigatória para `db:reset:local` | nenhum | `assertSafeLocalDatabaseCommand` | não |
 | `SMOKE_DATABASE_URL` | opcional, necessário para `db:smoke:empty` | fallback para `DATABASE_URL_DIRECT`/`DATABASE_URL` | `smoke-empty-database.ts` | sim |
+| `CERTIFICATE_CONCURRENCY_DATABASE_URL` | opcional, necessário para o teste de integração de certificados | nenhum | `certificate-issuance.integration.test.ts` | sim |
 | `BETTER_AUTH_SECRET` | produção obrigatória | segredo inseguro só em dev/test | `getAuth` | sim |
 | `BETTER_AUTH_URL` | produção obrigatória | `http://localhost:3000` | Better Auth | não |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | quando há origens extras | vazio | `parseTrustedOrigins` | não |

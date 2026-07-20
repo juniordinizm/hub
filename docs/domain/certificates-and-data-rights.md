@@ -19,7 +19,13 @@ Certificado preserva código público, Conta, Curso, data, carga horária e snap
 - Curso precisa ter Aulas e todas devem estar concluídas;
 - código público é único;
 - não se cria outro Certificado válido para a mesma Conta + Curso sem lifecycle explícito;
+- Certificado revogado bloqueia emissão automática; somente reemissão manual pode criar o próximo Certificado válido;
 - snapshots preservam o texto emitido.
+
+**Concorrência:** `completeLesson` chama `tryIssueAutomaticCompletionCertificate`, que usa
+`INSERT ... ON CONFLICT DO NOTHING RETURNING code`.
+Somente a transação que recebeu a linha retornada define `certificateIssued=true` e pode solicitar
+o e-mail. O código usado no e-mail é o código persistido, nunca um candidato que perdeu conflito.
 
 ### REG-DAT-002 Revogação preserva histórico
 

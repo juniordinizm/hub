@@ -87,6 +87,13 @@ migrations, executa o seed duas vezes, verifica curso/módulos/aulas/FAQ e remov
 encerramento. Requer `SMOKE_DATABASE_URL` ou uma URL local de banco e não aceita host remoto.
 É o comando indicado para CI quando houver PostgreSQL descartável local.
 
+### `bun run test:certificates:integration`
+
+Executa a concorrência de `completeLesson` contra Postgres real, incluindo retry, callback de vídeo
+duplicado, certificado válido, certificado revogado e falha de e-mail. Requer
+`CERTIFICATE_CONCURRENCY_DATABASE_URL` apontando para um banco descartável já migrado; nunca use
+um banco compartilhado. Sem essa variável, o arquivo de integração é ignorado pelo teste unitário.
+
 ### `bun run db:seed:student`
 
 Cria ou atualiza uma Conta de teste local e uma Concessão com fonte `manual`; a Matrícula é

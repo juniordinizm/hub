@@ -69,6 +69,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "test:certificates:integration": "vitest run src/features/courses/certificate-issuance.integration.test.ts",
     "docs:check": "bun scripts/check-docs.ts",
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",

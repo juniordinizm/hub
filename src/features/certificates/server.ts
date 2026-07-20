@@ -4,7 +4,10 @@ import PDFDocument from "pdfkit";
 import type { PoolClient } from "pg";
 import QRCode from "qrcode";
 import { getPool } from "@/db";
-import { getCertificateValidationPath } from "@/features/certificates/rules";
+import {
+  createCertificateCode,
+  getCertificateValidationPath,
+} from "@/features/certificates/rules";
 import { getServerEnv } from "@/lib/env";
 
 export interface CertificateRecord {
@@ -15,6 +18,42 @@ export interface CertificateRecord {
   studentName: string;
   workloadHours: number;
 }
+
+export const tryIssueAutomaticCompletionCertificate = async ({
+  client,
+  courseId,
+  courseTitle,
+  studentName,
+  userId,
+  workloadHours,
+}: {
+  client: PoolClient;
+  courseId: string;
+  courseTitle: string;
+  studentName: string;
+  userId: string;
+  workloadHours: number;
+}): Promise<string | null> => {
+  const candidateCode = createCertificateCode(randomUUID());
+  const certificate = await client.query<{ code: string }>(
+    `
+      insert into certificates (
+        user_id,
+        course_id,
+        code,
+        student_name_snapshot,
+        course_title_snapshot,
+        workload_hours_snapshot
+      )
+      values ($1, $2, $3, $4, $5, $6)
+      on conflict do nothing
+      returning code
+    `,
+    [userId, courseId, candidateCode, studentName, courseTitle, workloadHours]
+  );
+
+  return certificate.rows[0]?.code ?? null;
+};
 
 const auditCertificate = async ({
   action,
