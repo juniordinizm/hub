@@ -18,7 +18,7 @@ export function RequestPasswordResetForm(): React.JSX.Element {
     setIsPending(true);
 
     const formData = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/request-password-reset", {
+    await fetch("/api/auth/request-password-reset", {
       body: JSON.stringify({
         email: formData.get("email"),
         redirectTo: getPasswordResetRedirectUrl({
@@ -28,13 +28,11 @@ export function RequestPasswordResetForm(): React.JSX.Element {
       }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
-    });
+    }).catch(() => undefined);
 
     setIsPending(false);
     setMessage(
-      response.ok
-        ? "Se o e-mail estiver cadastrado, o link sera enviado em instantes."
-        : "Nao foi possivel solicitar a redefinicao agora."
+      "Se o e-mail estiver cadastrado, o link sera enviado em instantes."
     );
   };
 

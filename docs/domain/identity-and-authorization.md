@@ -36,6 +36,8 @@ Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organi
 **Autorização:** o endpoint de bootstrap Admin só existe fora de produção, exige `INTERNAL_BOOTSTRAP_SECRET` e retorna 404 em produção por `getBootstrapAdminDecision`.
 
 **Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro.
+O formulário público de recuperação sempre mostra a mesma mensagem para Conta existente, inexistente
+ou falha de entrega, evitando enumeração visível no navegador.
 
 ### REG-IDA-003 Autorização é por capacidade
 

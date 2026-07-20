@@ -40,6 +40,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Ambiente e desenvolvimento local](operations/environment-and-local-development.md)
 - [Banco e migrations](operations/database-and-migrations.md)
 - [Deploy e incidentes](operations/deploy-and-incidents.md)
+- [Testes e CI](operations/testing-and-ci.md)
 
 ### Decisões
 

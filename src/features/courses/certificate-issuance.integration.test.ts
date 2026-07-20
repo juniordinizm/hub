@@ -12,7 +12,11 @@ import {
 import { withVerifiedSslMode } from "@/db/connection-url";
 
 const databaseUrl = process.env.CERTIFICATE_CONCURRENCY_DATABASE_URL;
-const runWithPostgres = databaseUrl ? describe : describe.skip;
+if (!databaseUrl) {
+  throw new Error(
+    "CERTIFICATE_CONCURRENCY_DATABASE_URL is required for integration tests."
+  );
+}
 const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
 
 const dependencies = vi.hoisted(() => ({
@@ -33,17 +37,9 @@ vi.mock("@/features/enrollments/server", () => ({
 import { tryIssueAutomaticCompletionCertificate } from "../certificates/server";
 import { completeLesson, recordLessonWatchProgress } from "./server";
 
-const pool = databaseUrl
-  ? new Pool({ connectionString: withVerifiedSslMode(databaseUrl) })
-  : null;
+const pool = new Pool({ connectionString: withVerifiedSslMode(databaseUrl) });
 
-const getTestPool = (): Pool => {
-  if (!pool) {
-    throw new Error("CERTIFICATE_CONCURRENCY_DATABASE_URL is required.");
-  }
-
-  return pool;
-};
+const getTestPool = (): Pool => pool;
 
 const createFixture = async (): Promise<{
   courseId: string;
@@ -129,28 +125,20 @@ const countCertificates = async (courseId: string, userId: string) => {
   return Number(rows[0]?.count ?? 0);
 };
 
-runWithPostgres("emissao concorrente de certificado", () => {
+describe("emissao concorrente de certificado", () => {
   beforeAll(() => {
-    if (!pool) {
-      return;
-    }
-
     dependencies.getPool.mockReturnValue(pool);
     dependencies.resolveLessonAccess.mockResolvedValue(true);
   });
 
   beforeEach(async () => {
-    if (!pool) {
-      return;
-    }
-
     dependencies.sendCertificateIssuedEmail.mockReset();
     dependencies.resolveLessonAccess.mockResolvedValue(true);
     await pool.query("truncate table users cascade");
   });
 
   afterAll(async () => {
-    await pool?.end();
+    await pool.end();
   });
 
   it("emite e notifica uma unica vez sob duas conclusoes simultaneas", async () => {

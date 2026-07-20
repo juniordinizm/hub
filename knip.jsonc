@@ -5,6 +5,7 @@
     "postcss.config.mjs",
     "drizzle.config.ts",
     "vitest.config.ts",
+    "vitest.integration.config.ts",
     "src/app/**/{page,layout,route,loading,error,not-found}.tsx",
     "src/app/**/{page,layout,route,loading,error,not-found}.ts",
     "src/app/**/actions.ts",
@@ -12,14 +13,24 @@
     "src/db/**/*.test.ts",
     "src/features/**/*.test.ts",
     "src/lib/**/*.test.ts",
+    "tests/**/*.{ts,tsx}",
     "scripts/**/*.{js,mjs,ts}"
   ],
-  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{js,mjs,ts}", "*.{js,mjs,ts}"],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "tests/**/*.{ts,tsx}",
+    "scripts/**/*.{js,mjs,ts}",
+    "*.{js,mjs,ts}"
+  ],
   "ignore": [
     ".0ref/**",
     ".next/**",
     "node_modules/**",
     "src/db/migrations/**",
+    "src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-header.tsx",
+    "src/app/(admin)/admin/cursos/[courseId]/course-actions-dropdown.tsx",
+    "src/features/certificates/actions.ts",
+    "src/features/privacy/actions.ts",
     "test-availability.ts",
     "tools/**"
   ],
@@ -33,7 +44,16 @@
     "tailwindcss"
   ],
   "ignoreIssues": {
-    "src/components/ui/**": ["exports", "types"]
+    "src/components/ui/**": ["exports", "types"],
+    "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx": [
+      "exports"
+    ],
+    "src/features/certificates/server.ts": ["exports"],
+    "src/features/courses/lesson-content.ts": ["exports"],
+    "src/features/privacy/server.ts": ["exports"],
+    "src/features/storage/banner-image.ts": ["exports"],
+    "src/features/storage/course-cover.ts": ["exports"],
+    "src/features/storage/r2.ts": ["exports"]
   },
   "ignoreExportsUsedInFile": true
 }

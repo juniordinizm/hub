@@ -16,11 +16,12 @@ Deploy não deve avançar quando:
 - endpoint/segredo de webhook ou crons não foram conferidos;
 - mudança irreversível não possui recuperação testada.
 
-### Bloqueio de verificação conhecido
+### CI e verificação
 
-`bun run test` no commit verificado aprova 310 de 311 testes e falha em `src/app/(student)/app/aulas/[lessonId]/page-source.test.ts`. O teste procura a string literal `Video em processamento` no arquivo da página; a página agora renderiza o componente `LessonVideoProcessing`, onde o texto reside. Página e teste não foram alterados nesta reorganização.
-
-Enquanto o contrato do teste não for corrigido e a suíte completa não passar, o gate de deploy permanece bloqueado. Não reintroduzir texto duplicado na página apenas para satisfazer inspeção de source.
+O bloqueio histórico de `page-source.test.ts` foi removido: o estado de processamento de vídeo é
+testado pelo componente renderizado. A sequência de gates, o banco efêmero e as jornadas de navegador
+estão no [runbook de testes e CI](testing-and-ci.md). A primeira execução remota permanece dependente
+da configuração de `NEON_API_KEY` e `NEON_PROJECT_ID` no GitHub, sem reutilizar credenciais de produção.
 
 ## Checklist
 
@@ -31,7 +32,8 @@ Enquanto o contrato do teste não for corrigido e a suíte completa não passar,
 3. `bun run typecheck`
 4. `bun run check`
 5. `bun run build`
-6. `git diff --check`
+6. `bun run knip`
+7. `git diff --check`
 
 ### Ambiente
 

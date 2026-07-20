@@ -1,0 +1,28 @@
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+  fullyParallel: false,
+  globalSetup: "./tests/e2e/global-setup.ts",
+  outputDir: "test-results/playwright",
+  reporter: process.env.CI
+    ? [
+        ["github"],
+        ["json", { outputFile: "test-results/playwright/results.json" }],
+        ["html", { open: "never" }],
+      ]
+    : "list",
+  retries: process.env.CI ? 1 : 0,
+  testDir: "./tests/e2e",
+  timeout: 30_000,
+  use: {
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100",
+    trace: "retain-on-failure",
+  },
+  webServer: {
+    command: "bun run dev -- --port 3100",
+    reuseExistingServer: false,
+    timeout: 120_000,
+    url: "http://127.0.0.1:3100",
+  },
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+});
