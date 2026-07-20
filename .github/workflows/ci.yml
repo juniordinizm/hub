@@ -144,5 +144,11 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
-      - run: bun run build
+      - name: Build with synthetic CI configuration
+        env:
+          BETTER_AUTH_SECRET: ci-build-placeholder-not-for-deployment
+          BETTER_AUTH_URL: https://ci-build.invalid
+          CERTIFICATE_PUBLIC_BASE_URL: https://ci-build.invalid
+          NEXT_PUBLIC_APP_URL: https://ci-build.invalid
+        run: bun run build
       - run: bun run knip

@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 7d36a71f6846e12456a7e05e1e9ca97f473cb85e
+last_verified_commit: 5a622c214488d741312893c727b1e2adf29d0d34
 ---
 
 # Testes e CI
@@ -130,6 +130,13 @@ em toda execução para permitir acompanhar duração e estabilidade.
 ações dinâmicas do Next.js. Ela existe para que `bun run knip` bloqueie novos achados sem apagar
 comportamento fora deste plano. Cada item da baseline deve ser removido quando ganhar consumidor
 estático ou quando a capacidade for retirada deliberadamente.
+
+## Build sem deploy
+
+`next build` executa a validação de ambiente como produção. A job `build-and-knip` portanto fornece
+um segredo-placeholder e URLs `https://ci-build.invalid` somente para compilar; não fornece banco,
+provedores ou credenciais reais e não produz artefato para deploy. Um deploy continua exigindo as
+variáveis reais do ambiente alvo, conforme o [runbook de deploy](deploy-and-incidents.md).
 
 ## Verificação local
 
