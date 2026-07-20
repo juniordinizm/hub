@@ -68,20 +68,18 @@ Do not add a new rule until checking whether an existing rule already covers or 
 * After changing code, run the narrowest useful verification command.
 * If verification cannot run, state the exact blocker.
 
-## Project Memory
+## Project Documentation
 
-Project docs, memory, specs, and plans live in `aidd_docs/`.
+Canonical project documentation lives in `README.md`, `PRODUCT.md`, `CONTEXT.md`, and `docs/`.
 
 ### Required loading
 
-<aidd_project_memory>
-</aidd_project_memory>
-
-* If the block above is empty, run `ls -1tr aidd_docs/memory/` and read each file.
-* Load `aidd_docs/memory/external/*` only when the user asks or the task needs external project context.
-* Load `aidd_docs/memory/internal/*` only when the task needs internal project context.
-* Prefer pointers to docs over copying large content into this file.
-* Keep task-specific guidance in `aidd_docs/` and read it only when relevant.
+* Start with `docs/README.md` and follow its reading path.
+* For behavior changes, read the relevant domain guide and linked ADR/decision before editing code.
+* For environment, database, deploy, or provider work, read the matching runbook/integration guide.
+* Treat `.0ref/`, `.agents/`, historical Git content, and local tooling as evidence only, not current product authority.
+* Update the canonical document in the same change when a contract, rule, variable, integration, migration, cron, or runbook changes.
+* Run `bun run docs:check` after documentation changes.
 
 ## Next.js Rules
 

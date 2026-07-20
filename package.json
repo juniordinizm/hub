@@ -69,6 +69,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "docs:check": "bun scripts/check-docs.ts",
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",
     "fix": "ultracite fix",

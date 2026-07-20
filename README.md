@@ -1,44 +1,76 @@
-This is a [Next.js](https://nextjs.org) project with the App Router, strict TypeScript, the React Compiler, and Ultracite.
+---
+status: canonical
+owner: engineering
+last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+---
 
-## Getting Started
+# PROTEA-R Hub
 
-First, run the development server:
+Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, checkout via AbacatePay, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
+
+## Antes de começar
+
+Pré-requisitos:
+
+- Bun `1.3.11`, versão fixada em `package.json`;
+- acesso a um banco Postgres já compatível com o schema atual;
+- credenciais das integrações necessárias à funcionalidade que será testada.
+
+Há um bloqueio conhecido no bootstrap do banco: sete migrations SQL não constam no journal do Drizzle. Até a correção, **não use** `db:migrate`, `db:reset`, `db:seed` nem `db:seed:student` como onboarding. Detalhes e evidências em [Banco e migrations](docs/operations/database-and-migrations.md).
+
+## Desenvolvimento local com banco existente
+
+1. Instale dependências:
+
+   ```bash
+   bun install
+   ```
+
+2. Copie `.env.example` para `.env.local` e preencha somente os serviços necessários. A matriz completa está em [Ambiente local](docs/operations/environment-and-local-development.md).
+
+3. Garanta no mínimo `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` e `NEXT_PUBLIC_APP_URL`.
+
+4. Inicie:
+
+   ```bash
+   bun run dev
+   ```
+
+5. Abra `http://localhost:3000`. Cadastro público fica fechado por padrão. Em ambiente não produtivo, o bootstrap de Admin exige `INTERNAL_BOOTSTRAP_SECRET`; veja `getBootstrapAdminDecision` em `src/lib/auth-policy.ts`.
+
+## Comandos seguros
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun run dev
+bun run docs:check
+bun run test
+bun run typecheck
+bun run check
+bun run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`bun run check` é somente leitura. Para correções automáticas deliberadas, use `bun run fix` e revise o diff.
 
-You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
+## Mapa arquitetural
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a modern font family from Vercel.
+- `src/app`: rotas Next.js App Router, layouts, handlers HTTP e Server Actions.
+- `src/features`: regras e serviços por capacidade (`payments`, `enrollments`, `courses`, `certificates`, `privacy`, `jmvstream`, `storage`).
+- `src/lib`: autenticação, autorização, ambiente e utilidades transversais.
+- `src/db`: schema, conexão e migrations.
+- `scripts`: operações manuais; algumas estão bloqueadas para onboarding.
+- `docs`: documentação canônica, decisões e runbooks.
 
-## Scripts
+O mapa completo, inclusive fluxos ponta a ponta, está em [Arquitetura](docs/architecture.md).
 
-- `bun run dev` to start the development server.
-- `bun run typecheck` to run the TypeScript compiler in strict mode.
-- `bun run check` to run Ultracite checks.
-- `bun run fix` to apply formatting and autofixes.
-- `bun run build` to verify the production build.
+## Ordem de leitura para quem chegou agora
 
-## Learn More
+1. [Produto](PRODUCT.md)
+2. [Glossário](CONTEXT.md)
+3. [Índice da documentação](docs/README.md)
+4. [Arquitetura](docs/architecture.md)
+5. Guia de domínio da primeira tarefa
+6. ADR e runbook relacionados
 
-To learn more about Next.js, take a look at the following resources:
+## Estado de verificação
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Esta documentação descreve o commit `888ad2f8addddef9dec4f11bacad8580ffb7181b`. Infraestrutura Neon, Cloudflare, JMVStream, AbacatePay, Resend e Vercel não foi inspecionada em painéis externos; configuração de produção permanece “não verificada no ambiente”.
