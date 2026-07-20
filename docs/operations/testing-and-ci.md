@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: b05f71c5c7cc22be643da45b3cf4e0d1a99b01f1
+last_verified_commit: 172b5b6261e47c5f67b948ac0b5d700bb0f15b79
 ---
 
 # Testes e CI
@@ -27,6 +27,10 @@ de forks. Essa restrição é intencional; os gates que exigem Neon não devem r
 contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem.
 
+`quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
+`last_verified_commit` ainda existe no histórico. O checkout raso padrão do GitHub Actions traz
+apenas o commit atual e produziria um falso erro para documentos verificados em commits anteriores.
+
 ## Banco efêmero da CI
 
 As jobs que precisam de Postgres criam branches distintas no projeto Neon exclusivo de CI. Cada
@@ -42,13 +46,11 @@ Não use o projeto Neon de produção, sua URL de conexão ou uma chave com esco
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
 mascarados, usadas para `db:migrate`, integração e E2E.
 
-### Bloqueio atual de paridade
+### Paridade de ambiente
 
-O projeto isolado `protear-ci` existe, mas está em PostgreSQL 17; o projeto `protear` usa PostgreSQL
-18. Não configure `NEON_PROJECT_ID` para executar CI nesse projeto antes de recriá-lo ou atualizá-lo
-para PostgreSQL 18. A criação disponibilizada pelo conector atual não expõe seleção de versão. Essa
-correção é externa ao repositório e é necessária para que a validação de migrations represente a
-produção sem usar seus dados ou credenciais.
+O projeto dedicado `protear-ci-pg18` usa PostgreSQL 18 em `sa-east-1`, alinhado ao projeto
+`protear`. `NEON_PROJECT_ID` deve apontar para esse projeto dedicado, nunca para produção nem
+para o antigo projeto de CI em PostgreSQL 17.
 
 ## E2E
 
