@@ -24,14 +24,10 @@ const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 60_000;
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
   resolveLessonAccess: vi.fn(),
-  sendCertificateIssuedEmail: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
-vi.mock("@/features/email/server", () => ({
-  sendCertificateIssuedEmail: dependencies.sendCertificateIssuedEmail,
-}));
 vi.mock("@/features/enrollments/server", () => ({
   resolveLessonAccess: dependencies.resolveLessonAccess,
 }));
@@ -127,6 +123,19 @@ const countCertificates = async (courseId: string, userId: string) => {
   return Number(rows[0]?.count ?? 0);
 };
 
+const countCertificateOutboxMessages = async (certificateId: string) => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    `
+      select count(*)
+      from outbox_messages
+      where topic = 'email.certificate-issued'
+        and payload->>'certificateId' = $1
+    `,
+    [certificateId]
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
 describe("emissao concorrente de certificado", () => {
   beforeAll(() => {
     dependencies.getPool.mockReturnValue(pool);
@@ -134,7 +143,6 @@ describe("emissao concorrente de certificado", () => {
   });
 
   beforeEach(async () => {
-    dependencies.sendCertificateIssuedEmail.mockReset();
     dependencies.resolveLessonAccess.mockResolvedValue(true);
     await pool.query("truncate table users cascade");
   });
@@ -143,7 +151,7 @@ describe("emissao concorrente de certificado", () => {
     await pool.end();
   });
 
-  it("emite e notifica uma unica vez sob duas conclusoes simultaneas", async () => {
+  it("emite e registra uma unica notificacao duravel sob duas conclusoes simultaneas", async () => {
     const fixture = await createFixture();
 
     const results = await Promise.all([
@@ -154,15 +162,12 @@ describe("emissao concorrente de certificado", () => {
     const issued = results.filter((result) => result.certificateIssued);
     expect(issued).toHaveLength(1);
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
-    expect(dependencies.sendCertificateIssuedEmail).toHaveBeenCalledTimes(1);
 
-    const { rows } = await getTestPool().query<{ code: string }>(
-      "select code from certificates where course_id = $1 and user_id = $2",
+    const { rows } = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
       [fixture.courseId, fixture.userId]
     );
-    expect(dependencies.sendCertificateIssuedEmail).toHaveBeenCalledWith(
-      expect.objectContaining({ certificateCode: rows[0]?.code })
-    );
+    expect(await countCertificateOutboxMessages(rows[0]?.id ?? "")).toBe(1);
   });
 
   it("retorna código somente para a transação que vence o conflito", async () => {
@@ -228,7 +233,13 @@ describe("emissao concorrente de certificado", () => {
     });
 
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
-    expect(dependencies.sendCertificateIssuedEmail).toHaveBeenCalledTimes(1);
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    expect(
+      await countCertificateOutboxMessages(certificate.rows[0]?.id ?? "")
+    ).toBe(1);
   });
 
   it("nao emite automaticamente quando ja existe certificado valido ou revogado", async () => {
@@ -248,26 +259,28 @@ describe("emissao concorrente de certificado", () => {
       completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId })
     ).resolves.toMatchObject({ certificateIssued: false });
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
-    expect(dependencies.sendCertificateIssuedEmail).not.toHaveBeenCalled();
 
     await getTestPool().query("update certificates set status = 'revoked'");
     await expect(
       completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId })
     ).resolves.toMatchObject({ certificateIssued: false });
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
-    expect(dependencies.sendCertificateIssuedEmail).not.toHaveBeenCalled();
   });
 
-  it("mantem o certificado quando o email falha", async () => {
+  it("registra a notificacao antes de confirmar o certificado", async () => {
     const fixture = await createFixture();
-    dependencies.sendCertificateIssuedEmail.mockRejectedValueOnce(
-      new Error("Resend indisponivel")
-    );
 
     await expect(
       completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId })
     ).resolves.toMatchObject({ certificateIssued: true });
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    expect(
+      await countCertificateOutboxMessages(certificate.rows[0]?.id ?? "")
+    ).toBe(1);
   });
 
   it(

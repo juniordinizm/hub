@@ -2,11 +2,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
-import { sendAccessReleasedEmail } from "@/features/email/server";
 import {
   applyPaidWebhookAccess,
   applyPaymentRevocation,
 } from "@/features/enrollments/server";
+import { createPaidAccessReleasedMessage } from "@/features/outbox/rules";
+import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
   type AbacatePayOrderPayload,
   type AbacatePayOrderTransition,
@@ -66,35 +67,19 @@ const getAbacatePayClient = (): AbacatePayClient => {
 const appUrl = (path: string): string =>
   new URL(path, getServerEnv().NEXT_PUBLIC_APP_URL).toString();
 
-const notifyAccessReleased = async (
-  payload: {
-    activationRequired: boolean;
-    courseId: string;
-    courseTitle: string;
-    to: string;
-    userName: string;
-  } | null
+const notifyActivationRequired = async (
+  email: string | null
 ): Promise<void> => {
-  if (!payload) {
+  if (!email) {
     return;
   }
 
   try {
-    if (payload.activationRequired) {
-      await getAuth().api.requestPasswordReset({
-        body: {
-          email: payload.to,
-          redirectTo: appUrl("/redefinir-senha"),
-        },
-      });
-      return;
-    }
-
-    await sendAccessReleasedEmail({
-      courseId: payload.courseId,
-      courseTitle: payload.courseTitle,
-      to: payload.to,
-      userName: payload.userName,
+    await getAuth().api.requestPasswordReset({
+      body: {
+        email,
+        redirectTo: appUrl("/redefinir-senha"),
+      },
     });
   } catch {
     // E-mail failure must not block paid webhook processing.
@@ -504,12 +489,8 @@ const applyWebhookEnrollmentTransition = async ({
   shouldApplyRefundRevocation: boolean;
   userId: string;
 }): Promise<{
-  activationRequired: boolean;
-  courseId: string;
-  courseTitle: string;
-  to: string;
-  userName: string;
-} | null> => {
+  activationEmail: string | null;
+}> => {
   const orderId = await client
     .query<{ id: string }>(
       `
@@ -542,12 +523,19 @@ const applyWebhookEnrollmentTransition = async ({
       userId,
     });
 
+    if (!activationRequired) {
+      await enqueueOutboxMessage({
+        client,
+        message: createPaidAccessReleasedMessage({
+          courseId: course.id,
+          orderId,
+          userId,
+        }),
+      });
+    }
+
     return {
-      activationRequired,
-      courseId: course.id,
-      courseTitle: course.title,
-      to: orderPayload.customerEmail,
-      userName: orderPayload.customerName,
+      activationEmail: activationRequired ? orderPayload.customerEmail : null,
     };
   }
 
@@ -568,7 +556,7 @@ const applyWebhookEnrollmentTransition = async ({
     }
   }
 
-  return null;
+  return { activationEmail: null };
 };
 
 export const createAbacatePayCourseProduct = async (
@@ -702,13 +690,7 @@ export const processAbacatePayWebhook = async (
   const pool = getPool();
   const client = await pool.connect();
   const warnings: string[] = [];
-  let accessEmailPayload: {
-    activationRequired: boolean;
-    courseId: string;
-    courseTitle: string;
-    to: string;
-    userName: string;
-  } | null = null;
+  let activationEmail: string | null = null;
 
   try {
     await client.query("begin");
@@ -830,7 +812,7 @@ export const processAbacatePayWebhook = async (
         webhookEventId,
       });
     }
-    accessEmailPayload = await applyWebhookEnrollmentTransition({
+    const accessTransition = await applyWebhookEnrollmentTransition({
       accessDurationMonths: order.accessDurationMonths,
       client,
       course,
@@ -843,6 +825,7 @@ export const processAbacatePayWebhook = async (
         effectiveTransition.shouldApplyRefundRevocation,
       userId,
     });
+    activationEmail = accessTransition.activationEmail;
 
     await client.query(
       `
@@ -857,7 +840,7 @@ export const processAbacatePayWebhook = async (
 
     await client.query("commit");
 
-    await notifyAccessReleased(accessEmailPayload);
+    await notifyActivationRequired(activationEmail);
 
     return { status: "processed", eventKey };
   } catch (error) {

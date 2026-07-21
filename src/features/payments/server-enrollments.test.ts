@@ -15,7 +15,7 @@ describe("payment webhook enrollment integration", () => {
     );
   });
 
-  it("branches access email by whether the buyer already has a credential account", async () => {
+  it("queues access email when the buyer already has credentials and keeps activation secret-free", async () => {
     const source = await readFile(
       new URL("./server.ts", import.meta.url),
       "utf8"
@@ -24,6 +24,8 @@ describe("payment webhook enrollment integration", () => {
     expect(source).toContain("select id from accounts");
     expect(source).toContain("provider_id = 'credential'");
     expect(source).toContain("requestPasswordReset");
-    expect(source).toContain("sendAccessReleasedEmail");
+    expect(source).toContain("createPaidAccessReleasedMessage");
+    expect(source).toContain("enqueueOutboxMessage");
+    expect(source).not.toContain("sendAccessReleasedEmail");
   });
 });

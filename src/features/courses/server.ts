@@ -7,12 +7,13 @@ import {
 } from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { isPreviewRole } from "@/features/courses/preview";
-import { sendCertificateIssuedEmail } from "@/features/email/server";
 import {
   resolveCourseAccess,
   resolveLessonAccess,
 } from "@/features/enrollments/server";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
+import { createCertificateIssuedMessage } from "@/features/outbox/rules";
+import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
@@ -1167,7 +1168,6 @@ export const completeLesson = async ({
       student_name: string;
       course_title: string;
       workload_hours: number;
-      student_email: string;
     }>(
       `
         select
@@ -1175,7 +1175,6 @@ export const completeLesson = async ({
           count(lp.id)::int as completed_lessons,
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
-          max(u.email) as student_email,
           max(c.title) as course_title,
           max(c.workload_hours)::int as workload_hours
         from courses c
@@ -1211,22 +1210,31 @@ export const completeLesson = async ({
         workloadHours: summary.workload_hours,
       });
       certificateIssued = Boolean(certificateCode);
+
+      if (certificateCode) {
+        const certificate = await client.query<{ id: string }>(
+          `
+            select id
+            from certificates
+            where code = $1
+            limit 1
+          `,
+          [certificateCode]
+        );
+        const certificateId = certificate.rows[0]?.id;
+
+        if (!certificateId) {
+          throw new Error("Certificado emitido sem identificador persistido.");
+        }
+
+        await enqueueOutboxMessage({
+          client,
+          message: createCertificateIssuedMessage({ certificateId }),
+        });
+      }
     }
 
     await client.query("commit");
-
-    if (certificateIssued && certificateCode && summary) {
-      try {
-        await sendCertificateIssuedEmail({
-          certificateCode,
-          courseTitle: summary.course_title,
-          to: summary.student_email,
-          userName: summary.student_name,
-        });
-      } catch {
-        // E-mail failure must not block certificate issuance.
-      }
-    }
 
     return {
       certificateIssued,

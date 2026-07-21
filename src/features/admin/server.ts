@@ -5,6 +5,10 @@ import {
   summarizeAdminStudents,
 } from "@/features/admin/students";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
+import {
+  listOutboxDeadLetters,
+  type OutboxDeadLetterMessage,
+} from "@/features/outbox/server";
 import { requirePermission } from "@/lib/auth-permissions";
 
 export interface AdminOverview {
@@ -791,9 +795,14 @@ export const getAdminStudentsData = async (): Promise<{
 
 export const getAdminAuditData = async (): Promise<{
   auditLogs: AdminAuditLog[];
+  outboxDeadLetters: OutboxDeadLetterMessage[];
 }> => {
   await requireAdminReadAccess();
-  return { auditLogs: await readAuditLogs() };
+  const [auditLogs, outboxDeadLetters] = await Promise.all([
+    readAuditLogs(),
+    listOutboxDeadLetters(),
+  ]);
+  return { auditLogs, outboxDeadLetters };
 };
 
 export const getAdminSettingsData = async (): Promise<{

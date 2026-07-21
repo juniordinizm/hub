@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Registro de decisões de produto
@@ -19,11 +19,17 @@ Implementação não promove uma política a “aprovada”.
 
 **Tema:** entrega de e-mail.
 
-**Estado:** parcialmente implementado; confiabilidade pendente.
+**Estado:** aprovado e implementado parcialmente.
 
 Resend envia redefinição, acesso, aviso de expiração, Certificado e suporte por `sendTransactionalEmail`. O comportamento substitui a antiga simulação por log.
 
-**Aguardando decisão:** exigência de outbox, idempotency key, retentativa e alertas. A API oficial da Resend suporta chave idempotente por 24 horas; o código atual não a usa.
+Certificado, acesso de Conta já ativada e avisos de expiração usam outbox, payload sem PII,
+idempotency key Resend, cinco tentativas e dead letter. A deduplicação do provedor dura 24 horas;
+reprocessamento posterior exige decisão manual devido ao risco de duplicidade.
+
+Recuperação/ativação por senha permanece fora da outbox: o callback do Better Auth recebe URL com
+token secreto que não pode ser persistido. O contrato e o runbook estão em
+[Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md).
 
 **Decisão:** Seguir a com o melhor para o projeto
 

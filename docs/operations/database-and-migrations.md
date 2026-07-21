@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 06f0c061e502b5990069acd7c4fb36d7fed13301
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Banco e migrations
@@ -34,8 +34,9 @@ Autoridades a comparar:
 3. `src/db/migrations/meta/_journal.json`;
 4. schema do banco alvo.
 
-O schema TypeScript exporta 28 tabelas. O journal tem uma sequência única até
-`0022_manual_enrollment_grants`; os arquivos anteriores `0020`–`0029` foram substituídos por
+O schema TypeScript exporta 29 tabelas. O journal tem uma sequência única até
+`0024_light_stature`: `0023` cria `outbox_messages` e `0024` limita reprocessamento manual a uma vez.
+Os arquivos históricos anteriores `0020`–`0029` foram substituídos por
 `0020_reconcile_schema_after_manual_changes` e permanecem recuperáveis pelo Git.
 
 `drizzle-kit migrate` exige promoção controlada em ambientes compartilhados: backup ou branch,
@@ -89,8 +90,8 @@ encerramento. Requer `SMOKE_DATABASE_URL` ou uma URL local de banco e não aceit
 
 ### `bun run test:certificates:integration`
 
-Executa a concorrência de `completeLesson` contra Postgres real, incluindo retry, callback de vídeo
-duplicado, certificado válido, certificado revogado e falha de e-mail. Requer
+Executa a concorrência de `completeLesson` e da outbox contra Postgres real, incluindo retry, callback de vídeo
+duplicado, certificado válido, certificado revogado, idempotência e leases concorrentes. Requer
 `CERTIFICATE_CONCURRENCY_DATABASE_URL` apontando para um banco descartável já migrado; nunca use
 um banco compartilhado. Sem essa variável, o arquivo de integração é ignorado pelo teste unitário.
 

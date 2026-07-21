@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # PROTEA-R Hub
@@ -16,7 +16,7 @@ Pré-requisitos:
 - acesso a um banco Postgres já compatível com o schema atual;
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
-O histórico de migrations está reconciliado até `0022_manual_enrollment_grants`. Para um banco local descartável, use os comandos de reset, seed e smoke somente conforme o [runbook de banco](docs/operations/database-and-migrations.md): eles recusam host remoto e exigem confirmação quando destrutivos.
+O histórico de migrations está reconciliado até `0024_light_stature`, incluindo a outbox transacional. Para um banco local descartável, use os comandos de reset, seed e smoke somente conforme o [runbook de banco](docs/operations/database-and-migrations.md): eles recusam host remoto e exigem confirmação quando destrutivos.
 
 ## Desenvolvimento local com banco existente
 
@@ -73,4 +73,4 @@ O mapa completo, inclusive fluxos ponta a ponta, está em [Arquitetura](docs/arc
 
 ## Estado de verificação
 
-Esta documentação descreve o commit `888ad2f8addddef9dec4f11bacad8580ffb7181b`. Infraestrutura Neon, Cloudflare, JMVStream, AbacatePay, Resend e Vercel não foi inspecionada em painéis externos; configuração de produção permanece “não verificada no ambiente”.
+Esta documentação foi verificada contra o commit `2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa`. Infraestrutura Neon, Cloudflare, JMVStream, AbacatePay, Resend e Vercel não foi inspecionada em painéis externos; configuração de produção permanece “não verificada no ambiente”.

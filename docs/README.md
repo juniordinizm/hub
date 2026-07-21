@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Documentação do Hub
@@ -41,6 +41,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Banco e migrations](operations/database-and-migrations.md)
 - [Deploy e incidentes](operations/deploy-and-incidents.md)
 - [Testes e CI](operations/testing-and-ci.md)
+- [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
 
 ### Decisões
 

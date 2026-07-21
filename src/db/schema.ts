@@ -95,6 +95,13 @@ export const refundRequestStatusEnum = pgEnum("refund_request_status", [
   "failed",
   "confirmed",
 ]);
+export const outboxStatusEnum = pgEnum("outbox_status", [
+  "pending",
+  "processing",
+  "retrying",
+  "delivered",
+  "dead_letter",
+]);
 export const certificateStatusEnum = pgEnum("certificate_status", [
   "valid",
   "revoked",
@@ -849,6 +856,38 @@ export const auditLogs = pgTable(
   },
   (table) => [
     index("audit_logs_target_idx").on(table.targetType, table.targetId),
+  ]
+);
+
+export const outboxMessages = pgTable(
+  "outbox_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    topic: text("topic").notNull(),
+    aggregateType: text("aggregate_type").notNull(),
+    aggregateId: text("aggregate_id").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    payloadVersion: integer("payload_version").notNull(),
+    payload: jsonb("payload").default(sql`'{}'::jsonb`).notNull(),
+    status: outboxStatusEnum("status").default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    availableAt: timestamp("available_at", tz).defaultNow().notNull(),
+    lockedAt: timestamp("locked_at", tz),
+    lockedBy: text("locked_by"),
+    lastErrorCode: text("last_error_code"),
+    lastErrorAt: timestamp("last_error_at", tz),
+    deliveredAt: timestamp("delivered_at", tz),
+    manualReprocessCount: integer("manual_reprocess_count")
+      .default(0)
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("outbox_messages_idempotency_key_unique_idx").on(
+      table.idempotencyKey
+    ),
+    index("outbox_messages_available_idx").on(table.status, table.availableAt),
+    index("outbox_messages_locked_idx").on(table.status, table.lockedAt),
   ]
 );
 

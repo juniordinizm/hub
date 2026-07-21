@@ -9,6 +9,9 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Ambas as suites limpam tabelas do banco descartável.
+    // Executá-las em paralelo mistura fixtures e invalida as asserções de concorrência.
+    fileParallelism: false,
     include: ["src/**/*.integration.test.ts"],
     testTimeout: 30_000,
   },

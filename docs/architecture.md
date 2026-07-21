@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 6736265734ebff52ab5db76d1c2dbffff292932f
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Arquitetura
@@ -102,7 +102,7 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 - alterações críticas usam transações e locks explícitos onde implementado;
 - Pedidos e Concessões preservam IDs de origem;
 - eventos de Matrícula e `audit_logs` registram ações administrativas;
-- não existe outbox transacional. Uma transação de banco pode concluir e o e-mail falhar, exigindo reconciliação manual;
+- `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e dead letter; recuperação/ativação por senha é exceção por conter token secreto;
 - upload JMVStream mantém sessão/estado persistido para retry e limpeza.
 
 ## Rotinas
@@ -111,6 +111,7 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 
 - `/api/cron/enrollments` diariamente às 10:00 UTC;
 - `/api/cron/jmvstream` a cada cinco minutos;
+- `/api/cron/outbox` a cada cinco minutos;
 - `/api/cron/retention` diariamente às 04:00 UTC.
 
 Todos dependem de `CRON_SECRET`. Agendamento e segredo em produção não foram verificados externamente.
@@ -120,7 +121,7 @@ Todos dependem de `CRON_SECRET`. Agendamento e segredo em produção não foram 
 - migrations fora do journal podem não ser aplicadas;
 - ausência de coortes: publicar conteúdo altera a experiência de todas as Matrículas elegíveis;
 - reversão de ajuste de expiração pode sobrescrever ajustes posteriores;
-- ausência de outbox para banco + e-mail/provedor;
+- recuperação/ativação por senha ainda não usa outbox por token secreto;
 - decisões implementadas sem ratificação de produto;
 - infraestrutura e dados de produção não verificados;
 - JMVStream `gallery` no complete diverge da documentação histórica do projeto;

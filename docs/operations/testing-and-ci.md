@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 5a622c214488d741312893c727b1e2adf29d0d34
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Testes e CI
@@ -116,12 +116,14 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
 | Certificado | `certificates/rules.test.ts`, integração concorrente, E2E público |
+| Efeitos transacionais | `outbox/*.test.ts`, integração PostgreSQL de locks e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
 | Páginas críticas | jornadas Chromium de login, painel, Aula, checkout e certificado |
 
-Não introduza `.only` ou `.skip`. Testes de integração ficam fora da suíte unitária por configuração
-e falham cedo sem sua URL descartável; as jobs Neon sempre fornecem a variável exigida. Em CI,
+Não introduza `.only` ou `.skip`. Testes de integração ficam fora da suíte unitária por configuração,
+rodam serialmente porque limpam tabelas da mesma branch descartável, e falham cedo sem sua URL;
+as jobs Neon sempre fornecem a variável exigida. Em CI,
 Playwright permite uma repetição diagnóstica, registra resultados/duração/retries em JSON e falha o
 job se qualquer retry ocorreu. Assim, flakiness não fica verde silenciosamente. O relatório é anexado
 em toda execução para permitir acompanhar duração e estabilidade.

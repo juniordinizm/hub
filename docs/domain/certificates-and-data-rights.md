@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Certificados e direitos de dados
@@ -25,7 +25,9 @@ Certificado preserva código público, Conta, Curso, data, carga horária e snap
 **Concorrência:** `completeLesson` chama `tryIssueAutomaticCompletionCertificate`, que usa
 `INSERT ... ON CONFLICT DO NOTHING RETURNING code`.
 Somente a transação que recebeu a linha retornada define `certificateIssued=true` e pode solicitar
-o e-mail. O código usado no e-mail é o código persistido, nunca um candidato que perdeu conflito.
+o e-mail. Essa mesma transação grava `email.certificate-issued` em `outbox_messages`; a entrega ocorre
+somente após o commit. O payload guarda o ID do Certificado, nunca e-mail ou nome. Veja o
+[runbook de outbox](../operations/outbox-and-transactional-effects.md).
 
 ### REG-DAT-002 Revogação preserva histórico
 
@@ -50,6 +52,7 @@ Estados: `requested`, `approved`, `completed`, `rejected`.
 ### REG-DAT-005 Solicitação e execução são etapas separadas
 
 `registerPrivacyRequest` registra intenção; `approvePrivacyRequest` registra decisão; `executePrivacyAnonymization` executa somente solicitação aprovada.
+Cada criação ou aprovação usa o mesmo `PoolClient` para a mudança de estado e seu `audit_logs`; falha na auditoria desfaz a mudança.
 
 **Autorização vigente:**
 
@@ -72,7 +75,7 @@ Não afirmar conformidade LGPD com base somente nessa rotina. Prazo, base legal,
 ## Concorrência e falhas
 
 - emissão deve ocorrer em transação com a conclusão para evitar duplicidade;
-- e-mail pós-emissão não usa outbox: Certificado pode existir mesmo se o e-mail falhar;
+- emissão e intenção de e-mail compartilham a transação; falha ao gravar a outbox desfaz a emissão;
 - reemissões concorrentes exigem revisão do estado final;
 - anonimização é irreversível do ponto de vista operacional e nunca deve ser habilitada sem referência jurídica verificável;
 - cron de retenção deve ser idempotente.
@@ -90,5 +93,5 @@ Não afirmar conformidade LGPD com base somente nessa rotina. Prazo, base legal,
 - ratificar lifecycle, snapshots e quem pode revogar/reemitir;
 - definir política jurídica de retenção e anonimização;
 - confirmar informação pública mínima do Certificado;
-- decidir recuperação operacional para falha de e-mail;
+- recovery/ativação por senha permanece fora da outbox por conter token secreto;
 - infraestrutura de cron e base legal de produção não verificadas.

@@ -38,28 +38,37 @@ export const registerPrivacyRequest = async ({
     );
   }
 
-  const request = await getPool().query<{ id: string }>(
-    `
-      insert into privacy_requests (user_id, requested_by_user_id, reason)
-      values ($1, $2, $3)
-      returning id
-    `,
-    [userId, actorUserId, reason.trim()]
-  );
-  const requestId = request.rows[0]?.id;
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const request = await client.query<{ id: string }>(
+      `
+        insert into privacy_requests (user_id, requested_by_user_id, reason)
+        values ($1, $2, $3)
+        returning id
+      `,
+      [userId, actorUserId, reason.trim()]
+    );
+    const requestId = request.rows[0]?.id;
 
-  if (!requestId) {
-    throw new Error("Nao foi possivel registrar a solicitacao.");
+    if (!requestId) {
+      throw new Error("Nao foi possivel registrar a solicitacao.");
+    }
+
+    await auditPrivacy({
+      action: "privacy.requested",
+      actorUserId,
+      client,
+      requestId,
+    });
+    await client.query("commit");
+    return { id: requestId };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
   }
-
-  await getPool().query(
-    `
-      insert into audit_logs (actor_user_id, action, target_type, target_id)
-      values ($1, 'privacy.requested', 'privacy_request', $2)
-    `,
-    [actorUserId, requestId]
-  );
-  return { id: requestId };
 };
 
 export const approvePrivacyRequest = async ({
@@ -69,31 +78,40 @@ export const approvePrivacyRequest = async ({
   actorUserId: string;
   requestId: string;
 }): Promise<void> => {
-  const updated = await getPool().query<{ id: string }>(
-    `
-      update privacy_requests
-      set status = 'approved',
-          resolved_by_user_id = $2,
-          resolved_at = now(),
-          updated_at = now()
-      where id = $1
-        and status = 'requested'
-      returning id
-    `,
-    [requestId, actorUserId]
-  );
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const updated = await client.query<{ id: string }>(
+      `
+        update privacy_requests
+        set status = 'approved',
+            resolved_by_user_id = $2,
+            resolved_at = now(),
+            updated_at = now()
+        where id = $1
+          and status = 'requested'
+        returning id
+      `,
+      [requestId, actorUserId]
+    );
 
-  if (!updated.rows[0]) {
-    throw new Error("Solicitacao de privacidade invalida.");
+    if (!updated.rows[0]) {
+      throw new Error("Solicitacao de privacidade invalida.");
+    }
+
+    await auditPrivacy({
+      action: "privacy.approved",
+      actorUserId,
+      client,
+      requestId,
+    });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
   }
-
-  await getPool().query(
-    `
-      insert into audit_logs (actor_user_id, action, target_type, target_id)
-      values ($1, 'privacy.approved', 'privacy_request', $2)
-    `,
-    [actorUserId, requestId]
-  );
 };
 
 export const executePrivacyAnonymization = async ({

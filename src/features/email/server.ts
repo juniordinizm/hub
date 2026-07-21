@@ -10,6 +10,7 @@ import {
 import { getServerEnv } from "@/lib/env";
 
 interface SendEmailInput {
+  idempotencyKey?: string;
   react: React.ReactNode;
   replyTo?: string;
   subject: string;
@@ -17,6 +18,7 @@ interface SendEmailInput {
 }
 
 export const sendTransactionalEmail = async ({
+  idempotencyKey,
   react,
   replyTo,
   subject,
@@ -28,13 +30,17 @@ export const sendTransactionalEmail = async ({
     throw new Error("RESEND_API_KEY is required to send transactional email.");
   }
 
-  const { error } = await new Resend(env.RESEND_API_KEY).emails.send({
+  const email = {
     from: env.RESEND_FROM_EMAIL,
     react,
     ...(replyTo ? { replyTo } : {}),
     subject,
     to,
-  });
+  };
+  const { error } = await new Resend(env.RESEND_API_KEY).emails.send(
+    email,
+    ...(idempotencyKey ? [{ idempotencyKey }] : [])
+  );
 
   if (error) {
     throw new Error(error.message);
@@ -59,15 +65,18 @@ export const sendPasswordResetEmail = async ({
 export const sendAccessReleasedEmail = async ({
   courseId,
   courseTitle,
+  idempotencyKey,
   to,
   userName,
 }: {
   courseId?: string;
   courseTitle: string;
+  idempotencyKey?: string;
   to: string;
   userName: string;
 }): Promise<void> =>
   sendTransactionalEmail({
+    ...(idempotencyKey ? { idempotencyKey } : {}),
     react: AccessReleasedEmail({
       actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}${
         courseId ? `/app/cursos/${courseId}` : "/app"
@@ -84,16 +93,19 @@ export const sendAccessExpiryWarningEmail = async ({
   courseId,
   courseTitle,
   daysRemaining,
+  idempotencyKey,
   to,
   userName,
 }: {
   courseId: string;
   courseTitle: string;
   daysRemaining: number;
+  idempotencyKey?: string;
   to: string;
   userName: string;
 }): Promise<void> =>
   sendTransactionalEmail({
+    ...(idempotencyKey ? { idempotencyKey } : {}),
     react: AccessExpiryWarningEmail({
       actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/cursos/${courseId}`,
       courseTitle,
@@ -107,15 +119,18 @@ export const sendAccessExpiryWarningEmail = async ({
 export const sendCertificateIssuedEmail = async ({
   certificateCode,
   courseTitle,
+  idempotencyKey,
   to,
   userName,
 }: {
   certificateCode: string;
   courseTitle: string;
+  idempotencyKey?: string;
   to: string;
   userName: string;
 }): Promise<void> =>
   sendTransactionalEmail({
+    ...(idempotencyKey ? { idempotencyKey } : {}),
     react: CertificateIssuedEmail({
       actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/certificados/${certificateCode}`,
       certificateCode,

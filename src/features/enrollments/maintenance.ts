@@ -1,10 +1,11 @@
 import "server-only";
 import { getPool } from "@/db";
-import { sendAccessExpiryWarningEmail } from "@/features/email/server";
 import {
   getEnrollmentExpiryWarningKind,
   shouldExpireEnrollment,
 } from "@/features/enrollments/rules";
+import { createEnrollmentExpiryWarningMessage } from "@/features/outbox/rules";
+import { enqueueOutboxMessage } from "@/features/outbox/server";
 
 interface EnrollmentMaintenanceResult {
   expiredCount: number;
@@ -14,14 +15,10 @@ interface EnrollmentMaintenanceResult {
 }
 
 interface ExpiringEnrollmentRow {
-  course_id: string;
-  course_title: string;
-  email: string;
   expires_at: Date;
   expiry_warning_1d_sent_at: Date | null;
   expiry_warning_7d_sent_at: Date | null;
   id: string;
-  name: string;
   status: "active" | "expired" | "revoked";
 }
 
@@ -59,13 +56,7 @@ export const processEnrollmentMaintenance = async ({
         e.expires_at,
         e.expiry_warning_7d_sent_at,
         e.expiry_warning_1d_sent_at,
-        u.name,
-        u.email,
-        c.id as course_id,
-        c.title as course_title
       from enrollments e
-      join users u on u.id = e.user_id
-      join courses c on c.id = e.course_id
       where e.status = 'active'
         and e.expires_at >= $1
         and e.expires_at <= $1::timestamptz + interval '7 days'
@@ -99,31 +90,48 @@ export const processEnrollmentMaintenance = async ({
       continue;
     }
 
+    const client = await pool.connect();
     try {
-      await sendAccessExpiryWarningEmail({
-        courseId: enrollment.course_id,
-        courseTitle: enrollment.course_title,
-        daysRemaining: warningKind === "1d" ? 1 : 7,
-        to: enrollment.email,
-        userName: enrollment.name,
+      await client.query("begin");
+      const updated = await client.query<{ id: string }>(
+        `
+          update enrollments
+          set expiry_warning_7d_sent_at =
+                case when $2 = '7d' then now() else expiry_warning_7d_sent_at end,
+              expiry_warning_1d_sent_at =
+                case when $2 = '1d' then now() else expiry_warning_1d_sent_at end,
+              updated_at = now()
+          where id = $1
+            and status = 'active'
+            and (
+              ($2 = '7d' and expiry_warning_7d_sent_at is null)
+              or ($2 = '1d' and expiry_warning_1d_sent_at is null)
+            )
+          returning id
+        `,
+        [enrollment.id, warningKind]
+      );
+
+      if (!updated.rows[0]) {
+        await client.query("rollback");
+        continue;
+      }
+
+      await enqueueOutboxMessage({
+        client,
+        message: createEnrollmentExpiryWarningMessage({
+          enrollmentId: enrollment.id,
+          warningKind,
+        }),
       });
+      await client.query("commit");
     } catch {
+      await client.query("rollback");
       warningFailureCount += 1;
       continue;
+    } finally {
+      client.release();
     }
-
-    await pool.query(
-      `
-        update enrollments
-        set expiry_warning_7d_sent_at =
-              case when $2 = '7d' then now() else expiry_warning_7d_sent_at end,
-            expiry_warning_1d_sent_at =
-              case when $2 = '1d' then now() else expiry_warning_1d_sent_at end,
-            updated_at = now()
-        where id = $1
-      `,
-      [enrollment.id, warningKind]
-    );
 
     if (warningKind === "7d") {
       warning7dCount += 1;

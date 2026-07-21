@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Deploy e incidentes
@@ -10,7 +10,7 @@ last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
 
 Deploy não deve avançar quando:
 
-- há mudança de schema enquanto o bloqueio de migrations não foi resolvido;
+- há mudança de schema sem migration forward validada em banco descartável;
 - `docs:check`, testes, typecheck, check ou build falham;
 - variáveis obrigatórias não estão presentes no ambiente alvo;
 - endpoint/segredo de webhook ou crons não foram conferidos;
@@ -49,7 +49,7 @@ da configuração de `NEON_API_KEY` e `NEON_PROJECT_ID` no GitHub, sem reutiliza
 
 ### Banco
 
-Sem alteração de schema, confirmar compatibilidade do ambiente. Com alteração de schema, interromper: o processo atual está bloqueado em [Banco e migrations](database-and-migrations.md).
+Sem alteração de schema, confirmar compatibilidade do ambiente. Com alteração, aplique uma migration *forward* uma única vez pela promoção controlada, depois de validá-la em banco descartável. Nunca use `db:push`, `db:reset` ou uma reversão destrutiva; siga [Banco e migrations](database-and-migrations.md).
 
 ### Crons
 
@@ -57,6 +57,7 @@ Conferir no provedor:
 
 - `/api/cron/enrollments`: `0 10 * * *`;
 - `/api/cron/jmvstream`: `*/5 * * * *`;
+- `/api/cron/outbox`: `*/5 * * * *`;
 - `/api/cron/retention`: `0 4 * * *`;
 - Bearer token igual a `CRON_SECRET`;
 - última execução e resposta.
@@ -119,9 +120,10 @@ Infraestrutura externa não é comprovada pelo repositório. Registre data, ambi
 ### E-mail
 
 1. Determine se a transação de banco concluiu.
-2. Verifique erro Resend pelo ID, sem conteúdo sensível.
-3. Reenvie somente após avaliar duplicidade; código não usa idempotency key/outbox.
-4. Para acesso/Certificado, confirme estado no Hub antes do reenvio.
+2. Para Certificado, acesso já ativado ou aviso de expiração, consulte a dead letter em **Admin > Auditoria**.
+3. Verifique tópico, tentativas, código do erro e estado atual do agregado; nunca exponha payload.
+4. Reprocesse somente com motivo registrado. Depois de 24 horas, o Resend pode duplicar um e-mail com resultado anterior ambíguo.
+5. Recuperação/ativação por senha ainda não usa outbox porque a URL inclui token secreto.
 
 ### Cron
 

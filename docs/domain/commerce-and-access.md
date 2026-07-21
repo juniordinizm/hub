@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Comércio e acesso
@@ -38,7 +38,8 @@ Ao criar checkout, o Pedido captura preço, duração de acesso, Curso e identid
 - evento desconhecido pode ser ignorado sem abrir acesso;
 - payload externo é tolerante a campos adicionais.
 
-**Concorrência:** processamento usa transação e identidade externa persistida. Não existe outbox para e-mail pós-transação.
+**Concorrência:** processamento usa transação e identidade externa persistida. Para Conta com credencial,
+o acesso liberado grava uma intenção na outbox antes do commit; ativação por senha permanece exceção por token secreto.
 
 ### REG-COM-003 Estado terminal não é sobrescrito silenciosamente
 
@@ -95,6 +96,7 @@ Não confundir com reembolso/disputa nem bloqueio da plataforma. Ambos registram
 **Autorização:** `executeRefund`.
 
 **Falhas:** ausência de ID externo, Pedido incompatível, senha não confirmada ou falha do provedor deixam rastro e não devem revogar acesso por suposição.
+O token de confirmação e sua auditoria, a reserva de reembolso e sua auditoria, e a falha do provedor e sua auditoria usam a mesma transação local.
 
 ## Evidências
 
@@ -108,5 +110,5 @@ Não confundir com reembolso/disputa nem bloqueio da plataforma. Ambos registram
 - [ADR-0004](../adr/0004-access-grants-and-enrollment-projection.md), proposto.
 - [ADR-0005](../adr/0005-financial-precedence-and-manual-review.md), proposto.
 - `db:seed:student` cria Concessão `manual` e recompõe a Matrícula pela projeção oficial.
-- Ausência de outbox pode separar commit financeiro e e-mail.
+- Acesso de Conta já ativada usa a outbox; ativação por senha permanece exceção porque o token não pode ser persistido. Veja o [runbook de outbox](../operations/outbox-and-transactional-effects.md).
 - Infraestrutura AbacatePay e dados reais não verificados.

@@ -1,0 +1,73 @@
+---
+status: runbook
+owner: operations
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+---
+
+# Outbox e efeitos transacionais
+
+## Objetivo
+
+Uma alteração de domínio não chama um provedor externo dentro da transação do banco. Ela grava uma intenção durável em `outbox_messages`; o consumidor entrega essa intenção depois do commit. Isso evita perder um e-mail quando o processo cai entre o commit e a chamada externa.
+
+O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/features/outbox/server.ts`, o consumidor em `src/features/outbox/runner.ts` e o adaptador Resend em `src/features/outbox/delivery.ts`.
+
+## Catálogo aprovado
+
+- `email.certificate-issued`: emitido por `completeLesson`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
+- `email.access-released`: emitido no webhook AbacatePay quando a Conta já possui credencial; agregado `order`; chave `email.access-released/<order-id>/v1`; payload somente `userId` e `courseId`.
+- `email.access-expiry-warning`: emitido pela manutenção de Matrícula; agregado `enrollment`; chave por Matrícula e janela `1d` ou `7d`; payload somente `enrollmentId` e `warningKind`.
+
+O payload nunca contém nome, e-mail, token de redefinição, senha, chave de API ou URL secreta. O adaptador consulta os dados atuais somente no momento da entrega.
+
+### Exceção registrada: recuperação e ativação por senha
+
+`sendPasswordResetEmail` continua no callback do Better Auth. A URL contém um token secreto que não pode entrar no payload da outbox. Para a ativação de uma Compradora sem credencial, `processAbacatePayWebhook` solicita a redefinição após o commit, mas não cria evento de outbox.
+
+Essa exceção não oferece retry durável nem idempotência de provedor. Para removê-la será necessário redesenhar o protocolo de token do Better Auth sem persistir segredo reutilizável. Não tente copiar a URL para `outbox_messages`.
+
+## Entrega, concorrência e idempotência
+
+`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada cinco minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
+
+- O claim é uma atualização atômica com `FOR UPDATE SKIP LOCKED`.
+- Cada mensagem recebe lease de dez minutos com `locked_at` e `locked_by`.
+- Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
+- Uma mensagem é `delivered` somente depois de o adaptador confirmar a chamada ao Resend.
+- Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
+- Versão desconhecida de payload ou agregado não entregável vai para `dead_letter`.
+
+O adaptador envia a `idempotencyKey` para o Resend. O provedor conserva essa deduplicação por 24 horas. Portanto, retries automáticos permanecem dentro dessa janela.
+
+## Dead letter e incidente
+
+Somente Admin pode usar `retryOutbox`. A página **Admin > Auditoria** lista até 50 dead letters sem expor payload. O reprocessamento exige motivo, não permite editar payload e grava `outbox.requeued` em `audit_logs` na mesma transação.
+
+Depois de 24 horas, o Resend não consegue mais deduplicar a mesma chave. Antes de reprocessar uma mensagem antiga, a administradora deve confirmar o estado do agregado e aceitar explicitamente o risco de e-mail duplicado. Não reprocessar automaticamente um resultado ambíguo.
+
+1. Confira tópico, tentativas, código de erro e data da última tentativa.
+2. Confirme que o Certificado ou acesso ainda está válido.
+3. Para erro de versão ou agregado ausente, corrija a causa antes de reprocessar.
+4. Registre motivo no formulário; o sistema reativa uma vez a mesma mensagem.
+5. Confira a próxima execução do cron e o estado final.
+
+A Administração do Hub é a dona operacional de dead letters e incidentes de e-mail.
+
+## Retenção
+
+Cada execução do consumidor remove:
+
+- mensagens `delivered` há mais de 30 dias;
+- mensagens `dead_letter` cuja última falha tem mais de 180 dias;
+- auditorias `outbox.requeued` com mais de 180 dias.
+
+Essa retenção cobre somente a outbox e sua auditoria operacional. Não autoriza apagar auditorias financeiras, dados de Conta ou outros registros sujeitos a política jurídica própria.
+
+## Evidências
+
+- schema e migrations: `outboxMessages` em `src/db/schema.ts`, `0023_lyrical_lucky_pierre.sql` e `0024_light_stature.sql`;
+- transações: `completeLesson`, `processAbacatePayWebhook`, `processEnrollmentMaintenance`, `registerPrivacyRequest` e `approvePrivacyRequest`;
+- testes: `src/features/outbox/*.test.ts`, `outbox.integration.test.ts` e `certificate-issuance.integration.test.ts`;
+- provedor: [documentação de idempotência da Resend](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+Todo tópico novo precisa definir versão de payload, chave idempotente, dona operacional, retenção, classificação de PII e runbook antes de ser gravado na outbox.

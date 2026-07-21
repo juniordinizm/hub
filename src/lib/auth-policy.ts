@@ -8,6 +8,7 @@ export type AuthPermission =
   | "managePrivacyRequests"
   | "executePrivacyAnonymization"
   | "manageSettings"
+  | "retryOutbox"
   | "retryWebhook"
   | "viewAdminPanel"
   | "viewFinancials";
@@ -21,6 +22,7 @@ const rolePermissions: Record<AppRole, AuthPermission[]> = {
     "manageEnrollmentAccess",
     "managePrivacyRequests",
     "manageSettings",
+    "retryOutbox",
     "retryWebhook",
     "viewAdminPanel",
     "viewFinancials",

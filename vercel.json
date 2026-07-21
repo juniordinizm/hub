@@ -10,6 +10,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/outbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/retention",
       "schedule": "0 4 * * *"
     }

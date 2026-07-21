@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac, randomUUID } from "node:crypto";
 import { verifyPassword } from "@better-auth/utils/password";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { AbacatePayClient } from "@/features/payments/abacatepay-client";
 import { getServerEnv } from "@/lib/env";
@@ -37,13 +38,15 @@ const getAbacatePayClient = (): AbacatePayClient => {
 const auditRefund = async ({
   action,
   actorUserId,
+  client,
   orderId,
 }: {
   action: string;
   actorUserId: string;
+  client: PoolClient;
   orderId: string;
 }): Promise<void> => {
-  await getPool().query(
+  await client.query(
     `
       insert into audit_logs (actor_user_id, action, target_type, target_id)
       values ($1, $2, 'order', $3)
@@ -85,25 +88,36 @@ export const issueRefundConfirmation = async ({
   const identifier = confirmationIdentifier({ actorUserId, orderId });
   const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS);
 
-  await getPool().query(
-    `
-      delete from verifications
-      where identifier = $1
-    `,
-    [identifier]
-  );
-  await getPool().query(
-    `
-      insert into verifications (id, identifier, value, expires_at)
-      values ($1, $2, $3, $4)
-    `,
-    [randomUUID(), identifier, tokenDigest(confirmationToken), expiresAt]
-  );
-  await auditRefund({
-    action: "refund.password_confirmed",
-    actorUserId,
-    orderId,
-  });
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      `
+        delete from verifications
+        where identifier = $1
+      `,
+      [identifier]
+    );
+    await client.query(
+      `
+        insert into verifications (id, identifier, value, expires_at)
+        values ($1, $2, $3, $4)
+      `,
+      [randomUUID(), identifier, tokenDigest(confirmationToken), expiresAt]
+    );
+    await auditRefund({
+      action: "refund.password_confirmed",
+      actorUserId,
+      client,
+      orderId,
+    });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 
   return { confirmationToken };
 };
@@ -193,6 +207,12 @@ export const requestFullRefund = async ({
     }
 
     providerOrderId = selectedOrder.provider_order_id;
+    await auditRefund({
+      action: "refund.requested",
+      actorUserId,
+      client,
+      orderId,
+    });
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -200,8 +220,6 @@ export const requestFullRefund = async ({
   } finally {
     client.release();
   }
-
-  await auditRefund({ action: "refund.requested", actorUserId, orderId });
 
   try {
     const response = await getAbacatePayClient().refundCheckout({
@@ -218,17 +236,32 @@ export const requestFullRefund = async ({
       [orderId, response.refundPublicId]
     );
   } catch (error) {
-    await pool.query(
-      `
-        update refund_requests
-        set status = 'failed',
-            error_message = $2,
-            updated_at = now()
-        where order_id = $1
-      `,
-      [orderId, error instanceof Error ? error.message : "Erro desconhecido"]
-    );
-    await auditRefund({ action: "refund.failed", actorUserId, orderId });
+    const failureClient = await pool.connect();
+    try {
+      await failureClient.query("begin");
+      await failureClient.query(
+        `
+          update refund_requests
+          set status = 'failed',
+              error_message = $2,
+              updated_at = now()
+          where order_id = $1
+        `,
+        [orderId, error instanceof Error ? error.message : "Erro desconhecido"]
+      );
+      await auditRefund({
+        action: "refund.failed",
+        actorUserId,
+        client: failureClient,
+        orderId,
+      });
+      await failureClient.query("commit");
+    } catch (failureError) {
+      await failureClient.query("rollback");
+      throw failureError;
+    } finally {
+      failureClient.release();
+    }
     throw error;
   }
 };

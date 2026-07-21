@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 7d36a71f6846e12456a7e05e1e9ca97f473cb85e
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # Ambiente e desenvolvimento local
@@ -42,7 +42,7 @@ Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banc
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook, obrigatório em produção | nenhum | route webhook | sim |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | nenhum | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | produção obrigatória | `http://localhost:3000` | certificado/PDF | público |
-| `CRON_SECRET` | crons, obrigatório em produção | nenhum | três handlers cron | sim |
+| `CRON_SECRET` | crons, obrigatório em produção | nenhum | quatro handlers cron | sim |
 | `DATA_RETENTION_ENABLED` | habilitação jurídica/operacional | `false` | privacidade/retenção | não |
 | `LEGAL_APPROVAL_REFERENCE` | obrigatória quando retenção está ativa | nenhum | validação de ambiente | referência interna |
 | `JMVSTREAM_API_BASE_URL` | vídeo | `https://api.jmvstream.com` | cliente JMVStream | não |

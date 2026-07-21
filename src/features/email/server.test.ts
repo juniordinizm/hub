@@ -63,4 +63,20 @@ describe("transactional email", () => {
       })
     ).rejects.toThrow("Sender domain is not verified");
   });
+
+  it("forwards an outbox idempotency key to Resend", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendTransactionalEmail({
+      idempotencyKey: "email.certificate-issued/certificate-1/v1",
+      react: "Conteúdo do e-mail",
+      subject: "Certificado",
+      to: "student@example.com",
+    });
+
+    expect(send).toHaveBeenCalledWith(expect.any(Object), {
+      idempotencyKey: "email.certificate-issued/certificate-1/v1",
+    });
+  });
 });

@@ -162,6 +162,20 @@
       "when": 1782140400003,
       "tag": "0022_manual_enrollment_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1784590497679,
+      "tag": "0023_lyrical_lucky_pierre",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1784591754684,
+      "tag": "0024_light_stature",
+      "breakpoints": true
     }
   ]
 }

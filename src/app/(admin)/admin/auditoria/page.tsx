@@ -9,7 +9,9 @@ import {
 } from "@/components/ui/table";
 
 import { getAdminAuditData } from "@/features/admin/server";
+import { requirePermission } from "@/lib/auth-permissions";
 import { formatDate } from "@/lib/formatters";
+import { OutboxDeadLetterReprocess } from "./outbox-dead-letters";
 
 export const dynamic = "force-dynamic";
 
@@ -93,7 +95,10 @@ function formatAuditMessage(log: {
 }
 
 export default async function AuditoriaPage(): Promise<React.JSX.Element> {
-  const data = await getAdminAuditData();
+  const [session, data] = await Promise.all([
+    requirePermission("viewAdminPanel"),
+    getAdminAuditData(),
+  ]);
 
   return (
     <PageContainer>
@@ -110,6 +115,59 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
             </div>
           </div>
         </header>
+
+        <section className="overflow-hidden rounded-lg border bg-card">
+          <div className="border-b p-5">
+            <h2 className="font-semibold text-lg">
+              Mensagens pendentes de revisão
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Dead letters não são reenviadas automaticamente. Somente
+              administradores podem reprocessar uma vez, informando o motivo.
+            </p>
+          </div>
+          {data.outboxDeadLetters.length ? (
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              {data.outboxDeadLetters.map((message) => (
+                <article className="rounded-lg border p-4" key={message.id}>
+                  <p className="font-medium text-sm">{message.topic}</p>
+                  <p className="mt-1 font-mono text-muted-foreground text-xs">
+                    {message.id}
+                  </p>
+                  <dl className="mt-3 grid gap-1 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Tentativas</dt>
+                      <dd>{message.attempts}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Falha</dt>
+                      <dd>{message.lastErrorCode ?? "não informada"}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">
+                        Última tentativa
+                      </dt>
+                      <dd>
+                        {message.lastErrorAt
+                          ? formatDate(message.lastErrorAt)
+                          : "não informada"}
+                      </dd>
+                    </div>
+                  </dl>
+                  {session.role === "admin" ? (
+                    <div className="mt-4">
+                      <OutboxDeadLetterReprocess messageId={message.id} />
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="p-5 text-muted-foreground text-sm">
+              Nenhuma mensagem em dead letter.
+            </p>
+          )}
+        </section>
 
         <div className="overflow-hidden rounded-lg border bg-card">
           <Table>
