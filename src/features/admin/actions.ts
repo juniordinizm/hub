@@ -4,7 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import {
+  createCourseVersionDraft,
   createLessonDraft,
+  publishCourseVersion,
   removeLessonVideo,
   saveCourse,
   saveLesson,
@@ -122,6 +124,22 @@ const revalidateEnrollmentAdminPaths = (userId: string): void => {
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
   await saveCourse({ actorUserId: session.user.id, formData });
+  revalidateAdmin();
+};
+
+export const createCourseVersionDraftAction = async (
+  courseId: string
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  await createCourseVersionDraft({ actorUserId: session.user.id, courseId });
+  revalidateAdmin();
+};
+
+export const publishCourseVersionAction = async (
+  courseId: string
+): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  await publishCourseVersion({ actorUserId: session.user.id, courseId });
   revalidateAdmin();
 };
 
@@ -423,6 +441,23 @@ export const restoreEnrollmentAccessAction = async (
     targetType: "enrollment",
   });
   revalidateEnrollmentAdminPaths(userId);
+};
+
+export const migrateEnrollmentCourseVersionAction = async (input: {
+  courseId: string;
+  enrollmentId: string;
+  reason: string;
+  targetCourseVersionId: string;
+}): Promise<void> => {
+  const session = await requireRole(["admin"]);
+  const { migrateEnrollmentCourseVersion } = await import(
+    "@/features/enrollments/server"
+  );
+  await migrateEnrollmentCourseVersion({
+    actorUserId: session.user.id,
+    ...input,
+  });
+  revalidateAdmin();
 };
 
 export const blockStudentPlatformAccessAction = async (

@@ -90,8 +90,36 @@ const textDocument = {
   type: "doc",
 };
 
+const versioningQueryResult = (sql: string): { rows: unknown[] } | null => {
+  if (sql.includes("join course_versions cv on cv.id = m.course_version_id")) {
+    return { rows: [{ status: "draft" }] };
+  }
+  if (
+    sql.includes("join course_versions cv") &&
+    sql.includes("cv.status = 'draft'")
+  ) {
+    return { rows: [{ id: "module-1" }] };
+  }
+  if (sql.includes("select course_id, course_version_id from modules")) {
+    return {
+      rows: [
+        { course_id: "course-1", course_version_id: "course-version-draft" },
+      ],
+    };
+  }
+  if (
+    sql.includes("from course_versions") &&
+    sql.includes("status = 'draft'")
+  ) {
+    return { rows: [{ id: "course-version-draft" }] };
+  }
+  return null;
+};
+
 const setDefaultMocks = (): void => {
-  query.mockResolvedValue({ rows: [] });
+  query.mockImplementation(
+    (sql: string) => versioningQueryResult(sql) ?? { rows: [] }
+  );
   createAbacatePayCourseProduct.mockResolvedValue({ productId: "product-1" });
   confirmLessonResourceUpload.mockResolvedValue(undefined);
   deletePublicR2Objects.mockResolvedValue(undefined);
@@ -116,7 +144,7 @@ describe("admin authoring", () => {
         return { rows: [{ id: values?.[0] }] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("title", " Curso novo ");
@@ -187,7 +215,7 @@ describe("admin authoring", () => {
         throw new Error("database unavailable");
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("title", "Curso novo");
@@ -231,7 +259,7 @@ describe("admin authoring", () => {
         return { rows: [{ course_id: "course-old" }] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("moduleId", "module-1");
@@ -270,7 +298,7 @@ describe("admin authoring", () => {
         return { rows: [{ id: "module-1" }] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("courseId", "course-1");
@@ -283,7 +311,14 @@ describe("admin authoring", () => {
 
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into modules"),
-      ["course-1", "Modulo novo", "Descricao", 1, "draft"]
+      [
+        "course-1",
+        "course-version-draft",
+        "Modulo novo",
+        "Descricao",
+        1,
+        "draft",
+      ]
     );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
   });
@@ -297,7 +332,7 @@ describe("admin authoring", () => {
         return { rows: [{ id: "lesson-1" }] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("moduleId", "module-1");
@@ -313,7 +348,14 @@ describe("admin authoring", () => {
     expect(result).toEqual({ courseId: "course-1", lessonId: "lesson-1" });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into lessons"),
-      ["module-1", "Aula inicial", "Subtitulo", 3, "draft"]
+      [
+        "module-1",
+        "course-version-draft",
+        "Aula inicial",
+        "Subtitulo",
+        3,
+        "draft",
+      ]
     );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
@@ -324,6 +366,10 @@ describe("admin authoring", () => {
 
   it("rejects a lesson draft when the database does not return its identifier", async () => {
     query.mockImplementation((sql: string) => {
+      const versioningResult = versioningQueryResult(sql);
+      if (versioningResult) {
+        return versioningResult;
+      }
       if (sql.includes("select course_id from modules")) {
         return { rows: [{ course_id: "course-1" }] };
       }
@@ -331,7 +377,7 @@ describe("admin authoring", () => {
         return { rows: [] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("moduleId", "module-1");
@@ -355,7 +401,7 @@ describe("admin authoring", () => {
         return { rows: [{ id: "lesson-created" }] };
       }
 
-      return { rows: [] };
+      return versioningQueryResult(sql) ?? { rows: [] };
     });
     const formData = new FormData();
     formData.set("moduleId", "module-1");
@@ -374,6 +420,10 @@ describe("admin authoring", () => {
 
   it("confirms an uploaded lesson resource before persisting its metadata", async () => {
     query.mockImplementation((sql: string) => {
+      const versioningResult = versioningQueryResult(sql);
+      if (versioningResult) {
+        return versioningResult;
+      }
       if (sql.includes("select course_id from modules")) {
         return { rows: [{ course_id: "course-1" }] };
       }
@@ -426,6 +476,10 @@ describe("admin authoring", () => {
       type: "text",
     };
     query.mockImplementation((sql: string) => {
+      const versioningResult = versioningQueryResult(sql);
+      if (versioningResult) {
+        return versioningResult;
+      }
       if (sql.includes("select video_embed_url")) {
         return {
           rows: [
@@ -457,6 +511,7 @@ describe("admin authoring", () => {
     formData.set("textDocument", JSON.stringify(textDocument));
     formData.set("sortOrder", "2");
     formData.set("status", "archived");
+    formData.set("isRequired", "false");
 
     const result = await saveLesson({ actorUserId: "admin-1", formData });
 
@@ -466,6 +521,7 @@ describe("admin authoring", () => {
     );
     expect(updateCall?.[1]).toEqual([
       "module-1",
+      "course-version-draft",
       "Aula atualizada",
       "Descricao",
       "jmvstream",
@@ -480,6 +536,7 @@ describe("admin authoring", () => {
       2,
       "archived",
       false,
+      false,
       "lesson-1",
     ]);
     expect(deleteJmvstreamAssetsForLesson).not.toHaveBeenCalled();
@@ -487,6 +544,196 @@ describe("admin authoring", () => {
       "lessons/lesson-1/resources/old.pdf",
     ]);
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
+  });
+
+  it("does not delete an R2 resource still referenced by a published course version", async () => {
+    const previousContent = {
+      document: textDocument,
+      resources: [
+        {
+          contentType: "application/pdf",
+          fileName: "shared.pdf",
+          id: "resource-0",
+          key: "lessons/lesson-1/resources/shared.pdf",
+          label: "Shared",
+          sizeBytes: 100,
+          storage: "r2",
+        },
+      ],
+      type: "text",
+    };
+    query.mockImplementation((sql: string) => {
+      const versioningResult = versioningQueryResult(sql);
+      if (versioningResult) {
+        return versioningResult;
+      }
+      if (sql.includes("select video_embed_url")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select course_id from modules")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+      if (sql.includes("select content_json from lessons")) {
+        return { rows: [{ content_json: previousContent }] };
+      }
+      if (sql.includes("published_version.status = 'published'")) {
+        return { rows: [{ content_json: previousContent }] };
+      }
+      if (sql.includes("select m.course_id")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+
+      return { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-1");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula atualizada");
+    formData.set("textDocument", JSON.stringify(textDocument));
+
+    await saveLesson({ actorUserId: "admin-1", formData });
+
+    expect(deleteR2Objects).toHaveBeenCalledWith([]);
+  });
+
+  it("requires a documented compatible-correction reason before changing a published lesson", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+      ) {
+        return { rows: [{ status: "published" }] };
+      }
+      if (sql.includes("select course_id, course_version_id from modules")) {
+        return {
+          rows: [
+            { course_id: "course-1", course_version_id: "course-version-1" },
+          ],
+        };
+      }
+      if (sql.includes("select video_embed_url")) {
+        return { rows: [] };
+      }
+
+      return { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-1");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Correção de ortografia");
+    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.set("compatibleCorrection", "on");
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Informe o motivo da correção editorial compatível.");
+  });
+
+  it("rejects a compatible correction that changes published lesson structure", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+      ) {
+        return { rows: [{ status: "published" }] };
+      }
+      if (sql.includes("select module_id, sort_order, status, is_required")) {
+        return {
+          rows: [
+            {
+              is_required: true,
+              module_id: "module-1",
+              sort_order: 2,
+              status: "active",
+            },
+          ],
+        };
+      }
+      if (sql.includes("select video_embed_url")) {
+        return { rows: [] };
+      }
+
+      return { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-1");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Correção de ortografia");
+    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.set("status", "active");
+    formData.set("sortOrder", "1");
+    formData.set("isRequired", "on");
+    formData.set("compatibleCorrection", "on");
+    formData.set("compatibleCorrectionReason", "Correção de ortografia.");
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow(
+      "Correção editorial não pode alterar módulo, ordem, estado ou obrigatoriedade da aula. Crie uma nova versão."
+    );
+  });
+
+  it("audits a compatible correction without changing published lesson structure", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+      ) {
+        return { rows: [{ status: "published" }] };
+      }
+      if (sql.includes("select module_id, sort_order, status, is_required")) {
+        return {
+          rows: [
+            {
+              is_required: true,
+              module_id: "module-1",
+              sort_order: 2,
+              status: "active",
+            },
+          ],
+        };
+      }
+      if (sql.includes("select course_id, course_version_id from modules")) {
+        return {
+          rows: [
+            { course_id: "course-1", course_version_id: "course-version-1" },
+          ],
+        };
+      }
+      if (sql.includes("select video_embed_url")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select content_json from lessons")) {
+        return { rows: [{ content_json: null }] };
+      }
+      if (sql.includes("select m.course_id")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+
+      return { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-1");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Correção de ortografia");
+    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.set("status", "active");
+    formData.set("sortOrder", "2");
+    formData.set("isRequired", "on");
+    formData.set("compatibleCorrection", "on");
+    formData.set("compatibleCorrectionReason", "Correção de ortografia.");
+
+    await saveLesson({ actorUserId: "admin-1", formData });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("course_version.compatible_correction"),
+      [
+        "admin-1",
+        "lesson-1",
+        JSON.stringify({
+          courseId: "course-1",
+          courseVersionId: "course-version-1",
+          reason: "Correção de ortografia.",
+        }),
+      ]
+    );
   });
 
   it("removes lesson video state after attempting remote asset deletion", async () => {

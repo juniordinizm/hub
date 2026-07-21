@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: 19a268ca8b72bd8c2ac6875bfe68ca9f4ed7f18b
 ---
 
 # Registro de decisões de produto
@@ -61,11 +61,11 @@ Pagamento cujo valor não corresponde ao snapshot gera revisão `amount_mismatch
 
 **Tema:** conclusão de Aula e Curso.
 
-**Estado:** implementação aguardando ratificação pedagógica.
+**Estado:** aprovado; implementação pendente.
 
-Aula pode ser concluída manualmente ou por vídeo JMVStream em 98%; Curso conclui quando todas as Aulas ativas estão concluídas.
+Aula pode ser concluída manualmente ou por vídeo JMVStream em 98%; Curso conclui quando todas as Aulas obrigatórias da Versão de Curso vinculada estão concluídas.
 
-**Decidir:** se o botão manual permanece, limiar por tipo de Aula, efeito de conteúdo adicionado e regra para Curso vazio.
+**D3 ratificada em 2026-07-21:** toda Aula obrigatória pode ser concluída manualmente pela Aluna, sem mínimo de visualização. Para Aula de vídeo JMVStream, evento válido com 98% ou mais também conclui automaticamente. Aulas opcionais não entram no denominador. Certificado prova Conclusão curricular, não domínio do conteúdo.
 
 **Decisão:** Seguir a com o melhor para o projeto
 
@@ -73,9 +73,19 @@ Aula pode ser concluída manualmente ou por vídeo JMVStream em 98%; Curso concl
 
 **Tema:** coortes e versões de conteúdo.
 
-**Estado:** pendente real.
+**Estado:** aprovado; implementação pendente.
 
 Não existem coortes. Ativar, ordenar ou remover conteúdo altera a grade vigente para todas as Alunas elegíveis.
+
+**D1 ratificada em 2026-07-21:** `Course` é a identidade comercial. Cada publicação cria uma `CourseVersion` imutável, à qual a Matrícula será vinculada. O Hub não manterá conteúdo vivo para Matrículas existentes nem duplicará o currículo como snapshot por Matrícula.
+
+**D2 ratificada em 2026-07-21:** uma nova versão atende somente novas Matrículas. A migração de Alunas ou coortes existentes é opcional, auditada e explícita. Uma Aluna já concluída não perde sua Conclusão nem seu Certificado.
+
+**D4 ratificada em 2026-07-21:** coortes e `DripRule` não serão modelados agora. A ausência de calendário ou grupo real torna essa modelagem prematura; quando necessários, permanecerão separados de Concessão de acesso e Matrícula.
+
+**D5 ratificada em 2026-07-21:** correção editorial compatível pode integrar a mesma Versão de Curso com auditoria. Mudança de objetivo pedagógico, ordem obrigatória ou regra de Conclusão exige nova Versão de Curso.
+
+O contrato aprovado está detalhado em [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md). Coorte e `DripRule` permanecem fora do modelo até existir calendário ou grupo real.
 
 **Decidir:** conteúdo por data de compra/coorte, política de migração e efeito no progresso/Certificado.
 

@@ -30,6 +30,7 @@ export interface CertificateRecord {
 export const tryIssueAutomaticCompletionCertificate = async ({
   client,
   courseId,
+  courseVersionId,
   courseTitle,
   studentName,
   userId,
@@ -37,6 +38,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
 }: {
   client: PoolClient;
   courseId: string;
+  courseVersionId: string;
   courseTitle: string;
   studentName: string;
   userId: string;
@@ -48,16 +50,25 @@ export const tryIssueAutomaticCompletionCertificate = async ({
       insert into certificates (
         user_id,
         course_id,
+        course_version_id,
         code,
         student_name_snapshot,
         course_title_snapshot,
         workload_hours_snapshot
       )
-      values ($1, $2, $3, $4, $5, $6)
+      values ($1, $2, $3, $4, $5, $6, $7)
       on conflict do nothing
       returning code
     `,
-    [userId, courseId, candidateCode, studentName, courseTitle, workloadHours]
+    [
+      userId,
+      courseId,
+      courseVersionId,
+      candidateCode,
+      studentName,
+      courseTitle,
+      workloadHours,
+    ]
   );
 
   return certificate.rows[0]?.code ?? null;
@@ -75,11 +86,13 @@ export interface CompletionCertificateSummary {
 export const issueCompletionCertificateIfEligible = async ({
   client,
   courseId,
+  courseVersionId,
   summary,
   userId,
 }: {
   client: PoolClient;
   courseId: string;
+  courseVersionId: string;
   summary: CompletionCertificateSummary;
   userId: string;
 }): Promise<boolean> => {
@@ -95,6 +108,7 @@ export const issueCompletionCertificateIfEligible = async ({
   const certificateCode = await tryIssueAutomaticCompletionCertificate({
     client,
     courseId,
+    courseVersionId,
     courseTitle: summary.courseTitle,
     studentName: summary.studentName,
     userId,
@@ -170,6 +184,7 @@ const issueCertificate = async ({
   actorUserId,
   client,
   courseId,
+  courseVersionId,
   reasonCategory,
   reasonDetail,
   replacesCertificateId,
@@ -178,6 +193,7 @@ const issueCertificate = async ({
   actorUserId: string;
   client: PoolClient;
   courseId: string;
+  courseVersionId: string;
   reasonCategory?: CertificateReasonCode;
   reasonDetail?: string;
   replacesCertificateId?: string;
@@ -189,13 +205,16 @@ const issueCertificate = async ({
     workload_hours: number;
   }>(
     `
-      select u.name as student_name, c.title as course_title, c.workload_hours
+      select
+        u.name as student_name,
+        cv.title_snapshot as course_title,
+        cv.workload_hours_snapshot as workload_hours
       from users u
-      cross join courses c
-      where u.id = $1 and c.id = $2
+      join course_versions cv on cv.course_id = $2 and cv.id = $3
+      where u.id = $1
       limit 1
     `,
-    [userId, courseId]
+    [userId, courseId, courseVersionId]
   );
   const source = snapshot.rows[0];
 
@@ -208,18 +227,20 @@ const issueCertificate = async ({
       insert into certificates (
         user_id,
         course_id,
+        course_version_id,
         code,
         student_name_snapshot,
         course_title_snapshot,
         workload_hours_snapshot,
         replaces_certificate_id
       )
-      values ($1, $2, $3, $4, $5, $6, $7)
+      values ($1, $2, $3, $4, $5, $6, $7, $8)
       returning id
     `,
     [
       userId,
       courseId,
+      courseVersionId,
       randomUUID(),
       source.student_name,
       source.course_title,
@@ -269,10 +290,24 @@ export const issueManualCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
+    const enrollment = await client.query<{ course_version_id: string }>(
+      `
+        select course_version_id
+        from enrollments
+        where user_id = $1 and course_id = $2
+        limit 1
+      `,
+      [userId, courseId]
+    );
+    const courseVersionId = enrollment.rows[0]?.course_version_id;
+    if (!courseVersionId) {
+      throw new Error("A aluna nao possui matricula vinculada a uma versao.");
+    }
     const certificate = await issueCertificate({
       actorUserId,
       client,
       courseId,
+      courseVersionId,
       reasonCategory: category,
       reasonDetail: reasonDetail.trim(),
       userId,
@@ -357,7 +392,11 @@ export const reissueCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const previous = await client.query<{ course_id: string; user_id: string }>(
+    const previous = await client.query<{
+      course_id: string;
+      course_version_id: string;
+      user_id: string;
+    }>(
       `
         update certificates
         set status = 'revoked',
@@ -368,7 +407,7 @@ export const reissueCertificate = async ({
             updated_at = now()
         where id = $1
           and status = 'valid'
-        returning user_id, course_id
+        returning user_id, course_id, course_version_id
       `,
       [certificateId, category, reasonDetail.trim(), actorUserId]
     );
@@ -389,6 +428,7 @@ export const reissueCertificate = async ({
       actorUserId,
       client,
       courseId: previousCertificate.course_id,
+      courseVersionId: previousCertificate.course_version_id,
       reasonCategory: category,
       reasonDetail: reasonDetail.trim(),
       replacesCertificateId: certificateId,

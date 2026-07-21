@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 19a268ca8b72bd8c2ac6875bfe68ca9f4ed7f18b
 ---
 
 # Glossário do Hub
@@ -52,6 +52,9 @@ Fila humana criada quando o sistema não consegue aplicar com segurança um even
 
 **Curso**  
 Produto educacional vendável e publicável, composto por Módulos e Aulas.
+
+**Versão de Curso (`CourseVersion`)**
+Currículo publicado e imutável de um Curso, que define a estrutura de aprendizagem recebida por uma Matrícula. O Curso preserva a identidade comercial; a Versão de Curso preserva a promessa curricular.
 
 **Módulo**  
 Agrupamento ordenado de Aulas dentro de um Curso.

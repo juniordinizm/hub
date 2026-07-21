@@ -22,6 +22,20 @@ describe("course progress rules", () => {
     });
   });
 
+  it("calculates course completion from required lessons only", () => {
+    expect(
+      calculateCourseProgress({
+        lessonIds: ["required-one", "optional", "required-two"],
+        requiredLessonIds: ["required-one", "required-two"],
+        completedLessonIds: ["required-one", "optional"],
+      })
+    ).toEqual({
+      completedCount: 1,
+      percent: 50,
+      totalCount: 2,
+    });
+  });
+
   it("allows only the first incomplete lesson in sequence", () => {
     const completedLessonIds = ["l1"];
 

@@ -149,10 +149,12 @@ export interface AdminFaq {
 export interface AdminLesson {
   contentJson: unknown;
   courseTitle: string;
+  courseVersionStatus: "draft" | "published" | "retired";
   description: string | null;
   durationSeconds: number;
   id: string;
   isPublished: boolean;
+  isRequired: boolean;
   moduleId: string;
   moduleTitle: string;
   sortOrder: number;
@@ -286,7 +288,13 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
           select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
           from modules m
           join courses c on c.id = m.course_id
-          where m.course_id = $1
+           where m.course_version_id = (
+             select id
+             from course_versions
+             where course_id = $1 and status in ('draft', 'published')
+             order by case status when 'draft' then 0 else 1 end, version_number desc
+             limit 1
+           )
           order by m.sort_order
         `
       : `
@@ -313,9 +321,11 @@ const readLessons = async (courseId?: string): Promise<AdminLesson[]> => {
   const { rows } = await getPool().query<{
     content_json: unknown;
     course_title: string;
+    course_version_status: "draft" | "published" | "retired";
     duration_seconds: number;
     id: string;
     is_published: boolean;
+    is_required: boolean;
     lesson_description: string | null;
     module_id: string;
     module_title: string;
@@ -336,11 +346,19 @@ const readLessons = async (courseId?: string): Promise<AdminLesson[]> => {
                  l.duration_seconds, l.video_duration_seconds,
                  l.text_duration_seconds, l.text_word_count,
                  l.sort_order, l.video_provider,
-                 l.video_external_id, l.video_embed_url, l.status, l.is_published
+                 l.video_external_id, l.video_embed_url, l.status, l.is_published, l.is_required,
+                 cv.status as course_version_status
           from lessons l
           join modules m on m.id = l.module_id
           join courses c on c.id = m.course_id
-          where m.course_id = $1
+          join course_versions cv on cv.id = l.course_version_id
+           where l.course_version_id = (
+             select id
+             from course_versions
+             where course_id = $1 and status in ('draft', 'published')
+             order by case status when 'draft' then 0 else 1 end, version_number desc
+             limit 1
+           )
           order by m.sort_order, l.sort_order
         `
       : `
@@ -349,10 +367,12 @@ const readLessons = async (courseId?: string): Promise<AdminLesson[]> => {
                  l.duration_seconds, l.video_duration_seconds,
                  l.text_duration_seconds, l.text_word_count,
                  l.sort_order, l.video_provider,
-                 l.video_external_id, l.video_embed_url, l.status, l.is_published
+                 l.video_external_id, l.video_embed_url, l.status, l.is_published, l.is_required,
+                 cv.status as course_version_status
           from lessons l
           join modules m on m.id = l.module_id
           join courses c on c.id = m.course_id
+          join course_versions cv on cv.id = l.course_version_id
           order by c.title, m.sort_order, l.sort_order
         `,
     courseId ? [courseId] : undefined
@@ -361,9 +381,11 @@ const readLessons = async (courseId?: string): Promise<AdminLesson[]> => {
   return rows.map((row) => ({
     contentJson: row.content_json,
     courseTitle: row.course_title,
+    courseVersionStatus: row.course_version_status,
     durationSeconds: row.duration_seconds,
     id: row.id,
     isPublished: row.status === "active",
+    isRequired: row.is_required,
     moduleId: row.module_id,
     moduleTitle: row.module_title,
     description: row.lesson_description,
@@ -390,9 +412,11 @@ const readLessonEditor = async ({
     content_json: unknown;
     course_id: string;
     course_title: string;
+    course_version_status: "draft" | "published" | "retired";
     duration_seconds: number;
     id: string;
     is_published: boolean;
+    is_required: boolean;
     lesson_description: string | null;
     module_description: string | null;
     module_id: string;
@@ -416,10 +440,11 @@ const readLessonEditor = async ({
              l.description as lesson_description, l.content_json, l.duration_seconds,
              l.video_duration_seconds, l.text_duration_seconds, l.text_word_count,
              l.sort_order, l.video_provider, l.video_external_id, l.video_embed_url,
-             l.status, l.is_published
+             l.status, l.is_published, l.is_required, cv.status as course_version_status
       from lessons l
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
+      join course_versions cv on cv.id = l.course_version_id
       where m.course_id = $1 and l.id = $2
       limit 1
     `,
@@ -435,10 +460,12 @@ const readLessonEditor = async ({
     lesson: {
       contentJson: row.content_json,
       courseTitle: row.course_title,
+      courseVersionStatus: row.course_version_status,
       description: row.lesson_description,
       durationSeconds: row.duration_seconds,
       id: row.id,
       isPublished: row.status === "active",
+      isRequired: row.is_required,
       moduleId: row.module_id,
       moduleTitle: row.module_title,
       sortOrder: row.sort_order,

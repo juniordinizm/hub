@@ -15,11 +15,13 @@ import {
 import { saveLessonAction } from "@/features/admin/actions";
 
 interface LessonSidebarActionsProps {
+  courseVersionStatus: "draft" | "published" | "retired";
   formId: string;
   initialStatus: string;
 }
 
 export function LessonSidebarActions({
+  courseVersionStatus,
   formId,
   initialStatus,
 }: LessonSidebarActionsProps): React.JSX.Element {
@@ -61,7 +63,11 @@ export function LessonSidebarActions({
       {/* Oculto, mas ainda envia o status no form data nativo (caso precise) */}
       <input form={formId} name="status" type="hidden" value={status} />
 
-      <Select onValueChange={setStatus} value={status}>
+      <Select
+        disabled={courseVersionStatus === "published"}
+        onValueChange={setStatus}
+        value={status}
+      >
         <SelectTrigger className="w-full">
           <SelectValue placeholder="Status" />
         </SelectTrigger>

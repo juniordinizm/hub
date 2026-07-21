@@ -31,6 +31,11 @@ export const courseStatusEnum = pgEnum("course_status", [
   "active",
   "archived",
 ]);
+export const courseVersionStatusEnum = pgEnum("course_version_status", [
+  "draft",
+  "published",
+  "retired",
+]);
 export const videoProviderEnum = pgEnum("video_provider", [
   "panda",
   "jmvstream",
@@ -250,6 +255,40 @@ export const courses = pgTable(
   ]
 );
 
+export const courseVersions = pgTable(
+  "course_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    versionNumber: integer("version_number").notNull(),
+    status: courseVersionStatusEnum("status").default("draft").notNull(),
+    titleSnapshot: text("title_snapshot").notNull(),
+    workloadHoursSnapshot: integer("workload_hours_snapshot")
+      .default(0)
+      .notNull(),
+    publishedAt: timestamp("published_at", tz),
+    retiredAt: timestamp("retired_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("course_versions_course_number_unique_idx").on(
+      table.courseId,
+      table.versionNumber
+    ),
+    uniqueIndex("course_versions_one_published_per_course_idx")
+      .on(table.courseId)
+      .where(sql`${table.status} = 'published'`),
+    index("course_versions_course_status_idx").on(table.courseId, table.status),
+    check("course_versions_number_positive", sql`${table.versionNumber} > 0`),
+    check(
+      "course_versions_workload_non_negative",
+      sql`${table.workloadHoursSnapshot} >= 0`
+    ),
+  ]
+);
+
 export const modules = pgTable(
   "modules",
   {
@@ -257,6 +296,9 @@ export const modules = pgTable(
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
     sortOrder: integer("sort_order").notNull(),
@@ -265,8 +307,12 @@ export const modules = pgTable(
   },
   (table) => [
     index("modules_course_sort_idx").on(table.courseId, table.sortOrder),
-    uniqueIndex("modules_course_sort_unique_idx").on(
-      table.courseId,
+    index("modules_course_version_sort_idx").on(
+      table.courseVersionId,
+      table.sortOrder
+    ),
+    uniqueIndex("modules_course_version_sort_unique_idx").on(
+      table.courseVersionId,
       table.sortOrder
     ),
   ]
@@ -279,6 +325,9 @@ export const lessons = pgTable(
     moduleId: uuid("module_id")
       .notNull()
       .references(() => modules.id, { onDelete: "cascade" }),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     description: text("description"),
     videoProvider: videoProviderEnum("video_provider"),
@@ -295,6 +344,7 @@ export const lessons = pgTable(
     sortOrder: integer("sort_order").notNull(),
     status: courseStatusEnum("status").default("draft").notNull(),
     isPublished: boolean("is_published").default(true).notNull(),
+    isRequired: boolean("is_required").default(true).notNull(),
     ...timestamps,
   },
   (table) => [
@@ -315,6 +365,7 @@ export const lessons = pgTable(
       sql`${table.textWordCount} >= 0`
     ),
     index("lessons_module_sort_idx").on(table.moduleId, table.sortOrder),
+    index("lessons_course_version_idx").on(table.courseVersionId),
     uniqueIndex("lessons_module_sort_unique_idx").on(
       table.moduleId,
       table.sortOrder
@@ -406,6 +457,9 @@ export const enrollments = pgTable(
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "restrict" }),
     status: enrollmentStatusEnum("status").default("active").notNull(),
     startsAt: timestamp("starts_at", tz).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", tz).notNull(),
@@ -421,6 +475,7 @@ export const enrollments = pgTable(
       table.courseId
     ),
     index("enrollments_course_status_idx").on(table.courseId, table.status),
+    index("enrollments_course_version_idx").on(table.courseVersionId),
     index("enrollments_expires_at_idx").on(table.expiresAt),
   ]
 );
@@ -773,6 +828,9 @@ export const certificates = pgTable(
     courseId: uuid("course_id")
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "restrict" }),
     code: text("code").notNull().unique(),
     studentNameSnapshot: text("student_name_snapshot").notNull(),
     courseTitleSnapshot: text("course_title_snapshot").notNull(),
@@ -795,10 +853,11 @@ export const certificates = pgTable(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("certificates_user_course_active_unique_idx")
-      .on(table.userId, table.courseId)
+    uniqueIndex("certificates_user_course_version_active_unique_idx")
+      .on(table.userId, table.courseVersionId)
       .where(sql`${table.status} = 'valid'`),
     index("certificates_status_idx").on(table.status),
+    index("certificates_course_version_idx").on(table.courseVersionId),
   ]
 );
 
@@ -818,6 +877,14 @@ export const privacyRequests = pgTable(
       onDelete: "set null",
     }),
     resolvedAt: timestamp("resolved_at", tz),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedAt: timestamp("approved_at", tz),
+    executedByUserId: text("executed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    executedAt: timestamp("executed_at", tz),
     ...timestamps,
   },
   (table) => [

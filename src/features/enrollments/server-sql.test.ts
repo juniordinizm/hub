@@ -59,4 +59,16 @@ describe("enrollment server SQL contracts", () => {
     expect(source).toContain("access_manual_block_removed");
     expect(source).not.toContain("delete from enrollments");
   });
+
+  it("migrates a selected enrollment to a published version with an audit reason", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("migrateEnrollmentCourseVersion");
+    expect(source).toContain("course_version.migrated");
+    expect(source).toContain("status = 'published'");
+    expect(source).toContain("where id = $1 and course_id = $2");
+  });
 });

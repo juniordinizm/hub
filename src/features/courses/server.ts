@@ -178,6 +178,7 @@ interface LessonRow {
   course_id: string;
   course_title: string;
   duration_seconds: number;
+  is_required: boolean;
   lesson_description: string | null;
   lesson_id: string;
   lesson_sort_order: number;
@@ -205,11 +206,13 @@ interface LessonWatchProgressRow {
 type StudentCourseModuleAggregate = StudentCourseModule & {
   completedLessonIds: string[];
   lessonIds: string[];
+  requiredLessonIds: string[];
 };
 
 type StudentCourseAggregate = StudentCourseCard & {
   completedLessonIds: string[];
   lessonIds: string[];
+  requiredLessonIds: string[];
   modulesById: Map<string, StudentCourseModuleAggregate>;
 };
 
@@ -229,6 +232,7 @@ interface CourseOverviewRow {
   course_title: string;
   duration_seconds: number | null;
   expires_at: Date;
+  is_required: boolean | null;
   lesson_id: string | null;
   lesson_sort_order: number | null;
   lesson_thumbnail_url: string | null;
@@ -302,6 +306,7 @@ const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
 
 export const getStudentCourses = async (
   userId: string
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: assembles one course tree from a flat version-scoped query.
 ): Promise<StudentCourseCard[]> => {
   const { rows } = await getPool().query<{
     completed_at: Date | null;
@@ -309,6 +314,7 @@ export const getStudentCourses = async (
     course_id: string;
     expires_at: Date;
     lesson_id: string | null;
+    is_required: boolean | null;
     module_id: string | null;
     module_sort_order: number | null;
     module_title: string | null;
@@ -322,21 +328,25 @@ export const getStudentCourses = async (
       select
         c.id as course_id,
         c.slug,
-        c.title,
+        cv.title_snapshot as title,
         c.subtitle,
         c.description as course_description,
-        c.workload_hours,
+        cv.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
         l.id as lesson_id,
+        l.is_required,
         lp.completed_at
       from enrollments e
       join courses c on c.id = e.course_id
-      left join modules m on m.course_id = c.id and m.status = 'active'
-      left join lessons l on l.module_id = m.id and l.status = 'active'
+      join course_versions cv on cv.id = e.course_version_id
+      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id
+        and l.course_version_id = cv.id
+        and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       where e.user_id = $1
         and e.status = 'active'
@@ -367,11 +377,15 @@ export const getStudentCourses = async (
       nextLessonId: null,
       lessonIds: [],
       completedLessonIds: [],
+      requiredLessonIds: [],
       modulesById: new Map<string, StudentCourseModuleAggregate>(),
     };
 
     if (row.lesson_id) {
       course.lessonIds.push(row.lesson_id);
+      if (row.is_required) {
+        course.requiredLessonIds.push(row.lesson_id);
+      }
       if (row.completed_at) {
         course.completedLessonIds.push(row.lesson_id);
       }
@@ -388,10 +402,14 @@ export const getStudentCourses = async (
         nextLessonId: null,
         lessonIds: [],
         completedLessonIds: [],
+        requiredLessonIds: [],
       };
 
       if (row.lesson_id) {
         moduleData.lessonIds.push(row.lesson_id);
+        if (row.is_required) {
+          moduleData.requiredLessonIds.push(row.lesson_id);
+        }
         if (row.completed_at) {
           moduleData.completedLessonIds.push(row.lesson_id);
         }
@@ -491,8 +509,18 @@ export const getStudentCourseCatalog = async (
       from courses c
       left join enrollments e on e.course_id = c.id
         and e.user_id = $1
-      left join modules m on m.course_id = c.id and m.status = 'active'
-      left join lessons l on l.module_id = m.id and l.status = 'active'
+      left join lateral (
+        select id
+        from course_versions
+        where course_id = c.id
+          and (id = e.course_version_id or status = 'published')
+        order by case when id = e.course_version_id then 0 else 1 end
+        limit 1
+      ) cv on true
+      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id
+        and l.course_version_id = cv.id
+        and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
       where c.status = 'active'
       order by c.created_at desc, m.sort_order asc, l.sort_order asc
@@ -625,10 +653,10 @@ const getEnrolledCourseOverview = async ({
       select
         c.id as course_id,
         c.slug as course_slug,
-        c.title as course_title,
+        cv.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        c.workload_hours,
+        cv.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         cert.code as certificate_code,
@@ -643,16 +671,20 @@ const getEnrolledCourseOverview = async ({
         l.video_external_id,
         l.duration_seconds,
         l.video_duration_seconds,
+        l.is_required,
         l.sort_order as lesson_sort_order,
         lp.completed_at,
         lwp.watched_percent
       from enrollments e
       join courses c on c.id = e.course_id
-      left join certificates cert on cert.course_id = c.id
+      join course_versions cv on cv.id = e.course_version_id
+      left join certificates cert on cert.course_version_id = cv.id
         and cert.user_id = e.user_id
         and cert.status = 'valid'
-      left join modules m on m.course_id = c.id and m.status = 'active'
-      left join lessons l on l.module_id = m.id and l.status = 'active'
+      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      left join lessons l on l.module_id = m.id
+        and l.course_version_id = cv.id
+        and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.user_id = $1
@@ -678,7 +710,14 @@ const getEnrolledCourseOverview = async ({
   const completedLessonIds = rows
     .filter((row) => row.completed_at && row.lesson_id)
     .map((row) => row.lesson_id as string);
-  const progress = calculateCourseProgress({ lessonIds, completedLessonIds });
+  const requiredLessonIds = rows
+    .filter((row) => row.lesson_id && row.is_required !== false)
+    .map((row) => row.lesson_id as string);
+  const progress = calculateCourseProgress({
+    lessonIds,
+    requiredLessonIds,
+    completedLessonIds,
+  });
   const modules = new Map<
     string,
     StudentCourseOverviewData["modules"][number]
@@ -754,10 +793,10 @@ const getPreviewCourseOverview = async ({
       select
         c.id as course_id,
         c.slug as course_slug,
-        c.title as course_title,
+        cv.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        c.workload_hours,
+        cv.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         m.id as module_id,
         m.title as module_title,
@@ -771,8 +810,15 @@ const getPreviewCourseOverview = async ({
         l.duration_seconds,
         l.sort_order as lesson_sort_order
       from courses c
-      left join modules m on m.course_id = c.id
-      left join lessons l on l.module_id = m.id
+      join lateral (
+        select id, title_snapshot, workload_hours_snapshot
+        from course_versions
+        where course_id = c.id and status in ('draft', 'published')
+        order by case status when 'draft' then 0 else 1 end, version_number desc
+        limit 1
+      ) cv on true
+      left join modules m on m.course_version_id = cv.id
+      left join lessons l on l.module_id = m.id and l.course_version_id = cv.id
       where c.id = $1
       order by m.sort_order asc, l.sort_order asc
     `,
@@ -902,9 +948,8 @@ const getEnrolledLessonWorkspace = async ({
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (
-        select m.course_id
+        select l.course_version_id
         from lessons l
-        join modules m on m.id = l.module_id
         where l.id = $2
       )
       select
@@ -923,16 +968,19 @@ const getEnrolledLessonWorkspace = async ({
         l.video_embed_url,
         l.video_external_id,
         l.video_provider,
+        l.is_required,
         lp.completed_at,
         lwp.current_seconds as watch_current_seconds,
         lwp.duration_seconds as watch_duration_seconds,
         lwp.max_position_seconds as watch_max_position_seconds,
         lwp.watched_percent as watch_percent
       from target_course tc
-      join enrollments e on e.course_id = tc.course_id and e.user_id = $1
+      join enrollments e on e.course_version_id = tc.course_version_id and e.user_id = $1
       join courses c on c.id = e.course_id
-      join modules m on m.course_id = c.id and m.status = 'active'
-      join lessons l on l.module_id = m.id and l.status = 'active'
+      join modules m on m.course_version_id = e.course_version_id and m.status = 'active'
+      join lessons l on l.module_id = m.id
+        and l.course_version_id = e.course_version_id
+        and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.status = 'active'
@@ -952,6 +1000,9 @@ const getEnrolledLessonWorkspace = async ({
   const completedLessonIds = rows
     .filter((row) => row.completed_at)
     .map((row) => row.lesson_id);
+  const requiredLessonIds = rows
+    .filter((row) => row.is_required !== false)
+    .map((row) => row.lesson_id);
 
   if (!isLessonAvailable({ lessonIds, completedLessonIds, lessonId })) {
     return null;
@@ -964,7 +1015,11 @@ const getEnrolledLessonWorkspace = async ({
   }
 
   const lessonIndex = lessonIds.indexOf(lessonId);
-  const progress = calculateCourseProgress({ lessonIds, completedLessonIds });
+  const progress = calculateCourseProgress({
+    lessonIds,
+    requiredLessonIds,
+    completedLessonIds,
+  });
   const video = await resolveStudentLessonVideo(activeLesson);
 
   return {
@@ -1010,9 +1065,8 @@ const getPreviewLessonWorkspace = async ({
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (
-        select m.course_id
+        select l.course_version_id
         from lessons l
-        join modules m on m.id = l.module_id
         where l.id = $1
       )
       select
@@ -1031,15 +1085,17 @@ const getPreviewLessonWorkspace = async ({
         l.video_embed_url,
         l.video_external_id,
         l.video_provider,
+        l.is_required,
         null::timestamp as completed_at,
         null::integer as watch_current_seconds,
         null::integer as watch_duration_seconds,
         null::integer as watch_max_position_seconds,
         null::integer as watch_percent
       from target_course tc
-      join courses c on c.id = tc.course_id
-      join modules m on m.course_id = c.id
-      join lessons l on l.module_id = m.id
+      join course_versions cv on cv.id = tc.course_version_id
+      join courses c on c.id = cv.course_id
+      join modules m on m.course_version_id = cv.id
+      join lessons l on l.module_id = m.id and l.course_version_id = cv.id
       order by m.sort_order asc, l.sort_order asc
     `,
     [lessonId]
@@ -1180,6 +1236,7 @@ export const completeLesson = async ({
     );
 
     const { rows } = await client.query<{
+      course_version_id: string;
       total_lessons: number;
       completed_lessons: number;
       certificate_id: string | null;
@@ -1189,20 +1246,24 @@ export const completeLesson = async ({
     }>(
       `
         select
-          count(l.id)::int as total_lessons,
-          count(lp.id)::int as completed_lessons,
+          count(l.id) filter (where l.is_required)::int as total_lessons,
+          count(lp.id) filter (where l.is_required)::int as completed_lessons,
+          max(e.course_version_id::text) as course_version_id,
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
-          max(c.title) as course_title,
-          max(c.workload_hours)::int as workload_hours
+          max(cv.title_snapshot) as course_title,
+          max(cv.workload_hours_snapshot)::int as workload_hours
         from courses c
         join enrollments e on e.course_id = c.id and e.user_id = $1
+        join course_versions cv on cv.id = e.course_version_id
         join users u on u.id = e.user_id
-        join modules m on m.course_id = c.id and m.status = 'active'
-        join lessons l on l.module_id = m.id and l.status = 'active'
+        join modules m on m.course_version_id = cv.id and m.status = 'active'
+        join lessons l on l.module_id = m.id
+          and l.course_version_id = cv.id
+          and l.status = 'active'
         left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
         left join certificates cert on cert.user_id = e.user_id
-          and cert.course_id = c.id
+          and cert.course_version_id = cv.id
         where c.id = $2
         group by c.id
       `,
@@ -1214,6 +1275,7 @@ export const completeLesson = async ({
       ? await issueCompletionCertificateIfEligible({
           client,
           courseId: data.course.id,
+          courseVersionId: summary.course_version_id,
           summary: {
             certificateId: summary.certificate_id,
             completedLessons: summary.completed_lessons,

@@ -19,7 +19,7 @@ Curso contém Módulos ordenados; Módulo contém Aulas ordenadas. Cada nível d
 
 Consultas em `getStudentCourseOverview` e `getStudentLessonWorkspace` filtram Curso, Módulo e Aula ativos. Drafts pertencem à autoria/preview.
 
-**Invariante:** tornar um item ativo pode afetar imediatamente todas as Alunas com acesso; não existem coortes ou versões de conteúdo.
+**Comportamento implementado:** Matrícula aponta para uma Versão de Curso publicada; leituras da Aluna fazem `join` por `enrollments.course_version_id`, sem fallback para conteúdo vivo do Curso. Publicar nova estrutura não altera Matrícula, progresso ou Certificado existentes. Ver [ADR-0007](../adr/0007-course-versioning-and-enrollment-curriculum.md).
 
 ### REG-LEA-002 Ordem é explícita e estável
 
@@ -37,11 +37,11 @@ Módulos e Aulas usam `sort_order`. `reorderModulesAction` e `reorderLessonsActi
 
 Aula inexistente na sequência é negada. A regra atua depois da autorização de Matrícula.
 
-### REG-LEA-004 Conclusão atual é manual ou vídeo JMVStream em 98%
+### REG-LEA-004 Conclusão manual é permitida; vídeo JMVStream em 98% é automático
 
 `completeLesson` registra conclusão idempotente. `shouldCompleteLessonFromJmvstreamEvent`, em `src/features/videos/jmvstream.ts`, conclui quando evento reconhecido informa pelo menos 98% assistido.
 
-Esse limiar e a conclusão manual estão implementados, mas aguardam ratificação pedagógica em [DEC-DISC-004](../decisions.md#dec-disc-004).
+A Aluna pode concluir manualmente toda Aula obrigatória, sem percentual mínimo de visualização. O limiar de 98% é uma segunda via automática para vídeo JMVStream; não é requisito para a conclusão manual. Aulas opcionais não compõem o denominador da Conclusão do Curso. Decisão aprovada em [DEC-DISC-004](../decisions.md#dec-disc-004).
 
 **Invariantes:**
 
@@ -50,17 +50,17 @@ Esse limiar e a conclusão manual estão implementados, mas aguardam ratificaç�
 - evento de vídeo não conclui Aula de outro provedor;
 - conclusão repetida não duplica `lesson_progress`.
 
-### REG-LEA-005 Progresso de Curso considera Aulas ativas
+### REG-LEA-005 Progresso de Curso considera Aulas obrigatórias da Versão
 
-`calculateCourseProgress` conta IDs concluídos que pertencem à lista vigente. Percentual é arredondado; Curso vazio resulta em 0%.
+`calculateCourseProgress` conta IDs concluídos que pertencem à lista obrigatória da Versão. Percentual é arredondado; Curso sem Aula obrigatória resulta em 0% e não emite Certificado automaticamente.
 
-Ao atingir todas as Aulas ativas, `completeLesson` pode emitir Certificado se ainda não houver um válido. Alterar o conjunto ativo pode mudar o percentual histórico; não há snapshot/coorte de grade.
+Ao atingir todas as Aulas obrigatórias, `completeLesson` pode emitir Certificado para aquela Versão. Aulas opcionais não entram no denominador.
 
 ### REG-LEA-006 Duração pedagógica é derivada do conteúdo
 
-`calculateLessonDurationBreakdown`, em `src/features/courses/lesson-duration.ts`, soma vídeo e leitura. Leitura usa 260 palavras por minuto. `recalculateCourseWorkloadHours` agrega o Curso.
+`calculateLessonDurationBreakdown`, em `src/features/courses/lesson-duration.ts`, soma vídeo e leitura. Leitura usa 260 palavras por minuto. `recalculateCourseWorkloadHours` agrega o Curso e a Versão publicada preserva sua carga horária como snapshot.
 
-Essa duração não altera a duração comercial de acesso. Migração `0023_precise_text_reading_duration.sql` refina o cálculo, mas está fora do journal.
+Essa duração não altera a duração comercial de acesso. O racional histórico para 260 palavras/minuto não foi localizado.
 
 ### REG-LEA-007 Comentários têm uma camada de resposta
 
@@ -82,11 +82,15 @@ Não há árvore arbitrariamente profunda.
 - mídia pública é copiada para bucket público;
 - banner tem contrato 4:1, 1680×420, máximo 5 MiB e LQIP.
 
+Ao editar um rascunho clonado, um objeto R2 removido só é apagado se nenhuma Versão publicada ainda o referencia. Isso preserva o currículo histórico; a limpeza de objetos sem referência continua pendente de uma rotina de coleta explícita.
+
 Detalhes: [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md).
 
 ## Autorização e falhas
 
 - autoria e publicação exigem `manageContent`;
+- a autoria marca cada Aula como obrigatória ou opcional; a marca integra a Versão e controla apenas o denominador de conclusão;
+- correção em Aula de Versão publicada exige motivo editorial compatível e preserva módulo, ordem, estado e obrigatoriedade; a ação gera `course_version.compatible_correction`;
 - experiência da Aluna exige Matrícula válida;
 - preview Admin não grava progresso;
 - falha de upload não deve publicar referência quebrada;
@@ -111,7 +115,6 @@ Detalhes: [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md
 
 ## Pendências
 
-- [DEC-DISC-004](../decisions.md#dec-disc-004): ratificar conclusão.
-- [DEC-DISC-005](../decisions.md#dec-disc-005): decidir coortes/versionamento.
-- Definir efeito de arquivamento sobre Matrículas existentes.
+- A migração administrativa explícita `migrateEnrollmentCourseVersion` exige Versão publicada de destino e motivo auditado; não há migração automática nem migração em massa pela reconstrução de acesso.
+- Definir uma interface administrativa para classificar correção editorial compatível e registrar sua justificativa auditável.
 - Racional histórico para 260 palavras/minuto não localizado.

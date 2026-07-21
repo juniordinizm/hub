@@ -1,6 +1,7 @@
 export interface CourseProgressInput {
   completedLessonIds: string[];
   lessonIds: string[];
+  requiredLessonIds?: string[];
 }
 
 export interface CourseProgress {
@@ -23,12 +24,13 @@ export interface VideoPositionProgress {
 export const calculateCourseProgress = ({
   lessonIds,
   completedLessonIds,
+  requiredLessonIds,
 }: CourseProgressInput): CourseProgress => {
-  const lessonIdSet = new Set(lessonIds);
+  const lessonIdSet = new Set(requiredLessonIds ?? lessonIds);
   const completedCount = new Set(
     completedLessonIds.filter((lessonId) => lessonIdSet.has(lessonId))
   ).size;
-  const totalCount = lessonIds.length;
+  const totalCount = lessonIdSet.size;
 
   return {
     completedCount,

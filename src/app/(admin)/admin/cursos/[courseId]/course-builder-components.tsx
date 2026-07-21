@@ -296,6 +296,12 @@ export function LessonEditorSidebarFields({
         type="hidden"
         value={lesson.moduleId}
       />
+      <input
+        form={formId}
+        name="isRequired"
+        type="hidden"
+        value={lesson.isRequired ? "on" : "false"}
+      />
       <Field>
         <FieldLabel>Titulo da aula</FieldLabel>
         <Input
@@ -315,6 +321,38 @@ export function LessonEditorSidebarFields({
           rows={4}
         />
       </Field>
+      <Field orientation="horizontal">
+        <Input
+          defaultChecked={lesson.isRequired}
+          disabled={lesson.courseVersionStatus === "published"}
+          form={formId}
+          id="lesson-is-required"
+          name="isRequired"
+          type="checkbox"
+          value="on"
+        />
+        <FieldLabel htmlFor="lesson-is-required">
+          Aula obrigatória para conclusão do curso
+        </FieldLabel>
+      </Field>
+      {lesson.courseVersionStatus === "published" && (
+        <Field>
+          <input
+            form={formId}
+            name="compatibleCorrection"
+            type="hidden"
+            value="on"
+          />
+          <FieldLabel>Motivo da correção editorial compatível</FieldLabel>
+          <Textarea
+            form={formId}
+            name="compatibleCorrectionReason"
+            placeholder="Descreva a correção sem alterar objetivo, ordem, estado ou obrigatoriedade."
+            required
+            rows={3}
+          />
+        </Field>
+      )}
     </FieldGroup>
   );
 }

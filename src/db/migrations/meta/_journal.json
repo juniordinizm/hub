@@ -190,6 +190,34 @@
       "when": 1784607836231,
       "tag": "0026_certificate_privacy_segregation",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1784669232506,
+      "tag": "0027_military_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1784669411835,
+      "tag": "0028_quick_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784669429959,
+      "tag": "0029_lush_goblin_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1784670302282,
+      "tag": "0030_complete_epoch",
+      "breakpoints": true
     }
   ]
 }

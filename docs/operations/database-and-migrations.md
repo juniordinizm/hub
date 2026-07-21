@@ -6,17 +6,16 @@ last_verified_commit: 754b654a357274fd5af504e4e714efb2dd519e2a
 
 # Banco e migrations
 
-## Estado atual: produção em `0024`; repositório bloqueado em `0026`
+## Estado atual: cadeia local validada até `0030`
 
-As migrations `0020` a `0024` foram promovidas de forma controlada em `production`. Em
-2026-07-21, `0023` criou `outbox_messages` e `0024` limitou o reprocessamento manual a uma vez;
-o journal de produção tem 25 entradas.
+O repositório possui a cadeia forward-only `0027` a `0030` após a promoção anterior de `0020` a
+`0024`. `0027` remove o artefato transitório de matrícula, `0028` cria Versões de Curso,
+`0029` preenche as referências e `0030` torna as referências obrigatórias e troca as unicidades
+por Versão. `bun run db:migrations:check` valida journal, snapshots e SQL no repositório.
 
-O repositório contém também `0025_admin_certificate_privacy_workflows` e
-`0026_certificate_privacy_segregation`, ainda não promovidas. O journal local referencia `0026`,
-mas `src/db/migrations/meta/0026_snapshot.json` não foi versionado; por isso
-`bun run db:migrations:check` falha até o snapshot ser reconstruído e revisado. Não execute
-`db:migrate` em ambiente compartilhado enquanto esse gate estiver vermelho.
+Não há alegação de que `0025` a `0030` estejam aplicadas em produção: confirme por auditoria
+somente leitura antes de qualquer promoção. Não execute `db:migrate` em ambiente compartilhado
+sem branch/backup, URL direta conferida e aprovação de promoção.
 
 Os comandos locais de reset e seed foram protegidos. Eles só são seguros para banco local
 descartável, com as proteções e confirmações abaixo.
@@ -39,13 +38,15 @@ Autoridades a comparar:
 3. `src/db/migrations/meta/_journal.json`;
 4. schema do banco alvo.
 
-O schema TypeScript exporta 29 tabelas. O journal tem uma sequência única até
-`0026_certificate_privacy_segregation`; `0023` cria `outbox_messages` e `0024` limita
-reprocessamento manual a uma vez. Os arquivos históricos anteriores `0020`–`0029` foram
-substituídos por `0020_reconcile_schema_after_manual_changes` e permanecem recuperáveis pelo Git.
+O schema TypeScript exporta 30 tabelas. O journal é uma sequência única até `0030_complete_epoch`;
+`0023` cria `outbox_messages`, `0024` limita reprocessamento manual a uma vez e `0028`–`0030`
+introduzem Versionamento de Curso. Não edite snapshots ou journal manualmente: gere/revise a
+migration e rode `bun run db:migrations:check`.
 
 `drizzle-kit migrate` exige promoção controlada em ambientes compartilhados: backup ou branch,
-URL direta conferida, auditoria antes/depois e segunda execução sem reaplicação.
+URL direta conferida, auditoria antes/depois e segunda execução sem reaplicação. A auditoria
+`db:migrations:inspect` verifica as estruturas de `0023` a `0030`, inclusive referências
+obrigatórias de Versão de Curso; o hash exibido pelo Drizzle não é o nome do arquivo SQL.
 
 ## Comandos bloqueados
 
@@ -56,10 +57,8 @@ de onboarding nem substitui a validação em banco descartável.
 
 ### `bun run db:generate`
 
-Está liberado. O snapshot `0020` foi reconstruído a partir de `src/db/schema.ts`, os snapshots
-históricos `0023`/`0024` incompatíveis foram removidos e uma geração sem alteração confirmou
-que o Drizzle não produz SQL adicional. Revise sempre o SQL gerado; `db:generate` não aplica
-migration.
+Está liberado. Os snapshots e o journal são gerados pelo Drizzle e a cadeia atual termina em
+`0030_complete_epoch`. Revise sempre o SQL gerado; `db:generate` não aplica migration.
 
 ### `bun run db:reset` e `bun run db:reset:local`
 
@@ -132,29 +131,6 @@ bun run db:migrations:inspect -- --environment=<ambiente>
 Ela abre `BEGIN READ ONLY`, usa timeout de 15 segundos e emite apenas estados de
 catálogo, contagens e hashes do Drizzle. O hash não é o nome do arquivo de migration.
 
-### Auditoria registrada em 2026-07-20
-
-O inventário via Neon MCP identificou todas as branches do projeto `protear`:
-
-- `production` (`neondb`): `0024` a `0027` presentes; `0028` e `0029` ausentes.
-- `neuro-dev` (`neondb`): `0024` a `0029` presentes.
-
-Em ambos, o journal do banco termina no timestamp de `0019`; as estruturas posteriores
-foram aplicadas fora dele. `0023_precise_text_reading_duration` tem zero divergências de
-duração e carga horária nas duas branches, mas consistência não prova execução do SQL.
-
-Os ambientes divergem. A reconciliação foi validada pelo arquivo inteiro na branch temporária
-`migration-reconciliation-replay-20260720`: criou as lacunas de produção
-(`dashboard_banners`, `0028` e `0029`), atualizou o journal para
-`0020_reconcile_schema_after_manual_changes` e a segunda execução do `drizzle-kit` não reaplicou
-SQL. Em uma base vazia temporária, as 21 migrations criaram 28 tabelas; o seed rodou duas vezes e
-permaneceu em 1 curso, 6 módulos, 28 aulas e 3 FAQs. As branches de teste foram removidas.
-
-Em 2026-07-20, as migrations `0020`, `0021` e `0022` foram promovidas para `production`. O
-journal passou a conter 23 entradas. A auditoria posterior confirmou a fonte `manual` no enum,
-as colunas `order_id` e `manual_reference`, os dois índices únicos e a restrição
-`enrollment_grants_source_shape_check`. Uma segunda execução do migrador não reaplicou SQL.
-
 ### Auditoria de recuperação e promoção em 2026-07-21
 
 O projeto Neon `protear` foi confirmado como o ambiente de produção acessível. Antes da promoção,
@@ -167,6 +143,18 @@ conferida. A auditoria posterior confirmou 25 entradas no journal, existência d
 zero mensagens pendentes. A segunda execução do migrador terminou sem reaplicar schema. A branch
 `production` continua sem proteção: o plano Free não oferece esse recurso; essa limitação deve ser
 reavaliada antes de qualquer nova mudança estrutural compartilhada.
+
+### Validação isolada do versionamento em 2026-07-21
+
+A branch temporária `plan010-versioning-validation-20260721`, criada de `protear/production`,
+executou `0027`–`0030` integralmente e foi removida após a conferência. A estrutura resultante
+teve quatro `course_version_id` obrigatórios (`modules`, `lessons`, `enrollments` e
+`certificates`) e os índices únicos por Versão esperados.
+
+A origem não continha Cursos, Matrículas ou Certificados. Portanto, a execução comprovou a cadeia
+de schema e a segurança de `0027` quando a coluna transitória não existe, mas não é evidência de
+backfill com dados históricos. Não há dados de produção a preservar neste projeto; se surgirem,
+uma futura promoção deverá validar contagens e relações antes de `0030`.
 
 ## Regra para a próxima promoção
 
