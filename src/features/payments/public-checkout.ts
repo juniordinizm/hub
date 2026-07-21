@@ -2,8 +2,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import { buildAbacatePayCheckoutRequest } from "@/features/payments/abacatepay";
-import { AbacatePayClient } from "@/features/payments/abacatepay-client";
-import { getServerEnv } from "@/lib/env";
+import {
+  getAbacatePayProviderClient,
+  getApplicationUrl,
+} from "@/features/payments/provider";
 
 const PUBLIC_CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
 const PUBLIC_CHECKOUT_MAX_ATTEMPTS = 5;
@@ -72,23 +74,6 @@ const consumePublicCheckoutAttempt = ({
   return { allowed: true };
 };
 
-const getAbacatePayClient = (): AbacatePayClient => {
-  const env = getServerEnv();
-  const apiKey = env.ABACATE_PAY_API_KEY ?? env.ABACATEPAY_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Configure ABACATE_PAY_API_KEY para usar o AbacatePay.");
-  }
-
-  return new AbacatePayClient({
-    apiKey,
-    baseUrl: env.ABACATEPAY_API_BASE_URL,
-  });
-};
-
-const appUrl = (path: string): string =>
-  new URL(path, getServerEnv().NEXT_PUBLIC_APP_URL).toString();
-
 const getPublicCheckoutCourse = async ({
   courseId,
   courseSlug,
@@ -156,16 +141,16 @@ export const createPublicCourseCheckout = async ({
   }
 
   const externalId = `order_${randomUUID()}`;
-  const checkout = await getAbacatePayClient().createCheckout(
+  const checkout = await getAbacatePayProviderClient().createCheckout(
     buildAbacatePayCheckoutRequest({
       accessDurationMonths: course.access_duration_months,
-      completionUrl: appUrl(
+      completionUrl: getApplicationUrl(
         `/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
       ),
       courseId: course.id,
       externalId,
       productId,
-      returnUrl: appUrl("/entrar"),
+      returnUrl: getApplicationUrl("/entrar"),
       source: "landing",
     })
   );

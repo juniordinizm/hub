@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("JMVStream server SQL", () => {
   it("does not use ambiguous updated_at references in ordering", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./asset-persistence.ts", import.meta.url),
       "utf8"
     );
 
@@ -12,36 +12,37 @@ describe("JMVStream server SQL", () => {
   });
 
   it("binds JMVStream upload sessions to lessons at init time", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [uploadSource, persistenceSource] = await Promise.all([
+      readFile(new URL("./upload-session.ts", import.meta.url), "utf8"),
+      readFile(new URL("./asset-persistence.ts", import.meta.url), "utf8"),
+    ]);
 
-    expect(source).toContain("returning id");
-    expect(source).toContain(
+    expect(uploadSource).toContain("recordJmvstreamUploadSession");
+    expect(persistenceSource).toContain("returning id");
+    expect(persistenceSource).toContain(
       "values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'uploading', 'none')"
     );
-    expect(source).toContain("uploadSessionId");
+    expect(uploadSource).toContain("uploadSessionId");
   });
 
   it("validates the upload session before completing a JMVStream upload", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [completionSource, persistenceSource] = await Promise.all([
+      readFile(new URL("./upload-completion.ts", import.meta.url), "utf8"),
+      readFile(new URL("./asset-persistence.ts", import.meta.url), "utf8"),
+    ]);
 
-    expect(source).toContain("assertJmvstreamUploadSessionMatches");
-    expect(source).toContain("uploadSessionId");
-    expect(source).toContain("video_hash = $3");
+    expect(completionSource).toContain("assertJmvstreamUploadSessionMatches");
+    expect(completionSource).toContain("uploadSessionId");
+    expect(persistenceSource).toContain("video_hash = $3");
   });
 
   it("links the replacement upload to the lesson before deleting the previous asset", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./upload-completion.ts", import.meta.url),
       "utf8"
     );
 
-    const lessonUpdateIndex = source.indexOf("update lessons");
+    const lessonUpdateIndex = source.indexOf("linkJmvstreamVideoToLesson");
     const cleanupIndex = source.indexOf(
       "await deleteActiveAssetsForLesson(lessonId, videoHash);"
     );
@@ -53,7 +54,7 @@ describe("JMVStream server SQL", () => {
 
   it("deletes JMVStream assets by lesson and persisted video hash", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./asset-deletion.ts", import.meta.url),
       "utf8"
     );
 
@@ -64,7 +65,7 @@ describe("JMVStream server SQL", () => {
 
   it("keeps course folders when lesson videos are deleted", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./asset-deletion.ts", import.meta.url),
       "utf8"
     );
 
@@ -74,7 +75,7 @@ describe("JMVStream server SQL", () => {
 
   it("records remote delete failures for retry without blocking local unlink", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./asset-deletion.ts", import.meta.url),
       "utf8"
     );
 
@@ -84,7 +85,7 @@ describe("JMVStream server SQL", () => {
 
   it("treats missing remote videos as deleted after a failed delete response", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./asset-deletion.ts", import.meta.url),
       "utf8"
     );
 
@@ -94,7 +95,7 @@ describe("JMVStream server SQL", () => {
 
   it("uses course folders as the upload gallery", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./upload-session.ts", import.meta.url),
       "utf8"
     );
 
@@ -105,41 +106,44 @@ describe("JMVStream server SQL", () => {
   });
 
   it("moves completed or synced videos into the stored course gallery", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [source, mapperSource] = await Promise.all([
+      readFile(new URL("./player-sync.ts", import.meta.url), "utf8"),
+      readFile(new URL("./provider-mapper.ts", import.meta.url), "utf8"),
+    ]);
 
     expect(source).toContain("moveJmvstreamVideoToCourseFolder");
+    expect(source).toContain("getJmvstreamVideoPlacement");
     expect(source).toContain("client.moveVideo(videoHash, galleryUuid)");
-    expect(source).toContain("video.folderUuid !== galleryUuid");
+    expect(mapperSource).toContain("video.folderUuid === galleryUuid");
   });
 
   it("defers moving videos until they are visible through the focused JMVStream lookup", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [source, mapperSource] = await Promise.all([
+      readFile(new URL("./player-sync.ts", import.meta.url), "utf8"),
+      readFile(new URL("./provider-mapper.ts", import.meta.url), "utf8"),
+    ]);
 
-    expect(source).toContain("if (!video) {");
+    expect(source).toContain('placement === "missing"');
     expect(source).toContain("markJmvstreamAssetMovePending");
     expect(source).toContain("await client.getVideo(videoHash)");
+    expect(mapperSource).toContain("if (!video) {");
   });
 
   it("reconciles processing uploads without depending on an open browser tab", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [playerSource, persistenceSource] = await Promise.all([
+      readFile(new URL("./player-sync.ts", import.meta.url), "utf8"),
+      readFile(new URL("./asset-persistence.ts", import.meta.url), "utf8"),
+    ]);
 
-    expect(source).toContain("syncPendingJmvstreamPlayers");
-    expect(source).toContain("where upload_status = 'processing'");
-    expect(source).toContain("await syncJmvstreamLessonPlayer(row.lesson_id)");
+    expect(playerSource).toContain("syncPendingJmvstreamPlayers");
+    expect(playerSource).toContain("getPendingJmvstreamPlayerLessons");
+    expect(playerSource).toContain("await syncJmvstreamLessonPlayer(lessonId)");
+    expect(persistenceSource).toContain("where upload_status = 'processing'");
   });
 
   it("reconciles each lesson through a focused video lookup and conversion job", async () => {
     const source = await readFile(
-      new URL("./server.ts", import.meta.url),
+      new URL("./player-sync.ts", import.meta.url),
       "utf8"
     );
 
@@ -149,12 +153,14 @@ describe("JMVStream server SQL", () => {
   });
 
   it("expires abandoned uploads before processing pending players", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const [persistenceSource, playerSource] = await Promise.all([
+      readFile(new URL("./asset-persistence.ts", import.meta.url), "utf8"),
+      readFile(new URL("./player-sync.ts", import.meta.url), "utf8"),
+    ]);
 
-    expect(source).toContain("export const expireStaleJmvstreamUploads");
-    expect(source).toContain("await expireStaleJmvstreamUploads()");
+    expect(persistenceSource).toContain(
+      "export const expireStaleJmvstreamUploads"
+    );
+    expect(playerSource).toContain("await expireStaleJmvstreamUploads()");
   });
 });

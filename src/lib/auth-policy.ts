@@ -139,13 +139,15 @@ export const getBetterAuthRateLimitConfig = (
 export const getResolvedBetterAuthInfraConfig = ({
   apiKey,
   apiUrl,
+  isE2eTestMode,
   kvUrl,
 }: {
   apiKey: string | undefined;
   apiUrl: string | undefined;
+  isE2eTestMode?: boolean;
   kvUrl: string | undefined;
 }): BetterAuthInfraConfig | null => {
-  if (!apiKey) {
+  if (!apiKey || isE2eTestMode) {
     return null;
   }
 

@@ -14,7 +14,7 @@ const {
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
-vi.mock("@/features/enrollments/server", () => ({
+vi.mock("@/features/enrollments/access", () => ({
   resolveCourseAccess,
   resolveLessonAccess,
 }));

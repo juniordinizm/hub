@@ -79,6 +79,11 @@ import {
 import { resolveLessonVideoPreviewUrl } from "@/features/admin/lesson-video-form";
 import type { LessonResource } from "@/features/courses/lesson-content";
 import {
+  formatResourceFileSize,
+  getResourceTypeLabel,
+  getResourceExtension as getSharedResourceExtension,
+} from "@/features/courses/resource-presentation";
+import {
   LESSON_ATTACHMENT_ACCEPT,
   LESSON_RESOURCE_IMAGE_PREVIEW,
   validateLessonAttachmentUpload,
@@ -316,11 +321,7 @@ export function LessonVideoControls({
 }
 
 function getResourceExtension(resource: EditableLessonResource): string | null {
-  if (resource.storage !== "r2") {
-    return null;
-  }
-  const parts = resource.fileName.split(".");
-  return parts.length > 1 ? (parts.pop()?.toLowerCase() ?? null) : null;
+  return getSharedResourceExtension(resource);
 }
 
 function getResourceIcon(resource: EditableLessonResource) {
@@ -396,43 +397,11 @@ function AdminResourceVisual({
 }
 
 function formatFileSize(sizeBytes: number): string {
-  if (sizeBytes >= 1024 * 1024) {
-    return `${(sizeBytes / (1024 * 1024)).toLocaleString("pt-BR", {
-      maximumFractionDigits: 1,
-      minimumFractionDigits: 0,
-    })} MB`;
-  }
-
-  return `${Math.max(1, Math.round(sizeBytes / 1024)).toLocaleString(
-    "pt-BR"
-  )} KB`;
+  return formatResourceFileSize(sizeBytes);
 }
 
 function getFileTypeLabel(resource: EditableLessonResource): string {
-  const extension = getResourceExtension(resource);
-
-  if (resource.storage !== "r2") {
-    return "Link";
-  }
-  if (resource.contentType?.startsWith("image/")) {
-    return "Imagem";
-  }
-  if (extension === "pdf") {
-    return "PDF";
-  }
-  if (extension && ["doc", "docx"].includes(extension)) {
-    return "Documento";
-  }
-  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
-    return "Planilha";
-  }
-  if (extension && ["ppt", "pptx"].includes(extension)) {
-    return "Apresentação";
-  }
-  if (extension === "zip") {
-    return "Arquivo compactado";
-  }
-  return "Arquivo";
+  return getResourceTypeLabel(resource, { presentationLabel: "Apresentação" });
 }
 
 export function SortableLessonResourceItem({

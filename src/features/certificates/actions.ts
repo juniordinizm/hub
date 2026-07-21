@@ -1,25 +1,24 @@
 "use server";
 
 import {
+  parseChangeCertificateInput,
+  parseIssueManualCertificateInput,
+} from "@/features/certificates/command-input";
+import {
   issueManualCertificate,
   reissueCertificate,
   revokeCertificate,
 } from "@/features/certificates/server";
 import { requirePermission } from "@/lib/auth-permissions";
 
-const readString = (formData: FormData, key: string): string =>
-  String(formData.get(key) ?? "").trim();
-
 export const issueManualCertificateAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requirePermission("manageCertificates");
+  const input = parseIssueManualCertificateInput(formData);
   await issueManualCertificate({
     actorUserId: session.user.id,
-    courseId: readString(formData, "courseId"),
-    reasonCategory: readString(formData, "reasonCategory"),
-    reasonDetail: readString(formData, "reasonDetail"),
-    userId: readString(formData, "userId"),
+    ...input,
   });
 };
 
@@ -27,11 +26,10 @@ export const revokeCertificateAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requirePermission("manageCertificates");
+  const input = parseChangeCertificateInput(formData);
   await revokeCertificate({
     actorUserId: session.user.id,
-    certificateId: readString(formData, "certificateId"),
-    reasonCategory: readString(formData, "reasonCategory"),
-    reasonDetail: readString(formData, "reasonDetail"),
+    ...input,
   });
 };
 
@@ -39,10 +37,9 @@ export const reissueCertificateAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requirePermission("manageCertificates");
+  const input = parseChangeCertificateInput(formData);
   await reissueCertificate({
     actorUserId: session.user.id,
-    certificateId: readString(formData, "certificateId"),
-    reasonCategory: readString(formData, "reasonCategory"),
-    reasonDetail: readString(formData, "reasonDetail"),
+    ...input,
   });
 };

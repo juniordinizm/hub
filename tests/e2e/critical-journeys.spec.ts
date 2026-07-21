@@ -163,7 +163,12 @@ test("admin sees certificate lifecycle controls with mandatory confirmation", as
     page.getByRole("heading", { name: "Certificados" })
   ).toBeVisible();
   await page.getByText("Emitir certificado manual").click();
-  await expect(page.getByText("Confirmo que revisei os dados")).toBeVisible();
+  const manualIssuance = page
+    .locator("details")
+    .filter({ hasText: "Emitir certificado manual" });
+  await expect(
+    manualIssuance.getByText("Confirmo que revisei os dados")
+  ).toBeVisible();
 });
 
 test("keyboard reaches the login form and student sidebar", async ({

@@ -18,6 +18,7 @@ const createAuth = () => {
   const betterAuthInfraConfig = getResolvedBetterAuthInfraConfig({
     apiKey: env.BETTER_AUTH_API_KEY,
     apiUrl: env.BETTER_AUTH_API_URL,
+    isE2eTestMode: env.E2E_TEST_MODE,
     kvUrl: env.BETTER_AUTH_KV_URL,
   });
   const infraPlugins = betterAuthInfraConfig

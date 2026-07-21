@@ -109,6 +109,17 @@ describe("auth policy", () => {
     });
   });
 
+  it("disables Better Auth infra for isolated E2E fixtures", () => {
+    expect(
+      getResolvedBetterAuthInfraConfig({
+        apiKey: "dash-key",
+        apiUrl: "https://api.example.com",
+        isE2eTestMode: true,
+        kvUrl: "https://kv.example.com",
+      })
+    ).toBeNull();
+  });
+
   it("only raises the sign-in limit in isolated E2E mode", () => {
     expect(getBetterAuthRateLimitConfig(false)).toBeUndefined();
     expect(getBetterAuthRateLimitConfig(true)).toEqual({

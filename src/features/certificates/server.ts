@@ -12,6 +12,8 @@ import {
   createCertificateCode,
   getCertificateValidationPath,
 } from "@/features/certificates/rules";
+import { createCertificateIssuedMessage } from "@/features/outbox/rules";
+import { enqueueOutboxMessage } from "@/features/outbox/server";
 import { getServerEnv } from "@/lib/env";
 
 export interface CertificateRecord {
@@ -59,6 +61,71 @@ export const tryIssueAutomaticCompletionCertificate = async ({
   );
 
   return certificate.rows[0]?.code ?? null;
+};
+
+export interface CompletionCertificateSummary {
+  certificateId: string | null;
+  completedLessons: number;
+  courseTitle: string;
+  studentName: string;
+  totalLessons: number;
+  workloadHours: number;
+}
+
+export const issueCompletionCertificateIfEligible = async ({
+  client,
+  courseId,
+  summary,
+  userId,
+}: {
+  client: PoolClient;
+  courseId: string;
+  summary: CompletionCertificateSummary;
+  userId: string;
+}): Promise<boolean> => {
+  const isEligible =
+    summary.totalLessons > 0 &&
+    summary.completedLessons >= summary.totalLessons &&
+    !summary.certificateId;
+
+  if (!isEligible) {
+    return false;
+  }
+
+  const certificateCode = await tryIssueAutomaticCompletionCertificate({
+    client,
+    courseId,
+    courseTitle: summary.courseTitle,
+    studentName: summary.studentName,
+    userId,
+    workloadHours: summary.workloadHours,
+  });
+
+  if (!certificateCode) {
+    return false;
+  }
+
+  const certificate = await client.query<{ id: string }>(
+    `
+      select id
+      from certificates
+      where code = $1
+      limit 1
+    `,
+    [certificateCode]
+  );
+  const certificateId = certificate.rows[0]?.id;
+
+  if (!certificateId) {
+    throw new Error("Certificado emitido sem identificador persistido.");
+  }
+
+  await enqueueOutboxMessage({
+    client,
+    message: createCertificateIssuedMessage({ certificateId }),
+  });
+
+  return true;
 };
 
 const auditCertificate = async ({

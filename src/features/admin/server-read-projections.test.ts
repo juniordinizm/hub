@@ -15,7 +15,11 @@ vi.mock("@/features/jmvstream/server", () => ({
 }));
 vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
-import { getAdminCourseDetailData, getAdminLessonEditorData } from "./server";
+import {
+  getAdminCourseDetailData,
+  getAdminLessonEditorData,
+  getAdminStudentsData,
+} from "./server";
 
 const courseId = "course-1";
 const lessonId = "lesson-1";
@@ -174,5 +178,45 @@ describe("admin read projections", () => {
       lesson: { id: lessonId },
       module: { id: "module-1" },
     });
+  });
+
+  it("keeps the student list within the measured read budget without N+1 queries", async () => {
+    const studentCount = 250;
+    const enrollmentsPerStudent = 3;
+    const profiles = Array.from({ length: studentCount }, (_, index) => ({
+      email: `student-${index}@example.test`,
+      last_access_at: null,
+      name: `Student ${index}`,
+      platform_blocked_at: null,
+      platform_blocked_reason: null,
+      user_id: `student-${index}`,
+    }));
+    const enrollments = profiles.flatMap((profile) =>
+      Array.from({ length: enrollmentsPerStudent }, (_, index) => ({
+        course_id: `course-${index}`,
+        course_title: `Course ${index}`,
+        email: profile.email,
+        expires_at: new Date("2027-01-01T00:00:00.000Z"),
+        id: `${profile.user_id}-enrollment-${index}`,
+        last_access_at: null,
+        name: profile.name,
+        original_expires_at: new Date("2027-01-01T00:00:00.000Z"),
+        revoked_reason: null,
+        starts_at: new Date("2026-01-01T00:00:00.000Z"),
+        status: "active",
+        user_id: profile.user_id,
+      }))
+    );
+    query.mockImplementation((sql: string) => ({
+      rows: sql.includes("from profiles") ? profiles : enrollments,
+    }));
+
+    const data = await getAdminStudentsData();
+    const payloadBytes = Buffer.byteLength(JSON.stringify(data));
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(data.enrollments).toHaveLength(studentCount * enrollmentsPerStudent);
+    expect(data.students).toHaveLength(studentCount);
+    expect(payloadBytes).toBeLessThan(512 * 1024);
   });
 });

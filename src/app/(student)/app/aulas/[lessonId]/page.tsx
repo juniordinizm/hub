@@ -47,6 +47,11 @@ import {
   getStudentPreviewMode,
   type StudentPreviewMode,
 } from "@/features/courses/preview";
+import {
+  formatResourceFileSize,
+  getResourceTypeLabel,
+  getResourceExtension as getSharedResourceExtension,
+} from "@/features/courses/resource-presentation";
 import { getStudentLessonWorkspace } from "@/features/courses/server";
 import {
   formatLessonDuration,
@@ -58,8 +63,6 @@ import { requireSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-
-const RESOURCE_NAME_QUERY_PATTERN = /[?#]/;
 
 type LessonPageData = NonNullable<
   Awaited<ReturnType<typeof getStudentLessonWorkspace>>
@@ -573,25 +576,7 @@ function getLessonResourcePreviewHref({
 }
 
 function getResourceExtension(resource: LessonResource): string | null {
-  if (resource.storage === "r2") {
-    return getFileExtension(resource.fileName);
-  }
-
-  try {
-    return getFileExtension(new URL(resource.url).pathname);
-  } catch {
-    return null;
-  }
-}
-
-function getFileExtension(fileName: string): string | null {
-  const cleanName = fileName.split(RESOURCE_NAME_QUERY_PATTERN)[0] ?? "";
-  const lastSegment = cleanName.split("/").pop() ?? "";
-  const extension = lastSegment.includes(".")
-    ? lastSegment.split(".").pop()
-    : null;
-
-  return extension?.trim().toLowerCase() || null;
+  return getSharedResourceExtension(resource);
 }
 
 function getResourceDisplayName(resource: LessonResource): {
@@ -621,50 +606,11 @@ function getResourceMetadata(resource: LessonResource): string {
 }
 
 function formatFileSize(sizeBytes: number): string {
-  if (sizeBytes >= 1024 * 1024) {
-    return `${(sizeBytes / (1024 * 1024)).toLocaleString("pt-BR", {
-      maximumFractionDigits: 1,
-      minimumFractionDigits: 0,
-    })} MB`;
-  }
-
-  return `${Math.max(1, Math.round(sizeBytes / 1024)).toLocaleString(
-    "pt-BR"
-  )} KB`;
+  return formatResourceFileSize(sizeBytes);
 }
 
 function getFileTypeLabel(resource: LessonResource): string {
-  const extension = getResourceExtension(resource);
-
-  if (resource.storage !== "r2") {
-    return "Link";
-  }
-
-  if (resource.contentType.startsWith("image/")) {
-    return "Imagem";
-  }
-
-  if (extension === "pdf") {
-    return "PDF";
-  }
-
-  if (extension && ["doc", "docx"].includes(extension)) {
-    return "Documento";
-  }
-
-  if (extension && ["xls", "xlsx", "csv"].includes(extension)) {
-    return "Planilha";
-  }
-
-  if (extension && ["ppt", "pptx"].includes(extension)) {
-    return "Apresentacao";
-  }
-
-  if (extension === "zip") {
-    return "Arquivo compactado";
-  }
-
-  return "Arquivo";
+  return getResourceTypeLabel(resource);
 }
 
 function getResourceIcon(resource: LessonResource) {

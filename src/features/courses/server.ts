@@ -1,6 +1,9 @@
 import "server-only";
 import { getPool } from "@/db";
-import { tryIssueAutomaticCompletionCertificate } from "@/features/certificates/server";
+import {
+  type CompletionCertificateSummary,
+  issueCompletionCertificateIfEligible,
+} from "@/features/certificates/server";
 import {
   type LessonContent,
   parseLessonContent,
@@ -10,10 +13,8 @@ import { isPreviewRole } from "@/features/courses/preview";
 import {
   resolveCourseAccess,
   resolveLessonAccess,
-} from "@/features/enrollments/server";
+} from "@/features/enrollments/access";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
-import { createCertificateIssuedMessage } from "@/features/outbox/rules";
-import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
@@ -1192,47 +1193,21 @@ export const completeLesson = async ({
     );
 
     const summary = rows[0];
-    let certificateIssued = false;
-    let certificateCode: string | null = null;
-
-    if (
-      summary &&
-      summary.total_lessons > 0 &&
-      summary.completed_lessons >= summary.total_lessons &&
-      !summary.certificate_id
-    ) {
-      certificateCode = await tryIssueAutomaticCompletionCertificate({
-        client,
-        courseId: data.course.id,
-        courseTitle: summary.course_title,
-        studentName: summary.student_name,
-        userId,
-        workloadHours: summary.workload_hours,
-      });
-      certificateIssued = Boolean(certificateCode);
-
-      if (certificateCode) {
-        const certificate = await client.query<{ id: string }>(
-          `
-            select id
-            from certificates
-            where code = $1
-            limit 1
-          `,
-          [certificateCode]
-        );
-        const certificateId = certificate.rows[0]?.id;
-
-        if (!certificateId) {
-          throw new Error("Certificado emitido sem identificador persistido.");
-        }
-
-        await enqueueOutboxMessage({
+    const certificateIssued = summary
+      ? await issueCompletionCertificateIfEligible({
           client,
-          message: createCertificateIssuedMessage({ certificateId }),
-        });
-      }
-    }
+          courseId: data.course.id,
+          summary: {
+            certificateId: summary.certificate_id,
+            completedLessons: summary.completed_lessons,
+            courseTitle: summary.course_title,
+            studentName: summary.student_name,
+            totalLessons: summary.total_lessons,
+            workloadHours: summary.workload_hours,
+          } satisfies CompletionCertificateSummary,
+          userId,
+        })
+      : false;
 
     await client.query("commit");
 

@@ -28,7 +28,7 @@ const dependencies = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
-vi.mock("@/features/enrollments/server", () => ({
+vi.mock("@/features/enrollments/access", () => ({
   resolveLessonAccess: dependencies.resolveLessonAccess,
 }));
 

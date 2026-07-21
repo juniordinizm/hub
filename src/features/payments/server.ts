@@ -20,10 +20,12 @@ import {
   mapAbacatePayEventToOrderStatus,
   type PersistedOrderStatus,
 } from "@/features/payments/abacatepay";
-import { AbacatePayClient } from "@/features/payments/abacatepay-client";
 import { normalizeBuyerEmail } from "@/features/payments/buyer-identity";
+import {
+  getAbacatePayProviderClient,
+  getApplicationUrl,
+} from "@/features/payments/provider";
 import { getAuth } from "@/lib/auth";
-import { getServerEnv } from "@/lib/env";
 
 interface WebhookResult {
   eventKey: string;
@@ -50,23 +52,6 @@ interface PersistedWebhookOrder {
   status: PersistedOrderStatus;
 }
 
-const getAbacatePayClient = (): AbacatePayClient => {
-  const env = getServerEnv();
-  const apiKey = env.ABACATE_PAY_API_KEY ?? env.ABACATEPAY_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Configure ABACATE_PAY_API_KEY para usar o AbacatePay.");
-  }
-
-  return new AbacatePayClient({
-    apiKey,
-    baseUrl: env.ABACATEPAY_API_BASE_URL,
-  });
-};
-
-const appUrl = (path: string): string =>
-  new URL(path, getServerEnv().NEXT_PUBLIC_APP_URL).toString();
-
 const notifyActivationRequired = async (
   email: string | null
 ): Promise<void> => {
@@ -78,7 +63,7 @@ const notifyActivationRequired = async (
     await getAuth().api.requestPasswordReset({
       body: {
         email,
-        redirectTo: appUrl("/redefinir-senha"),
+        redirectTo: getApplicationUrl("/redefinir-senha"),
       },
     });
   } catch {
@@ -563,7 +548,7 @@ export const createAbacatePayCourseProduct = async (
   input: Parameters<typeof buildAbacatePayProductRequest>[0]
 ): Promise<CreatedCourseProduct> => {
   const request = buildAbacatePayProductRequest(input);
-  const product = await getAbacatePayClient().createProduct(request);
+  const product = await getAbacatePayProviderClient().createProduct(request);
 
   return { productId: product.id };
 };
@@ -627,16 +612,16 @@ export const createCourseCheckout = async ({
   }
 
   const externalId = `order_${randomUUID()}`;
-  const checkout = await getAbacatePayClient().createCheckout(
+  const checkout = await getAbacatePayProviderClient().createCheckout(
     buildAbacatePayCheckoutRequest({
       accessDurationMonths: course.access_duration_months,
-      completionUrl: appUrl(
+      completionUrl: getApplicationUrl(
         `/app/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
       ),
       courseId: course.id,
       externalId,
       productId: course.payment_provider_product_id,
-      returnUrl: appUrl("/app"),
+      returnUrl: getApplicationUrl("/app"),
       userId: user.id,
     })
   );
