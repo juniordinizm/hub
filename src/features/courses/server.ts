@@ -16,6 +16,8 @@ import {
 } from "@/features/enrollments/access";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/asset-persistence";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
+import { getWatchCheckpointPercent } from "@/features/learning-analytics/rules";
+import { recordLearningAnalyticsEvent } from "@/features/learning-analytics/server";
 import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
@@ -1226,7 +1228,7 @@ export const completeLesson = async ({
 
   try {
     await client.query("begin");
-    await client.query(
+    const progressInsert = await client.query(
       `
         insert into lesson_progress (user_id, lesson_id)
         values ($1, $2)
@@ -1289,6 +1291,15 @@ export const completeLesson = async ({
       : false;
 
     await client.query("commit");
+
+    if (progressInsert.rowCount) {
+      await recordLearningAnalyticsEvent({
+        eventType: "lesson_completed",
+        idempotencyKey: `lesson_completed/${userId}/${lessonId}/v1`,
+        lessonId,
+        userId,
+      }).catch(() => undefined);
+    }
 
     return {
       certificateIssued,
@@ -1415,6 +1426,27 @@ export const recordLessonWatchProgress = async ({
       shouldCompleteByVideo,
     ]
   );
+
+  const checkpointPercent = getWatchCheckpointPercent({
+    previousPercent: previousProgress?.watched_percent ?? 0,
+    watchedPercent,
+  });
+  const eventType = previousProgress ? "watch_checkpoint" : "lesson_started";
+  let analyticsKey: string | null = null;
+  if (eventType === "lesson_started") {
+    analyticsKey = `lesson_started/${userId}/${lessonId}/v1`;
+  } else if (checkpointPercent !== null) {
+    analyticsKey = `watch_checkpoint/${userId}/${lessonId}/${checkpointPercent}/v1`;
+  }
+  if (analyticsKey) {
+    await recordLearningAnalyticsEvent({
+      ...(checkpointPercent === null ? {} : { checkpointPercent }),
+      eventType,
+      idempotencyKey: analyticsKey,
+      lessonId,
+      userId,
+    }).catch(() => undefined);
+  }
 
   if (!(shouldCompleteByVideo || data.lesson.isCompleted)) {
     return {

@@ -1,4 +1,5 @@
 import { getStudentLessonWorkspace } from "@/features/courses/server";
+import { recordLearningAnalyticsEvent } from "@/features/learning-analytics/server";
 import { createLessonResourceDownloadUrl } from "@/features/storage/r2";
 import { requireSession } from "@/lib/session";
 
@@ -48,6 +49,13 @@ export async function GET(
 
     return Response.redirect(downloadUrl, 302);
   } catch {
+    await recordLearningAnalyticsEvent({
+      errorCode: "r2_download_unavailable",
+      eventType: "resource_open_failed",
+      idempotencyKey: `resource_open_failed/${session.user.id}/${lessonId}/${resourceId}/v1`,
+      lessonId,
+      userId: session.user.id,
+    }).catch(() => undefined);
     const unavailableUrl = new URL(`/app/aulas/${lessonId}`, request.url);
     unavailableUrl.searchParams.set("material", "unavailable");
     return Response.redirect(unavailableUrl, 302);

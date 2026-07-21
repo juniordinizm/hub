@@ -218,6 +218,20 @@
       "when": 1784670302282,
       "tag": "0030_complete_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1784674444028,
+      "tag": "0031_sad_killraven",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1784674709766,
+      "tag": "0032_outstanding_captain_america",
+      "breakpoints": true
     }
   ]
 }

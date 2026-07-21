@@ -54,6 +54,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [ADR-0005: precedência financeira](adr/0005-financial-precedence-and-manual-review.md)
 - [ADR-0006: ciclo de certificados](adr/0006-certificate-lifecycle.md)
 - [ADR-0007: versionamento curricular](adr/0007-course-versioning-and-enrollment-curriculum.md)
+- [ADR-0008: analytics opcional de aprendizagem](adr/0008-optional-learning-analytics.md)
 
 ## Contrato de manutenção
 

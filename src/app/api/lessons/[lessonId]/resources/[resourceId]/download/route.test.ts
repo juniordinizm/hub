@@ -3,15 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 const {
   createLessonResourceDownloadUrl,
   getStudentLessonWorkspace,
+  recordLearningAnalyticsEvent,
   requireSession,
 } = vi.hoisted(() => ({
   createLessonResourceDownloadUrl: vi.fn(),
   getStudentLessonWorkspace: vi.fn(),
+  recordLearningAnalyticsEvent: vi.fn().mockResolvedValue(undefined),
   requireSession: vi.fn(),
 }));
 
 vi.mock("@/features/courses/server", () => ({ getStudentLessonWorkspace }));
 vi.mock("@/features/storage/r2", () => ({ createLessonResourceDownloadUrl }));
+vi.mock("@/features/learning-analytics/server", () => ({
+  recordLearningAnalyticsEvent,
+}));
 vi.mock("@/lib/session", () => ({ requireSession }));
 
 import { GET } from "./route";
@@ -52,5 +57,12 @@ describe("lesson resource download", () => {
     expect(response.headers.get("location")).toBe(
       "https://hub.example.test/app/aulas/lesson-1?material=unavailable"
     );
+    expect(recordLearningAnalyticsEvent).toHaveBeenCalledWith({
+      errorCode: "r2_download_unavailable",
+      eventType: "resource_open_failed",
+      idempotencyKey: "resource_open_failed/student-1/lesson-1/resource-1/v1",
+      lessonId: "lesson-1",
+      userId: "student-1",
+    });
   });
 });

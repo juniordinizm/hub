@@ -4,6 +4,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -121,6 +122,20 @@ export const lessonCommentStatusEnum = pgEnum("lesson_comment_status", [
   "visible",
   "hidden",
 ]);
+export const learningAnalyticsEventTypeEnum = pgEnum(
+  "learning_analytics_event_type",
+  [
+    "lesson_started",
+    "watch_checkpoint",
+    "lesson_completed",
+    "resource_open_failed",
+    "player_error",
+  ]
+);
+export const learningReengagementStatusEnum = pgEnum(
+  "learning_reengagement_status",
+  ["initiated", "sent", "responded", "opted_out", "closed"]
+);
 export const jmvstreamFolderTypeEnum = pgEnum("jmvstream_folder_type", [
   "course",
   "module",
@@ -660,6 +675,122 @@ export const lessonWatchProgress = pgTable(
     check(
       "lesson_watch_progress_percent_bounds",
       sql`${table.watchedPercent} >= 0 and ${table.watchedPercent} <= 100`
+    ),
+  ]
+);
+
+/** Optional, revocable consent for the narrowly-scoped learning analytics policy. */
+export const learningAnalyticsConsents = pgTable(
+  "learning_analytics_consents",
+  {
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    consentedAt: timestamp("consented_at", tz),
+    revokedAt: timestamp("revoked_at", tz),
+    policyVersion: text("policy_version").notNull(),
+    ...timestamps,
+  }
+);
+
+export const learningAnalyticsEvents = pgTable(
+  "learning_analytics_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: learningAnalyticsEventTypeEnum("event_type").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    enrollmentId: uuid("enrollment_id")
+      .notNull()
+      .references(() => enrollments.id, { onDelete: "cascade" }),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "restrict" }),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    checkpointPercent: integer("checkpoint_percent"),
+    errorCode: text("error_code"),
+    occurredAt: timestamp("occurred_at", tz).defaultNow().notNull(),
+    createdAt: timestamp("created_at", tz).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("learning_analytics_events_idempotency_unique_idx").on(
+      table.idempotencyKey
+    ),
+    index("learning_analytics_events_version_lesson_occurred_idx").on(
+      table.courseVersionId,
+      table.lessonId,
+      table.occurredAt
+    ),
+    index("learning_analytics_events_enrollment_occurred_idx").on(
+      table.enrollmentId,
+      table.occurredAt
+    ),
+    check(
+      "learning_analytics_events_checkpoint_percent_bounds",
+      sql`${table.checkpointPercent} is null or (${table.checkpointPercent} >= 0 and ${table.checkpointPercent} <= 100)`
+    ),
+  ]
+);
+
+export const learningReengagements = pgTable(
+  "learning_reengagements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    enrollmentId: uuid("enrollment_id")
+      .notNull()
+      .references(() => enrollments.id, { onDelete: "cascade" }),
+    initiatedByUserId: text("initiated_by_user_id")
+      .notNull()
+      .references(() => users.id),
+    status: learningReengagementStatusEnum("status")
+      .default("initiated")
+      .notNull(),
+    intent: text("intent").notNull(),
+    result: text("result"),
+    optedOutAt: timestamp("opted_out_at", tz),
+    sentAt: timestamp("sent_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    index("learning_reengagements_enrollment_created_idx").on(
+      table.enrollmentId,
+      table.createdAt
+    ),
+  ]
+);
+
+/** Aggregates contain no user or enrollment identifier and preserve trend history. */
+export const learningAnalyticsDailyMetrics = pgTable(
+  "learning_analytics_daily_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    metricDate: date("metric_date").notNull(),
+    eventType: learningAnalyticsEventTypeEnum("event_type").notNull(),
+    courseVersionId: uuid("course_version_id")
+      .notNull()
+      .references(() => courseVersions.id, { onDelete: "restrict" }),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    eventCount: integer("event_count").notNull(),
+    uniqueEnrollmentCount: integer("unique_enrollment_count").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("learning_analytics_daily_metrics_unique_idx").on(
+      table.metricDate,
+      table.eventType,
+      table.courseVersionId,
+      table.lessonId
+    ),
+    index("learning_analytics_daily_metrics_version_lesson_date_idx").on(
+      table.courseVersionId,
+      table.lessonId,
+      table.metricDate
     ),
   ]
 );

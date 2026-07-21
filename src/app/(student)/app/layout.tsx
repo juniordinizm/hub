@@ -3,6 +3,7 @@ import {
   Certificate01Icon,
   HelpCircleIcon,
   Home01Icon,
+  ShieldKeyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { redirect } from "next/navigation";
@@ -61,6 +62,19 @@ function StudentNav({
               <SidebarMenuLink href={route("/app")} tooltip="Início">
                 <HugeiconsIcon icon={Home01Icon} size={18} strokeWidth={1.5} />
                 <span>Início</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuLink
+                href={route("/app/privacidade")}
+                tooltip="Privacidade"
+              >
+                <HugeiconsIcon
+                  icon={ShieldKeyIcon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
+                <span>Privacidade</span>
               </SidebarMenuLink>
             </SidebarMenuItem>
             <SidebarMenuItem>

@@ -97,6 +97,28 @@ Detalhes: [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md
 - remoção de conteúdo deve limpar ativos externos de forma recuperável;
 - JMVStream/R2 indisponíveis degradam mídia, não autorizam ignorar acesso.
 
+## Analytics de aprendizagem
+
+### REG-LEA-009 Analytics é opcional, minimizado e nunca é autoridade de domínio
+
+Somente a Aluna que autorizou a política `2026-07-21` pode gerar `lesson_started`, `watch_checkpoint`, `lesson_completed`, `resource_open_failed` e `player_error`. O servidor deriva Conta, Matrícula e `CourseVersion`; nenhum evento aceita `userId` do cliente. `lesson_progress` e `lesson_watch_progress` continuam as fontes de verdade de progresso.
+
+**Invariantes:**
+
+- chave de idempotência única impede contagem em replay;
+- checkpoint é arredondado por faixa de 10%, sem guardar trilha detalhada ou replay;
+- erro registra somente código allowlisted, sem mensagem, IP, user agent, texto de comentário ou conteúdo assistido;
+- falha da coleta é isolada e não pode desfazer conclusão, acesso ou Certificado;
+- eventos distinguem `CourseVersion`; comparações entre currículos não são agregadas como se fossem a mesma turma.
+
+### REG-LEA-010 Reengajamento começa manual e respeita opt-out
+
+"Sem atividade registrada há 14 dias" significa apenas que não há evento, conclusão ou checkpoint recente para uma Matrícula ativa com consentimento; não é rótulo de desengajamento. Somente Admin pode registrar uma iniciativa individual, com intenção auditável e intervalo de 30 dias. A ação não envia e-mail automaticamente nem cria campanha.
+
+Eventos brutos têm retenção de 90 dias; dados agregados, 13 meses; registros de contato, 180 dias. A rotina que remove dados permanece dependente de ativação operacional e ratificação jurídica. Ver [ADR-0008](../adr/0008-optional-learning-analytics.md).
+
+O painel mostra, por Aula e Versão, elegíveis, início, conclusão, checkpoint mediano, mediana até conclusão, mediana até a próxima Aula e falhas. Checkpoint e tempos usam somente os últimos 90 dias porque dependem do timestamp individual. A API pública atual da JMVStream não documenta um evento estruturado de erro do player; `player_error` permanece reservado até haver esse contrato. A falha de abertura de material R2 é registrada como `resource_open_failed`.
+
 ### Experiência de falha e continuidade
 
 - a área da Aluna possui limites de carregamento, falha e conteúdo não encontrado; falhas exibem retry e identificador de correlação sem expor detalhes internos;
@@ -112,6 +134,7 @@ Detalhes: [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md
 - leitura: `src/features/courses/server.ts`;
 - regras: `src/features/progress/rules.ts`, `src/features/videos/jmvstream.ts`, `src/features/comments/rules.ts`;
 - testes: `src/features/courses/*.test.ts`, `src/features/progress/rules.test.ts`, `src/features/comments/*.test.ts`, `src/features/videos/jmvstream.test.ts`.
+- analytics: `src/features/learning-analytics/rules.ts`, `src/features/learning-analytics/server.ts`, `src/app/(admin)/admin/aprendizagem/page.tsx`.
 
 ## Pendências
 

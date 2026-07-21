@@ -71,6 +71,15 @@ Estado em que uma Aula ou Curso satisfaz a regra vigente de completude. Conclus�
 **Certificado**  
 Documento emitido para uma Aluna e um Curso, com snapshots dos dados exibidos. Pode ser válido, revogado e reemitido.
 
+**Evento de aprendizagem**
+Registro técnico opcional, minimizado e idempotente sobre início, checkpoint, conclusão ou falha. Não é fonte de verdade para Progresso, acesso ou Certificado.
+
+**Sem atividade registrada**
+Filtro operacional para uma Matrícula ativa sem evento, checkpoint ou conclusão nos últimos 14 dias. Não significa falta de interesse, abandono ou incapacidade da Aluna.
+
+**Reengajamento manual**
+Iniciativa individual de Admin para oferecer apoio a uma Aluna elegível. Exige consentimento ativo, registro auditável e não dispara uma campanha automática.
+
 ## Durações
 
 **Duração pedagógica da Aula**  

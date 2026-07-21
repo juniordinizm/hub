@@ -297,24 +297,57 @@ export const executePrivacyAnonymization = async ({
 };
 
 export const runDataRetention = async (): Promise<{
+  learningAnalyticsAggregated: number;
+  learningAnalyticsEventsRemoved: number;
+  learningReengagementsRemoved: number;
   enabled: boolean;
   expiredSessionsRemoved: number;
   expiredRateLimitsRemoved: number;
 }> => {
-  if (!getServerEnv().DATA_RETENTION_ENABLED) {
+  const env = getServerEnv();
+  if (!(env.DATA_RETENTION_ENABLED && env.LEGAL_APPROVAL_REFERENCE?.trim())) {
     return {
       enabled: false,
       expiredRateLimitsRemoved: 0,
       expiredSessionsRemoved: 0,
+      learningAnalyticsAggregated: 0,
+      learningAnalyticsEventsRemoved: 0,
+      learningReengagementsRemoved: 0,
     };
   }
 
-  const [sessions, rateLimits] = await Promise.all([
+  const [sessions, rateLimits, analytics] = await Promise.all([
     getPool().query("delete from sessions where expires_at < now()"),
     getPool().query(
       "delete from public_certificate_rate_limits where expires_at < now()"
     ),
+    getPool().query(`
+      insert into learning_analytics_daily_metrics (
+        metric_date, event_type, course_version_id, lesson_id,
+        event_count, unique_enrollment_count
+      )
+      select occurred_at::date, event_type, course_version_id, lesson_id,
+             count(*)::int, count(distinct enrollment_id)::int
+      from learning_analytics_events
+      where occurred_at < date_trunc('day', now())
+      group by occurred_at::date, event_type, course_version_id, lesson_id
+      on conflict (metric_date, event_type, course_version_id, lesson_id)
+      do update set event_count = excluded.event_count,
+                    unique_enrollment_count = excluded.unique_enrollment_count,
+                    updated_at = now()
+    `),
   ]);
+  const [analyticsEvents, reengagements] = await Promise.all([
+    getPool().query(
+      "delete from learning_analytics_events where occurred_at < now() - interval '90 days'"
+    ),
+    getPool().query(
+      "delete from learning_reengagements where created_at < now() - interval '180 days'"
+    ),
+  ]);
+  await getPool().query(
+    "delete from learning_analytics_daily_metrics where metric_date < current_date - interval '13 months'"
+  );
   await getPool().query(
     `
       insert into audit_logs (action, target_type, metadata)
@@ -324,6 +357,9 @@ export const runDataRetention = async (): Promise<{
       JSON.stringify({
         expiredRateLimitsRemoved: rateLimits.rowCount ?? 0,
         expiredSessionsRemoved: sessions.rowCount ?? 0,
+        learningAnalyticsAggregated: analytics.rowCount ?? 0,
+        learningAnalyticsEventsRemoved: analyticsEvents.rowCount ?? 0,
+        learningReengagementsRemoved: reengagements.rowCount ?? 0,
       }),
     ]
   );
@@ -332,5 +368,8 @@ export const runDataRetention = async (): Promise<{
     enabled: true,
     expiredRateLimitsRemoved: rateLimits.rowCount ?? 0,
     expiredSessionsRemoved: sessions.rowCount ?? 0,
+    learningAnalyticsAggregated: analytics.rowCount ?? 0,
+    learningAnalyticsEventsRemoved: analyticsEvents.rowCount ?? 0,
+    learningReengagementsRemoved: reengagements.rowCount ?? 0,
   };
 };

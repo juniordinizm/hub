@@ -95,12 +95,16 @@ acessibilidade, validação e fallback.
 
 **Verificar**: authoring → preview → learner tem equivalência.
 
+**Decisão**: Nao adicionar nada alem do atual, esta acao esta bloqueada.
+
 ### 4. Separar conteúdo da especialista
 
 Se necessário, modelar notas de apoio privadas que nunca entram no payload da aluna.
 Não esconder no mesmo JSON público.
 
 **Verificar**: resposta/HTML do player não contém o campo privado.
+
+**Decisão**: Nao aprovado, esta acao esta bloqueada.
 
 ### 5. Criar export lógico
 
