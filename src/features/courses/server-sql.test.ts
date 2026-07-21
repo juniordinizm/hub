@@ -5,11 +5,13 @@ const {
   resolveCourseAccess,
   resolveLessonAccess,
   syncJmvstreamLessonPlayer,
+  getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
   query: vi.fn(),
   resolveCourseAccess: vi.fn(),
   resolveLessonAccess: vi.fn(),
   syncJmvstreamLessonPlayer: vi.fn(),
+  getJmvstreamAssetsForLesson: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -20,6 +22,9 @@ vi.mock("@/features/enrollments/access", () => ({
 }));
 vi.mock("@/features/jmvstream/server", () => ({
   syncJmvstreamLessonPlayer,
+}));
+vi.mock("@/features/jmvstream/asset-persistence", () => ({
+  getJmvstreamAssetsForLesson,
 }));
 
 import { getStudentCourseOverview, getStudentLessonWorkspace } from "./server";
@@ -95,6 +100,7 @@ beforeEach(() => {
   resolveCourseAccess.mockResolvedValue(true);
   resolveLessonAccess.mockResolvedValue(true);
   syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
+  getJmvstreamAssetsForLesson.mockResolvedValue([]);
 });
 
 describe("student experience reads", () => {
@@ -213,6 +219,27 @@ describe("student experience reads", () => {
       previousLessonId: "lesson-1",
       progressPercent: 50,
     });
+  });
+
+  it("exposes a safe failed state when JMVStream cannot process a lesson video", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createLessonRow({
+          completedAt: new Date("2026-01-01T00:00:00.000Z"),
+          lessonId: "lesson-1",
+          lessonSortOrder: 1,
+        }),
+        createLessonRow({ lessonId: "lesson-2", lessonSortOrder: 2 }),
+      ],
+    });
+    getJmvstreamAssetsForLesson.mockResolvedValue([{ uploadStatus: "failed" }]);
+
+    const workspace = await getStudentLessonWorkspace({
+      lessonId: "lesson-2",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(workspace?.lesson.videoProcessingState).toBe("failed");
   });
 
   it("keeps every preview lesson available while preserving navigation", async () => {

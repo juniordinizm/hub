@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createJmvstreamPlayerJumpMessage,
   extractJmvstreamEmbedUrl,
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
@@ -10,6 +11,14 @@ import {
 } from "./jmvstream";
 
 describe("JMVStream video embeds", () => {
+  it("builds a documented absolute jump command from persisted seconds", () => {
+    expect(createJmvstreamPlayerJumpMessage(123.8)).toBe(
+      JSON.stringify({ jump: 124, public_event: "jmvplayer-jump" })
+    );
+    expect(createJmvstreamPlayerJumpMessage(0)).toBeNull();
+    expect(createJmvstreamPlayerJumpMessage(Number.NaN)).toBeNull();
+  });
+
   it("extracts the iframe src from the official player share code", () => {
     expect(
       extractJmvstreamEmbedUrl(

@@ -67,6 +67,19 @@ export const resolveLessonVideoEmbedUrl = ({
   return embedUrl.trim() || null;
 };
 
+export const createJmvstreamPlayerJumpMessage = (
+  positionSeconds: number
+): string | null => {
+  if (!(Number.isFinite(positionSeconds) && positionSeconds > 0)) {
+    return null;
+  }
+
+  return JSON.stringify({
+    jump: Math.round(positionSeconds),
+    public_event: "jmvplayer-jump",
+  });
+};
+
 export const getJmvstreamDurationSecondsFromMessage = (
   message: unknown
 ): number | null => {

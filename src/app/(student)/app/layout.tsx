@@ -98,7 +98,7 @@ function StudentNav({
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate">{course.title}</span>
-                      <span className="block text-sidebar-foreground/45 text-xs">
+                      <span className="block text-sidebar-foreground text-xs">
                         {course.progressPercent}% concluído
                       </span>
                     </span>

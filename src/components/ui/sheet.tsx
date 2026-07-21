@@ -76,7 +76,7 @@ function SheetContent({
               variant="ghost"
             >
               <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Fechar</span>
             </Button>
           </SheetPrimitive.Close>
         )}

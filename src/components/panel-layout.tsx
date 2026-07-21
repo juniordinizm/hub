@@ -210,6 +210,9 @@ function PanelLayoutInner({
 
   return (
     <PanelFocusModeContext.Provider value={focusModeContext}>
+      <a className="skip-link" href="#main-content">
+        Pular para o conteúdo principal
+      </a>
       <SidebarProvider
         className="h-svh overflow-hidden"
         onOpenChange={handleMainSidebarOpenChange}
@@ -240,7 +243,7 @@ function PanelLayoutInner({
                             src={userImage}
                           />
                         ) : null}
-                        <AvatarFallback className="rounded-full bg-primary/10 text-primary">
+                        <AvatarFallback className="rounded-full bg-primary text-primary-foreground">
                           {initials}
                         </AvatarFallback>
                       </Avatar>
@@ -248,7 +251,7 @@ function PanelLayoutInner({
                         <span className="truncate font-semibold">
                           {userName}
                         </span>
-                        <span className="truncate text-sidebar-foreground/55 text-xs">
+                        <span className="truncate text-sidebar-foreground text-xs">
                           {userEmail}
                         </span>
                       </div>
@@ -270,7 +273,7 @@ function PanelLayoutInner({
                               src={userImage}
                             />
                           ) : null}
-                          <AvatarFallback className="rounded-full bg-primary/10 text-primary">
+                          <AvatarFallback className="rounded-full bg-primary text-primary-foreground">
                             {initials}
                           </AvatarFallback>
                         </Avatar>
@@ -381,7 +384,9 @@ function PanelLayoutInner({
             </div>
           </header>
           <ScrollArea className="h-[calc(100svh-4rem)] w-full">
-            <div className="flex-1">{children}</div>
+            <div className="flex-1" id="main-content" tabIndex={-1}>
+              {children}
+            </div>
           </ScrollArea>
         </SidebarInset>
       </SidebarProvider>

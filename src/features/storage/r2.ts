@@ -234,9 +234,14 @@ export const createLessonResourceDownloadUrl = async ({
   key: string;
 }): Promise<string> => {
   const config = getR2Config();
+  const client = getR2Client(config);
+
+  await client.send(
+    new HeadObjectCommand({ Bucket: config.bucketName, Key: key })
+  );
 
   return await getSignedUrl(
-    getR2Client(config),
+    client,
     new GetObjectCommand({
       Bucket: config.bucketName,
       Key: key,

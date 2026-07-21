@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import type { E2eFixture } from "../../scripts/seed-e2e";
 
@@ -8,6 +9,7 @@ const fixturePath = resolve(
 );
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
+const CORRELATION_ID_PATTERN = /Identificador de correlação/;
 const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
 
 const readFixture = async (): Promise<E2eFixture> =>
@@ -84,13 +86,87 @@ test("student with a grant opens the first lesson", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("student without a grant cannot access lesson material", async ({
+test("student dashboard has no critical or serious accessibility violations", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blockingViolations = results.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious"
+  );
+
+  expect(blockingViolations).toEqual([]);
+});
+
+test("student lesson has no critical or serious accessibility violations", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blockingViolations = results.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious"
+  );
+
+  expect(blockingViolations).toEqual([]);
+});
+
+test("student area shows a safe recovery boundary after a server fault", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/app/aulas/${fixture.course.lessonOneId}?e2eFault=true`);
+
+  await expect(
+    page.getByRole("heading", { name: "Não foi possível carregar esta área" })
+  ).toBeFocused();
+  await expect(page.getByText(CORRELATION_ID_PATTERN)).toBeVisible();
+  await expect(page.getByText(SENSITIVE_ERROR_PATTERN)).toHaveCount(0);
+});
+
+test("student without a grant sees the unavailable lesson state", async ({
   page,
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithoutGrant, APP_URL_PATTERN);
-  const response = await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
-  expect(response?.status()).toBe(404);
+  await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
+  await expect(
+    page.getByRole("heading", { name: "Página indisponível" })
+  ).toBeVisible();
+});
+
+test("expired and revoked access explain the next action", async ({ page }) => {
+  const fixture = await readFixture();
+  expect(fixture).toHaveProperty("studentWithExpiredAccess");
+  expect(fixture).toHaveProperty("studentWithRevokedAccess");
+  const accessFixture = fixture as E2eFixture & {
+    studentWithExpiredAccess: { email: string; password: string };
+    studentWithRevokedAccess: { email: string; password: string };
+  };
+
+  await signIn(page, accessFixture.studentWithExpiredAccess, APP_URL_PATTERN);
+  await expect(
+    page.getByText("Acesso expirado", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Renovar acesso" })
+  ).toBeVisible();
+
+  await page.context().clearCookies();
+  await signIn(page, accessFixture.studentWithRevokedAccess, APP_URL_PATTERN);
+  await expect(
+    page.getByText("Acesso em analise", { exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Falar com suporte" })
+  ).toBeVisible();
 });
 
 test("sequencing keeps a future lesson locked", async ({ page }) => {
@@ -98,10 +174,34 @@ test("sequencing keeps a future lesson locked", async ({ page }) => {
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   await expect(
-    page.getByText("Libere concluindo a aula anterior")
+    page
+      .getByRole("complementary")
+      .getByText("Libere concluindo a aula anterior")
   ).toBeVisible();
-  const response = await page.goto(`/app/aulas/${fixture.course.lessonTwoId}`);
-  expect(response?.status()).toBe(404);
+  await page.goto(`/app/aulas/${fixture.course.lessonTwoId}`);
+  await expect(
+    page.getByRole("heading", { name: "Página indisponível" })
+  ).toBeVisible();
+});
+
+test("mobile lesson navigation exposes the course outline and locked lessons", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await page.setViewportSize({ height: 844, width: 390 });
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
+
+  const mobileNavigation = page
+    .locator("details")
+    .filter({ hasText: "Conteúdo do curso" });
+  await mobileNavigation
+    .getByText("Conteúdo do curso", { exact: true })
+    .click();
+  await expect(mobileNavigation.getByText("Segunda aula")).toBeVisible();
+  await expect(
+    mobileNavigation.getByText("Libere concluindo a aula anterior")
+  ).toBeVisible();
 });
 
 test("completion persists and advances to the next lesson", async ({

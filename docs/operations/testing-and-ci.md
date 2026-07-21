@@ -73,10 +73,15 @@ As jornadas atuais verificam:
 - fronteira Admin/Aluna;
 - erro seguro de checkout sem provedor configurado;
 - certificado público válido e revogado;
-- foco de teclado no formulário e navegação da sidebar.
+- foco de teclado no formulário e navegação da sidebar;
+- alertas seguros para falha simulada de leitura, material R2 indisponível e
+  o índice de Aula expansível no mobile;
+- acesso expirado e acesso revogado, com ação de renovação ou suporte;
+- axe-core sem violações `critical` ou `serious` na Biblioteca e Aula da Aluna.
 
-A negação sem Concessão retorna `404` no comportamento implementado, em vez de revelar a Aula.
-O teste protege a impossibilidade de obter o material, não presume um `403` inexistente.
+A negação sem Concessão renderiza a página segura “Página indisponível”, sem revelar a Aula nem
+seu material. O teste protege esse resultado visível; o status HTTP de um `notFound()` renderizado
+por streaming não é o contrato de autorização da jornada.
 
 Como todas as jornadas Chromium saem do mesmo IP do runner, `E2E_TEST_MODE=true` eleva apenas o
 limite de `POST /sign-in/email` para 20 tentativas por 10 segundos. O modo exige `CI=true`, usa a
@@ -127,6 +132,29 @@ as jobs Neon sempre fornecem a variável exigida. Em CI,
 Playwright permite uma repetição diagnóstica, registra resultados/duração/retries em JSON e falha o
 job se qualquer retry ocorreu. Assim, flakiness não fica verde silenciosamente. O relatório é anexado
 em toda execução para permitir acompanhar duração e estabilidade.
+
+A rota de falha da Aula usada pela jornada existe somente quando `E2E_TEST_MODE=true`; ela não
+aceita esse atalho em deploy normal. O teste valida o boundary da Aluna, não substitui uma
+indisponibilidade real de Neon, JMVStream ou R2. Confirme esses provedores no ambiente antes de
+uma promoção que altere suas integrações.
+
+## Baseline da experiência da Aluna
+
+Cada item abaixo descreve uma jornada, seu impacto se regredir, como reproduzir e a evidência que
+define a aceitação. A revisão é feita em viewport desktop, mobile e teclado quando a superfície tem
+interação.
+
+| Jornada | Impacto e reprodução | Aceitação e evidência |
+| --- | --- | --- |
+| Primeiro acesso e recuperação | Alto: autenticar uma Conta com Concessão e solicitar recuperação para Conta existente/inexistente. | Redireciona à Biblioteca e não enumera Conta. `critical-journeys.spec.ts`. |
+| Continuar e retomar vídeo | Alto: fechar e reabrir Aula com posição persistida. | O salto JMVStream é enviado após sync e sua resposta não grava progresso. `lesson-video-player.test.tsx`. |
+| Vídeo processando ou falho | Médio: ativo JMVStream sem player, com e sem estado `failed`. | Processing atualiza; falha interrompe polling e oferece suporte. `lesson-video-processing.test.tsx`. |
+| Material indisponível | Alto: R2 falha no HEAD antes da URL assinada. | Retorna à Aula com alerta recuperável, sem erro de provedor. `download/route.test.ts`. |
+| Sequência bloqueada | Alto: abrir a segunda Aula antes da primeira. | Índice explica o bloqueio e a página segura não expõe conteúdo. `critical-journeys.spec.ts`. |
+| Acesso expirado ou revogado | Alto: entrar com projeção `expired` ou `revoked`. | Dashboard informa o estado e oferece renovação ou suporte. `critical-journeys.spec.ts`. |
+| Concluir e avançar | Alto: concluir a primeira Aula. | Progresso persiste e a próxima Aula é aberta. `critical-journeys.spec.ts`. |
+| Comentário e resposta | Médio: criar comentário, responder e moderar. | Ações autorizadas, limites e visibilidade são validados em `src/features/comments/actions.test.ts` e `server-sql.test.ts`. |
+| Certificado | Alto: consultar código válido e revogado. | Estado público é distinto e não expõe dados internos. `critical-journeys.spec.ts`. |
 
 `knip.jsonc` inclui uma baseline explícita para arquivos e exports já desconectados por rotas ou
 ações dinâmicas do Next.js. Ela existe para que `bun run knip` bloqueie novos achados sem apagar

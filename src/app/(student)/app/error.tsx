@@ -1,18 +1,21 @@
 "use client";
 
 import { captureException } from "@sentry/nextjs";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { createCorrelationId } from "@/lib/observability";
+import { route } from "@/lib/routes";
 
-export default function RootError({
+export default function StudentAreaError({
   error,
   unstable_retry,
 }: {
   error: Error & { digest?: string };
   unstable_retry: () => void;
 }): React.JSX.Element {
-  const [correlationId] = useState(() => createCorrelationId(null));
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [correlationId] = useState(() => createCorrelationId(null));
 
   useEffect(() => {
     headingRef.current?.focus();
@@ -20,29 +23,24 @@ export default function RootError({
   }, [correlationId, error]);
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-start justify-center gap-4 px-6">
+    <section className="mx-auto flex min-h-64 w-full max-w-xl flex-col items-start justify-center gap-4 px-6 py-12">
       <h1 className="font-semibold text-2xl" ref={headingRef} tabIndex={-1}>
-        Não foi possível carregar esta página.
+        Não foi possível carregar esta área
       </h1>
       <p className="text-muted-foreground">
-        Tente novamente. Se o problema continuar, informe o código de suporte
-        abaixo à equipe.
+        Tente novamente. Se continuar, informe o código abaixo ao suporte.
       </p>
       <p className="font-mono text-muted-foreground text-sm">
         Identificador de correlação: {correlationId}
       </p>
-      {error.digest ? (
-        <p className="font-mono text-muted-foreground text-sm">
-          Referência do servidor: {error.digest}
-        </p>
-      ) : null}
-      <button
-        className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
-        onClick={unstable_retry}
-        type="button"
-      >
-        Tentar novamente
-      </button>
-    </main>
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={unstable_retry} type="button">
+          Tentar novamente
+        </Button>
+        <Button asChild variant="outline">
+          <Link href={route("/app")}>Voltar aos meus cursos</Link>
+        </Button>
+      </div>
+    </section>
   );
 }

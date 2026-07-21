@@ -214,8 +214,10 @@ function Sidebar({
           }
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Sidebar</SheetTitle>
-            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+            <SheetTitle>Menu principal</SheetTitle>
+            <SheetDescription>
+              Itens de navegação da plataforma.
+            </SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
@@ -275,11 +277,19 @@ function SidebarTrigger({
   ...props
 }: ComponentProps<typeof Button>) {
   const { toggleSidebar, state, isMobile } = useSidebar();
+  let accessibleLabel = "Recolher menu lateral";
+
+  if (isMobile) {
+    accessibleLabel = "Abrir menu principal";
+  } else if (state === "collapsed") {
+    accessibleLabel = "Expandir menu lateral";
+  }
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
+          aria-label={accessibleLabel}
           className={cn(className)}
           data-sidebar="trigger"
           data-slot="sidebar-trigger"
@@ -292,7 +302,7 @@ function SidebarTrigger({
           {...props}
         >
           <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
-          <span className="sr-only">Toggle Sidebar</span>
+          <span className="sr-only">Alternar menu lateral</span>
         </Button>
       </TooltipTrigger>
       <TooltipContent
@@ -311,7 +321,7 @@ function SidebarRail({ className, ...props }: ComponentProps<"button">) {
 
   return (
     <button
-      aria-label="Toggle Sidebar"
+      aria-label="Alternar menu lateral"
       className={cn(
         "absolute inset-y-0 z-20 hidden w-4 transition-[width,transform] ease-linear after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
@@ -325,15 +335,15 @@ function SidebarRail({ className, ...props }: ComponentProps<"button">) {
       data-slot="sidebar-rail"
       onClick={toggleSidebar}
       tabIndex={-1}
-      title="Toggle Sidebar"
+      title="Alternar menu lateral"
       {...props}
     />
   );
 }
 
-function SidebarInset({ className, ...props }: ComponentProps<"main">) {
+function SidebarInset({ className, ...props }: ComponentProps<"div">) {
   return (
-    <main
+    <div
       className={cn(
         "relative flex w-full flex-1 flex-col bg-background md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2 md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-2xl md:peer-data-[variant=inset]:shadow-sm",
         className

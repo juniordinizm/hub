@@ -14,6 +14,7 @@ import {
   resolveCourseAccess,
   resolveLessonAccess,
 } from "@/features/enrollments/access";
+import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/asset-persistence";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
 import {
   calculateCourseProgress,
@@ -162,6 +163,7 @@ export interface StudentLessonData {
     } | null;
     videoEmbedUrl: string | null;
     videoExternalId: string | null;
+    videoProcessingState: "failed" | "processing" | null;
     videoProvider: string | null;
   };
   modules: ModuleWithLessons[];
@@ -963,7 +965,7 @@ const getEnrolledLessonWorkspace = async ({
 
   const lessonIndex = lessonIds.indexOf(lessonId);
   const progress = calculateCourseProgress({ lessonIds, completedLessonIds });
-  const videoEmbedUrl = await resolveStudentLessonVideoEmbedUrl(activeLesson);
+  const video = await resolveStudentLessonVideo(activeLesson);
 
   return {
     course: {
@@ -988,8 +990,9 @@ const getEnrolledLessonWorkspace = async ({
               maxPositionSeconds: activeLesson.watch_max_position_seconds ?? 0,
               watchedPercent: activeLesson.watch_percent,
             },
-      videoEmbedUrl,
+      videoEmbedUrl: video.embedUrl,
       videoExternalId: activeLesson.video_external_id,
+      videoProcessingState: video.processingState,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(rows),
@@ -1054,7 +1057,7 @@ const getPreviewLessonWorkspace = async ({
 
   const lessonIds = rows.map((row) => row.lesson_id);
   const lessonIndex = lessonIds.indexOf(lessonId);
-  const videoEmbedUrl = await resolveStudentLessonVideoEmbedUrl(activeLesson);
+  const video = await resolveStudentLessonVideo(activeLesson);
 
   return {
     course: {
@@ -1071,8 +1074,9 @@ const getPreviewLessonWorkspace = async ({
       videoDurationSeconds: activeLesson.video_duration_seconds,
       isCompleted: false,
       watchProgress: null,
-      videoEmbedUrl,
+      videoEmbedUrl: video.embedUrl,
       videoExternalId: activeLesson.video_external_id,
+      videoProcessingState: video.processingState,
       videoProvider: activeLesson.video_provider,
     },
     modules: mapModules(
@@ -1110,25 +1114,38 @@ export const getStudentLessonWorkspace = async ({
   });
 };
 
-const resolveStudentLessonVideoEmbedUrl = async (
+const resolveStudentLessonVideo = async (
   lesson: Pick<
     LessonRow,
     "lesson_id" | "video_embed_url" | "video_external_id" | "video_provider"
   >
-): Promise<null | string> => {
+): Promise<{
+  embedUrl: null | string;
+  processingState: "failed" | "processing" | null;
+}> => {
   if (
     lesson.video_embed_url ||
     lesson.video_provider !== "jmvstream" ||
     !lesson.video_external_id
   ) {
-    return lesson.video_embed_url;
+    return { embedUrl: lesson.video_embed_url, processingState: null };
   }
 
   try {
     const sync = await syncJmvstreamLessonPlayer(lesson.lesson_id);
-    return sync.playerUrl ?? lesson.video_embed_url;
+    if (sync.playerUrl) {
+      return { embedUrl: sync.playerUrl, processingState: null };
+    }
+
+    const assets = await getJmvstreamAssetsForLesson(lesson.lesson_id);
+    return {
+      embedUrl: null,
+      processingState: assets.some((asset) => asset.uploadStatus === "failed")
+        ? "failed"
+        : "processing",
+    };
   } catch {
-    return lesson.video_embed_url;
+    return { embedUrl: lesson.video_embed_url, processingState: "processing" };
   }
 };
 

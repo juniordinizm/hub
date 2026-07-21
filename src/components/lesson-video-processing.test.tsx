@@ -13,6 +13,12 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }));
 
+vi.mock("@/components/support-request-dialog", () => ({
+  SupportRequestDialog: ({ triggerLabel }: { triggerLabel: string }) => (
+    <button type="button">{triggerLabel}</button>
+  ),
+}));
+
 describe("LessonVideoProcessing", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -48,5 +54,25 @@ describe("LessonVideoProcessing", () => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops polling and offers a safe recovery action when processing fails", () => {
+    act(() => {
+      root.render(
+        <LessonVideoProcessing
+          {...({ state: "failed" } as { state: "failed" })}
+        />
+      );
+    });
+
+    expect(container.textContent).toContain(
+      "Não foi possível preparar este vídeo"
+    );
+    expect(container.textContent).toContain("Falar com suporte");
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

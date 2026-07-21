@@ -96,12 +96,18 @@ export function SupportRequestDialog({
                 <input name="courseTitle" type="hidden" value={courseTitle} />
               ) : null}
               <Field>
-                <FieldLabel>Assunto</FieldLabel>
-                <Input name="subject" placeholder={subject} required />
+                <FieldLabel htmlFor="support-subject">Assunto</FieldLabel>
+                <Input
+                  id="support-subject"
+                  name="subject"
+                  placeholder={subject}
+                  required
+                />
               </Field>
               <Field>
-                <FieldLabel>Mensagem</FieldLabel>
+                <FieldLabel htmlFor="support-message">Mensagem</FieldLabel>
                 <Textarea
+                  id="support-message"
                   name="message"
                   placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
                   required

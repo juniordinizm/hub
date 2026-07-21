@@ -13,6 +13,7 @@ import { recordLessonWatchProgressAction } from "@/app/(student)/app/actions";
 import { LessonFocusContainer } from "@/components/lesson-focus-mode";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import {
+  createJmvstreamPlayerJumpMessage,
   extractJmvstreamEmbedUrl,
   getJmvstreamDurationSecondsFromMessage,
   getJmvstreamPlayerEventFromMessage,
@@ -29,6 +30,7 @@ const WATCH_PROGRESS_PERCENT_STEP = 5;
 export function LessonVideoPlayer({
   children,
   durationSeconds,
+  initialPositionSeconds,
   initialWatchedPercent,
   isPreview,
   lessonId,
@@ -38,6 +40,7 @@ export function LessonVideoPlayer({
 }: {
   children: React.ReactNode;
   durationSeconds: number;
+  initialPositionSeconds: number;
   initialWatchedPercent: number;
   isPreview: boolean;
   lessonId: string;
@@ -48,6 +51,8 @@ export function LessonVideoPlayer({
   const router = useRouter();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const completedByVideoRef = useRef(false);
+  const hasRestoredPositionRef = useRef(false);
+  const isRestoringPositionRef = useRef(false);
   const lastWatchProgressSyncRef = useRef({
     percent: initialWatchedPercent,
     syncedAt: 0,
@@ -55,6 +60,7 @@ export function LessonVideoPlayer({
   const [, startTransition] = useTransition();
   const [displayDurationSeconds, setDisplayDurationSeconds] =
     useState(durationSeconds);
+  const [progressSaveError, setProgressSaveError] = useState(false);
   const [watchedPercent, setWatchedPercent] = useState(initialWatchedPercent);
   const playerUrl = useMemo(() => {
     if (!(videoEmbedUrl && videoProvider === "jmvstream")) {
@@ -79,6 +85,23 @@ export function LessonVideoPlayer({
 
     iframeRef.current?.contentWindow?.postMessage(SYNC_MESSAGE, playerOrigin);
   }, [playerOrigin]);
+
+  const restorePlayerPosition = useCallback(() => {
+    if (hasRestoredPositionRef.current || !playerOrigin) {
+      return;
+    }
+
+    const jumpMessage = createJmvstreamPlayerJumpMessage(
+      initialPositionSeconds
+    );
+    if (!jumpMessage) {
+      return;
+    }
+
+    iframeRef.current?.contentWindow?.postMessage(jumpMessage, playerOrigin);
+    hasRestoredPositionRef.current = true;
+    isRestoringPositionRef.current = true;
+  }, [initialPositionSeconds, playerOrigin]);
 
   const handleDetectedDuration = useCallback(
     (detectedSeconds: number) => {
@@ -133,6 +156,7 @@ export function LessonVideoPlayer({
           setWatchedPercent((currentPercent) =>
             Math.max(currentPercent, result.watchedPercent)
           );
+          setProgressSaveError(false);
 
           if (!result.completed) {
             return;
@@ -153,6 +177,7 @@ export function LessonVideoPlayer({
             router.refresh();
           }
         } catch {
+          setProgressSaveError(true);
           lastWatchProgressSyncRef.current = {
             percent: watchedPercent,
             syncedAt: 0,
@@ -197,13 +222,25 @@ export function LessonVideoPlayer({
       }
 
       if (playerEvent) {
+        restorePlayerPosition();
+        if (isRestoringPositionRef.current) {
+          isRestoringPositionRef.current = false;
+          return;
+        }
+
         handlePlayerEvent(playerEvent);
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [handleDetectedDuration, handlePlayerEvent, playerOrigin, playerUrl]);
+  }, [
+    handleDetectedDuration,
+    handlePlayerEvent,
+    playerOrigin,
+    playerUrl,
+    restorePlayerPosition,
+  ]);
 
   return (
     <>
@@ -226,6 +263,12 @@ export function LessonVideoPlayer({
           )}
         </AspectRatio>
       </LessonFocusContainer>
+
+      <p aria-live="polite" className="sr-only" role="status">
+        {progressSaveError
+          ? "Não foi possível salvar o progresso agora. Continuaremos tentando enquanto você assiste."
+          : ""}
+      </p>
 
       {children}
     </>

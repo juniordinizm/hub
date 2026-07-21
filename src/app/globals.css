@@ -102,6 +102,35 @@ body {
   font-family: var(--font-lexend-deca), Arial, Helvetica, sans-serif;
 }
 
+.skip-link {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 100;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-radius: 0.5rem;
+  transform: translateY(-200%);
+  transition: transform 150ms ease-out;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 ::selection {
   color: #ffffff;
   background: rgba(217, 123, 52, 0.35);

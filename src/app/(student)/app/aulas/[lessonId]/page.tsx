@@ -70,6 +70,8 @@ type LessonPageData = NonNullable<
 type LessonCommentsData = Awaited<ReturnType<typeof getLessonComments>>;
 interface LessonSearchParams {
   busca?: string;
+  e2eFault?: string;
+  material?: string;
   preview?: string | string[];
 }
 interface LessonWithModule {
@@ -94,6 +96,10 @@ export default async function LessonPage({
     preview: query.preview,
     role: session.role,
   });
+
+  if (process.env.E2E_TEST_MODE === "true" && query.e2eFault === "true") {
+    throw new Error("E2E learner experience fault.");
+  }
 
   if (
     !canAccessStudentRoute({
@@ -179,6 +185,7 @@ function getLessonViewState({
       embedUrl: data.lesson.videoEmbedUrl,
       provider: toVideoProvider(data.lesson.videoProvider),
     }),
+    materialUnavailable: query.material === "unavailable",
     visibleModules: getVisibleModules(data, query.busca),
   };
 }
@@ -222,6 +229,18 @@ function LessonMainContent({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   const header = <LessonHeader data={data} previewMode={previewMode} />;
+  const mobileCourseNavigation = (
+    <LessonCourseMobileNavigation
+      activeLessonId={data.lesson.id}
+      lessonsCount={lessonView.lessons.length}
+      modules={lessonView.visibleModules}
+      previewMode={previewMode}
+      progressPercent={data.progressPercent}
+    />
+  );
+  const materialUnavailableAlert = lessonView.materialUnavailable ? (
+    <LessonMaterialUnavailableAlert />
+  ) : null;
 
   const footer = (
     <LessonFooter
@@ -253,6 +272,9 @@ function LessonMainContent({
       <div className="flex flex-col">
         <LessonVideoPlayer
           durationSeconds={data.lesson.durationSeconds}
+          initialPositionSeconds={
+            data.lesson.watchProgress?.currentSeconds ?? 0
+          }
           initialWatchedPercent={data.lesson.watchProgress?.watchedPercent ?? 0}
           isPreview={Boolean(previewMode)}
           lessonId={data.lesson.id}
@@ -261,6 +283,8 @@ function LessonMainContent({
           videoProvider={data.lesson.videoProvider}
         >
           {header}
+          {materialUnavailableAlert}
+          {mobileCourseNavigation}
           {data.lesson.contentJson ? (
             <LessonContentFrame lesson={data.lesson} />
           ) : null}
@@ -275,8 +299,13 @@ function LessonMainContent({
     return (
       <div className="flex flex-col">
         {header}
+        {materialUnavailableAlert}
+        {mobileCourseNavigation}
         <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
-          <LessonVideoProcessing />
+          <LessonVideoProcessing
+            courseTitle={data.course.title}
+            state={data.lesson.videoProcessingState ?? "processing"}
+          />
         </div>
         <LessonContentFrame lesson={data.lesson} />
         <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
@@ -290,11 +319,27 @@ function LessonMainContent({
   return (
     <div className="flex flex-col">
       {header}
+      {materialUnavailableAlert}
+      {mobileCourseNavigation}
       <LessonContentFrame lesson={data.lesson} />
       <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
         {footer}
       </div>
       {commentsSection}
+    </div>
+  );
+}
+
+function LessonMaterialUnavailableAlert(): React.JSX.Element {
+  return (
+    <div className="mx-auto w-full max-w-5xl px-5 sm:px-8 lg:px-10">
+      <div
+        className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm"
+        role="alert"
+      >
+        Este material está indisponível no momento. Tente novamente mais tarde
+        ou fale com o suporte se o problema continuar.
+      </div>
     </div>
   );
 }
@@ -699,48 +744,110 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <Sidebar
-      className="hidden h-full w-[340px] shrink-0 border-l-0 lg:flex"
-      collapsible="none"
-      side="right"
-    >
-      <div className="shrink-0 border-b-0 px-6 py-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="font-semibold text-sm">Conteúdo do curso</p>
-            <p className="mt-1 text-sidebar-foreground/55 text-xs">
-              {progressPercent}% concluído
-            </p>
+    <aside aria-label="Conteúdo do curso">
+      <Sidebar
+        className="hidden h-full w-[340px] shrink-0 border-l-0 lg:flex"
+        collapsible="none"
+        side="right"
+      >
+        <div className="shrink-0 border-b-0 px-6 py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold text-sm">Conteúdo do curso</p>
+              <p className="mt-1 text-sidebar-foreground text-xs">
+                {progressPercent}% concluído
+              </p>
+            </div>
+            <Badge variant="outline">{lessonsCount} aulas</Badge>
           </div>
-          <Badge variant="outline">{lessonsCount} aulas</Badge>
+          <Progress
+            aria-label="Progresso do curso"
+            className="mt-3 h-1 bg-primary/20"
+            value={progressPercent}
+          />
         </div>
-        <Progress className="mt-3 h-1 bg-primary/20" value={progressPercent} />
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 py-2">
-        {modules.map((module) => (
-          <SidebarGroup key={module.id}>
-            <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {module.lessons.map((lesson) => (
-                  <LessonSidebarItem
-                    activeLessonId={activeLessonId}
-                    key={lesson.id}
-                    lesson={lesson}
-                    previewMode={previewMode}
-                  />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-        {modules.length === 0 ? (
-          <p className="px-4 py-5 text-sidebar-foreground/55 text-sm">
-            Nenhuma aula encontrada para essa busca.
-          </p>
-        ) : null}
-      </div>
-    </Sidebar>
+        <LessonCourseOutline
+          activeLessonId={activeLessonId}
+          modules={modules}
+          previewMode={previewMode}
+        />
+      </Sidebar>
+    </aside>
+  );
+}
+
+function LessonCourseMobileNavigation({
+  activeLessonId,
+  lessonsCount,
+  modules,
+  previewMode,
+  progressPercent,
+}: {
+  activeLessonId: string;
+  lessonsCount: number;
+  modules: LessonPageData["modules"];
+  previewMode: StudentPreviewMode | null;
+  progressPercent: number;
+}): React.JSX.Element {
+  return (
+    <details className="border-border border-y lg:hidden">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 font-medium text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-8">
+        <span>Conteúdo do curso</span>
+        <span className="text-muted-foreground text-xs">
+          {progressPercent}% concluído · {lessonsCount} aulas
+        </span>
+      </summary>
+      <nav
+        aria-label="Conteúdo do curso"
+        className="border-border border-t py-2"
+      >
+        <LessonCourseOutline
+          activeLessonId={activeLessonId}
+          modules={modules}
+          previewMode={previewMode}
+        />
+      </nav>
+    </details>
+  );
+}
+
+function LessonCourseOutline({
+  activeLessonId,
+  modules,
+  previewMode,
+}: {
+  activeLessonId: string;
+  modules: LessonPageData["modules"];
+  previewMode: StudentPreviewMode | null;
+}): React.JSX.Element {
+  if (modules.length === 0) {
+    return (
+      <p className="px-4 py-5 text-sidebar-foreground text-sm">
+        Nenhuma aula encontrada para essa busca.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto px-2 py-2">
+      {modules.map((module) => (
+        <SidebarGroup key={module.id}>
+          <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {module.lessons.map((lesson) => (
+                <LessonSidebarItem
+                  activeLessonId={activeLessonId}
+                  key={lesson.id}
+                  lesson={lesson}
+                  previewMode={previewMode}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      ))}
+    </div>
   );
 }
 
@@ -796,7 +903,7 @@ function NavigationCard({
     return (
       <div
         className={cn(
-          "flex flex-col rounded-xl border bg-card/55 p-4 text-muted-foreground/55",
+          "flex flex-col rounded-xl border bg-card p-4 text-foreground",
           type === "previous" ? "items-start text-left" : "items-end text-right"
         )}
       >
@@ -808,7 +915,7 @@ function NavigationCard({
               : "items-end text-right"
           )}
         >
-          <span className="flex items-center gap-1.5 text-muted-foreground/45 text-xs">
+          <span className="flex items-center gap-1.5 text-foreground text-xs">
             {type === "previous" && (
               <HugeiconsIcon
                 className="shrink-0"
@@ -899,19 +1006,19 @@ function LessonSidebarItem({
   const marker = getLessonMarker(lesson);
   const content = (
     <>
-      <span className="w-4 text-sidebar-foreground/50 text-xs">{marker}</span>
+      <span className="w-4 text-sidebar-foreground text-xs">{marker}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate">
           {lesson.isCompleted ? "Concluída · " : ""}
           {lesson.title}
         </span>
         {lesson.isAvailable ? null : (
-          <span className="block text-sidebar-foreground/40 text-xs">
+          <span className="block text-sidebar-foreground text-xs">
             Libere concluindo a aula anterior
           </span>
         )}
       </span>
-      <span className="ml-auto text-sidebar-foreground/40 text-xs">
+      <span className="ml-auto text-sidebar-foreground text-xs">
         {formatLessonDuration(lesson.durationSeconds)}
       </span>
     </>
@@ -920,7 +1027,7 @@ function LessonSidebarItem({
   if (!lesson.isAvailable) {
     return (
       <SidebarMenuItem>
-        <div className="flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/45 text-sm">
+        <div className="flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground text-sm">
           {content}
         </div>
       </SidebarMenuItem>

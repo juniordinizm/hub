@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 6e92fda7a8e22e5e98b340e4f61791fb5b6bf486
 ---
 
 # Conteúdo, aprendizagem e progresso
@@ -92,6 +92,14 @@ Detalhes: [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md
 - falha de upload não deve publicar referência quebrada;
 - remoção de conteúdo deve limpar ativos externos de forma recuperável;
 - JMVStream/R2 indisponíveis degradam mídia, não autorizam ignorar acesso.
+
+### Experiência de falha e continuidade
+
+- a área da Aluna possui limites de carregamento, falha e conteúdo não encontrado; falhas exibem retry e identificador de correlação sem expor detalhes internos;
+- o índice da trilha é navegável por teclado no desktop e fica disponível em um resumo expansível no mobile, incluindo Aulas bloqueadas;
+- JMVStream em `processing` atualiza a Aula periodicamente; ativo local em `failed` interrompe o polling e orienta a Aluna a acionar suporte;
+- antes de redirecionar um anexo R2, o Hub confirma que o objeto existe. Em falha, volta à Aula com alerta recuperável;
+- a posição assistida é persistida de forma monotônica e a última posição é restaurada somente após o player JMVStream responder ao sync. A mensagem de restauração é ignorada pela gravação de progresso para não concluir uma Aula por reabertura.
 
 ## Evidências
 

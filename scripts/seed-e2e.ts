@@ -13,8 +13,10 @@ export interface E2eFixture {
   admin: { email: string; password: string };
   certificate: { revokedCode: string; validCode: string };
   course: { id: string; lessonOneId: string; lessonTwoId: string };
+  studentWithExpiredAccess: { email: string; id: string; password: string };
   studentWithGrant: { email: string; id: string; password: string };
   studentWithoutGrant: { email: string; id: string; password: string };
+  studentWithRevokedAccess: { email: string; id: string; password: string };
 }
 
 const requireE2eMode = (): void => {
@@ -55,7 +57,13 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   const studentEmail = `sg${suffix}@example.com`;
   const noGrantEmail = `sn${suffix}@example.com`;
   const adminEmail = `ad${suffix}@example.com`;
-  const [studentId, noGrantId] = await Promise.all([
+  const [
+    studentId,
+    noGrantId,
+    ,
+    expiredAccessStudentId,
+    revokedAccessStudentId,
+  ] = await Promise.all([
     createUser({
       email: studentEmail,
       name: "Aluna com acesso",
@@ -67,6 +75,16 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       role: "student",
     }),
     createUser({ email: adminEmail, name: "Admin E2E", role: "admin" }),
+    createUser({
+      email: `se${suffix}@example.com`,
+      name: "Aluna com acesso expirado",
+      role: "student",
+    }),
+    createUser({
+      email: `sr${suffix}@example.com`,
+      name: "Aluna com acesso revogado",
+      role: "student",
+    }),
   ]);
   const pool = getPool();
   const client = await pool.connect();
@@ -126,6 +144,38 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     );
     await rebuildEnrollmentProjection({ client, courseId, userId: studentId });
 
+    await client.query(
+      `
+        insert into enrollment_grants (
+          user_id, course_id, source_type, manual_reference, status,
+          starts_at, base_expires_at, effective_expires_at, revoked_at,
+          revoked_reason
+        ) values
+          ($1, $2, 'manual', $3, 'active', now() - interval '31 days',
+           now() - interval '1 day', now() - interval '1 day', null, null),
+          ($4, $2, 'manual', $5, 'cancelled', now() - interval '31 days',
+           now() - interval '1 day', now() - interval '1 day', now(),
+           'abacatepay_dispute')
+      `,
+      [
+        expiredAccessStudentId,
+        courseId,
+        `e2e-expired-${suffix}`,
+        revokedAccessStudentId,
+        `e2e-revoked-${suffix}`,
+      ]
+    );
+    await rebuildEnrollmentProjection({
+      client,
+      courseId,
+      userId: expiredAccessStudentId,
+    });
+    await rebuildEnrollmentProjection({
+      client,
+      courseId,
+      userId: revokedAccessStudentId,
+    });
+
     const validCode = `E2E-VALID-${suffix}`;
     const revokedCode = `E2E-REVOKED-${suffix}`;
     await client.query(
@@ -154,6 +204,16 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       studentWithGrant: {
         email: studentEmail,
         id: studentId,
+        password: E2E_PASSWORD,
+      },
+      studentWithExpiredAccess: {
+        email: `se${suffix}@example.com`,
+        id: expiredAccessStudentId,
+        password: E2E_PASSWORD,
+      },
+      studentWithRevokedAccess: {
+        email: `sr${suffix}@example.com`,
+        id: revokedAccessStudentId,
         password: E2E_PASSWORD,
       },
       studentWithoutGrant: {

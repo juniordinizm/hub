@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 6e92fda7a8e22e5e98b340e4f61791fb5b6bf486
 ---
 
 # JMVStream
@@ -76,12 +76,19 @@ Até lá, a documentação descreve o payload real do código e não promete com
 - parte falhou => repetir a parte, preservando ETags válidos;
 - complete falhou => não criar nova sessão até consultar estado da atual;
 - player pendente => cron/manual sync;
+- player com ativo local `failed` => a experiência da Aluna interrompe o polling e oferece suporte; não expor `last_error` do provedor;
 - deleção falhou => manter registro `needs_review` e tentar pelo comando autorizado;
 - hash já associado => `assertJmvstreamVideoHashAvailable` deve impedir duplicidade.
 
 ## Segurança
 
 URLs assinadas são temporárias; credenciais ficam server-only. Validar tipo/tamanho antes de iniciar. Não logar token, URLs assinadas completas ou payload com credenciais.
+
+## Retomada de reprodução
+
+O Hub persiste `current_seconds` e `max_position_seconds`. Depois de receber um evento válido do player em resposta a `jmvplayer-sync`, envia `jmvplayer-jump` com a última posição (`jump`) para restaurar a Aula sem iniciar nem concluir automaticamente. A primeira resposta após o salto é descartada pela gravação de progresso para impedir conclusão por reabertura.
+
+O comando é documentado na página oficial de eventos do player, marcada pelo próprio provedor como referência antiga; ele deve ser confirmado contra um player real antes de promover uma mudança de versão da integração.
 
 ## Evidências
 

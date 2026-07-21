@@ -89,7 +89,9 @@ export function CheckoutAccessWaiter({
 
   return (
     <div className="mt-5 rounded-lg border bg-muted/40 p-4">
-      <p className="text-muted-foreground text-sm leading-6">{statusText}</p>
+      <p aria-live="polite" className="text-muted-foreground text-sm leading-6">
+        {statusText}
+      </p>
       {courseId ? (
         <Button
           className="mt-3"

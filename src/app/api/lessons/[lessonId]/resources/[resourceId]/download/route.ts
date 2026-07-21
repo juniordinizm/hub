@@ -5,7 +5,7 @@ import { requireSession } from "@/lib/session";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ lessonId: string; resourceId: string }> }
 ): Promise<Response> {
   const session = await requireSession();
@@ -40,10 +40,16 @@ export async function GET(
     );
   }
 
-  const downloadUrl = await createLessonResourceDownloadUrl({
-    fileName: resource.fileName,
-    key: resource.key,
-  });
+  try {
+    const downloadUrl = await createLessonResourceDownloadUrl({
+      fileName: resource.fileName,
+      key: resource.key,
+    });
 
-  return Response.redirect(downloadUrl, 302);
+    return Response.redirect(downloadUrl, 302);
+  } catch {
+    const unavailableUrl = new URL(`/app/aulas/${lessonId}`, request.url);
+    unavailableUrl.searchParams.set("material", "unavailable");
+    return Response.redirect(unavailableUrl, 302);
+  }
 }

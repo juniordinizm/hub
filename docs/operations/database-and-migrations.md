@@ -1,19 +1,22 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: 754b654a357274fd5af504e4e714efb2dd519e2a
 ---
 
 # Banco e migrations
 
-## Estado atual: outbox promovida em `production`
+## Estado atual: produção em `0024`; repositório bloqueado em `0026`
 
-`bun run db:migrations:check` passa: o histórico após `0019` foi condensado em
-`0020_reconcile_schema_after_manual_changes.sql`. As migrations `0021` e `0022` acrescentam a
-fonte de Concessão manual e a separação entre `order_id` e `manual_reference`. As migrations
-`0020` a `0024` foram promovidas de forma controlada em `production`. Em 2026-07-21, `0023` criou
-`outbox_messages` e `0024` limitou o reprocessamento manual a uma vez; o journal de produção passou
-a ter 25 entradas.
+As migrations `0020` a `0024` foram promovidas de forma controlada em `production`. Em
+2026-07-21, `0023` criou `outbox_messages` e `0024` limitou o reprocessamento manual a uma vez;
+o journal de produção tem 25 entradas.
+
+O repositório contém também `0025_admin_certificate_privacy_workflows` e
+`0026_certificate_privacy_segregation`, ainda não promovidas. O journal local referencia `0026`,
+mas `src/db/migrations/meta/0026_snapshot.json` não foi versionado; por isso
+`bun run db:migrations:check` falha até o snapshot ser reconstruído e revisado. Não execute
+`db:migrate` em ambiente compartilhado enquanto esse gate estiver vermelho.
 
 Os comandos locais de reset e seed foram protegidos. Eles só são seguros para banco local
 descartável, com as proteções e confirmações abaixo.
@@ -37,9 +40,9 @@ Autoridades a comparar:
 4. schema do banco alvo.
 
 O schema TypeScript exporta 29 tabelas. O journal tem uma sequência única até
-`0024_light_stature`: `0023` cria `outbox_messages` e `0024` limita reprocessamento manual a uma vez.
-Os arquivos históricos anteriores `0020`–`0029` foram substituídos por
-`0020_reconcile_schema_after_manual_changes` e permanecem recuperáveis pelo Git.
+`0026_certificate_privacy_segregation`; `0023` cria `outbox_messages` e `0024` limita
+reprocessamento manual a uma vez. Os arquivos históricos anteriores `0020`–`0029` foram
+substituídos por `0020_reconcile_schema_after_manual_changes` e permanecem recuperáveis pelo Git.
 
 `drizzle-kit migrate` exige promoção controlada em ambientes compartilhados: backup ou branch,
 URL direta conferida, auditoria antes/depois e segunda execução sem reaplicação.

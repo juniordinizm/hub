@@ -4,6 +4,7 @@ import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Autoplay from "embla-carousel-autoplay";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Carousel,
@@ -20,30 +21,46 @@ interface StudentBannersCarouselProps {
 export function StudentBannersCarousel({
   banners,
 }: StudentBannersCarouselProps) {
+  const [reduceMotion, setReduceMotion] = useState(true);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = (): void => setReduceMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
+
   if (banners.length === 0) {
     return null;
   }
 
   return (
-    <section className="relative w-full">
+    <section aria-label="Destaques da plataforma" className="relative w-full">
       {/* 
         We use an inner div to apply the concentric border-radius & subtle outline 
         ensuring the carousel itself masks overflow correctly. 
       */}
       <div className="overflow-hidden rounded-3xl border border-black/10 shadow-sm dark:border-white/10">
         <Carousel
+          aria-label="Destaques da plataforma"
           className="w-full"
           opts={{
             loop: true,
             align: "center",
             watchDrag: banners.length > 1,
           }}
-          plugins={[
-            Autoplay({
-              delay: 6000,
-              stopOnInteraction: true,
-            }),
-          ]}
+          plugins={
+            reduceMotion
+              ? []
+              : [
+                  Autoplay({
+                    delay: 6000,
+                    stopOnInteraction: true,
+                  }),
+                ]
+          }
         >
           <CarouselContent>
             {banners.map((banner, index) => (
@@ -53,7 +70,7 @@ export function StudentBannersCarousel({
               >
                 <div className="absolute inset-0">
                   <BannerImage
-                    alt="Banner"
+                    alt=""
                     blurDataUrl={banner.blurDataUrl}
                     key={banner.imageUrl}
                     preload={index === 0}
