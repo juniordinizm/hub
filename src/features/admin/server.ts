@@ -6,6 +6,10 @@ import {
 } from "@/features/admin/students";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
+  getOperationalBacklogSnapshot,
+  type OperationalBacklogSnapshot,
+} from "@/features/operations/server";
+import {
   listOutboxDeadLetters,
   type OutboxDeadLetterMessage,
 } from "@/features/outbox/server";
@@ -795,14 +799,16 @@ export const getAdminStudentsData = async (): Promise<{
 
 export const getAdminAuditData = async (): Promise<{
   auditLogs: AdminAuditLog[];
+  operationalBacklog: OperationalBacklogSnapshot;
   outboxDeadLetters: OutboxDeadLetterMessage[];
 }> => {
   await requireAdminReadAccess();
-  const [auditLogs, outboxDeadLetters] = await Promise.all([
+  const [auditLogs, outboxDeadLetters, operationalBacklog] = await Promise.all([
     readAuditLogs(),
     listOutboxDeadLetters(),
+    getOperationalBacklogSnapshot(),
   ]);
-  return { auditLogs, outboxDeadLetters };
+  return { auditLogs, operationalBacklog, outboxDeadLetters };
 };
 
 export const getAdminSettingsData = async (): Promise<{

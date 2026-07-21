@@ -19,6 +19,7 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/operations/environment-and-local-development.md",
   "docs/operations/database-and-migrations.md",
   "docs/operations/deploy-and-incidents.md",
+  "docs/operations/observability-and-recovery.md",
   "docs/adr/0001-custom-rbac.md",
   "docs/adr/0002-r2-buckets-and-publication.md",
   "docs/adr/0003-jmvstream-direct-multipart-upload.md",

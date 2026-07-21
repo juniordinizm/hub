@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { syncPendingJmvstreamPlayers } from "@/features/jmvstream/server";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +18,9 @@ const getBearerToken = (authorization: string | null): string | null => {
 };
 
 export const GET = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const env = getServerEnv();
   const receivedToken = getBearerToken(request.headers.get("authorization"));
 
@@ -27,7 +35,13 @@ export const GET = async (request: Request): Promise<Response> => {
     );
   }
 
-  const result = await syncPendingJmvstreamPlayers();
+  const result = await observeOperation({
+    correlationId,
+    execute: syncPendingJmvstreamPlayers,
+    failureErrorCode: "jmvstream_sync_failed",
+    operation: "cron.jmvstream",
+    provider: "jmvstream",
+  });
 
   return NextResponse.json(result);
 };

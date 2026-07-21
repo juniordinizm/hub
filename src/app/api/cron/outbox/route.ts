@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { runOutboxWorker } from "@/features/outbox/runner";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +18,9 @@ const getBearerToken = (authorization: string | null): string | null => {
 };
 
 export const GET = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const env = getServerEnv();
   const receivedToken = getBearerToken(request.headers.get("authorization"));
 
@@ -27,5 +35,13 @@ export const GET = async (request: Request): Promise<Response> => {
     );
   }
 
-  return NextResponse.json({ ok: true, ...(await runOutboxWorker()) });
+  const result = await observeOperation({
+    correlationId,
+    execute: runOutboxWorker,
+    failureErrorCode: "outbox_worker_failed",
+    operation: "cron.outbox",
+    provider: "resend",
+  });
+
+  return NextResponse.json({ ok: true, ...result });
 };

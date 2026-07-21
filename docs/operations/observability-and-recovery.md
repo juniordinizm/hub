@@ -1,0 +1,105 @@
+---
+status: runbook
+owner: operations
+last_verified_commit: d6e45fb52e61ecf40dc5ca556867b563cf703e1b
+---
+
+# Observabilidade e recuperação
+
+## Objetivo e limites
+
+Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos. Ele cobre processo, Postgres, filas persistidas e integrações assíncronas. Não prova backup, proteção de branch ou alertas ativos em produção: cada item exige confirmação no painel do provedor.
+
+**Admin > Auditoria** mostra apenas contagens e idade de backlog. Nunca expõe payload, token, e-mail ou URL assinada.
+
+## Sinais, dona e resposta
+
+| Capacidade | Sinal | Dona | Severidade | Ação |
+|---|---|---|---|---|
+| Auth | `auth.sign_in`, exceção de request e fallback de interface | Engenharia | alta se login indisponível | localizar `correlationId`, consultar Sentry e Better Auth |
+| Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração AbacatePay e Pedido sem PII |
+| Webhook e concessão | `webhook.abacatepay`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
+| Player e upload | `cron.jmvstream`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) |
+| Certificado e e-mail | outbox, dead letter e exceção | Operações | alta se emissão não notifica | conferir agregado, outbox e Resend; não editar snapshot |
+| Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
+| Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
+
+Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado.
+
+## Correlação, logs e exceções
+
+`proxy`, em `src/proxy.ts`, aceita apenas UUID v4 em `x-correlation-id` ou gera um novo. O valor segue para a requisição e a resposta. `logOperationalEvent`, em `src/lib/observability.ts`, emite JSON com `correlationId`, `operation`, `outcome`, `durationMs`, `errorCode`, `provider` e, quando seguro, `aggregateId`.
+
+O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Não inclua esses dados nos valores de outros campos.
+
+`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
+
+## Liveness, readiness e RED
+
+- `GET /api/health` é liveness: processo e relógio; continua 2xx mesmo sem banco.
+- `GET /api/health/ready` é readiness: exige `Authorization: Bearer <HEALTHCHECK_SECRET>` quando o segredo existe. Em produção, segredo ausente ou banco indisponível retorna 503 sem detalhes.
+- A readiness usa transação somente leitura, timeout de um segundo e journal `drizzle.__drizzle_migrations`. Providers externos não bloqueiam cada request.
+
+RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhook falho e vídeo pendente, com a idade do item mais antigo.
+
+## SLI/SLO antes de ratificação
+
+Colete uma linha de base de 30 dias antes de fixar meta, janela, error budget ou pager. Registre diariamente:
+
+1. disponibilidade de login e player por check sintético autenticado;
+2. tempo entre `webhook.abacatepay` e projeção de Matrícula/Concessão;
+3. idade e quantidade de outbox pendente/dead letter;
+4. tempo entre vídeo pendente e `ready`;
+5. falha e latência de `checkout.create`.
+
+Até haver baseline e aprovação de produto/operações, excedente gera investigação pelo runbook, não promessa de SLO. A revisão mensal registra dona, ambiente, período, volume e decisão.
+
+## Diagnóstico por provider
+
+### Neon/Postgres
+
+1. Consulte liveness e readiness com bearer; não publique o bearer em ticket.
+2. Use o `correlationId` no log e confira conectividade, pool runtime e journal.
+3. Runtime usa `DATABASE_URL` pooled; migrations usam `DATABASE_URL_DIRECT`. Nunca recupere com `db:push` ou `db:reset`.
+4. Branch, PITR, proteção e retenção de produção requerem verificação humana no Neon.
+
+### AbacatePay
+
+1. Relacione `correlationId`, ID do Pedido e `event_key`, sem payload bruto.
+2. Confira assinatura, deduplicação, estado financeiro e `payment_reviews`.
+3. Use somente retry autorizado; não crie Matrícula diretamente para simular pagamento.
+
+### JMVStream e R2
+
+1. Para JMVStream, confira `videoHash`, estado local, cron e etapa: parte, complete, processamento, sync ou delete.
+2. Preserve sessão, ETags e IDs. A divergência `gallery` permanece bloqueio no guia de [JMVStream](../integrations/jmvstream.md).
+3. Para R2, registre somente bucket/chave; teste HEAD privado e GET público conforme publicação. Não limpe objetos sem reconciliar referência.
+
+### Resend
+
+1. Confirme commit e estado atual do agregado.
+2. Consulte outbox/dead letter, tópico, tentativa e `lastErrorCode`, nunca o payload.
+3. Reprocessamento exige motivo. Depois de 24 horas, a idempotência do provedor pode não evitar e-mail duplicado.
+
+## Ensaio de recuperação
+
+### Procedimento trimestral
+
+1. Crie branch temporária no Neon a partir de snapshot autorizado; nunca restaure sobre produção.
+2. Obtenha URL direta exclusiva e não a copie para documentação, ticket ou log.
+3. Rode `bun run db:migrations:check`, `bun run db:migrate` e smoke sem PII: journal, tabelas e invariantes de contagem aprovados.
+4. Registre data UTC, origem, início/fim, duração, checks, resultado e operadora.
+5. Exercite rollback operacional: aplicação anterior compatível ou forward-fix revisado. Não execute rollback SQL destrutivo.
+6. Revogue URL e apague a branch temporária depois da conferência.
+
+### Evidência atual
+
+Em 2026-07-21 UTC, a branch `recovery-drill-20260721` foi criada da branch `production` do projeto Neon `protear`, recebeu `bun run db:migrate`, passou no smoke sem PII e foi removida. A cópia preservou 2 Contas e zero registros nas tabelas de Pedido, Matrícula, webhook e Certificado; após a migration, o journal chegou a 25 entradas e `outbox_messages` existia.
+
+Esse é um ensaio real de cópia do estado corrente de produção e de recuperação forward de schema. Ele revelou o estado inicial de 23 entradas no journal e ausência de `outbox_messages`. Após aprovação explícita, `0023` e `0024` foram promovidas de forma controlada para `production`: o journal chegou a 25 entradas, a outbox existe e uma segunda execução do migrador não reaplicou schema.
+
+As branches `production` acessíveis de CI e do projeto `protear` permanecem sem proteção porque o plano Free não oferece esse recurso. O ensaio não comprova PITR em ponto histórico, política de backup/retenção ou entrega de alerta; essas verificações continuam adiadas até haver ambiente de produção e capacidade do provedor.
+
+## Manutenção
+
+Repita o ensaio e um incidente simulado trimestralmente. Em cada integração, revise filtros de PII, dona, alerta, dashboard e ação. Atualize este runbook e rode `bun run docs:check` na mesma mudança.

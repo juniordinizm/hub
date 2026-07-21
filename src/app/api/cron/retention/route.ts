@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { runDataRetention } from "@/features/privacy/server";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 
 export const GET = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const env = getServerEnv();
   const authorization = request.headers.get("authorization");
   const token = authorization?.startsWith("Bearer ")
@@ -17,5 +25,13 @@ export const GET = async (request: Request): Promise<Response> => {
     return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
   }
 
-  return NextResponse.json({ ok: true, ...(await runDataRetention()) });
+  const result = await observeOperation({
+    correlationId,
+    execute: runDataRetention,
+    failureErrorCode: "retention_cron_failed",
+    operation: "cron.retention",
+    provider: "database",
+  });
+
+  return NextResponse.json({ ok: true, ...result });
 };

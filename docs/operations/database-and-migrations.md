@@ -6,12 +6,14 @@ last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 
 # Banco e migrations
 
-## Estado atual: histórico reconciliado e promovido
+## Estado atual: outbox promovida em `production`
 
 `bun run db:migrations:check` passa: o histórico após `0019` foi condensado em
 `0020_reconcile_schema_after_manual_changes.sql`. As migrations `0021` e `0022` acrescentam a
-fonte de Concessão manual e a separação entre `order_id` e `manual_reference`. As três foram
-promovidas de forma controlada em `production`.
+fonte de Concessão manual e a separação entre `order_id` e `manual_reference`. As migrations
+`0020` a `0024` foram promovidas de forma controlada em `production`. Em 2026-07-21, `0023` criou
+`outbox_messages` e `0024` limitou o reprocessamento manual a uma vez; o journal de produção passou
+a ter 25 entradas.
 
 Os comandos locais de reset e seed foram protegidos. Eles só são seguros para banco local
 descartável, com as proteções e confirmações abaixo.
@@ -23,7 +25,7 @@ descartável, com as proteções e confirmações abaixo.
 - fallback do Drizzle config: `DATABASE_URL` se o direto estiver ausente;
 - TLS: `withVerifiedSslMode` força `sslmode=verify-full` para aliases menos estritos.
 
-Neon recomenda pooled para aplicações serverless e direto para migrations, `pg_dump` e operações com estado de sessão. Painel, branches e strings reais deste projeto não foram verificados.
+Neon recomenda pooled para aplicações serverless e direto para migrations, `pg_dump` e operações com estado de sessão. O painel confirmou o projeto `protear` e sua branch `production` em 2026-07-21; o restante das configurações operacionais continua sujeito à verificação no painel.
 
 ## Schema e migrations
 
@@ -149,6 +151,19 @@ Em 2026-07-20, as migrations `0020`, `0021` e `0022` foram promovidas para `prod
 journal passou a conter 23 entradas. A auditoria posterior confirmou a fonte `manual` no enum,
 as colunas `order_id` e `manual_reference`, os dois índices únicos e a restrição
 `enrollment_grants_source_shape_check`. Uma segunda execução do migrador não reaplicou SQL.
+
+### Auditoria de recuperação e promoção em 2026-07-21
+
+O projeto Neon `protear` foi confirmado como o ambiente de produção acessível. Antes da promoção,
+`production` tinha 23 entradas no journal e não possuía `outbox_messages`. A branch temporária
+`migration-promotion-0023-0024-20260721` recebeu `0023` e `0024` com sucesso, chegou a 25 entradas,
+possuía a tabela de outbox vazia e foi removida depois da conferência.
+
+Com aprovação explícita, as mesmas migrations foram aplicadas uma vez em `production` pela URL direta
+conferida. A auditoria posterior confirmou 25 entradas no journal, existência de `outbox_messages` e
+zero mensagens pendentes. A segunda execução do migrador terminou sem reaplicar schema. A branch
+`production` continua sem proteção: o plano Free não oferece esse recurso; essa limitação deve ser
+reavaliada antes de qualquer nova mudança estrutural compartilhada.
 
 ## Regra para a próxima promoção
 

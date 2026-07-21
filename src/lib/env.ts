@@ -42,6 +42,7 @@ const serverEnvSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  HEALTHCHECK_SECRET: optionalNonEmptyString,
   INTERNAL_BOOTSTRAP_SECRET: optionalNonEmptyString,
   JMVSTREAM_API_BASE_URL: z.string().url().default("https://api.jmvstream.com"),
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
@@ -49,6 +50,7 @@ const serverEnvSchema = z.object({
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   LEGAL_APPROVAL_REFERENCE: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_SENTRY_DSN: optionalNonEmptyString,
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -57,6 +59,7 @@ const serverEnvSchema = z.object({
     .string()
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
+  SENTRY_DSN: optionalNonEmptyString,
   SUPPORT_EMAIL: optionalNonEmptyString,
   VERCEL: optionalNonEmptyString,
 });
@@ -80,6 +83,7 @@ export const getServerEnv = () => {
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
     E2E_TEST_MODE: process.env.E2E_TEST_MODE,
+    HEALTHCHECK_SECRET: process.env.HEALTHCHECK_SECRET,
     INTERNAL_BOOTSTRAP_SECRET: process.env.INTERNAL_BOOTSTRAP_SECRET,
     JMVSTREAM_API_BASE_URL: process.env.JMVSTREAM_API_BASE_URL,
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
@@ -87,9 +91,11 @@ export const getServerEnv = () => {
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
     LEGAL_APPROVAL_REFERENCE: process.env.LEGAL_APPROVAL_REFERENCE,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NODE_ENV: process.env.NODE_ENV,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    SENTRY_DSN: process.env.SENTRY_DSN,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     VERCEL: process.env.VERCEL,
   });

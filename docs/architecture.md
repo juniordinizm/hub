@@ -96,6 +96,12 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 - páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código.
 - solicitações de privacidade passam por registro, aprovação e execução; retenção automática só executa com flag e referência jurídica.
 
+## Observabilidade
+
+`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
+
+`GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Auditoria** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
+
 ## Concorrência, idempotência e auditoria
 
 - webhooks usam chave externa e registro persistido para deduplicação;

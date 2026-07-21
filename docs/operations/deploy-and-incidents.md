@@ -64,7 +64,7 @@ Conferir no provedor:
 
 ### Smoke test
 
-- `/api/health`;
+- `/api/health` e `/api/health/ready` com bearer, confirmando que readiness não expõe detalhe de dependência;
 - login e recuperação de senha em conta de teste;
 - catálogo e Aula com acesso;
 - painel conforme papel;
@@ -131,6 +131,13 @@ Infraestrutura externa não é comprovada pelo repositório. Registre data, ambi
 2. Rode manualmente apenas em ambiente seguro.
 3. Verifique idempotência e registros antes de repetir.
 4. Retenção permanece desligada sem aprovação jurídica.
+
+### Banco e recuperação
+
+1. Consulte liveness e readiness; use o `correlationId` do response/log, nunca o bearer.
+2. Confirme pool runtime, URL direta de migration e journal antes de diagnosticar schema.
+3. Para indisponibilidade, restaure aplicação compatível ou aplique forward-fix revisado; não use `db:reset`, `db:push` ou rollback SQL destrutivo.
+4. Para ensaio de restore, crie branch isolada e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação). O painel Neon de produção exige verificação humana.
 
 ### Certificado e privacidade
 

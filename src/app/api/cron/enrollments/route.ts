@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { processEnrollmentMaintenance } from "@/features/enrollments/maintenance";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +18,9 @@ const getBearerToken = (authorization: string | null): string | null => {
 };
 
 export const GET = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const env = getServerEnv();
   const receivedToken = getBearerToken(request.headers.get("authorization"));
 
@@ -27,7 +35,13 @@ export const GET = async (request: Request): Promise<Response> => {
     );
   }
 
-  const result = await processEnrollmentMaintenance();
+  const result = await observeOperation({
+    correlationId,
+    execute: processEnrollmentMaintenance,
+    failureErrorCode: "enrollment_maintenance_failed",
+    operation: "cron.enrollments",
+    provider: "database",
+  });
 
   return NextResponse.json({
     ok: true,

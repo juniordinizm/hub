@@ -18,6 +18,10 @@ Para trabalhar localmente, use uma branch Postgres de desenvolvimento ou um banc
 
 | Variável | Ambiente/obrigatoriedade | Default | Consumidor | Sensível |
 |---|---|---|---|---|
+| `HEALTHCHECK_SECRET` | readiness, obrigatória em produção | nenhum | `GET /api/health/ready` | sim |
+| `SENTRY_DSN` | exceções/traces no servidor; opcional até monitoramento externo ser configurado | nenhum | `sentry.server.config.ts`, `sentry.edge.config.ts` | identificador protegido |
+| `NEXT_PUBLIC_SENTRY_DSN` | exceções no navegador; mesmo DSN do projeto Sentry | nenhum | `instrumentation-client.ts` | público controlado |
+| `SENTRY_AUTH_TOKEN` | opcional; obrigatório somente para publicar source maps no build | nenhum | `withSentryConfig`, em `next.config.ts` | sim |
 | `DATABASE_URL` | todo ambiente com banco | nenhum | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | migrations/admin de banco | fallback para `DATABASE_URL` no Drizzle config | `drizzle.config.ts` | sim |
 | `E2E_TEST_MODE` | somente CI E2E, com `CI=true` | `false` | limite de login do Better Auth | não |

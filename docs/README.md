@@ -42,6 +42,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Deploy e incidentes](operations/deploy-and-incidents.md)
 - [Testes e CI](operations/testing-and-ci.md)
 - [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
+- [Observabilidade e recuperaÃ§Ã£o](operations/observability-and-recovery.md)
 
 ### Decisões
 

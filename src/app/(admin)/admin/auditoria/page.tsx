@@ -118,6 +118,59 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
 
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="border-b p-5">
+            <h2 className="font-semibold text-lg">Sinais operacionais</h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Contagens e idades do backlog atual. Investigue itens antigos
+              conforme o runbook de observabilidade antes de reprocessar.
+            </p>
+          </div>
+          <dl className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+            <div className="space-y-1 p-5">
+              <dt className="text-muted-foreground text-sm">Outbox pendente</dt>
+              <dd className="font-semibold text-2xl tabular-nums">
+                {data.operationalBacklog.outbox.ready}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Mais antiga:{" "}
+                {data.operationalBacklog.outbox.oldestReadyAt
+                  ? formatDate(data.operationalBacklog.outbox.oldestReadyAt)
+                  : "nenhuma"}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Dead letters: {data.operationalBacklog.outbox.deadLetters}
+              </dd>
+            </div>
+            <div className="space-y-1 p-5">
+              <dt className="text-muted-foreground text-sm">Webhooks falhos</dt>
+              <dd className="font-semibold text-2xl tabular-nums">
+                {data.operationalBacklog.webhooks.failed}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Mais antigo:{" "}
+                {data.operationalBacklog.webhooks.oldestFailedAt
+                  ? formatDate(data.operationalBacklog.webhooks.oldestFailedAt)
+                  : "nenhum"}
+              </dd>
+            </div>
+            <div className="space-y-1 p-5">
+              <dt className="text-muted-foreground text-sm">
+                Vídeos pendentes
+              </dt>
+              <dd className="font-semibold text-2xl tabular-nums">
+                {data.operationalBacklog.videos.pending}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Mais antigo:{" "}
+                {data.operationalBacklog.videos.oldestPendingAt
+                  ? formatDate(data.operationalBacklog.videos.oldestPendingAt)
+                  : "nenhum"}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="overflow-hidden rounded-lg border bg-card">
+          <div className="border-b p-5">
             <h2 className="font-semibold text-lg">
               Mensagens pendentes de revisão
             </h2>

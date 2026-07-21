@@ -6,8 +6,16 @@ import {
 } from "@/features/payments/abacatepay";
 import { processAbacatePayWebhook } from "@/features/payments/server";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const POST = async (request: Request) => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const rawBody = await request.text();
   const env = getServerEnv();
   const url = new URL(request.url);
@@ -44,7 +52,13 @@ export const POST = async (request: Request) => {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const result = await processAbacatePayWebhook(payload);
+  const result = await observeOperation({
+    correlationId,
+    execute: () => processAbacatePayWebhook(payload),
+    failureErrorCode: "webhook_processing_failed",
+    operation: "webhook.abacatepay",
+    provider: "abacatepay",
+  });
 
   return NextResponse.json({ ok: true, ...result });
 };
