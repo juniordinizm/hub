@@ -113,11 +113,13 @@ Somente a Aluna que autorizou a política `2026-07-21` pode gerar `lesson_starte
 
 ### REG-LEA-010 Reengajamento começa manual e respeita opt-out
 
-"Sem atividade registrada há 14 dias" significa apenas que não há evento, conclusão ou checkpoint recente para uma Matrícula ativa com consentimento; não é rótulo de desengajamento. Somente Admin pode registrar uma iniciativa individual, com intenção auditável e intervalo de 30 dias. A ação não envia e-mail automaticamente nem cria campanha.
+"Sem atividade registrada há 14 dias" significa apenas que não há evento, conclusão ou checkpoint recente para uma Matrícula ativa com consentimento; não é rótulo de desengajamento. Somente Admin pode registrar uma iniciativa individual, com intenção auditável e intervalo de 30 dias. A ação não envia e-mail automaticamente nem cria campanha. Admin também encerra o contato, registra resposta ou opt-out com resultado auditável; opt-out impede nova elegibilidade.
 
 Eventos brutos têm retenção de 90 dias; dados agregados, 13 meses; registros de contato, 180 dias. A rotina que remove dados permanece dependente de ativação operacional e ratificação jurídica. Ver [ADR-0008](../adr/0008-optional-learning-analytics.md).
 
 O painel mostra, por Aula e Versão, elegíveis, início, conclusão, checkpoint mediano, mediana até conclusão, mediana até a próxima Aula e falhas. Checkpoint e tempos usam somente os últimos 90 dias porque dependem do timestamp individual. A API pública atual da JMVStream não documenta um evento estruturado de erro do player; `player_error` permanece reservado até haver esse contrato. A falha de abertura de material R2 é registrada como `resource_open_failed`.
+
+Admin pode exportar a mesma visão agregada em CSV por `GET /api/admin/learning-analytics/export`; o arquivo não contém Conta, Matrícula, e-mail ou outro identificador pessoal.
 
 ### Experiência de falha e continuidade
 

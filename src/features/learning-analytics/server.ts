@@ -335,6 +335,12 @@ export const initiateLearningReengagement = async ({
           select 1
           from learning_reengagements previous
           where previous.enrollment_id = e.id
+            and previous.status = 'opted_out'
+        )
+        and not exists (
+          select 1
+          from learning_reengagements previous
+          where previous.enrollment_id = e.id
             and previous.created_at > now() - interval '${LEARNING_REENGAGEMENT_COOLDOWN_DAYS} days'
         )
       returning id
@@ -351,4 +357,74 @@ export const initiateLearningReengagement = async ({
     [actorUserId, id]
   );
   return { id };
+};
+
+export interface LearningReengagementRecord {
+  courseTitle: string;
+  id: string;
+  intent: string;
+  studentName: string;
+}
+
+export const getOpenLearningReengagements = async (): Promise<
+  LearningReengagementRecord[]
+> => {
+  await requirePermission("manageLearningAnalytics");
+  const result = await getPool().query<{
+    course_title: string;
+    id: string;
+    intent: string;
+    student_name: string;
+  }>(`
+    select r.id, r.intent, users.name as student_name, courses.title as course_title
+    from learning_reengagements r
+    join enrollments e on e.id = r.enrollment_id
+    join users on users.id = e.user_id
+    join courses on courses.id = e.course_id
+    where r.status = 'initiated'
+    order by r.created_at desc
+    limit 50
+  `);
+  return result.rows.map((row) => ({
+    courseTitle: row.course_title,
+    id: row.id,
+    intent: row.intent,
+    studentName: row.student_name,
+  }));
+};
+
+export const resolveLearningReengagement = async ({
+  actorUserId,
+  result,
+  reengagementId,
+  status,
+}: {
+  actorUserId: string;
+  result: string;
+  reengagementId: string;
+  status: "closed" | "opted_out" | "responded";
+}): Promise<void> => {
+  const trimmedResult = result.trim();
+  if (!(reengagementId && trimmedResult && trimmedResult.length <= 500)) {
+    throw new Error("Informe o resultado do contato em até 500 caracteres.");
+  }
+  const update = await getPool().query<{ id: string }>(
+    `
+      update learning_reengagements
+      set status = $2, result = $3,
+          opted_out_at = case when $2 = 'opted_out' then now() else opted_out_at end,
+          updated_at = now()
+      where id = $1 and status = 'initiated'
+      returning id
+    `,
+    [reengagementId, status, trimmedResult]
+  );
+  if (!update.rows[0]) {
+    throw new Error("Contato manual não está disponível para atualização.");
+  }
+  await getPool().query(
+    `insert into audit_logs (actor_user_id, action, target_type, target_id)
+     values ($1, 'learning_reengagement.resolved', 'learning_reengagement', $2)`,
+    [actorUserId, reengagementId]
+  );
 };

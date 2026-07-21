@@ -1,20 +1,26 @@
 import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
-import { initiateLearningReengagementAction } from "@/features/learning-analytics/actions";
+import {
+  initiateLearningReengagementAction,
+  resolveLearningReengagementAction,
+} from "@/features/learning-analytics/actions";
 import {
   getInactiveLearningEnrollments,
   getLessonAnalyticsMetrics,
+  getOpenLearningReengagements,
 } from "@/features/learning-analytics/server";
 import { requirePermission } from "@/lib/auth-permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function LearningAnalyticsPage(): Promise<React.JSX.Element> {
-  const [session, metrics, inactiveEnrollments] = await Promise.all([
-    requirePermission("viewAdminPanel"),
-    getLessonAnalyticsMetrics(),
-    getInactiveLearningEnrollments(),
-  ]);
+  const [session, metrics, inactiveEnrollments, openReengagements] =
+    await Promise.all([
+      requirePermission("viewAdminPanel"),
+      getLessonAnalyticsMetrics(),
+      getInactiveLearningEnrollments(),
+      getOpenLearningReengagements(),
+    ]);
 
   return (
     <PageContainer>
@@ -25,6 +31,12 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
             Dados opcionais e agregados para melhorar aulas e identificar falhas
             técnicas.
           </p>
+          <a
+            className="inline-flex text-primary text-sm underline underline-offset-4"
+            href="/api/admin/learning-analytics/export"
+          >
+            Exportar métricas em CSV
+          </a>
         </header>
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="border-b p-5">
@@ -127,6 +139,75 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
             )}
           </div>
         </section>
+        {session.role === "admin" ? (
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <div className="border-b p-5">
+              <h2 className="font-semibold text-lg">
+                Contatos manuais em aberto
+              </h2>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Registre a resposta, encerramento ou opt-out. Isso não envia
+                mensagens.
+              </p>
+            </div>
+            <div className="space-y-4 p-5">
+              {openReengagements.length ? (
+                openReengagements.map((contact) => (
+                  <form
+                    action={resolveLearningReengagementAction}
+                    className="flex flex-wrap items-end gap-2 rounded-lg border p-4"
+                    key={contact.id}
+                  >
+                    <input
+                      name="reengagementId"
+                      type="hidden"
+                      value={contact.id}
+                    />
+                    <p className="w-full text-sm">
+                      <span className="font-medium">{contact.studentName}</span>
+                      {` · ${contact.courseTitle} · ${contact.intent}`}
+                    </p>
+                    <input
+                      className="h-9 flex-1 rounded-md border bg-background px-3 text-sm"
+                      maxLength={500}
+                      name="result"
+                      placeholder="Resultado do contato"
+                      required
+                    />
+                    <Button
+                      name="status"
+                      type="submit"
+                      value="responded"
+                      variant="outline"
+                    >
+                      Respondeu
+                    </Button>
+                    <Button
+                      name="status"
+                      type="submit"
+                      value="closed"
+                      variant="outline"
+                    >
+                      Encerrar
+                    </Button>
+                    <Button
+                      name="status"
+                      type="submit"
+                      value="opted_out"
+                      variant="outline"
+                    >
+                      Opt-out
+                    </Button>
+                  </form>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Nenhum contato manual em aberto.
+                </p>
+              )}
+            </div>
+          </section>
+        ) : null}
       </div>
     </PageContainer>
   );
