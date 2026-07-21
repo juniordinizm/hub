@@ -53,9 +53,9 @@ export function LessonVideoProcessing({
   return (
     <div className="flex aspect-video flex-col items-center justify-center gap-6 rounded-none bg-background px-6 text-center">
       <div className="relative flex h-16 w-16 items-center justify-center">
-        <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10 motion-reduce:hidden" />
+        <div className="absolute inset-0 animate-pulse rounded-full bg-primary/10" />
         <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/5">
-          <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-primary border-t-transparent motion-reduce:hidden" />
+          <div className="h-5 w-5 animate-spin rounded-full border-[1.5px] border-primary border-t-transparent" />
         </div>
       </div>
       <div className="flex flex-col items-center gap-2">

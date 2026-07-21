@@ -4,7 +4,6 @@ import { Link01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Autoplay from "embla-carousel-autoplay";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Carousel,
@@ -21,17 +20,6 @@ interface StudentBannersCarouselProps {
 export function StudentBannersCarousel({
   banners,
 }: StudentBannersCarouselProps) {
-  const [reduceMotion, setReduceMotion] = useState(true);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const updatePreference = (): void => setReduceMotion(mediaQuery.matches);
-
-    updatePreference();
-    mediaQuery.addEventListener("change", updatePreference);
-    return () => mediaQuery.removeEventListener("change", updatePreference);
-  }, []);
-
   if (banners.length === 0) {
     return null;
   }
@@ -51,16 +39,12 @@ export function StudentBannersCarousel({
             align: "center",
             watchDrag: banners.length > 1,
           }}
-          plugins={
-            reduceMotion
-              ? []
-              : [
-                  Autoplay({
-                    delay: 6000,
-                    stopOnInteraction: true,
-                  }),
-                ]
-          }
+          plugins={[
+            Autoplay({
+              delay: 6000,
+              stopOnInteraction: true,
+            }),
+          ]}
         >
           <CarouselContent>
             {banners.map((banner, index) => (

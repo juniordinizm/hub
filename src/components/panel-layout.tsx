@@ -210,9 +210,6 @@ function PanelLayoutInner({
 
   return (
     <PanelFocusModeContext.Provider value={focusModeContext}>
-      <a className="skip-link" href="#main-content">
-        Pular para o conteúdo principal
-      </a>
       <SidebarProvider
         className="h-svh overflow-hidden"
         onOpenChange={handleMainSidebarOpenChange}

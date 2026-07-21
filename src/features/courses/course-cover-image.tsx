@@ -30,7 +30,7 @@ export function CourseCoverImage({
             "absolute inset-0 bg-muted",
             blurDataUrl
               ? "scale-105 bg-center bg-cover blur-sm"
-              : "animate-pulse motion-reduce:animate-none"
+              : "animate-pulse"
           )}
           style={
             blurDataUrl ? { backgroundImage: `url(${blurDataUrl})` } : undefined
@@ -41,7 +41,7 @@ export function CourseCoverImage({
         alt={alt}
         {...(blurDataUrl ? { blurDataURL: blurDataUrl } : {})}
         className={cn(
-          "object-cover transition-opacity duration-200 motion-reduce:transition-none",
+          "object-cover transition-opacity duration-200",
           isLoaded ? "opacity-100" : "opacity-0",
           className
         )}

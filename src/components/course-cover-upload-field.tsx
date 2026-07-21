@@ -193,7 +193,7 @@ export function CourseCoverUploadField({
                     "absolute inset-0 bg-muted",
                     previewBlurDataUrl
                       ? "scale-105 bg-center bg-cover blur-sm"
-                      : "animate-pulse motion-reduce:animate-none"
+                      : "animate-pulse"
                   )}
                   style={
                     previewBlurDataUrl
@@ -208,7 +208,7 @@ export function CourseCoverUploadField({
               <img
                 alt="Capa do curso"
                 className={cn(
-                  "absolute inset-0 size-full object-cover transition-opacity duration-200 motion-reduce:transition-none",
+                  "absolute inset-0 size-full object-cover transition-opacity duration-200",
                   isPreviewLoaded ? "opacity-100" : "opacity-0"
                 )}
                 onLoad={() => setIsPreviewLoaded(true)}
