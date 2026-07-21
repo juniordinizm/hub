@@ -333,6 +333,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
             <ResourceListBody>
               <DndContext
                 collisionDetection={closestCenter}
+                id="banner-gallery-dnd"
                 onDragEnd={handleDragEnd}
                 sensors={sensors}
               >

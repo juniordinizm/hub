@@ -827,6 +827,7 @@ export function LessonResourcesFields({
         <ResourceListBody>
           <DndContext
             collisionDetection={closestCenter}
+            id="lesson-resources-dnd"
             onDragEnd={handleDragEnd}
             sensors={sensors}
           >

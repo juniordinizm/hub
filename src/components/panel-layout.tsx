@@ -330,6 +330,16 @@ function PanelLayoutInner({
               )}
             </div>
 
+            <div className="flex flex-1 items-center justify-center md:hidden">
+              <Image
+                alt="PROTEA-R"
+                className="h-8 w-auto max-w-full object-contain"
+                height={100}
+                src="/protear/logo-negativo.svg"
+                width={400}
+              />
+            </div>
+
             {isPreviewActive && (
               <div className="hidden items-center gap-3 text-sm md:flex">
                 <div className="flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-600 dark:text-amber-400">
@@ -369,15 +379,6 @@ function PanelLayoutInner({
                   </Link>
                 </Button>
               )}
-              <div className="flex flex-1 items-center justify-center md:hidden">
-                <Image
-                  alt="PROTEA-R"
-                  className="h-auto max-h-10 w-full object-contain object-center"
-                  height={100}
-                  src="/protear/logo-negativo.svg"
-                  width={400}
-                />
-              </div>
             </div>
           </header>
           <ScrollArea className="h-[calc(100svh-4rem)] w-full">
