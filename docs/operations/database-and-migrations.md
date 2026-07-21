@@ -13,9 +13,9 @@ O repositório possui a cadeia forward-only `0027` a `0030` após a promoção a
 `0029` preenche as referências e `0030` torna as referências obrigatórias e troca as unicidades
 por Versão. `bun run db:migrations:check` valida journal, snapshots e SQL no repositório.
 
-Não há alegação de que `0025` a `0030` estejam aplicadas em produção: confirme por auditoria
-somente leitura antes de qualquer promoção. Não execute `db:migrate` em ambiente compartilhado
-sem branch/backup, URL direta conferida e aprovação de promoção.
+As migrations `0025` a `0030` foram promovidas para produção em 2026-07-21. Não execute
+`db:migrate` em ambiente compartilhado sem branch/backup, URL direta conferida e aprovação de
+promoção.
 
 Os comandos locais de reset e seed foram protegidos. Eles só são seguros para banco local
 descartável, com as proteções e confirmações abaixo.
@@ -155,6 +155,14 @@ A origem não continha Cursos, Matrículas ou Certificados. Portanto, a execuç�
 de schema e a segurança de `0027` quando a coluna transitória não existe, mas não é evidência de
 backfill com dados históricos. Não há dados de produção a preservar neste projeto; se surgirem,
 uma futura promoção deverá validar contagens e relações antes de `0030`.
+
+### Promoção de `0025` a `0030` em 2026-07-21
+
+Com aprovação explícita, `drizzle-kit migrate` aplicou as seis migrations ausentes em
+`protear/production`. A auditoria posterior registrou 31 entradas no journal, quatro colunas
+`course_version_id` obrigatórias e os índices únicos de Módulo e Certificado por Versão. A
+segunda execução terminou sem reaplicar SQL. A base ainda não contém Cursos, Matrículas ou
+Certificados, logo o backfill foi executado sobre conjunto vazio.
 
 ## Regra para a próxima promoção
 
