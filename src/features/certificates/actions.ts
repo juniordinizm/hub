@@ -17,7 +17,8 @@ export const issueManualCertificateAction = async (
   await issueManualCertificate({
     actorUserId: session.user.id,
     courseId: readString(formData, "courseId"),
-    reason: readString(formData, "reason"),
+    reasonCategory: readString(formData, "reasonCategory"),
+    reasonDetail: readString(formData, "reasonDetail"),
     userId: readString(formData, "userId"),
   });
 };
@@ -29,7 +30,8 @@ export const revokeCertificateAction = async (
   await revokeCertificate({
     actorUserId: session.user.id,
     certificateId: readString(formData, "certificateId"),
-    reason: readString(formData, "reason"),
+    reasonCategory: readString(formData, "reasonCategory"),
+    reasonDetail: readString(formData, "reasonDetail"),
   });
 };
 
@@ -40,6 +42,7 @@ export const reissueCertificateAction = async (
   await reissueCertificate({
     actorUserId: session.user.id,
     certificateId: readString(formData, "certificateId"),
-    reason: readString(formData, "reason"),
+    reasonCategory: readString(formData, "reasonCategory"),
+    reasonDetail: readString(formData, "reasonDetail"),
   });
 };

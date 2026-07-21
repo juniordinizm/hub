@@ -724,6 +724,14 @@ export const paymentReviews = pgTable(
       onDelete: "set null",
     }),
     resolvedAt: timestamp("resolved_at", tz),
+    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedAt: timestamp("approved_at", tz),
+    executedByUserId: text("executed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    executedAt: timestamp("executed_at", tz),
     ...timestamps,
   },
   (table) => [
@@ -776,6 +784,7 @@ export const certificates = pgTable(
     status: certificateStatusEnum("status").default("valid").notNull(),
     revokedAt: timestamp("revoked_at", tz),
     revokedReason: text("revoked_reason"),
+    revokedReasonCategory: text("revoked_reason_category"),
     revokedByUserId: text("revoked_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),

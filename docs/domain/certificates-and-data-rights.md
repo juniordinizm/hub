@@ -31,13 +31,13 @@ somente após o commit. O payload guarda o ID do Certificado, nunca e-mail ou no
 
 ### REG-DAT-002 Revogação preserva histórico
 
-`revokeCertificate` muda status, motivo, autora e data; não apaga o registro. Validação pública deve deixar de tratar o código revogado como válido e informar o estado sem expor dados excessivos.
+`revokeCertificate` muda status, categoria e detalhe do motivo, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir, sempre com confirmação e motivo. A validação pública deixa de tratar o código revogado como válido e informa estado, data e categoria do motivo; detalhe, autoria e evidências ficam internos.
 
 ### REG-DAT-003 Reemissão cria nova evidência
 
 `reissueCertificate` revoga o anterior e emite novo código/snapshots. O vínculo permite auditoria do ciclo; não se reutiliza silenciosamente o código antigo.
 
-O conjunto emissão/revogação/reemissão existe, mas a política de produto aguarda ratificação em [DEC-DISC-006](../decisions.md#dec-disc-006) e [ADR-0006](../adr/0006-certificate-lifecycle.md).
+As categorias canônicas de motivo são `identity_correction`, `course_snapshot_correction`, `duplicate_or_technical_issue`, `eligibility_correction`, `integrity_review`, `legal_or_compliance` e `other`. `other` exige detalhe interno. Veja [DEC-DISC-006](../decisions.md#dec-disc-006) e [ADR-0006](../adr/0006-certificate-lifecycle.md).
 
 ### REG-DAT-004 Consulta pública é limitada
 
@@ -56,12 +56,13 @@ Cada criação ou aprovação usa o mesmo `PoolClient` para a mudança de estado
 
 **Autorização vigente:**
 
-- `managePrivacyRequests`: Admin e Suporte podem gerir solicitação;
-- `executePrivacyAnonymization`: somente Admin executa.
+- `managePrivacyRequests`: Admin e Suporte podem registrar solicitação;
+- `approvePrivacyRequest`: somente Admin aprova uma solicitação que não criou;
+- `executePrivacyAnonymization`: outro Admin executa somente solicitação aprovada, desde que não a tenha criado nem aprovado.
 
 **Invariantes:**
 
-- execução exige referência de aprovação;
+- execução exige flag de retenção, referência jurídica formal e os três papéis separados;
 - histórico financeiro e operacional não deve ser apagado por atalho;
 - anonimização não equivale a exclusão universal;
 - conclusão/falha precisa ser auditável.
@@ -90,8 +91,6 @@ Não afirmar conformidade LGPD com base somente nessa rotina. Prazo, base legal,
 
 ## Pendências
 
-- ratificar lifecycle, snapshots e quem pode revogar/reemitir;
 - definir política jurídica de retenção e anonimização;
-- confirmar informação pública mínima do Certificado;
 - recovery/ativação por senha permanece fora da outbox por conter token secreto;
 - infraestrutura de cron e base legal de produção não verificadas.

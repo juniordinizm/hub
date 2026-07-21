@@ -176,6 +176,20 @@
       "when": 1784591754684,
       "tag": "0024_light_stature",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1784607836230,
+      "tag": "0025_admin_certificate_privacy_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1784607836231,
+      "tag": "0026_certificate_privacy_segregation",
+      "breakpoints": true
     }
   ]
 }

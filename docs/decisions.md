@@ -85,14 +85,16 @@ Não existem coortes. Ativar, ordenar ou remover conteúdo altera a grade vigent
 
 **Tema:** lifecycle de Certificados.
 
-**Estado:** parcialmente ratificado.
+**Estado:** aprovado; implementação em andamento.
 
 Certificados têm snapshots, código público, estado válido/revogado e reemissão. Proposta formal em [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 **Decidido em 2026-07-20:** certificado revogado bloqueia emissão automática; somente a
 reemissão manual pode criar um novo certificado válido.
 
-**Ratificar:** motivos permitidos, autoridade de Suporte, informação pública e efeito de mudança posterior no nome/carga horária.
+**Decidido em 2026-07-21:** Admin e Suporte podem emitir, revogar e reemitir. Toda operação exige confirmação e motivo. As categorias são correção de identidade, correção do snapshot do curso, duplicidade ou falha técnica, correção de elegibilidade, revisão de integridade, obrigação legal/conformidade e outro motivo documentado.
+
+O verificador público de Certificado revogado mostra o estado, a data e a categoria legível do motivo. O detalhe interno, autoria e evidências não são públicos. Download anterior não pode ser recolhido.
 
 **Decisão:** Seguir a com o melhor para o projeto
 
@@ -112,11 +114,15 @@ Cadastro público está fechado; Conta pode surgir do fluxo de compra; recupera�
 
 **Tema:** retenção, privacidade e acessibilidade.
 
-**Estado:** implementação parcial; política pendente.
+**Estado:** procedimento operacional aprovado; política jurídica de anonimização pendente.
 
 Há solicitações de privacidade, aprovação, anonimização controlada, retenção opt-in de dados técnicos e práticas de interface no código. Isso não constitui aprovação jurídica nem auditoria completa de acessibilidade.
 
-**Decidir:** base legal, prazos por categoria, exceções financeiras, conteúdo da anonimização, autoridade final e padrão/teste de acessibilidade.
+**Decidido em 2026-07-21:** Admin ou Suporte pode registrar uma solicitação. Somente Admin aprova; outro Admin executa. Solicitante, aprovador e executor devem ser pessoas distintas. A medida impede que uma pessoa aprove ou execute o próprio pedido e cria uma revisão humana antes da operação irreversível.
+
+Anonimização permanece bloqueada até uma referência jurídica formal ser registrada e ratificada. Enquanto isso, solicitações podem ser registradas e analisadas, mas não executadas. Ledger financeiro e evidências necessárias para auditoria/defesa não são apagados por esse fluxo.
+
+**Pendente jurídico:** base legal, prazos por categoria, exceções financeiras, campos exatos da anonimização, referência formal de aprovação e padrão/teste de acessibilidade.
 
 **Decisão:** Seguir a com o melhor para o projeto
 

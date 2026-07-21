@@ -9,10 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getAdminStudentDetail } from "@/features/admin/server";
+import { getCertificateOperationsForUser } from "@/features/certificates/server";
 import {
   StudentCoursesSummary,
   StudentPlatformAccessControls,
 } from "../students-table";
+import { CertificateOperations } from "./certificate-operations";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,10 @@ export default async function AdminStudentDetailPage({
   params: Promise<{ userId: string }>;
 }): Promise<React.JSX.Element> {
   const { userId } = await params;
-  const student = await getAdminStudentDetail(userId);
+  const [student, certificates] = await Promise.all([
+    getAdminStudentDetail(userId),
+    getCertificateOperationsForUser(userId),
+  ]);
 
   if (!student) {
     notFound();
@@ -68,6 +73,14 @@ export default async function AdminStudentDetailPage({
             />
           </CardContent>
         </Card>
+        <CertificateOperations
+          certificates={certificates}
+          courses={student.enrollments.map((enrollment) => ({
+            id: enrollment.courseId,
+            title: enrollment.courseTitle,
+          }))}
+          userId={student.userId}
+        />
       </div>
     </PageContainer>
   );

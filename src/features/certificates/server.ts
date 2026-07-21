@@ -5,6 +5,10 @@ import type { PoolClient } from "pg";
 import QRCode from "qrcode";
 import { getPool } from "@/db";
 import {
+  type CertificateReasonCode,
+  parseCertificateReasonCode,
+} from "@/features/certificates/reasons";
+import {
   createCertificateCode,
   getCertificateValidationPath,
 } from "@/features/certificates/rules";
@@ -14,6 +18,8 @@ export interface CertificateRecord {
   code: string;
   courseTitle: string;
   issuedAt: Date;
+  revokedAt: Date | null;
+  revokedReasonCategory: CertificateReasonCode | null;
   status: "revoked" | "valid";
   studentName: string;
   workloadHours: number;
@@ -60,31 +66,53 @@ const auditCertificate = async ({
   actorUserId,
   certificateId,
   client,
+  metadata = {},
 }: {
   action: string;
   actorUserId: string;
   certificateId: string;
   client: PoolClient;
+  metadata?: Record<string, string>;
 }): Promise<void> => {
   await client.query(
     `
-      insert into audit_logs (actor_user_id, action, target_type, target_id)
-      values ($1, $2, 'certificate', $3)
+      insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+      values ($1, $2, 'certificate', $3, $4::jsonb)
     `,
-    [actorUserId, action, certificateId]
+    [actorUserId, action, certificateId, JSON.stringify(metadata)]
   );
+};
+
+const requireCertificateReason = ({
+  reasonCategory,
+  reasonDetail,
+}: {
+  reasonCategory: string;
+  reasonDetail: string;
+}): CertificateReasonCode => {
+  const category = parseCertificateReasonCode(reasonCategory);
+
+  if (!(category && reasonDetail.trim())) {
+    throw new Error("Informe a categoria e o detalhe interno do motivo.");
+  }
+
+  return category;
 };
 
 const issueCertificate = async ({
   actorUserId,
   client,
   courseId,
+  reasonCategory,
+  reasonDetail,
   replacesCertificateId,
   userId,
 }: {
   actorUserId: string;
   client: PoolClient;
   courseId: string;
+  reasonCategory?: CertificateReasonCode;
+  reasonDetail?: string;
   replacesCertificateId?: string;
   userId: string;
 }): Promise<{ id: string }> => {
@@ -145,6 +173,12 @@ const issueCertificate = async ({
     actorUserId,
     certificateId,
     client,
+    metadata: reasonCategory
+      ? {
+          reasonCategory,
+          reasonDetail: reasonDetail ?? "",
+        }
+      : {},
   });
   return { id: certificateId };
 };
@@ -152,17 +186,17 @@ const issueCertificate = async ({
 export const issueManualCertificate = async ({
   actorUserId,
   courseId,
-  reason,
+  reasonCategory,
+  reasonDetail,
   userId,
 }: {
   actorUserId: string;
   courseId: string;
-  reason: string;
+  reasonCategory: string;
+  reasonDetail: string;
   userId: string;
 }): Promise<{ id: string }> => {
-  if (!reason.trim()) {
-    throw new Error("Informe o motivo da emissao manual.");
-  }
+  const category = requireCertificateReason({ reasonCategory, reasonDetail });
 
   const pool = getPool();
   const client = await pool.connect();
@@ -172,18 +206,10 @@ export const issueManualCertificate = async ({
       actorUserId,
       client,
       courseId,
+      reasonCategory: category,
+      reasonDetail: reasonDetail.trim(),
       userId,
     });
-    await client.query(
-      `
-        update audit_logs
-        set metadata = jsonb_build_object('reason', $2::text)
-        where target_type = 'certificate'
-          and target_id = $1
-          and action = 'certificate.issued'
-      `,
-      [certificate.id, reason.trim()]
-    );
     await client.query("commit");
     return certificate;
   } catch (error) {
@@ -197,15 +223,15 @@ export const issueManualCertificate = async ({
 export const revokeCertificate = async ({
   actorUserId,
   certificateId,
-  reason,
+  reasonCategory,
+  reasonDetail,
 }: {
   actorUserId: string;
   certificateId: string;
-  reason: string;
+  reasonCategory: string;
+  reasonDetail: string;
 }): Promise<void> => {
-  if (!reason.trim()) {
-    throw new Error("Informe o motivo da revogacao.");
-  }
+  const category = requireCertificateReason({ reasonCategory, reasonDetail });
 
   const pool = getPool();
   const client = await pool.connect();
@@ -216,14 +242,15 @@ export const revokeCertificate = async ({
         update certificates
         set status = 'revoked',
             revoked_at = now(),
-            revoked_reason = $2,
-            revoked_by_user_id = $3,
+            revoked_reason_category = $2,
+            revoked_reason = $3,
+            revoked_by_user_id = $4,
             updated_at = now()
         where id = $1
           and status = 'valid'
         returning id
       `,
-      [certificateId, reason.trim(), actorUserId]
+      [certificateId, category, reasonDetail.trim(), actorUserId]
     );
 
     if (!result.rows[0]) {
@@ -235,6 +262,7 @@ export const revokeCertificate = async ({
       actorUserId,
       certificateId,
       client,
+      metadata: { reasonCategory: category, reasonDetail: reasonDetail.trim() },
     });
     await client.query("commit");
   } catch (error) {
@@ -248,15 +276,15 @@ export const revokeCertificate = async ({
 export const reissueCertificate = async ({
   actorUserId,
   certificateId,
-  reason,
+  reasonCategory,
+  reasonDetail,
 }: {
   actorUserId: string;
   certificateId: string;
-  reason: string;
+  reasonCategory: string;
+  reasonDetail: string;
 }): Promise<{ id: string }> => {
-  if (!reason.trim()) {
-    throw new Error("Informe o motivo da reemissao.");
-  }
+  const category = requireCertificateReason({ reasonCategory, reasonDetail });
 
   const pool = getPool();
   const client = await pool.connect();
@@ -267,14 +295,15 @@ export const reissueCertificate = async ({
         update certificates
         set status = 'revoked',
             revoked_at = now(),
-            revoked_reason = $2,
-            revoked_by_user_id = $3,
+            revoked_reason_category = $2,
+            revoked_reason = $3,
+            revoked_by_user_id = $4,
             updated_at = now()
         where id = $1
           and status = 'valid'
         returning user_id, course_id
       `,
-      [certificateId, reason.trim(), actorUserId]
+      [certificateId, category, reasonDetail.trim(), actorUserId]
     );
     const previousCertificate = previous.rows[0];
 
@@ -287,23 +316,17 @@ export const reissueCertificate = async ({
       actorUserId,
       certificateId,
       client,
+      metadata: { reasonCategory: category, reasonDetail: reasonDetail.trim() },
     });
     const replacement = await issueCertificate({
       actorUserId,
       client,
       courseId: previousCertificate.course_id,
+      reasonCategory: category,
+      reasonDetail: reasonDetail.trim(),
       replacesCertificateId: certificateId,
       userId: previousCertificate.user_id,
     });
-    await client.query(
-      `
-        update audit_logs
-        set metadata = jsonb_build_object('reason', $2::text)
-        where target_type = 'certificate'
-          and target_id in ($1, $3)
-      `,
-      [certificateId, reason.trim(), replacement.id]
-    );
     await client.query("commit");
     return replacement;
   } catch (error) {
@@ -323,6 +346,8 @@ export const getCertificateByCode = async (
     course_title_snapshot: string;
     workload_hours_snapshot: number;
     issued_at: Date;
+    revoked_at: Date | null;
+    revoked_reason_category: string | null;
     status: "revoked" | "valid";
   }>(
     `
@@ -332,6 +357,8 @@ export const getCertificateByCode = async (
         course_title_snapshot,
         workload_hours_snapshot,
         issued_at,
+        revoked_at,
+        revoked_reason_category,
         status
       from certificates
       where code = $1
@@ -351,6 +378,10 @@ export const getCertificateByCode = async (
     courseTitle: row.course_title_snapshot,
     workloadHours: row.workload_hours_snapshot,
     issuedAt: row.issued_at,
+    revokedAt: row.revoked_at,
+    revokedReasonCategory:
+      parseCertificateReasonCode(row.revoked_reason_category) ??
+      (row.status === "revoked" ? "other" : null),
     status: row.status,
   };
 };
@@ -364,6 +395,8 @@ export const getCertificatesForUser = async (
     course_title_snapshot: string;
     workload_hours_snapshot: number;
     issued_at: Date;
+    revoked_at: Date | null;
+    revoked_reason_category: string | null;
     status: "revoked" | "valid";
   }>(
     `
@@ -373,6 +406,8 @@ export const getCertificatesForUser = async (
         course_title_snapshot,
         workload_hours_snapshot,
         issued_at,
+        revoked_at,
+        revoked_reason_category,
         status
       from certificates
       where user_id = $1
@@ -387,7 +422,56 @@ export const getCertificatesForUser = async (
     courseTitle: row.course_title_snapshot,
     workloadHours: row.workload_hours_snapshot,
     issuedAt: row.issued_at,
+    revokedAt: row.revoked_at,
+    revokedReasonCategory:
+      parseCertificateReasonCode(row.revoked_reason_category) ??
+      (row.status === "revoked" ? "other" : null),
     status: row.status,
+  }));
+};
+
+export interface CertificateOperationRecord extends CertificateRecord {
+  id: string;
+}
+
+export const getCertificateOperationsForUser = async (
+  userId: string
+): Promise<CertificateOperationRecord[]> => {
+  const { rows } = await getPool().query<{
+    code: string;
+    course_id: string;
+    course_title_snapshot: string;
+    id: string;
+    issued_at: Date;
+    revoked_at: Date | null;
+    revoked_reason_category: string | null;
+    status: "revoked" | "valid";
+    student_name_snapshot: string;
+    workload_hours_snapshot: number;
+  }>(
+    `
+      select id, code, student_name_snapshot, course_title_snapshot,
+             workload_hours_snapshot, issued_at, revoked_at,
+             revoked_reason_category, status
+      from certificates
+      where user_id = $1
+      order by issued_at desc
+    `,
+    [userId]
+  );
+
+  return rows.map((row) => ({
+    code: row.code,
+    courseTitle: row.course_title_snapshot,
+    id: row.id,
+    issuedAt: row.issued_at,
+    revokedAt: row.revoked_at,
+    revokedReasonCategory:
+      parseCertificateReasonCode(row.revoked_reason_category) ??
+      (row.status === "revoked" ? "other" : null),
+    status: row.status,
+    studentName: row.student_name_snapshot,
+    workloadHours: row.workload_hours_snapshot,
   }));
 };
 

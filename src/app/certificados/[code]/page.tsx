@@ -4,6 +4,7 @@ import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { consumePublicCertificateLookup } from "@/features/certificates/public-rate-limit";
+import { certificateReasonLabel } from "@/features/certificates/reasons";
 import { getCertificateByCode } from "@/features/certificates/server";
 import { formatDate } from "@/lib/formatters";
 
@@ -59,6 +60,28 @@ export default async function CertificateValidationPage({
               <dt className="text-muted-foreground">Codigo</dt>
               <dd className="font-mono font-semibold">{certificate.code}</dd>
             </div>
+            {certificate.status === "revoked" ? (
+              <>
+                <div>
+                  <dt className="text-muted-foreground">Revogado em</dt>
+                  <dd className="font-semibold">
+                    {certificate.revokedAt
+                      ? formatDate(certificate.revokedAt)
+                      : "Data não registrada"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Motivo</dt>
+                  <dd className="font-semibold">
+                    {certificate.revokedReasonCategory
+                      ? certificateReasonLabel(
+                          certificate.revokedReasonCategory
+                        )
+                      : "Motivo administrativo"}
+                  </dd>
+                </div>
+              </>
+            ) : null}
           </dl>
         </CardContent>
       </Card>

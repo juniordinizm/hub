@@ -153,6 +153,19 @@ test("public certificates distinguish valid and revoked records", async ({
   await expect(page.getByText("Certificado revogado")).toBeVisible();
 });
 
+test("admin sees certificate lifecycle controls with mandatory confirmation", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto(`/admin/alunos/${fixture.studentWithGrant.id}`);
+  await expect(
+    page.getByRole("heading", { name: "Certificados" })
+  ).toBeVisible();
+  await page.getByText("Emitir certificado manual").click();
+  await expect(page.getByText("Confirmo que revisei os dados")).toBeVisible();
+});
+
 test("keyboard reaches the login form and student sidebar", async ({
   page,
 }) => {

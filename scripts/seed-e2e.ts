@@ -13,8 +13,8 @@ export interface E2eFixture {
   admin: { email: string; password: string };
   certificate: { revokedCode: string; validCode: string };
   course: { id: string; lessonOneId: string; lessonTwoId: string };
-  studentWithGrant: { email: string; password: string };
-  studentWithoutGrant: { email: string; password: string };
+  studentWithGrant: { email: string; id: string; password: string };
+  studentWithoutGrant: { email: string; id: string; password: string };
 }
 
 const requireE2eMode = (): void => {
@@ -51,11 +51,11 @@ const createUser = async ({
 export const seedE2e = async (): Promise<E2eFixture> => {
   requireE2eMode();
 
-  const suffix = crypto.randomUUID();
-  const studentEmail = `student-grant-${suffix}@example.test`;
-  const noGrantEmail = `student-no-grant-${suffix}@example.test`;
-  const adminEmail = `admin-${suffix}@example.test`;
-  const [studentId] = await Promise.all([
+  const suffix = crypto.randomUUID().replaceAll("-", "");
+  const studentEmail = `sg${suffix}@example.com`;
+  const noGrantEmail = `sn${suffix}@example.com`;
+  const adminEmail = `ad${suffix}@example.com`;
+  const [studentId, noGrantId] = await Promise.all([
     createUser({
       email: studentEmail,
       name: "Aluna com acesso",
@@ -151,8 +151,16 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       admin: { email: adminEmail, password: E2E_PASSWORD },
       certificate: { revokedCode, validCode },
       course: { id: courseId, lessonOneId, lessonTwoId },
-      studentWithGrant: { email: studentEmail, password: E2E_PASSWORD },
-      studentWithoutGrant: { email: noGrantEmail, password: E2E_PASSWORD },
+      studentWithGrant: {
+        email: studentEmail,
+        id: studentId,
+        password: E2E_PASSWORD,
+      },
+      studentWithoutGrant: {
+        email: noGrantEmail,
+        id: noGrantId,
+        password: E2E_PASSWORD,
+      },
     };
     await writeFile(FIXTURE_PATH, `${JSON.stringify(fixture)}\n`, "utf8");
     return fixture;

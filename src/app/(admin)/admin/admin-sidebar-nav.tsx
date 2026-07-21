@@ -6,6 +6,7 @@ import {
   Book01Icon,
   HistoryIcon,
   Invoice01Icon,
+  ShieldKeyIcon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -24,6 +25,7 @@ const navItems = [
   ["Cursos", "/admin/cursos", Book01Icon],
   ["Alunos", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
+  ["Privacidade", "/admin/privacidade", ShieldKeyIcon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
   ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
 ] as const;

@@ -1,10 +1,22 @@
 import { spawn } from "node:child_process";
+import { join } from "node:path";
+
+const getBunExecutable = (): string => {
+  if (process.platform !== "win32") {
+    return "bun";
+  }
+  const appData = process.env.APPDATA;
+  if (!appData) {
+    throw new Error("APPDATA is required to run E2E tests on Windows.");
+  }
+  return join(appData, "npm", "node_modules", "bun", "bin", "bun.exe");
+};
 
 const runE2eSeed = async (): Promise<void> =>
   await new Promise((resolve, reject) => {
-    const child = spawn("bun", ["run", "test:e2e:seed"], {
+    const child = spawn(getBunExecutable(), ["run", "test:e2e:seed"], {
       cwd: process.cwd(),
-      env: process.env,
+      env: { ...process.env, CI: "true", E2E_TEST_MODE: "true" },
       stdio: "inherit",
     });
 

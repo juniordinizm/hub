@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: accepted
 owner: product
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
 ---
 
 # ADR-0006 Snapshots, revogação e reemissão de Certificados
@@ -12,7 +12,9 @@ Certificado é evidência histórica. Nome, Curso e carga horária podem mudar; 
 
 ## Proposta
 
-Persistir snapshots no momento da emissão. Revogar com motivo/autoria/data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Consulta pública mostra o estado do código consultado.
+Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação na interface.
+
+O motivo usa uma categoria padronizada e um detalhe interno. Na consulta pública de um certificado revogado, mostrar somente o estado, a data e a categoria legível; não expor o detalhe, que pode conter dados pessoais ou uma apuração sensível.
 
 ## Alternativas
 
@@ -25,10 +27,12 @@ Persistir snapshots no momento da emissão. Revogar com motivo/autoria/data. Ree
 - histórico é recuperável;
 - dados pessoais permanecem em snapshots e entram na política de retenção;
 - UI precisa explicar revogação e reemissão;
-- autoridade, motivo e dados públicos precisam de ratificação.
+- download já realizado não pode ser recolhido; a revogação passa a ser verificável pelo código público;
+- o detalhe do motivo fica restrito à operação e à auditoria.
 
 ## Estado
 
 Implementado por `issueManualCertificate`, `revokeCertificate` e `reissueCertificate`. A política
 de que revogação bloqueia nova emissão automática, exigindo reemissão manual, foi ratificada em
-2026-07-20. Autoridade, motivos e dados públicos continuam pendentes em DEC-DISC-006.
+2026-07-20. Autoridade, motivos e informação pública foram ratificados em 2026-07-21; veja
+[DEC-DISC-006](../decisions.md#dec-disc-006).

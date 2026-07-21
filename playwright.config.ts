@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const bunCommand = process.platform === "win32" ? "bun.cmd" : "bun";
 const serverCommand = process.env.CI
-  ? "bun run build && bun run start -- --port 3100"
-  : "bun run dev -- --port 3100";
+  ? `${bunCommand} run build && ${bunCommand} run start -- --port 3100`
+  : `${bunCommand} run dev -- --port 3100`;
 
 export default defineConfig({
   fullyParallel: false,
@@ -24,6 +25,7 @@ export default defineConfig({
   },
   webServer: {
     command: serverCommand,
+    env: { ...process.env, CI: "true", E2E_TEST_MODE: "true" },
     reuseExistingServer: false,
     timeout: 120_000,
     url: "http://127.0.0.1:3100",

@@ -216,6 +216,7 @@ export interface AdminLessonAsset {
 export interface AdminStudentDetail {
   email: string;
   enrollments: Array<{
+    courseId: string;
     courseTitle: string;
     expiresAt: Date;
     id: string;
@@ -480,7 +481,7 @@ const readEnrollments = async (
     user_id: string;
   }>(
     `
-      select e.id, e.user_id, u.name, u.email, c.title as course_title,
+      select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
              c.id as course_id, e.status, e.starts_at, e.expires_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
              e.revoked_reason, p.last_access_at
@@ -939,6 +940,7 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
+    course_id: string;
     course_title: string;
     email: string;
     expires_at: Date;
@@ -953,7 +955,7 @@ export const getAdminStudentDetail = async (
     user_id: string;
   }>(
     `
-      select e.id, e.user_id, u.name, u.email, c.title as course_title,
+      select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
              e.status, e.starts_at, e.expires_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
              e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
@@ -984,6 +986,7 @@ export const getAdminStudentDetail = async (
   return {
     email: firstRow.email,
     enrollments: result.rows.map((row) => ({
+      courseId: row.course_id,
       courseTitle: row.course_title,
       expiresAt: row.expires_at,
       id: row.id,
