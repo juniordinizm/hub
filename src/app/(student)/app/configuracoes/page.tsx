@@ -2,6 +2,13 @@ import { InformationCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PageContainer } from "@/components/page-container";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -35,63 +42,71 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
           </div>
         </header>
 
-        <section className="space-y-6">
-          <div>
-            <h2 className="font-medium text-foreground text-lg">
-              Privacidade e Dados
-            </h2>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Gerencie como seus dados de uso são coletados e utilizados.
-            </p>
-          </div>
-
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="max-w-xl space-y-1">
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-medium text-base text-foreground">
-                  Melhoria das aulas
-                </h3>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        aria-label="Mais informações sobre melhoria das aulas"
-                        className="inline-flex cursor-help items-center text-muted-foreground transition-colors hover:text-foreground"
-                        type="button"
-                      >
-                        <HugeiconsIcon icon={InformationCircleIcon} size={16} />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      className="max-w-xs p-3 text-xs leading-normal"
-                      side="top"
-                    >
-                      <p>
-                        Coletamos dados mínimos de uso (progresso e falhas
-                        técnicas) apenas para aprimorar as aulas. Ao desativar,
-                        os registros identificáveis são removidos. Saiba mais em
-                        nossa{" "}
-                        <a
-                          className="font-medium underline hover:text-foreground"
-                          href="/politica-de-privacidade"
-                        >
-                          política de privacidade
-                        </a>
-                        .
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+        <section className="grid gap-6">
+          <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
+            <CardHeader className="pb-4">
+              <CardTitle className="font-semibold text-base">
+                Privacidade e Dados
+              </CardTitle>
+              <CardDescription className="mt-1 text-sm">
+                Gerencie como seus dados de uso são coletados e utilizados.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="divide-y divide-border/60 overflow-hidden rounded-xl border bg-background/50">
+                <div className="flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center sm:p-5">
+                  <div className="max-w-xl space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <h3 className="font-medium text-foreground text-sm sm:text-base">
+                        Melhoria das aulas
+                      </h3>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              aria-label="Mais informações sobre melhoria das aulas"
+                              className="inline-flex cursor-help items-center text-muted-foreground transition-colors hover:text-foreground"
+                              type="button"
+                            >
+                              <HugeiconsIcon
+                                icon={InformationCircleIcon}
+                                size={16}
+                              />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            className="max-w-xs p-3 text-xs leading-normal"
+                            side="top"
+                          >
+                            <p>
+                              Coletamos dados mínimos de uso (progresso e falhas
+                              técnicas) apenas para aprimorar as aulas. Ao
+                              desativar, os registros identificáveis são
+                              removidos. Saiba mais em nossa{" "}
+                              <a
+                                className="font-medium underline hover:text-foreground"
+                                href="/politica-de-privacidade"
+                              >
+                                política de privacidade
+                              </a>
+                              .
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <p className="text-muted-foreground text-xs sm:text-sm">
+                      Permite coletar métricas anônimas de uso para identificar
+                      e corrigir falhas nas aulas.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <AnalyticsSwitch enabled={analyticsEnabled} />
+                  </div>
+                </div>
               </div>
-              <p className="text-muted-foreground text-sm">
-                Permite coletar métricas anônimas de uso para identificar e
-                corrigir falhas nas aulas.
-              </p>
-            </div>
-            <div className="shrink-0">
-              <AnalyticsSwitch enabled={analyticsEnabled} />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </section>
       </div>
     </PageContainer>
