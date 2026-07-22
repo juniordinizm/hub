@@ -27,7 +27,11 @@ vi.mock("@/features/jmvstream/asset-persistence", () => ({
   getJmvstreamAssetsForLesson,
 }));
 
-import { getStudentCourseOverview, getStudentLessonWorkspace } from "./server";
+import {
+  getStudentCourseOverview,
+  getStudentLessonWorkspace,
+  recalculateCourseWorkloadHours,
+} from "./server";
 
 const expiresAt = new Date("2027-01-01T00:00:00.000Z");
 
@@ -104,6 +108,29 @@ beforeEach(() => {
 });
 
 describe("student experience reads", () => {
+  it("stores workload on the editable publication without summing retired content", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from course_publications")) {
+        return { rows: [{ id: "publication-draft", status: "draft" }] };
+      }
+      if (sql.includes("from lessons l")) {
+        return { rows: [{ duration_seconds: 3600 }] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(recalculateCourseWorkloadHours("course-1")).resolves.toBe(1);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("update course_publications"),
+      [1, "publication-draft"]
+    );
+    expect(query).not.toHaveBeenCalledWith(
+      expect.stringContaining("where m.course_id = $1"),
+      expect.anything()
+    );
+  });
+
   it("assembles an enrolled Course overview with progress and sequence", async () => {
     query.mockResolvedValue({
       rows: [
@@ -140,6 +167,9 @@ describe("student experience reads", () => {
       { id: "lesson-2", isAvailable: true, isCompleted: false },
       { id: "lesson-3", isAvailable: false, isCompleted: false },
     ]);
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "completed_lesson.curriculum_key = l.curriculum_key"
+    );
   });
 
   it("assembles the same Course overview intent as an unrestricted admin preview", async () => {

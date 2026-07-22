@@ -11,11 +11,26 @@ vi.mock("@/lib/auth-permissions", () => ({
 }));
 
 import {
+  getLessonAnalyticsMetrics,
   recordLearningAnalyticsEvent,
   setLearningAnalyticsPreference,
 } from "./server";
 
 describe("learning analytics preference persistence", () => {
+  it("derives completed metrics from the current publication without an undeclared alias", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await expect(getLessonAnalyticsMetrics()).resolves.toEqual([]);
+
+    const metricsQuery = String(query.mock.calls[0]?.[0]);
+    expect(metricsQuery).toContain("cp.course_id = e.course_id");
+    expect(metricsQuery).not.toContain("m.course_id");
+    expect(metricsQuery).toContain(
+      "current_lesson.curriculum_key = completed_lesson.curriculum_key"
+    );
+  });
+
   it("records a raw event only through the opt-out-aware enrollment query", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     dependencies.getPool.mockReturnValue({ query });

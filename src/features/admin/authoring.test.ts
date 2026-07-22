@@ -748,6 +748,13 @@ describe("admin authoring", () => {
 
   it("removes lesson video state after attempting remote asset deletion", async () => {
     query.mockImplementation((sql: string) => {
+      if (
+        sql.includes(
+          "join course_publications cp on cp.id = l.course_publication_id"
+        )
+      ) {
+        return { rows: [{ id: "lesson-1" }] };
+      }
       if (sql.includes("select m.course_id")) {
         return { rows: [{ course_id: "course-1" }] };
       }
@@ -775,5 +782,27 @@ describe("admin authoring", () => {
     );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
     expect(result).toEqual({ courseId: "course-1", deletePending: true });
+  });
+
+  it("refuses to remove a video from a published publication", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes(
+          "join course_publications cp on cp.id = l.course_publication_id"
+        )
+      ) {
+        return { rows: [] };
+      }
+      if (sql.includes("select m.course_id")) {
+        return { rows: [{ course_id: "course-1" }] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      removeLessonVideo({ actorUserId: "admin-1", lessonId: "lesson-1" })
+    ).rejects.toThrow("Prepare alteracoes");
+
+    expect(deleteJmvstreamAssetsForLesson).not.toHaveBeenCalled();
   });
 });

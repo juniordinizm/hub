@@ -253,6 +253,13 @@
       "when": 1784737450339,
       "tag": "0035_course_publications_and_completions",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1784741691013,
+      "tag": "0036_ambitious_shinobi_shaw",
+      "breakpoints": true
     }
   ]
 }

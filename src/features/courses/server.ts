@@ -349,7 +349,13 @@ export const getStudentCourses = async (
       left join lessons l on l.module_id = m.id
         and l.course_publication_id = cp.id
         and l.status = 'active'
-      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = e.user_id
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
       where e.user_id = $1
         and e.status = 'active'
         and e.starts_at <= now()
@@ -521,7 +527,13 @@ export const getStudentCourseCatalog = async (
       left join lessons l on l.module_id = m.id
         and l.course_publication_id = cv.id
         and l.status = 'active'
-      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = $1
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
       where c.status = 'active'
       order by c.created_at desc, m.sort_order asc, l.sort_order asc
     `,
@@ -613,16 +625,35 @@ export const getStudentCourseAccessStatus = async ({
 export const recalculateCourseWorkloadHours = async (
   courseId: string
 ): Promise<number> => {
+  const publication = await getPool().query<{
+    id: string;
+    status: "draft" | "published";
+  }>(
+    `
+      select id, status
+      from course_publications
+      where course_id = $1 and status in ('draft', 'published')
+      order by case status when 'draft' then 0 else 1 end, publication_number desc
+      limit 1
+    `,
+    [courseId]
+  );
+  const coursePublication = publication.rows[0];
+
+  if (!coursePublication) {
+    return 0;
+  }
+
   const { rows } = await getPool().query<{ duration_seconds: number }>(
     `
       select l.duration_seconds
       from lessons l
       join modules m on m.id = l.module_id
-      where m.course_id = $1
+      where l.course_publication_id = $1
         and m.status = 'active'
         and l.status = 'active'
     `,
-    [courseId]
+    [coursePublication.id]
   );
   const workloadHours = deriveCourseWorkloadHours(
     rows.map((row) => row.duration_seconds)
@@ -630,13 +661,25 @@ export const recalculateCourseWorkloadHours = async (
 
   await getPool().query(
     `
-      update courses
-      set workload_hours = $1,
+      update course_publications
+      set workload_hours_snapshot = $1,
           updated_at = now()
       where id = $2
     `,
-    [workloadHours, courseId]
+    [workloadHours, coursePublication.id]
   );
+
+  if (coursePublication.status === "published") {
+    await getPool().query(
+      `
+        update courses
+        set workload_hours = $1,
+            updated_at = now()
+        where id = $2
+      `,
+      [workloadHours, courseId]
+    );
+  }
 
   return workloadHours;
 };
@@ -685,7 +728,13 @@ const getEnrolledCourseOverview = async ({
       left join lessons l on l.module_id = m.id
         and l.course_publication_id = cp.id
         and l.status = 'active'
-      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = e.user_id
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.user_id = $1
         and c.id = $2
@@ -982,7 +1031,13 @@ const getEnrolledLessonWorkspace = async ({
       join lessons l on l.module_id = m.id
         and l.course_publication_id = cp.id
         and l.status = 'active'
-      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = e.user_id
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
       where e.status = 'active'
         and e.starts_at <= now()
@@ -1248,7 +1303,7 @@ export const completeLesson = async ({
       `
         select
           count(l.id) filter (where l.is_required)::int as total_lessons,
-          count(lp.id) filter (where l.is_required)::int as completed_lessons,
+          count(*) filter (where l.is_required and lp.completed_at is not null)::int as completed_lessons,
           max(cp.id::text) as course_publication_id,
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
@@ -1262,7 +1317,13 @@ export const completeLesson = async ({
         join lessons l on l.module_id = m.id
           and l.course_publication_id = cp.id
           and l.status = 'active'
-        left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+        left join lateral (
+          select min(lp.completed_at) as completed_at
+          from lesson_progress lp
+          join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+          where lp.user_id = e.user_id
+            and completed_lesson.curriculum_key = l.curriculum_key
+        ) lp on true
         left join certificates cert on cert.user_id = e.user_id
           and cert.course_id = c.id
         where c.id = $2

@@ -305,6 +305,25 @@ const assertLessonTargetPublicationIsEditable = async ({
   throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
 };
 
+const assertLessonPublicationIsEditable = async (
+  lessonId: string
+): Promise<void> => {
+  const { rows } = await getPool().query<{ id: string }>(
+    `
+      select l.id
+      from lessons l
+      join course_publications cp on cp.id = l.course_publication_id
+      where l.id = $1 and cp.status = 'draft'
+      limit 1
+    `,
+    [lessonId]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
+  }
+};
+
 export const publishCoursePublication = async ({
   actorUserId,
   courseId,
@@ -367,10 +386,16 @@ export const publishCoursePublication = async ({
     await client.query(
       `
         update courses
-        set status = 'active', updated_at = now()
-        where id = $1
+        set status = 'active',
+            workload_hours = (
+              select workload_hours_snapshot
+              from course_publications
+              where id = $1
+            ),
+            updated_at = now()
+        where id = $2
       `,
-      [courseId]
+      [coursePublicationId, courseId]
     );
     await client.query(
       `
@@ -399,6 +424,10 @@ export const createCoursePublicationDraft = async ({
 
   try {
     await client.query("begin");
+    await client.query(
+      "select id from courses where id = $1 limit 1 for update",
+      [courseId]
+    );
     const existingDraft = await client.query<{ id: string }>(
       `select id from course_publications where course_id = $1 and status = 'draft' limit 1`,
       [courseId]
@@ -491,6 +520,7 @@ export const createCoursePublicationDraft = async ({
 
     const lessonsToCopy = await client.query<{
       content_json: unknown;
+      curriculum_key: string;
       description: string | null;
       duration_seconds: number;
       is_published: boolean;
@@ -509,7 +539,7 @@ export const createCoursePublicationDraft = async ({
     }>(
       `
         select
-          module_id, title, description, video_provider, video_external_id, video_embed_url,
+          module_id, curriculum_key, title, description, video_provider, video_external_id, video_embed_url,
           thumbnail_url, content_json, duration_seconds, video_duration_seconds,
           text_duration_seconds, text_word_count, sort_order, status, is_published, is_required
         from lessons
@@ -526,16 +556,17 @@ export const createCoursePublicationDraft = async ({
       await client.query(
         `
           insert into lessons (
-            module_id, course_publication_id, title, description, video_provider, video_external_id,
+            module_id, course_publication_id, curriculum_key, title, description, video_provider, video_external_id,
             video_embed_url, thumbnail_url, content_json, duration_seconds, video_duration_seconds,
             text_duration_seconds, text_word_count, sort_order, status, is_published, is_required
           ) values (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12, $13, $14, $15, $16, $17, $18
           )
         `,
         [
           moduleId,
           coursePublicationId,
+          lesson.curriculum_key,
           lesson.title,
           lesson.description,
           lesson.video_provider,
@@ -1362,6 +1393,8 @@ export const removeLessonVideo = async ({
   if (!lessonId) {
     throw new Error("Aula invalida.");
   }
+
+  await assertLessonPublicationIsEditable(lessonId);
 
   const courseId = await getCourseIdForLesson(lessonId);
 

@@ -316,6 +316,31 @@ export const issueManualCertificate = async ({
     if (!enrollment.rows[0]) {
       throw new Error("A aluna nao possui matricula no curso.");
     }
+    const certificateHistory = await client.query<{
+      id: string;
+      status: "revoked" | "valid";
+    }>(
+      `
+        select id, status
+        from certificates
+        where user_id = $1 and course_id = $2
+        order by issued_at desc
+        limit 1
+        for update
+      `,
+      [userId, courseId]
+    );
+    const existingCertificate = certificateHistory.rows[0];
+    if (existingCertificate?.status === "valid") {
+      throw new Error(
+        "A aluna ja possui um certificado valido para este curso."
+      );
+    }
+    if (existingCertificate?.status === "revoked") {
+      throw new Error(
+        "Use a reemissao para substituir um certificado historico revogado."
+      );
+    }
     const publication = await client.query<{ id: string }>(
       `
         select id

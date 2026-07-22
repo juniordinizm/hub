@@ -18,11 +18,11 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 `createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` bloqueia o rascunho, rejeita vídeo JMVStream sem player, aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log na mesma transação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
 
-Módulos e Aulas continuam ligados à publicação que os materializou. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
+Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aula também tem uma chave curricular estável: ao clonar uma Aula para uma nova publicação, a chave é preservada e o `lesson_progress` anterior continua valendo; remover a Aula ou criar outra gera efeito no currículo vivo sem apagar histórico. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
 
 ### REG-LEA-002 Progresso é vivo
 
-`getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de uma Aluna já certificada; o certificado continua histórico e acessível.
+`getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente e reconhecem conclusões da mesma chave curricular em publicação anterior. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de uma Aluna já certificada; o certificado continua histórico e acessível.
 
 ### REG-LEA-003 Sequência e conclusão de Aula
 

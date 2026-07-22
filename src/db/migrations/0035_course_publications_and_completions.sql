@@ -24,6 +24,27 @@ ALTER INDEX "learning_analytics_daily_metrics_version_lesson_date_idx" RENAME TO
 ALTER TABLE "course_publications" RENAME CONSTRAINT "course_versions_number_positive" TO "course_publications_number_positive";--> statement-breakpoint
 ALTER TABLE "course_publications" RENAME CONSTRAINT "course_versions_workload_non_negative" TO "course_publications_workload_non_negative";--> statement-breakpoint
 
+WITH duplicate_valid_certificates AS (
+  SELECT
+    "id",
+    row_number() OVER (
+      PARTITION BY "user_id", "course_id"
+      ORDER BY "issued_at" ASC, "id" ASC
+    ) AS "position"
+  FROM "certificates"
+  WHERE "status" = 'valid'
+)
+UPDATE "certificates" AS certificate
+SET
+  "status" = 'revoked',
+  "revoked_at" = now(),
+  "revoked_reason_category" = 'duplicate_or_technical_issue',
+  "revoked_reason" = 'Consolidated while enforcing one valid certificate per course.',
+  "updated_at" = now()
+FROM duplicate_valid_certificates AS duplicate
+WHERE certificate."id" = duplicate."id"
+  AND duplicate."position" > 1;--> statement-breakpoint
+
 DROP INDEX "certificates_user_course_version_active_unique_idx";--> statement-breakpoint
 CREATE UNIQUE INDEX "certificates_user_course_active_unique_idx"
   ON "certificates" USING btree ("user_id", "course_id")

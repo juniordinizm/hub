@@ -8,9 +8,39 @@ vi.mock("@/lib/env", () => ({
   getServerEnv: () => ({ CERTIFICATE_PUBLIC_BASE_URL: "http://example.test" }),
 }));
 
-import { getCertificateByCode, revokeCertificate } from "./server";
+import {
+  getCertificateByCode,
+  issueManualCertificate,
+  revokeCertificate,
+} from "./server";
 
 describe("certificate lifecycle reasons", () => {
+  it("requires reissue when the student already has a revoked certificate", async () => {
+    const release = vi.fn();
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "enrollment-1" }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: "certificate-1", status: "revoked" }],
+      });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await expect(
+      issueManualCertificate({
+        actorUserId: "support-1",
+        courseId: "course-1",
+        reasonCategory: "duplicate_or_technical_issue",
+        reasonDetail: "Certificado anterior precisa de nova via.",
+        userId: "student-1",
+      })
+    ).rejects.toThrow("Use a reemissao");
+
+    expect(release).toHaveBeenCalledOnce();
+  });
+
   it("persists the public category separately from the internal revocation detail", async () => {
     const release = vi.fn();
     const query = vi

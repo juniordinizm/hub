@@ -102,24 +102,24 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     if (!courseId) {
       throw new Error("Could not create E2E course.");
     }
-    const { rows: courseVersions } = await client.query<{ id: string }>(
+    const { rows: coursePublications } = await client.query<{ id: string }>(
       `
-        insert into course_versions (
-          course_id, version_number, status, title_snapshot, workload_hours_snapshot, published_at
+        insert into course_publications (
+          course_id, publication_number, status, title_snapshot, workload_hours_snapshot, published_at
         ) values ($1, 1, 'published', 'Curso E2E', 2, now())
         returning id
       `,
       [courseId]
     );
-    const courseVersionId = courseVersions[0]?.id;
-    if (!courseVersionId) {
-      throw new Error("Could not create E2E course version.");
+    const coursePublicationId = coursePublications[0]?.id;
+    if (!coursePublicationId) {
+      throw new Error("Could not create E2E course publication.");
     }
 
     const { rows: modules } = await client.query<{ id: string }>(
-      `insert into modules (course_id, course_version_id, title, sort_order, status)
+      `insert into modules (course_id, course_publication_id, title, sort_order, status)
        values ($1, $2, 'Modulo E2E', 1, 'active') returning id`,
-      [courseId, courseVersionId]
+      [courseId, coursePublicationId]
     );
     const moduleId = modules[0]?.id;
     if (!moduleId) {
@@ -133,10 +133,10 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     ].entries()) {
       const { rows } = await client.query<{ id: string }>(
         `
-          insert into lessons (module_id, course_version_id, title, duration_seconds, sort_order, status)
+          insert into lessons (module_id, course_publication_id, title, duration_seconds, sort_order, status)
           values ($1, $2, $3, 60, $4, 'active') returning id
         `,
-        [moduleId, courseVersionId, title, sortOrder + 1]
+        [moduleId, coursePublicationId, title, sortOrder + 1]
       );
       const lessonId = rows[0]?.id;
       if (!lessonId) {
@@ -194,13 +194,13 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     await client.query(
       `
         insert into certificates (
-          user_id, course_id, code, course_version_id, student_name_snapshot,
+          user_id, course_id, code, course_publication_id, student_name_snapshot,
           course_title_snapshot, workload_hours_snapshot, status
         ) values
           ($1, $2, $3, $4, 'Aluna com acesso', 'Curso E2E', 2, 'valid'),
           ($1, $2, $5, $4, 'Aluna com acesso', 'Curso E2E', 2, 'revoked')
         `,
-      [studentId, courseId, validCode, courseVersionId, revokedCode]
+      [studentId, courseId, validCode, coursePublicationId, revokedCode]
     );
     await client.query("commit");
 

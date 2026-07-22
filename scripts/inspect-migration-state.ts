@@ -91,6 +91,11 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
       "select to_regclass('public.course_publications') is not null and to_regtype('public.course_publication_status') is not null and to_regclass('public.course_completions') is not null and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'enrollments' and column_name = 'course_version_id') and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('modules', 'lessons', 'certificates', 'learning_analytics_events', 'learning_analytics_daily_metrics') and column_name = 'course_publication_id' having count(*) = 5) and to_regclass('public.certificates_user_course_active_unique_idx') is not null as present"
     ),
     scheduleExistsCheck(
+      "0036_ambitious_shinobi_shaw",
+      "chave curricular estavel e unicidade do rascunho por curso",
+      "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'lessons' and column_name = 'curriculum_key') and to_regclass('public.lessons_curriculum_key_idx') is not null and to_regclass('public.course_publications_one_draft_per_course_idx') is not null as present"
+    ),
+    scheduleExistsCheck(
       "0034_remove_privacy_request_workflow",
       "remocao do workflow de solicitacoes de dados",
       "select to_regclass('public.privacy_requests') is null and to_regtype('public.privacy_request_status') is null as present"

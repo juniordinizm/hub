@@ -12,7 +12,7 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001 Emissão exige conclusão e unicidade válida
 
-`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir. `completeLesson` cria a primeira conclusão e pode emitir automaticamente quando todas as Aulas obrigatórias da publicação vigente estão concluídas.
+`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir e somente quando não há Certificado anterior para a Aluna no Curso. `completeLesson` cria a primeira conclusão e pode emitir automaticamente quando todas as Aulas obrigatórias da publicação vigente estão concluídas. Depois de uma revogação, somente `reissueCertificate` pode criar nova evidência, sempre na publicação de origem.
 
 **Invariantes:** `CourseCompletion` é única por Conta e Curso; o código público é único; não há segundo Certificado válido para a mesma Conta e Curso sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots e a publicação de origem preservam o texto emitido. Publicação posterior não reabre a conclusão nem gera novo certificado automaticamente.
 

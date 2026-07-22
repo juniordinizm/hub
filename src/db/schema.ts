@@ -285,6 +285,9 @@ export const coursePublications = pgTable(
     uniqueIndex("course_publications_one_published_per_course_idx")
       .on(table.courseId)
       .where(sql`${table.status} = 'published'`),
+    uniqueIndex("course_publications_one_draft_per_course_idx")
+      .on(table.courseId)
+      .where(sql`${table.status} = 'draft'`),
     index("course_publications_course_status_idx").on(
       table.courseId,
       table.status
@@ -333,6 +336,7 @@ export const lessons = pgTable(
   "lessons",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    curriculumKey: uuid("curriculum_key").defaultRandom().notNull(),
     moduleId: uuid("module_id")
       .notNull()
       .references(() => modules.id, { onDelete: "cascade" }),
@@ -377,6 +381,7 @@ export const lessons = pgTable(
     ),
     index("lessons_module_sort_idx").on(table.moduleId, table.sortOrder),
     index("lessons_course_publication_idx").on(table.coursePublicationId),
+    index("lessons_curriculum_key_idx").on(table.curriculumKey),
     uniqueIndex("lessons_module_sort_unique_idx").on(
       table.moduleId,
       table.sortOrder

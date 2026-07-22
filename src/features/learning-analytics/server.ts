@@ -185,16 +185,17 @@ export const getLessonAnalyticsMetrics = async (): Promise<
         and preference.disabled_at is null
       group by cp.id
     ), completed as (
-      select lp.lesson_id, count(*)::int as completed
+      select current_lesson.id as lesson_id, count(distinct lp.user_id)::int as completed
       from lesson_progress lp
-      join lessons l on l.id = lp.lesson_id
+      join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+      join lessons current_lesson
+        on current_lesson.curriculum_key = completed_lesson.curriculum_key
+      join course_publications cp on cp.id = current_lesson.course_publication_id
       join enrollments e on e.user_id = lp.user_id
-        and e.course_id = m.course_id
-      join course_publications cp on cp.id = l.course_publication_id
         and cp.course_id = e.course_id and cp.status = 'published'
       left join learning_analytics_preferences preference on preference.user_id = lp.user_id
       where preference.disabled_at is null
-      group by lp.lesson_id
+      group by current_lesson.id
     ), recent_starts as (
       select enrollment_id, user_id, lesson_id, min(occurred_at) as started_at
       from learning_analytics_events
