@@ -32,7 +32,7 @@ import {
 } from "@/features/admin/server";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
-import { AdminMetricCard } from "./admin-metric-card";
+import { AdminMetricCard } from "../admin-metric-card";
 
 export const dynamic = "force-dynamic";
 
