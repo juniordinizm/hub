@@ -12,6 +12,7 @@ import {
   saveLesson,
   saveModule,
 } from "@/features/admin/authoring";
+import type { CertificateTemplateActionState } from "@/features/admin/certificate-template-action-state";
 import {
   parseAdjustEnrollmentExpirationInput,
   parseEnrollmentAccessInput,
@@ -730,15 +731,6 @@ export const saveCertificateTemplateDraftAction = async (
   await deleteR2Objects(replacedKeys);
   revalidateAdmin();
 };
-
-export interface CertificateTemplateActionState {
-  fieldErrors?: Record<string, string>;
-  message?: string;
-  status: "error" | "idle" | "success";
-}
-
-export const certificateTemplateInitialActionState: CertificateTemplateActionState =
-  { status: "idle" };
 
 export const publishCertificateTemplateAction = async (
   courseId: string

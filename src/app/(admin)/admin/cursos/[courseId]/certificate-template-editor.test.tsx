@@ -8,10 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 vi.mock("@/features/admin/actions", () => ({
-  certificateTemplateInitialActionState: { status: "idle" },
   disableCertificateForCourseAction: vi.fn(),
   publishCertificateTemplateFormAction: vi.fn(),
   saveCertificateTemplateDraftFormAction: vi.fn(),
+}));
+vi.mock("@/features/admin/certificate-template-action-state", () => ({
+  certificateTemplateInitialActionState: { status: "idle" },
 }));
 
 import { CertificateTemplateEditor } from "./certificate-template-editor";

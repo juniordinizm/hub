@@ -33,10 +33,10 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
-  certificateTemplateInitialActionState,
   publishCertificateTemplateFormAction,
   saveCertificateTemplateDraftFormAction,
 } from "@/features/admin/actions";
+import { certificateTemplateInitialActionState } from "@/features/admin/certificate-template-action-state";
 import { CertificateTemplateCropDialog } from "@/features/certificates/template-crop-dialog";
 import { CERTIFICATE_IMAGE_ACCEPT } from "@/features/certificates/template-image-contract";
 import {
