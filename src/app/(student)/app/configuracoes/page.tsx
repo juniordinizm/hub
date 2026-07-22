@@ -46,7 +46,7 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
           </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr] lg:grid-cols-[240px_1fr]">
+        <div className="grid grid-cols-1 gap-14 md:grid-cols-[220px_1fr] lg:grid-cols-[240px_1fr]">
           <aside className="hidden md:block">
             <div className="sticky top-24">
               <Card className="border-none bg-card p-1.5 shadow-xs ring-1 ring-border/50">
