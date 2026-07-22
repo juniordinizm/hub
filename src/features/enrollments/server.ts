@@ -52,7 +52,7 @@ interface EnrollmentProjectionRow {
   id: string;
 }
 
-interface PublishedCourseVersionRow {
+interface PublishedCoursePublicationRow {
   id: string;
 }
 
@@ -181,19 +181,20 @@ export const rebuildEnrollmentProjection = async ({
   now?: Date;
   userId: string;
 }): Promise<void> => {
-  const publishedVersion = await client.query<PublishedCourseVersionRow>(
-    `
+  const publishedPublication =
+    await client.query<PublishedCoursePublicationRow>(
+      `
       select id
-      from course_versions
+      from course_publications
       where course_id = $1 and status = 'published'
       limit 1
     `,
-    [courseId]
-  );
-  const courseVersionId = publishedVersion.rows[0]?.id;
+      [courseId]
+    );
+  const coursePublicationId = publishedPublication.rows[0]?.id;
 
-  if (!courseVersionId) {
-    throw new Error("Curso sem versao publicada nao pode conceder acesso.");
+  if (!coursePublicationId) {
+    throw new Error("Curso sem publicacao vigente nao pode conceder acesso.");
   }
 
   await client.query(
@@ -231,7 +232,6 @@ export const rebuildEnrollmentProjection = async ({
         insert into enrollments (
           user_id,
           course_id,
-          course_version_id,
           status,
           starts_at,
           expires_at,
@@ -240,10 +240,9 @@ export const rebuildEnrollmentProjection = async ({
           expiry_warning_7d_sent_at,
           expiry_warning_1d_sent_at
         )
-        values ($1, $2, $3, 'active', $4, $5, null, null, null, null)
+        values ($1, $2, 'active', $3, $4, null, null, null, null)
         on conflict (user_id, course_id) do update set
           status = 'active',
-          course_version_id = enrollments.course_version_id,
           starts_at = excluded.starts_at,
           expires_at = excluded.expires_at,
           revoked_at = null,
@@ -264,7 +263,6 @@ export const rebuildEnrollmentProjection = async ({
       [
         userId,
         courseId,
-        courseVersionId,
         activeProjection.starts_at,
         activeProjection.expires_at,
       ]
@@ -311,17 +309,15 @@ export const rebuildEnrollmentProjection = async ({
       insert into enrollments (
         user_id,
         course_id,
-        course_version_id,
         status,
         starts_at,
         expires_at,
         revoked_at,
         revoked_reason
       )
-      values ($1, $2, $3, $4::enrollment_status, $5, $5, case when $4 = 'revoked' then now() else null end, $6)
+      values ($1, $2, $3::enrollment_status, $4, $4, case when $3 = 'revoked' then now() else null end, $5)
       on conflict (user_id, course_id) do update set
         status = excluded.status,
-        course_version_id = enrollments.course_version_id,
         expires_at = excluded.expires_at,
         revoked_at = excluded.revoked_at,
         revoked_reason = excluded.revoked_reason,
@@ -331,7 +327,6 @@ export const rebuildEnrollmentProjection = async ({
     [
       userId,
       courseId,
-      courseVersionId,
       projectionStatus,
       latest.effective_expires_at,
       revokedReason,
@@ -1061,94 +1056,6 @@ export const restoreEnrollmentAccess = async ({
       userId: enrollment.user_id,
     });
 
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-export const migrateEnrollmentCourseVersion = async ({
-  actorUserId,
-  courseId,
-  enrollmentId,
-  reason,
-  targetCourseVersionId,
-}: {
-  actorUserId: string;
-  courseId: string;
-  enrollmentId: string;
-  reason: string;
-  targetCourseVersionId: string;
-}): Promise<void> => {
-  const normalizedReason = validateEnrollmentAdjustmentReason(reason);
-  const client = await getPool().connect();
-
-  try {
-    await client.query("begin");
-    const targetVersion = await client.query<{ id: string }>(
-      `
-        select id
-        from course_versions
-        where id = $1 and course_id = $2 and status = 'published'
-        limit 1
-      `,
-      [targetCourseVersionId, courseId]
-    );
-    if (!targetVersion.rows[0]) {
-      throw new Error(
-        "A versao de destino deve estar publicada e pertencer ao curso."
-      );
-    }
-
-    const enrollment = await client.query<{
-      course_version_id: string;
-      user_id: string;
-    }>(
-      `
-        select user_id, course_version_id
-        from enrollments
-        where id = $1 and course_id = $2
-        limit 1
-        for update
-      `,
-      [enrollmentId, courseId]
-    );
-    const source = enrollment.rows[0];
-    if (!source) {
-      throw new Error("Matricula nao localizada para o curso informado.");
-    }
-    if (source.course_version_id === targetCourseVersionId) {
-      throw new Error("A matricula ja aponta para a versao de destino.");
-    }
-
-    await client.query(
-      `
-        update enrollments
-        set course_version_id = $2, updated_at = now()
-        where id = $1
-      `,
-      [enrollmentId, targetCourseVersionId]
-    );
-    await client.query(
-      `
-        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-        values ($1, 'course_version.migrated', 'enrollment', $2, $3::jsonb)
-      `,
-      [
-        actorUserId,
-        enrollmentId,
-        JSON.stringify({
-          courseId,
-          reason: normalizedReason,
-          sourceCourseVersionId: source.course_version_id,
-          targetCourseVersionId,
-          userId: source.user_id,
-        }),
-      ]
-    );
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");

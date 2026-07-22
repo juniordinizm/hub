@@ -180,7 +180,7 @@ export default async function AdminLessonEditPage({
         {/* Rodapé Fixo de Ações */}
         <div className="sticky top-0 z-10 order-2 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
           <LessonSidebarActions
-            courseVersionStatus={lesson.courseVersionStatus}
+            coursePublicationStatus={lesson.coursePublicationStatus}
             formId={LESSON_EDITOR_FORM_ID}
             initialStatus={lesson.status ?? "draft"}
           />

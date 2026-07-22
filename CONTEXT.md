@@ -37,7 +37,7 @@ Registro da intenção e resultado financeiro de compra, com preço, duração e
 Direito de uma Conta acessar Curso, originado em fonte identificável como Pedido pago. Pode estar ativa, expirada, reembolsada, em disputa ou cancelada.
 
 **Matrícula**  
-Projeção consolidada do acesso atual de uma Conta a uma Versão de Curso. Pode refletir mais de uma Concessão e não é a origem do direito.
+Projeção consolidada do acesso atual de uma Conta a um Curso. Pode refletir mais de uma Concessão e não é a origem do direito. Matrícula ativa lê a publicação vigente do Curso.
 
 **Bloqueio de matrícula**  
 Revogação manual de acesso a Curso específico; não bloqueia automaticamente a Conta inteira.
@@ -53,8 +53,11 @@ Fila humana quando o sistema não pode aplicar evento financeiro com segurança,
 **Curso**  
 Produto educacional vendável e publicável, composto por Módulos e Aulas.
 
-**Versão de Curso (`CourseVersion`)**
-Currículo publicado e imutável de um Curso. Define a estrutura recebida por Matrícula; Curso preserva identidade comercial e Versão preserva promessa curricular.
+**Publicação de Curso (`CoursePublication`)**
+Revisão interna materializada de Módulos e Aulas, com estados rascunho, publicada e aposentada. A publicação vigente define o currículo vivo de todas as Matrículas ativas do Curso; não é produto nem direito comercial individual.
+
+**Conclusão de Curso (`CourseCompletion`)**
+Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
 
 **Módulo**  
 Agrupamento ordenado de Aulas dentro de Curso.
@@ -78,7 +81,7 @@ Registro técnico minimizado e idempotente de início, checkpoint, conclusão ou
 Controle de opt-out da Aluna para os eventos técnicos opcionais. Por padrão, analytics está habilitado; desativar não muda acesso, sequência, progresso, conclusão ou Certificado.
 
 **Métrica agregada de aprendizagem**
-Contagem ou medida por Aula e Versão de Curso que não apresenta Conta, Matrícula, Aluna, e-mail ou lista de inatividade.
+Contagem ou medida por Aula e Publicação de Curso que não apresenta Conta, Matrícula, Aluna, e-mail ou lista de inatividade.
 
 ## Durações
 

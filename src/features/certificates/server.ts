@@ -30,7 +30,7 @@ export interface CertificateRecord {
 export const tryIssueAutomaticCompletionCertificate = async ({
   client,
   courseId,
-  courseVersionId,
+  coursePublicationId,
   courseTitle,
   studentName,
   userId,
@@ -38,7 +38,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
 }: {
   client: PoolClient;
   courseId: string;
-  courseVersionId: string;
+  coursePublicationId: string;
   courseTitle: string;
   studentName: string;
   userId: string;
@@ -50,7 +50,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
       insert into certificates (
         user_id,
         course_id,
-        course_version_id,
+        course_publication_id,
         code,
         student_name_snapshot,
         course_title_snapshot,
@@ -63,7 +63,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
     [
       userId,
       courseId,
-      courseVersionId,
+      coursePublicationId,
       candidateCode,
       studentName,
       courseTitle,
@@ -86,13 +86,13 @@ export interface CompletionCertificateSummary {
 export const issueCompletionCertificateIfEligible = async ({
   client,
   courseId,
-  courseVersionId,
+  coursePublicationId,
   summary,
   userId,
 }: {
   client: PoolClient;
   courseId: string;
-  courseVersionId: string;
+  coursePublicationId: string;
   summary: CompletionCertificateSummary;
   userId: string;
 }): Promise<boolean> => {
@@ -105,10 +105,24 @@ export const issueCompletionCertificateIfEligible = async ({
     return false;
   }
 
+  const completion = await client.query<{ id: string }>(
+    `
+      insert into course_completions (user_id, course_id, course_publication_id)
+      values ($1, $2, $3)
+      on conflict (user_id, course_id) do nothing
+      returning id
+    `,
+    [userId, courseId, coursePublicationId]
+  );
+
+  if (!completion.rows[0]) {
+    return false;
+  }
+
   const certificateCode = await tryIssueAutomaticCompletionCertificate({
     client,
     courseId,
-    courseVersionId,
+    coursePublicationId,
     courseTitle: summary.courseTitle,
     studentName: summary.studentName,
     userId,
@@ -184,7 +198,7 @@ const issueCertificate = async ({
   actorUserId,
   client,
   courseId,
-  courseVersionId,
+  coursePublicationId,
   reasonCategory,
   reasonDetail,
   replacesCertificateId,
@@ -193,7 +207,7 @@ const issueCertificate = async ({
   actorUserId: string;
   client: PoolClient;
   courseId: string;
-  courseVersionId: string;
+  coursePublicationId: string;
   reasonCategory?: CertificateReasonCode;
   reasonDetail?: string;
   replacesCertificateId?: string;
@@ -207,14 +221,14 @@ const issueCertificate = async ({
     `
       select
         u.name as student_name,
-        cv.title_snapshot as course_title,
-        cv.workload_hours_snapshot as workload_hours
+        cp.title_snapshot as course_title,
+        cp.workload_hours_snapshot as workload_hours
       from users u
-      join course_versions cv on cv.course_id = $2 and cv.id = $3
+      join course_publications cp on cp.course_id = $2 and cp.id = $3
       where u.id = $1
       limit 1
     `,
-    [userId, courseId, courseVersionId]
+    [userId, courseId, coursePublicationId]
   );
   const source = snapshot.rows[0];
 
@@ -227,7 +241,7 @@ const issueCertificate = async ({
       insert into certificates (
         user_id,
         course_id,
-        course_version_id,
+        course_publication_id,
         code,
         student_name_snapshot,
         course_title_snapshot,
@@ -240,7 +254,7 @@ const issueCertificate = async ({
     [
       userId,
       courseId,
-      courseVersionId,
+      coursePublicationId,
       randomUUID(),
       source.student_name,
       source.course_title,
@@ -290,24 +304,44 @@ export const issueManualCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const enrollment = await client.query<{ course_version_id: string }>(
+    const enrollment = await client.query<{ id: string }>(
       `
-        select course_version_id
+        select id
         from enrollments
         where user_id = $1 and course_id = $2
         limit 1
       `,
       [userId, courseId]
     );
-    const courseVersionId = enrollment.rows[0]?.course_version_id;
-    if (!courseVersionId) {
-      throw new Error("A aluna nao possui matricula vinculada a uma versao.");
+    if (!enrollment.rows[0]) {
+      throw new Error("A aluna nao possui matricula no curso.");
     }
+    const publication = await client.query<{ id: string }>(
+      `
+        select id
+        from course_publications
+        where course_id = $1 and status = 'published'
+        limit 1
+      `,
+      [courseId]
+    );
+    const coursePublicationId = publication.rows[0]?.id;
+    if (!coursePublicationId) {
+      throw new Error("Curso sem publicacao vigente.");
+    }
+    await client.query(
+      `
+        insert into course_completions (user_id, course_id, course_publication_id)
+        values ($1, $2, $3)
+        on conflict (user_id, course_id) do nothing
+      `,
+      [userId, courseId, coursePublicationId]
+    );
     const certificate = await issueCertificate({
       actorUserId,
       client,
       courseId,
-      courseVersionId,
+      coursePublicationId,
       reasonCategory: category,
       reasonDetail: reasonDetail.trim(),
       userId,
@@ -394,7 +428,7 @@ export const reissueCertificate = async ({
     await client.query("begin");
     const previous = await client.query<{
       course_id: string;
-      course_version_id: string;
+      course_publication_id: string;
       user_id: string;
     }>(
       `
@@ -407,7 +441,7 @@ export const reissueCertificate = async ({
             updated_at = now()
         where id = $1
           and status = 'valid'
-        returning user_id, course_id, course_version_id
+        returning user_id, course_id, course_publication_id
       `,
       [certificateId, category, reasonDetail.trim(), actorUserId]
     );
@@ -428,7 +462,7 @@ export const reissueCertificate = async ({
       actorUserId,
       client,
       courseId: previousCertificate.course_id,
-      courseVersionId: previousCertificate.course_version_id,
+      coursePublicationId: previousCertificate.course_publication_id,
       reasonCategory: category,
       reasonDetail: reasonDetail.trim(),
       replacesCertificateId: certificateId,

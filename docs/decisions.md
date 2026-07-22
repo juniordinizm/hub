@@ -41,14 +41,14 @@ Pagamento diferente do snapshot gera revisão `amount_mismatch` e não libera ac
 **Tema:** conclusão de Aula e Curso.
 **Estado:** aprovado e implementado.
 
-Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualização. Evento JMVStream válido em 98% ou mais também conclui automaticamente. Curso conclui quando todas as Aulas obrigatórias da `CourseVersion` vinculada estão concluídas; opcionais não entram no denominador. Certificado prova conclusão curricular, não domínio de conteúdo.
+Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualização. Evento JMVStream válido em 98% ou mais também conclui automaticamente. Curso conclui quando todas as Aulas obrigatórias da publicação vigente estão concluídas; opcionais não entram no denominador. Certificado prova conclusão histórica, não domínio de conteúdo nem currículo vivo atual.
 
 ## DEC-DISC-005
 
 **Tema:** coortes e versões de conteúdo.
 **Estado:** aprovado e implementado.
 
-`Course` é identidade comercial; cada publicação cria `CourseVersion` imutável vinculada à Matrícula. Nova Versão atende novas Matrículas. Migração de Aluna/coorte existente é opcional, auditada e explícita; concluídas não perdem conclusão ou Certificado. Não há coorte nem `DripRule` até existir calendário ou grupo real. Correção editorial compatível pode entrar na mesma Versão com auditoria; mudança de objetivo, ordem obrigatória ou conclusão cria nova Versão. Ver [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md).
+`Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluna + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente. Não há coorte nem `DripRule` até existir calendário ou grupo real. Ver [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md).
 
 ## DEC-DISC-006
 
@@ -78,7 +78,7 @@ O workflow de solicitações e anonimização foi removido: não havia solicitan
 
 Para a plataforma pequena atual, analytics técnico minimizado fica habilitado por padrão, sem modal, consentimento ou área dedicada. A Aluna tem controle claro em **Conta > Configurações** para desligar análises opcionais. Desativar remove eventos brutos identificáveis, bloqueia eventos futuros e exclui a Aluna das consultas analíticas; não altera acesso, sequência, progresso, conclusão ou Certificado.
 
-Admin vê somente métricas agregadas por Aula e `CourseVersion`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 90 dias para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
+Admin vê somente métricas agregadas por Aula e `CoursePublication`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 90 dias para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
 
 Esta decisão de produto não prova base legal ou conformidade LGPD. Antes da ativação em produção, é obrigatória ratificação jurídica da base legal, transparência, prazos e canal de direitos aplicáveis.
 

@@ -330,10 +330,10 @@ export const getStudentCourses = async (
       select
         c.id as course_id,
         c.slug,
-        cv.title_snapshot as title,
+        cp.title_snapshot as title,
         c.subtitle,
         c.description as course_description,
-        cv.workload_hours_snapshot as workload_hours,
+        cp.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         m.id as module_id,
@@ -344,10 +344,10 @@ export const getStudentCourses = async (
         lp.completed_at
       from enrollments e
       join courses c on c.id = e.course_id
-      join course_versions cv on cv.id = e.course_version_id
-      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      join course_publications cp on cp.course_id = c.id and cp.status = 'published'
+      left join modules m on m.course_publication_id = cp.id and m.status = 'active'
       left join lessons l on l.module_id = m.id
-        and l.course_version_id = cv.id
+        and l.course_publication_id = cp.id
         and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       where e.user_id = $1
@@ -513,15 +513,13 @@ export const getStudentCourseCatalog = async (
         and e.user_id = $1
       left join lateral (
         select id
-        from course_versions
-        where course_id = c.id
-          and (id = e.course_version_id or status = 'published')
-        order by case when id = e.course_version_id then 0 else 1 end
+        from course_publications
+        where course_id = c.id and status = 'published'
         limit 1
       ) cv on true
-      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      left join modules m on m.course_publication_id = cv.id and m.status = 'active'
       left join lessons l on l.module_id = m.id
-        and l.course_version_id = cv.id
+        and l.course_publication_id = cv.id
         and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = $1
       where c.status = 'active'
@@ -655,10 +653,10 @@ const getEnrolledCourseOverview = async ({
       select
         c.id as course_id,
         c.slug as course_slug,
-        cv.title_snapshot as course_title,
+        cp.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        cv.workload_hours_snapshot as workload_hours,
+        cp.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         cert.code as certificate_code,
@@ -679,13 +677,13 @@ const getEnrolledCourseOverview = async ({
         lwp.watched_percent
       from enrollments e
       join courses c on c.id = e.course_id
-      join course_versions cv on cv.id = e.course_version_id
-      left join certificates cert on cert.course_version_id = cv.id
+      join course_publications cp on cp.course_id = c.id and cp.status = 'published'
+      left join certificates cert on cert.course_id = c.id
         and cert.user_id = e.user_id
         and cert.status = 'valid'
-      left join modules m on m.course_version_id = cv.id and m.status = 'active'
+      left join modules m on m.course_publication_id = cp.id and m.status = 'active'
       left join lessons l on l.module_id = m.id
-        and l.course_version_id = cv.id
+        and l.course_publication_id = cp.id
         and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
@@ -814,13 +812,13 @@ const getPreviewCourseOverview = async ({
       from courses c
       join lateral (
         select id, title_snapshot, workload_hours_snapshot
-        from course_versions
+        from course_publications
         where course_id = c.id and status in ('draft', 'published')
-        order by case status when 'draft' then 0 else 1 end, version_number desc
+        order by case status when 'draft' then 0 else 1 end, publication_number desc
         limit 1
       ) cv on true
-      left join modules m on m.course_version_id = cv.id
-      left join lessons l on l.module_id = m.id and l.course_version_id = cv.id
+      left join modules m on m.course_publication_id = cv.id
+      left join lessons l on l.module_id = m.id and l.course_publication_id = cv.id
       where c.id = $1
       order by m.sort_order asc, l.sort_order asc
     `,
@@ -950,7 +948,7 @@ const getEnrolledLessonWorkspace = async ({
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (
-        select l.course_version_id
+        select l.course_publication_id
         from lessons l
         where l.id = $2
       )
@@ -977,11 +975,12 @@ const getEnrolledLessonWorkspace = async ({
         lwp.max_position_seconds as watch_max_position_seconds,
         lwp.watched_percent as watch_percent
       from target_course tc
-      join enrollments e on e.course_version_id = tc.course_version_id and e.user_id = $1
+      join course_publications cp on cp.id = tc.course_publication_id and cp.status = 'published'
+      join enrollments e on e.course_id = cp.course_id and e.user_id = $1
       join courses c on c.id = e.course_id
-      join modules m on m.course_version_id = e.course_version_id and m.status = 'active'
+      join modules m on m.course_publication_id = cp.id and m.status = 'active'
       join lessons l on l.module_id = m.id
-        and l.course_version_id = e.course_version_id
+        and l.course_publication_id = cp.id
         and l.status = 'active'
       left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
       left join lesson_watch_progress lwp on lwp.lesson_id = l.id and lwp.user_id = e.user_id
@@ -1067,7 +1066,7 @@ const getPreviewLessonWorkspace = async ({
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (
-        select l.course_version_id
+        select l.course_publication_id
         from lessons l
         where l.id = $1
       )
@@ -1094,10 +1093,10 @@ const getPreviewLessonWorkspace = async ({
         null::integer as watch_max_position_seconds,
         null::integer as watch_percent
       from target_course tc
-      join course_versions cv on cv.id = tc.course_version_id
-      join courses c on c.id = cv.course_id
-      join modules m on m.course_version_id = cv.id
-      join lessons l on l.module_id = m.id and l.course_version_id = cv.id
+      join course_publications cp on cp.id = tc.course_publication_id
+      join courses c on c.id = cp.course_id
+      join modules m on m.course_publication_id = cp.id
+      join lessons l on l.module_id = m.id and l.course_publication_id = cp.id
       order by m.sort_order asc, l.sort_order asc
     `,
     [lessonId]
@@ -1238,7 +1237,7 @@ export const completeLesson = async ({
     );
 
     const { rows } = await client.query<{
-      course_version_id: string;
+      course_publication_id: string;
       total_lessons: number;
       completed_lessons: number;
       certificate_id: string | null;
@@ -1250,22 +1249,22 @@ export const completeLesson = async ({
         select
           count(l.id) filter (where l.is_required)::int as total_lessons,
           count(lp.id) filter (where l.is_required)::int as completed_lessons,
-          max(e.course_version_id::text) as course_version_id,
+          max(cp.id::text) as course_publication_id,
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
-          max(cv.title_snapshot) as course_title,
-          max(cv.workload_hours_snapshot)::int as workload_hours
+          max(cp.title_snapshot) as course_title,
+          max(cp.workload_hours_snapshot)::int as workload_hours
         from courses c
         join enrollments e on e.course_id = c.id and e.user_id = $1
-        join course_versions cv on cv.id = e.course_version_id
+        join course_publications cp on cp.course_id = c.id and cp.status = 'published'
         join users u on u.id = e.user_id
-        join modules m on m.course_version_id = cv.id and m.status = 'active'
+        join modules m on m.course_publication_id = cp.id and m.status = 'active'
         join lessons l on l.module_id = m.id
-          and l.course_version_id = cv.id
+          and l.course_publication_id = cp.id
           and l.status = 'active'
         left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
         left join certificates cert on cert.user_id = e.user_id
-          and cert.course_version_id = cv.id
+          and cert.course_id = c.id
         where c.id = $2
         group by c.id
       `,
@@ -1277,7 +1276,7 @@ export const completeLesson = async ({
       ? await issueCompletionCertificateIfEligible({
           client,
           courseId: data.course.id,
-          courseVersionId: summary.course_version_id,
+          coursePublicationId: summary.course_publication_id,
           summary: {
             certificateId: summary.certificate_id,
             completedLessons: summary.completed_lessons,

@@ -18,7 +18,7 @@ O Hub registra por padrão eventos minimizados de início, checkpoint por faixa 
 
 Ausência de uma linha em `learning_analytics_preferences` significa analytics habilitado. Ao desativar, o Hub remove os eventos brutos identificáveis da Aluna, deixa de aceitar eventos futuros e exclui seu progresso essencial das consultas analíticas. Métricas diárias já materializadas permanecem somente agregadas.
 
-O Admin vê métricas por Aula e `CourseVersion`, com exportação CSV sem Conta, Matrícula, e-mail ou outro identificador pessoal. O Hub não mantém lista de Alunas inativas, registro de reengajamento, ação de contato nem automação de mensagens baseada nesses dados.
+O Admin vê métricas por Aula e `CoursePublication`, com exportação CSV sem Conta, Matrícula, e-mail ou outro identificador pessoal. O Hub não mantém lista de Alunas inativas, registro de reengajamento, ação de contato nem automação de mensagens baseada nesses dados.
 
 Eventos brutos ficam até 90 dias; métricas agregadas, até 13 meses. A limpeza programada continua condicionada à habilitação operacional e à referência jurídica formal.
 

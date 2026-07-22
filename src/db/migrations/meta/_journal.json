@@ -246,6 +246,13 @@
       "when": 1784732170506,
       "tag": "0034_remove_privacy_request_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1784737450339,
+      "tag": "0035_course_publications_and_completions",
+      "breakpoints": true
     }
   ]
 }

@@ -8,13 +8,13 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Certificados
 
-Certificado preserva código público, Conta, Versão do Curso, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
+Certificado preserva código público, Conta, Curso, publicação interna de origem, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
 
 ### REG-DAT-001 Emissão exige conclusão e unicidade válida
 
-`canIssueCertificate` e `issueManualCertificate` validam elegibilidade. `completeLesson` pode emitir automaticamente quando todas as Aulas obrigatórias da Versão estão concluídas.
+`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir. `completeLesson` cria a primeira conclusão e pode emitir automaticamente quando todas as Aulas obrigatórias da publicação vigente estão concluídas.
 
-**Invariantes:** a Versão precisa ter as Aulas obrigatórias concluídas; o código público é único; não há segundo Certificado válido para a mesma Conta e Versão sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots preservam o texto emitido.
+**Invariantes:** `CourseCompletion` é única por Conta e Curso; o código público é único; não há segundo Certificado válido para a mesma Conta e Curso sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots e a publicação de origem preservam o texto emitido. Publicação posterior não reabre a conclusão nem gera novo certificado automaticamente.
 
 **Concorrência:** `tryIssueAutomaticCompletionCertificate` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora solicita e-mail, gravando `email.certificate-issued` na outbox sem PII. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
 

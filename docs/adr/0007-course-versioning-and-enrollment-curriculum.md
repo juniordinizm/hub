@@ -4,35 +4,31 @@ owner: product
 last_verified_commit: 19a268ca8b72bd8c2ac6875bfe68ca9f4ed7f18b
 ---
 
-# ADR-0007: versão curricular vinculada à Matrícula
+# ADR-0007: publicações internas e conteúdo vivo por Curso
 
 ## Contexto
 
-`Course` é o produto comercial, mas Módulos e Aulas são mutáveis no modelo atual. Isso permite que uma alteração de conteúdo mude silenciosamente a promessa curricular, o percentual de progresso e a elegibilidade de Certificado de uma Aluna já matriculada.
+O Hub atende poucos alunos e o produto decidiu que alterações de um Curso devem chegar a todas as Matrículas ativas desse mesmo Curso. Um Curso integralmente novo, refilmado e vendido separadamente é outro `Course`, não uma revisão do anterior.
 
 ## Decisão
 
-Cada publicação cria uma `CourseVersion` com estados `draft`, `published` e `retired`.
+`CoursePublication` substitui a versão curricular entregue individualmente. Ela é uma revisão interna de publicação em lote, com estados `draft`, `published` e `retired`.
 
-- `Course` conserva identidade comercial, preço e duração de acesso.
-- Matrícula aponta para uma única Versão de Curso publicada.
-- Nova Matrícula recebe a Versão publicada vigente no momento da concessão.
-- Nova Versão não altera Matrículas existentes. Migração exige seleção explícita, justificativa, evento auditável e preservação de Conclusão e Certificado já emitidos.
-- Módulos e Aulas pertencem a uma Versão. Aula obrigatória entra no denominador; Aula opcional não.
-- A Aluna pode concluir manualmente uma Aula obrigatória sem percentual mínimo. Vídeo JMVStream com evento válido de 98% também pode concluí-la automaticamente.
-- Certificado referencia a Versão de Curso além de manter seus snapshots exibidos.
-- Correção editorial compatível exige auditoria. Mudança de objetivo, ordem obrigatória ou regra de Conclusão exige nova Versão.
+- Matrícula concede acesso ao `Course`; não guarda `course_publication_id`.
+- Toda Matrícula ativa lê a única publicação `published` vigente.
+- Criar rascunho copia a vigente. Publicar aposenta a anterior e troca a vigente atomicamente, com número, data e autora no audit log.
+- Módulos e Aulas pertencem a uma publicação. Aulas obrigatórias definem o progresso vivo; opcionais não entram no denominador.
+- Alteração de conteúdo é sempre preparada e publicada em lote. Não há edição direta da publicação publicada.
+- Retirar conteúdo preserva a publicação anterior, mídia, progresso, analytics e auditoria.
 
-## Recursos e vídeo
-
-Uma Versão publicada referencia o `content_json` e o player materializado no momento da publicação. Objetos R2 e ativos JMVStream não podem ser removidos enquanto forem referenciados por qualquer Versão publicada. Publicar versão com vídeo JMVStream sem player pronto falha; upload/processamento não é duplicado como efeito da clonagem curricular.
+`CourseCompletion` registra a primeira conclusão de Aluna + Curso independentemente de certificado. Certificado conserva a publicação de origem e seus snapshots, mas a unicidade de certificado válido é Aluna + Curso. Depois de uma publicação nova, progresso pode diminuir; recuperar 100% não emite nem reemite certificado automaticamente.
 
 ## Consequências
 
-Autoria edita `draft`; publicação congela a estrutura. A única exceção é a correção editorial compatível em Aula publicada: exige motivo, cria `course_version.compatible_correction` no audit log e não pode mudar módulo, ordem, estado ou obrigatoriedade. Alteração estrutural cria nova Versão. Coorte e `DripRule` não serão criados sem calendário/grupo real e nunca substituirão Concessão de acesso ou Matrícula.
+O histórico de certificado prova uma conclusão passada, não que a Aluna completou todo o currículo vivo atual. Revogação e reemissão não alteram `CourseCompletion`; reemissão mantém a publicação de origem. Atualização pedagógica não é motivo de reemissão.
 
 ## Alternativas rejeitadas
 
-- Conteúdo vivo para todas as Matrículas: simples, mas altera promessa histórica.
-- Snapshot JSON completo por Matrícula: preserva história, porém duplica currículo e torna migração/auditoria dispendiosas.
-- Coorte como atalho para entitlement: mistura agenda pedagógica com direito financeiro de acesso.
+- currículo fixado por Matrícula: preserva promessa individual, mas exige migração administrativa e contradiz entrega contínua escolhida;
+- snapshot JSON por Matrícula: duplica conteúdo e dificulta mídia, auditoria e evolução;
+- publicação imediata a cada salvamento: expõe alterações incompletas e não permite validação em lote.

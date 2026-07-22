@@ -91,27 +91,34 @@ const textDocument = {
 };
 
 const versioningQueryResult = (sql: string): { rows: unknown[] } | null => {
-  if (sql.includes("join course_versions cv on cv.id = m.course_version_id")) {
+  if (
+    sql.includes(
+      "join course_publications cp on cp.id = m.course_publication_id"
+    )
+  ) {
     return { rows: [{ status: "draft" }] };
   }
   if (
-    sql.includes("join course_versions cv") &&
-    sql.includes("cv.status = 'draft'")
+    sql.includes("join course_publications cp") &&
+    sql.includes("cp.status = 'draft'")
   ) {
     return { rows: [{ id: "module-1" }] };
   }
-  if (sql.includes("select course_id, course_version_id from modules")) {
+  if (sql.includes("select course_id, course_publication_id from modules")) {
     return {
       rows: [
-        { course_id: "course-1", course_version_id: "course-version-draft" },
+        {
+          course_id: "course-1",
+          course_publication_id: "course-publication-draft",
+        },
       ],
     };
   }
   if (
-    sql.includes("from course_versions") &&
+    sql.includes("from course_publications") &&
     sql.includes("status = 'draft'")
   ) {
-    return { rows: [{ id: "course-version-draft" }] };
+    return { rows: [{ id: "course-publication-draft" }] };
   }
   return null;
 };
@@ -313,7 +320,7 @@ describe("admin authoring", () => {
       expect.stringContaining("insert into modules"),
       [
         "course-1",
-        "course-version-draft",
+        "course-publication-draft",
         "Modulo novo",
         "Descricao",
         1,
@@ -350,7 +357,7 @@ describe("admin authoring", () => {
       expect.stringContaining("insert into lessons"),
       [
         "module-1",
-        "course-version-draft",
+        "course-publication-draft",
         "Aula inicial",
         "Subtitulo",
         3,
@@ -521,7 +528,7 @@ describe("admin authoring", () => {
     );
     expect(updateCall?.[1]).toEqual([
       "module-1",
-      "course-version-draft",
+      "course-publication-draft",
       "Aula atualizada",
       "Descricao",
       "jmvstream",
@@ -576,7 +583,7 @@ describe("admin authoring", () => {
       if (sql.includes("select content_json from lessons")) {
         return { rows: [{ content_json: previousContent }] };
       }
-      if (sql.includes("published_version.status = 'published'")) {
+      if (sql.includes("published_publication.status = 'published'")) {
         return { rows: [{ content_json: previousContent }] };
       }
       if (sql.includes("select m.course_id")) {
@@ -599,14 +606,21 @@ describe("admin authoring", () => {
   it("requires a documented compatible-correction reason before changing a published lesson", async () => {
     query.mockImplementation((sql: string) => {
       if (
-        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+        sql.includes(
+          "join course_publications cp on cp.id = m.course_publication_id"
+        )
       ) {
         return { rows: [{ status: "published" }] };
       }
-      if (sql.includes("select course_id, course_version_id from modules")) {
+      if (
+        sql.includes("select course_id, course_publication_id from modules")
+      ) {
         return {
           rows: [
-            { course_id: "course-1", course_version_id: "course-version-1" },
+            {
+              course_id: "course-1",
+              course_publication_id: "course-publication-1",
+            },
           ],
         };
       }
@@ -625,13 +639,15 @@ describe("admin authoring", () => {
 
     await expect(
       saveLesson({ actorUserId: "admin-1", formData })
-    ).rejects.toThrow("Informe o motivo da correção editorial compatível.");
+    ).rejects.toThrow("Prepare alteracoes");
   });
 
   it("rejects a compatible correction that changes published lesson structure", async () => {
     query.mockImplementation((sql: string) => {
       if (
-        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+        sql.includes(
+          "join course_publications cp on cp.id = m.course_publication_id"
+        )
       ) {
         return { rows: [{ status: "published" }] };
       }
@@ -666,15 +682,15 @@ describe("admin authoring", () => {
 
     await expect(
       saveLesson({ actorUserId: "admin-1", formData })
-    ).rejects.toThrow(
-      "Correção editorial não pode alterar módulo, ordem, estado ou obrigatoriedade da aula. Crie uma nova versão."
-    );
+    ).rejects.toThrow("Prepare alteracoes");
   });
 
   it("audits a compatible correction without changing published lesson structure", async () => {
     query.mockImplementation((sql: string) => {
       if (
-        sql.includes("join course_versions cv on cv.id = m.course_version_id")
+        sql.includes(
+          "join course_publications cp on cp.id = m.course_publication_id"
+        )
       ) {
         return { rows: [{ status: "published" }] };
       }
@@ -690,10 +706,15 @@ describe("admin authoring", () => {
           ],
         };
       }
-      if (sql.includes("select course_id, course_version_id from modules")) {
+      if (
+        sql.includes("select course_id, course_publication_id from modules")
+      ) {
         return {
           rows: [
-            { course_id: "course-1", course_version_id: "course-version-1" },
+            {
+              course_id: "course-1",
+              course_publication_id: "course-publication-1",
+            },
           ],
         };
       }
@@ -720,20 +741,9 @@ describe("admin authoring", () => {
     formData.set("compatibleCorrection", "on");
     formData.set("compatibleCorrectionReason", "Correção de ortografia.");
 
-    await saveLesson({ actorUserId: "admin-1", formData });
-
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("course_version.compatible_correction"),
-      [
-        "admin-1",
-        "lesson-1",
-        JSON.stringify({
-          courseId: "course-1",
-          courseVersionId: "course-version-1",
-          reason: "Correção de ortografia.",
-        }),
-      ]
-    );
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Prepare alteracoes");
   });
 
   it("removes lesson video state after attempting remote asset deletion", async () => {

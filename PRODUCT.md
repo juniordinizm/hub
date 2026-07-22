@@ -34,7 +34,7 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 1. Aluna autenticada vê Cursos acessíveis e catálogo.
 2. Acesso depende de Conta e Matrícula efetivas.
-3. Aulas são liberadas sequencialmente pelo progresso da Versão de Curso vinculada à Matrícula.
+3. Aulas são liberadas sequencialmente pelo progresso da publicação vigente do Curso para toda Matrícula ativa.
 4. Vídeo, texto, materiais e comentários formam a experiência.
 5. Conclusão do Curso habilita emissão de Certificado conforme regra vigente.
 6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; a Aluna pode desligá-lo em Configurações sem afetar a jornada pedagógica.
@@ -45,7 +45,7 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 2. Admin publica conteúdo quando dados mínimos estão prontos.
 3. Admin/Suporte consulta Alunas, acessos, financeiro, Certificados e auditoria conforme permissão.
 4. Exceções usam ajustes, bloqueios, revisões, reembolso e revogação/reemissão; pedidos de dados são tratados excepcionalmente, não por inbox permanente.
-5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Versão; não há acompanhamento individual por inatividade.
+5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Publicação; não há acompanhamento individual por inatividade.
 
 ## Escopo implementado
 

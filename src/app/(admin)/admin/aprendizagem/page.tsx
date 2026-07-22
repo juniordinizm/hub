@@ -54,7 +54,7 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
                   <tr className="border-t" key={metric.lessonId}>
                     <td className="p-4">{metric.lessonTitle}</td>
                     <td className="p-4 font-mono text-xs">
-                      {metric.courseVersionId}
+                      {metric.coursePublicationId}
                     </td>
                     <td className="p-4 text-right">{metric.eligible}</td>
                     <td className="p-4 text-right">{metric.started}</td>

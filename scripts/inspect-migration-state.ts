@@ -86,19 +86,9 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
       "select not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'enrollments' and column_name = 'revoked_reason_category') as present"
     ),
     scheduleExistsCheck(
-      "0028_quick_squadron_supreme",
-      "estrutura de versoes de curso",
-      "select to_regclass('public.course_versions') is not null and to_regtype('public.course_version_status') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('modules', 'lessons', 'enrollments', 'certificates') and column_name = 'course_version_id' having count(*) = 4) as present"
-    ),
-    scheduleExistsCheck(
-      "0029_lush_goblin_queen",
-      "backfill das referencias de versao",
-      "select not exists (select 1 from modules where course_version_id is null union all select 1 from lessons where course_version_id is null union all select 1 from enrollments where course_version_id is null union all select 1 from certificates where course_version_id is null) as present"
-    ),
-    scheduleExistsCheck(
-      "0030_complete_epoch",
-      "restricoes e indices por versao",
-      "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('modules', 'lessons', 'enrollments', 'certificates') and column_name = 'course_version_id' and is_nullable = 'NO' having count(*) = 4) and to_regclass('public.modules_course_version_sort_unique_idx') is not null and to_regclass('public.certificates_user_course_version_active_unique_idx') is not null as present"
+      "0035_course_publications_and_completions",
+      "publicacoes internas, conclusoes historicas e matriculas sem fixacao curricular",
+      "select to_regclass('public.course_publications') is not null and to_regtype('public.course_publication_status') is not null and to_regclass('public.course_completions') is not null and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'enrollments' and column_name = 'course_version_id') and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('modules', 'lessons', 'certificates', 'learning_analytics_events', 'learning_analytics_daily_metrics') and column_name = 'course_publication_id' having count(*) = 5) and to_regclass('public.certificates_user_course_active_unique_idx') is not null as present"
     ),
     scheduleExistsCheck(
       "0034_remove_privacy_request_workflow",

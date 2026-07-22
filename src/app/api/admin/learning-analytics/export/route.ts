@@ -21,7 +21,7 @@ export async function GET(): Promise<Response> {
   const rows = metrics.map((metric) =>
     [
       metric.lessonTitle,
-      metric.courseVersionId,
+      metric.coursePublicationId,
       metric.eligible,
       metric.started,
       metric.completed,

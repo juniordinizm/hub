@@ -15,13 +15,13 @@ import {
 import { saveLessonAction } from "@/features/admin/actions";
 
 interface LessonSidebarActionsProps {
-  courseVersionStatus: "draft" | "published" | "retired";
+  coursePublicationStatus: "draft" | "published" | "retired";
   formId: string;
   initialStatus: string;
 }
 
 export function LessonSidebarActions({
-  courseVersionStatus,
+  coursePublicationStatus,
   formId,
   initialStatus,
 }: LessonSidebarActionsProps): React.JSX.Element {
@@ -64,7 +64,7 @@ export function LessonSidebarActions({
       <input form={formId} name="status" type="hidden" value={status} />
 
       <Select
-        disabled={courseVersionStatus === "published"}
+        disabled={coursePublicationStatus === "published"}
         onValueChange={setStatus}
         value={status}
       >

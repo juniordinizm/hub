@@ -16,7 +16,7 @@ describe("LearningAnalyticsPage", () => {
     dependencies.getLessonAnalyticsMetrics.mockResolvedValue([
       {
         completed: 1,
-        courseVersionId: "version-1",
+        coursePublicationId: "publication-1",
         eligible: 2,
         errorCount: 0,
         lessonId: "lesson-1",

@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  createCourseVersionDraftAction,
-  publishCourseVersionAction,
+  createCoursePublicationDraftAction,
+  publishCoursePublicationAction,
 } from "@/features/admin/actions";
 import {
   getAdminCourseContentSignal,
@@ -96,15 +96,20 @@ export default async function AdminCourseDetailPage({
 
             <div className="flex shrink-0 items-center gap-3">
               <form
-                action={createCourseVersionDraftAction.bind(null, course.id)}
+                action={createCoursePublicationDraftAction.bind(
+                  null,
+                  course.id
+                )}
               >
                 <Button size="sm" type="submit" variant="outline">
-                  Nova versao
+                  Preparar alteracoes
                 </Button>
               </form>
-              <form action={publishCourseVersionAction.bind(null, course.id)}>
+              <form
+                action={publishCoursePublicationAction.bind(null, course.id)}
+              >
                 <Button size="sm" type="submit">
-                  Publicar versao
+                  Publicar alteracoes
                 </Button>
               </form>
               <Button asChild size="sm" variant="outline">

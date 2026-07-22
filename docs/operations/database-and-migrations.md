@@ -95,7 +95,8 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 ## Histórico operacional confirmado
 
 - `0023`/`0024`: validadas em branch temporária e promovidas uma vez para `production`; auditoria posterior confirmou outbox vazio e journal com 25 entradas.
-- `0025` a `0030`: promovidas em 2026-07-21; auditoria posterior confirmou referências obrigatórias de `course_version_id` e unicidades esperadas. A base não continha Cursos, Matrículas ou Certificados, portanto não é evidência de backfill com dados históricos.
+- `0025` a `0030`: promovidas em 2026-07-21; são histórico da introdução de versões curriculares. A base não continha Cursos, Matrículas ou Certificados, portanto não é evidência de backfill com dados históricos.
+- `0035_course_publications_and_completions`: promovida em 2026-07-22 para `neondb` do projeto Neon `protear`, pelo endpoint direto confirmado. Renomeou versões para publicações, removeu a fixação curricular da Matrícula e criou `course_completions`. A auditoria posterior confirmou 36 entradas no journal, ausência de `course_versions` e `enrollments.course_version_id`, e presença das novas tabelas e da unicidade de certificado por Curso. A base tinha zero Certificados, portanto o backfill não constitui evidência com dados históricos.
 - `0031`/`0032`: promovidas para suportar analytics minimizado e métricas diárias. A configuração de produção e dados externos permanecem sujeitos a verificação humana no painel.
 - `0033`: promovida em 2026-07-22 pelo migrador Drizzle após auditoria de pré-condições; a segunda execução terminou sem reaplicar schema e o journal passou a conter a entrada correspondente.
 - `0034`: promovida em 2026-07-22 pelo migrador Drizzle; removeu a tabela e o enum do workflow de solicitações de dados. A auditoria posterior confirmou a ausência de ambos.

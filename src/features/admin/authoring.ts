@@ -210,47 +210,48 @@ const getCourseIdForModule = async (
   return rows[0]?.course_id ?? null;
 };
 
-const getCourseAndVersionForModule = async (
+const getCourseAndPublicationForModule = async (
   moduleId: string
-): Promise<{ courseId: string; courseVersionId: string } | null> => {
+): Promise<{ courseId: string; coursePublicationId: string } | null> => {
   const { rows } = await getPool().query<{
     course_id: string;
-    course_version_id: string | null;
-  }>("select course_id, course_version_id from modules where id = $1 limit 1", [
-    moduleId,
-  ]);
+    course_publication_id: string | null;
+  }>(
+    "select course_id, course_publication_id from modules where id = $1 limit 1",
+    [moduleId]
+  );
   const module = rows[0];
 
-  if (!(module?.course_id && module.course_version_id)) {
+  if (!(module?.course_id && module.course_publication_id)) {
     return null;
   }
 
   return {
     courseId: module.course_id,
-    courseVersionId: module.course_version_id,
+    coursePublicationId: module.course_publication_id,
   };
 };
 
-const getDraftCourseVersionId = async (courseId: string): Promise<string> => {
+const getDraftCoursePublicationId = async (
+  courseId: string
+): Promise<string> => {
   const { rows } = await getPool().query<{ id: string }>(
     `
       select id
-      from course_versions
+      from course_publications
       where course_id = $1 and status = 'draft'
-      order by version_number desc
+      order by publication_number desc
       limit 1
     `,
     [courseId]
   );
-  const courseVersionId = rows[0]?.id;
+  const coursePublicationId = rows[0]?.id;
 
-  if (!courseVersionId) {
-    throw new Error(
-      "Crie uma nova versao de curso antes de alterar conteudo publicado."
-    );
+  if (!coursePublicationId) {
+    throw new Error("Prepare alteracoes antes de alterar conteudo publicado.");
   }
 
-  return courseVersionId;
+  return coursePublicationId;
 };
 
 const assertDraftModule = async (moduleId: string): Promise<void> => {
@@ -258,8 +259,8 @@ const assertDraftModule = async (moduleId: string): Promise<void> => {
     `
       select m.id
       from modules m
-      join course_versions cv on cv.id = m.course_version_id
-      where m.id = $1 and cv.status = 'draft'
+      join course_publications cp on cp.id = m.course_publication_id
+      where m.id = $1 and cp.status = 'draft'
       limit 1
     `,
     [moduleId]
@@ -270,16 +271,16 @@ const assertDraftModule = async (moduleId: string): Promise<void> => {
   }
 };
 
-const getModuleVersionStatus = async (
+const getModulePublicationStatus = async (
   moduleId: string
 ): Promise<"draft" | "published" | "retired" | null> => {
   const { rows } = await getPool().query<{
     status: "draft" | "published" | "retired";
   }>(
     `
-      select cv.status
+      select cp.status
       from modules m
-      join course_versions cv on cv.id = m.course_version_id
+      join course_publications cp on cp.id = m.course_publication_id
       where m.id = $1
       limit 1
     `,
@@ -289,99 +290,22 @@ const getModuleVersionStatus = async (
   return rows[0]?.status ?? null;
 };
 
-const assertPublishedLessonStructureIsUnchanged = async ({
-  isRequired,
-  lessonId,
+const assertLessonTargetPublicationIsEditable = async ({
   moduleId,
-  sortOrder,
-  status,
 }: {
-  isRequired: boolean;
-  lessonId: string;
   moduleId: string;
-  sortOrder: number;
-  status: ContentStatus;
-}): Promise<void> => {
-  const { rows } = await getPool().query<{
-    is_required: boolean;
-    module_id: string;
-    sort_order: number;
-    status: ContentStatus;
-  }>(
-    `
-      select module_id, sort_order, status, is_required
-      from lessons
-      where id = $1
-      limit 1
-    `,
-    [lessonId]
-  );
-  const lesson = rows[0];
+}): Promise<"draft"> => {
+  const modulePublicationStatus = await getModulePublicationStatus(moduleId);
 
-  if (!lesson) {
-    throw new Error("Aula publicada não encontrada.");
-  }
-
-  if (
-    lesson.module_id !== moduleId ||
-    lesson.sort_order !== sortOrder ||
-    lesson.status !== status ||
-    lesson.is_required !== isRequired
-  ) {
-    throw new Error(
-      "Correção editorial não pode alterar módulo, ordem, estado ou obrigatoriedade da aula. Crie uma nova versão."
-    );
-  }
-};
-
-const assertLessonTargetVersionIsEditable = async ({
-  compatibleCorrection,
-  compatibleCorrectionReason,
-  existingLessonId,
-  isRequired,
-  moduleId,
-  sortOrder,
-  status,
-}: {
-  compatibleCorrection: boolean;
-  compatibleCorrectionReason: string;
-  existingLessonId: string;
-  isRequired: boolean;
-  moduleId: string;
-  sortOrder: number;
-  status: ContentStatus;
-}): Promise<"draft" | "published"> => {
-  const moduleVersionStatus = await getModuleVersionStatus(moduleId);
-
-  if (moduleVersionStatus === "draft") {
+  if (modulePublicationStatus === "draft") {
     await assertDraftModule(moduleId);
-    return moduleVersionStatus;
+    return modulePublicationStatus;
   }
 
-  if (moduleVersionStatus !== "published" || !existingLessonId) {
-    throw new Error("Modulo não pertence a uma versão editável.");
-  }
-
-  if (!compatibleCorrection) {
-    throw new Error(
-      "Versão publicada aceita somente correção editorial compatível documentada."
-    );
-  }
-  if (!compatibleCorrectionReason) {
-    throw new Error("Informe o motivo da correção editorial compatível.");
-  }
-  await assertPublishedLessonStructureIsUnchanged({
-    isRequired,
-    lessonId: existingLessonId,
-    moduleId,
-    sortOrder,
-    status,
-  });
-
-  return moduleVersionStatus;
+  throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
 };
 
-export const publishCourseVersion = async ({
+export const publishCoursePublication = async ({
   actorUserId,
   courseId,
 }: {
@@ -395,38 +319,38 @@ export const publishCourseVersion = async ({
     const { rows } = await client.query<{ id: string }>(
       `
         select id
-        from course_versions
+        from course_publications
         where course_id = $1 and status = 'draft'
-        order by version_number desc
+        order by publication_number desc
         limit 1
         for update
       `,
       [courseId]
     );
-    const courseVersionId = rows[0]?.id;
+    const coursePublicationId = rows[0]?.id;
 
-    if (!courseVersionId) {
-      throw new Error("Nao ha versao em rascunho para publicar.");
+    if (!coursePublicationId) {
+      throw new Error("Nao ha alteracoes em preparo para publicar.");
     }
 
     const unavailableVideo = await client.query<{ id: string }>(
       `
         select id
         from lessons
-        where course_version_id = $1
+        where course_publication_id = $1
           and video_provider = 'jmvstream'
           and coalesce(video_embed_url, '') = ''
         limit 1
       `,
-      [courseVersionId]
+      [coursePublicationId]
     );
     if (unavailableVideo.rows[0]) {
-      throw new Error("A versao possui video JMVStream sem player pronto.");
+      throw new Error("A publicacao possui video JMVStream sem player pronto.");
     }
 
     await client.query(
       `
-        update course_versions
+        update course_publications
         set status = 'retired', retired_at = now(), updated_at = now()
         where course_id = $1 and status = 'published'
       `,
@@ -434,11 +358,11 @@ export const publishCourseVersion = async ({
     );
     await client.query(
       `
-        update course_versions
+        update course_publications
         set status = 'published', published_at = now(), retired_at = null, updated_at = now()
         where id = $1
       `,
-      [courseVersionId]
+      [coursePublicationId]
     );
     await client.query(
       `
@@ -451,9 +375,9 @@ export const publishCourseVersion = async ({
     await client.query(
       `
         insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-        values ($1, 'course_version.published', 'course_version', $2, $3::jsonb)
+        values ($1, 'course_publication.published', 'course_publication', $2, $3::jsonb)
       `,
-      [actorUserId, courseVersionId, JSON.stringify({ courseId })]
+      [actorUserId, coursePublicationId, JSON.stringify({ courseId })]
     );
     await client.query("commit");
   } catch (error) {
@@ -464,36 +388,36 @@ export const publishCourseVersion = async ({
   }
 };
 
-export const createCourseVersionDraft = async ({
+export const createCoursePublicationDraft = async ({
   actorUserId,
   courseId,
 }: {
   actorUserId: string;
   courseId: string;
-}): Promise<{ courseVersionId: string }> => {
+}): Promise<{ coursePublicationId: string }> => {
   const client = await getPool().connect();
 
   try {
     await client.query("begin");
     const existingDraft = await client.query<{ id: string }>(
-      `select id from course_versions where course_id = $1 and status = 'draft' limit 1`,
+      `select id from course_publications where course_id = $1 and status = 'draft' limit 1`,
       [courseId]
     );
     const existingDraftId = existingDraft.rows[0]?.id;
     if (existingDraftId) {
       await client.query("commit");
-      return { courseVersionId: existingDraftId };
+      return { coursePublicationId: existingDraftId };
     }
 
     const published = await client.query<{
       id: string;
       title_snapshot: string;
-      version_number: number;
+      publication_number: number;
       workload_hours_snapshot: number;
     }>(
       `
-        select id, version_number, title_snapshot, workload_hours_snapshot
-        from course_versions
+        select id, publication_number, title_snapshot, workload_hours_snapshot
+        from course_publications
         where course_id = $1 and status = 'published'
         limit 1
         for update
@@ -502,26 +426,28 @@ export const createCourseVersionDraft = async ({
     );
     const source = published.rows[0];
     if (!source) {
-      throw new Error("Curso sem versao publicada nao pode gerar rascunho.");
+      throw new Error(
+        "Curso sem publicacao publicada nao pode preparar alteracoes."
+      );
     }
 
-    const nextVersion = await client.query<{ id: string }>(
+    const nextPublication = await client.query<{ id: string }>(
       `
-        insert into course_versions (
-          course_id, version_number, status, title_snapshot, workload_hours_snapshot
+        insert into course_publications (
+          course_id, publication_number, status, title_snapshot, workload_hours_snapshot
         ) values ($1, $2, 'draft', $3, $4)
         returning id
       `,
       [
         courseId,
-        source.version_number + 1,
+        source.publication_number + 1,
         source.title_snapshot,
         source.workload_hours_snapshot,
       ]
     );
-    const courseVersionId = nextVersion.rows[0]?.id;
-    if (!courseVersionId) {
-      throw new Error("Nao foi possivel criar a versao em rascunho.");
+    const coursePublicationId = nextPublication.rows[0]?.id;
+    if (!coursePublicationId) {
+      throw new Error("Nao foi possivel preparar as alteracoes.");
     }
 
     const modulesToCopy = await client.query<{
@@ -534,7 +460,7 @@ export const createCourseVersionDraft = async ({
       `
         select id, title, description, sort_order, status
         from modules
-        where course_version_id = $1
+        where course_publication_id = $1
         order by sort_order asc
       `,
       [source.id]
@@ -543,13 +469,13 @@ export const createCourseVersionDraft = async ({
     for (const module of modulesToCopy.rows) {
       const clonedModule = await client.query<{ id: string }>(
         `
-          insert into modules (course_id, course_version_id, title, description, sort_order, status)
+          insert into modules (course_id, course_publication_id, title, description, sort_order, status)
           values ($1, $2, $3, $4, $5, $6)
           returning id
         `,
         [
           courseId,
-          courseVersionId,
+          coursePublicationId,
           module.title,
           module.description,
           module.sort_order,
@@ -587,7 +513,7 @@ export const createCourseVersionDraft = async ({
           thumbnail_url, content_json, duration_seconds, video_duration_seconds,
           text_duration_seconds, text_word_count, sort_order, status, is_published, is_required
         from lessons
-        where course_version_id = $1
+        where course_publication_id = $1
         order by sort_order asc
       `,
       [source.id]
@@ -600,7 +526,7 @@ export const createCourseVersionDraft = async ({
       await client.query(
         `
           insert into lessons (
-            module_id, course_version_id, title, description, video_provider, video_external_id,
+            module_id, course_publication_id, title, description, video_provider, video_external_id,
             video_embed_url, thumbnail_url, content_json, duration_seconds, video_duration_seconds,
             text_duration_seconds, text_word_count, sort_order, status, is_published, is_required
           ) values (
@@ -609,7 +535,7 @@ export const createCourseVersionDraft = async ({
         `,
         [
           moduleId,
-          courseVersionId,
+          coursePublicationId,
           lesson.title,
           lesson.description,
           lesson.video_provider,
@@ -633,16 +559,16 @@ export const createCourseVersionDraft = async ({
     await client.query(
       `
         insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-        values ($1, 'course_version.draft_created', 'course_version', $2, $3::jsonb)
+        values ($1, 'course_publication.draft_created', 'course_publication', $2, $3::jsonb)
       `,
       [
         actorUserId,
-        courseVersionId,
-        JSON.stringify({ sourceVersionId: source.id }),
+        coursePublicationId,
+        JSON.stringify({ sourcePublicationId: source.id }),
       ]
     );
     await client.query("commit");
-    return { courseVersionId };
+    return { coursePublicationId };
   } catch (error) {
     await client.query("rollback");
     throw error;
@@ -816,10 +742,10 @@ const getR2KeysReferencedByPublishedVersion = async ({
     `
       select published_lesson.content_json
       from lessons published_lesson
-      join course_versions published_version
-        on published_version.id = published_lesson.course_version_id
+      join course_publications published_publication
+        on published_publication.id = published_lesson.course_publication_id
       where published_lesson.id <> $1
-        and published_version.status = 'published'
+        and published_publication.status = 'published'
         and published_lesson.content_json is not null
     `,
     [lessonId]
@@ -876,11 +802,11 @@ const isJmvstreamAssetReferencedByPublishedVersion = async (
       join lessons published_lesson
         on published_lesson.video_external_id = source_lesson.video_external_id
        and published_lesson.id <> source_lesson.id
-      join course_versions published_version
-        on published_version.id = published_lesson.course_version_id
+      join course_publications published_publication
+        on published_publication.id = published_lesson.course_publication_id
       where source_lesson.id = $1
         and source_lesson.video_provider = 'jmvstream'
-        and published_version.status = 'published'
+        and published_publication.status = 'published'
       limit 1
     `,
     [lessonId]
@@ -1068,9 +994,9 @@ const createNewCourse = async ({
     );
     await getPool().query(
       `
-        insert into course_versions (
+        insert into course_publications (
           course_id,
-          version_number,
+          publication_number,
           status,
           title_snapshot,
           workload_hours_snapshot
@@ -1173,11 +1099,11 @@ export const saveModule = async ({
     return;
   }
 
-  const courseVersionId = await getDraftCourseVersionId(courseId);
+  const coursePublicationId = await getDraftCoursePublicationId(courseId);
 
   const inserted = await getPool().query<{ id: string }>(
     `
-      insert into modules (course_id, course_version_id, title, description, sort_order, status)
+      insert into modules (course_id, course_publication_id, title, description, sort_order, status)
       values ($1, $2, $3, $4, $5, $6)
       on conflict (course_id, sort_order) do update set
         title = excluded.title,
@@ -1186,7 +1112,7 @@ export const saveModule = async ({
         updated_at = now()
       returning id
     `,
-    [courseId, courseVersionId, title, description, sortOrder, status]
+    [courseId, coursePublicationId, title, description, sortOrder, status]
   );
   await audit({
     action: "module.upserted",
@@ -1206,7 +1132,7 @@ export const createLessonDraft = async ({
 }> => {
   const draft = normalizeLessonDraftInput(formData);
   await assertDraftModule(draft.moduleId);
-  const module = await getCourseAndVersionForModule(draft.moduleId);
+  const module = await getCourseAndPublicationForModule(draft.moduleId);
   const courseId = module?.courseId;
 
   if (!(courseId && module)) {
@@ -1217,7 +1143,7 @@ export const createLessonDraft = async ({
     `
       insert into lessons (
         module_id,
-        course_version_id,
+        course_publication_id,
         title,
         description,
         video_provider,
@@ -1234,7 +1160,7 @@ export const createLessonDraft = async ({
     `,
     [
       draft.moduleId,
-      module.courseVersionId,
+      module.coursePublicationId,
       draft.title,
       draft.description,
       draft.sortOrder,
@@ -1300,28 +1226,15 @@ export const saveLesson = async ({
   const isRequired = readLessonRequired(formData);
   const sortOrder = readNumber(formData, "sortOrder", 1);
   const moduleId = readString(formData, "moduleId");
-  const compatibleCorrection = formData.get("compatibleCorrection") === "on";
-  const compatibleCorrectionReason = readString(
-    formData,
-    "compatibleCorrectionReason"
-  );
-  const moduleVersionStatus = await assertLessonTargetVersionIsEditable({
-    compatibleCorrection,
-    compatibleCorrectionReason,
-    existingLessonId,
-    isRequired,
-    moduleId,
-    sortOrder,
-    status,
-  });
-  const module = await getCourseAndVersionForModule(moduleId);
+  await assertLessonTargetPublicationIsEditable({ moduleId });
+  const module = await getCourseAndPublicationForModule(moduleId);
 
   if (!module) {
     throw new Error("Modulo invalido.");
   }
   const values = [
     moduleId,
-    module.courseVersionId,
+    module.coursePublicationId,
     readString(formData, "title"),
     readString(formData, "description") || null,
     videoProvider,
@@ -1349,7 +1262,7 @@ export const saveLesson = async ({
       `
         update lessons
         set module_id = $1,
-            course_version_id = $2,
+            course_publication_id = $2,
             title = $3,
             description = $4,
             video_provider = $5,
@@ -1370,30 +1283,12 @@ export const saveLesson = async ({
       `,
       [...values, existingLessonId]
     );
-    if (moduleVersionStatus === "published") {
-      await getPool().query(
-        `
-          insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-          values ($1, 'course_version.compatible_correction', 'lesson', $2, $3::jsonb)
-        `,
-        [
-          actorUserId,
-          existingLessonId,
-          JSON.stringify({
-            courseId: module.courseId,
-            courseVersionId: module.courseVersionId,
-            reason: compatibleCorrectionReason,
-          }),
-        ]
-      );
-    } else {
-      await audit({
-        action: "lesson.updated",
-        actorUserId,
-        targetId: existingLessonId,
-        targetType: "lesson",
-      });
-    }
+    await audit({
+      action: "lesson.updated",
+      actorUserId,
+      targetId: existingLessonId,
+      targetType: "lesson",
+    });
     if (moduleCourseId) {
       await recalculateCourseWorkloadHours(moduleCourseId);
     }
@@ -1412,7 +1307,7 @@ export const saveLesson = async ({
       `
         insert into lessons (
           module_id,
-          course_version_id,
+          course_publication_id,
           title,
           description,
           video_provider,

@@ -41,7 +41,7 @@ const getTestPool = (): Pool => pool;
 
 const createFixture = async (): Promise<{
   courseId: string;
-  courseVersionId: string;
+  coursePublicationId: string;
   lessonId: string;
   userId: string;
 }> => {
@@ -61,27 +61,27 @@ const createFixture = async (): Promise<{
   if (!courseId) {
     throw new Error("Nao foi possivel criar o curso de teste.");
   }
-  const { rows: courseVersionRows } = await testPool.query<{ id: string }>(
+  const { rows: coursePublicationRows } = await testPool.query<{ id: string }>(
     `
-      insert into course_versions (
-        course_id, version_number, status, title_snapshot, workload_hours_snapshot, published_at
+      insert into course_publications (
+        course_id, publication_number, status, title_snapshot, workload_hours_snapshot, published_at
       ) values ($1, 1, 'published', 'Curso de concorrencia', 8, now())
       returning id
     `,
     [courseId]
   );
-  const courseVersionId = courseVersionRows[0]?.id;
-  if (!courseVersionId) {
-    throw new Error("Nao foi possivel criar a versao do curso de teste.");
+  const coursePublicationId = coursePublicationRows[0]?.id;
+  if (!coursePublicationId) {
+    throw new Error("Nao foi possivel criar a publicacao do curso de teste.");
   }
 
   const { rows: moduleRows } = await testPool.query<{ id: string }>(
     `
-      insert into modules (course_id, course_version_id, title, sort_order, status)
+      insert into modules (course_id, course_publication_id, title, sort_order, status)
       values ($1, $2, 'Modulo final', 1, 'active')
       returning id
     `,
-    [courseId, courseVersionId]
+    [courseId, coursePublicationId]
   );
   const moduleId = moduleRows[0]?.id;
 
@@ -93,7 +93,7 @@ const createFixture = async (): Promise<{
     `
       insert into lessons (
         module_id,
-        course_version_id,
+        course_publication_id,
         title,
         duration_seconds,
         video_duration_seconds,
@@ -104,7 +104,7 @@ const createFixture = async (): Promise<{
       values ($1, $2, 'Aula final', 120, 120, 1, 'active', 'jmvstream')
       returning id
     `,
-    [moduleId, courseVersionId]
+    [moduleId, coursePublicationId]
   );
   const lessonId = lessonRows[0]?.id;
 
@@ -121,13 +121,13 @@ const createFixture = async (): Promise<{
   );
   await testPool.query(
     `
-      insert into enrollments (user_id, course_id, course_version_id, status, starts_at, expires_at)
-      values ($1, $2, $3, 'active', now() - interval '1 minute', now() + interval '1 day')
+      insert into enrollments (user_id, course_id, status, starts_at, expires_at)
+      values ($1, $2, 'active', now() - interval '1 minute', now() + interval '1 day')
     `,
-    [userId, courseId, courseVersionId]
+    [userId, courseId]
   );
 
-  return { courseId, courseVersionId, lessonId, userId };
+  return { courseId, coursePublicationId, lessonId, userId };
 };
 
 const countCertificates = async (courseId: string, userId: string) => {
@@ -196,7 +196,7 @@ describe("emissao concorrente de certificado", () => {
       const firstCode = await tryIssueAutomaticCompletionCertificate({
         client: firstClient,
         courseId: fixture.courseId,
-        courseVersionId: fixture.courseVersionId,
+        coursePublicationId: fixture.coursePublicationId,
         courseTitle: "Curso de concorrencia",
         studentName: "Aluna de concorrencia",
         userId: fixture.userId,
@@ -205,7 +205,7 @@ describe("emissao concorrente de certificado", () => {
       const second = tryIssueAutomaticCompletionCertificate({
         client: secondClient,
         courseId: fixture.courseId,
-        courseVersionId: fixture.courseVersionId,
+        coursePublicationId: fixture.coursePublicationId,
         courseTitle: "Curso de concorrencia",
         studentName: "Aluna de concorrencia",
         userId: fixture.userId,

@@ -14,15 +14,15 @@ export const runMaintenance = async (): Promise<{
     ),
     getPool().query(`
       insert into learning_analytics_daily_metrics (
-        metric_date, event_type, course_version_id, lesson_id,
+          metric_date, event_type, course_publication_id, lesson_id,
         event_count, unique_enrollment_count
       )
-      select occurred_at::date, event_type, course_version_id, lesson_id,
+        select occurred_at::date, event_type, course_publication_id, lesson_id,
              count(*)::int, count(distinct enrollment_id)::int
       from learning_analytics_events
       where occurred_at < date_trunc('day', now())
-      group by occurred_at::date, event_type, course_version_id, lesson_id
-      on conflict (metric_date, event_type, course_version_id, lesson_id)
+        group by occurred_at::date, event_type, course_publication_id, lesson_id
+        on conflict (metric_date, event_type, course_publication_id, lesson_id)
       do update set event_count = excluded.event_count,
                     unique_enrollment_count = excluded.unique_enrollment_count,
                     updated_at = now()
