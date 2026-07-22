@@ -101,7 +101,10 @@ const getExpiryWarningDeliveryData = async (enrollmentId: string) => {
 const deliverCertificateRender = async (
   certificateId: string
 ): Promise<void> => {
-  await renderPendingCertificate(certificateId);
+  const isReady = await renderPendingCertificate(certificateId);
+  if (!isReady) {
+    throw unavailableAggregate();
+  }
   const client = await getPool().connect();
   try {
     await client.query("begin");

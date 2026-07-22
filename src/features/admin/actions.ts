@@ -21,6 +21,7 @@ import {
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
 import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
+import { parseCertificateTemplateDraft } from "@/features/certificates/render-snapshot";
 import {
   disableCertificateForCourse,
   publishCertificateTemplate,
@@ -149,7 +150,10 @@ export const publishCoursePublicationAction = async (
   courseId: string
 ): Promise<void> => {
   const session = await requireRole(["admin"]);
-  await publishCoursePublication({ actorUserId: session.user.id, courseId });
+  await publishCoursePublication({
+    actorUserId: session.user.id,
+    courseId,
+  });
   revalidateAdmin();
 };
 
@@ -674,27 +678,67 @@ export const saveCertificateTemplateDraftAction = async (
   if (!(courseId && specValue)) {
     throw new Error("Template de certificado invalido.");
   }
-  const spec = JSON.parse(
-    specValue
-  ) as import("@/features/certificates/template-rules").CertificateTemplateSpec;
-  if (background?.size) {
-    spec.backgroundKey = await uploadCertificateBackground({
+  const spec = parseCertificateTemplateDraft(specValue);
+  const previousDraft = await getPool().query<{
+    background_key: string;
+    signature_key: string | null;
+  }>(
+    `select background_key, signature_key
+     from certificate_templates
+     where course_id = $1 and status = 'draft'
+     limit 1`,
+    [courseId]
+  );
+  const uploadedKeys: string[] = [];
+  let signatureKey = readString(formData, "signatureKey") || null;
+
+  try {
+    if (background?.size) {
+      spec.backgroundKey = await uploadCertificateBackground({
+        courseId,
+        file: background,
+      });
+      uploadedKeys.push(spec.backgroundKey);
+    }
+    signatureKey = signature?.size
+      ? await uploadCertificateSignature({ courseId, file: signature })
+      : signatureKey;
+    if (signature?.size && signatureKey) {
+      uploadedKeys.push(signatureKey);
+    }
+    await saveCertificateTemplateDraft({
       courseId,
-      file: background,
+      signerName: readString(formData, "signerName") || null,
+      signerRole: readString(formData, "signerRole") || null,
+      signatureKey,
+      spec,
     });
+  } catch (error) {
+    if (uploadedKeys.length > 0) {
+      await deleteR2Objects(uploadedKeys);
+    }
+    throw error;
   }
-  const signatureKey = signature?.size
-    ? await uploadCertificateSignature({ courseId, file: signature })
-    : readString(formData, "signatureKey") || null;
-  await saveCertificateTemplateDraft({
-    courseId,
-    signerName: readString(formData, "signerName") || null,
-    signerRole: readString(formData, "signerRole") || null,
-    signatureKey,
-    spec,
-  });
+
+  const replacedKeys = [
+    previousDraft.rows[0]?.background_key,
+    previousDraft.rows[0]?.signature_key,
+  ].filter(
+    (key): key is string =>
+      Boolean(key) && key !== spec.backgroundKey && key !== signatureKey
+  );
+  await deleteR2Objects(replacedKeys);
   revalidateAdmin();
 };
+
+export interface CertificateTemplateActionState {
+  fieldErrors?: Record<string, string>;
+  message?: string;
+  status: "error" | "idle" | "success";
+}
+
+export const certificateTemplateInitialActionState: CertificateTemplateActionState =
+  { status: "idle" };
 
 export const publishCertificateTemplateAction = async (
   courseId: string
@@ -702,6 +746,44 @@ export const publishCertificateTemplateAction = async (
   await requireRole(["admin"]);
   await publishCertificateTemplate(courseId);
   revalidateAdmin();
+};
+
+export const saveCertificateTemplateDraftFormAction = async (
+  _previousState: CertificateTemplateActionState,
+  formData: FormData
+): Promise<CertificateTemplateActionState> => {
+  try {
+    await saveCertificateTemplateDraftAction(formData);
+    return { message: "Rascunho salvo.", status: "success" };
+  } catch (error) {
+    return {
+      fieldErrors: { template: "Revise os campos destacados." },
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel salvar o rascunho.",
+      status: "error",
+    };
+  }
+};
+
+export const publishCertificateTemplateFormAction = async (
+  courseId: string,
+  _previousState: CertificateTemplateActionState,
+  _formData: FormData
+): Promise<CertificateTemplateActionState> => {
+  try {
+    await publishCertificateTemplateAction(courseId);
+    return { message: "Certificado publicado.", status: "success" };
+  } catch (error) {
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel publicar o certificado.",
+      status: "error",
+    };
+  }
 };
 
 export const disableCertificateForCourseAction = async (

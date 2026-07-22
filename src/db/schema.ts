@@ -283,7 +283,6 @@ export const coursePublications = pgTable(
     workloadHoursSnapshot: integer("workload_hours_snapshot")
       .default(0)
       .notNull(),
-    certificateTemplateId: uuid("certificate_template_id"),
     publishedAt: timestamp("published_at", tz),
     retiredAt: timestamp("retired_at", tz),
     ...timestamps,
@@ -943,6 +942,10 @@ export const certificates = pgTable(
     coursePublicationId: uuid("course_publication_id")
       .notNull()
       .references(() => coursePublications.id, { onDelete: "restrict" }),
+    certificateTemplateId: uuid("certificate_template_id").references(
+      () => certificateTemplates.id,
+      { onDelete: "set null" }
+    ),
     code: text("code").notNull().unique(),
     studentNameSnapshot: text("student_name_snapshot").notNull(),
     courseTitleSnapshot: text("course_title_snapshot").notNull(),

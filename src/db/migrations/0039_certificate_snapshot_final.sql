@@ -1,0 +1,1 @@
+-- Snapshot baseline only. Certificate DDL is intentionally owned by 0037_certificate_templates.

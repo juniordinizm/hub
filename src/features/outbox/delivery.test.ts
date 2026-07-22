@@ -30,7 +30,7 @@ describe("outbox email delivery", () => {
         release: vi.fn(),
       }),
     });
-    dependencies.renderPendingCertificate.mockResolvedValue(undefined);
+    dependencies.renderPendingCertificate.mockResolvedValue(true);
 
     await deliverOutboxMessage({
       aggregateId: "certificate-1",
@@ -50,6 +50,29 @@ describe("outbox email delivery", () => {
       expect.stringContaining("insert into outbox_messages"),
       expect.arrayContaining(["email.certificate-issued/certificate-1/v1"])
     );
+  });
+
+  it("does not enqueue a certificate email before the artifact is ready", async () => {
+    const query = vi.fn();
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    });
+    dependencies.renderPendingCertificate.mockResolvedValue(false);
+
+    await expect(
+      deliverOutboxMessage({
+        aggregateId: "certificate-1",
+        aggregateType: "certificate",
+        attempts: 1,
+        id: "outbox-1",
+        idempotencyKey: "certificate.render/certificate-1/v1",
+        payload: { certificateId: "certificate-1" },
+        payloadVersion: 1,
+        topic: "certificate.render",
+      })
+    ).rejects.toMatchObject({ code: "aggregate_not_deliverable" });
+
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("loads certificate recipient data at delivery time and passes its idempotency key", async () => {

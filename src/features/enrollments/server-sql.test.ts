@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
+const readServerSource = async (): Promise<string> =>
+  (await readFile(new URL("./server.ts", import.meta.url), "utf8")).replaceAll(
+    "\r\n",
+    "\n"
+  );
+
 describe("enrollment server SQL contracts", () => {
   it("stores paid access in grants and keeps enrollments as a projection", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const source = await readServerSource();
 
     expect(source).toContain("applyPaidWebhookAccess");
     expect(source).toContain("insert into enrollment_grants");
@@ -15,10 +18,7 @@ describe("enrollment server SQL contracts", () => {
   });
 
   it("does not overwrite the original paid expiration when a paid event is replayed", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const source = await readServerSource();
 
     const paidAccessSource = source.slice(
       source.indexOf("export const applyPaidWebhookAccess"),
@@ -32,10 +32,7 @@ describe("enrollment server SQL contracts", () => {
   });
 
   it("creates manual grants through the same enrollment projection", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const source = await readServerSource();
 
     expect(source).toContain("createManualAccessGrant");
     expect(source).toContain(
@@ -47,10 +44,7 @@ describe("enrollment server SQL contracts", () => {
   });
 
   it("supports manual access blocking without deleting enrollments", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const source = await readServerSource();
 
     expect(source).toContain("blockEnrollmentAccess");
     expect(source).toContain("restoreEnrollmentAccess");
@@ -61,10 +55,7 @@ describe("enrollment server SQL contracts", () => {
   });
 
   it("does not pin a matricula to a publicacao curricular", async () => {
-    const source = await readFile(
-      new URL("./server.ts", import.meta.url),
-      "utf8"
-    );
+    const source = await readServerSource();
 
     const projectionSource = source.slice(
       source.indexOf("export const rebuildEnrollmentProjection"),

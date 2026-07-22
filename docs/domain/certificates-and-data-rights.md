@@ -8,7 +8,7 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Certificados
 
-Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global fornece razão social e CNPJ; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
+Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. A administração recorta a arte na proporção A4 e o servidor decodifica e normaliza o resultado em WebP antes de gravá-lo no R2. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ, é obrigatório para publicar; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
 
 Certificado preserva código público, Conta, Curso, publicação interna de origem, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
 
@@ -22,7 +22,7 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001A Renderização e arquivo imutáveis
 
-A transação vencedora de emissão grava `certificate.render`. A worker gera uma vez o PDF com PDFKit a partir do snapshot, grava-o em chave privada determinística no R2 e somente então grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, emissor, conclusão e hash SHA-256. Repetições não criam outro documento; reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
+A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico por Certificado antes de renderizar, lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se uma worker cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. Apenas depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
 
 ### REG-DAT-002 Revogação preserva histórico
 

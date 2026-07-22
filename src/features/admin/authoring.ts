@@ -330,7 +330,7 @@ export const publishCoursePublication = async ({
 }: {
   actorUserId: string;
   courseId: string;
-}): Promise<void> => {
+}): Promise<"no_draft" | "published"> => {
   const client = await getPool().connect();
 
   try {
@@ -349,7 +349,8 @@ export const publishCoursePublication = async ({
     const coursePublicationId = rows[0]?.id;
 
     if (!coursePublicationId) {
-      throw new Error("Nao ha alteracoes em preparo para publicar.");
+      await client.query("rollback");
+      return "no_draft";
     }
 
     const unavailableVideo = await client.query<{ id: string }>(
@@ -405,6 +406,7 @@ export const publishCoursePublication = async ({
       [actorUserId, coursePublicationId, JSON.stringify({ courseId })]
     );
     await client.query("commit");
+    return "published";
   } catch (error) {
     await client.query("rollback");
     throw error;

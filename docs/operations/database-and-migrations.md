@@ -42,6 +42,10 @@ Renomeações de tabela/coluna exigem que o Drizzle reconheça o pareamento. Qua
 
 A correção de progresso curricular está em `0036_ambitious_shinobi_shaw`: adiciona uma chave estável às Aulas e uma unicidade parcial para publicação `draft`. Foi gerada em terminal interativo; antes de promovê-la, revise o SQL para confirmar que contém somente essas três alterações e valide-a em banco descartável.
 
+### Recuperação de snapshot após migration customizada
+
+Uma migration criada com `--custom` preserva o snapshot anterior. Se o SQL manual alterar o catálogo, nunca reescreva sua migration, journal ou snapshot depois de aplicada. Corrija primeiro `schema.ts`; em terminal interativo, gere uma migration normal de baseline; revise o diff e substitua apenas seu SQL por no-op comentado quando o catálogo do alvo já possuir as alterações. O snapshot e journal produzidos pelo Drizzle passam a ser a nova base para diffs futuros. Valide a cadeia inteira em banco descartável antes da promoção.
+
 ### `0033_default_learning_analytics_preference`
 
 O SQL forward-only renomeia `learning_analytics_consents` para `learning_analytics_preferences`, renomeia `consented_at`/`revoked_at` para `enabled_at`/`disabled_at`, remove `learning_reengagements` e seu enum. A promoção foi aplicada uma vez em 2026-07-22; a segunda execução do migrador não reaplicou alterações. A próxima geração de schema que envolver renomeação deve continuar sendo revisada em terminal interativo para o Drizzle reconhecer o pareamento sem metadata manual.

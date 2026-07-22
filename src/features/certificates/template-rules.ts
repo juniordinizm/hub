@@ -35,6 +35,25 @@ export interface CertificateTemplateSpec {
   fields: CertificateTemplateField[];
 }
 
+export const createDefaultCertificateTemplateFields =
+  (): CertificateTemplateField[] =>
+    CERTIFICATE_FIELDS.map((field, index) => ({
+      align: "center",
+      color: "#17292b",
+      field,
+      font: field === "studentName" ? "Helvetica-Bold" : "Helvetica",
+      fontSize: field === "studentName" ? 30 : 10,
+      height: field === "qrCode" ? 12 : 5,
+      visible: !(
+        field === "courseFreeStatement" ||
+        field === "signatureImage" ||
+        field === "signerName"
+      ),
+      width: field === "qrCode" ? 12 : 70,
+      x: field === "qrCode" ? 82 : 15,
+      y: Math.min(90, 8 + index * 7),
+    }));
+
 const requiredFields = new Set<CertificateField>([
   "studentName",
   "courseTitle",

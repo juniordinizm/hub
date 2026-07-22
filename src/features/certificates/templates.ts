@@ -6,6 +6,11 @@ import {
   uploadPrivateR2Object,
 } from "@/features/storage/r2";
 import { requireRole } from "@/lib/session";
+import { parseCertificateTemplateDraft } from "./render-snapshot";
+import {
+  normalizeCertificateBackground,
+  normalizeCertificateSignature,
+} from "./template-image";
 import type { CertificateTemplateSpec } from "./template-rules";
 import { validateCertificateTemplate } from "./template-rules";
 
@@ -16,6 +21,7 @@ export const uploadCertificateBackground = async ({
   courseId: string;
   file: File;
 }): Promise<string> => {
+  const image = await normalizeCertificateBackground(file);
   if (
     !(
       file.type === "image/png" ||
@@ -26,16 +32,10 @@ export const uploadCertificateBackground = async ({
   ) {
     throw new Error("Envie uma imagem PNG, JPEG ou WebP de até 10 MiB.");
   }
-  let extension = "webp";
-  if (file.type === "image/png") {
-    extension = "png";
-  } else if (file.type === "image/jpeg") {
-    extension = "jpg";
-  }
-  const key = `certificates/templates/${courseId}/${randomUUID()}.${extension}`;
+  const key = `certificates/templates/${courseId}/${randomUUID()}.webp`;
   await uploadPrivateR2Object({
-    body: Buffer.from(await file.arrayBuffer()),
-    contentType: file.type,
+    body: image.body,
+    contentType: image.contentType,
     key,
   });
   return key;
@@ -48,6 +48,7 @@ export const uploadCertificateSignature = async ({
   courseId: string;
   file: File;
 }): Promise<string> => {
+  const image = await normalizeCertificateSignature(file);
   if (
     !(
       file.type === "image/png" ||
@@ -60,16 +61,10 @@ export const uploadCertificateSignature = async ({
       "Envie a assinatura visual em PNG, JPEG ou WebP de ate 2 MiB."
     );
   }
-  let extension = "webp";
-  if (file.type === "image/png") {
-    extension = "png";
-  } else if (file.type === "image/jpeg") {
-    extension = "jpg";
-  }
-  const key = `certificates/templates/${courseId}/signatures/${randomUUID()}.${extension}`;
+  const key = `certificates/templates/${courseId}/signatures/${randomUUID()}.webp`;
   await uploadPrivateR2Object({
-    body: Buffer.from(await file.arrayBuffer()),
-    contentType: file.type,
+    body: image.body,
+    contentType: image.contentType,
     key,
   });
   return key;
@@ -130,6 +125,7 @@ export interface CertificateTemplateSummary {
   backgroundUrl: string;
   id: string;
   signatureKey: string | null;
+  signatureUrl: string | null;
   signerName: string | null;
   signerRole: string | null;
   spec: CertificateTemplateSpec;
@@ -147,7 +143,7 @@ export const getCertificateTemplatesForCourse = async (
     signer_name: string | null;
     signer_role: string | null;
     signature_key: string | null;
-    spec: CertificateTemplateSpec;
+    spec: unknown;
     status: "draft" | "published" | "superseded";
     version: number;
   }>(
@@ -165,11 +161,23 @@ export const getCertificateTemplatesForCourse = async (
       signerName: row.signer_name,
       signerRole: row.signer_role,
       signatureKey: row.signature_key,
-      spec: row.spec,
+      signatureUrl: row.signature_key
+        ? await createR2ObjectReadUrl({ key: row.signature_key })
+        : null,
+      spec: parseCertificateTemplateDraft(row.spec),
       status: row.status,
       version: row.version,
     }))
   );
+};
+
+export const hasCertificateIssuerProfile = async (): Promise<boolean> => {
+  await requireRole(["admin"]);
+  const result = await getPool().query<{ id: string }>(
+    "select id from certificate_issuer_profiles where id = 'global' limit 1"
+  );
+
+  return Boolean(result.rows[0]);
 };
 
 export const publishCertificateTemplate = async (
@@ -178,6 +186,14 @@ export const publishCertificateTemplate = async (
   const client = await getPool().connect();
   try {
     await client.query("begin");
+    const issuer = await client.query<{ id: string }>(
+      "select id from certificate_issuer_profiles where id = 'global' for share"
+    );
+    if (!issuer.rows[0]) {
+      throw new Error(
+        "Preencha o perfil emissor em Configuracoes antes de publicar o certificado."
+      );
+    }
     const draft = await client.query<{ id: string }>(
       "select id from certificate_templates where course_id = $1 and status = 'draft' for update",
       [courseId]

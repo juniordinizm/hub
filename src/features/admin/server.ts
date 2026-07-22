@@ -938,6 +938,20 @@ export const getAdminCourseDetailData = async (
   };
 };
 
+export const getAdminCoursePublicationState = async (
+  courseId: string
+): Promise<{ hasDraft: boolean }> => {
+  await requireAdminReadAccess();
+  const result = await getPool().query<{ id: string }>(
+    `select id from course_publications
+     where course_id = $1 and status = 'draft'
+     limit 1`,
+    [courseId]
+  );
+
+  return { hasDraft: Boolean(result.rows[0]) };
+};
+
 export const getAdminLessonEditorData = async ({
   courseId,
   lessonId,

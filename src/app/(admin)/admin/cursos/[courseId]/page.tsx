@@ -20,8 +20,14 @@ import {
   getAdminCourseContentSignal,
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
-import { getAdminCourseDetailData } from "@/features/admin/server";
-import { getCertificateTemplatesForCourse } from "@/features/certificates/templates";
+import {
+  getAdminCourseDetailData,
+  getAdminCoursePublicationState,
+} from "@/features/admin/server";
+import {
+  getCertificateTemplatesForCourse,
+  hasCertificateIssuerProfile,
+} from "@/features/certificates/templates";
 import {
   formatCourseWorkload,
   summarizeCoursePublicationReadiness,
@@ -45,10 +51,13 @@ export default async function AdminCourseDetailPage({
   params: Promise<{ courseId: string }>;
 }): Promise<React.JSX.Element> {
   const { courseId } = await params;
-  const [data, certificateTemplates] = await Promise.all([
-    getAdminCourseDetailData(courseId),
-    getCertificateTemplatesForCourse(courseId),
-  ]);
+  const [data, certificateTemplates, publicationState, issuerConfigured] =
+    await Promise.all([
+      getAdminCourseDetailData(courseId),
+      getCertificateTemplatesForCourse(courseId),
+      getAdminCoursePublicationState(courseId),
+      hasCertificateIssuerProfile(),
+    ]);
 
   if (!data) {
     notFound();
@@ -106,14 +115,25 @@ export default async function AdminCourseDetailPage({
                   course.id
                 )}
               >
-                <Button size="sm" type="submit" variant="outline">
-                  Preparar alteracoes
+                <Button
+                  disabled={publicationState.hasDraft}
+                  size="sm"
+                  type="submit"
+                  variant="outline"
+                >
+                  {publicationState.hasDraft
+                    ? "Alteracoes em preparo"
+                    : "Preparar alteracoes"}
                 </Button>
               </form>
               <form
                 action={publishCoursePublicationAction.bind(null, course.id)}
               >
-                <Button size="sm" type="submit">
+                <Button
+                  disabled={!publicationState.hasDraft}
+                  size="sm"
+                  type="submit"
+                >
                   Publicar alteracoes
                 </Button>
               </form>
@@ -297,6 +317,7 @@ export default async function AdminCourseDetailPage({
             <CertificateTemplateEditor
               certificateEnabled={course.certificateEnabled}
               courseId={course.id}
+              issuerConfigured={issuerConfigured}
               templates={certificateTemplates}
             />
           </TabsContent>

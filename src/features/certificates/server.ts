@@ -1,18 +1,17 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
-import PDFDocument from "pdfkit";
 import type { PoolClient } from "pg";
-import QRCode from "qrcode";
 import { getPool } from "@/db";
 import {
   type CertificateReasonCode,
   parseCertificateReasonCode,
 } from "@/features/certificates/reasons";
 import {
-  createCertificateCode,
-  getCertificateValidationPath,
-} from "@/features/certificates/rules";
-import { CERTIFICATE_PAGE } from "@/features/certificates/template-rules";
+  parseCertificateRenderSnapshot,
+  parseCertificateTemplateDraft,
+} from "@/features/certificates/render-snapshot";
+import { renderCertificatePdf } from "@/features/certificates/rendering";
+import { createCertificateCode } from "@/features/certificates/rules";
 import { createCertificateRenderMessage } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
@@ -62,11 +61,13 @@ export const tryIssueAutomaticCompletionCertificate = async ({
     spec: unknown;
     issuer_cnpj: string;
     issuer_course_free_statement: string;
+    issuer_display_name: string;
     issuer_legal_name: string;
   }>(
     `
       select ct.id, ct.version, ct.background_key, ct.spec, ct.signer_name, ct.signer_role, ct.signature_key,
              issuer.cnpj as issuer_cnpj, issuer.legal_name as issuer_legal_name,
+             issuer.display_name as issuer_display_name,
              issuer.course_free_statement as issuer_course_free_statement
       from courses c
       join certificate_templates ct on ct.course_id = c.id and ct.status = 'published'
@@ -81,6 +82,29 @@ export const tryIssueAutomaticCompletionCertificate = async ({
     return null;
   }
   const candidateCode = createCertificateCode(randomUUID());
+  const issuedAt = new Date().toISOString();
+  const renderSnapshot = parseCertificateRenderSnapshot({
+    certificate: { code: candidateCode, issuedAt },
+    completion: { completedAt: completedAt.toISOString() },
+    course: { title: courseTitle, workloadHours },
+    issuer: {
+      cnpj: templateSnapshot.issuer_cnpj,
+      courseFreeStatement: templateSnapshot.issuer_course_free_statement,
+      displayName: templateSnapshot.issuer_display_name,
+      legalName: templateSnapshot.issuer_legal_name,
+    },
+    student: { name: studentName },
+    template: {
+      backgroundKey: templateSnapshot.background_key,
+      fields: parseCertificateTemplateDraft(templateSnapshot.spec).fields,
+      id: templateSnapshot.id,
+      signatureKey: templateSnapshot.signature_key,
+      signerName: templateSnapshot.signer_name,
+      signerRole: templateSnapshot.signer_role,
+      version: templateSnapshot.version,
+    },
+    version: 1,
+  });
   const certificate = await client.query<{ code: string }>(
     `
       insert into certificates (
@@ -106,17 +130,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
       courseTitle,
       workloadHours,
       templateSnapshot.id,
-      JSON.stringify({
-        completedAt: completedAt.toISOString(),
-        courseTitle,
-        issuedAt: new Date().toISOString(),
-        studentName,
-        workloadHours,
-        issuerName: templateSnapshot.issuer_legal_name,
-        issuerCnpj: templateSnapshot.issuer_cnpj,
-        courseFreeStatement: templateSnapshot.issuer_course_free_statement,
-        template: templateSnapshot,
-      }),
+      JSON.stringify(renderSnapshot),
     ]
   );
 
@@ -276,6 +290,7 @@ const issueCertificate = async ({
     spec: unknown;
     issuer_cnpj: string;
     issuer_course_free_statement: string;
+    issuer_display_name: string;
     issuer_legal_name: string;
   }>(
     `
@@ -292,6 +307,7 @@ const issueCertificate = async ({
         ct.signature_key,
         issuer.cnpj as issuer_cnpj,
         issuer.legal_name as issuer_legal_name,
+        issuer.display_name as issuer_display_name,
         issuer.course_free_statement as issuer_course_free_statement
       from users u
       join course_publications cp on cp.course_id = $2 and cp.id = $3
@@ -308,6 +324,34 @@ const issueCertificate = async ({
   if (!source) {
     throw new Error("Aluna ou curso nao localizado.");
   }
+
+  const certificateCode = randomUUID();
+  const issuedAt = new Date().toISOString();
+  const renderSnapshot = parseCertificateRenderSnapshot({
+    certificate: { code: certificateCode, issuedAt },
+    completion: { completedAt: new Date().toISOString() },
+    course: {
+      title: source.course_title,
+      workloadHours: source.workload_hours,
+    },
+    issuer: {
+      cnpj: source.issuer_cnpj,
+      courseFreeStatement: source.issuer_course_free_statement,
+      displayName: source.issuer_display_name,
+      legalName: source.issuer_legal_name,
+    },
+    student: { name: source.student_name },
+    template: {
+      backgroundKey: source.background_key,
+      fields: parseCertificateTemplateDraft(source.spec).fields,
+      id: source.template_id,
+      signatureKey: source.signature_key,
+      signerName: source.signer_name,
+      signerRole: source.signer_role,
+      version: source.template_version,
+    },
+    version: 1,
+  });
 
   const certificate = await client.query<{ id: string }>(
     `
@@ -330,30 +374,13 @@ const issueCertificate = async ({
       userId,
       courseId,
       coursePublicationId,
-      randomUUID(),
+      certificateCode,
       source.student_name,
       source.course_title,
       source.workload_hours,
       replacesCertificateId ?? null,
       source.template_id,
-      JSON.stringify({
-        completedAt: new Date().toISOString(),
-        courseTitle: source.course_title,
-        issuedAt: new Date().toISOString(),
-        studentName: source.student_name,
-        workloadHours: source.workload_hours,
-        issuerName: source.issuer_legal_name,
-        issuerCnpj: source.issuer_cnpj,
-        courseFreeStatement: source.issuer_course_free_statement,
-        template: {
-          background_key: source.background_key,
-          signer_name: source.signer_name,
-          signer_role: source.signer_role,
-          signature_key: source.signature_key,
-          spec: source.spec,
-          version: source.template_version,
-        },
-      }),
+      JSON.stringify(renderSnapshot),
     ]
   );
   const certificateId = certificate.rows[0]?.id;
@@ -748,190 +775,97 @@ export const getCertificateOperationsForUser = async (
   }));
 };
 
-const drawCertificateTemplateFields = async ({
-  doc,
-  fields,
-  pageHeight,
-  pageWidth,
-  qrDataUrl,
-  signatureResponse,
-  values,
-}: {
-  doc: PDFKit.PDFDocument;
-  fields: Array<{
-    align: "center" | "left" | "right";
-    color: string;
-    field: string;
-    font?: "Helvetica" | "Helvetica-Bold";
-    fontSize: number;
-    height: number;
-    visible: boolean;
-    width: number;
-    x: number;
-    y: number;
-  }>;
-  pageHeight: number;
-  pageWidth: number;
-  qrDataUrl: string;
-  signatureResponse: Response | null;
-  values: Record<string, string>;
-}): Promise<void> => {
-  for (const field of fields) {
-    if (!field.visible) {
-      continue;
-    }
-    const x = (field.x / 100) * pageWidth;
-    const y = (field.y / 100) * pageHeight;
-    const width = (field.width / 100) * pageWidth;
-    const height = (field.height / 100) * pageHeight;
-    if (field.field === "qrCode") {
-      doc.image(Buffer.from(qrDataUrl.split(",")[1] ?? "", "base64"), x, y, {
-        width,
-        height,
-      });
-      continue;
-    }
-    if (field.field === "signatureImage") {
-      if (signatureResponse?.ok) {
-        doc.image(Buffer.from(await signatureResponse.arrayBuffer()), x, y, {
-          fit: [width, height],
-        });
-      }
-      continue;
-    }
-    const value = values[field.field];
-    if (value) {
-      doc
-        .font(field.font ?? "Helvetica")
-        .fillColor(field.color)
-        .fontSize(field.fontSize)
-        .text(value, x, y, { align: field.align, height, width });
-    }
-  }
-};
-
-const formatCertificateDate = (value: string | undefined): string =>
-  new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value ?? 0));
-
 export const renderPendingCertificate = async (
   certificateId: string
-): Promise<void> => {
-  const { rows } = await getPool().query<{
-    code: string;
-    course_title_snapshot: string;
-    student_name_snapshot: string;
-    workload_hours_snapshot: number;
-    render_snapshot: {
-      template?: {
-        background_key?: string;
-        spec?: {
-          fields?: Array<{
-            field: string;
-            x: number;
-            y: number;
-            width: number;
-            height: number;
-            fontSize: number;
-            color: string;
-            align: "center" | "left" | "right";
-            visible: boolean;
-          }>;
-        };
-        signer_name?: string | null;
-        signature_key?: string | null;
-      };
-      completedAt?: string;
-      issuedAt?: string;
-      issuerCnpj?: string;
-      courseFreeStatement?: string;
-      issuerName?: string;
-    } | null;
-  }>(
-    `select code, course_title_snapshot, student_name_snapshot, workload_hours_snapshot, render_snapshot from certificates where id = $1 and render_status = 'pending' limit 1`,
-    [certificateId]
-  );
-  const certificate = rows[0];
-  if (!certificate) {
-    return;
+): Promise<boolean> => {
+  const client = await getPool().connect();
+  let claimed = false;
+
+  try {
+    const claim = await client.query<{ claimed: boolean }>(
+      "select pg_try_advisory_lock(hashtext($1)) as claimed",
+      [certificateId]
+    );
+    claimed = claim.rows[0]?.claimed ?? false;
+    if (!claimed) {
+      throw new Error("certificate_render_in_progress");
+    }
+
+    const { rows } = await client.query<{ render_snapshot: unknown }>(
+      `select render_snapshot from certificates where id = $1 and render_status = 'pending' limit 1`,
+      [certificateId]
+    );
+    const certificate = rows[0];
+    if (!certificate) {
+      const ready = await client.query<{ id: string }>(
+        `select id from certificates
+         where id = $1 and status = 'valid' and render_status = 'ready'
+         limit 1`,
+        [certificateId]
+      );
+      return Boolean(ready.rows[0]);
+    }
+
+    const snapshot = parseCertificateRenderSnapshot(
+      certificate.render_snapshot
+    );
+    const key = `certificates/${certificateId}/certificate.pdf`;
+    const existingResponse = await fetch(await createR2ObjectReadUrl({ key }));
+    const pdf = existingResponse.ok
+      ? Buffer.from(await existingResponse.arrayBuffer())
+      : null;
+    const artifact = pdf
+      ? {
+          pdf,
+          sha256: createHash("sha256").update(pdf).digest("hex"),
+        }
+      : await (async () => {
+          const [backgroundResponse, signatureResponse] = await Promise.all([
+            fetch(
+              await createR2ObjectReadUrl({
+                key: snapshot.template.backgroundKey,
+              })
+            ),
+            snapshot.template.signatureKey
+              ? fetch(
+                  await createR2ObjectReadUrl({
+                    key: snapshot.template.signatureKey,
+                  })
+                )
+              : Promise.resolve(null),
+          ]);
+          if (!backgroundResponse.ok) {
+            throw new Error("certificate_background_unavailable");
+          }
+          const rendered = await renderCertificatePdf({
+            background: Buffer.from(await backgroundResponse.arrayBuffer()),
+            publicBaseUrl: getServerEnv().CERTIFICATE_PUBLIC_BASE_URL,
+            signature: signatureResponse?.ok
+              ? Buffer.from(await signatureResponse.arrayBuffer())
+              : null,
+            snapshot,
+          });
+          await uploadPrivateR2Object({
+            body: rendered.pdf,
+            contentType: "application/pdf",
+            key,
+          });
+          return rendered;
+        })();
+
+    const result = await client.query(
+      `update certificates set pdf_storage_key = $2, pdf_sha256 = $3, rendered_at = now(), render_status = 'ready', updated_at = now() where id = $1 and render_status = 'pending'`,
+      [certificateId, key, artifact.sha256]
+    );
+    return result.rowCount === 1;
+  } finally {
+    if (claimed) {
+      await client.query("select pg_advisory_unlock(hashtext($1))", [
+        certificateId,
+      ]);
+    }
+    client.release();
   }
-  const snapshot = certificate.render_snapshot;
-  const template = snapshot?.template;
-  const backgroundKey = template?.background_key;
-  if (typeof backgroundKey !== "string" || !backgroundKey) {
-    throw new Error("certificate_render_snapshot_missing");
-  }
-  const validationUrl = new URL(
-    getCertificateValidationPath(certificate.code),
-    getServerEnv().CERTIFICATE_PUBLIC_BASE_URL
-  ).toString();
-  const signatureKey = template?.signature_key;
-  const [backgroundResponse, qrDataUrl, signatureResponse] = await Promise.all([
-    fetch(await createR2ObjectReadUrl({ key: backgroundKey })),
-    QRCode.toDataURL(validationUrl, { margin: 1 }),
-    signatureKey
-      ? fetch(await createR2ObjectReadUrl({ key: signatureKey }))
-      : Promise.resolve(null),
-  ]);
-  if (!backgroundResponse.ok) {
-    throw new Error("certificate_background_unavailable");
-  }
-  const issuedAt = new Date(snapshot?.issuedAt ?? 0);
-  const doc = new PDFDocument({
-    info: {
-      CreationDate: issuedAt,
-      Title: `Certificado ${certificate.code}`,
-    },
-    layout: "landscape",
-    margin: 0,
-    size: "A4",
-  });
-  const chunks: Buffer[] = [];
-  doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-  const pointsPerMillimeter = 72 / 25.4;
-  const pageWidth = CERTIFICATE_PAGE.width * pointsPerMillimeter;
-  const pageHeight = CERTIFICATE_PAGE.height * pointsPerMillimeter;
-  doc.image(Buffer.from(await backgroundResponse.arrayBuffer()), 0, 0, {
-    width: pageWidth,
-    height: pageHeight,
-  });
-  const values: Record<string, string> = {
-    studentName: certificate.student_name_snapshot,
-    courseTitle: certificate.course_title_snapshot,
-    workloadHours: `${certificate.workload_hours_snapshot} horas`,
-    issuerName: snapshot?.issuerName ?? "",
-    issuerCnpj: snapshot?.issuerCnpj ?? "",
-    courseFreeStatement: snapshot?.courseFreeStatement ?? "",
-    signerName: template?.signer_name ?? "",
-    issuedAt: formatCertificateDate(snapshot?.issuedAt),
-    completedAt: formatCertificateDate(snapshot?.completedAt),
-    validationCode: certificate.code,
-  };
-  await drawCertificateTemplateFields({
-    doc,
-    fields: template?.spec?.fields ?? [],
-    pageHeight,
-    pageWidth,
-    qrDataUrl,
-    signatureResponse,
-    values,
-  });
-  doc.end();
-  const pdf = await new Promise<Buffer>((resolve) =>
-    doc.on("end", () => resolve(Buffer.concat(chunks)))
-  );
-  const key = `certificates/${certificateId}/certificate.pdf`;
-  await uploadPrivateR2Object({
-    body: pdf,
-    contentType: "application/pdf",
-    key,
-  });
-  const hash = createHash("sha256").update(pdf).digest("hex");
-  await getPool().query(
-    `update certificates set pdf_storage_key = $2, pdf_sha256 = $3, rendered_at = now(), render_status = 'ready', updated_at = now() where id = $1 and render_status = 'pending'`,
-    [certificateId, key, hash]
-  );
 };
 
 export const markCertificateRenderFailed = async (

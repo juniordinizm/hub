@@ -18,7 +18,8 @@ O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/feat
 
 Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o certificado fica `failed`; o reprocessamento manual autorizado devolve o certificado a `pending` antes de reentregar a mesma mensagem.
 
-- `email.certificate-issued`: emitido por `completeLesson`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
+- `certificate.render`: emitido na transação de emissão; agregado `certificate`; chave `certificate.render/<certificate-id>/v1`; payload somente `certificateId`. Ele é o único evento que pode criar o PDF.
+- `email.certificate-issued`: emitido somente pela entrega bem-sucedida de `certificate.render`, depois que o Certificado está `ready`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
 - `email.access-released`: emitido no webhook AbacatePay quando a Conta já possui credencial; agregado `order`; chave `email.access-released/<order-id>/v1`; payload somente `userId` e `courseId`.
 - `email.access-expiry-warning`: emitido pela manutenção de Matrícula; agregado `enrollment`; chave por Matrícula e janela `1d` ou `7d`; payload somente `enrollmentId` e `warningKind`.
 
