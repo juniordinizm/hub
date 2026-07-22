@@ -8,15 +8,15 @@ export default function Loading(): React.JSX.Element {
         <header className="border-b pb-6">
           <div className="space-y-3">
             <Skeleton className="h-9 w-64" />
-            <Skeleton className="h-5 w-full max-w-[400px]" />
+            <Skeleton className="h-5 w-full max-w-100" />
           </div>
         </header>
 
         <section className="grid gap-4">
           <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
             <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-[150px]" />
-              <Skeleton className="h-4 w-[100px]" />
+              <Skeleton className="h-6 w-37.5" />
+              <Skeleton className="h-4 w-25" />
             </div>
             <div className="p-6 pt-0">
               <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:divide-x md:border-t md:pt-4">
@@ -42,16 +42,16 @@ export default function Loading(): React.JSX.Element {
 
           <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
             <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-[200px]" />
-              <Skeleton className="h-4 w-[350px]" />
+              <Skeleton className="h-6 w-50" />
+              <Skeleton className="h-4 w-87.5" />
             </div>
             <div className="space-y-4 p-6 pt-0">
               <div className="space-y-2">
-                <Skeleton className="h-4 w-[150px]" />
+                <Skeleton className="h-4 w-37.5" />
                 <Skeleton className="h-10 w-full" />
               </div>
               <div className="space-y-2">
-                <Skeleton className="h-4 w-[150px]" />
+                <Skeleton className="h-4 w-37.5" />
                 <Skeleton className="h-10 w-full" />
               </div>
               <Skeleton className="mt-4 h-10 w-full" />
@@ -60,11 +60,11 @@ export default function Loading(): React.JSX.Element {
 
           <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
             <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-[250px]" />
-              <Skeleton className="h-4 w-[350px]" />
+              <Skeleton className="h-6 w-62.5" />
+              <Skeleton className="h-4 w-87.5" />
             </div>
             <div className="space-y-4 p-6 pt-0">
-              <Skeleton className="h-[200px] w-full" />
+              <Skeleton className="h-50 w-full" />
             </div>
           </div>
         </section>

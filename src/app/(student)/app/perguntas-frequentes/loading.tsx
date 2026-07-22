@@ -9,7 +9,7 @@ export default function Loading(): React.JSX.Element {
           <div className="flex flex-col gap-4">
             <div className="space-y-3">
               <Skeleton className="h-9 w-64" />
-              <Skeleton className="h-5 w-full max-w-[400px]" />
+              <Skeleton className="h-5 w-full max-w-100" />
             </div>
           </div>
         </header>
