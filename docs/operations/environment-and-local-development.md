@@ -19,6 +19,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `DATABASE_URL` | runtime com banco | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | migrations/auditoria; fallback para `DATABASE_URL` | `drizzle.config.ts` | sim |
 | `E2E_TEST_MODE` | somente CI com `CI=true` | limite Better Auth | não |
+| `E2E_DATABASE_URL` | Playwright; banco descartável já migrado | seed e servidor E2E | sim |
 | `LOCAL_DATABASE_NAMES` | reset local | proteção de comando destrutivo | não |
 | `SMOKE_DATABASE_URL` | `db:smoke:empty` | smoke PostgreSQL | sim |
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |

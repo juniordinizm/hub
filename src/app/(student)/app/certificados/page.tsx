@@ -72,14 +72,20 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
                     {certificate.code}
                   </CardDescription>
                   <CardAction className="flex gap-2">
-                    <Button asChild>
-                      <Link
-                        href={route(`/certificados/${certificate.code}/pdf`)}
-                      >
-                        <HugeiconsIcon icon={Download01Icon} />
-                        Baixar PDF
-                      </Link>
-                    </Button>
+                    {certificate.renderStatus === "ready" ? (
+                      <Button asChild>
+                        <Link
+                          href={route(
+                            `/app/certificados/${certificate.code}/pdf`
+                          )}
+                        >
+                          <HugeiconsIcon icon={Download01Icon} />
+                          Baixar PDF
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button disabled>Preparando PDF</Button>
+                    )}
                     <Button asChild variant="outline">
                       <Link href={route(`/certificados/${certificate.code}`)}>
                         <HugeiconsIcon icon={FileValidationIcon} />

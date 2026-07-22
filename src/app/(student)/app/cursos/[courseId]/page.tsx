@@ -35,6 +35,25 @@ function getCourseButtonLabel(
   return "Rever trilha";
 }
 
+function getCertificateHelper({
+  certificateCode,
+  certificateRenderStatus,
+  completedCount,
+  totalCount,
+}: {
+  certificateCode: string | null;
+  certificateRenderStatus: "failed" | "pending" | "ready" | null;
+  completedCount: number;
+  totalCount: number;
+}): string {
+  if (certificateCode) {
+    return certificateRenderStatus === "ready"
+      ? "Seu certificado esta disponivel para download em Meus certificados."
+      : "Voce concluiu o curso. Estamos preparando seu PDF.";
+  }
+  return `Faltam ${Math.max(0, totalCount - completedCount)} aulas obrigatorias. O certificado usara o nome do seu perfil.`;
+}
+
 export default async function StudentCourseOverviewPage({
   params,
   searchParams,
@@ -162,6 +181,20 @@ export default async function StudentCourseOverviewPage({
               </div>
             </div>
           </header>
+          {data.certificateEnabled ? (
+            <section className="rounded-lg border bg-card p-4">
+              <h2 className="font-semibold">Certificado de conclusao</h2>
+              <p className="mt-1 text-muted-foreground text-sm">
+                {getCertificateHelper(data)}
+              </p>
+              <Link
+                className="mt-2 inline-block text-sm underline"
+                href={route("/app/configuracoes")}
+              >
+                Conferir nome no perfil
+              </Link>
+            </section>
+          ) : null}
         </div>
       </div>
 

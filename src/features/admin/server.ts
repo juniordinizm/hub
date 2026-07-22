@@ -110,6 +110,7 @@ export interface AdminCertificate {
 
 export interface AdminCourse {
   accessDurationMonths: number;
+  certificateEnabled: boolean;
   coverImage: unknown;
   description: string | null;
   id: string;
@@ -202,6 +203,10 @@ export interface AdminOrder {
 export interface AdminSettings {
   certificateSignerName: string | null;
   certificateSignerRole: string | null;
+  issuerCnpj: string | null;
+  issuerCourseFreeStatement: string | null;
+  issuerDisplayName: string | null;
+  issuerLegalName: string | null;
 }
 
 export interface AdminLessonAsset {
@@ -239,6 +244,7 @@ const requireAdminReadAccess = (): Promise<void> =>
 const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
   const { rows } = await getPool().query<{
     access_duration_months: number;
+    certificate_enabled: boolean;
     description: string | null;
     id: string;
     payment_provider_product_id: string | null;
@@ -252,13 +258,14 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     workload_hours: number;
   }>(
     courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, status from courses order by created_at desc",
+      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, certificate_enabled, status from courses where id = $1"
+      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, certificate_enabled, status from courses order by created_at desc",
     courseId ? [courseId] : undefined
   );
 
   return rows.map((row) => ({
     accessDurationMonths: row.access_duration_months,
+    certificateEnabled: row.certificate_enabled,
     description: row.description,
     id: row.id,
     paymentProviderProductId: row.payment_provider_product_id,
@@ -693,10 +700,22 @@ const readSettings = async (): Promise<AdminSettings> => {
     "select certificate_signer_name, certificate_signer_role from app_settings where id = 'global' limit 1"
   );
   const settings = rows[0];
+  const issuer = await getPool().query<{
+    cnpj: string;
+    course_free_statement: string;
+    display_name: string;
+    legal_name: string;
+  }>(
+    "select cnpj, display_name, legal_name, course_free_statement from certificate_issuer_profiles where id = 'global' limit 1"
+  );
 
   return {
     certificateSignerName: settings?.certificate_signer_name ?? null,
     certificateSignerRole: settings?.certificate_signer_role ?? null,
+    issuerCnpj: issuer.rows[0]?.cnpj ?? null,
+    issuerCourseFreeStatement: issuer.rows[0]?.course_free_statement ?? null,
+    issuerDisplayName: issuer.rows[0]?.display_name ?? null,
+    issuerLegalName: issuer.rows[0]?.legal_name ?? null,
   };
 };
 

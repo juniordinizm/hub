@@ -203,6 +203,17 @@ export const requeueDeadLetterMessage = async ({
   }
 
   await client.query(
+    `update certificates as certificate
+     set render_status = 'pending', updated_at = now()
+     from outbox_messages as message
+     where message.id = $1
+       and message.topic = 'certificate.render'
+       and certificate.id = (message.payload ->> 'certificateId')::uuid
+       and certificate.render_status = 'failed'`,
+    [messageId]
+  );
+
+  await client.query(
     `
       insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
       values ($1, 'outbox.requeued', 'outbox_message', $2, jsonb_build_object('reason', $3))

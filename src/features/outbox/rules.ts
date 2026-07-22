@@ -2,6 +2,7 @@ export const OUTBOX_TOPICS = {
   accessExpiryWarning: "email.access-expiry-warning",
   accessReleased: "email.access-released",
   certificateIssued: "email.certificate-issued",
+  certificateRender: "certificate.render",
 } as const;
 
 export type OutboxTopic = (typeof OUTBOX_TOPICS)[keyof typeof OUTBOX_TOPICS];
@@ -37,6 +38,19 @@ export const createCertificateIssuedMessage = ({
   payload: { certificateId },
   payloadVersion: 1,
   topic: OUTBOX_TOPICS.certificateIssued,
+});
+
+export const createCertificateRenderMessage = ({
+  certificateId,
+}: {
+  certificateId: string;
+}): OutboxMessageInput => ({
+  aggregateId: certificateId,
+  aggregateType: "certificate",
+  idempotencyKey: `${OUTBOX_TOPICS.certificateRender}/${certificateId}/v1`,
+  payload: { certificateId },
+  payloadVersion: 1,
+  topic: OUTBOX_TOPICS.certificateRender,
 });
 
 export const createPaidAccessReleasedMessage = ({
@@ -84,7 +98,10 @@ export const parseOutboxPayload = ({
     throw unsupportedPayloadVersion();
   }
 
-  if (topic === OUTBOX_TOPICS.certificateIssued) {
+  if (
+    topic === OUTBOX_TOPICS.certificateIssued ||
+    topic === OUTBOX_TOPICS.certificateRender
+  ) {
     const certificateId = (payload as { certificateId?: unknown })
       .certificateId;
     if (typeof certificateId === "string" && certificateId) {

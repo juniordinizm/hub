@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
+  renderPendingCertificate: vi.fn(),
   sendAccessExpiryWarningEmail: vi.fn(),
   sendAccessReleasedEmail: vi.fn(),
   sendCertificateIssuedEmail: vi.fn(),
@@ -9,6 +10,9 @@ const dependencies = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
+vi.mock("@/features/certificates/server", () => ({
+  renderPendingCertificate: dependencies.renderPendingCertificate,
+}));
 vi.mock("@/features/email/server", () => ({
   sendAccessExpiryWarningEmail: dependencies.sendAccessExpiryWarningEmail,
   sendAccessReleasedEmail: dependencies.sendAccessReleasedEmail,
@@ -18,6 +22,36 @@ vi.mock("@/features/email/server", () => ({
 import { deliverOutboxMessage } from "./delivery";
 
 describe("outbox email delivery", () => {
+  it("renders the immutable PDF before enqueueing the certificate email", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({
+        query,
+        release: vi.fn(),
+      }),
+    });
+    dependencies.renderPendingCertificate.mockResolvedValue(undefined);
+
+    await deliverOutboxMessage({
+      aggregateId: "certificate-1",
+      aggregateType: "certificate",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "certificate.render/certificate-1/v1",
+      payload: { certificateId: "certificate-1" },
+      payloadVersion: 1,
+      topic: "certificate.render",
+    });
+
+    expect(dependencies.renderPendingCertificate).toHaveBeenCalledWith(
+      "certificate-1"
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("insert into outbox_messages"),
+      expect.arrayContaining(["email.certificate-issued/certificate-1/v1"])
+    );
+  });
+
   it("loads certificate recipient data at delivery time and passes its idempotency key", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [

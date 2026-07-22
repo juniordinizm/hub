@@ -14,6 +14,10 @@ O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/feat
 
 ## Catálogo aprovado
 
+`certificate.render` é idempotente por certificado. A entrega gera o PDF privado quando `render_status = pending`, salva hash e chave R2, muda para `ready` e só então enfileira `email.certificate-issued`. Uma tentativa repetida encontra o mesmo certificado/artefato e não cria novo documento ou e-mail.
+
+Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o certificado fica `failed`; o reprocessamento manual autorizado devolve o certificado a `pending` antes de reentregar a mesma mensagem.
+
 - `email.certificate-issued`: emitido por `completeLesson`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
 - `email.access-released`: emitido no webhook AbacatePay quando a Conta já possui credencial; agregado `order`; chave `email.access-released/<order-id>/v1`; payload somente `userId` e `courseId`.
 - `email.access-expiry-warning`: emitido pela manutenção de Matrícula; agregado `enrollment`; chave por Matrícula e janela `1d` ou `7d`; payload somente `enrollmentId` e `warningKind`.

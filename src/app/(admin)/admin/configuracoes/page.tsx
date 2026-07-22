@@ -119,6 +119,36 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               <form action={saveSettingsAction}>
                 <FieldGroup>
                   <Field>
+                    <FieldLabel>Razão social emissora</FieldLabel>
+                    <Input
+                      defaultValue={data.settings.issuerLegalName ?? ""}
+                      name="issuerLegalName"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Marca exibida</FieldLabel>
+                    <Input
+                      defaultValue={data.settings.issuerDisplayName ?? ""}
+                      name="issuerDisplayName"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>CNPJ emissor</FieldLabel>
+                    <Input
+                      defaultValue={data.settings.issuerCnpj ?? ""}
+                      name="issuerCnpj"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Texto padrão de curso livre</FieldLabel>
+                    <Input
+                      defaultValue={
+                        data.settings.issuerCourseFreeStatement ?? ""
+                      }
+                      name="issuerCourseFreeStatement"
+                    />
+                  </Field>
+                  <Field>
                     <FieldLabel>Nome da assinatura</FieldLabel>
                     <Input
                       defaultValue={data.settings.certificateSignerName ?? ""}

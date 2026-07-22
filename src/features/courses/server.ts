@@ -99,6 +99,8 @@ export interface ModuleWithLessons {
 
 export interface StudentCourseOverviewData {
   certificateCode: string | null;
+  certificateEnabled: boolean;
+  certificateRenderStatus: "failed" | "pending" | "ready" | null;
   completedCount: number;
   course: {
     description: string | null;
@@ -226,6 +228,8 @@ type StudentCatalogCourseAggregate = StudentCatalogCourseCard & {
 
 interface CourseOverviewRow {
   certificate_code: string | null;
+  certificate_enabled: boolean;
+  certificate_render_status: "failed" | "pending" | "ready" | null;
   completed_at: Date | null;
   course_description: string | null;
   course_id: string;
@@ -703,6 +707,8 @@ const getEnrolledCourseOverview = async ({
         c.thumbnail_url,
         e.expires_at,
         cert.code as certificate_code,
+        c.certificate_enabled,
+        cert.render_status as certificate_render_status,
         m.id as module_id,
         m.title as module_title,
         m.description as module_description,
@@ -813,6 +819,8 @@ const getEnrolledCourseOverview = async ({
 
   return {
     certificateCode: firstRow.certificate_code,
+    certificateEnabled: firstRow.certificate_enabled,
+    certificateRenderStatus: firstRow.certificate_render_status,
     completedCount: progress.completedCount,
     course: {
       id: firstRow.course_id,
@@ -924,6 +932,8 @@ const getPreviewCourseOverview = async ({
 
   return {
     certificateCode: null,
+    certificateEnabled: false,
+    certificateRenderStatus: null,
     completedCount: 0,
     course: {
       id: firstRow.course_id,

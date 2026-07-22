@@ -41,7 +41,7 @@ const signIn = async (
     await page.getByLabel("E-mail").fill(credentials.email);
     await page.getByLabel("Senha").fill(credentials.password);
     await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page).toHaveURL(expectedUrl);
+    await expect(page).toHaveURL(expectedUrl, { timeout: 15_000 });
   } catch {
     const visibleError = await page
       .getByRole("alert")

@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
+import { markCertificateRenderFailed } from "@/features/certificates/server";
 import { deliverOutboxMessage } from "./delivery";
 import {
   claimOutboxMessages,
@@ -68,6 +69,9 @@ export const runOutboxWorker = async ({
       } else if (outcome === "retrying") {
         result.retried += 1;
       } else {
+        if (message.topic === "certificate.render") {
+          await markCertificateRenderFailed(message.aggregateId);
+        }
         result.deadLettered += 1;
       }
     }

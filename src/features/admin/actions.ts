@@ -21,6 +21,13 @@ import {
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
 import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
+import {
+  disableCertificateForCourse,
+  publishCertificateTemplate,
+  saveCertificateTemplateDraft,
+  uploadCertificateBackground,
+  uploadCertificateSignature,
+} from "@/features/certificates/templates";
 import type { ExpirationChangeResult } from "@/features/enrollments/server";
 import {
   completeJmvstreamUpload,
@@ -630,12 +637,78 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
       readString(formData, "certificateSignerRole") || null,
     ]
   );
+  const legalName = readString(formData, "issuerLegalName");
+  const displayName = readString(formData, "issuerDisplayName");
+  const cnpj = readString(formData, "issuerCnpj");
+  const courseFreeStatement = readString(formData, "issuerCourseFreeStatement");
+  if (legalName && cnpj) {
+    await getPool().query(
+      `insert into certificate_issuer_profiles (id, legal_name, cnpj, display_name, course_free_statement)
+     values ('global', $1, $2, $3, $4)
+     on conflict (id) do update set legal_name = excluded.legal_name, cnpj = excluded.cnpj, display_name = excluded.display_name, course_free_statement = excluded.course_free_statement, updated_at = now()`,
+      [
+        legalName,
+        cnpj,
+        displayName || legalName,
+        courseFreeStatement || "Certificado de conclusao de curso livre.",
+      ]
+    );
+  }
   await audit({
     action: "settings.updated",
     actorUserId: session.user.id,
     targetId: "global",
     targetType: "settings",
   });
+  revalidateAdmin();
+};
+
+export const saveCertificateTemplateDraftAction = async (
+  formData: FormData
+): Promise<void> => {
+  await requireRole(["admin"]);
+  const courseId = readString(formData, "courseId");
+  const specValue = readString(formData, "spec");
+  const background = formData.get("background") as File | null;
+  const signature = formData.get("signature") as File | null;
+  if (!(courseId && specValue)) {
+    throw new Error("Template de certificado invalido.");
+  }
+  const spec = JSON.parse(
+    specValue
+  ) as import("@/features/certificates/template-rules").CertificateTemplateSpec;
+  if (background?.size) {
+    spec.backgroundKey = await uploadCertificateBackground({
+      courseId,
+      file: background,
+    });
+  }
+  const signatureKey = signature?.size
+    ? await uploadCertificateSignature({ courseId, file: signature })
+    : readString(formData, "signatureKey") || null;
+  await saveCertificateTemplateDraft({
+    courseId,
+    signerName: readString(formData, "signerName") || null,
+    signerRole: readString(formData, "signerRole") || null,
+    signatureKey,
+    spec,
+  });
+  revalidateAdmin();
+};
+
+export const publishCertificateTemplateAction = async (
+  courseId: string
+): Promise<void> => {
+  await requireRole(["admin"]);
+  await publishCertificateTemplate(courseId);
+  revalidateAdmin();
+};
+
+export const disableCertificateForCourseAction = async (
+  courseId: string
+): Promise<void> => {
+  await requireRole(["admin"]);
+  await disableCertificateForCourse(courseId);
   revalidateAdmin();
 };
 

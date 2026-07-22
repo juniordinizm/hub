@@ -12,6 +12,8 @@ Certificado é evidência histórica. Nome, Curso e carga horária podem mudar; 
 
 ## Proposta
 
+O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte A4 horizontal privada e campos padronizados posicionados manualmente; HTML/CSS livre não é uma opção. A emissão cria um registro pendente e uma mensagem `certificate.render`; a worker usa somente o snapshot para gerar o PDF com PDFKit e o grava no R2 privado. A validação pública por QR/código não expõe o arquivo.
+
 Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação na interface.
 
 O motivo usa uma categoria padronizada e um detalhe interno. Na consulta pública de um certificado revogado, mostrar somente o estado, a data e a categoria legível; não expor o detalhe, que pode conter dados pessoais ou uma apuração sensível.

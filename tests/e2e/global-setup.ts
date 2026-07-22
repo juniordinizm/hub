@@ -16,7 +16,14 @@ const runE2eSeed = async (): Promise<void> =>
   await new Promise((resolve, reject) => {
     const child = spawn(getBunExecutable(), ["run", "test:e2e:seed"], {
       cwd: process.cwd(),
-      env: { ...process.env, CI: "true", E2E_TEST_MODE: "true" },
+      env: {
+        ...process.env,
+        CI: "true",
+        ...(process.env.E2E_DATABASE_URL
+          ? { DATABASE_URL: process.env.E2E_DATABASE_URL }
+          : {}),
+        E2E_TEST_MODE: "true",
+      },
       stdio: "inherit",
     });
 
@@ -32,5 +39,10 @@ const runE2eSeed = async (): Promise<void> =>
   });
 
 export default async function globalSetup(): Promise<void> {
+  if (!process.env.E2E_DATABASE_URL) {
+    throw new Error(
+      "E2E_DATABASE_URL is required for the disposable E2E database."
+    );
+  }
   await runE2eSeed();
 }

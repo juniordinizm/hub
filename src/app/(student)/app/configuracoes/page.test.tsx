@@ -8,6 +8,7 @@ const dependencies = vi.hoisted(() => ({
 
 vi.mock("@/app/(student)/app/actions", () => ({
   setLearningAnalyticsPreferenceAction: vi.fn(),
+  updateCertificateNameAction: vi.fn(),
 }));
 vi.mock("@/features/learning-analytics/server", () => ({
   getLearningAnalyticsPreference: dependencies.getLearningAnalyticsPreference,

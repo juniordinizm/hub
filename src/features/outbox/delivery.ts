@@ -1,11 +1,18 @@
 import "server-only";
 import { getPool } from "@/db";
+import { renderPendingCertificate } from "@/features/certificates/server";
 import {
   sendAccessExpiryWarningEmail,
   sendAccessReleasedEmail,
   sendCertificateIssuedEmail,
 } from "@/features/email/server";
-import { OUTBOX_TOPICS, type OutboxPayload, parseOutboxPayload } from "./rules";
+import {
+  createCertificateIssuedMessage,
+  OUTBOX_TOPICS,
+  type OutboxPayload,
+  parseOutboxPayload,
+} from "./rules";
+import { enqueueOutboxMessage } from "./server";
 import { type ClaimedOutboxMessage, OutboxDeliveryError } from "./worker";
 
 const unavailableAggregate = (): OutboxDeliveryError =>
@@ -29,7 +36,7 @@ const getCertificateDeliveryData = async (certificateId: string) => {
         certificates.student_name_snapshot as student_name
       from certificates
       join users on users.id = certificates.user_id
-      where certificates.id = $1 and certificates.status = 'valid'
+      where certificates.id = $1 and certificates.status = 'valid' and certificates.render_status = 'ready'
       limit 1
     `,
     [certificateId]
@@ -91,6 +98,26 @@ const getExpiryWarningDeliveryData = async (enrollmentId: string) => {
   return result.rows[0] ?? null;
 };
 
+const deliverCertificateRender = async (
+  certificateId: string
+): Promise<void> => {
+  await renderPendingCertificate(certificateId);
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await enqueueOutboxMessage({
+      client,
+      message: createCertificateIssuedMessage({ certificateId }),
+    });
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const deliverOutboxMessage = async (
   message: ClaimedOutboxMessage
 ): Promise<void> => {
@@ -104,6 +131,14 @@ export const deliverOutboxMessage = async (
   }
 
   try {
+    if (
+      message.topic === OUTBOX_TOPICS.certificateRender &&
+      "certificateId" in payload
+    ) {
+      await deliverCertificateRender(payload.certificateId);
+      return;
+    }
+
     if (
       message.topic === OUTBOX_TOPICS.certificateIssued &&
       "certificateId" in payload

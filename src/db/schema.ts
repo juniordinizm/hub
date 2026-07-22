@@ -112,6 +112,15 @@ export const certificateStatusEnum = pgEnum("certificate_status", [
   "valid",
   "revoked",
 ]);
+export const certificateRenderStatusEnum = pgEnum("certificate_render_status", [
+  "pending",
+  "ready",
+  "failed",
+]);
+export const certificateTemplateStatusEnum = pgEnum(
+  "certificate_template_status",
+  ["draft", "published", "superseded"]
+);
 export const lessonCommentStatusEnum = pgEnum("lesson_comment_status", [
   "visible",
   "hidden",
@@ -242,6 +251,7 @@ export const courses = pgTable(
       .default(12)
       .notNull(),
     status: courseStatusEnum("status").default("draft").notNull(),
+    certificateEnabled: boolean("certificate_enabled").default(false).notNull(),
     ...timestamps,
   },
   (table) => [
@@ -273,6 +283,7 @@ export const coursePublications = pgTable(
     workloadHoursSnapshot: integer("workload_hours_snapshot")
       .default(0)
       .notNull(),
+    certificateTemplateId: uuid("certificate_template_id"),
     publishedAt: timestamp("published_at", tz),
     retiredAt: timestamp("retired_at", tz),
     ...timestamps,
@@ -939,7 +950,13 @@ export const certificates = pgTable(
       .default(0)
       .notNull(),
     issuedAt: timestamp("issued_at", tz).defaultNow().notNull(),
-    pdfUrl: text("pdf_url"),
+    pdfStorageKey: text("pdf_storage_key"),
+    pdfSha256: text("pdf_sha256"),
+    renderedAt: timestamp("rendered_at", tz),
+    renderStatus: certificateRenderStatusEnum("render_status")
+      .default("pending")
+      .notNull(),
+    renderSnapshot: jsonb("render_snapshot"),
     status: certificateStatusEnum("status").default("valid").notNull(),
     revokedAt: timestamp("revoked_at", tz),
     revokedReason: text("revoked_reason"),
@@ -959,6 +976,49 @@ export const certificates = pgTable(
       .where(sql`${table.status} = 'valid'`),
     index("certificates_status_idx").on(table.status),
     index("certificates_course_publication_idx").on(table.coursePublicationId),
+  ]
+);
+
+export const certificateIssuerProfiles = pgTable(
+  "certificate_issuer_profiles",
+  {
+    id: text("id").primaryKey(),
+    legalName: text("legal_name").notNull(),
+    cnpj: text("cnpj").notNull(),
+    displayName: text("display_name").notNull(),
+    courseFreeStatement: text("course_free_statement").notNull(),
+    ...timestamps,
+  }
+);
+
+export const certificateTemplates = pgTable(
+  "certificate_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    status: certificateTemplateStatusEnum("status").default("draft").notNull(),
+    backgroundKey: text("background_key").notNull(),
+    spec: jsonb("spec").notNull(),
+    signerName: text("signer_name"),
+    signerRole: text("signer_role"),
+    signatureKey: text("signature_key"),
+    publishedAt: timestamp("published_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("certificate_templates_course_version_unique_idx").on(
+      table.courseId,
+      table.version
+    ),
+    uniqueIndex("certificate_templates_one_published_per_course_idx")
+      .on(table.courseId)
+      .where(sql`${table.status} = 'published'`),
+    uniqueIndex("certificate_templates_one_draft_per_course_idx")
+      .on(table.courseId)
+      .where(sql`${table.status} = 'draft'`),
   ]
 );
 

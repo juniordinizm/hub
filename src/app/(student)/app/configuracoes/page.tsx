@@ -3,6 +3,7 @@ import {
   ShieldKeyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { updateCertificateNameAction } from "@/app/(student)/app/actions";
 import { PageContainer } from "@/components/page-container";
 import { Scrollspy } from "@/components/reui/scrollspy";
 import {
@@ -73,6 +74,38 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
           </aside>
 
           <main className="space-y-8">
+            <section className="grid scroll-mt-24 gap-6" id="certificado">
+              <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
+                <CardHeader>
+                  <CardTitle className="font-semibold text-base">
+                    Nome no certificado
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Use seu nome completo. Alteracoes futuras nao modificam
+                    certificados ja emitidos.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    action={updateCertificateNameAction}
+                    className="flex flex-col gap-3 sm:flex-row"
+                  >
+                    <input
+                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                      defaultValue={session.user.name ?? ""}
+                      name="name"
+                      required
+                    />
+                    <button
+                      className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm"
+                      type="submit"
+                    >
+                      Salvar nome
+                    </button>
+                  </form>
+                </CardContent>
+              </Card>
+            </section>
             <section className="grid scroll-mt-24 gap-6" id="privacidade">
               <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
                 <CardHeader>

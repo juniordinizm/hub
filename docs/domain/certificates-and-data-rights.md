@@ -8,6 +8,8 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Certificados
 
+Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global fornece razão social e CNPJ; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
+
 Certificado preserva código público, Conta, Curso, publicação interna de origem, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
 
 ### REG-DAT-001 Emissão exige conclusão e unicidade válida
@@ -17,6 +19,10 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 **Invariantes:** `CourseCompletion` é única por Conta e Curso; o código público é único; não há segundo Certificado válido para a mesma Conta e Curso sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots e a publicação de origem preservam o texto emitido. Publicação posterior não reabre a conclusão nem gera novo certificado automaticamente.
 
 **Concorrência:** `tryIssueAutomaticCompletionCertificate` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora solicita e-mail, gravando `email.certificate-issued` na outbox sem PII. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
+
+### REG-DAT-001A Renderização e arquivo imutáveis
+
+A transação vencedora de emissão grava `certificate.render`. A worker gera uma vez o PDF com PDFKit a partir do snapshot, grava-o em chave privada determinística no R2 e somente então grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, emissor, conclusão e hash SHA-256. Repetições não criam outro documento; reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
 
 ### REG-DAT-002 Revogação preserva histórico
 

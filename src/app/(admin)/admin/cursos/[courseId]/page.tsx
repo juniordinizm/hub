@@ -21,11 +21,13 @@ import {
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
 import { getAdminCourseDetailData } from "@/features/admin/server";
+import { getCertificateTemplatesForCourse } from "@/features/certificates/templates";
 import {
   formatCourseWorkload,
   summarizeCoursePublicationReadiness,
 } from "@/features/courses/presentation";
 import { route } from "@/lib/routes";
+import { CertificateTemplateEditor } from "./certificate-template-editor";
 import {
   CourseBuilderWrapper,
   CourseMetricCard,
@@ -43,7 +45,10 @@ export default async function AdminCourseDetailPage({
   params: Promise<{ courseId: string }>;
 }): Promise<React.JSX.Element> {
   const { courseId } = await params;
-  const data = await getAdminCourseDetailData(courseId);
+  const [data, certificateTemplates] = await Promise.all([
+    getAdminCourseDetailData(courseId),
+    getCertificateTemplatesForCourse(courseId),
+  ]);
 
   if (!data) {
     notFound();
@@ -133,6 +138,7 @@ export default async function AdminCourseDetailPage({
             <TabsTrigger value="content">Conteúdo</TabsTrigger>
             <TabsTrigger value="students">Alunos</TabsTrigger>
             <TabsTrigger value="settings">Configurações</TabsTrigger>
+            <TabsTrigger value="certificate">Certificado</TabsTrigger>
           </TabsList>
 
           <TabsContent className="space-y-6" value="overview">
@@ -286,6 +292,13 @@ export default async function AdminCourseDetailPage({
               </div>
               <CourseSettingsForm course={course} />
             </section>
+          </TabsContent>
+          <TabsContent className="space-y-5" value="certificate">
+            <CertificateTemplateEditor
+              certificateEnabled={course.certificateEnabled}
+              courseId={course.id}
+              templates={certificateTemplates}
+            />
           </TabsContent>
         </Tabs>
       </div>

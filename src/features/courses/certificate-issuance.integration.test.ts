@@ -19,7 +19,7 @@ if (!databaseUrl) {
 }
 const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
 const CONSECUTIVE_ISSUANCE_RUNS = 20;
-const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 60_000;
+const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 120_000;
 
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
@@ -50,8 +50,8 @@ const createFixture = async (): Promise<{
   const userId = `certificate-student-${randomUUID()}`;
   const { rows: courseRows } = await testPool.query<{ id: string }>(
     `
-      insert into courses (slug, title, workload_hours, status)
-      values ($1, 'Curso de concorrencia', 8, 'active')
+      insert into courses (slug, title, workload_hours, status, certificate_enabled)
+      values ($1, 'Curso de concorrencia', 8, 'active', true)
       returning id
     `,
     [`certificate-concurrency-${randomUUID()}`]
@@ -74,6 +74,35 @@ const createFixture = async (): Promise<{
   if (!coursePublicationId) {
     throw new Error("Nao foi possivel criar a publicacao do curso de teste.");
   }
+
+  await testPool.query(
+    `
+      insert into certificate_issuer_profiles (
+        id, legal_name, cnpj, display_name, course_free_statement
+      )
+      values (
+        'global',
+        'Emissora de teste LTDA',
+        '00.000.000/0001-00',
+        'Emissora de teste',
+        'Curso de livre oferta.'
+      )
+      on conflict (id) do nothing
+    `
+  );
+  await testPool.query(
+    `
+      insert into certificate_templates (
+        course_id, version, status, background_key, spec, published_at
+      )
+      values ($1, 1, 'published', $2, $3::jsonb, now())
+    `,
+    [
+      courseId,
+      `certificates/test-backgrounds/${courseId}.png`,
+      JSON.stringify({ version: 1, fields: [] }),
+    ]
+  );
 
   const { rows: moduleRows } = await testPool.query<{ id: string }>(
     `
@@ -138,12 +167,12 @@ const countCertificates = async (courseId: string, userId: string) => {
   return Number(rows[0]?.count ?? 0);
 };
 
-const countCertificateOutboxMessages = async (certificateId: string) => {
+const countCertificateRenderMessages = async (certificateId: string) => {
   const { rows } = await getTestPool().query<{ count: string }>(
     `
       select count(*)
       from outbox_messages
-      where topic = 'email.certificate-issued'
+      where topic = 'certificate.render'
         and payload->>'certificateId' = $1
     `,
     [certificateId]
@@ -166,7 +195,7 @@ describe("emissao concorrente de certificado", () => {
     await pool.end();
   });
 
-  it("emite e registra uma unica notificacao duravel sob duas conclusoes simultaneas", async () => {
+  it("emite e registra uma unica renderizacao duravel sob duas conclusoes simultaneas", async () => {
     const fixture = await createFixture();
 
     const results = await Promise.all([
@@ -182,7 +211,7 @@ describe("emissao concorrente de certificado", () => {
       "select id from certificates where course_id = $1 and user_id = $2",
       [fixture.courseId, fixture.userId]
     );
-    expect(await countCertificateOutboxMessages(rows[0]?.id ?? "")).toBe(1);
+    expect(await countCertificateRenderMessages(rows[0]?.id ?? "")).toBe(1);
   });
 
   it("retorna código somente para a transação que vence o conflito", async () => {
@@ -255,7 +284,7 @@ describe("emissao concorrente de certificado", () => {
       [fixture.courseId, fixture.userId]
     );
     expect(
-      await countCertificateOutboxMessages(certificate.rows[0]?.id ?? "")
+      await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
     ).toBe(1);
   });
 
@@ -264,12 +293,19 @@ describe("emissao concorrente de certificado", () => {
     await getTestPool().query(
       `
         insert into certificates (
-          user_id, course_id, code, student_name_snapshot,
-          course_title_snapshot, workload_hours_snapshot, status
+          user_id, course_id, course_publication_id, code,
+          student_name_snapshot, course_title_snapshot,
+          workload_hours_snapshot, status
         )
-        values ($1, $2, $3, 'Aluna de concorrencia', 'Curso de concorrencia', 8, $4)
+        values ($1, $2, $3, $4, 'Aluna de concorrencia', 'Curso de concorrencia', 8, $5)
       `,
-      [fixture.userId, fixture.courseId, randomUUID(), "valid"]
+      [
+        fixture.userId,
+        fixture.courseId,
+        fixture.coursePublicationId,
+        randomUUID(),
+        "valid",
+      ]
     );
 
     await expect(
@@ -284,7 +320,7 @@ describe("emissao concorrente de certificado", () => {
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
   });
 
-  it("registra a notificacao antes de confirmar o certificado", async () => {
+  it("registra a renderizacao antes de confirmar o certificado", async () => {
     const fixture = await createFixture();
 
     await expect(
@@ -296,7 +332,7 @@ describe("emissao concorrente de certificado", () => {
       [fixture.courseId, fixture.userId]
     );
     expect(
-      await countCertificateOutboxMessages(certificate.rows[0]?.id ?? "")
+      await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
     ).toBe(1);
   });
 

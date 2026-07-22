@@ -297,6 +297,26 @@ export const createR2ObjectReadUrl = async ({
   );
 };
 
+export const uploadPrivateR2Object = async ({
+  body,
+  contentType,
+  key,
+}: {
+  body: Buffer;
+  contentType: string;
+  key: string;
+}): Promise<void> => {
+  const config = getR2Config();
+  await getR2Client(config).send(
+    new PutObjectCommand({
+      Body: body,
+      Bucket: config.bucketName,
+      ContentType: contentType,
+      Key: key,
+    })
+  );
+};
+
 export const getPublicMediaUrl = (key: string): string =>
   buildPublicMediaUrl({
     baseUrl: readRequiredEnv("R2_PUBLIC_BASE_URL"),

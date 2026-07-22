@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getPool } from "@/db";
 import { canMutateStudentExperience } from "@/features/courses/preview";
 import {
   completeLesson,
@@ -111,4 +113,20 @@ export const setLearningAnalyticsPreferenceAction = async (
     enabled: formData.get("enabled") === "true",
     userId: session.user.id,
   });
+};
+
+export const updateCertificateNameAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requireSession();
+  const name = readString(formData, "name");
+  if (name.length < 2 || name.length > 120) {
+    throw new Error("Informe um nome entre 2 e 120 caracteres.");
+  }
+  await getPool().query(
+    "update users set name = $2, updated_at = now() where id = $1",
+    [session.user.id, name]
+  );
+  revalidatePath("/app/configuracoes");
+  revalidatePath("/app/cursos", "layout");
 };

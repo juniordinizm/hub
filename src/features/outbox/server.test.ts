@@ -68,6 +68,11 @@ describe("outbox persistence", () => {
     );
     expect(query).toHaveBeenNthCalledWith(
       2,
+      expect.stringContaining("render_status = 'pending'"),
+      ["outbox-1"]
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      3,
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "outbox-1", "Falha transitória confirmada."]
     );
