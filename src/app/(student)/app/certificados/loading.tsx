@@ -14,15 +14,21 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <div className="flex flex-col gap-12 pt-4">
-          <section>
-            <div className="flex flex-wrap gap-5">
-              <Skeleton className="h-[380px] w-full max-w-[340px] rounded-xl" />
-              <Skeleton className="h-[380px] w-full max-w-[340px] rounded-xl" />
-              <Skeleton className="hidden h-[380px] w-full max-w-[340px] rounded-xl sm:block" />
-            </div>
-          </section>
-        </div>
+        <section className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 md:max-w-xs">
+          <div className="space-y-2 rounded-md bg-background/45 px-3 py-3">
+            <Skeleton className="h-8 w-12" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+          <div className="space-y-2 rounded-md bg-background/45 px-3 py-3">
+            <Skeleton className="h-8 w-12" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+        </section>
+
+        <section className="grid gap-4 pt-4">
+          <Skeleton className="h-[220px] w-full rounded-xl" />
+          <Skeleton className="h-[220px] w-full rounded-xl" />
+        </section>
       </div>
     </PageContainer>
   );

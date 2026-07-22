@@ -11,26 +11,33 @@ export default function Loading(): React.JSX.Element {
               <Skeleton className="h-9 w-64" />
               <Skeleton className="h-5 w-full max-w-[400px]" />
             </div>
+            <div className="flex shrink-0 items-center">
+              <Skeleton className="h-9 w-32" />
+            </div>
           </div>
         </header>
 
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-9 w-[250px]" />
-            <Skeleton className="h-9 w-[100px]" />
-          </div>
-          <div className="rounded-md border">
-            <div className="border-b p-4">
-              <Skeleton className="h-5 w-full" />
+        <section className="flex flex-wrap gap-5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              className="flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar"
+              // biome-ignore lint/suspicious/noArrayIndexKey: skeleton array
+              key={i}
+            >
+              <Skeleton className="h-[200px] w-full rounded-none" />
+              <div className="flex min-h-[160px] flex-col p-5 sm:p-6">
+                <div className="space-y-3">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+                <div className="mt-8 flex justify-between">
+                  <Skeleton className="h-4 w-1/4" />
+                  <Skeleton className="h-4 w-1/4" />
+                </div>
+              </div>
             </div>
-            <div className="space-y-4 p-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
+          ))}
         </section>
       </div>
     </PageContainer>

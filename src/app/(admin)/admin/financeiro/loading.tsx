@@ -14,23 +14,29 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-9 w-[250px]" />
-            <Skeleton className="h-9 w-[100px]" />
-          </div>
-          <div className="rounded-md border">
-            <div className="border-b p-4">
-              <Skeleton className="h-5 w-full" />
-            </div>
-            <div className="space-y-4 p-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+          <Skeleton className="h-[120px] rounded-xl" />
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Skeleton className="h-[280px] rounded-xl" />
+          <Skeleton className="h-[280px] rounded-xl" />
+        </section>
+
+        <section className="grid gap-4">
+          <Skeleton className="h-[350px] w-full rounded-xl" />
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <Skeleton className="h-[300px] rounded-xl" />
+          <Skeleton className="h-[300px] rounded-xl" />
+        </section>
+
+        <section className="grid gap-4">
+          <Skeleton className="h-[200px] rounded-xl" />
         </section>
       </div>
     </PageContainer>

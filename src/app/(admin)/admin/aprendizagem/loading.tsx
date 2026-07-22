@@ -14,24 +14,41 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <section className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-9 w-[250px]" />
-            <Skeleton className="h-9 w-[100px]" />
-          </div>
-          <div className="rounded-md border">
-            <div className="border-b p-4">
-              <Skeleton className="h-5 w-full" />
+        <div className="space-y-8">
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <div className="border-b p-5">
+              <Skeleton className="h-6 w-[200px]" />
+              <Skeleton className="mt-2 h-4 w-[400px]" />
             </div>
             <div className="space-y-4 p-4">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
             </div>
-          </div>
-        </section>
+          </section>
+
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <div className="border-b p-5">
+              <Skeleton className="h-6 w-[250px]" />
+              <Skeleton className="mt-2 h-4 w-[450px]" />
+            </div>
+            <div className="space-y-4 p-5">
+              <Skeleton className="h-[120px] w-full rounded-lg" />
+              <Skeleton className="h-[120px] w-full rounded-lg" />
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <div className="border-b p-5">
+              <Skeleton className="h-6 w-[220px]" />
+              <Skeleton className="mt-2 h-4 w-[350px]" />
+            </div>
+            <div className="space-y-4 p-5">
+              <Skeleton className="h-[80px] w-full rounded-lg" />
+              <Skeleton className="h-[80px] w-full rounded-lg" />
+            </div>
+          </section>
+        </div>
       </div>
     </PageContainer>
   );

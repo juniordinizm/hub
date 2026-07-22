@@ -12,17 +12,20 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <section className="flex flex-col gap-6">
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-1/3" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
+        <section className="max-w-2xl rounded-lg border bg-card p-6">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="mt-4 h-8 w-[300px]" />
+          <Skeleton className="mt-3 h-4 w-full" />
+          <Skeleton className="mt-2 h-4 w-4/5" />
+
+          <div className="mt-8 flex items-center gap-2">
+            <Skeleton className="size-4 rounded-full" />
+            <Skeleton className="h-4 w-[250px]" />
           </div>
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-1/4" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-5/6" />
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Skeleton className="h-9 w-[150px] rounded-md" />
+            <Skeleton className="h-9 w-[150px] rounded-md" />
           </div>
         </section>
       </div>

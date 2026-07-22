@@ -29,6 +29,15 @@ export default function AdminAreaLoading(): React.JSX.Element {
           <Skeleton className="h-[280px] rounded-xl" />
           <Skeleton className="h-[280px] rounded-xl" />
         </section>
+
+        <section className="grid gap-4 xl:grid-cols-3">
+          <Skeleton className="h-[250px] rounded-xl xl:col-span-2" />
+          <Skeleton className="h-[250px] rounded-xl" />
+        </section>
+
+        <section className="grid gap-4">
+          <Skeleton className="h-[200px] rounded-xl" />
+        </section>
       </div>
     </PageContainer>
   );
