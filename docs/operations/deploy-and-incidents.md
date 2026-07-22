@@ -1,31 +1,16 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Deploy e incidentes
 
 ## Gate de deploy
 
-Deploy não deve avançar quando:
+Não avance quando houver migration sem validação controlada, falha em `docs:check`, testes, typecheck, check ou build, variável obrigatória ausente, webhook/cron não conferido ou mudança irreversível sem recuperação revisada.
 
-- há mudança de schema sem migration forward validada em banco descartável;
-- `docs:check`, testes, typecheck, check ou build falham;
-- variáveis obrigatórias não estão presentes no ambiente alvo;
-- endpoint/segredo de webhook ou crons não foram conferidos;
-- mudança irreversível não possui recuperação testada.
-
-### CI e verificação
-
-O bloqueio histórico de `page-source.test.ts` foi removido: o estado de processamento de vídeo é
-testado pelo componente renderizado. A sequência de gates, o banco efêmero e as jornadas de navegador
-estão no [runbook de testes e CI](testing-and-ci.md). A primeira execução remota permanece dependente
-da configuração de `NEON_API_KEY` e `NEON_PROJECT_ID` no GitHub, sem reutilizar credenciais de produção.
-
-## Checklist
-
-### Código
+### Checklist de código
 
 1. `bun run docs:check`
 2. `bun run test`
@@ -35,55 +20,53 @@ da configuração de `NEON_API_KEY` e `NEON_PROJECT_ID` no GitHub, sem reutiliza
 6. `bun run knip`
 7. `git diff --check`
 
-### Ambiente
+### Checklist de ambiente
 
-- URLs públicas: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `CERTIFICATE_PUBLIC_BASE_URL`;
-- banco: `DATABASE_URL` pooled e `DATABASE_URL_DIRECT` direto, sem expor valores;
-- auth: `BETTER_AUTH_SECRET`, origens confiáveis e Infra opcional;
-- e-mail: `RESEND_API_KEY`, domínio/remetente verificado, `SUPPORT_EMAIL`;
-- AbacatePay: chave canônica, base v2, segredo e endpoint HTTPS;
-- JMVStream: `JMVSTREAM_AUTH_RESOURCE` UUID, token fallback opcional e plan ID; não usar e-mail/senha;
+- URLs: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `CERTIFICATE_PUBLIC_BASE_URL`;
+- banco: `DATABASE_URL` pooled e `DATABASE_URL_DIRECT` direto;
+- auth: `BETTER_AUTH_SECRET` e origens confiáveis;
+- e-mail: `RESEND_API_KEY`, remetente/domínio e `SUPPORT_EMAIL`;
+- pagamentos: chave, base v2, segredo e endpoint HTTPS AbacatePay;
+- vídeo: `JMVSTREAM_AUTH_RESOURCE`, token fallback opcional e plan ID;
 - R2: conta, dois buckets, chave, domínio público e CORS;
-- crons: `CRON_SECRET`;
-- privacidade: manter `DATA_RETENTION_ENABLED=false` sem referência jurídica aprovada.
+- crons: `CRON_SECRET`, incluindo manutenção;
+- Sentry/readiness: DSNs e `HEALTHCHECK_SECRET` quando aplicáveis.
 
-### Banco
+## Banco
 
-Sem alteração de schema, confirmar compatibilidade do ambiente. Com alteração, aplique uma migration *forward* uma única vez pela promoção controlada, depois de validá-la em banco descartável. Nunca use `db:push`, `db:reset` ou uma reversão destrutiva; siga [Banco e migrations](database-and-migrations.md).
+Com alteração de schema, valide migration forward em banco descartável, audite o alvo e aplique uma única vez com URL direta e aprovação explícita. Em seguida audite journal/catálogo e execute o migrador outra vez. Nunca use `db:push`, `db:reset` ou rollback destrutivo. Ver [Banco e migrations](database-and-migrations.md).
 
-### Crons
+## Crons
 
 Conferir no provedor:
 
 - `/api/cron/enrollments`: `0 10 * * *`;
 - `/api/cron/jmvstream`: `*/5 * * * *`;
 - `/api/cron/outbox`: `*/5 * * * *`;
-- `/api/cron/retention`: `0 4 * * *`;
-- Bearer token igual a `CRON_SECRET`;
+- `/api/cron/maintenance`: `0 4 * * *`;
+- Bearer igual a `CRON_SECRET`;
 - última execução e resposta.
 
-### Smoke test
+Manutenção técnica expira sessões/rate limits e aplica a retenção de analytics. Não há cron, inbox ou execução de anonimização.
 
-- `/api/health` e `/api/health/ready` com bearer, confirmando que readiness não expõe detalhe de dependência;
-- login e recuperação de senha em conta de teste;
-- catálogo e Aula com acesso;
-- painel conforme papel;
-- checkout em modo seguro/teste;
-- webhook de teste e deduplicação;
-- upload pequeno JMVStream e sync;
-- upload/download R2 e imagem pública;
-- validação pública de Certificado;
-- cron manual autorizado em ambiente de teste.
+## Smoke test
 
-Infraestrutura externa não é comprovada pelo repositório. Registre data, ambiente e operadora da conferência.
+- liveness e readiness com bearer, sem detalhes de dependência;
+- login e recuperação de senha em Conta de teste;
+- catálogo, Aula e painel conforme papel;
+- checkout seguro, webhook de teste e deduplicação;
+- upload/sync JMVStream e upload/download R2;
+- consulta pública de Certificado;
+- execução manual autorizada de cada cron em ambiente de teste.
+
+Infraestrutura externa não é comprovada pelo repositório. Registre ambiente, data e operadora da conferência.
 
 ## Rollback
 
-- aplicação: reimplantar versão anterior compatível com o mesmo schema;
-- variáveis: restaurar valor anterior sem registrar secret em ticket;
-- provedor: desabilitar somente a capacidade afetada quando o produto permitir;
-- banco: não usar `db:reset`; fazer forward-fix ou plano SQL revisado;
-- mídia: não apagar objetos até confirmar referências.
+- aplicação: reimplantar versão anterior compatível com mesmo schema;
+- variáveis: restaurar valor anterior sem registrar segredo;
+- banco: forward-fix revisado, nunca reset;
+- mídia: preservar objetos até confirmar referências.
 
 ## Runbooks de incidente
 
@@ -91,60 +74,30 @@ Infraestrutura externa não é comprovada pelo repositório. Registre data, ambi
 
 1. Identifique Pedido e evento externo.
 2. Verifique autenticação, `webhook_events` e revisão.
-3. Compare snapshot de valor/estado.
-4. Confira Concessão/Matrícula.
-5. Retry apenas com `retryWebhook`; não libere acesso manualmente sem registrar origem.
+3. Compare snapshot de valor/estado e Concessão/Matrícula.
+4. Use `retryWebhook` somente com registro de motivo.
 
-### Reembolso
+### JMVStream e R2
 
-1. Confirme `refund_requests` e ID externo.
-2. Confira evento de confirmação.
-3. Não revogue por timeout da chamada.
-4. Escale conflito para revisão financeira.
+1. Isole sessão/ativo local e hash ou bucket/chave.
+2. Diferencie parte, complete, processamento, sync, delete, CORS e publicação.
+3. Preserve ETags e IDs; não reinicie upload ou limpeza ampla sem conferir estado.
+4. Trate divergência `gallery` como bloqueio de contrato.
 
-### JMVStream
+### E-mail e outbox
 
-1. Verifique sessão/ativo local e hash.
-2. Separe falha de parte, complete, processamento, sync ou delete.
-3. Preserve ETags e IDs.
-4. Use sync/retry específico; não reinicie upload completo sem conferir sessão.
-5. Trate divergência `gallery` como bloqueio de contrato.
+1. Confirme commit do banco.
+2. Consulte dead letter em **Admin > Auditoria** para Certificado, acesso e expiração.
+3. Verifique tópico, tentativas, código e estado atual sem expor payload.
+4. Reprocesse com motivo; após 24 horas o Resend pode duplicar resultado ambíguo.
 
-### R2
+### Manutenção, banco e recuperação
 
-1. Identifique bucket/chave, sem URL assinada completa.
-2. HEAD no privado; GET no público quando aplicável.
-3. Confira CORS, domínio e publicação.
-4. Reconcile cópia/registro; não faça limpeza ampla.
+1. Confira agenda, Bearer, status e `correlationId`; nunca registre o bearer.
+2. Confirme pool runtime, URL direta e journal antes de diagnosticar schema.
+3. Para indisponibilidade, restaure aplicação compatível ou aplique forward-fix revisado.
+4. Para ensaio de restore, use branch isolada e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação).
 
-### E-mail
+## Registro mínimo
 
-1. Determine se a transação de banco concluiu.
-2. Para Certificado, acesso já ativado ou aviso de expiração, consulte a dead letter em **Admin > Auditoria**.
-3. Verifique tópico, tentativas, código do erro e estado atual do agregado; nunca exponha payload.
-4. Reprocesse somente com motivo registrado. Depois de 24 horas, o Resend pode duplicar um e-mail com resultado anterior ambíguo.
-5. Recuperação/ativação por senha ainda não usa outbox porque a URL inclui token secreto.
-
-### Cron
-
-1. Confira agenda, Bearer e status HTTP.
-2. Rode manualmente apenas em ambiente seguro.
-3. Verifique idempotência e registros antes de repetir.
-4. Retenção permanece desligada sem aprovação jurídica.
-
-### Banco e recuperação
-
-1. Consulte liveness e readiness; use o `correlationId` do response/log, nunca o bearer.
-2. Confirme pool runtime, URL direta de migration e journal antes de diagnosticar schema.
-3. Para indisponibilidade, restaure aplicação compatível ou aplique forward-fix revisado; não use `db:reset`, `db:push` ou rollback SQL destrutivo.
-4. Para ensaio de restore, crie branch isolada e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação). O painel Neon de produção exige verificação humana.
-
-### Certificado e privacidade
-
-1. Certificado: localizar código, status e cadeia de reemissão; nunca editar snapshot diretamente.
-2. Privacidade: confirmar solicitação, aprovação, permissão e referência jurídica.
-3. Anonimização é irreversível; não executar como teste.
-
-## Registro mínimo do incidente
-
-Horário UTC, ambiente, capacidade, IDs internos/externos não sensíveis, impacto, decisão, comandos/ações, resultado, dona da próxima ação e necessidade de post-mortem.
+Horário UTC, ambiente, capacidade, IDs internos/externos não sensíveis, impacto, decisão, comandos/ações, resultado, responsável pela próxima ação e necessidade de post-mortem.

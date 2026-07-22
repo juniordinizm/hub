@@ -1,52 +1,52 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 19a268ca8b72bd8c2ac6875bfe68ca9f4ed7f18b
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Glossário do Hub
 
-Este arquivo fixa o vocabulário do produto. Regras, implementação e decisões ficam na [documentação canônica](docs/README.md).
+Este arquivo fixa vocabulário de produto. Regras, implementação e decisões vivem na [documentação canônica](docs/README.md).
 
 ## Pessoas e identidades
 
 **Aluna**  
-Pessoa que consome cursos no Hub. É um papel de negócio; não implica que ela mesma tenha efetuado a compra.
+Pessoa que consome Cursos no Hub. É papel de negócio e não prova que tenha efetuado a compra.
 
 **Conta**  
-Identidade autenticável no Hub, identificada por e-mail e protegida por credenciais e sessões. Uma conta pode ter papel técnico de `student`, `support` ou `admin`.
+Identidade autenticável do Hub, identificada por e-mail e protegida por credenciais e sessões. Seu papel técnico é `student`, `support` ou `admin`.
 
 **Compradora**  
-Pessoa que informa seus dados no checkout e assume a relação financeira do pedido. Pode ser a própria Aluna ou outra pessoa. E-mail de compra e e-mail da Conta não devem ser tratados como sinônimos sem uma regra explícita de vinculação.
+Pessoa que informa dados no checkout e assume a relação financeira do Pedido. Pode ser ou não a Aluna; e-mail de compra e e-mail de Conta não são sinônimos sem regra explícita de vínculo.
 
 **Especialista**  
-Responsável pelo conteúdo, pela experiência pedagógica e por decisões de produto. No escopo atual há uma única especialista; não existe marketplace nem tenancy por especialista.
+Responsável pelo conteúdo, experiência pedagógica e decisões de produto. No escopo atual há uma única especialista, sem marketplace ou tenancy por especialista.
 
 **Admin**  
-Operadora com todas as permissões administrativas do Hub. “Admin” descreve autorização, não propriedade comercial do produto.
+Operadora com todas as permissões administrativas. O termo descreve autorização, não propriedade comercial.
 
 **Suporte**  
-Operadora com um subconjunto explícito de permissões administrativas. Não é um “admin limitado por convenção”: cada capacidade precisa estar autorizada.
+Operadora com subconjunto explícito de permissões administrativas; não é um Admin limitado por convenção.
 
 ## Comércio e acesso
 
 **Pedido**  
-Registro da intenção e do resultado financeiro de uma compra. Mantém preço, duração e identidade da compra como snapshots para que alterações futuras no curso não reescrevam o passado.
+Registro da intenção e resultado financeiro de compra, com preço, duração e identidade como snapshots.
 
 **Concessão de acesso**  
-Direito de uma Conta acessar um curso, originado por uma fonte identificável, como um Pedido pago. Pode estar ativa, expirada, reembolsada, em disputa ou cancelada.
+Direito de uma Conta acessar Curso, originado em fonte identificável como Pedido pago. Pode estar ativa, expirada, reembolsada, em disputa ou cancelada.
 
 **Matrícula**  
-Visão consolidada do acesso atual de uma Conta a um curso. A mesma matrícula pode refletir mais de uma Concessão. Ela não deve ser confundida com a origem do direito.
+Projeção consolidada do acesso atual de uma Conta a uma Versão de Curso. Pode refletir mais de uma Concessão e não é a origem do direito.
 
 **Bloqueio de matrícula**  
-Revogação manual do acesso a um curso específico. Não bloqueia automaticamente a Conta inteira.
+Revogação manual de acesso a Curso específico; não bloqueia automaticamente a Conta inteira.
 
 **Bloqueio de plataforma**  
-Suspensão da Conta na experiência da Aluna. É mais amplo que um bloqueio de matrícula e não apaga histórico.
+Suspensão da Conta na experiência da Aluna, mais ampla que bloqueio de Matrícula e sem apagar histórico.
 
 **Revisão financeira**  
-Fila humana criada quando o sistema não consegue aplicar com segurança um evento financeiro, por exemplo conflito entre estados terminais ou divergência de valor.
+Fila humana quando o sistema não pode aplicar evento financeiro com segurança, como conflito entre estados terminais ou valor divergente.
 
 ## Aprendizagem e conteúdo
 
@@ -54,59 +54,52 @@ Fila humana criada quando o sistema não consegue aplicar com segurança um even
 Produto educacional vendável e publicável, composto por Módulos e Aulas.
 
 **Versão de Curso (`CourseVersion`)**
-Currículo publicado e imutável de um Curso, que define a estrutura de aprendizagem recebida por uma Matrícula. O Curso preserva a identidade comercial; a Versão de Curso preserva a promessa curricular.
+Currículo publicado e imutável de um Curso. Define a estrutura recebida por Matrícula; Curso preserva identidade comercial e Versão preserva promessa curricular.
 
 **Módulo**  
-Agrupamento ordenado de Aulas dentro de um Curso.
+Agrupamento ordenado de Aulas dentro de Curso.
 
 **Aula**  
-Unidade ordenada de aprendizagem. Pode combinar vídeo, texto rico e materiais.
+Unidade ordenada de aprendizagem que pode combinar vídeo, texto rico e materiais.
 
 **Progresso**  
-Evidência de consumo de Aulas e do Curso. Não é a mesma coisa que direito de acesso.
+Evidência de consumo de Aulas e Curso. Não é direito de acesso.
 
 **Conclusão**  
-Estado em que uma Aula ou Curso satisfaz a regra vigente de completude. Conclusão e expiração são independentes.
+Estado em que Aula ou Curso satisfaz a regra vigente de completude. É independente de expiração.
 
 **Certificado**  
-Documento emitido para uma Aluna e um Curso, com snapshots dos dados exibidos. Pode ser válido, revogado e reemitido.
+Documento para uma Aluna e Curso, com snapshots exibidos. Pode ser válido, revogado ou reemitido.
 
 **Evento de aprendizagem**
-Registro técnico opcional, minimizado e idempotente sobre início, checkpoint, conclusão ou falha. Não é fonte de verdade para Progresso, acesso ou Certificado.
+Registro técnico minimizado e idempotente de início, checkpoint, conclusão ou falha. É analytics, não autoridade de Progresso, acesso ou Certificado.
 
-**Sem atividade registrada**
-Filtro operacional para uma Matrícula ativa sem evento, checkpoint ou conclusão nos últimos 14 dias. Não significa falta de interesse, abandono ou incapacidade da Aluna.
+**Preferência de analytics de aprendizagem**
+Controle de opt-out da Aluna para os eventos técnicos opcionais. Por padrão, analytics está habilitado; desativar não muda acesso, sequência, progresso, conclusão ou Certificado.
 
-**Reengajamento manual**
-Iniciativa individual de Admin para oferecer apoio a uma Aluna elegível. Exige consentimento ativo, registro auditável e não dispara uma campanha automática.
+**Métrica agregada de aprendizagem**
+Contagem ou medida por Aula e Versão de Curso que não apresenta Conta, Matrícula, Aluna, e-mail ou lista de inatividade.
 
 ## Durações
 
 **Duração pedagógica da Aula**  
-Tempo estimado de consumo: duração do vídeo mais tempo estimado de leitura. Serve à experiência de aprendizagem.
+Estimativa de consumo: vídeo mais leitura. Serve à experiência.
 
 **Carga horária do Curso**  
-Soma das durações pedagógicas das Aulas. Não define validade de acesso.
+Soma das durações pedagógicas das Aulas; não define validade de acesso.
 
 **Duração comercial de acesso**  
-Quantidade de meses vendida para o Curso e capturada no Pedido/Concessão.
+Quantidade de meses vendida e capturada no Pedido/Concessão.
 
 **Janela efetiva de acesso**  
-Intervalo real entre liberação e expiração, após extensões, reduções, renovação ou bloqueio.
+Intervalo real entre liberação e expiração após extensões, reduções, renovação ou bloqueio.
 
 **Duração de upload**  
-Validade técnica de URLs temporárias e sessões de envio de arquivos. Não tem significado pedagógico ou comercial.
+Validade técnica de URLs temporárias e sessões de envio; não é duração pedagógica ou comercial.
 
 ## Estados documentais
 
-**Implementado**  
-Comportamento comprovado no `HEAD`. Não significa aprovação de produto.
-
-**Aprovado**  
-Decisão com trade-off e autoridade registrada. Pode ainda não estar implementada.
-
-**Aguardando ratificação**  
-Comportamento existe no código, mas a documentação histórica não comprova aprovação de produto.
-
-**Pendente**  
-Pergunta real sem decisão ou implementação conclusiva.
+**Implementado**: comportamento comprovado no `HEAD`, sem pressupor aprovação de produto.
+**Aprovado**: decisão com trade-off e autoridade registrada, ainda que não implementada.
+**Aguardando ratificação**: comportamento existe, mas a aprovação histórica não foi comprovada.
+**Pendente**: pergunta real sem decisão ou implementação conclusiva.

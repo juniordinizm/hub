@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Arquitetura
@@ -43,7 +43,7 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Comércio => `src/features/payments`, tabelas `orders`, `webhook_events`, `payment_reviews`, `refund_requests`.
 - Acesso => `src/features/enrollments`, tabelas `enrollment_grants`, `enrollments`, `enrollment_expiration_adjustments`, `enrollment_events`.
 - Certificados => `src/features/certificates`, tabelas `certificates`, `public_certificate_rate_limits`.
-- Dados pessoais => `src/features/privacy`, tabela `privacy_requests`.
+- Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
 - Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
 
@@ -90,11 +90,11 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 - R2 privado: app assina upload/download por objeto; navegador transfere sem proxy de payload.
 - R2 público: `publishR2Object` copia do bucket privado para o público; URL pública vem de `R2_PUBLIC_BASE_URL`.
 
-### Certificado e dados
+### Certificado, analytics e manutenção
 
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle.
 - páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código.
-- solicitações de privacidade passam por registro, aprovação e execução; retenção automática só executa com flag e referência jurídica.
+- não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa limpeza técnica limitada: sessões e rate limits expirados, agregação diária de analytics e retenção de analytics brutos por 90 dias e agregados por 13 meses.
 
 ## Observabilidade
 
@@ -118,7 +118,7 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 - `/api/cron/enrollments` diariamente às 10:00 UTC;
 - `/api/cron/jmvstream` a cada cinco minutos;
 - `/api/cron/outbox` a cada cinco minutos;
-- `/api/cron/retention` diariamente às 04:00 UTC.
+- `/api/cron/maintenance` diariamente às 04:00 UTC.
 
 Todos dependem de `CRON_SECRET`. Agendamento e segredo em produção não foram verificados externamente.
 
@@ -147,7 +147,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `payments/provider.ts` concentra credencial/configuração do AbacatePay e URLs da aplicação; `payments/server.ts` coordena checkout autenticado, webhook, revisão e retry; `public-checkout.ts` aplica rate limit para a entrada pública. Provider e transição financeira não devem ser misturados em uma API genérica.
 - `jmvstream/server.ts` é a façade de leitura operacional e dos casos de uso ainda consumidos; `auth.ts` resolve token, `client.ts` é o contrato HTTP e `upload.ts` executa multipart no navegador. `asset-persistence.ts`, `course-folders.ts`, `upload-session.ts`, `upload-completion.ts`, `player-sync.ts`, `asset-deletion.ts` e `manual-video-sync.ts` separam persistência e lifecycle. `provider-mapper.ts` traduz o estado remoto em operação de galeria. O upload multipart direto é invariante.
 - resources de aula: autoria e player tinham regras duplicadas de extensão, tipo e tamanho. `src/features/courses/resource-presentation.ts` concentra apenas essa apresentação pura, sem importar React ou providers.
-- actions administrativas de matrícula, certificados e privacidade: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.
+- actions administrativas de matrícula e certificados: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.
 
 ### Orçamento atual de leitura administrativa
 

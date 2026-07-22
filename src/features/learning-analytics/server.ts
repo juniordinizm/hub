@@ -2,8 +2,8 @@ import "server-only";
 import { getPool } from "@/db";
 import { requirePermission } from "@/lib/auth-permissions";
 import {
+  isLearningAnalyticsEnabled,
   LEARNING_ANALYTICS_POLICY_VERSION,
-  LEARNING_REENGAGEMENT_COOLDOWN_DAYS,
   type LearningAnalyticsEventType,
 } from "./rules";
 
@@ -16,45 +16,66 @@ const validErrorCode = (value: string | undefined): string | null => {
   return value;
 };
 
-export const setLearningAnalyticsConsent = async ({
-  consented,
+export const setLearningAnalyticsPreference = async ({
+  enabled,
   userId,
 }: {
-  consented: boolean;
+  enabled: boolean;
   userId: string;
 }): Promise<void> => {
-  await getPool().query(
-    `
-      insert into learning_analytics_consents (user_id, consented_at, revoked_at, policy_version)
-      values ($1, case when $2 then now() else null end, case when $2 then null else now() end, $3)
-      on conflict (user_id) do update set
-        consented_at = case when $2 then now() else learning_analytics_consents.consented_at end,
-        revoked_at = case when $2 then null else now() end,
-        policy_version = excluded.policy_version,
-        updated_at = now()
-    `,
-    [userId, consented, LEARNING_ANALYTICS_POLICY_VERSION]
-  );
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    if (enabled) {
+      await client.query(
+        "delete from learning_analytics_preferences where user_id = $1",
+        [userId]
+      );
+    } else {
+      await client.query(
+        "delete from learning_analytics_events where user_id = $1",
+        [userId]
+      );
+      await client.query(
+        `
+          insert into learning_analytics_preferences (user_id, enabled_at, disabled_at, policy_version)
+          values ($1, null, now(), $2)
+          on conflict (user_id) do update set
+            enabled_at = null,
+            disabled_at = now(),
+            policy_version = excluded.policy_version,
+            updated_at = now()
+        `,
+        [userId, LEARNING_ANALYTICS_POLICY_VERSION]
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
-export const getLearningAnalyticsConsent = async ({
+export const getLearningAnalyticsPreference = async ({
   userId,
 }: {
   userId: string;
 }): Promise<boolean> => {
   const result = await getPool().query<{
-    consented_at: Date | null;
-    revoked_at: Date | null;
+    disabled_at: Date | null;
   }>(
-    "select consented_at, revoked_at from learning_analytics_consents where user_id = $1",
+    "select disabled_at from learning_analytics_preferences where user_id = $1",
     [userId]
   );
-  const consent = result.rows[0];
-  return Boolean(consent?.consented_at && !consent.revoked_at);
+  return isLearningAnalyticsEnabled({
+    disabledAt: result.rows[0]?.disabled_at ?? null,
+  });
 };
 
 /**
- * Records a minimized event only after server-side authorization and active consent.
+ * Records a minimized event only after server-side authorization and no opt-out.
  * Analytics failures deliberately do not affect the learning transaction.
  */
 export const recordLearningAnalyticsEvent = async ({
@@ -85,13 +106,12 @@ export const recordLearningAnalyticsEvent = async ({
       )
       select $1, $2, e.user_id, e.id, e.course_version_id, l.id, $3, $4
       from enrollments e
-      join learning_analytics_consents consent on consent.user_id = e.user_id
+      left join learning_analytics_preferences preference on preference.user_id = e.user_id
       join lessons l on l.id = $5 and l.course_version_id = e.course_version_id
       where e.user_id = $6
         and e.status = 'active'
         and e.expires_at > now()
-        and consent.consented_at is not null
-        and consent.revoked_at is null
+        and preference.disabled_at is null
       on conflict (idempotency_key) do nothing
     `,
     [
@@ -154,14 +174,22 @@ export const getLessonAnalyticsMetrics = async (): Promise<
       from analytics_events
       group by course_version_id, lesson_id
     ), eligible as (
-      select course_version_id, count(*)::int as eligible
-      from enrollments
-      where status = 'active' and expires_at > now()
-      group by course_version_id
+      select e.course_version_id, count(*)::int as eligible
+      from enrollments e
+      left join learning_analytics_preferences preference on preference.user_id = e.user_id
+      where e.status = 'active'
+        and e.expires_at > now()
+        and preference.disabled_at is null
+      group by e.course_version_id
     ), completed as (
-      select lesson_id, count(*)::int as completed
-      from lesson_progress
-      group by lesson_id
+      select lp.lesson_id, count(*)::int as completed
+      from lesson_progress lp
+      join lessons l on l.id = lp.lesson_id
+      join enrollments e on e.user_id = lp.user_id
+        and e.course_version_id = l.course_version_id
+      left join learning_analytics_preferences preference on preference.user_id = lp.user_id
+      where preference.disabled_at is null
+      group by lp.lesson_id
     ), recent_starts as (
       select enrollment_id, user_id, lesson_id, min(occurred_at) as started_at
       from learning_analytics_events
@@ -256,175 +284,4 @@ export const getLessonAnalyticsMetrics = async (): Promise<
         : Number(row.median_hours_to_next_lesson),
     started: Number(row.started),
   }));
-};
-
-export interface InactiveLearningEnrollment {
-  courseTitle: string;
-  enrollmentId: string;
-  lastActivityAt: Date | null;
-  studentName: string;
-}
-
-export const getInactiveLearningEnrollments = async (): Promise<
-  InactiveLearningEnrollment[]
-> => {
-  await requirePermission("viewAdminPanel");
-  const result = await getPool().query<{
-    course_title: string;
-    enrollment_id: string;
-    last_activity_at: Date | null;
-    student_name: string;
-  }>(`
-    select e.id as enrollment_id, users.name as student_name, courses.title as course_title,
-           greatest(max(ae.occurred_at), max(lp.completed_at), max(lwp.last_event_at)) as last_activity_at
-    from enrollments e
-    join users on users.id = e.user_id
-    join courses on courses.id = e.course_id
-    join learning_analytics_consents consent on consent.user_id = e.user_id
-    left join learning_analytics_events ae on ae.enrollment_id = e.id
-    left join lesson_progress lp on lp.user_id = e.user_id
-      and lp.lesson_id in (select id from lessons where course_version_id = e.course_version_id)
-    left join lesson_watch_progress lwp on lwp.user_id = e.user_id
-      and lwp.lesson_id in (select id from lessons where course_version_id = e.course_version_id)
-    where e.status = 'active'
-      and e.expires_at > now()
-      and consent.consented_at is not null
-      and consent.revoked_at is null
-    group by e.id, users.name, courses.title
-    having greatest(max(ae.occurred_at), max(lp.completed_at), max(lwp.last_event_at)) is null
-      or greatest(max(ae.occurred_at), max(lp.completed_at), max(lwp.last_event_at)) < now() - interval '14 days'
-    order by last_activity_at nulls first
-    limit 100
-  `);
-  return result.rows.map((row) => ({
-    courseTitle: row.course_title,
-    enrollmentId: row.enrollment_id,
-    lastActivityAt: row.last_activity_at,
-    studentName: row.student_name,
-  }));
-};
-
-export const initiateLearningReengagement = async ({
-  actorUserId,
-  enrollmentId,
-  intent,
-}: {
-  actorUserId: string;
-  enrollmentId: string;
-  intent: string;
-}): Promise<{ id: string }> => {
-  const trimmedIntent = intent.trim();
-  if (!(enrollmentId && trimmedIntent && trimmedIntent.length <= 500)) {
-    throw new Error(
-      "Informe a matricula e uma intencao de contato de ate 500 caracteres."
-    );
-  }
-
-  const result = await getPool().query<{ id: string }>(
-    `
-      insert into learning_reengagements (enrollment_id, initiated_by_user_id, intent)
-      select e.id, $2, $3
-      from enrollments e
-      join learning_analytics_consents consent on consent.user_id = e.user_id
-      where e.id = $1
-        and e.status = 'active'
-        and e.expires_at > now()
-        and consent.consented_at is not null
-        and consent.revoked_at is null
-        and not exists (
-          select 1
-          from learning_reengagements previous
-          where previous.enrollment_id = e.id
-            and previous.status = 'opted_out'
-        )
-        and not exists (
-          select 1
-          from learning_reengagements previous
-          where previous.enrollment_id = e.id
-            and previous.created_at > now() - interval '${LEARNING_REENGAGEMENT_COOLDOWN_DAYS} days'
-        )
-      returning id
-    `,
-    [enrollmentId, actorUserId, trimmedIntent]
-  );
-  const id = result.rows[0]?.id;
-  if (!id) {
-    throw new Error("Matricula nao esta elegivel para contato manual.");
-  }
-  await getPool().query(
-    `insert into audit_logs (actor_user_id, action, target_type, target_id)
-     values ($1, 'learning_reengagement.initiated', 'learning_reengagement', $2)`,
-    [actorUserId, id]
-  );
-  return { id };
-};
-
-export interface LearningReengagementRecord {
-  courseTitle: string;
-  id: string;
-  intent: string;
-  studentName: string;
-}
-
-export const getOpenLearningReengagements = async (): Promise<
-  LearningReengagementRecord[]
-> => {
-  await requirePermission("manageLearningAnalytics");
-  const result = await getPool().query<{
-    course_title: string;
-    id: string;
-    intent: string;
-    student_name: string;
-  }>(`
-    select r.id, r.intent, users.name as student_name, courses.title as course_title
-    from learning_reengagements r
-    join enrollments e on e.id = r.enrollment_id
-    join users on users.id = e.user_id
-    join courses on courses.id = e.course_id
-    where r.status = 'initiated'
-    order by r.created_at desc
-    limit 50
-  `);
-  return result.rows.map((row) => ({
-    courseTitle: row.course_title,
-    id: row.id,
-    intent: row.intent,
-    studentName: row.student_name,
-  }));
-};
-
-export const resolveLearningReengagement = async ({
-  actorUserId,
-  result,
-  reengagementId,
-  status,
-}: {
-  actorUserId: string;
-  result: string;
-  reengagementId: string;
-  status: "closed" | "opted_out" | "responded";
-}): Promise<void> => {
-  const trimmedResult = result.trim();
-  if (!(reengagementId && trimmedResult && trimmedResult.length <= 500)) {
-    throw new Error("Informe o resultado do contato em até 500 caracteres.");
-  }
-  const update = await getPool().query<{ id: string }>(
-    `
-      update learning_reengagements
-      set status = $2, result = $3,
-          opted_out_at = case when $2 = 'opted_out' then now() else opted_out_at end,
-          updated_at = now()
-      where id = $1 and status = 'initiated'
-      returning id
-    `,
-    [reengagementId, status, trimmedResult]
-  );
-  if (!update.rows[0]) {
-    throw new Error("Contato manual não está disponível para atualização.");
-  }
-  await getPool().query(
-    `insert into audit_logs (actor_user_id, action, target_type, target_id)
-     values ($1, 'learning_reengagement.resolved', 'learning_reengagement', $2)`,
-    [actorUserId, reengagementId]
-  );
 };

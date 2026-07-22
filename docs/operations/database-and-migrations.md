@@ -1,184 +1,113 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 754b654a357274fd5af504e4e714efb2dd519e2a
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Banco e migrations
 
-## Estado atual: cadeia local validada até `0030`
+## Estado atual
 
-O repositório possui a cadeia forward-only `0027` a `0030` após a promoção anterior de `0020` a
-`0024`. `0027` remove o artefato transitório de matrícula, `0028` cria Versões de Curso,
-`0029` preenche as referências e `0030` torna as referências obrigatórias e troca as unicidades
-por Versão. `bun run db:migrations:check` valida journal, snapshots e SQL no repositório.
+O repositório usa cadeia Drizzle forward-only. As migrations `0023` a `0030` e `0031`/`0032` foram promovidas para a branch `production` do projeto Neon `protear` em 2026-07-21. As migrations `0033_default_learning_analytics_preference` e `0034_remove_privacy_request_workflow` foram promovidas em 2026-07-22.
 
-As migrations `0025` a `0030` foram promovidas para produção em 2026-07-21. Não execute
-`db:migrate` em ambiente compartilhado sem branch/backup, URL direta conferida e aprovação de
-promoção.
+Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta conferida, branch/backup disponível, validação em banco descartável e aprovação explícita de promoção.
 
-Os comandos locais de reset e seed foram protegidos. Eles só são seguros para banco local
-descartável, com as proteções e confirmações abaixo.
+## Autoridades
+
+Compare sempre, nesta ordem operacional:
+
+1. `src/db/schema.ts`;
+2. SQL em `src/db/migrations`;
+3. `src/db/migrations/meta/_journal.json` e snapshots gerados pelo Drizzle;
+4. catálogo e journal do banco alvo.
+
+`bun run db:migrations:check` verifica a integridade versionada. Ele não prova que o banco remoto recebeu as migrations.
 
 ## Conexões
 
 - runtime: `DATABASE_URL`, preferencialmente endpoint pooled;
-- migrations/admin: `DATABASE_URL_DIRECT`, endpoint direto;
-- fallback do Drizzle config: `DATABASE_URL` se o direto estiver ausente;
-- TLS: `withVerifiedSslMode` força `sslmode=verify-full` para aliases menos estritos.
+- migrations e auditoria: `DATABASE_URL_DIRECT`, endpoint direto;
+- fallback do Drizzle: `DATABASE_URL` se a URL direta estiver ausente;
+- `withVerifiedSslMode` exige `sslmode=verify-full` para aliases menos estritos.
 
-Neon recomenda pooled para aplicações serverless e direto para migrations, `pg_dump` e operações com estado de sessão. O painel confirmou o projeto `protear` e sua branch `production` em 2026-07-21; o restante das configurações operacionais continua sujeito à verificação no painel.
+Neon recomenda pooled em runtime serverless e direto para migrations, `pg_dump` e operações com estado de sessão. O plano Free não fornece proteção de branch; confirme manualmente projeto, branch, host, banco e usuário antes de qualquer escrita compartilhada.
 
-## Schema e migrations
-
-Autoridades a comparar:
-
-1. `src/db/schema.ts`;
-2. SQL em `src/db/migrations`;
-3. `src/db/migrations/meta/_journal.json`;
-4. schema do banco alvo.
-
-O schema TypeScript exporta 30 tabelas. O journal é uma sequência única até `0030_complete_epoch`;
-`0023` cria `outbox_messages`, `0024` limita reprocessamento manual a uma vez e `0028`–`0030`
-introduzem Versionamento de Curso. Não edite snapshots ou journal manualmente: gere/revise a
-migration e rode `bun run db:migrations:check`.
-
-`drizzle-kit migrate` exige promoção controlada em ambientes compartilhados: backup ou branch,
-URL direta conferida, auditoria antes/depois e segunda execução sem reaplicação. A auditoria
-`db:migrations:inspect` verifica as estruturas de `0023` a `0030`, inclusive referências
-obrigatórias de Versão de Curso; o hash exibido pelo Drizzle não é o nome do arquivo SQL.
-
-## Comandos bloqueados
-
-### `bun run db:migrate`
-
-Execute em ambiente compartilhado somente no procedimento de promoção controlada. Não é passo
-de onboarding nem substitui a validação em banco descartável.
+## Migrations e geração
 
 ### `bun run db:generate`
 
-Está liberado. Os snapshots e o journal são gerados pelo Drizzle e a cadeia atual termina em
-`0030_complete_epoch`. Revise sempre o SQL gerado; `db:generate` não aplica migration.
+Gera SQL, journal e snapshot; não aplica schema. Revise o SQL antes de aceitá-lo. Não edite journal ou snapshot manualmente.
+
+Renomeações de tabela/coluna exigem que o Drizzle reconheça o pareamento. Quando o gerador pedir confirmação interativa, selecione a renomeação real, não uma criação e remoção equivalentes. Se a execução não tiver TTY, pare e rode o gerador em terminal interativo; não improvise metadata JSON.
+
+### `0033_default_learning_analytics_preference`
+
+O SQL forward-only renomeia `learning_analytics_consents` para `learning_analytics_preferences`, renomeia `consented_at`/`revoked_at` para `enabled_at`/`disabled_at`, remove `learning_reengagements` e seu enum. A promoção foi aplicada uma vez em 2026-07-22; a segunda execução do migrador não reaplicou alterações. A próxima geração de schema que envolver renomeação deve continuar sendo revisada em terminal interativo para o Drizzle reconhecer o pareamento sem metadata manual.
+
+### `0034_remove_privacy_request_workflow`
+
+Remove `privacy_requests` e seu enum, que não possuem usuário solicitante, fluxo administrativo ativo ou política jurídica aprovada. Foi promovida em 2026-07-22 para o ambiente sem produção ativa, após auditoria de pré-condições.
+
+### `bun run db:migrate`
+
+Só na promoção controlada. Não é onboarding e não substitui auditoria de schema.
+
+## Comandos bloqueados
 
 ### `bun run db:reset` e `bun run db:reset:local`
 
-O reset é destrutivo e trunca dados; não recria contas. Ele só aceita:
-
-- `NODE_ENV=development` ou `NODE_ENV=test`;
-- host `localhost`, `127.0.0.1` ou `::1`;
-- `LOCAL_DATABASE_NAMES` contendo explicitamente o banco alvo;
-- a flag `--allow-destructive-local-reset`;
-- `--confirm=<nome-do-banco>` com o nome exato do banco alvo.
-
-Exemplo exclusivamente para banco descartável local:
+São destrutivos e só aceitam `NODE_ENV=development`/`test`, host local, banco listado em `LOCAL_DATABASE_NAMES`, `--allow-destructive-local-reset` e `--confirm=<nome-do-banco>`. Exemplo para banco descartável local:
 
 ```bash
 bun run db:reset:local -- --allow-destructive-local-reset --confirm=hub_test
 ```
 
-Não execute contra Neon, Vercel ou qualquer banco compartilhado.
+Nunca execute contra Neon, Vercel ou qualquer ambiente compartilhado.
 
-### `bun run db:seed`
+### `bun run db:seed` e `bun run db:seed:student`
 
-O seed de catálogo usa as colunas atuais e transação única, mas só aceita banco local em
-`development`/`test`. Ele não é um passo de onboarding enquanto não houver banco local
-descartável configurado para o time.
-
+São somente para banco local descartável. O seed de Aluna cria Concessão manual e deriva Matrícula com `rebuildEnrollmentProjection`; não cria Pedido financeiro fictício.
 
 ### `bun run db:smoke:empty`
 
-Cria um banco com nome `hub_smoke_<timestamp>` em PostgreSQL local, aplica todas as
-migrations, executa o seed duas vezes, verifica curso/módulos/aulas/FAQ e remove o banco no
-encerramento. Requer `SMOKE_DATABASE_URL` ou uma URL local de banco e não aceita host remoto.
-É o comando indicado para CI quando houver PostgreSQL descartável local.
+Cria banco PostgreSQL local temporário, aplica a cadeia, roda seed duas vezes e remove o banco ao terminar. Requer `SMOKE_DATABASE_URL` ou URL local e recusa host remoto. É o smoke indicado para CI quando houver PostgreSQL local descartável.
 
 ### `bun run test:certificates:integration`
 
-Executa a concorrência de `completeLesson` e da outbox contra Postgres real, incluindo retry, callback de vídeo
-duplicado, certificado válido, certificado revogado, idempotência e leases concorrentes. Requer
-`CERTIFICATE_CONCURRENCY_DATABASE_URL` apontando para um banco descartável já migrado; nunca use
-um banco compartilhado. Sem essa variável, o arquivo de integração é ignorado pelo teste unitário.
-
-### `bun run db:seed:student`
-
-Cria ou atualiza uma Conta de teste local e uma Concessão com fonte `manual`; a Matrícula é
-derivada por `rebuildEnrollmentProjection`. Aceita os argumentos opcionais
-`<email> <senha> <nome> <curso-slug>`. Continua restrito a banco local em `development` ou
-`test` e não cria Pedido financeiro fictício. Requer as migrations `0021` e `0022`, já promovidas
-para produção em 2026-07-20.
+Executa concorrência de conclusão/outbox em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. Nunca aponte para banco compartilhado.
 
 ### `bun run db:push` e `bun run db:studio`
 
-Não são alternativas de onboarding. `db:push` pode alterar schema sem histórico; Studio permite mutação manual e acesso a dados sensíveis.
+Não são alternativas para onboarding nem promoção. `db:push` altera schema sem histórico; Studio permite mutação manual e exposição de dados sensíveis.
 
-## Inspeções permitidas
+## Promoção controlada
 
-Em branch de banco isolada e com URL conferida:
+1. Confirme projeto, branch, host, database e usuário da URL direta sem registrar segredo.
+2. Rode `bun run db:migrations:check` e valide a migration em banco descartável.
+3. Crie backup ou branch isolada quando disponível; no Free, registre a ausência de proteção e o plano de recuperação.
+4. Rode `bun run db:migrations:inspect -- --environment=<rótulo-sem-segredo>` em modo somente leitura.
+5. Aplique `bun run db:migrate` uma única vez com aprovação explícita.
+6. Audite catálogo e journal; execute migrador uma segunda vez para confirmar ausência de reaplicação.
+7. Registre ambiente, operadora, migrations esperadas/aplicadas e impacto.
 
-- comparar nomes/checksums de SQL e journal;
-- consultar tabelas/migrations aplicadas em modo somente leitura;
-- gerar diff sem aplicar;
-- executar testes contra banco descartável.
+Em dados existentes, valide contagens e relações antes e depois. Rollback preferencial é forward-fix revisado; não use reset como rollback.
 
-Antes de qualquer comando, confirme host, database, branch e usuário. Nunca copie URL completa para log.
+## Histórico operacional confirmado
 
-Use a auditoria versionada somente com a URL direta e um rótulo sem segredo:
+- `0023`/`0024`: validadas em branch temporária e promovidas uma vez para `production`; auditoria posterior confirmou outbox vazio e journal com 25 entradas.
+- `0025` a `0030`: promovidas em 2026-07-21; auditoria posterior confirmou referências obrigatórias de `course_version_id` e unicidades esperadas. A base não continha Cursos, Matrículas ou Certificados, portanto não é evidência de backfill com dados históricos.
+- `0031`/`0032`: promovidas para suportar analytics minimizado e métricas diárias. A configuração de produção e dados externos permanecem sujeitos a verificação humana no painel.
+- `0033`: promovida em 2026-07-22 pelo migrador Drizzle após auditoria de pré-condições; a segunda execução terminou sem reaplicar schema e o journal passou a conter a entrada correspondente.
+- `0034`: promovida em 2026-07-22 pelo migrador Drizzle; removeu a tabela e o enum do workflow de solicitações de dados. A auditoria posterior confirmou a ausência de ambos.
 
-```bash
-bun run db:migrations:inspect -- --environment=<ambiente>
-```
+## Recuperação
 
-Ela abre `BEGIN READ ONLY`, usa timeout de 15 segundos e emite apenas estados de
-catálogo, contagens e hashes do Drizzle. O hash não é o nome do arquivo de migration.
-
-### Auditoria de recuperação e promoção em 2026-07-21
-
-O projeto Neon `protear` foi confirmado como o ambiente de produção acessível. Antes da promoção,
-`production` tinha 23 entradas no journal e não possuía `outbox_messages`. A branch temporária
-`migration-promotion-0023-0024-20260721` recebeu `0023` e `0024` com sucesso, chegou a 25 entradas,
-possuía a tabela de outbox vazia e foi removida depois da conferência.
-
-Com aprovação explícita, as mesmas migrations foram aplicadas uma vez em `production` pela URL direta
-conferida. A auditoria posterior confirmou 25 entradas no journal, existência de `outbox_messages` e
-zero mensagens pendentes. A segunda execução do migrador terminou sem reaplicar schema. A branch
-`production` continua sem proteção: o plano Free não oferece esse recurso; essa limitação deve ser
-reavaliada antes de qualquer nova mudança estrutural compartilhada.
-
-### Validação isolada do versionamento em 2026-07-21
-
-A branch temporária `plan010-versioning-validation-20260721`, criada de `protear/production`,
-executou `0027`–`0030` integralmente e foi removida após a conferência. A estrutura resultante
-teve quatro `course_version_id` obrigatórios (`modules`, `lessons`, `enrollments` e
-`certificates`) e os índices únicos por Versão esperados.
-
-A origem não continha Cursos, Matrículas ou Certificados. Portanto, a execução comprovou a cadeia
-de schema e a segurança de `0027` quando a coluna transitória não existe, mas não é evidência de
-backfill com dados históricos. Não há dados de produção a preservar neste projeto; se surgirem,
-uma futura promoção deverá validar contagens e relações antes de `0030`.
-
-### Promoção de `0025` a `0030` em 2026-07-21
-
-Com aprovação explícita, `drizzle-kit migrate` aplicou as seis migrations ausentes em
-`protear/production`. A auditoria posterior registrou 31 entradas no journal, quatro colunas
-`course_version_id` obrigatórias e os índices únicos de Módulo e Certificado por Versão. A
-segunda execução terminou sem reaplicar SQL. A base ainda não contém Cursos, Matrículas ou
-Certificados, logo o backfill foi executado sobre conjunto vazio.
-
-## Regra para a próxima promoção
-
-Não editar o journal “no escuro”: ambiente que recebeu SQL manualmente pode exigir baseline diferente.
-Crie uma migration forward-only, execute `db:migrations:check`, valide em banco vazio descartável,
-audite o alvo e aplique uma vez com URL direta. Em seguida, audite o catálogo e execute o migrador
-uma segunda vez para confirmar a ausência de reaplicação.
-
-## Backup, rollback e incidentes
-
-- schema change exige backup/branch antes da aplicação;
-- rollback preferencial é forward-fix testado; SQL reverso precisa considerar dados;
-- em divergência, pare deploys e escrita afetada;
-- registre migration esperada, migration aplicada e impacto;
-- não use reset como rollback.
+- pare deploys e a escrita afetada em divergência;
+- registre migration esperada, aplicada e impacto;
+- restaure aplicação compatível com o schema ou aplique forward-fix revisado;
+- não use `db:reset`, `db:push` ou rollback SQL destrutivo;
+- para ensaio, use branch/banco isolado e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação).
 
 ## Evidências
 
-`drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`, `src/db/schema.ts`, `src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`, `scripts/inspect-migration-state.ts`, `scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts`, `scripts/bootstrap-student.ts`.
+`drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`, `src/db/schema.ts`, `src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`, `scripts/inspect-migration-state.ts`, `scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts` e `scripts/bootstrap-student.ts`.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { runDataRetention } from "@/features/privacy/server";
+import { runMaintenance } from "@/features/maintenance/server";
 import { getServerEnv } from "@/lib/env";
 import {
   CORRELATION_ID_HEADER,
@@ -27,9 +27,9 @@ export const GET = async (request: Request): Promise<Response> => {
 
   const result = await observeOperation({
     correlationId,
-    execute: runDataRetention,
-    failureErrorCode: "retention_cron_failed",
-    operation: "cron.retention",
+    execute: runMaintenance,
+    failureErrorCode: "maintenance_cron_failed",
+    operation: "cron.maintenance",
     provider: "database",
   });
 

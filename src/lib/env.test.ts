@@ -64,21 +64,4 @@ describe("server environment", () => {
     setEnv("CI", "true");
     expect(getServerEnv().E2E_TEST_MODE).toBe(true);
   });
-
-  it("keeps destructive retention disabled by default", () => {
-    setEnv("NODE_ENV", "development");
-    setEnv("DATA_RETENTION_ENABLED", undefined);
-
-    expect(getServerEnv().DATA_RETENTION_ENABLED).toBe(false);
-  });
-
-  it("requires a legal approval reference before enabling retention", () => {
-    setEnv("NODE_ENV", "development");
-    setEnv("DATA_RETENTION_ENABLED", "true");
-    setEnv("LEGAL_APPROVAL_REFERENCE", undefined);
-
-    expect(() => getServerEnv()).toThrow(
-      "LEGAL_APPROVAL_REFERENCE is required when DATA_RETENTION_ENABLED is true."
-    );
-  });
 });

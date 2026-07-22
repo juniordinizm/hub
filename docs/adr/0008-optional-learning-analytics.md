@@ -1,29 +1,35 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 7f536570d38eefface3a6c54092c7acc6f3c0fac
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
-# ADR-0008: analytics de aprendizagem opcional e reengajamento manual
+# ADR-0008: analytics de aprendizagem minimizado, padrão e com opt-out
 
 ## Contexto
 
-O Hub precisava identificar aula com falha ou baixa continuidade sem transformar o uso da Aluna em perfil comportamental. Não existe parecer jurídico formal que autorize uma coleta ampla ou campanhas automáticas.
+O Hub precisa encontrar falhas técnicas e entender, de forma agregada, como as Aulas são usadas. O público atual é pequeno e íntimo; por isso, uma lista nominal de inatividade e um fluxo de contato baseado em telemetria criariam mais complexidade e risco do que benefício pedagógico.
+
+`lesson_progress` e `lesson_watch_progress` são necessários para acesso, retomada, sequência, conclusão e Certificado. Eles não são substituídos por analytics.
 
 ## Decisão
 
-Analytics é opcional, depende de consentimento explícito e revogável e coleta somente eventos de aprendizagem definidos: início, checkpoint em faixa de 10%, conclusão, falha de material e falha de player. O cliente nunca informa `userId`; o servidor deriva Conta, Matrícula e `CourseVersion` da sessão e do acesso autorizado.
+O Hub registra por padrão eventos minimizados de início, checkpoint por faixa de 10%, conclusão e falha técnica. A Aluna pode desativar essa análise em **Conta > Configurações**, sem modal, bloqueio ou tela dedicada. A preferência é oposição/opt-out, nunca consentimento.
 
-Eventos brutos ficam por 90 dias. Métricas agregadas podem ficar por 13 meses. Dados de reengajamento manual ficam por 180 dias. A retenção programada exige ativação operacional e ratificação jurídica antes de apagar registros.
+Ausência de uma linha em `learning_analytics_preferences` significa analytics habilitado. Ao desativar, o Hub remove os eventos brutos identificáveis da Aluna, deixa de aceitar eventos futuros e exclui seu progresso essencial das consultas analíticas. Métricas diárias já materializadas permanecem somente agregadas.
 
-"Sem atividade registrada há 14 dias" é um filtro operacional, não diagnóstico de desinteresse. Somente Admin pode registrar uma iniciativa manual, individual, auditada, com intervalo mínimo de 30 dias. Não há disparo automático, segmentação preditiva ou uso de conteúdo de comentários.
+O Admin vê métricas por Aula e `CourseVersion`, com exportação CSV sem Conta, Matrícula, e-mail ou outro identificador pessoal. O Hub não mantém lista de Alunas inativas, registro de reengajamento, ação de contato nem automação de mensagens baseada nesses dados.
+
+Eventos brutos ficam até 90 dias; métricas agregadas, até 13 meses. A limpeza programada continua condicionada à habilitação operacional e à referência jurídica formal.
 
 ## Consequências
 
-Métricas exibem versão curricular e distinguem elegibilidade, início, conclusão e erro. `lesson_progress` continua a fonte de verdade da conclusão; analytics não muda acesso, progresso ou certificado. A implementação não afirma conformidade LGPD: a política e a base jurídica precisam de ratificação jurídica formal antes de qualquer ampliação.
+O painel continua útil para qualidade de Aula, mas não é ferramenta de acompanhamento individual. Falha da coleta não pode alterar acesso, progresso, sequência, conclusão ou Certificado.
+
+O aviso público de privacidade informa a finalidade, categorias, retenção e controle. Esta decisão de produto não comprova base legal nem conformidade LGPD: a ativação em produção exige ratificação jurídica documentada da base legal, transparência e prazos aplicáveis.
 
 ## Alternativas rejeitadas
 
-- Coleta automática por interesse legítimo: exigiria avaliação jurídica e transparência que o projeto ainda não possui.
-- Replay, IP, user agent, comentário ou texto assistido: desnecessários para as ações definidas.
-- E-mail automático após inatividade: aumenta risco de contato indevido e não prova benefício pedagógico.
+- Tela obrigatória de consentimento: torna uma coleta minimizada em fricção de onboarding e não é a base escolhida para o padrão.
+- Reengajamento manual ou automático após inatividade: trata um sinal incompleto como acompanhamento individual e não é necessário para o escopo atual.
+- Coletar replay, IP, user agent, comentário, texto assistido ou conteúdo de Aula: não é necessário para as métricas definidas.

@@ -1,6 +1,4 @@
-export const LEARNING_ANALYTICS_POLICY_VERSION = "2026-07-21";
-export const LEARNING_ACTIVITY_INACTIVE_DAYS = 14;
-export const LEARNING_REENGAGEMENT_COOLDOWN_DAYS = 30;
+export const LEARNING_ANALYTICS_POLICY_VERSION = "2026-07-22";
 export const LEARNING_ANALYTICS_RAW_RETENTION_DAYS = 90;
 
 export const LEARNING_ANALYTICS_EVENT_TYPES = [
@@ -25,25 +23,8 @@ export const getWatchCheckpointPercent = ({
   return checkpoint >= 10 && checkpoint > previousPercent ? checkpoint : null;
 };
 
-export const isActiveAnalyticsConsent = ({
-  consentedAt,
-  revokedAt,
+export const isLearningAnalyticsEnabled = ({
+  disabledAt,
 }: {
-  consentedAt: Date | null;
-  revokedAt: Date | null;
-}): boolean => Boolean(consentedAt && !revokedAt);
-
-export const hasRecordedActivitySince = ({
-  lastActivityAt,
-  now,
-}: {
-  lastActivityAt: Date | null;
-  now: Date;
-}): boolean => {
-  if (!lastActivityAt) {
-    return false;
-  }
-  const cutoff = new Date(now);
-  cutoff.setUTCDate(cutoff.getUTCDate() - LEARNING_ACTIVITY_INACTIVE_DAYS);
-  return lastActivityAt >= cutoff;
-};
+  disabledAt: Date | null;
+}): boolean => disabledAt === null;

@@ -7,7 +7,7 @@ import {
   recordLessonWatchProgress,
 } from "@/features/courses/server";
 import { sendSupportRequestEmail } from "@/features/email/server";
-import { setLearningAnalyticsConsent } from "@/features/learning-analytics/server";
+import { setLearningAnalyticsPreference } from "@/features/learning-analytics/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -100,15 +100,15 @@ export const sendSupportRequestAction = async (
   });
 };
 
-export const setLearningAnalyticsConsentAction = async (
+export const setLearningAnalyticsPreferenceAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requireSession();
   if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite alterar privacidade.");
+    throw new Error("Preview de aluno nao permite alterar análises opcionais.");
   }
-  await setLearningAnalyticsConsent({
-    consented: formData.get("consented") === "true",
+  await setLearningAnalyticsPreference({
+    enabled: formData.get("enabled") === "true",
     userId: session.user.id,
   });
 };

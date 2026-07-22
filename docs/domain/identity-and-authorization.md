@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 89fbab04260d44f0f8a75c19bf69b1c8c368d566
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Identidade e autorização
@@ -13,7 +13,7 @@ Define Conta, sessão, perfil, papéis, permissões e bloqueios. Termos comercia
 ## Modelo e estados
 
 - `users`: identidade Better Auth, papel e bloqueio de plataforma.
-- `accounts`: credenciais/provedores da identidade.
+- `accounts`: credenciais e provedores da identidade.
 - `sessions`: sessões revogáveis.
 - `verifications`: tokens de verificação e recuperação.
 - `profiles`: dados complementares da Aluna.
@@ -23,7 +23,7 @@ Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organi
 
 ### REG-IDA-001 E-mail identifica a Conta sem distinção de caixa
 
-**Invariante:** duas Contas não podem representar o mesmo e-mail por diferença apenas de maiúsculas/minúsculas.
+**Invariante:** duas Contas não podem representar o mesmo e-mail por diferença apenas de maiúsculas e minúsculas.
 
 **Implementado:** migration `0027_case_insensitive_user_email.sql`; normalização de Compradora em `normalizeBuyerEmail`, de `src/features/payments/buyer-identity.ts`.
 
@@ -35,16 +35,14 @@ Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organi
 
 **Autorização:** o endpoint de bootstrap Admin só existe fora de produção, exige `INTERNAL_BOOTSTRAP_SECRET` e retorna 404 em produção por `getBootstrapAdminDecision`.
 
-**Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro.
-O formulário público de recuperação sempre mostra a mesma mensagem para Conta existente, inexistente
-ou falha de entrega, evitando enumeração visível no navegador.
+**Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro. O formulário público de recuperação sempre mostra a mesma mensagem para Conta existente, inexistente ou falha de entrega, evitando enumeração visível no navegador.
 
 ### REG-IDA-003 Autorização é por capacidade
 
 `canPerform`, em `src/lib/auth-policy.ts`, é a fonte do RBAC:
 
 - `admin`: todas as capacidades;
-- `support`: `executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `managePrivacyRequests`, `viewAdminPanel`, `viewFinancials`;
+- `support`: `executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `viewAdminPanel`, `viewFinancials`;
 - `student`: nenhuma capacidade administrativa.
 
 Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização. O papel Suporte implementado aguarda ratificação de produto.
@@ -61,21 +59,11 @@ Server Actions e páginas devem checar a capacidade apropriada; esconder botão 
 
 ## Autenticação
 
-`getAuth`, em `src/lib/auth.ts`, configura Better Auth com:
-
-- adaptador Drizzle para `users`, `accounts`, `sessions`, `verifications`;
-- e-mail/senha, mínimo de oito caracteres;
-- token de redefinição por uma hora;
-- revogação das sessões após redefinição;
-- origens confiáveis resolvidas por `parseTrustedOrigins`;
-- `nextCookies()` como último plugin;
-- Dash/Sentinel opcionais quando `BETTER_AUTH_API_KEY` existe.
-
-O uso desses componentes foi conferido com a documentação oficial Better Auth v1.6, mas a configuração do painel Infra não foi verificada.
+`getAuth`, em `src/lib/auth.ts`, configura Better Auth com adaptador Drizzle para `users`, `accounts`, `sessions` e `verifications`; e-mail e senha; token de redefinição por uma hora; revogação das sessões após redefinição; origens confiáveis de `parseTrustedOrigins`; e `nextCookies()` como último plugin.
 
 As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 
-## Fronteira Admin/Aluna
+## Fronteira Admin e Aluna
 
 `getStudentPreviewMode`, `canAccessStudentRoute` e `canMutateStudentExperience`, em `src/features/courses/preview.ts`, permitem visualização controlada da experiência da Aluna. Preview de Admin não deve gravar progresso nem simular autorização real.
 
@@ -97,7 +85,7 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
 ## Decisões e pendências
 
 - [ADR-0001](../adr/0001-custom-rbac.md): RBAC próprio, aceito.
-- [DEC-DISC-007](../decisions.md#dec-disc-007): identidade/verificação, pendente.
-- Ratificar a matriz de Suporte.
-- Definir política formal de vinculação Compradora => Conta.
-- Racional histórico para Better Auth e autenticação por e-mail/senha não localizado.
+- [DEC-DISC-007](../decisions.md#dec-disc-007): identidade e verificação, pendente.
+- ratificar a matriz de Suporte;
+- definir política formal de vinculação Compradora para Conta;
+- racional histórico para Better Auth e autenticação por e-mail e senha não localizado.

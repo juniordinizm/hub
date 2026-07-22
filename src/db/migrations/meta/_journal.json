@@ -232,6 +232,20 @@
       "when": 1784674709766,
       "tag": "0032_outstanding_captain_america",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1784728912644,
+      "tag": "0033_default_learning_analytics_preference",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1784732170506,
+      "tag": "0034_remove_privacy_request_workflow",
+      "breakpoints": true
     }
   ]
 }

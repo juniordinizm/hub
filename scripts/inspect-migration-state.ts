@@ -77,11 +77,6 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
     ),
     scheduleExistsCheck(
       "0026_certificate_privacy_segregation",
-      "separacao de aprovacao e execucao de privacidade",
-      "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'privacy_requests' and column_name in ('approved_by_user_id', 'approved_at', 'executed_by_user_id', 'executed_at') having count(*) = 4) as present"
-    ),
-    scheduleExistsCheck(
-      "0026_certificate_privacy_segregation",
       "categoria de revogacao de certificado",
       "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'certificates' and column_name = 'revoked_reason_category') as present"
     ),
@@ -104,6 +99,11 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
       "0030_complete_epoch",
       "restricoes e indices por versao",
       "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name in ('modules', 'lessons', 'enrollments', 'certificates') and column_name = 'course_version_id' and is_nullable = 'NO' having count(*) = 4) and to_regclass('public.modules_course_version_sort_unique_idx') is not null and to_regclass('public.certificates_user_course_version_active_unique_idx') is not null as present"
+    ),
+    scheduleExistsCheck(
+      "0034_remove_privacy_request_workflow",
+      "remocao do workflow de solicitacoes de dados",
+      "select to_regclass('public.privacy_requests') is null and to_regtype('public.privacy_request_status') is null as present"
     ),
   ];
 

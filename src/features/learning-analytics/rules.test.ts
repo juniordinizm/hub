@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  getWatchCheckpointPercent,
-  hasRecordedActivitySince,
-  isActiveAnalyticsConsent,
-} from "./rules";
+import { getWatchCheckpointPercent, isLearningAnalyticsEnabled } from "./rules";
 
 describe("learning analytics rules", () => {
   test("emits only a newly crossed ten-percent checkpoint", () => {
@@ -18,30 +14,12 @@ describe("learning analytics rules", () => {
     ).toBe(40);
   });
 
-  test("requires consent that has not been revoked", () => {
-    const now = new Date();
+  test("keeps analytics enabled until the student explicitly opts out", () => {
+    expect(isLearningAnalyticsEnabled({ disabledAt: null })).toBe(true);
     expect(
-      isActiveAnalyticsConsent({ consentedAt: now, revokedAt: null })
-    ).toBe(true);
-    expect(isActiveAnalyticsConsent({ consentedAt: now, revokedAt: now })).toBe(
-      false
-    );
-  });
-
-  test("does not label absence of records as activity", () => {
-    const now = new Date("2026-07-21T12:00:00Z");
-    expect(hasRecordedActivitySince({ lastActivityAt: null, now })).toBe(false);
-    expect(
-      hasRecordedActivitySince({
-        lastActivityAt: new Date("2026-07-06T12:00:00Z"),
-        now,
+      isLearningAnalyticsEnabled({
+        disabledAt: new Date("2026-07-22T12:00:00Z"),
       })
     ).toBe(false);
-    expect(
-      hasRecordedActivitySince({
-        lastActivityAt: new Date("2026-07-07T12:00:01Z"),
-        now,
-      })
-    ).toBe(true);
   });
 });

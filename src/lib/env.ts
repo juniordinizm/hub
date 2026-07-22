@@ -32,10 +32,6 @@ const serverEnvSchema = z.object({
     .url()
     .default("http://localhost:3000"),
   CRON_SECRET: optionalNonEmptyString,
-  DATA_RETENTION_ENABLED: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
   E2E_TEST_MODE: z
@@ -48,7 +44,6 @@ const serverEnvSchema = z.object({
   JMVSTREAM_AUTH_RESOURCE: optionalNonEmptyString,
   JMVSTREAM_API_TOKEN: optionalNonEmptyString,
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
-  LEGAL_APPROVAL_REFERENCE: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_SENTRY_DSN: optionalNonEmptyString,
   NODE_ENV: z
@@ -79,7 +74,6 @@ export const getServerEnv = () => {
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,
     CRON_SECRET: process.env.CRON_SECRET,
-    DATA_RETENTION_ENABLED: process.env.DATA_RETENTION_ENABLED,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
     E2E_TEST_MODE: process.env.E2E_TEST_MODE,
@@ -89,7 +83,6 @@ export const getServerEnv = () => {
     JMVSTREAM_AUTH_RESOURCE: process.env.JMVSTREAM_AUTH_RESOURCE,
     JMVSTREAM_API_TOKEN: process.env.JMVSTREAM_API_TOKEN,
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
-    LEGAL_APPROVAL_REFERENCE: process.env.LEGAL_APPROVAL_REFERENCE,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NODE_ENV: process.env.NODE_ENV,
@@ -113,12 +106,6 @@ export const getServerEnv = () => {
     !process.env.NEXT_PUBLIC_APP_URL?.trim()
   ) {
     throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
-  }
-
-  if (env.DATA_RETENTION_ENABLED && !env.LEGAL_APPROVAL_REFERENCE) {
-    throw new Error(
-      "LEGAL_APPROVAL_REFERENCE is required when DATA_RETENTION_ENABLED is true."
-    );
   }
 
   if (env.E2E_TEST_MODE && process.env.CI !== "true") {

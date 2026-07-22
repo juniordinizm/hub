@@ -112,12 +112,6 @@ export const certificateStatusEnum = pgEnum("certificate_status", [
   "valid",
   "revoked",
 ]);
-export const privacyRequestStatusEnum = pgEnum("privacy_request_status", [
-  "requested",
-  "approved",
-  "completed",
-  "rejected",
-]);
 export const lessonCommentStatusEnum = pgEnum("lesson_comment_status", [
   "visible",
   "hidden",
@@ -131,10 +125,6 @@ export const learningAnalyticsEventTypeEnum = pgEnum(
     "resource_open_failed",
     "player_error",
   ]
-);
-export const learningReengagementStatusEnum = pgEnum(
-  "learning_reengagement_status",
-  ["initiated", "sent", "responded", "opted_out", "closed"]
 );
 export const jmvstreamFolderTypeEnum = pgEnum("jmvstream_folder_type", [
   "course",
@@ -679,15 +669,15 @@ export const lessonWatchProgress = pgTable(
   ]
 );
 
-/** Optional, revocable consent for the narrowly-scoped learning analytics policy. */
-export const learningAnalyticsConsents = pgTable(
-  "learning_analytics_consents",
+/** Default-enabled analytics preference; a disabled value opts the student out. */
+export const learningAnalyticsPreferences = pgTable(
+  "learning_analytics_preferences",
   {
     userId: text("user_id")
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
-    consentedAt: timestamp("consented_at", tz),
-    revokedAt: timestamp("revoked_at", tz),
+    enabledAt: timestamp("enabled_at", tz),
+    disabledAt: timestamp("disabled_at", tz),
     policyVersion: text("policy_version").notNull(),
     ...timestamps,
   }
@@ -732,33 +722,6 @@ export const learningAnalyticsEvents = pgTable(
     check(
       "learning_analytics_events_checkpoint_percent_bounds",
       sql`${table.checkpointPercent} is null or (${table.checkpointPercent} >= 0 and ${table.checkpointPercent} <= 100)`
-    ),
-  ]
-);
-
-export const learningReengagements = pgTable(
-  "learning_reengagements",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    enrollmentId: uuid("enrollment_id")
-      .notNull()
-      .references(() => enrollments.id, { onDelete: "cascade" }),
-    initiatedByUserId: text("initiated_by_user_id")
-      .notNull()
-      .references(() => users.id),
-    status: learningReengagementStatusEnum("status")
-      .default("initiated")
-      .notNull(),
-    intent: text("intent").notNull(),
-    result: text("result"),
-    optedOutAt: timestamp("opted_out_at", tz),
-    sentAt: timestamp("sent_at", tz),
-    ...timestamps,
-  },
-  (table) => [
-    index("learning_reengagements_enrollment_created_idx").on(
-      table.enrollmentId,
-      table.createdAt
     ),
   ]
 );
@@ -989,37 +952,6 @@ export const certificates = pgTable(
       .where(sql`${table.status} = 'valid'`),
     index("certificates_status_idx").on(table.status),
     index("certificates_course_version_idx").on(table.courseVersionId),
-  ]
-);
-
-export const privacyRequests = pgTable(
-  "privacy_requests",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id),
-    requestedByUserId: text("requested_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    status: privacyRequestStatusEnum("status").default("requested").notNull(),
-    reason: text("reason").notNull(),
-    resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    resolvedAt: timestamp("resolved_at", tz),
-    approvedByUserId: text("approved_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    approvedAt: timestamp("approved_at", tz),
-    executedByUserId: text("executed_by_user_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    executedAt: timestamp("executed_at", tz),
-    ...timestamps,
-  },
-  (table) => [
-    index("privacy_requests_user_status_idx").on(table.userId, table.status),
   ]
 );
 

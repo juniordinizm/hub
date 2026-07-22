@@ -6,8 +6,6 @@ export type AuthPermission =
   | "manageContent"
   | "manageEnrollmentAccess"
   | "manageLearningAnalytics"
-  | "managePrivacyRequests"
-  | "executePrivacyAnonymization"
   | "manageSettings"
   | "retryOutbox"
   | "retryWebhook"
@@ -17,12 +15,10 @@ export type AuthPermission =
 const rolePermissions: Record<AppRole, AuthPermission[]> = {
   admin: [
     "executeRefund",
-    "executePrivacyAnonymization",
     "manageCertificates",
     "manageContent",
     "manageEnrollmentAccess",
     "manageLearningAnalytics",
-    "managePrivacyRequests",
     "manageSettings",
     "retryOutbox",
     "retryWebhook",
@@ -34,7 +30,6 @@ const rolePermissions: Record<AppRole, AuthPermission[]> = {
     "executeRefund",
     "manageCertificates",
     "manageEnrollmentAccess",
-    "managePrivacyRequests",
     "viewAdminPanel",
     "viewFinancials",
   ],

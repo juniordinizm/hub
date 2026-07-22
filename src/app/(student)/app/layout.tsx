@@ -66,15 +66,15 @@ function StudentNav({
             </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuLink
-                href={route("/app/privacidade")}
-                tooltip="Privacidade"
+                href={route("/app/configuracoes")}
+                tooltip="Configurações"
               >
                 <HugeiconsIcon
                   icon={ShieldKeyIcon}
                   size={18}
                   strokeWidth={1.5}
                 />
-                <span>Privacidade</span>
+                <span>Configurações</span>
               </SidebarMenuLink>
             </SidebarMenuItem>
             <SidebarMenuItem>

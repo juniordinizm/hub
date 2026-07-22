@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ---
 
 # Outbox e efeitos transacionais
@@ -66,7 +66,7 @@ Essa retenção cobre somente a outbox e sua auditoria operacional. Não autoriz
 ## Evidências
 
 - schema e migrations: `outboxMessages` em `src/db/schema.ts`, `0023_lyrical_lucky_pierre.sql` e `0024_light_stature.sql`;
-- transações: `completeLesson`, `processAbacatePayWebhook`, `processEnrollmentMaintenance`, `registerPrivacyRequest` e `approvePrivacyRequest`;
+- transações: `completeLesson`, `processAbacatePayWebhook` e `processEnrollmentMaintenance`;
 - testes: `src/features/outbox/*.test.ts`, `outbox.integration.test.ts` e `certificate-issuance.integration.test.ts`;
 - provedor: [documentação de idempotência da Resend](https://resend.com/docs/dashboard/emails/idempotency-keys).
 
