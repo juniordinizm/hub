@@ -1,3 +1,5 @@
+import { Download01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,20 +33,23 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
             Dados opcionais e agregados para melhorar aulas e identificar falhas
             técnicas.
           </p>
-          <a
-            className="inline-flex text-primary text-sm underline underline-offset-4"
-            href="/api/admin/learning-analytics/export"
-          >
-            Exportar métricas em CSV
-          </a>
         </header>
         <section className="overflow-hidden rounded-lg border bg-card">
-          <div className="border-b p-5">
-            <h2 className="font-semibold text-lg">Funil por aula e versão</h2>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Elegíveis têm acesso ativo. Início e erro dependem de autorização
-              opcional; conclusão continua sendo a fonte de verdade do domínio.
-            </p>
+          <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-lg">Funil por aula e versão</h2>
+              <p className="mt-1 text-muted-foreground text-sm">
+                Elegíveis têm acesso ativo. Início e erro dependem de
+                autorização opcional; conclusão continua sendo a fonte de
+                verdade do domínio.
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <a href="/api/admin/learning-analytics/export">
+                <HugeiconsIcon icon={Download01Icon} />
+                Exportar métricas em CSV
+              </a>
+            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
