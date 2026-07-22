@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { setLearningAnalyticsPreferenceAction } from "@/app/(student)/app/actions";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 export function AnalyticsSwitch({ enabled }: { enabled: boolean }) {
   const [isPending, startTransition] = useTransition();
@@ -16,7 +17,12 @@ export function AnalyticsSwitch({ enabled }: { enabled: boolean }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className={cn(
+        "flex items-center gap-3 transition-opacity duration-200",
+        isPending && "opacity-60"
+      )}
+    >
       <span aria-hidden="true" className="text-muted-foreground text-sm">
         {enabled ? "Ativado" : "Desativado"}
       </span>

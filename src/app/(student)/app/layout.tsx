@@ -64,19 +64,7 @@ function StudentNav({
                 <span>Início</span>
               </SidebarMenuLink>
             </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuLink
-                href={route("/app/configuracoes")}
-                tooltip="Configurações"
-              >
-                <HugeiconsIcon
-                  icon={ShieldKeyIcon}
-                  size={18}
-                  strokeWidth={1.5}
-                />
-                <span>Configurações</span>
-              </SidebarMenuLink>
-            </SidebarMenuItem>
+
             <SidebarMenuItem>
               <SidebarMenuLink
                 href={route("/app/certificados")}
@@ -88,6 +76,19 @@ function StudentNav({
                   strokeWidth={1.5}
                 />
                 <span>Certificados</span>
+              </SidebarMenuLink>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuLink
+                href={route("/app/configuracoes")}
+                tooltip="Configurações"
+              >
+                <HugeiconsIcon
+                  icon={ShieldKeyIcon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
+                <span>Configurações</span>
               </SidebarMenuLink>
             </SidebarMenuItem>
           </SidebarMenu>
