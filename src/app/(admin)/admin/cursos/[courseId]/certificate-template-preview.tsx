@@ -8,11 +8,11 @@ import type { CertificateTemplateField } from "@/features/certificates/template-
 const samples = {
   long: {
     completedAt: "22 de julho de 2026",
-    courseFreeStatement: "Certificado de conclusao de curso livre.",
-    courseTitle: "Especializacao em Tecnicas Avancadas de Harmonizacao Facial",
+    courseFreeStatement: "Certificado de conclusão de curso livre.",
+    courseTitle: "Especialização em Técnicas Avançadas de Harmonização Facial",
     issuedAt: "22 de julho de 2026",
     issuerCnpj: "12.345.678/0001-90",
-    issuerName: "Instituto Protea Educacao Profissional",
+    issuerName: "Instituto Protea Educação Profissional",
     signerName: "Dra. Maria Fernanda de Albuquerque",
     studentName: "Ana Carolina de Souza e Silva",
     validationCode: "PRT-12345678",
@@ -82,7 +82,7 @@ export function CertificateTemplatePreview({
           if (field.field === "qrCode") {
             return qrDataUrl ? (
               <Image
-                alt="Codigo QR de validacao"
+                alt="Código QR de validação"
                 className="absolute object-contain"
                 height={128}
                 key={field.field}

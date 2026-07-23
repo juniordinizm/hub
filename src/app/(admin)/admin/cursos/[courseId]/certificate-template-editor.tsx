@@ -2,14 +2,6 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { disableCertificateForCourseAction } from "@/features/admin/actions";
 import type { CertificateTemplateSpec } from "@/features/certificates/template-rules";
 import {
@@ -49,55 +41,44 @@ export function CertificateTemplateEditor({
     if (status === "draft") {
       return "Rascunho";
     }
-    return "Substituida";
+    return "Substituída";
   };
 
   return (
     <section className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3">
-            Certificado{" "}
-            <Badge variant={certificateEnabled ? "default" : "secondary"}>
-              {state}
-            </Badge>
-          </CardTitle>
-          <CardDescription>
-            Uma versao publicada por curso. A arte, os dados e o PDF ficam
-            congelados no momento da emissao.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CertificateTemplateForm
-            courseId={courseId}
-            issuerConfigured={issuerConfigured}
-            template={editable}
-          />
-        </CardContent>
-      </Card>
-      {certificateEnabled ? (
-        <form action={disableCertificateForCourseAction.bind(null, courseId)}>
-          <Button type="submit" variant="outline">
-            Desligar certificado neste curso
-          </Button>
-        </form>
-      ) : null}
+      <div className="border-b pb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="font-semibold text-xl">Certificado</h2>
+          <Badge variant={certificateEnabled ? "default" : "secondary"}>
+            {state}
+          </Badge>
+        </div>
+        <p className="mt-1 text-muted-foreground text-sm">
+          Uma versão publicada por curso. A arte, os dados e o PDF ficam
+          congelados no momento da emissão.
+        </p>
+      </div>
+
+      <CertificateTemplateForm
+        courseId={courseId}
+        issuerConfigured={issuerConfigured}
+        template={editable}
+      />
+
       {templates.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Historico de versoes</CardTitle>
-            <CardDescription>
-              Versoes anteriores continuam como evidencia dos certificados
-              emitidos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
+        <div className="rounded-lg border bg-card p-5">
+          <h2 className="font-semibold text-xl">Histórico de versões</h2>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Versões anteriores continuam como evidência dos certificados
+            emitidos.
+          </p>
+          <div className="mt-4 flex flex-col gap-3">
             {templates.map((template) => (
               <div
-                className="flex items-center justify-between gap-4"
+                className="flex items-center justify-between gap-4 rounded-md border bg-background/35 px-3 py-2 text-sm"
                 key={`${template.version}-${template.status}`}
               >
-                <span>Versao {template.version}</span>
+                <span>Versão {template.version}</span>
                 <Badge
                   variant={
                     template.status === "published" ? "default" : "secondary"
@@ -107,9 +88,15 @@ export function CertificateTemplateEditor({
                 </Badge>
               </div>
             ))}
-            <Separator />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      ) : null}
+      {certificateEnabled ? (
+        <form action={disableCertificateForCourseAction.bind(null, courseId)}>
+          <Button type="submit" variant="outline">
+            Desligar certificado neste curso
+          </Button>
+        </form>
       ) : null}
     </section>
   );

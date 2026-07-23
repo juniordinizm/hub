@@ -58,9 +58,11 @@ describe("CertificateTemplateEditor", () => {
     });
 
     expect(container.textContent).toContain("Perfil emissor pendente");
-    expect(container.textContent).toContain("Dados de teste");
+    expect(container.textContent).toContain("Dados longos");
     const publishButton = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.includes("Publicar certificado")
+      (button) =>
+        button.textContent?.includes("Publicar") &&
+        !button.textContent?.includes("certificado neste curso")
     );
     expect(publishButton?.disabled).toBe(true);
   });
