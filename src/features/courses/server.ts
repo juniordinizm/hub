@@ -132,6 +132,7 @@ export interface StudentCourseOverviewData {
   }>;
   nextLessonId: string | null;
   progressPercent: number;
+  studentName: string | null;
   totalCount: number;
 }
 
@@ -247,6 +248,7 @@ interface CourseOverviewRow {
   module_id: string | null;
   module_sort_order: number | null;
   module_title: string | null;
+  student_name: string;
   thumbnail_url: string | null;
   video_embed_url: string | null;
   video_external_id: string | null;
@@ -706,6 +708,7 @@ const getEnrolledCourseOverview = async ({
         cp.workload_hours_snapshot as workload_hours,
         c.thumbnail_url,
         e.expires_at,
+        u.name as student_name,
         cert.code as certificate_code,
         c.certificate_enabled,
         cert.render_status as certificate_render_status,
@@ -725,6 +728,7 @@ const getEnrolledCourseOverview = async ({
         lp.completed_at,
         lwp.watched_percent
       from enrollments e
+      join users u on u.id = e.user_id
       join courses c on c.id = e.course_id
       join course_publications cp on cp.course_id = c.id and cp.status = 'published'
       left join certificates cert on cert.course_id = c.id
@@ -836,6 +840,7 @@ const getEnrolledCourseOverview = async ({
     modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
     nextLessonId: getNextAvailableLessonId({ lessonIds, completedLessonIds }),
     progressPercent: progress.percent,
+    studentName: firstRow.student_name,
     totalCount: progress.totalCount,
   };
 };
@@ -949,6 +954,7 @@ const getPreviewCourseOverview = async ({
     modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
     nextLessonId: lessonIds[0] ?? null,
     progressPercent: 0,
+    studentName: null,
     totalCount: lessonIds.length,
   };
 };

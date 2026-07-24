@@ -51,7 +51,7 @@ Uma solicitação real é um incidente excepcional: registrar o caso no canal op
 - remove sessões expiradas;
 - remove limites expirados da consulta pública de certificados;
 - consolida eventos de analytics anteriores ao dia atual em métricas diárias;
-- remove eventos brutos de analytics após 90 dias e métricas diárias após 13 meses.
+- remove eventos brutos de analytics após 90 dias e métricas diárias após 13 meses;
 - reconcilia PDFs determinísticos órfãos de Certificados revogados somente após expirar o lease, confirmar ausência de claim e de mensagem de renderização em processamento e repetir a verificação imediatamente antes da exclusão.
 
 As preferências de analytics da Aluna estão em [Aprendizagem e progresso](learning-content-and-progress.md). Base legal, canal de direitos, retenção de registros financeiros e qualquer anonimização exigem decisão jurídica futura.

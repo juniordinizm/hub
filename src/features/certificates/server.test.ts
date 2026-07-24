@@ -73,6 +73,88 @@ const renderSnapshot = {
 } as const;
 
 describe("certificate lifecycle reasons", () => {
+  it("uses the persisted course completion date in manual issuance snapshots", async () => {
+    const completedAt = new Date("2026-06-10T15:30:00.000Z");
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
+      if (statement.includes("from enrollments")) {
+        return { rows: [{ id: "enrollment-1" }] };
+      }
+      if (
+        statement.includes("from certificates") &&
+        statement.includes("order by issued_at")
+      ) {
+        return { rows: [] };
+      }
+      if (
+        statement.includes("from course_publications") &&
+        statement.includes("status = 'published'")
+      ) {
+        return { rows: [{ id: "publication-current" }] };
+      }
+      if (
+        statement.includes("from course_completions") &&
+        statement.includes("course_publication_id")
+      ) {
+        return { rows: [{ course_publication_id: "publication-origin" }] };
+      }
+      if (
+        statement.includes("from users u") &&
+        statement.includes("join certificate_templates")
+      ) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              completed_at: completedAt,
+              course_title: "Curso",
+              issuer_cnpj: "00.000.000/0001-00",
+              issuer_course_free_statement: "Curso livre.",
+              issuer_display_name: "Emissora",
+              issuer_legal_name: "Emissora LTDA",
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: renderSnapshot.template.backgroundKey,
+                fields: renderSnapshot.template.fields,
+              },
+              student_name: "Aluna",
+              template_id: renderSnapshot.template.id,
+              template_version: 1,
+              workload_hours: 8,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        return { rows: [{ id: "certificate-1" }] };
+      }
+      return { rows: [] };
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    });
+
+    await issueManualCertificate({
+      actorUserId: "support-1",
+      courseId: "course-1",
+      reasonCategory: "duplicate_or_technical_issue",
+      reasonDetail: "Emissao solicitada pelo suporte.",
+      userId: "student-1",
+    });
+
+    const certificateInsert = query.mock.calls.find(([statement]) =>
+      statement.includes("insert into certificates")
+    );
+    const values = certificateInsert?.[1] as unknown[] | undefined;
+    const snapshot = JSON.parse(String(values?.[9])) as {
+      completion: { completedAt: string };
+    };
+
+    expect(values?.[2]).toBe("publication-origin");
+    expect(snapshot.completion.completedAt).toBe(completedAt.toISOString());
+  });
+
   it("requires reissue when the student already has a revoked certificate", async () => {
     const release = vi.fn();
     const query = vi

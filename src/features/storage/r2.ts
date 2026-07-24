@@ -20,6 +20,7 @@ import {
   createCourseCoverUploadParts,
 } from "@/features/storage/course-cover-upload";
 import { buildPublicMediaUrl } from "@/features/storage/public-media";
+import { resolveR2ClientEndpoint } from "@/features/storage/r2-endpoint";
 import {
   buildLessonResourceObjectKey,
   buildLessonResourcePreviewObjectKey,
@@ -81,15 +82,25 @@ const getPublicR2Config = (): PublicR2Config => ({
   publicBucketName: readRequiredEnv("R2_PUBLIC_BUCKET_NAME"),
 });
 
-const getR2Client = (config: R2Config): S3Client =>
-  new S3Client({
+const getR2Client = (config: R2Config): S3Client => {
+  const endpoint = resolveR2ClientEndpoint({
+    accountId: config.accountId,
+    e2eTestMode: process.env.E2E_TEST_MODE === "true",
+    ...(process.env.R2_ENDPOINT
+      ? { endpointOverride: process.env.R2_ENDPOINT }
+      : {}),
+  });
+
+  return new S3Client({
     credentials: {
       accessKeyId: config.accessKeyId,
       secretAccessKey: config.secretAccessKey,
     },
-    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+    endpoint: endpoint.endpoint,
+    forcePathStyle: endpoint.forcePathStyle,
     region: "auto",
   });
+};
 
 export const createLessonResourceUploadUrl = async ({
   contentType,

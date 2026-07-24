@@ -20,7 +20,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 - `src/app/(student)`: área autenticada da Aluna.
 - `src/app/(admin)`: painel de Admin/Suporte.
 - `src/app/api`: Better Auth, checkout, webhooks, mídia, crons e health check.
-- `src/app/certificados/[code]`: validação pública e PDF.
+- `src/app/certificados/[code]`: validação pública por código/QR, sem acesso ao PDF.
 
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
 Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
@@ -42,7 +42,7 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Progresso e interação => `src/features/progress/rules.ts`, `src/features/comments`, tabelas `lesson_progress`, `lesson_watch_progress`, `lesson_comments`.
 - Comércio => `src/features/payments`, tabelas `orders`, `webhook_events`, `payment_reviews`, `refund_requests`.
 - Acesso => `src/features/enrollments`, tabelas `enrollment_grants`, `enrollments`, `enrollment_expiration_adjustments`, `enrollment_events`.
-- Certificados => `src/features/certificates`, tabelas `certificates`, `public_certificate_rate_limits`.
+- Certificados => `src/features/certificates`, tabelas `certificate_issuer_profiles`, `certificate_templates`, `certificates` e `public_certificate_rate_limits`.
 - Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
 - Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
@@ -53,7 +53,7 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrations está incompleto; portanto, schema TypeScript, SQL em disco e banco aplicado podem divergir. Veja [Banco e migrations](operations/database-and-migrations.md).
+O schema possui 35 tabelas exportadas em `src/db/schema.ts`. SQL e journal possuem 41 entradas alinhadas; `db:migrations:check` valida a cadeia local, enquanto `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. Veja [Banco e migrations](operations/database-and-migrations.md).
 
 ## Fluxos ponta a ponta
 
@@ -92,8 +92,10 @@ O schema possui 28 tabelas exportadas em `src/db/schema.ts`. O journal de migrat
 
 ### Certificado, analytics e manutenção
 
-- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle.
-- páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código.
+- cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados da Aluna, Curso e emissão em `render_snapshot`;
+- a conclusão elegível ou emissão manual cria o Certificado `pending` e uma mensagem `certificate.render`; o worker obtém claim persistido, gera o PDF uma vez, grava o artefato privado no R2 e só então enfileira o e-mail;
+- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
+- download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa limpeza técnica limitada: sessões e rate limits expirados, agregação diária de analytics e retenção de analytics brutos por 90 dias e agregados por 13 meses.
 
 ## Observabilidade
@@ -124,7 +126,7 @@ Todos dependem de `CRON_SECRET`. Agendamento e segredo em produção não foram 
 
 ## Limitações arquiteturais conhecidas
 
-- migrations fora do journal podem não ser aplicadas;
+- catálogo remoto pode divergir da cadeia local quando a promoção controlada não for executada ou auditada;
 - ausência de coortes: publicar conteúdo altera a experiência de todas as Matrículas elegíveis;
 - reversão de ajuste de expiração pode sobrescrever ajustes posteriores;
 - recuperação/ativação por senha ainda não usa outbox por token secreto;

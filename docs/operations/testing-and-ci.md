@@ -68,7 +68,10 @@ de bootstrap, cookie forjado nem bypass de autorização.
 
 O `globalTeardown` executa mesmo após falha de jornada e remove apenas o PDF fixture e as artes de
 template encontradas pelos IDs de Curso daquela execução. As chaves são validadas contra o prefixo
-único E2E/Curso antes do delete; use sempre um bucket privado descartável, nunca produção.
+único E2E/Curso antes do delete. O Playwright inicia um endpoint S3 compatível em loopback e força
+`R2_ENDPOINT`, credenciais e bucket exclusivos de E2E; o override é rejeitado fora de
+`E2E_TEST_MODE=true` e para hosts que não sejam loopback. Assim, os testes exercitam upload,
+presign, redirect, download e exclusão sem credenciais Cloudflare ou risco ao bucket de produção.
 
 As jornadas atuais verificam:
 

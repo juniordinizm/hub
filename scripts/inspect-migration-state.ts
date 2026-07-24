@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import { Pool, type PoolClient } from "pg";
 import { withVerifiedSslMode } from "../src/db/connection-url";
+import { certificateMigrationStateChecks } from "../src/db/migration-state-checks";
 
 config({ path: ".env.local", quiet: true });
 config({ path: ".env", quiet: true });
@@ -82,7 +83,7 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
     ),
     scheduleExistsCheck(
       "0027_military_the_phantom",
-      "remocao do artefato transitÃ³rio de matricula",
+      "remocao do artefato transitorio de matricula",
       "select not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'enrollments' and column_name = 'revoked_reason_category') as present"
     ),
     scheduleExistsCheck(
@@ -99,6 +100,9 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
       "0034_remove_privacy_request_workflow",
       "remocao do workflow de solicitacoes de dados",
       "select to_regclass('public.privacy_requests') is null and to_regtype('public.privacy_request_status') is null as present"
+    ),
+    ...certificateMigrationStateChecks.map(({ check, migration, statement }) =>
+      scheduleExistsCheck(migration, check, statement)
     ),
   ];
 

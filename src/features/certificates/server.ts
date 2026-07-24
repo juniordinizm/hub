@@ -282,6 +282,7 @@ const issueCertificate = async ({
   userId: string;
 }): Promise<{ id: string }> => {
   const snapshot = await client.query<{
+    completed_at: Date;
     course_title: string;
     student_name: string;
     workload_hours: number;
@@ -300,6 +301,7 @@ const issueCertificate = async ({
     `
       select
         u.name as student_name,
+        cc.completed_at,
         cp.title_snapshot as course_title,
         cp.workload_hours_snapshot as workload_hours,
         ct.id as template_id,
@@ -316,6 +318,10 @@ const issueCertificate = async ({
       from users u
       join course_publications cp on cp.course_id = $2 and cp.id = $3
       join courses c on c.id = cp.course_id and c.certificate_enabled = true
+      join course_completions cc
+        on cc.user_id = u.id
+       and cc.course_id = c.id
+       and cc.course_publication_id = cp.id
       join certificate_templates ct on ct.course_id = c.id and ct.status = 'published'
       join certificate_issuer_profiles issuer on issuer.id = 'global'
       where u.id = $1
@@ -333,7 +339,7 @@ const issueCertificate = async ({
   const issuedAt = new Date().toISOString();
   const renderSnapshot = parseCertificateRenderSnapshot({
     certificate: { code: certificateCode, issuedAt },
-    completion: { completedAt: new Date().toISOString() },
+    completion: { completedAt: source.completed_at.toISOString() },
     course: {
       title: source.course_title,
       workloadHours: source.workload_hours,
@@ -479,8 +485,8 @@ export const issueManualCertificate = async ({
       `,
       [courseId]
     );
-    const coursePublicationId = publication.rows[0]?.id;
-    if (!coursePublicationId) {
+    const publishedCoursePublicationId = publication.rows[0]?.id;
+    if (!publishedCoursePublicationId) {
       throw new Error("Curso sem publicacao vigente.");
     }
     await client.query(
@@ -489,8 +495,21 @@ export const issueManualCertificate = async ({
         values ($1, $2, $3)
         on conflict (user_id, course_id) do nothing
       `,
-      [userId, courseId, coursePublicationId]
+      [userId, courseId, publishedCoursePublicationId]
     );
+    const completion = await client.query<{ course_publication_id: string }>(
+      `
+        select course_publication_id
+        from course_completions
+        where user_id = $1 and course_id = $2
+        limit 1
+      `,
+      [userId, courseId]
+    );
+    const coursePublicationId = completion.rows[0]?.course_publication_id;
+    if (!coursePublicationId) {
+      throw new Error("Conclusao do curso nao localizada.");
+    }
     const certificate = await issueCertificate({
       actorUserId,
       client,

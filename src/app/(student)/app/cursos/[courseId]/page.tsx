@@ -39,11 +39,13 @@ function getCertificateHelper({
   certificateCode,
   certificateRenderStatus,
   completedCount,
+  studentName,
   totalCount,
 }: {
   certificateCode: string | null;
   certificateRenderStatus: "failed" | "pending" | "ready" | null;
   completedCount: number;
+  studentName: string | null;
   totalCount: number;
 }): string {
   if (certificateCode) {
@@ -51,7 +53,12 @@ function getCertificateHelper({
       ? "Seu certificado esta disponivel para download em Meus certificados."
       : "Voce concluiu o curso. Estamos preparando seu PDF.";
   }
-  return `Faltam ${Math.max(0, totalCount - completedCount)} aulas obrigatorias. O certificado usara o nome do seu perfil.`;
+  const remainingLessons = Math.max(0, totalCount - completedCount);
+  const expectedName = studentName
+    ? ` O nome previsto é ${studentName}.`
+    : " O certificado usará o nome do perfil da Aluna.";
+
+  return `Faltam ${remainingLessons} aulas obrigatórias.${expectedName}`;
 }
 
 export default async function StudentCourseOverviewPage({
@@ -157,10 +164,8 @@ export default async function StudentCourseOverviewPage({
                       className="h-full w-full px-6 sm:w-auto"
                       size="sm"
                     >
-                      <Link
-                        href={route(`/certificados/${data.certificateCode}`)}
-                      >
-                        Acessar certificado
+                      <Link href={route("/app/certificados")}>
+                        Ver em Meus certificados
                       </Link>
                     </Button>
                   ) : (
@@ -183,7 +188,7 @@ export default async function StudentCourseOverviewPage({
           </header>
           {data.certificateEnabled ? (
             <section className="rounded-lg border bg-card p-4">
-              <h2 className="font-semibold">Certificado de conclusao</h2>
+              <h2 className="font-semibold">Certificado de conclusão</h2>
               <p className="mt-1 text-muted-foreground text-sm">
                 {getCertificateHelper(data)}
               </p>

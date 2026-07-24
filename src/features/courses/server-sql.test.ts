@@ -61,6 +61,7 @@ const createCourseOverviewRow = ({
   module_id: "module-1",
   module_sort_order: 1,
   module_title: "Module one",
+  student_name: "Aluna Teste",
   thumbnail_url: null,
   video_embed_url: null,
   video_external_id: null,
@@ -160,6 +161,7 @@ describe("student experience reads", () => {
       isPreview: false,
       nextLessonId: "lesson-2",
       progressPercent: 33,
+      studentName: "Aluna Teste",
       totalCount: 3,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
