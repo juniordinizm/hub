@@ -49,10 +49,16 @@ const fieldsSchema = z
     }
   });
 
-const certificateTemplateDraftSchema = z
+const certificateTemplateSubmissionSchema = z
   .object({
-    backgroundKey: z.string().trim().min(1),
+    backgroundKey: z.string().trim(),
     fields: fieldsSchema,
+  })
+  .strict();
+
+const certificateTemplateDraftSchema = certificateTemplateSubmissionSchema
+  .extend({
+    backgroundKey: z.string().trim().min(1),
   })
   .strict();
 
@@ -135,6 +141,18 @@ export const parseCertificateTemplateDraft = (
   value: unknown
 ): CertificateTemplateSpec =>
   parseOrThrow(certificateTemplateDraftSchema, value, "Template invalido.") as {
+    backgroundKey: string;
+    fields: CertificateTemplateField[];
+  };
+
+export const parseCertificateTemplateSubmission = (
+  value: unknown
+): CertificateTemplateSpec =>
+  parseOrThrow(
+    certificateTemplateSubmissionSchema,
+    value,
+    "Template invalido."
+  ) as {
     backgroundKey: string;
     fields: CertificateTemplateField[];
   };

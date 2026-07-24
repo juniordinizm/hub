@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseCertificateRenderSnapshot,
   parseCertificateTemplateDraft,
+  parseCertificateTemplateSubmission,
 } from "./render-snapshot";
 import { CertificateTemplateValidationError } from "./template-errors";
 
@@ -41,6 +42,29 @@ describe("parseCertificateTemplateDraft", () => {
     expect(parseCertificateTemplateDraft(JSON.stringify(validDraft))).toEqual(
       validDraft
     );
+  });
+});
+
+describe("parseCertificateTemplateSubmission", () => {
+  it("allows a new background upload before its storage key exists", () => {
+    expect(
+      parseCertificateTemplateSubmission({
+        ...validDraft,
+        backgroundKey: "",
+      })
+    ).toEqual({
+      ...validDraft,
+      backgroundKey: "",
+    });
+  });
+
+  it("keeps rejecting malformed field contracts", () => {
+    expect(() =>
+      parseCertificateTemplateSubmission({
+        backgroundKey: "",
+        fields: [{ ...field, color: "red" }],
+      })
+    ).toThrow(CertificateTemplateValidationError);
   });
 });
 

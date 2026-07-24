@@ -31,6 +31,11 @@ export interface E2eFixture {
   };
   course: { id: string; lessonOneId: string; lessonTwoId: string };
   runId: string;
+  studentForCompletion: {
+    email: string;
+    id: string;
+    password: string;
+  };
   studentWithExpiredAccess: { email: string; id: string; password: string };
   studentWithGrant: {
     email: string;
@@ -279,10 +284,12 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   const pdfBody = await createMinimalCertificatePdf();
   const pdfSha256 = createHash("sha256").update(pdfBody).digest("hex");
   const studentEmail = `sg${suffix}@example.com`;
+  const completionStudentEmail = `sc${suffix}@example.com`;
   const noGrantEmail = `sn${suffix}@example.com`;
   const adminEmail = `ad${suffix}@example.com`;
   const [
     studentId,
+    completionStudentId,
     noGrantId,
     ,
     expiredAccessStudentId,
@@ -291,6 +298,11 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     createUser({
       email: studentEmail,
       name: "Aluna com acesso",
+      role: "student",
+    }),
+    createUser({
+      email: completionStudentEmail,
+      name: "Aluna para conclusao",
       role: "student",
     }),
     createUser({
@@ -397,6 +409,21 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       [studentId, courseId, `e2e-${suffix}`]
     );
     await rebuildEnrollmentProjection({ client, courseId, userId: studentId });
+    await client.query(
+      `
+        insert into enrollment_grants (
+          user_id, course_id, source_type, manual_reference, status,
+          starts_at, base_expires_at, effective_expires_at
+        ) values ($1, $2, 'manual', $3, 'active', now() - interval '1 minute',
+                  now() + interval '30 days', now() + interval '30 days')
+      `,
+      [completionStudentId, courseId, `e2e-completion-${suffix}`]
+    );
+    await rebuildEnrollmentProjection({
+      client,
+      courseId,
+      userId: completionStudentId,
+    });
 
     await client.query(
       `
@@ -473,6 +500,11 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       },
       course: { id: courseId, lessonOneId, lessonTwoId },
       runId: suffix,
+      studentForCompletion: {
+        email: completionStudentEmail,
+        id: completionStudentId,
+        password: E2E_PASSWORD,
+      },
       studentWithGrant: {
         email: studentEmail,
         id: studentId,

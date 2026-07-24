@@ -26,7 +26,7 @@ import {
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
 import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
-import { parseCertificateTemplateDraft } from "@/features/certificates/render-snapshot";
+import { parseCertificateTemplateSubmission } from "@/features/certificates/render-snapshot";
 import { CertificateTemplateDomainError } from "@/features/certificates/template-errors";
 import {
   deleteUnreferencedCertificateTemplateAssets,
@@ -689,7 +689,7 @@ export const saveCertificateTemplateDraftAction = async (
       "Template de certificado invalido."
     );
   }
-  const spec = parseCertificateTemplateDraft(specValue);
+  const spec = parseCertificateTemplateSubmission(specValue);
   let signatureKey = readString(formData, "signatureKey") || null;
 
   const replacedKeys = await runCertificateTemplateAssetMutation({
