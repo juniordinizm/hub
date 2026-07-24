@@ -14,7 +14,9 @@ O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/feat
 
 ## Catálogo aprovado
 
-`certificate.render` é idempotente por certificado. A entrega gera o PDF privado quando `render_status = pending`, salva hash e chave R2, muda para `ready` e só então enfileira `email.certificate-issued`. Uma tentativa repetida encontra o mesmo certificado/artefato e não cria novo documento ou e-mail.
+`certificate.render` é idempotente por certificado. A entrega reivindica um Certificado `pending` e `valid` com token persistido e lease de dez minutos, sem manter conexão Postgres durante o trabalho externo. Ela gera o PDF privado e tenta criá-lo com PUT condicional; uma disputa relê o objeto vencedor e usa o hash desses bytes. Depois salva hash e chave R2, muda para `ready` somente se ainda possuir o token e se o Certificado continuar válido, e só então enfileira `email.certificate-issued`. Falha recuperável libera o claim condicionalmente. O lease aplica fencing à conclusão do artefato, não execução exatamente uma vez: depois da expiração pode haver IO duplicado, mas o token antigo não sobrescreve o objeto nem altera o estado final. Uma tentativa repetida encontra o mesmo certificado/artefato e não cria novo documento ou e-mail; a unicidade da chave da outbox torna o enfileiramento do e-mail idempotente.
+
+Falhas inesperadas de `certificate.render` usam o código operacional `certificate_render_failed`; `resend_delivery_failed` fica restrito às entregas que realmente chamam o provedor de e-mail. Ambos são recuperáveis enquanto houver tentativas.
 
 Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o certificado fica `failed`; o reprocessamento manual autorizado devolve o certificado a `pending` antes de reentregar a mesma mensagem.
 

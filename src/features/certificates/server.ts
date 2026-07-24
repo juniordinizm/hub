@@ -11,12 +11,15 @@ import {
   parseCertificateTemplateDraft,
 } from "@/features/certificates/render-snapshot";
 import { renderCertificatePdf } from "@/features/certificates/rendering";
-import { createCertificateCode } from "@/features/certificates/rules";
+import {
+  CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
+  createCertificateCode,
+} from "@/features/certificates/rules";
 import { createCertificateRenderMessage } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
   createR2ObjectReadUrl,
-  uploadPrivateR2Object,
+  uploadPrivateR2ObjectIfAbsent,
 } from "@/features/storage/r2";
 import { getServerEnv } from "@/lib/env";
 
@@ -170,9 +173,10 @@ export const issueCompletionCertificateIfEligible = async ({
 
   const completion = await client.query<{ completed_at: Date; id: string }>(
     `
-      insert into course_completions (user_id, course_id, course_publication_id)
+      insert into course_completions as completion (user_id, course_id, course_publication_id)
       values ($1, $2, $3)
-      on conflict (user_id, course_id) do nothing
+      on conflict (user_id, course_id) do update
+      set completed_at = completion.completed_at
       returning id, completed_at
     `,
     [userId, courseId, coursePublicationId]
@@ -778,47 +782,84 @@ export const getCertificateOperationsForUser = async (
 export const renderPendingCertificate = async (
   certificateId: string
 ): Promise<boolean> => {
-  const client = await getPool().connect();
-  let claimed = false;
-
-  try {
-    const claim = await client.query<{ claimed: boolean }>(
-      "select pg_try_advisory_lock(hashtext($1)) as claimed",
-      [certificateId]
+  const claimToken = randomUUID();
+  const pool = getPool();
+  const releaseClaim = async (): Promise<void> => {
+    await pool.query(
+      `update certificates
+       set render_claim_token = null,
+           render_claimed_at = null,
+           updated_at = now()
+       where id = $1
+         and render_status = 'pending'
+         and render_claim_token = $2`,
+      [certificateId, claimToken]
     );
-    claimed = claim.rows[0]?.claimed ?? false;
-    if (!claimed) {
+  };
+  const claim = await pool.query<{ render_snapshot: unknown }>(
+    `update certificates
+     set render_claim_token = $2,
+         render_claimed_at = now(),
+         updated_at = now()
+     where id = $1
+       and status = 'valid'
+       and render_status = 'pending'
+       and (
+         render_claim_token is null
+         or render_claimed_at < now() - ($3 * interval '1 minute')
+       )
+     returning render_snapshot`,
+    [certificateId, claimToken, CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES]
+  );
+  const certificate = claim.rows[0];
+
+  if (!certificate) {
+    const state = await pool.query<{
+      render_status: "failed" | "pending" | "ready";
+      status: "revoked" | "valid";
+    }>("select render_status, status from certificates where id = $1 limit 1", [
+      certificateId,
+    ]);
+    if (
+      state.rows[0]?.render_status === "ready" &&
+      state.rows[0].status === "valid"
+    ) {
+      return true;
+    }
+    if (
+      state.rows[0]?.render_status === "pending" &&
+      state.rows[0].status === "valid"
+    ) {
       throw new Error("certificate_render_in_progress");
     }
+    return false;
+  }
 
-    const { rows } = await client.query<{ render_snapshot: unknown }>(
-      `select render_snapshot from certificates where id = $1 and render_status = 'pending' limit 1`,
-      [certificateId]
-    );
-    const certificate = rows[0];
-    if (!certificate) {
-      const ready = await client.query<{ id: string }>(
-        `select id from certificates
-         where id = $1 and status = 'valid' and render_status = 'ready'
-         limit 1`,
-        [certificateId]
-      );
-      return Boolean(ready.rows[0]);
-    }
-
+  try {
     const snapshot = parseCertificateRenderSnapshot(
       certificate.render_snapshot
     );
     const key = `certificates/${certificateId}/certificate.pdf`;
-    const existingResponse = await fetch(await createR2ObjectReadUrl({ key }));
-    const pdf = existingResponse.ok
-      ? Buffer.from(await existingResponse.arrayBuffer())
-      : null;
-    const artifact = pdf
-      ? {
-          pdf,
-          sha256: createHash("sha256").update(pdf).digest("hex"),
-        }
+    const readStoredArtifact = async (): Promise<{
+      pdf: Buffer;
+      sha256: string;
+    } | null> => {
+      const response = await fetch(await createR2ObjectReadUrl({ key }));
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error("certificate_artifact_lookup_failed");
+      }
+      const pdf = Buffer.from(await response.arrayBuffer());
+      return {
+        pdf,
+        sha256: createHash("sha256").update(pdf).digest("hex"),
+      };
+    };
+    const storedArtifact = await readStoredArtifact();
+    const artifact = storedArtifact
+      ? storedArtifact
       : await (async () => {
           const [backgroundResponse, signatureResponse] = await Promise.all([
             fetch(
@@ -837,6 +878,9 @@ export const renderPendingCertificate = async (
           if (!backgroundResponse.ok) {
             throw new Error("certificate_background_unavailable");
           }
+          if (snapshot.template.signatureKey && !signatureResponse?.ok) {
+            throw new Error("certificate_signature_unavailable");
+          }
           const rendered = await renderCertificatePdf({
             background: Buffer.from(await backgroundResponse.arrayBuffer()),
             publicBaseUrl: getServerEnv().CERTIFICATE_PUBLIC_BASE_URL,
@@ -845,26 +889,59 @@ export const renderPendingCertificate = async (
               : null,
             snapshot,
           });
-          await uploadPrivateR2Object({
+          const uploadResult = await uploadPrivateR2ObjectIfAbsent({
             body: rendered.pdf,
             contentType: "application/pdf",
             key,
           });
+          if (uploadResult === "existing") {
+            const winner = await readStoredArtifact();
+            if (!winner) {
+              throw new Error("certificate_artifact_missing_after_conflict");
+            }
+            return winner;
+          }
           return rendered;
         })();
 
-    const result = await client.query(
-      `update certificates set pdf_storage_key = $2, pdf_sha256 = $3, rendered_at = now(), render_status = 'ready', updated_at = now() where id = $1 and render_status = 'pending'`,
-      [certificateId, key, artifact.sha256]
+    const result = await pool.query(
+      `update certificates
+       set pdf_storage_key = $2,
+           pdf_sha256 = $3,
+           rendered_at = now(),
+           render_status = 'ready',
+           render_claim_token = null,
+           render_claimed_at = null,
+           updated_at = now()
+       where id = $1
+         and status = 'valid'
+         and render_status = 'pending'
+         and render_claim_token = $4`,
+      [certificateId, key, artifact.sha256, claimToken]
     );
-    return result.rowCount === 1;
-  } finally {
-    if (claimed) {
-      await client.query("select pg_advisory_unlock(hashtext($1))", [
-        certificateId,
-      ]);
+    if (result.rowCount === 1) {
+      return true;
     }
-    client.release();
+    const state = await pool.query<{
+      render_status: string;
+      status: "revoked" | "valid";
+    }>("select render_status, status from certificates where id = $1 limit 1", [
+      certificateId,
+    ]);
+    if (
+      state.rows[0]?.render_status === "ready" &&
+      state.rows[0].status === "valid"
+    ) {
+      return true;
+    }
+    if (state.rows[0]?.status === "revoked") {
+      await releaseClaim();
+      return false;
+    }
+    throw new Error("certificate_render_claim_lost");
+  } catch (error) {
+    await releaseClaim();
+    throw error;
   }
 };
 
@@ -873,8 +950,13 @@ export const markCertificateRenderFailed = async (
 ): Promise<void> => {
   await getPool().query(
     `update certificates
-     set render_status = 'failed', updated_at = now()
-     where id = $1 and render_status = 'pending'`,
+     set render_status = 'failed',
+         render_claim_token = null,
+         render_claimed_at = null,
+         updated_at = now()
+     where id = $1
+       and render_status = 'pending'
+       and render_claim_token is null`,
     [certificateId]
   );
 };

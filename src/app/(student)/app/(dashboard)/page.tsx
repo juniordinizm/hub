@@ -308,6 +308,7 @@ function CourseCard({
                 </span>
               </div>
               <Progress
+                aria-label={`Progresso no curso ${course.title}: ${course.progressPercent}%`}
                 className="h-1 *:data-[slot=progress-indicator]:bg-emerald-500"
                 value={course.progressPercent}
               />

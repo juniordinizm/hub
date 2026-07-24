@@ -20,6 +20,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `DATABASE_URL_DIRECT` | migrations/auditoria; fallback para `DATABASE_URL` | `drizzle.config.ts` | sim |
 | `E2E_TEST_MODE` | somente CI com `CI=true` | limite Better Auth | não |
 | `E2E_DATABASE_URL` | Playwright; banco descartável já migrado | seed e servidor E2E | sim |
+| `E2E_R2_BUCKET_NAME` | Playwright; confirmação explícita do bucket R2 isolado | seed e teardown E2E | não |
 | `LOCAL_DATABASE_NAMES` | reset local | proteção de comando destrutivo | não |
 | `SMOKE_DATABASE_URL` | `db:smoke:empty` | smoke PostgreSQL | sim |
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |
@@ -57,7 +58,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `R2_PUBLIC_BUCKET_NAME` | publicação pública | Copy/Delete | não |
 | `R2_PUBLIC_BASE_URL` | leitura pública | URLs/Next Image | público |
 
-Não configure os dois aliases AbacatePay com valores divergentes. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de login no banco efêmero da CI.
+Não configure os dois aliases AbacatePay com valores divergentes. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de login no banco efêmero da CI. O seed e o teardown E2E recusam operações R2 se `E2E_R2_BUCKET_NAME` estiver ausente ou não for exatamente igual a `R2_BUCKET_NAME`; nunca confirme um bucket de produção.
 
 Não há variável de “aprovação jurídica” ou “retenção de privacidade”: o produto não tem workflow de anonimização. O cron de manutenção aplica o prazo técnico de analytics e remove registros técnicos expirados.
 

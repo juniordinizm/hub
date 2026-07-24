@@ -9,6 +9,7 @@ const serverCommand = process.env.CI
 export default defineConfig({
   fullyParallel: false,
   globalSetup: "./tests/e2e/global-setup.ts",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   outputDir: "test-results/playwright",
   reporter: process.env.CI
     ? [

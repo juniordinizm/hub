@@ -1,18 +1,9 @@
-import {
-  Award01Icon,
-  Certificate01Icon,
-  Download01Icon,
-  FileValidationIcon,
-  Shield01Icon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -20,9 +11,9 @@ import {
 } from "@/components/ui/card";
 import { getCertificatesForUser } from "@/features/certificates/server";
 import { canMutateStudentExperience } from "@/features/courses/preview";
-import { formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+import { CertificateCard } from "./certificate-card";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +33,11 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 space-y-1">
               <h1 className="font-bold text-3xl tracking-tight">
-                Suas conclusões validadas
+                Seus certificados
               </h1>
               <p className="text-muted-foreground text-sm">
-                Cada certificado emitido fica disponível para download e
-                validação pública por código.
+                Acompanhe o preparo, baixe documentos disponíveis e valide cada
+                conclusão pelo código público.
               </p>
             </div>
           </div>
@@ -62,49 +53,10 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
             <EmptyCertificatesState />
           ) : (
             certificates.map((certificate) => (
-              <Card key={certificate.code}>
-                <CardHeader>
-                  <CardDescription>
-                    Emitido em {formatDate(certificate.issuedAt)}
-                  </CardDescription>
-                  <CardTitle>{certificate.courseTitle}</CardTitle>
-                  <CardDescription className="font-mono">
-                    {certificate.code}
-                  </CardDescription>
-                  <CardAction className="flex gap-2">
-                    {certificate.renderStatus === "ready" ? (
-                      <Button asChild>
-                        <Link
-                          href={route(
-                            `/app/certificados/${certificate.code}/pdf`
-                          )}
-                        >
-                          <HugeiconsIcon icon={Download01Icon} />
-                          Baixar PDF
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button disabled>Preparando PDF</Button>
-                    )}
-                    <Button asChild variant="outline">
-                      <Link href={route(`/certificados/${certificate.code}`)}>
-                        <HugeiconsIcon icon={FileValidationIcon} />
-                        Validar
-                      </Link>
-                    </Button>
-                  </CardAction>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 text-sm sm:grid-cols-3">
-                    <InfoPill
-                      icon={Certificate01Icon}
-                      label="Certificado digital"
-                    />
-                    <InfoPill icon={Shield01Icon} label="Código verificável" />
-                    <InfoPill icon={Award01Icon} label="Conclusão do curso" />
-                  </div>
-                </CardContent>
-              </Card>
+              <CertificateCard
+                certificate={certificate}
+                key={certificate.code}
+              />
             ))
           )}
         </section>
@@ -145,20 +97,5 @@ function EmptyCertificatesState(): React.JSX.Element {
         </Button>
       </CardContent>
     </Card>
-  );
-}
-
-function InfoPill({
-  icon,
-  label,
-}: {
-  icon: typeof Certificate01Icon;
-  label: string;
-}): React.JSX.Element {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-md border bg-background/45 px-3 py-2 text-muted-foreground">
-      <HugeiconsIcon icon={icon} />
-      {label}
-    </span>
   );
 }

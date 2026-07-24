@@ -317,6 +317,47 @@ export const uploadPrivateR2Object = async ({
   );
 };
 
+const isPreconditionFailed = (error: unknown): boolean => {
+  if (!(error instanceof Object && "$metadata" in error)) {
+    return false;
+  }
+  const metadata = error.$metadata;
+  return (
+    metadata instanceof Object &&
+    "httpStatusCode" in metadata &&
+    metadata.httpStatusCode === 412
+  );
+};
+
+export const uploadPrivateR2ObjectIfAbsent = async ({
+  body,
+  contentType,
+  key,
+}: {
+  body: Buffer;
+  contentType: string;
+  key: string;
+}): Promise<"created" | "existing"> => {
+  const config = getR2Config();
+  try {
+    await getR2Client(config).send(
+      new PutObjectCommand({
+        Body: body,
+        Bucket: config.bucketName,
+        ContentType: contentType,
+        IfNoneMatch: "*",
+        Key: key,
+      })
+    );
+    return "created";
+  } catch (error) {
+    if (isPreconditionFailed(error)) {
+      return "existing";
+    }
+    throw error;
+  }
+};
+
 export const getPublicMediaUrl = (key: string): string =>
   buildPublicMediaUrl({
     baseUrl: readRequiredEnv("R2_PUBLIC_BASE_URL"),

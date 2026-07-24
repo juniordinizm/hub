@@ -2,8 +2,12 @@
 
 import Image from "next/image";
 import QRCode from "qrcode";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CertificateTemplateField } from "@/features/certificates/template-rules";
+import {
+  getCertificatePreviewFrame,
+  getCertificatePreviewTextStyle,
+} from "./certificate-template-preview-layout";
 
 const samples = {
   long: {
@@ -36,15 +40,22 @@ export function CertificateTemplatePreview({
   backgroundUrl,
   fields,
   signatureUrl,
+  signerName,
   variant,
 }: {
   backgroundUrl: string | null;
   fields: CertificateTemplateField[];
   signatureUrl: string | null;
+  signerName: string;
   variant: "long" | "short";
 }): React.JSX.Element {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const values = samples[variant];
+  const [renderedWidth, setRenderedWidth] = useState(0);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const values = {
+    ...samples[variant],
+    signerName: signerName.trim() || samples[variant].signerName,
+  };
 
   useEffect(() => {
     QRCode.toDataURL("https://hub.example.test/certificados/PRT-12345678", {
@@ -54,14 +65,29 @@ export function CertificateTemplatePreview({
       .catch(() => setQrDataUrl(null));
   }, []);
 
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page) {
+      return;
+    }
+    const updateWidth = (): void => setRenderedWidth(page.clientWidth);
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, []);
+
   const visibleFields = useMemo(
     () => fields.filter((field) => field.visible),
     [fields]
   );
 
   return (
-    <div className="aspect-[1.414/1] overflow-hidden rounded-lg border bg-muted p-2 shadow-inner">
-      <div className="relative size-full overflow-hidden rounded-md bg-background">
+    <div className="aspect-[1.414/1] overflow-hidden rounded-xl bg-muted p-2 shadow-inner ring-1 ring-black/10 dark:ring-white/10">
+      <div
+        className="relative size-full overflow-hidden rounded-lg bg-background"
+        ref={pageRef}
+      >
         {backgroundUrl ? (
           <Image
             alt="Arte do certificado"
@@ -73,17 +99,12 @@ export function CertificateTemplatePreview({
           />
         ) : null}
         {visibleFields.map((field) => {
-          const frame = {
-            height: `${field.height}%`,
-            left: `${field.x}%`,
-            top: `${field.y}%`,
-            width: `${field.width}%`,
-          };
+          const frame = getCertificatePreviewFrame(field);
           if (field.field === "qrCode") {
             return qrDataUrl ? (
               <Image
                 alt="Código QR de validação"
-                className="absolute object-contain"
+                className="absolute"
                 height={128}
                 key={field.field}
                 src={qrDataUrl}
@@ -110,15 +131,9 @@ export function CertificateTemplatePreview({
           const value = values[field.field];
           return (
             <p
-              className="absolute overflow-hidden text-center leading-tight"
+              className="absolute overflow-hidden"
               key={field.field}
-              style={{
-                ...frame,
-                color: field.color,
-                fontFamily: field.font ?? "Helvetica",
-                fontSize: `${field.fontSize * 0.32}px`,
-                textAlign: field.align,
-              }}
+              style={getCertificatePreviewTextStyle(field, renderedWidth)}
             >
               {value}
             </p>

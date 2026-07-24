@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { createCertificatePdfDocument } from "./pdf-document";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { getCertificateValidationPath } from "./rules";
 import { CERTIFICATE_PAGE } from "./template-rules";
@@ -50,7 +50,7 @@ export const renderCertificatePdf = async ({
     : null;
   const pageWidth = CERTIFICATE_PAGE.width * pointsPerMillimeter;
   const pageHeight = CERTIFICATE_PAGE.height * pointsPerMillimeter;
-  const document = new PDFDocument({
+  const document = createCertificatePdfDocument({
     info: {
       CreationDate: new Date(snapshot.certificate.issuedAt),
       ModDate: new Date(snapshot.certificate.issuedAt),
@@ -61,7 +61,12 @@ export const renderCertificatePdf = async ({
     size: "A4",
   });
   const chunks: Buffer[] = [];
-  document.on("data", (chunk: Buffer) => chunks.push(chunk));
+  const pdfPromise = new Promise<Buffer>((resolve, reject) => {
+    document.on("data", (chunk: Buffer) => chunks.push(chunk));
+    document.once("end", () => resolve(Buffer.concat(chunks)));
+    document.once("error", reject);
+  });
+  const values = fieldValues(snapshot);
   document.image(backgroundForPdf, 0, 0, {
     height: pageHeight,
     width: pageWidth,
@@ -97,7 +102,7 @@ export const renderCertificatePdf = async ({
       continue;
     }
 
-    const value = fieldValues(snapshot)[field.field];
+    const value = values[field.field];
     if (value) {
       document
         .font(field.font ?? "Helvetica")
@@ -108,9 +113,7 @@ export const renderCertificatePdf = async ({
   }
 
   document.end();
-  const pdf = await new Promise<Buffer>((resolve) =>
-    document.on("end", () => resolve(Buffer.concat(chunks)))
-  );
+  const pdf = await pdfPromise;
 
   return {
     pdf,

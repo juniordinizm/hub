@@ -23,6 +23,13 @@ Compare sempre, nesta ordem operacional:
 
 `bun run db:migrations:check` verifica a integridade versionada. Ele não prova que o banco remoto recebeu as migrations.
 
+O mesmo gate resolve o snapshot autoritativo pela última entrada do journal e
+valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshots
+`0038` e `0039` permanecem como histórico forward-only da recuperação de
+metadata, pois sua aplicação externa não pode ser descartada com segurança.
+Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
+journal é autoridade; nesta cadeia, `0040_snapshot.json`.
+
 ## Conexões
 
 - runtime: `DATABASE_URL`, preferencialmente endpoint pooled;
@@ -41,6 +48,8 @@ Gera SQL, journal e snapshot; não aplica schema. Revise o SQL antes de aceitá-
 Renomeações de tabela/coluna exigem que o Drizzle reconheça o pareamento. Quando o gerador pedir confirmação interativa, selecione a renomeação real, não uma criação e remoção equivalentes. Se a execução não tiver TTY, pare e rode o gerador em terminal interativo; não improvise metadata JSON.
 
 A correção de progresso curricular está em `0036_ambitious_shinobi_shaw`: adiciona uma chave estável às Aulas e uma unicidade parcial para publicação `draft`. Foi gerada em terminal interativo; antes de promovê-la, revise o SQL para confirmar que contém somente essas três alterações e valide-a em banco descartável.
+
+`0040_certificate_render_claim` adiciona o token e o instante do claim persistido de renderização. Os checks exigem que ambos sejam nulos ou preenchidos em conjunto e que um Certificado `ready` possua chave, hash e data de renderização sem claim ativo. A migration foi gerada normalmente pelo Drizzle e precisa ser validada na cadeia descartável antes de promoção.
 
 ### Recuperação de snapshot após migration customizada
 

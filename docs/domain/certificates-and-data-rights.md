@@ -8,7 +8,7 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Certificados
 
-Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. A administração recorta a arte na proporção A4 e o servidor decodifica e normaliza o resultado em WebP antes de gravá-lo no R2. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ, é obrigatório para publicar; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
+Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. A administração recorta a arte na proporção A4 e o servidor decodifica e normaliza o resultado em WebP antes de gravá-lo no R2. Fundo e assinatura aceitam, respectivamente, até 10 MiB e 2 MiB; a Server Action reserva 14 MiB para os dois arquivos, o spec e o overhead multipart. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ, é obrigatório para publicar; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
 
 Certificado preserva código público, Conta, Curso, publicação interna de origem, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
 
@@ -22,7 +22,7 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001A Renderização e arquivo imutáveis
 
-A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico por Certificado antes de renderizar, lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se uma worker cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. Apenas depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
+A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico persistido por Certificado antes de renderizar; o token e o instante do claim formam um lease de dez minutos. Claim ativo impede outro renderizador, lease abandonado pode ser retomado e falha recuperável libera somente o token pertencente à tentativa. Nenhuma conexão Postgres permanece reservada durante leitura do R2, Sharp, PDFKit ou upload. A worker lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. O fencing não promete computação única: quando o lease expira durante uma operação lenta, duas workers podem executar IO, mas somente a dona do token vigente pode concluir o único artefato persistido. A conclusão também exige que o Certificado continue `valid`; revogação durante o IO impede `ready` e o e-mail. Somente depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
 
 ### REG-DAT-002 Revogação preserva histórico
 
@@ -52,6 +52,7 @@ Uma solicitação real é um incidente excepcional: registrar o caso no canal op
 - remove limites expirados da consulta pública de certificados;
 - consolida eventos de analytics anteriores ao dia atual em métricas diárias;
 - remove eventos brutos de analytics após 90 dias e métricas diárias após 13 meses.
+- reconcilia PDFs determinísticos órfãos de Certificados revogados somente após expirar o lease, confirmar ausência de claim e de mensagem de renderização em processamento e repetir a verificação imediatamente antes da exclusão.
 
 As preferências de analytics da Aluna estão em [Aprendizagem e progresso](learning-content-and-progress.md). Base legal, canal de direitos, retenção de registros financeiros e qualquer anonimização exigem decisão jurídica futura.
 

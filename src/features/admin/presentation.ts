@@ -4,6 +4,7 @@ export interface AdminCourseHealthInput {
   hasDescription: boolean;
   hasPaymentProviderProductId: boolean;
   hasThumbnail: boolean;
+  id: string;
   moduleCount: number;
   publishedLessonCount: number;
   status: string;
@@ -15,6 +16,7 @@ export interface AdminCourseHealthSummary {
   activeCourses: number;
   averageReadinessPercent: number;
   coursesNeedingAttention: Array<{
+    id: string;
     missingCount: number;
     readinessPercent: number;
     title: string;
@@ -131,6 +133,7 @@ export const summarizeAdminCourseHealth = (
 ): AdminCourseHealthSummary => {
   const courseReadiness = courses.map((course) => ({
     ...getCourseReadiness(course),
+    id: course.id,
     status: course.status,
     title: course.title,
   }));
@@ -155,7 +158,8 @@ export const summarizeAdminCourseHealth = (
           left.title.localeCompare(right.title)
       )
       .slice(0, MAX_ATTENTION_COURSES)
-      .map(({ missingCount, readinessPercent, title }) => ({
+      .map(({ id, missingCount, readinessPercent, title }) => ({
+        id,
         missingCount,
         readinessPercent,
         title,

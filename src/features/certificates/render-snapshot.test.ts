@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  CertificateTemplateValidationError,
   parseCertificateRenderSnapshot,
   parseCertificateTemplateDraft,
 } from "./render-snapshot";
+import { CertificateTemplateValidationError } from "./template-errors";
 
 const field = {
   align: "center",

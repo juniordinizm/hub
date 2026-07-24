@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CertificateTemplateValidationError } from "./template-errors";
 import {
   CERTIFICATE_FIELDS,
   type CertificateField,
@@ -99,13 +100,6 @@ const certificateRenderSnapshotSchema = z
 export type CertificateRenderSnapshot = z.infer<
   typeof certificateRenderSnapshotSchema
 >;
-
-export class CertificateTemplateValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CertificateTemplateValidationError";
-  }
-}
 
 const parseInput = (value: unknown): unknown => {
   if (typeof value !== "string") {

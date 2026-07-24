@@ -1,5 +1,4 @@
 export const LEARNING_ANALYTICS_POLICY_VERSION = "2026-07-22";
-export const LEARNING_ANALYTICS_RAW_RETENTION_DAYS = 90;
 
 export const LEARNING_ANALYTICS_EVENT_TYPES = [
   "lesson_started",

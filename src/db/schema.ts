@@ -960,6 +960,8 @@ export const certificates = pgTable(
       .default("pending")
       .notNull(),
     renderSnapshot: jsonb("render_snapshot"),
+    renderClaimToken: uuid("render_claim_token"),
+    renderClaimedAt: timestamp("render_claimed_at", tz),
     status: certificateStatusEnum("status").default("valid").notNull(),
     revokedAt: timestamp("revoked_at", tz),
     revokedReason: text("revoked_reason"),
@@ -979,6 +981,14 @@ export const certificates = pgTable(
       .where(sql`${table.status} = 'valid'`),
     index("certificates_status_idx").on(table.status),
     index("certificates_course_publication_idx").on(table.coursePublicationId),
+    check(
+      "certificates_render_claim_pair_check",
+      sql`(${table.renderClaimToken} is null) = (${table.renderClaimedAt} is null)`
+    ),
+    check(
+      "certificates_ready_artifact_check",
+      sql`${table.renderStatus} <> 'ready' or (${table.pdfStorageKey} is not null and ${table.pdfSha256} is not null and ${table.renderedAt} is not null and ${table.renderClaimToken} is null)`
+    ),
   ]
 );
 

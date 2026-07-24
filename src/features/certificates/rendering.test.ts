@@ -69,4 +69,24 @@ describe("renderCertificatePdf", () => {
     expect(result.sha256).toHaveLength(64);
     expect(result.pdf.toString("latin1")).toContain("/Helvetica-Bold");
   });
+
+  it("produces identical bytes and hash from the same immutable inputs", async () => {
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 1680, width: 2376 },
+    })
+      .webp()
+      .toBuffer();
+    const input = {
+      background,
+      publicBaseUrl: "https://hub.example.test",
+      signature: null,
+      snapshot,
+    } as const;
+
+    const first = await renderCertificatePdf(input);
+    const second = await renderCertificatePdf(input);
+
+    expect(second.sha256).toBe(first.sha256);
+    expect(second.pdf.equals(first.pdf)).toBe(true);
+  });
 });

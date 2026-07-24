@@ -61,9 +61,14 @@ Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, co
 
 O setup `tests/e2e/global-setup.ts` executa `bun run test:e2e:seed`, que carrega `seedE2e` em
 `scripts/seed-e2e.ts` com a condição `react-server`. Ele só funciona com `E2E_TEST_MODE=true` e
-`DATABASE_URL`; cria contas pela API real `getAuth().api.signUpEmail`,
+`DATABASE_URL`; para escrever o PDF fixture no R2, também exige `E2E_R2_BUCKET_NAME` explicitamente
+configurado e exatamente igual a `R2_BUCKET_NAME`. Ele cria contas pela API real `getAuth().api.signUpEmail`,
 atribui papel no perfil e gera Concessão manual seguida da projeção de Matrícula. Não usa o endpoint
 de bootstrap, cookie forjado nem bypass de autorização.
+
+O `globalTeardown` executa mesmo após falha de jornada e remove apenas o PDF fixture e as artes de
+template encontradas pelos IDs de Curso daquela execução. As chaves são validadas contra o prefixo
+único E2E/Curso antes do delete; use sempre um bucket privado descartável, nunca produção.
 
 As jornadas atuais verificam:
 

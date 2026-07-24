@@ -3,16 +3,104 @@ import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import {
   createR2ObjectReadUrl,
+  deleteR2Objects,
   uploadPrivateR2Object,
 } from "@/features/storage/r2";
 import { requireRole } from "@/lib/session";
 import { parseCertificateTemplateDraft } from "./render-snapshot";
+import { CertificateTemplateDomainError } from "./template-errors";
 import {
   normalizeCertificateBackground,
   normalizeCertificateSignature,
 } from "./template-image";
 import type { CertificateTemplateSpec } from "./template-rules";
 import { validateCertificateTemplate } from "./template-rules";
+
+export const deleteUnreferencedCertificateTemplateAssets = async ({
+  courseId,
+  keys,
+}: {
+  courseId: string;
+  keys: string[];
+}): Promise<void> => {
+  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
+
+  if (uniqueKeys.length === 0) {
+    return;
+  }
+
+  const client = await getPool().connect();
+  let locked = false;
+  try {
+    await client.query("select pg_advisory_lock(hashtextextended($1, 0))", [
+      courseId,
+    ]);
+    locked = true;
+    const { rows } = await client.query<{ key: string }>(
+      `
+        select candidate.key
+        from unnest($1::text[]) as candidate(key)
+        where not exists (
+          select 1
+          from certificate_templates template
+          where template.background_key = candidate.key
+             or template.signature_key = candidate.key
+        )
+        and not exists (
+          select 1
+          from certificates certificate
+          where certificate.render_snapshot #>> '{template,backgroundKey}' = candidate.key
+             or certificate.render_snapshot #>> '{template,signatureKey}' = candidate.key
+        )
+      `,
+      [uniqueKeys]
+    );
+
+    if (rows.length > 0) {
+      await deleteR2Objects(rows.map((row) => row.key));
+    }
+  } finally {
+    try {
+      if (locked) {
+        await client.query(
+          "select pg_advisory_unlock(hashtextextended($1, 0))",
+          [courseId]
+        );
+      }
+    } finally {
+      client.release();
+    }
+  }
+};
+
+export const runCertificateTemplateAssetMutation = async <Result>({
+  courseId,
+  operation,
+}: {
+  courseId: string;
+  operation: (trackUploadedKey: (key: string) => void) => Promise<Result>;
+}): Promise<Result> => {
+  const uploadedKeys: string[] = [];
+  const trackUploadedKey = (key: string): void => {
+    uploadedKeys.push(key);
+  };
+
+  try {
+    return await operation(trackUploadedKey);
+  } catch (error) {
+    if (uploadedKeys.length > 0) {
+      try {
+        await deleteUnreferencedCertificateTemplateAssets({
+          courseId,
+          keys: uploadedKeys,
+        });
+      } catch {
+        // A falha original continua sendo a autoridade; o cleanup e idempotente.
+      }
+    }
+    throw error;
+  }
+};
 
 export const uploadCertificateBackground = async ({
   courseId,
@@ -22,16 +110,6 @@ export const uploadCertificateBackground = async ({
   file: File;
 }): Promise<string> => {
   const image = await normalizeCertificateBackground(file);
-  if (
-    !(
-      file.type === "image/png" ||
-      file.type === "image/jpeg" ||
-      file.type === "image/webp"
-    ) ||
-    file.size > 10 * 1024 * 1024
-  ) {
-    throw new Error("Envie uma imagem PNG, JPEG ou WebP de até 10 MiB.");
-  }
   const key = `certificates/templates/${courseId}/${randomUUID()}.webp`;
   await uploadPrivateR2Object({
     body: image.body,
@@ -49,18 +127,6 @@ export const uploadCertificateSignature = async ({
   file: File;
 }): Promise<string> => {
   const image = await normalizeCertificateSignature(file);
-  if (
-    !(
-      file.type === "image/png" ||
-      file.type === "image/jpeg" ||
-      file.type === "image/webp"
-    ) ||
-    file.size > 2 * 1024 * 1024
-  ) {
-    throw new Error(
-      "Envie a assinatura visual em PNG, JPEG ou WebP de ate 2 MiB."
-    );
-  }
   const key = `certificates/templates/${courseId}/signatures/${randomUUID()}.webp`;
   await uploadPrivateR2Object({
     body: image.body,
@@ -82,42 +148,74 @@ export const saveCertificateTemplateDraft = async ({
   signerRole: string | null;
   signatureKey: string | null;
   spec: CertificateTemplateSpec;
-}): Promise<void> => {
+}): Promise<string[]> => {
   const errors = validateCertificateTemplate(spec);
-  if (errors.length) {
-    throw new Error(errors[0]);
+  const firstError = errors[0];
+  if (firstError) {
+    throw new CertificateTemplateDomainError(firstError);
   }
-  const updated = await getPool().query(
-    `
-      update certificate_templates
-      set background_key = $2, spec = $3::jsonb, signer_name = $4, signer_role = $5,
-          signature_key = $6, updated_at = now()
-      where course_id = $1 and status = 'draft'
-    `,
-    [
-      courseId,
-      spec.backgroundKey,
-      JSON.stringify(spec),
-      signerName,
-      signerRole,
-      signatureKey,
-    ]
-  );
-  if (updated.rowCount) {
-    return;
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [courseId]
+    );
+    const previous = await client.query<{
+      background_key: string;
+      id: string;
+      signature_key: string | null;
+    }>(
+      `select id, background_key, signature_key
+       from certificate_templates
+       where course_id = $1 and status = 'draft'
+       limit 1
+       for update`,
+      [courseId]
+    );
+    const previousDraft = previous.rows[0];
+
+    if (previousDraft) {
+      await client.query(
+        `update certificate_templates
+         set background_key = $2, spec = $3::jsonb, signer_name = $4, signer_role = $5,
+             signature_key = $6, updated_at = now()
+         where id = $1`,
+        [
+          previousDraft.id,
+          spec.backgroundKey,
+          JSON.stringify(spec),
+          signerName,
+          signerRole,
+          signatureKey,
+        ]
+      );
+    } else {
+      await client.query(
+        `insert into certificate_templates (course_id, version, status, background_key, spec, signer_name, signer_role, signature_key)
+         values ($1, coalesce((select max(version) + 1 from certificate_templates where course_id = $1), 1), 'draft', $2, $3::jsonb, $4, $5, $6)`,
+        [
+          courseId,
+          spec.backgroundKey,
+          JSON.stringify(spec),
+          signerName,
+          signerRole,
+          signatureKey,
+        ]
+      );
+    }
+
+    await client.query("commit");
+    return [previousDraft?.background_key, previousDraft?.signature_key].filter(
+      (key): key is string =>
+        Boolean(key) && key !== spec.backgroundKey && key !== signatureKey
+    );
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
   }
-  await getPool().query(
-    `insert into certificate_templates (course_id, version, status, background_key, spec, signer_name, signer_role, signature_key)
-     values ($1, coalesce((select max(version) + 1 from certificate_templates where course_id = $1), 1), 'draft', $2, $3::jsonb, $4, $5, $6)`,
-    [
-      courseId,
-      spec.backgroundKey,
-      JSON.stringify(spec),
-      signerName,
-      signerRole,
-      signatureKey,
-    ]
-  );
 };
 
 export interface CertificateTemplateSummary {
@@ -186,11 +284,15 @@ export const publishCertificateTemplate = async (
   const client = await getPool().connect();
   try {
     await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [courseId]
+    );
     const issuer = await client.query<{ id: string }>(
       "select id from certificate_issuer_profiles where id = 'global' for share"
     );
     if (!issuer.rows[0]) {
-      throw new Error(
+      throw new CertificateTemplateDomainError(
         "Preencha o perfil emissor em Configuracoes antes de publicar o certificado."
       );
     }
@@ -199,7 +301,7 @@ export const publishCertificateTemplate = async (
       [courseId]
     );
     if (!draft.rows[0]) {
-      throw new Error(
+      throw new CertificateTemplateDomainError(
         "Crie e salve um rascunho de certificado antes de publicar."
       );
     }
@@ -231,4 +333,36 @@ export const disableCertificateForCourse = async (
     "update courses set certificate_enabled = false, updated_at = now() where id = $1",
     [courseId]
   );
+};
+
+export const enableCertificateForCourse = async (
+  courseId: string
+): Promise<void> => {
+  const pool = getPool();
+  const prerequisite = await pool.query<{ id: string }>(
+    `
+      select template.id
+      from certificate_templates template
+      join certificate_issuer_profiles issuer on issuer.id = 'global'
+      where template.course_id = $1
+        and template.status = 'published'
+      limit 1
+    `,
+    [courseId]
+  );
+
+  if (!prerequisite.rows[0]) {
+    throw new CertificateTemplateDomainError(
+      "Publique um template e configure o perfil emissor antes de ligar certificados."
+    );
+  }
+
+  const result = await pool.query(
+    "update courses set certificate_enabled = true, updated_at = now() where id = $1",
+    [courseId]
+  );
+
+  if (result.rowCount !== 1) {
+    throw new CertificateTemplateDomainError("Curso nao localizado.");
+  }
 };

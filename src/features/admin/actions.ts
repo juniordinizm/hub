@@ -14,6 +14,10 @@ import {
 } from "@/features/admin/authoring";
 import type { CertificateTemplateActionState } from "@/features/admin/certificate-template-action-state";
 import {
+  getExpectedCertificateTemplateActionMessage,
+  saveAndPublishCertificateTemplate,
+} from "@/features/admin/certificate-template-actions";
+import {
   parseAdjustEnrollmentExpirationInput,
   parseEnrollmentAccessInput,
   parseExpirationDateSelection,
@@ -23,9 +27,13 @@ import {
 } from "@/features/admin/enrollment-command-input";
 import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
 import { parseCertificateTemplateDraft } from "@/features/certificates/render-snapshot";
+import { CertificateTemplateDomainError } from "@/features/certificates/template-errors";
 import {
+  deleteUnreferencedCertificateTemplateAssets,
   disableCertificateForCourse,
+  enableCertificateForCourse,
   publishCertificateTemplate,
+  runCertificateTemplateAssetMutation,
   saveCertificateTemplateDraft,
   uploadCertificateBackground,
   uploadCertificateSignature,
@@ -677,58 +685,44 @@ export const saveCertificateTemplateDraftAction = async (
   const background = formData.get("background") as File | null;
   const signature = formData.get("signature") as File | null;
   if (!(courseId && specValue)) {
-    throw new Error("Template de certificado invalido.");
+    throw new CertificateTemplateDomainError(
+      "Template de certificado invalido."
+    );
   }
   const spec = parseCertificateTemplateDraft(specValue);
-  const previousDraft = await getPool().query<{
-    background_key: string;
-    signature_key: string | null;
-  }>(
-    `select background_key, signature_key
-     from certificate_templates
-     where course_id = $1 and status = 'draft'
-     limit 1`,
-    [courseId]
-  );
-  const uploadedKeys: string[] = [];
   let signatureKey = readString(formData, "signatureKey") || null;
 
-  try {
-    if (background?.size) {
-      spec.backgroundKey = await uploadCertificateBackground({
+  const replacedKeys = await runCertificateTemplateAssetMutation({
+    courseId,
+    operation: async (trackUploadedKey) => {
+      if (background?.size) {
+        spec.backgroundKey = await uploadCertificateBackground({
+          courseId,
+          file: background,
+        });
+        trackUploadedKey(spec.backgroundKey);
+      }
+      const nextSignatureKey = signature?.size
+        ? await uploadCertificateSignature({ courseId, file: signature })
+        : signatureKey;
+      if (signature?.size && nextSignatureKey) {
+        trackUploadedKey(nextSignatureKey);
+      }
+      signatureKey = nextSignatureKey;
+      return await saveCertificateTemplateDraft({
         courseId,
-        file: background,
+        signerName: readString(formData, "signerName") || null,
+        signerRole: readString(formData, "signerRole") || null,
+        signatureKey: nextSignatureKey,
+        spec,
       });
-      uploadedKeys.push(spec.backgroundKey);
-    }
-    signatureKey = signature?.size
-      ? await uploadCertificateSignature({ courseId, file: signature })
-      : signatureKey;
-    if (signature?.size && signatureKey) {
-      uploadedKeys.push(signatureKey);
-    }
-    await saveCertificateTemplateDraft({
-      courseId,
-      signerName: readString(formData, "signerName") || null,
-      signerRole: readString(formData, "signerRole") || null,
-      signatureKey,
-      spec,
-    });
-  } catch (error) {
-    if (uploadedKeys.length > 0) {
-      await deleteR2Objects(uploadedKeys);
-    }
-    throw error;
-  }
+    },
+  });
 
-  const replacedKeys = [
-    previousDraft.rows[0]?.background_key,
-    previousDraft.rows[0]?.signature_key,
-  ].filter(
-    (key): key is string =>
-      Boolean(key) && key !== spec.backgroundKey && key !== signatureKey
-  );
-  await deleteR2Objects(replacedKeys);
+  await deleteUnreferencedCertificateTemplateAssets({
+    courseId,
+    keys: replacedKeys,
+  }).catch(() => undefined);
   revalidateAdmin();
 };
 
@@ -748,31 +742,39 @@ export const saveCertificateTemplateDraftFormAction = async (
     await saveCertificateTemplateDraftAction(formData);
     return { message: "Rascunho salvo.", status: "success" };
   } catch (error) {
+    const message = getExpectedCertificateTemplateActionMessage(error);
+    if (!message) {
+      throw error;
+    }
     return {
       fieldErrors: { template: "Revise os campos destacados." },
-      message:
-        error instanceof Error
-          ? error.message
-          : "Nao foi possivel salvar o rascunho.",
+      message,
       status: "error",
     };
   }
 };
 
 export const publishCertificateTemplateFormAction = async (
-  courseId: string,
   _previousState: CertificateTemplateActionState,
-  _formData: FormData
+  formData: FormData
 ): Promise<CertificateTemplateActionState> => {
   try {
-    await publishCertificateTemplateAction(courseId);
-    return { message: "Certificado publicado.", status: "success" };
-  } catch (error) {
+    await saveAndPublishCertificateTemplate({
+      formData,
+      publishDraft: publishCertificateTemplateAction,
+      saveDraft: saveCertificateTemplateDraftAction,
+    });
     return {
-      message:
-        error instanceof Error
-          ? error.message
-          : "Nao foi possivel publicar o certificado.",
+      message: "Alteracoes salvas e certificado publicado.",
+      status: "success",
+    };
+  } catch (error) {
+    const message = getExpectedCertificateTemplateActionMessage(error);
+    if (!message) {
+      throw error;
+    }
+    return {
+      message,
       status: "error",
     };
   }
@@ -783,6 +785,14 @@ export const disableCertificateForCourseAction = async (
 ): Promise<void> => {
   await requireRole(["admin"]);
   await disableCertificateForCourse(courseId);
+  revalidateAdmin();
+};
+
+export const enableCertificateForCourseAction = async (
+  courseId: string
+): Promise<void> => {
+  await requireRole(["admin"]);
+  await enableCertificateForCourse(courseId);
   revalidateAdmin();
 };
 

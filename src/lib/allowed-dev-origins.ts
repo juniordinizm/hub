@@ -20,7 +20,7 @@ const addOrigins = (origins: Set<string>, value?: string): void => {
   for (const item of value?.split(",") ?? []) {
     const origin = toAllowedDevOrigin(item);
 
-    if (origin && origin !== "localhost" && origin !== "127.0.0.1") {
+    if (origin && origin !== "localhost") {
       origins.add(origin);
     }
   }

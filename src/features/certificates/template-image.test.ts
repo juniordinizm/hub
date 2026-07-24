@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+import { CertificateTemplateValidationError } from "./template-errors";
 import { normalizeCertificateBackground } from "./template-image";
 import {
   CERTIFICATE_BACKGROUND_HEIGHT,
@@ -47,6 +48,9 @@ describe("normalizeCertificateBackground", () => {
     await expect(normalizeCertificateBackground(invalid)).rejects.toThrow(
       "Nao foi possivel ler a imagem do certificado."
     );
+    await expect(
+      normalizeCertificateBackground(invalid)
+    ).rejects.toBeInstanceOf(CertificateTemplateValidationError);
   });
 
   it("crops a non-A4 image into the canonical A4 landscape dimensions", async () => {

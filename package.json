@@ -76,6 +76,7 @@
     "test:certificates:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "playwright test",
     "test:e2e:seed": "bun --conditions=react-server scripts/seed-e2e.ts",
+    "test:e2e:teardown": "bun --conditions=react-server scripts/teardown-e2e.ts",
     "docs:check": "bun scripts/check-docs.ts",
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",

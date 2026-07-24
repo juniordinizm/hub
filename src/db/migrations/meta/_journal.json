@@ -281,6 +281,13 @@
       "when": 1784759939243,
       "tag": "0039_certificate_snapshot_final",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1784772032056,
+      "tag": "0040_certificate_render_claim",
+      "breakpoints": true
     }
   ]
 }

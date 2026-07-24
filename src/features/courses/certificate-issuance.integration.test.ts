@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import {
   afterAll,
@@ -10,6 +10,7 @@ import {
   vi,
 } from "vitest";
 import { withVerifiedSslMode } from "@/db/connection-url";
+import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
 
 const databaseUrl = process.env.CERTIFICATE_CONCURRENCY_DATABASE_URL;
 if (!databaseUrl) {
@@ -18,12 +19,16 @@ if (!databaseUrl) {
   );
 }
 const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CONSECUTIVE_ISSUANCE_RUNS = 20;
 const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 120_000;
 
 const dependencies = vi.hoisted(() => ({
+  createR2ObjectReadUrl: vi.fn(),
   getPool: vi.fn(),
+  renderCertificatePdf: vi.fn(),
   resolveLessonAccess: vi.fn(),
+  uploadPrivateR2ObjectIfAbsent: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -31,11 +36,48 @@ vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveLessonAccess: dependencies.resolveLessonAccess,
 }));
+vi.mock("@/features/certificates/rendering", () => ({
+  renderCertificatePdf: dependencies.renderCertificatePdf,
+}));
+vi.mock("@/features/storage/r2", () => ({
+  createR2ObjectReadUrl: dependencies.createR2ObjectReadUrl,
+  uploadPrivateR2ObjectIfAbsent: dependencies.uploadPrivateR2ObjectIfAbsent,
+}));
+vi.mock("@/lib/env", () => ({
+  getServerEnv: () => ({ CERTIFICATE_PUBLIC_BASE_URL: "https://hub.test" }),
+}));
 
-import { tryIssueAutomaticCompletionCertificate } from "../certificates/server";
+import {
+  renderPendingCertificate,
+  tryIssueAutomaticCompletionCertificate,
+} from "../certificates/server";
+import { deliverOutboxMessage } from "../outbox/delivery";
 import { completeLesson, recordLessonWatchProgress } from "./server";
 
 const pool = new Pool({ connectionString: withVerifiedSslMode(databaseUrl) });
+let storedCertificatePdf: Buffer | null = null;
+
+const storeCertificatePdfIfAbsent = ({
+  body,
+}: {
+  body: Buffer;
+}): "created" | "existing" => {
+  if (storedCertificatePdf) {
+    return "existing";
+  }
+  storedCertificatePdf = body;
+  return "created";
+};
+
+const fetchCertificateAsset = (url: string): Response => {
+  if (!url.endsWith("certificate.pdf")) {
+    return new Response(new Uint8Array(Buffer.from("asset")), { status: 200 });
+  }
+  if (storedCertificatePdf) {
+    return new Response(new Uint8Array(storedCertificatePdf));
+  }
+  return new Response(null, { status: 404 });
+};
 
 const getTestPool = (): Pool => pool;
 
@@ -100,7 +142,10 @@ const createFixture = async (): Promise<{
     [
       courseId,
       `certificates/test-backgrounds/${courseId}.png`,
-      JSON.stringify({ version: 1, fields: [] }),
+      JSON.stringify({
+        backgroundKey: `certificates/test-backgrounds/${courseId}.png`,
+        fields: createDefaultCertificateTemplateFields(),
+      }),
     ]
   );
 
@@ -187,12 +232,25 @@ describe("emissao concorrente de certificado", () => {
   });
 
   beforeEach(async () => {
+    vi.clearAllMocks();
     dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.createR2ObjectReadUrl.mockImplementation(
+      async ({ key }: { key: string }) => `https://r2.test/${key}`
+    );
+    dependencies.renderCertificatePdf.mockResolvedValue({
+      pdf: Buffer.from("stable-pdf"),
+      sha256: "a".repeat(64),
+    });
+    storedCertificatePdf = null;
+    dependencies.uploadPrivateR2ObjectIfAbsent.mockImplementation(
+      storeCertificatePdfIfAbsent
+    );
+    vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
     await pool.query("truncate table users cascade");
   });
 
-  afterAll(async () => {
-    await pool.end();
+  afterAll(() => {
+    vi.unstubAllGlobals();
   });
 
   it("emite e registra uma unica renderizacao duravel sob duas conclusoes simultaneas", async () => {
@@ -362,4 +420,249 @@ describe("emissao concorrente de certificado", () => {
     },
     CONSECUTIVE_ISSUANCE_TIMEOUT_MS
   );
+});
+
+const createPendingRender = async (): Promise<string> => {
+  const fixture = await createFixture();
+  await completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId });
+  const result = await pool.query<{ id: string }>(
+    "select id from certificates where course_id = $1 and user_id = $2",
+    [fixture.courseId, fixture.userId]
+  );
+  const certificateId = result.rows[0]?.id;
+  if (!certificateId) {
+    throw new Error("Nao foi possivel criar o certificado pendente de teste.");
+  }
+  return certificateId;
+};
+
+describe("claim persistido de renderizacao", () => {
+  beforeAll(() => {
+    dependencies.getPool.mockReturnValue(pool);
+    dependencies.resolveLessonAccess.mockResolvedValue(true);
+  });
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.createR2ObjectReadUrl.mockImplementation(
+      async ({ key }: { key: string }) => `https://r2.test/${key}`
+    );
+    dependencies.renderCertificatePdf.mockResolvedValue({
+      pdf: Buffer.from("stable-pdf"),
+      sha256: "a".repeat(64),
+    });
+    storedCertificatePdf = null;
+    dependencies.uploadPrivateR2ObjectIfAbsent.mockImplementation(
+      storeCertificatePdfIfAbsent
+    );
+    vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
+    await pool.query("truncate table users cascade");
+  });
+
+  afterAll(async () => {
+    vi.unstubAllGlobals();
+    await pool.end();
+  });
+
+  it("permite somente um renderizador durante o lease ativo", async () => {
+    const certificateId = await createPendingRender();
+    let finishRender!: (value: { pdf: Buffer; sha256: string }) => void;
+    dependencies.renderCertificatePdf.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRender = resolve;
+        })
+    );
+
+    const first = renderPendingCertificate(certificateId);
+    await vi.waitFor(() => {
+      expect(dependencies.renderCertificatePdf).toHaveBeenCalledOnce();
+    });
+
+    await expect(renderPendingCertificate(certificateId)).rejects.toThrow(
+      "certificate_render_in_progress"
+    );
+    finishRender({ pdf: Buffer.from("stable-pdf"), sha256: "a".repeat(64) });
+    await expect(first).resolves.toBe(true);
+
+    expect(dependencies.uploadPrivateR2ObjectIfAbsent).toHaveBeenCalledOnce();
+  });
+
+  it("retoma um claim cujo lease expirou", async () => {
+    const certificateId = await createPendingRender();
+    await pool.query(
+      `update certificates
+       set render_claim_token = $2,
+           render_claimed_at = now() - interval '11 minutes'
+       where id = $1`,
+      [certificateId, randomUUID()]
+    );
+
+    await expect(renderPendingCertificate(certificateId)).resolves.toBe(true);
+
+    const result = await pool.query<{
+      render_claim_token: string | null;
+      render_status: string;
+    }>(
+      "select render_claim_token, render_status from certificates where id = $1",
+      [certificateId]
+    );
+    expect(result.rows[0]).toEqual({
+      render_claim_token: null,
+      render_status: "ready",
+    });
+  });
+
+  it("libera o claim depois de uma falha recuperavel", async () => {
+    const certificateId = await createPendingRender();
+    dependencies.uploadPrivateR2ObjectIfAbsent.mockRejectedValueOnce(
+      new Error("r2_unavailable")
+    );
+
+    await expect(renderPendingCertificate(certificateId)).rejects.toThrow(
+      "r2_unavailable"
+    );
+
+    const result = await pool.query<{
+      render_claim_token: string | null;
+      render_status: string;
+    }>(
+      "select render_claim_token, render_status from certificates where id = $1",
+      [certificateId]
+    );
+    expect(result.rows[0]).toEqual({
+      render_claim_token: null,
+      render_status: "pending",
+    });
+  });
+
+  it("finaliza o artefato ja enviado depois de um crash sem novo render", async () => {
+    const certificateId = await createPendingRender();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(Buffer.from("existing-pdf")))
+    );
+
+    await expect(renderPendingCertificate(certificateId)).resolves.toBe(true);
+
+    expect(dependencies.renderCertificatePdf).not.toHaveBeenCalled();
+    expect(dependencies.uploadPrivateR2ObjectIfAbsent).not.toHaveBeenCalled();
+    const result = await pool.query<{
+      pdf_sha256: string;
+      render_status: string;
+    }>("select pdf_sha256, render_status from certificates where id = $1", [
+      certificateId,
+    ]);
+    expect(result.rows[0]?.render_status).toBe("ready");
+    expect(result.rows[0]?.pdf_sha256).toMatch(SHA256_PATTERN);
+  });
+
+  it("nao finaliza nem enfileira email quando e revogado durante o IO", async () => {
+    const certificateId = await createPendingRender();
+    let finishRender!: (value: { pdf: Buffer; sha256: string }) => void;
+    dependencies.renderCertificatePdf.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishRender = resolve;
+        })
+    );
+    const delivery = deliverOutboxMessage({
+      aggregateId: certificateId,
+      aggregateType: "certificate",
+      attempts: 1,
+      id: randomUUID(),
+      idempotencyKey: `certificate.render/${certificateId}/v1`,
+      payload: { certificateId },
+      payloadVersion: 1,
+      topic: "certificate.render",
+    });
+    await vi.waitFor(() => {
+      expect(dependencies.renderCertificatePdf).toHaveBeenCalledOnce();
+    });
+    await pool.query(
+      "update certificates set status = 'revoked', revoked_at = now() where id = $1",
+      [certificateId]
+    );
+
+    finishRender({ pdf: Buffer.from("revoked-pdf"), sha256: "c".repeat(64) });
+    await expect(delivery).rejects.toMatchObject({
+      code: "aggregate_not_deliverable",
+    });
+
+    const result = await pool.query<{
+      email_count: string;
+      pdf_storage_key: string | null;
+      render_claim_token: string | null;
+      render_status: string;
+    }>(
+      `select
+         certificate.pdf_storage_key,
+         certificate.render_claim_token,
+         certificate.render_status,
+         count(message.id)::text as email_count
+       from certificates as certificate
+       left join outbox_messages as message
+         on message.idempotency_key = 'email.certificate-issued/' || certificate.id || '/v1'
+       where certificate.id = $1
+       group by certificate.id`,
+      [certificateId]
+    );
+    expect(result.rows[0]).toEqual({
+      email_count: "0",
+      pdf_storage_key: null,
+      render_claim_token: null,
+      render_status: "pending",
+    });
+  });
+
+  it("impede o token antigo de completar depois que outro worker assume o lease", async () => {
+    const certificateId = await createPendingRender();
+    const workerAPdf = Buffer.from("worker-a");
+    const workerBPdf = Buffer.from("worker-b");
+    const workerAHash = createHash("sha256").update(workerAPdf).digest("hex");
+    const workerBHash = createHash("sha256").update(workerBPdf).digest("hex");
+    let finishFirst!: (value: { pdf: Buffer; sha256: string }) => void;
+    dependencies.renderCertificatePdf
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce({
+        pdf: workerBPdf,
+        sha256: workerBHash,
+      });
+
+    const workerA = renderPendingCertificate(certificateId);
+    await vi.waitFor(() => {
+      expect(dependencies.renderCertificatePdf).toHaveBeenCalledOnce();
+    });
+    await pool.query(
+      "update certificates set render_claimed_at = now() - interval '11 minutes' where id = $1",
+      [certificateId]
+    );
+
+    await expect(renderPendingCertificate(certificateId)).resolves.toBe(true);
+    finishFirst({ pdf: workerAPdf, sha256: workerAHash });
+    await expect(workerA).resolves.toBe(true);
+
+    const result = await pool.query<{
+      pdf_sha256: string;
+      render_status: string;
+    }>("select pdf_sha256, render_status from certificates where id = $1", [
+      certificateId,
+    ]);
+    expect(result.rows[0]).toEqual({
+      pdf_sha256: workerBHash,
+      render_status: "ready",
+    });
+    expect(storedCertificatePdf).toEqual(workerBPdf);
+    expect(
+      createHash("sha256")
+        .update(storedCertificatePdf ?? Buffer.alloc(0))
+        .digest("hex")
+    ).toBe(result.rows[0]?.pdf_sha256);
+  });
 });

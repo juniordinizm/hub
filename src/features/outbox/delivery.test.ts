@@ -75,6 +75,28 @@ describe("outbox email delivery", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it("classifies certificate rendering failures independently from email provider failures", async () => {
+    dependencies.renderPendingCertificate.mockRejectedValue(
+      new Error("certificate_background_unavailable")
+    );
+
+    await expect(
+      deliverOutboxMessage({
+        aggregateId: "certificate-1",
+        aggregateType: "certificate",
+        attempts: 1,
+        id: "outbox-1",
+        idempotencyKey: "certificate.render/certificate-1/v1",
+        payload: { certificateId: "certificate-1" },
+        payloadVersion: 1,
+        topic: "certificate.render",
+      })
+    ).rejects.toMatchObject({
+      code: "certificate_render_failed",
+      retryable: true,
+    });
+  });
+
   it("loads certificate recipient data at delivery time and passes its idempotency key", async () => {
     const query = vi.fn().mockResolvedValue({
       rows: [

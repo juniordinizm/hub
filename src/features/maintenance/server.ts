@@ -1,11 +1,13 @@
 import "server-only";
 import { getPool } from "@/db";
+import { reconcileRevokedCertificateArtifacts } from "@/features/certificates/artifact-reconciliation";
 
 export const runMaintenance = async (): Promise<{
   expiredRateLimitsRemoved: number;
   expiredSessionsRemoved: number;
   learningAnalyticsAggregated: number;
   learningAnalyticsEventsRemoved: number;
+  revokedCertificateArtifactsReconciled: number;
 }> => {
   const [sessions, rateLimits, analytics] = await Promise.all([
     getPool().query("delete from sessions where expires_at < now()"),
@@ -34,6 +36,8 @@ export const runMaintenance = async (): Promise<{
   await getPool().query(
     "delete from learning_analytics_daily_metrics where metric_date < current_date - interval '13 months'"
   );
+  const revokedCertificateArtifactsReconciled =
+    await reconcileRevokedCertificateArtifacts();
   await getPool().query(
     `
       insert into audit_logs (action, target_type, metadata)
@@ -45,6 +49,7 @@ export const runMaintenance = async (): Promise<{
         expiredSessionsRemoved: sessions.rowCount ?? 0,
         learningAnalyticsAggregated: analytics.rowCount ?? 0,
         learningAnalyticsEventsRemoved: analyticsEvents.rowCount ?? 0,
+        revokedCertificateArtifactsReconciled,
       }),
     ]
   );
@@ -54,5 +59,6 @@ export const runMaintenance = async (): Promise<{
     expiredSessionsRemoved: sessions.rowCount ?? 0,
     learningAnalyticsAggregated: analytics.rowCount ?? 0,
     learningAnalyticsEventsRemoved: analyticsEvents.rowCount ?? 0,
+    revokedCertificateArtifactsReconciled,
   };
 };

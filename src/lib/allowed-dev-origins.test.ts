@@ -23,4 +23,12 @@ describe("getAllowedDevOrigins", () => {
       })
     ).toEqual(["local-origin.dev", "*.local-origin.dev"]);
   });
+
+  it("keeps the loopback host used by Playwright when the dev server starts on localhost", () => {
+    expect(
+      getAllowedDevOrigins({
+        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      })
+    ).toEqual(["127.0.0.1"]);
+  });
 });

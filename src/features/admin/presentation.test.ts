@@ -16,6 +16,7 @@ describe("admin presentation", () => {
         hasDescription: true,
         hasPaymentProviderProductId: true,
         hasThumbnail: true,
+        id: "course-ready",
         moduleCount: 2,
         publishedLessonCount: 8,
         status: "active",
@@ -26,6 +27,7 @@ describe("admin presentation", () => {
         hasDescription: false,
         hasPaymentProviderProductId: false,
         hasThumbnail: true,
+        id: "course-incomplete",
         moduleCount: 0,
         publishedLessonCount: 0,
         status: "draft",
@@ -39,6 +41,7 @@ describe("admin presentation", () => {
       averageReadinessPercent: 60,
       coursesNeedingAttention: [
         {
+          id: "course-incomplete",
           missingCount: 4,
           readinessPercent: 20,
           title: "Curso incompleto",

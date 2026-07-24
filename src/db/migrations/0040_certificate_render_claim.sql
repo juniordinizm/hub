@@ -1,0 +1,4 @@
+ALTER TABLE "certificates" ADD COLUMN "render_claim_token" uuid;--> statement-breakpoint
+ALTER TABLE "certificates" ADD COLUMN "render_claimed_at" timestamp with time zone;--> statement-breakpoint
+ALTER TABLE "certificates" ADD CONSTRAINT "certificates_render_claim_pair_check" CHECK (("certificates"."render_claim_token" is null) = ("certificates"."render_claimed_at" is null));--> statement-breakpoint
+ALTER TABLE "certificates" ADD CONSTRAINT "certificates_ready_artifact_check" CHECK ("certificates"."render_status" <> 'ready' or ("certificates"."pdf_storage_key" is not null and "certificates"."pdf_sha256" is not null and "certificates"."rendered_at" is not null and "certificates"."render_claim_token" is null));

@@ -21,6 +21,14 @@ const unavailableAggregate = (): OutboxDeliveryError =>
 const deliveryFailure = (): OutboxDeliveryError =>
   new OutboxDeliveryError("resend_delivery_failed", { retryable: true });
 
+const certificateRenderFailure = (): OutboxDeliveryError =>
+  new OutboxDeliveryError("certificate_render_failed", { retryable: true });
+
+const unexpectedDeliveryFailure = (topic: string): OutboxDeliveryError =>
+  topic === OUTBOX_TOPICS.certificateRender
+    ? certificateRenderFailure()
+    : deliveryFailure();
+
 const getCertificateDeliveryData = async (certificateId: string) => {
   const result = await getPool().query<{
     certificate_code: string;
@@ -202,7 +210,7 @@ export const deliverOutboxMessage = async (
     if (error instanceof OutboxDeliveryError) {
       throw error;
     }
-    throw deliveryFailure();
+    throw unexpectedDeliveryFailure(message.topic);
   }
 
   throw new OutboxDeliveryError("unknown_payload_version", {

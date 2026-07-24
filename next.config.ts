@@ -1,5 +1,6 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import { CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT } from "./src/features/certificates/template-image-contract";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
@@ -11,7 +12,7 @@ const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   experimental: {
     serverActions: {
-      bodySizeLimit: "4mb",
+      bodySizeLimit: CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT,
     },
   },
   images: {

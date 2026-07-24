@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { CertificateTemplateValidationError } from "./template-errors";
 import {
   CERTIFICATE_BACKGROUND_HEIGHT,
   CERTIFICATE_BACKGROUND_WIDTH,
@@ -27,15 +28,21 @@ const validateImageUploadRequest = ({
   sizeBytes: number;
 }): void => {
   if (!ALLOWED_IMAGE_CONTENT_TYPES.has(contentType)) {
-    throw new Error("Envie uma imagem PNG, JPEG ou WebP.");
+    throw new CertificateTemplateValidationError(
+      "Envie uma imagem PNG, JPEG ou WebP."
+    );
   }
 
   if (!(Number.isInteger(sizeBytes) && sizeBytes > 0)) {
-    throw new Error("O arquivo de imagem esta vazio ou e invalido.");
+    throw new CertificateTemplateValidationError(
+      "O arquivo de imagem esta vazio ou e invalido."
+    );
   }
 
   if (sizeBytes > maxBytes) {
-    throw new Error("A imagem excede o limite de tamanho permitido.");
+    throw new CertificateTemplateValidationError(
+      "A imagem excede o limite de tamanho permitido."
+    );
   }
 };
 
@@ -51,7 +58,9 @@ const readImage = async (file: File, maxBytes: number): Promise<Buffer> => {
   try {
     await sharp(body).metadata();
   } catch {
-    throw new Error("Nao foi possivel ler a imagem do certificado.");
+    throw new CertificateTemplateValidationError(
+      "Nao foi possivel ler a imagem do certificado."
+    );
   }
 
   return body;

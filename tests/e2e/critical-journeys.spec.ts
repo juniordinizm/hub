@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import sharp from "sharp";
 import type { E2eFixture } from "../../scripts/seed-e2e";
 
 const fixturePath = resolve(
@@ -10,7 +11,20 @@ const fixturePath = resolve(
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
 const CORRELATION_ID_PATTERN = /Identificador de correlação/;
+const DOWNLOAD_PDF_PATTERN = /Baixar PDF/;
 const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
+
+const createCertificateBackground = async (): Promise<Buffer> =>
+  await sharp({
+    create: {
+      background: { alpha: 1, b: 244, g: 241, r: 236 },
+      channels: 4,
+      height: 849,
+      width: 1200,
+    },
+  })
+    .png()
+    .toBuffer();
 
 const readFixture = async (): Promise<E2eFixture> =>
   JSON.parse(await readFile(fixturePath, "utf8")) as E2eFixture;
@@ -231,6 +245,50 @@ test("admin is authorized and a student is redirected away from admin", async ({
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
 });
 
+test("admin crops, saves, and publishes the first certificate template", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto(`/admin/cursos/${fixture.course.id}`);
+  await page.getByRole("tab", { name: "Certificado" }).click();
+
+  await expect(page.getByText("Desligado", { exact: true })).toBeVisible();
+  const publishButton = page.getByRole("button", {
+    name: "Salvar e publicar",
+  });
+  await expect(publishButton).toBeDisabled();
+
+  await page.locator("#certificate-background").setInputFiles({
+    buffer: await createCertificateBackground(),
+    mimeType: "image/png",
+    name: `certificate-background-${fixture.runId}.png`,
+  });
+  await expect(
+    page.getByRole("dialog", { name: "Ajustar arte do certificado" })
+  ).toBeVisible();
+  const useCropButton = page.getByRole("button", { name: "Usar recorte" });
+  await expect(useCropButton).toBeEnabled();
+  await useCropButton.click();
+
+  await expect(
+    page.getByRole("dialog", { name: "Ajustar arte do certificado" })
+  ).toBeHidden();
+  await expect(publishButton).toBeEnabled();
+  await publishButton.click();
+  await expect(
+    page.getByText("Alteracoes salvas e certificado publicado.")
+  ).toBeVisible();
+  await expect(page.getByText("Ativo", { exact: true })).toBeVisible();
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blockingViolations = results.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious"
+  );
+  expect(blockingViolations).toEqual([]);
+});
+
 test("public checkout exposes a safe configuration error", async ({
   request,
 }) => {
@@ -249,8 +307,104 @@ test("public certificates distinguish valid and revoked records", async ({
   const fixture = await readFixture();
   await page.goto(`/certificados/${fixture.certificate.validCode}`);
   await expect(page.getByText("Certificado valido")).toBeVisible();
+  await expect(
+    page.getByText(fixture.certificate.ready.courseTitle)
+  ).toBeVisible();
+  await expect(page.getByText(fixture.studentWithGrant.name)).toBeVisible();
+  await expect(page.getByText(fixture.certificate.validCode)).toBeVisible();
+  await expect(page.getByText("CPF", { exact: false })).toHaveCount(0);
+  await expect(page.locator('a[href*="/pdf"]')).toHaveCount(0);
   await page.goto(`/certificados/${fixture.certificate.revokedCode}`);
   await expect(page.getByText("Certificado revogado")).toBeVisible();
+  await expect(
+    page.getByText(fixture.certificate.sensitiveSentinel, { exact: false })
+  ).toHaveCount(0);
+});
+
+test("student certificates expose pending, ready, and revoked states safely", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto("/app/certificados");
+
+  const pendingCard = page
+    .getByRole("article")
+    .filter({ hasText: fixture.certificate.pending.code });
+  await expect(
+    pendingCard.getByLabel("Status: Preparando", { exact: true })
+  ).toBeVisible();
+  await expect(
+    pendingCard.getByRole("link", { name: DOWNLOAD_PDF_PATTERN })
+  ).toHaveCount(0);
+
+  const readyCard = page
+    .getByRole("article")
+    .filter({ hasText: fixture.certificate.ready.code });
+  await expect(
+    readyCard.getByLabel("Status: Disponível", { exact: true })
+  ).toBeVisible();
+  await expect(
+    readyCard.getByRole("link", {
+      name: `Baixar PDF de ${fixture.certificate.ready.courseTitle}`,
+    })
+  ).toBeVisible();
+
+  const revokedCard = page
+    .getByRole("article")
+    .filter({ hasText: fixture.certificate.revoked.code });
+  await expect(
+    revokedCard.getByLabel("Status: Revogado", { exact: true })
+  ).toBeVisible();
+  await expect(
+    revokedCard.getByRole("link", { name: DOWNLOAD_PDF_PATTERN })
+  ).toHaveCount(0);
+
+  const results = await new AxeBuilder({ page }).analyze();
+  const blockingViolations = results.violations.filter(
+    (violation) =>
+      violation.impact === "critical" || violation.impact === "serious"
+  );
+  expect(blockingViolations).toEqual([]);
+});
+
+test("certificate PDF is private to its owner", async ({ page, request }) => {
+  const fixture = await readFixture();
+  const downloadPath = `/app/certificados/${fixture.certificate.ready.code}/pdf`;
+
+  const publicResponse = await request.get(downloadPath, {
+    maxRedirects: 0,
+  });
+  expect(publicResponse.status()).toBe(307);
+  expect(publicResponse.headers().location).toContain("/entrar");
+  expect(publicResponse.headers()["content-type"] ?? "").not.toContain(
+    "application/pdf"
+  );
+  expect((await publicResponse.body()).subarray(0, 4).toString()).not.toBe(
+    "%PDF"
+  );
+
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  const ownerResponse = await page.context().request.get(downloadPath, {
+    maxRedirects: 0,
+  });
+  expect(ownerResponse.status()).toBe(307);
+  const signedLocation = ownerResponse.headers().location;
+  expect(signedLocation).toContain("X-Amz-Signature");
+  const pdfResponse = await request.get(signedLocation ?? "");
+  expect(pdfResponse.status()).toBe(200);
+  expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
+  expect((await pdfResponse.body()).subarray(0, 4).toString()).toBe("%PDF");
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.studentWithoutGrant, APP_URL_PATTERN);
+  const thirdPartyResponse = await page.context().request.get(downloadPath, {
+    maxRedirects: 0,
+  });
+  expect(thirdPartyResponse.status()).toBe(404);
+  expect(thirdPartyResponse.headers().location ?? "").not.toContain(
+    "X-Amz-Signature"
+  );
 });
 
 test("admin sees certificate lifecycle controls with mandatory confirmation", async ({

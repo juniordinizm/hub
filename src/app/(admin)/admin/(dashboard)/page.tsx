@@ -81,6 +81,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
         hasDescription: Boolean(course.description?.trim()),
         hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
         hasThumbnail: Boolean(course.thumbnailUrl),
+        id: course.id,
         moduleCount: courseModules.length,
         publishedLessonCount: courseLessons.filter(
           (lesson) => lesson.isPublished
@@ -269,7 +270,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                 courseHealth.coursesNeedingAttention.map((course) => (
                   <div
                     className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
-                    key={course.title}
+                    key={course.id}
                   >
                     <div className="flex-1">
                       <p className="font-medium text-sm">{course.title}</p>

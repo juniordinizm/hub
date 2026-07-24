@@ -14,6 +14,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -86,9 +87,9 @@ export function CertificateTemplateCropDialog({
       <DialogContent className="max-w-4xl" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>Ajustar arte do certificado</DialogTitle>
-          <p className="text-muted-foreground text-sm">
+          <DialogDescription>
             Enquadre a imagem para a pagina A4 horizontal.
-          </p>
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-6 p-4 sm:p-6">
           {sourceUrl ? (
