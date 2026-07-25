@@ -63,13 +63,13 @@ mascarados, usadas para `db:migrate`, integração e E2E.
 
 ### Paridade de ambiente
 
-O projeto dedicado `neurocapacitar-lms-ci.`
-(`damp-snow-22911188`) usa PostgreSQL 18 em `sa-east-1`, alinhado ao projeto
-`neurocapacitar-lms`. Sua branch base `production`
-(`br-dark-boat-ac5ju6m4`) foi auditada vazia antes da integração. As jobs usam
-somente `NEON_PROJECT_ID` e a chave project-scoped `NEON_API_KEY` configurados
-no GitHub; elas não recebem uma URL persistente do projeto. `NEON_PROJECT_ID`
-nunca deve apontar para produção nem para um projeto de CI em PostgreSQL 17.
+O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
+`production` (`br-dark-boat-ac5ju6m4`) é o banco definitivo da aplicação. As
+jobs usam somente `NEON_PROJECT_ID` e a chave project-scoped `NEON_API_KEY`
+configurados no GitHub; elas não recebem uma URL persistente. Cada job cria uma
+branch temporária isolada a partir de `production` e deve removê-la ao terminar.
+Nenhuma etapa de CI pode executar migrations, integração ou E2E diretamente na
+branch `production`.
 
 ## E2E
 
