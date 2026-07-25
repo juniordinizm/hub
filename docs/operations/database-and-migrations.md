@@ -8,11 +8,14 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. Em 2026-07-25, as migrations
-`0033` a `0040` foram validadas em branch temporária e promovidas pelo fluxo
-controlado do Neon para a branch `production` do projeto `protear`. A auditoria
-posterior confirmou 41 entradas no journal, topo em `0040` e paridade dos
-objetos críticos descritos neste runbook.
+O repositório usa cadeia Drizzle forward-only. Em 2026-07-25, a cadeia completa
+`0000` a `0040` foi validada com o migrador oficial em branch temporária e
+aplicada à branch `production` (`br-small-pine-ac899cd3`) do novo projeto Neon
+`neurocapacitar-lms` (`odd-shape-59894069`). A auditoria posterior confirmou 41
+entradas no journal, topo em `0040`, 35 tabelas e paridade dos objetos críticos
+descritos neste runbook. A branch `development` (`br-rough-hall-ac1yrqtc`) foi
+criada somente depois dessa validação e herdou o mesmo schema sem dados de
+aplicação.
 
 Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta conferida, branch/backup disponível, validação em banco descartável e aprovação explícita de promoção.
 
@@ -133,6 +136,12 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 
 ## Histórico operacional confirmado
 
+- `0000` a `0040`: aplicadas em 2026-07-25 ao novo projeto vazio
+  `neurocapacitar-lms`, após duas execuções bem-sucedidas na branch temporária
+  `migration-verify-official`. A segunda execução confirmou idempotência. A
+  produção apresentou 41 entradas no journal, 35 tabelas, 51 de 51 checks de
+  estado presentes e zero Contas, Cursos, Certificados, Pedidos ou mensagens de
+  outbox. A branch temporária foi removida após a auditoria.
 - `0023`/`0024`: validadas em branch temporária e promovidas uma vez para `production`; auditoria posterior confirmou outbox vazio e journal com 25 entradas.
 - `0025` a `0030`: promovidas em 2026-07-21; são histórico da introdução de versões curriculares. A base não continha Cursos, Matrículas ou Certificados, portanto não é evidência de backfill com dados históricos.
 - `0031`/`0032`: promovidas para suportar analytics minimizado e métricas diárias. A configuração de produção e dados externos permanecem sujeitos a verificação humana no painel.

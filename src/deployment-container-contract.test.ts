@@ -93,8 +93,25 @@ describe("Coolify container contract", () => {
     expect(source).toContain("postgres:18-alpine");
     expect(source).toContain("node /app/migrate-production.mjs");
     expect(source).toContain("bun audit --production");
+    expect(source).toContain(
+      "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    );
     expect(source).not.toMatch(MUTABLE_GITHUB_IMAGE_TAG_PATTERN);
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
+  });
+
+  it("does not expose provider-backed jobs to Dependabot pull requests", async () => {
+    const source = await readFile(
+      resolve(projectRoot, ".github/workflows/ci.yml"),
+      "utf8"
+    );
+
+    expect(source.match(/github\.actor != 'dependabot\[bot\]'/g)).toHaveLength(
+      2
+    );
+    expect(source).toContain(
+      "if: always() && steps.playwright.outcome != 'skipped'"
+    );
   });
 
   it("keeps immutable GitHub Action pins current through Dependabot", async () => {

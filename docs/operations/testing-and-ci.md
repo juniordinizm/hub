@@ -31,6 +31,14 @@ contribuidores externos. As duas jobs partem de `quality` e executam em paralelo
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
 `container` só inicia depois de todos esses gates.
 
+Pull requests do Dependabot também não recebem os Actions secrets normais e
+podem alterar justamente o código de uma action de terceiros. Por isso,
+`integration-db` e `e2e` são explicitamente ignoradas quando
+`github.actor == 'dependabot[bot]'`; os gates sem provider continuam rodando e
+as integrações completas são obrigatoriamente exercitadas no push confiável
+após o merge. Não copie `NEON_API_KEY` para Dependabot secrets apenas para
+forçar essas jobs.
+
 `quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
 `last_verified_commit` ainda existe no histórico. O checkout raso padrão do GitHub Actions traz
 apenas o commit atual e produziria um falso erro para documentos verificados em commits anteriores.
@@ -55,9 +63,13 @@ mascarados, usadas para `db:migrate`, integração e E2E.
 
 ### Paridade de ambiente
 
-O projeto dedicado `protear-ci-pg18` usa PostgreSQL 18 em `sa-east-1`, alinhado ao projeto
-`protear`. `NEON_PROJECT_ID` deve apontar para esse projeto dedicado, nunca para produção nem
-para o antigo projeto de CI em PostgreSQL 17.
+O projeto dedicado `neurocapacitar-lms-ci.`
+(`damp-snow-22911188`) usa PostgreSQL 18 em `sa-east-1`, alinhado ao projeto
+`neurocapacitar-lms`. Sua branch base `production`
+(`br-dark-boat-ac5ju6m4`) foi auditada vazia antes da integração. As jobs usam
+somente `NEON_PROJECT_ID` e a chave project-scoped `NEON_API_KEY` configurados
+no GitHub; elas não recebem uma URL persistente do projeto. `NEON_PROJECT_ID`
+nunca deve apontar para produção nem para um projeto de CI em PostgreSQL 17.
 
 ## E2E
 
