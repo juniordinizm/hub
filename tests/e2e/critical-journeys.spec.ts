@@ -10,6 +10,7 @@ const fixturePath = resolve(
 );
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
+const STUDENT_SEARCH_PLACEHOLDER_PATTERN = /Buscar/;
 const CORRELATION_ID_PATTERN = /Identificador de correlação/;
 const DOWNLOAD_PDF_PATTERN = /Baixar PDF/;
 const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
@@ -87,6 +88,36 @@ test("login and password recovery do not enumerate accounts", async ({
   await page.getByLabel("E-mail").fill("missing@example.test");
   await page.getByRole("button", { name: "Enviar link" }).click();
   await expect(resetConfirmation).toHaveText(knownMessage ?? "");
+});
+
+test("public signup creates a student account without granting a course", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  const suffix = crypto.randomUUID().replaceAll("-", "");
+  const email = `cadastro-${suffix}@example.test`;
+  const name = "Aluna de cadastro publico";
+
+  await page.goto("/cadastro");
+  await page.getByLabel("Nome completo").fill(name);
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Senha", { exact: true }).fill("E2E-password-123!");
+  await page.getByLabel("Confirmar senha").fill("E2E-password-123!");
+  await page.getByRole("button", { name: "Criar conta" }).click();
+  await expect(page).toHaveURL(APP_URL_PATTERN);
+  await expect(page.getByText("Acesso expirado", { exact: true })).toHaveCount(
+    0
+  );
+  await expect(
+    page.getByRole("button", { name: "Adquirir acesso" }).first()
+  ).toBeVisible();
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto("/admin/alunos");
+  await page.getByPlaceholder(STUDENT_SEARCH_PLACEHOLDER_PATTERN).fill(email);
+  await expect(page.getByText(name, { exact: true })).toBeVisible();
+  await expect(page.getByText(email, { exact: true })).toBeVisible();
 });
 
 test("student with a grant opens the first lesson", async ({ page }) => {

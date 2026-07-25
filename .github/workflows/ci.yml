@@ -129,6 +129,7 @@ jobs:
           path: |
             playwright-report
             test-results/playwright
+            test-results/next-server.log
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
         uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1

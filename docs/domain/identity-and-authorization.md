@@ -29,13 +29,19 @@ Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organi
 
 **Falha:** conflitos de legado precisam ser resolvidos antes de aplicar a restrição. A migration não está no journal atual; a garantia do banco implantado não foi verificada.
 
-### REG-IDA-002 Cadastro público é fechado por padrão
+### REG-IDA-002 Cadastro público é desabilitado por padrão
 
-`AUTH_PUBLIC_SIGNUP_ENABLED` tem default `false`. `isBlockedAuthEndpoint`, em `src/lib/auth-policy.ts`, bloqueia `POST sign-up/email`. Contas entram por fluxo financeiro ou bootstrap operacional.
+`AUTH_PUBLIC_SIGNUP_ENABLED` tem default `false`. Quando desligado, `isBlockedAuthEndpoint`, em `src/lib/auth-policy.ts`, bloqueia `POST sign-up/email`. Contas também podem entrar por fluxo financeiro ou bootstrap operacional.
 
 **Autorização:** o endpoint de bootstrap Admin só existe fora de produção, exige `INTERNAL_BOOTSTRAP_SECRET` e retorna 404 em produção por `getBootstrapAdminDecision`.
 
 **Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro. O formulário público de recuperação sempre mostra a mesma mensagem para Conta existente, inexistente ou falha de entrega, evitando enumeração visível no navegador.
+
+### REG-IDA-002A Cadastro público cria apenas a Conta
+
+`AUTH_PUBLIC_SIGNUP_ENABLED` continua com default `false`. Quando habilitado, `/cadastro` permite criar uma Conta com sessão imediata, mas não cria Pedido, Concessão ou Matrícula. Cursos permanecem indisponíveis até o fluxo comercial ou administrativo conceder acesso.
+
+O trigger `users_create_student_profile`, da migration `0041_public_signup_student_profiles.sql`, cria o Perfil `student` junto com cada nova Conta. A migration também preenche Perfis ausentes de Contas legadas, para que as novas Contas apareçam na administração sem depender de hook assíncrono da aplicação.
 
 ### REG-IDA-003 Autorização é por capacidade
 

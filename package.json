@@ -93,6 +93,7 @@
     "db:seed": "bun scripts/seed-initial-data.ts",
     "db:seed:student": "bun --conditions=react-server scripts/bootstrap-student.ts",
     "db:smoke:empty": "bun scripts/smoke-empty-database.ts",
+    "storage:publish-active-course-covers": "bun --conditions=react-server scripts/publish-active-course-covers.ts",
     "db:studio": "drizzle-kit studio",
     "prepare": "lefthook install"
   },

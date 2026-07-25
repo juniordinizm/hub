@@ -12,6 +12,8 @@ const {
   resolveJmvstreamPlayerThumbnailUrl,
   uploadCourseCoverFile,
   publishR2Object,
+  connect,
+  release,
 } = vi.hoisted(() => ({
   createAbacatePayCourseProduct: vi.fn(),
   confirmLessonResourceUpload: vi.fn(),
@@ -24,10 +26,12 @@ const {
   resolveJmvstreamPlayerThumbnailUrl: vi.fn(),
   uploadCourseCoverFile: vi.fn(),
   publishR2Object: vi.fn(),
+  connect: vi.fn(),
+  release: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
+vi.mock("@/db", () => ({ getPool: () => ({ connect, query }) }));
 vi.mock("@/features/courses/server", () => ({
   recalculateCourseWorkloadHours,
 }));
@@ -49,6 +53,7 @@ vi.mock("@/features/storage/r2", () => ({
 
 import {
   createLessonDraft,
+  publishCoursePublication,
   removeLessonVideo,
   saveCourse,
   saveLesson,
@@ -137,6 +142,7 @@ const setDefaultMocks = (): void => {
   resolveJmvstreamPlayerThumbnailUrl.mockResolvedValue(null);
   uploadCourseCoverFile.mockResolvedValue(coverImage);
   publishR2Object.mockResolvedValue(undefined);
+  connect.mockResolvedValue({ query, release });
 };
 
 beforeEach(() => {
@@ -145,6 +151,33 @@ beforeEach(() => {
 });
 
 describe("admin authoring", () => {
+  it("publishes the course cover before exposing a publication", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("for update")
+      ) {
+        return { rows: [{ id: "publication-1" }] };
+      }
+      if (sql.includes("from lessons") && sql.includes("video_provider")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select cover_image_json from courses")) {
+        return { rows: [{ cover_image_json: coverImage }] };
+      }
+
+      return { rows: [] };
+    });
+
+    await expect(
+      publishCoursePublication({ actorUserId: "admin-1", courseId: "course-1" })
+    ).resolves.toBe("published");
+
+    expect(publishR2Object).toHaveBeenCalledWith(coverImage.original.key);
+    expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.card.key);
+    expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.thumb.key);
+  });
+
   it("creates a draft course, records it, then syncs its JMVStream folder", async () => {
     query.mockImplementation((sql: string, values?: unknown[]) => {
       if (sql.includes("insert into courses")) {

@@ -288,6 +288,13 @@
       "when": 1784772032056,
       "tag": "0040_certificate_render_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1785004383558,
+      "tag": "0041_public_signup_student_profiles",
+      "breakpoints": true
     }
   ]
 }

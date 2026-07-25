@@ -81,6 +81,11 @@ efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass da
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
 
+Em CI, `scripts/e2e-next-server.ts` replica stdout/stderr do build e do processo Next para
+`test-results/next-server.log`. O arquivo vai junto ao artefato privado do Playwright inclusive
+quando a aplicação retorna uma boundary genérica ao navegador; ele é a fonte para diagnosticar
+o erro original sem revelar detalhes na interface da Aluna.
+
 O setup `tests/e2e/global-setup.ts` executa `bun run test:e2e:seed`, que carrega `seedE2e` em
 `scripts/seed-e2e.ts` com a condição `react-server`. Ele só funciona com `E2E_TEST_MODE=true` e
 `DATABASE_URL`; para escrever o PDF fixture no R2, também exige `E2E_R2_BUCKET_NAME` explicitamente

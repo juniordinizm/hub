@@ -368,6 +368,14 @@ export const publishCoursePublication = async ({
       throw new Error("A publicacao possui video JMVStream sem player pronto.");
     }
 
+    const courseCover = await client.query<{ cover_image_json: unknown }>(
+      "select cover_image_json from courses where id = $1 for update",
+      [courseId]
+    );
+    await publishCourseCover(
+      parseCourseCoverImage(courseCover.rows[0]?.cover_image_json)
+    );
+
     await client.query(
       `
         update course_publications

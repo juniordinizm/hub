@@ -16,7 +16,7 @@ for (const [key, value] of Object.entries(e2eObjectStorageEnvironment)) {
 }
 
 const serverCommand = process.env.CI
-  ? `${bunCommand} run build && ${bunCommand} run start -- --port 3100`
+  ? `${bunCommand} scripts/e2e-next-server.ts`
   : `${bunCommand} run dev -- --port 3100`;
 
 export default defineConfig({
@@ -52,6 +52,7 @@ export default defineConfig({
         ...process.env,
         BETTER_AUTH_TRUSTED_ORIGINS: "http://127.0.0.1:3100",
         BETTER_AUTH_URL: "http://127.0.0.1:3100",
+        AUTH_PUBLIC_SIGNUP_ENABLED: "true",
         CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
         CI: "true",
         ...(e2eDatabaseUrl ? { DATABASE_URL: e2eDatabaseUrl } : {}),

@@ -89,7 +89,13 @@ const createUser = async ({
   const userId = result.user.id;
 
   await getPool().query(
-    "insert into profiles (user_id, role) values ($1, $2::role)",
+    `
+      insert into profiles (user_id, role)
+      values ($1, $2::role)
+      on conflict (user_id) do update
+      set role = excluded.role,
+          updated_at = now()
+    `,
     [userId, role]
   );
   return userId;

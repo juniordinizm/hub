@@ -115,6 +115,12 @@ export function SignInForm(): React.JSX.Element {
       >
         Esqueci minha senha
       </Link>
+      <Link
+        className="mt-3 block text-muted-foreground text-sm hover:text-foreground"
+        href={route("/cadastro")}
+      >
+        Ainda nao tenho uma conta
+      </Link>
     </form>
   );
 }
