@@ -63,6 +63,78 @@ const serverEnvSchema = z.object({
   VERCEL: optionalNonEmptyString,
 });
 
+type ServerEnvironment = z.infer<typeof serverEnvSchema>;
+
+const isLoopbackE2eRuntime = (env: ServerEnvironment): boolean => {
+  const applicationUrls = [
+    env.BETTER_AUTH_URL,
+    env.CERTIFICATE_PUBLIC_BASE_URL,
+    env.NEXT_PUBLIC_APP_URL,
+  ].map((value) => new URL(value));
+
+  return (
+    env.E2E_TEST_MODE &&
+    applicationUrls.every((url) =>
+      ["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)
+    ) &&
+    new Set(applicationUrls.map((url) => url.origin)).size === 1
+  );
+};
+
+const validateServerEnvironment = (env: ServerEnvironment): void => {
+  if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
+    throw new Error("BETTER_AUTH_SECRET is required in production.");
+  }
+
+  if (env.NODE_ENV === "production" && !process.env.BETTER_AUTH_URL?.trim()) {
+    throw new Error("BETTER_AUTH_URL is required in production.");
+  }
+
+  if (
+    env.NODE_ENV === "production" &&
+    !process.env.NEXT_PUBLIC_APP_URL?.trim()
+  ) {
+    throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
+  }
+
+  if (env.E2E_TEST_MODE && process.env.CI !== "true") {
+    throw new Error("E2E_TEST_MODE requires CI=true.");
+  }
+
+  const isolatedE2eRuntime = isLoopbackE2eRuntime(env);
+  if (env.E2E_TEST_MODE && !isolatedE2eRuntime) {
+    throw new Error("E2E_TEST_MODE requires loopback application URLs.");
+  }
+
+  if (
+    env.NODE_ENV === "production" &&
+    !process.env.CERTIFICATE_PUBLIC_BASE_URL?.trim()
+  ) {
+    throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
+  }
+
+  if (env.NODE_ENV !== "production") {
+    return;
+  }
+
+  const productionProblems = isolatedE2eRuntime
+    ? [
+        ...(process.env.DATABASE_URL_DIRECT?.trim()
+          ? ["DATABASE_URL_DIRECT must not be set in the web runtime"]
+          : []),
+        ...(process.env.INTERNAL_BOOTSTRAP_SECRET?.trim()
+          ? ["INTERNAL_BOOTSTRAP_SECRET must not be set in production"]
+          : []),
+      ]
+    : getProductionEnvironmentProblems(process.env);
+
+  if (productionProblems.length > 0) {
+    throw new Error(
+      `Production environment is incomplete: ${productionProblems.join(", ")}.`
+    );
+  }
+};
+
 export const getServerEnv = () => {
   const env = serverEnvSchema.parse({
     ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
@@ -98,41 +170,7 @@ export const getServerEnv = () => {
     VERCEL: process.env.VERCEL,
   });
 
-  if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
-    throw new Error("BETTER_AUTH_SECRET is required in production.");
-  }
-
-  if (env.NODE_ENV === "production" && !process.env.BETTER_AUTH_URL?.trim()) {
-    throw new Error("BETTER_AUTH_URL is required in production.");
-  }
-
-  if (
-    env.NODE_ENV === "production" &&
-    !process.env.NEXT_PUBLIC_APP_URL?.trim()
-  ) {
-    throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
-  }
-
-  if (env.E2E_TEST_MODE && process.env.CI !== "true") {
-    throw new Error("E2E_TEST_MODE requires CI=true.");
-  }
-
-  if (
-    env.NODE_ENV === "production" &&
-    !process.env.CERTIFICATE_PUBLIC_BASE_URL?.trim()
-  ) {
-    throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
-  }
-
-  if (env.NODE_ENV === "production") {
-    const productionProblems = getProductionEnvironmentProblems(process.env);
-
-    if (productionProblems.length > 0) {
-      throw new Error(
-        `Production environment is incomplete: ${productionProblems.join(", ")}.`
-      );
-    }
-  }
+  validateServerEnvironment(env);
 
   return {
     ...env,

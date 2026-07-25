@@ -1,7 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
-  startTransition,
   useActionState,
   useCallback,
   useEffect,
@@ -161,24 +161,6 @@ const selectSignatureFile = ({
   setIsDirty(true);
 };
 
-const dispatchTemplateAction = ({
-  formData,
-  publishAction,
-  saveAction,
-  shouldPublish,
-}: {
-  formData: FormData;
-  publishAction: (formData: FormData) => void;
-  saveAction: (formData: FormData) => void;
-  shouldPublish: boolean;
-}): void => {
-  if (shouldPublish) {
-    publishAction(formData);
-    return;
-  }
-  saveAction(formData);
-};
-
 const notifyTemplateAction = ({
   onSuccess,
   state,
@@ -190,8 +172,8 @@ const notifyTemplateAction = ({
     return;
   }
   if (state.status === "success") {
-    onSuccess();
     toast.success(state.message);
+    onSuccess();
     return;
   }
   toast.error(state.message);
@@ -206,6 +188,7 @@ export function CertificateTemplateForm({
   issuerConfigured: boolean;
   template: CertificateTemplateEditorTemplate | undefined;
 }): React.JSX.Element {
+  const router = useRouter();
   const [fields, setFields] = useState(
     template?.spec.fields ?? createDefaultCertificateTemplateFields
   );
@@ -245,28 +228,18 @@ export function CertificateTemplateForm({
     publishCertificateTemplateFormAction,
     certificateTemplateInitialActionState
   );
-
   const prepareSubmission = (formData: FormData): void =>
     applyCertificateTemplateFiles(formData, {
       background: backgroundFile,
       signature: signatureFile,
     });
-
-  const submitTemplate = (event: React.FormEvent<HTMLFormElement>): void => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+  const saveTemplate = (formData: FormData): void => {
     prepareSubmission(formData);
-    const submitter = (event.nativeEvent as SubmitEvent)
-      .submitter as HTMLButtonElement | null;
-    const shouldPublish = submitter?.value === "publish";
-    startTransition(() =>
-      dispatchTemplateAction({
-        formData,
-        publishAction,
-        saveAction,
-        shouldPublish,
-      })
-    );
+    saveAction(formData);
+  };
+  const publishTemplate = (formData: FormData): void => {
+    prepareSubmission(formData);
+    publishAction(formData);
   };
 
   useEffect(() => {
@@ -276,10 +249,11 @@ export function CertificateTemplateForm({
         setSignatureFile(null);
         setCropSource(null);
         setIsDirty(false);
+        router.refresh();
       },
       state: saveState,
     });
-  }, [saveState]);
+  }, [router, saveState]);
 
   useEffect(() => {
     notifyTemplateAction({
@@ -288,10 +262,11 @@ export function CertificateTemplateForm({
         setSignatureFile(null);
         setCropSource(null);
         setIsDirty(false);
+        router.refresh();
       },
       state: publishState,
     });
-  }, [publishState]);
+  }, [publishState, router]);
 
   const spec = useMemo<CertificateTemplateSpec>(
     () => ({
@@ -337,7 +312,7 @@ export function CertificateTemplateForm({
   const hasPublishableChanges = isDirty || template?.status === "draft";
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={submitTemplate}>
+    <form action={saveTemplate} className="flex flex-col gap-4">
       <CertificateTemplateCropDialog
         file={cropSource}
         onCancel={() => setCropSource(null)}
@@ -401,6 +376,7 @@ export function CertificateTemplateForm({
                       hasPublishableChanges
                     ) || isBusy
                   }
+                  formAction={publishTemplate}
                   name="intent"
                   type="submit"
                   value="publish"

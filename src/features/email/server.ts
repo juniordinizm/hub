@@ -26,6 +26,10 @@ export const sendTransactionalEmail = async ({
 }: SendEmailInput): Promise<void> => {
   const env = getServerEnv();
 
+  if (env.E2E_TEST_MODE) {
+    return;
+  }
+
   if (!env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY is required to send transactional email.");
   }

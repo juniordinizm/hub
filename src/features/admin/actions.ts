@@ -676,10 +676,9 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
-export const saveCertificateTemplateDraftAction = async (
+const persistCertificateTemplateDraft = async (
   formData: FormData
 ): Promise<void> => {
-  await requireRole(["admin"]);
   const courseId = readString(formData, "courseId");
   const specValue = readString(formData, "spec");
   const background = formData.get("background") as File | null;
@@ -723,15 +722,6 @@ export const saveCertificateTemplateDraftAction = async (
     courseId,
     keys: replacedKeys,
   }).catch(() => undefined);
-  revalidateAdmin();
-};
-
-export const publishCertificateTemplateAction = async (
-  courseId: string
-): Promise<void> => {
-  await requireRole(["admin"]);
-  await publishCertificateTemplate(courseId);
-  revalidateAdmin();
 };
 
 export const saveCertificateTemplateDraftFormAction = async (
@@ -739,7 +729,8 @@ export const saveCertificateTemplateDraftFormAction = async (
   formData: FormData
 ): Promise<CertificateTemplateActionState> => {
   try {
-    await saveCertificateTemplateDraftAction(formData);
+    await requireRole(["admin"]);
+    await persistCertificateTemplateDraft(formData);
     return { message: "Rascunho salvo.", status: "success" };
   } catch (error) {
     const message = getExpectedCertificateTemplateActionMessage(error);
@@ -759,10 +750,13 @@ export const publishCertificateTemplateFormAction = async (
   formData: FormData
 ): Promise<CertificateTemplateActionState> => {
   try {
+    await requireRole(["admin"]);
     await saveAndPublishCertificateTemplate({
       formData,
-      publishDraft: publishCertificateTemplateAction,
-      saveDraft: saveCertificateTemplateDraftAction,
+      publishDraft: publishCertificateTemplate,
+      saveDraft: async (draftFormData) => {
+        await persistCertificateTemplateDraft(draftFormData);
+      },
     });
     return {
       message: "Alteracoes salvas e certificado publicado.",

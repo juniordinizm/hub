@@ -114,6 +114,16 @@ describe("Coolify container contract", () => {
     );
   });
 
+  it("keeps migration-only credentials out of the E2E web runtime", async () => {
+    const source = await readFile(
+      resolve(projectRoot, "playwright.config.ts"),
+      "utf8"
+    );
+
+    expect(source).toContain('DATABASE_URL_DIRECT: ""');
+    expect(source).toContain('INTERNAL_BOOTSTRAP_SECRET: ""');
+  });
+
   it("keeps immutable GitHub Action pins current through Dependabot", async () => {
     const source = await readFile(
       resolve(projectRoot, ".github/dependabot.yml"),

@@ -79,4 +79,21 @@ describe("transactional email", () => {
       idempotencyKey: "email.certificate-issued/certificate-1/v1",
     });
   });
+
+  it("does not contact Resend in isolated E2E mode", async () => {
+    process.env.CI = "true";
+    process.env.E2E_TEST_MODE = "true";
+    process.env.RESEND_API_KEY = "";
+
+    await expect(
+      sendTransactionalEmail({
+        react: "Conteudo do e-mail",
+        subject: "Recuperacao de senha",
+        to: "student@example.com",
+      })
+    ).resolves.toBeUndefined();
+
+    expect(Resend).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
 });

@@ -6,17 +6,21 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { actionMocks, toastMocks } = vi.hoisted(() => ({
+const { actionMocks, navigationMocks, toastMocks } = vi.hoisted(() => ({
   actionMocks: {
     disable: vi.fn(),
     enable: vi.fn(),
     publish: vi.fn(),
     save: vi.fn(),
   },
+  navigationMocks: { refresh: vi.fn() },
   toastMocks: { error: vi.fn(), success: vi.fn() },
 }));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigationMocks,
+}));
 vi.mock("qrcode", () => ({
   default: {
     toDataURL: vi.fn().mockResolvedValue("data:image/png;base64,AAAA"),

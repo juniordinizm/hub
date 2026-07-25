@@ -113,7 +113,6 @@ jobs:
           BETTER_AUTH_URL: http://127.0.0.1:3100
           CERTIFICATE_PUBLIC_BASE_URL: http://127.0.0.1:3100
           DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
-          DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
           E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
           E2E_TEST_MODE: "true"
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100

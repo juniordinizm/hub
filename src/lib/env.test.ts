@@ -67,6 +67,56 @@ describe("server environment", () => {
     expect(getServerEnv().E2E_TEST_MODE).toBe(true);
   });
 
+  it("permits an isolated production E2E runtime without external providers", () => {
+    process.env = {
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
+      BETTER_AUTH_URL: "http://127.0.0.1:3100",
+      CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+      CI: "true",
+      DATABASE_URL: "postgresql://e2e.example/db",
+      E2E_TEST_MODE: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      NODE_ENV: "production",
+    };
+
+    expect(getServerEnv().E2E_TEST_MODE).toBe(true);
+  });
+
+  it("does not let E2E mode bypass production checks outside loopback", () => {
+    process.env = {
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
+      BETTER_AUTH_URL: "https://app.example.com",
+      CERTIFICATE_PUBLIC_BASE_URL: "https://app.example.com",
+      CI: "true",
+      DATABASE_URL: "postgresql://e2e.example/db",
+      E2E_TEST_MODE: "true",
+      NEXT_PUBLIC_APP_URL: "https://app.example.com",
+      NODE_ENV: "production",
+    };
+
+    expect(() => getServerEnv()).toThrow(
+      "E2E_TEST_MODE requires loopback application URLs."
+    );
+  });
+
+  it("rejects direct database credentials in the production E2E web runtime", () => {
+    process.env = {
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
+      BETTER_AUTH_URL: "http://127.0.0.1:3100",
+      CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+      CI: "true",
+      DATABASE_URL: "postgresql://e2e.example/db",
+      DATABASE_URL_DIRECT: "postgresql://direct.example/db",
+      E2E_TEST_MODE: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      NODE_ENV: "production",
+    };
+
+    expect(() => getServerEnv()).toThrow(
+      "DATABASE_URL_DIRECT must not be set in the web runtime"
+    );
+  });
+
   it("rejects an incomplete production web runtime", () => {
     setEnv("NODE_ENV", "production");
     setEnv("BETTER_AUTH_SECRET", "production-secret");

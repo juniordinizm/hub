@@ -76,7 +76,10 @@ nunca deve apontar para produção nem para um projeto de CI em PostgreSQL 17.
 `bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador visual, e roda
 Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, compila e inicia
 `next start`, evitando HMR e verificando a aplicação de produção. A configuração está em
-`playwright.config.ts`.
+`playwright.config.ts`. O processo web recebe somente a URL pooled da branch
+efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
+credenciais de providers existe somente para esse runtime CI em loopback.
+E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
 
 O setup `tests/e2e/global-setup.ts` executa `bun run test:e2e:seed`, que carrega `seedE2e` em
 `scripts/seed-e2e.ts` com a condição `react-server`. Ele só funciona com `E2E_TEST_MODE=true` e

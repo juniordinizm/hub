@@ -86,6 +86,12 @@ origem. `DATABASE_URL` aceita somente os protocolos `postgres:` e
 provedor; o limite local de 32 caracteres vale somente para os segredos
 próprios de autenticação, cron e readiness.
 
+O runtime E2E compilado pela CI usa `next start`, mas não representa um deploy
+de produção. A dispensa das credenciais de providers só é aceita com
+`E2E_TEST_MODE=true`, `CI=true` e as três URLs canônicas na mesma origem
+loopback. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
+proibidas nesse processo web.
+
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
 fora da Cloudflare. No Traefik do Coolify exposto diretamente, use o default
 `x-forwarded-for`; a aplicação valida o endereço antes de usá-lo em rate
