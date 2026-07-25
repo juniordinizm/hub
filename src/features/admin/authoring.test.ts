@@ -327,6 +327,11 @@ describe("admin authoring", () => {
         "draft",
       ]
     );
+    expect(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("insert into modules")
+      )?.[0]
+    ).toContain("on conflict (course_publication_id, sort_order)");
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
   });
 

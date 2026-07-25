@@ -1138,7 +1138,7 @@ export const saveModule = async ({
     `
       insert into modules (course_id, course_publication_id, title, description, sort_order, status)
       values ($1, $2, $3, $4, $5, $6)
-      on conflict (course_id, sort_order) do update set
+      on conflict (course_publication_id, sort_order) do update set
         title = excluded.title,
         description = excluded.description,
         status = excluded.status,
