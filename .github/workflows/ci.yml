@@ -190,7 +190,7 @@ jobs:
           printf '%s' "${PRODUCTION_SENTRY_AUTH_TOKEN}" > "${RUNNER_TEMP}/sentry-auth-token"
       - name: Authenticate to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
