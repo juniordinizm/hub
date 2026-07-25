@@ -114,6 +114,16 @@ describe("Coolify container contract", () => {
     );
   });
 
+  it("waits for freshly created Neon computes before running migrations", async () => {
+    const source = await readFile(
+      resolve(projectRoot, ".github/workflows/ci.yml"),
+      "utf8"
+    );
+
+    expect(source.match(/for attempt in 1 2 3 4 5; do/g)).toHaveLength(2);
+    expect(source).toContain('sleep "$((attempt * 3))"');
+  });
+
   it("keeps migration-only credentials out of the E2E web runtime", async () => {
     const source = await readFile(
       resolve(projectRoot, "playwright.config.ts"),

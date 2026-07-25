@@ -61,7 +61,16 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
           DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
-        run: bun run db:migrate
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if bun run db:migrate; then
+              exit 0
+            fi
+            if [[ "${attempt}" == "5" ]]; then
+              exit 1
+            fi
+            sleep "$((attempt * 3))"
+          done
       - name: Run integration tests
         env:
           CERTIFICATE_CONCURRENCY_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
@@ -105,7 +114,16 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
           DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
-        run: bun run db:migrate
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if bun run db:migrate; then
+              exit 0
+            fi
+            if [[ "${attempt}" == "5" ]]; then
+              exit 1
+            fi
+            sleep "$((attempt * 3))"
+          done
       - name: Run Chromium journeys
         id: playwright
         env:

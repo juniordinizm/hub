@@ -61,6 +61,11 @@ Não use o projeto Neon de produção, sua URL de conexão ou uma chave com esco
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
 mascarados, usadas para `db:migrate`, integração e E2E.
 
+Antes de rodar integração ou E2E, cada job tenta `db:migrate` até cinco vezes,
+com espera limitada entre tentativas. A criação de uma branch não garante que o
+compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A
+quinta falha preserva o erro do migrador e bloqueia os gates seguintes.
+
 ### Paridade de ambiente
 
 O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
