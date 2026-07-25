@@ -3,21 +3,13 @@ import {
   createPublicCourseCheckout,
   PublicCheckoutRateLimitError,
 } from "@/features/payments/public-checkout";
+import { getClientIpAddress } from "@/lib/client-ip";
+import { getServerEnv } from "@/lib/env";
 import {
   CORRELATION_ID_HEADER,
   createCorrelationId,
 } from "@/lib/observability";
 import { observeOperation } from "@/lib/observe-operation";
-
-const readIpAddress = (request: Request): string => {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]?.trim() || "unknown";
-  }
-
-  return request.headers.get("x-real-ip") ?? "unknown";
-};
 
 const readOptionalString = (value: unknown): string | undefined => {
   if (typeof value !== "string") {
@@ -29,6 +21,7 @@ const readOptionalString = (value: unknown): string | undefined => {
 };
 
 export const POST = async (request: Request): Promise<NextResponse> => {
+  const environment = getServerEnv();
   const correlationId = createCorrelationId(
     request.headers.get(CORRELATION_ID_HEADER)
   );
@@ -47,7 +40,10 @@ export const POST = async (request: Request): Promise<NextResponse> => {
         createPublicCourseCheckout({
           ...(courseId ? { courseId } : {}),
           ...(courseSlug ? { courseSlug } : {}),
-          ipAddress: readIpAddress(request),
+          ipAddress: getClientIpAddress(
+            request.headers,
+            environment.CLIENT_IP_SOURCE
+          ),
         }),
       failureErrorCode: "checkout_create_failed",
       operation: "checkout.create",

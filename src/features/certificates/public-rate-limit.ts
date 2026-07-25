@@ -1,15 +1,11 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import { getPool } from "@/db";
+import { getClientIpAddress } from "@/lib/client-ip";
 import { getServerEnv } from "@/lib/env";
 
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 20;
-
-const getRequestAddress = (requestHeaders: Headers): string =>
-  requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-  requestHeaders.get("x-real-ip") ||
-  "unknown";
 
 const hashAddress = (address: string): string =>
   createHmac("sha256", getServerEnv().BETTER_AUTH_SECRET)
@@ -19,7 +15,13 @@ const hashAddress = (address: string): string =>
 export const consumePublicCertificateLookup = async (
   requestHeaders: Headers
 ): Promise<"allowed" | "limited"> => {
-  const keyHash = hashAddress(getRequestAddress(requestHeaders));
+  const environment = getServerEnv();
+  const keyHash = hashAddress(
+    getClientIpAddress(
+      requestHeaders,
+      environment.CLIENT_IP_SOURCE ?? "x-forwarded-for"
+    )
+  );
   const expiresAt = new Date(Date.now() + WINDOW_MS);
   const result = await getPool().query<{ request_count: number }>(
     `

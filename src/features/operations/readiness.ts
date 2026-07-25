@@ -1,5 +1,10 @@
+import { LATEST_COMPATIBLE_MIGRATION_TIMESTAMP } from "@/db/migration-state";
+
 interface ReadinessClient {
-  query: (statement: string, values?: readonly unknown[]) => Promise<unknown>;
+  query: (
+    statement: string,
+    values?: readonly unknown[]
+  ) => Promise<{ rows?: unknown[] } | undefined>;
   release: () => void;
 }
 
@@ -18,7 +23,13 @@ export const checkDatabaseReadiness = async ({
     await client.query("select set_config('statement_timeout', $1, true)", [
       `${READINESS_TIMEOUT_MS}ms`,
     ]);
-    await client.query("select 1 from drizzle.__drizzle_migrations limit 1");
+    const migrationResult = await client.query(
+      "select 1 from drizzle.__drizzle_migrations where created_at = $1 limit 1",
+      [LATEST_COMPATIBLE_MIGRATION_TIMESTAMP]
+    );
+    if (!migrationResult?.rows?.length) {
+      throw new Error("Compatible database migration is not applied.");
+    }
     await client.query("rollback");
     return { ready: true };
   } catch {

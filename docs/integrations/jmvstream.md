@@ -64,6 +64,8 @@ Até lá, a documentação descreve o payload real do código e não promete com
 ## Sincronização e limpeza
 
 - cron `/api/cron/jmvstream` chama `syncPendingJmvstreamPlayers` a cada cinco minutos;
+- a execução adquire advisory lock de sessão; uma segunda invocação retorna
+  `skipped` sem repetir chamadas externas;
 - `expireStaleJmvstreamUploads` marca sessões abandonadas;
 - remoções chamam funções por Aula/Módulo/Curso e persistem falha para retry;
 - `retryJmvstreamAssetDelete` só deve operar após conferir o hash;

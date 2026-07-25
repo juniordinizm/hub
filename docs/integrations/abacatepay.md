@@ -36,7 +36,16 @@ Não liberar acesso na página de sucesso. Somente evento financeiro processado 
 
 Endpoint: `POST /api/webhooks/abacatepay`.
 
-`route.ts` lê o corpo bruto antes de parsear, aceita segredo em `webhookSecret` ou `x-webhook-secret` e assinatura em `x-webhook-signature` ou `abacatepay-signature`. Em produção, ausência/erro de segredo falha fechado. `verifyAbacatePaySignature` usa comparação segura.
+`route.ts` lê o corpo bruto antes de parsear, aceita segredo em
+`webhookSecret` ou `x-webhook-secret` e assinatura em
+`x-webhook-signature` ou `abacatepay-signature`. Em produção, ausência/erro de
+segredo falha fechado. `verifyAbacatePaySignature` usa comparação segura.
+
+O `webhookSecret` na query não é fallback legado: a documentação oficial
+atual o define como uma das duas camadas, junto do HMAC. Por isso ele não pode
+ser removido em nome da migração Vercel/Coolify. O proxy não deve registrar
+query strings de webhook; mantenha access log desativado ou aplique redação
+antes de habilitá-lo. Nunca copie a URL completa para logs, alertas ou tickets.
 
 Fluxo:
 

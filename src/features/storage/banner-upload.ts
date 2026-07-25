@@ -1,4 +1,4 @@
-import sharp from "sharp";
+import sharp, { type Metadata } from "sharp";
 import {
   BANNER_IMAGE_HEIGHT,
   BANNER_IMAGE_WIDTH,
@@ -11,7 +11,7 @@ export const validateBannerImageFile = async (file: File): Promise<void> => {
     sizeBytes: file.size,
   });
 
-  let metadata: sharp.Metadata;
+  let metadata: Metadata;
 
   try {
     metadata = await sharp(Buffer.from(await file.arrayBuffer())).metadata();

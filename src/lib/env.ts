@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 
 const optionalNonEmptyString = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -31,6 +32,9 @@ const serverEnvSchema = z.object({
     .string()
     .url()
     .default("http://localhost:3000"),
+  CLIENT_IP_SOURCE: z
+    .enum(["cloudflare", "x-forwarded-for"])
+    .default("x-forwarded-for"),
   CRON_SECRET: optionalNonEmptyString,
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
@@ -73,6 +77,7 @@ export const getServerEnv = () => {
     BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,
+    CLIENT_IP_SOURCE: process.env.CLIENT_IP_SOURCE,
     CRON_SECRET: process.env.CRON_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
@@ -117,6 +122,16 @@ export const getServerEnv = () => {
     !process.env.CERTIFICATE_PUBLIC_BASE_URL?.trim()
   ) {
     throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
+  }
+
+  if (env.NODE_ENV === "production") {
+    const productionProblems = getProductionEnvironmentProblems(process.env);
+
+    if (productionProblems.length > 0) {
+      throw new Error(
+        `Production environment is incomplete: ${productionProblems.join(", ")}.`
+      );
+    }
   }
 
   return {

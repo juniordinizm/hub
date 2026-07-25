@@ -72,6 +72,8 @@ const schema = {
 let pool: Pool | null = null;
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
+export const DATABASE_CONNECTION_TIMEOUT_MS = 1000;
+
 export const getPool = (): Pool => {
   if (pool) {
     return pool;
@@ -83,7 +85,12 @@ export const getPool = (): Pool => {
     throw new Error("DATABASE_URL is required for database access.");
   }
 
-  pool = new Pool({ connectionString: withVerifiedSslMode(DATABASE_URL) });
+  pool = new Pool({
+    connectionString: withVerifiedSslMode(DATABASE_URL),
+    connectionTimeoutMillis: DATABASE_CONNECTION_TIMEOUT_MS,
+    idleTimeoutMillis: 30_000,
+    max: 10,
+  });
   return pool;
 };
 

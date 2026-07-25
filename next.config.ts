@@ -7,9 +7,58 @@ const allowedDevOrigins = getAllowedDevOrigins(process.env);
 const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
   ? new URL(process.env.R2_PUBLIC_BASE_URL)
   : null;
+const deploymentId = process.env.DEPLOYMENT_VERSION?.trim();
+const isProduction = process.env.NODE_ENV === "production";
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' blob: data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https: wss:",
+  "frame-src https:",
+  "media-src 'self' blob: https:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  ...(isProduction ? ["upgrade-insecure-requests"] : []),
+].join("; ");
+const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: contentSecurityPolicy,
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), geolocation=(), microphone=()",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  ...(isProduction
+    ? [
+        {
+          key: "Strict-Transport-Security",
+          value: "max-age=31536000; includeSubDomains",
+        },
+      ]
+    : []),
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "DENY",
+  },
+];
 
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
+  ...(deploymentId ? { deploymentId } : {}),
   experimental: {
     serverActions: {
       bodySizeLimit: CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT,
@@ -40,6 +89,13 @@ const nextConfig: NextConfig = {
         : []),
     ],
   },
+  headers: async () => [
+    {
+      headers: securityHeaders,
+      source: "/(.*)",
+    },
+  ],
+  output: "standalone",
   reactCompiler: true,
 };
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { getPool } from "@/db";
 import { syncPendingJmvstreamPlayers } from "@/features/jmvstream/server";
+import { runWithAdvisoryLock } from "@/features/operations/advisory-lock";
 import { getServerEnv } from "@/lib/env";
 import {
   CORRELATION_ID_HEADER,
@@ -8,6 +10,8 @@ import {
 import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
+
+const JMVSTREAM_SYNC_LOCK_ID = 2_040_701;
 
 const getBearerToken = (authorization: string | null): string | null => {
   if (!authorization?.startsWith("Bearer ")) {
@@ -37,7 +41,17 @@ export const GET = async (request: Request): Promise<Response> => {
 
   const result = await observeOperation({
     correlationId,
-    execute: syncPendingJmvstreamPlayers,
+    execute: async () => {
+      const lockResult = await runWithAdvisoryLock({
+        connect: () => getPool().connect(),
+        execute: syncPendingJmvstreamPlayers,
+        lockId: JMVSTREAM_SYNC_LOCK_ID,
+      });
+
+      return lockResult.acquired
+        ? lockResult.value
+        : { reason: "already_running", skipped: true };
+    },
     failureErrorCode: "jmvstream_sync_failed",
     operation: "cron.jmvstream",
     provider: "jmvstream",

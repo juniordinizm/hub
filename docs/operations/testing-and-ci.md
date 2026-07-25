@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ---
 
 # Testes e CI
@@ -19,13 +19,15 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 7. integração PostgreSQL;
 8. jornadas Chromium;
 9. build;
-10. Knip.
+10. Knip;
+11. build `linux/arm64` do container e publicação em GHCR por SHA na `main`.
 
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
 contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
-própria branch Neon; `build-and-knip` só inicia após as duas terminarem.
+própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
+`container` só inicia depois de todos esses gates.
 
 `quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
 `last_verified_commit` ainda existe no histórico. O checkout raso padrão do GitHub Actions traz
@@ -175,6 +177,13 @@ estático ou quando a capacidade for retirada deliberadamente.
 um segredo-placeholder e URLs `https://ci-build.invalid` somente para compilar; não fornece banco,
 provedores ou credenciais reais e não produz artefato para deploy. Um deploy continua exigindo as
 variáveis reais do ambiente alvo, conforme o [runbook de deploy](deploy-and-incidents.md).
+
+Pull requests ainda constroem a imagem ARM64 com uma chave efêmera e URL
+`.invalid`, sem publicar. Push na `main` exige
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `PRODUCTION_APP_URL` e
+`R2_PUBLIC_BASE_URL`, gera SBOM/provenance e publica somente
+`ghcr.io/<repositorio>:<git-sha>`. A chave de Server Actions é BuildKit secret
+e não vira `ARG`, layer ou variável do runtime. Não crie tag `latest`.
 
 ## Verificação local
 

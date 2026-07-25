@@ -153,3 +153,131 @@ jobs:
           NEXT_PUBLIC_APP_URL: https://ci-build.invalid
         run: bun run build
       - run: bun run knip
+
+  container:
+    name: ARM64 production image
+    needs: build-and-knip
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Prepare build-only secrets
+        env:
+          PRODUCTION_APP_URL: ${{ vars.PRODUCTION_APP_URL }}
+          PRODUCTION_R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          PRODUCTION_SERVER_ACTIONS_KEY: ${{ secrets.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY }}
+          PRODUCTION_SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${PRODUCTION_SERVER_ACTIONS_KEY}" && "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            echo "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY is required to publish a stable image." >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && ( -z "${PRODUCTION_APP_URL}" || -z "${PRODUCTION_R2_PUBLIC_BASE_URL}" ) ]]; then
+            echo "PRODUCTION_APP_URL and R2_PUBLIC_BASE_URL repository variables are required to publish." >&2
+            exit 1
+          fi
+          if [[ -n "${PRODUCTION_SERVER_ACTIONS_KEY}" ]]; then
+            printf '%s' "${PRODUCTION_SERVER_ACTIONS_KEY}" > "${RUNNER_TEMP}/server-actions-key"
+          else
+            openssl rand -base64 32 > "${RUNNER_TEMP}/server-actions-key"
+          fi
+          printf '%s' "${PRODUCTION_SENTRY_AUTH_TOKEN}" > "${RUNNER_TEMP}/sentry-auth-token"
+      - name: Authenticate to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+      - name: Build ARM64 smoke image
+        uses: docker/build-push-action@v7
+        with:
+          build-args: |
+            DEPLOYMENT_VERSION=${{ github.sha }}
+            NEXT_PUBLIC_APP_URL=${{ vars.PRODUCTION_APP_URL || 'https://ci-build.invalid' }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            R2_PUBLIC_BASE_URL=${{ vars.R2_PUBLIC_BASE_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          context: .
+          load: true
+          platforms: linux/arm64
+          provenance: false
+          sbom: false
+          secret-files: |
+            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ runner.temp }}/server-actions-key
+            SENTRY_AUTH_TOKEN=${{ runner.temp }}/sentry-auth-token
+          tags: hub-ci:${{ github.sha }}
+      - name: Smoke ARM64 image
+        env:
+          IMAGE: hub-ci:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(docker run --rm --entrypoint id "${IMAGE}" -u)" = "1001"
+          test "$(docker run --rm --entrypoint node "${IMAGE}" -p process.arch)" = "arm64"
+          docker run --rm --entrypoint node "${IMAGE}" -p "require('sharp').versions.sharp"
+          if docker run --rm "${IMAGE}" node /app/run-scheduled-job.mjs not-a-job; then
+            echo "Scheduled job runner accepted an unknown job." >&2
+            exit 1
+          fi
+          cat > "${RUNNER_TEMP}/hub-smoke.env" <<'EOF'
+          ABACATEPAY_API_KEY=audit
+          ABACATEPAY_WEBHOOK_SECRET=audit
+          BETTER_AUTH_SECRET=audit-secret-at-least-thirty-two-characters
+          BETTER_AUTH_URL=https://audit.invalid
+          CERTIFICATE_PUBLIC_BASE_URL=https://audit.invalid
+          CRON_SECRET=audit-cron
+          DATABASE_URL=postgresql://audit:audit@127.0.0.1:9/audit
+          HEALTHCHECK_SECRET=audit-health
+          JMVSTREAM_AUTH_RESOURCE=00000000-0000-4000-8000-000000000000
+          JMVSTREAM_PLAN_ID=audit-plan
+          NEXT_PUBLIC_APP_URL=https://audit.invalid
+          R2_ACCESS_KEY_ID=audit
+          R2_ACCOUNT_ID=audit
+          R2_BUCKET_NAME=audit-private
+          R2_PUBLIC_BASE_URL=https://media.audit.invalid
+          R2_PUBLIC_BUCKET_NAME=audit-public
+          R2_SECRET_ACCESS_KEY=audit
+          RESEND_API_KEY=audit
+          RESEND_FROM_EMAIL=noreply@audit.invalid
+          SUPPORT_EMAIL=support@audit.invalid
+          EOF
+          container_id="$(docker run -d --env-file "${RUNNER_TEMP}/hub-smoke.env" "${IMAGE}")"
+          trap 'docker rm -f "${container_id}" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 60); do
+            status="$(docker inspect "${container_id}" --format '{{.State.Health.Status}}')"
+            if [[ "${status}" == "healthy" ]]; then
+              exit 0
+            fi
+            if [[ "${status}" == "unhealthy" ]]; then
+              docker logs "${container_id}"
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs "${container_id}"
+          exit 1
+      - name: Publish immutable image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v7
+        with:
+          build-args: |
+            DEPLOYMENT_VERSION=${{ github.sha }}
+            NEXT_PUBLIC_APP_URL=${{ vars.PRODUCTION_APP_URL }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+            R2_PUBLIC_BASE_URL=${{ vars.R2_PUBLIC_BASE_URL }}
+          cache-from: type=gha
+          context: .
+          platforms: linux/arm64
+          provenance: mode=max
+          push: true
+          sbom: true
+          secret-files: |
+            NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=${{ runner.temp }}/server-actions-key
+            SENTRY_AUTH_TOKEN=${{ runner.temp }}/sentry-auth-token
+          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}

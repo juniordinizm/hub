@@ -1,10 +1,41 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ---
 
 # Deploy e incidentes
+
+## Modelo de release no Coolify
+
+O artefato de produção é a imagem `linux/arm64` publicada pela CI em
+`ghcr.io/<owner>/<repositorio>:<git-sha>`. O Coolify consome a imagem pronta;
+não compila o repositório e não usa tag mutável `latest`.
+
+- build: Bun `1.3.11`, `next build` standalone e chave estável de Server
+  Actions fornecida como secret do BuildKit;
+- runtime: Node `24.18.0` em Debian/glibc, usuário sem privilégios e porta
+  interna `3000`;
+- version skew: `DEPLOYMENT_VERSION=<git-sha>` alimenta `deploymentId`; releases
+  que podem coexistir precisam usar a mesma
+  `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` no build;
+- saúde: o `HEALTHCHECK` da imagem consulta somente `GET /api/health`;
+- operações deliberadas: a imagem inclui `run-scheduled-job.mjs`,
+  `migrate-production.mjs` e a cadeia SQL versionada.
+
+No GitHub, configure os secrets `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e,
+opcionalmente, `SENTRY_AUTH_TOKEN`; configure as variables
+`PRODUCTION_APP_URL`, `R2_PUBLIC_BASE_URL` e, opcionalmente,
+`NEXT_PUBLIC_SENTRY_DSN`. A CI recusa publicar na `main` sem chave estável,
+URL pública ou origem R2. O token de leitura do pacote GHCR pertence ao
+registro privado configurado no servidor Coolify, não ao container.
+
+No Coolify, crie uma aplicação **Docker Image**, exponha apenas a porta interna
+`3000`, associe o domínio HTTPS e fixe a tag no SHA publicado. Não crie
+`ports_mappings` para a internet: o tráfego entra somente pelo Traefik. O
+Dockerfile já possui health check; não o substitua por um check autenticado.
+Use uma instância durante o primeiro release. Rolling update só é seguro com a
+chave estável e migrations expand/contract.
 
 ## Gate de deploy
 
@@ -23,7 +54,9 @@ Não avance quando houver migration sem validação controlada, falha em `docs:c
 ### Checklist de ambiente
 
 - URLs: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `CERTIFICATE_PUBLIC_BASE_URL`;
-- banco: `DATABASE_URL` pooled e `DATABASE_URL_DIRECT` direto;
+- banco web: somente `DATABASE_URL` pooled;
+- job de migration: somente `DATABASE_URL_DIRECT`, nunca persistida no
+  container web;
 - auth: `BETTER_AUTH_SECRET` e origens confiáveis;
 - e-mail: `RESEND_API_KEY`, remetente/domínio e `SUPPORT_EMAIL`;
 - pagamentos: chave, base v2, segredo e endpoint HTTPS AbacatePay;
@@ -32,26 +65,45 @@ Não avance quando houver migration sem validação controlada, falha em `docs:c
 - crons: `CRON_SECRET`, incluindo manutenção;
 - Sentry/readiness: DSNs e `HEALTHCHECK_SECRET` quando aplicáveis.
 
+O processo Node valida o contrato completo antes de aceitar tráfego. Não
+configure no web container `DATABASE_URL_DIRECT`, `INTERNAL_BOOTSTRAP_SECRET`
+nem variáveis E2E. `SENTRY_AUTH_TOKEN`,
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e `DEPLOYMENT_VERSION` são entradas de
+build, não segredos de runtime.
+
 ## Banco
 
-Com alteração de schema, valide migration forward em banco descartável, audite o alvo e aplique uma única vez com URL direta e aprovação explícita. Em seguida audite journal/catálogo e execute o migrador outra vez. Nunca use `db:push`, `db:reset` ou rollback destrutivo. Ver [Banco e migrations](database-and-migrations.md).
+Com alteração de schema, valide migration forward em banco descartável, audite
+o alvo e aplique uma única vez com URL direta e aprovação explícita. Execute
+`bun run db:migrate:production` em uma job isolada ou
+`node /app/migrate-production.mjs` em um container one-shot da mesma imagem.
+O comando usa advisory lock; não o execute no startup do web container. Em
+seguida audite journal/catálogo e execute o migrador outra vez. Nunca use
+`db:push`, `db:reset` ou rollback destrutivo. Ver
+[Banco e migrations](database-and-migrations.md).
 
 ## Crons
 
-Conferir no provedor:
+O contrato autoritativo vive em `src/config/scheduled-jobs.ts`. No Coolify,
+cadastre Scheduled Tasks em UTC com os comandos abaixo:
 
-- `/api/cron/enrollments`: `0 10 * * *`;
-- `/api/cron/jmvstream`: `*/5 * * * *`;
-- `/api/cron/outbox`: `*/5 * * * *`;
-- `/api/cron/maintenance`: `0 4 * * *`;
+- `0 10 * * *`: `node /app/run-scheduled-job.mjs enrollments`;
+- `*/5 * * * *`: `node /app/run-scheduled-job.mjs jmvstream`;
+- `*/5 * * * *`: `node /app/run-scheduled-job.mjs outbox`;
+- `0 4 * * *`: `node /app/run-scheduled-job.mjs maintenance`;
 - Bearer igual a `CRON_SECRET`;
-- última execução e resposta.
+- última execução, duração, status e alerta de falha.
 
 Manutenção técnica expira sessões/rate limits e aplica a retenção de analytics. Não há cron, inbox ou execução de anonimização.
+O runner aplica timeout por tarefa e retorna código diferente de zero em erro.
+O Coolify não deve iniciar retry paralelo: repita somente depois do término ou
+timeout anterior. Outbox e manutenções são idempotentes; a sync JMVStream usa
+advisory lock e responde `skipped` quando outra execução está ativa.
 
 ## Smoke test
 
-- liveness e readiness com bearer, sem detalhes de dependência;
+- liveness pública em `/api/health` e readiness autenticada em
+  `/api/health/ready`, sem detalhes de dependência;
 - login e recuperação de senha em Conta de teste;
 - catálogo, Aula e painel conforme papel;
 - checkout seguro, webhook de teste e deduplicação;
@@ -63,7 +115,9 @@ Infraestrutura externa não é comprovada pelo repositório. Registre ambiente, 
 
 ## Rollback
 
-- aplicação: reimplantar versão anterior compatível com mesmo schema;
+- aplicação: selecionar a tag SHA anterior e reimplantar somente se ela for
+  compatível com o schema atual; o rollback nativo do Coolify depende de a
+  imagem ainda existir localmente, portanto GHCR e o SHA são a autoridade;
 - variáveis: restaurar valor anterior sem registrar segredo;
 - banco: forward-fix revisado, nunca reset;
 - mídia: preservar objetos até confirmar referências.
@@ -101,3 +155,11 @@ Infraestrutura externa não é comprovada pelo repositório. Registre ambiente, 
 ## Registro mínimo
 
 Horário UTC, ambiente, capacidade, IDs internos/externos não sensíveis, impacto, decisão, comandos/ações, resultado, responsável pela próxima ação e necessidade de post-mortem.
+
+## Gates externos ao repositório
+
+Antes do primeiro tráfego real: habilite 2FA no Coolify, desative atualização
+automática do control plane, restrinja SSH por IP/VPN, configure alertas de
+deploy/task/backup/disco/servidor, preserve `APP_KEY` e chaves SSH fora da VPS
+e conclua um restore do backup em destino isolado. Nenhum teste deste
+repositório comprova esses controles.

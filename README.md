@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ---
 
 # PROTEA-R Hub
@@ -16,7 +16,12 @@ Pré-requisitos:
 - acesso a um banco Postgres já compatível com o schema atual;
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
-O histórico de migrations está reconciliado até `0024_light_stature`, incluindo a outbox transacional. Para um banco local descartável, use os comandos de reset, seed e smoke somente conforme o [runbook de banco](docs/operations/database-and-migrations.md): eles recusam host remoto e exigem confirmação quando destrutivos.
+O histórico de migrations está reconciliado até
+`0040_certificate_render_claim`, incluindo outbox transacional, publicações de
+Curso e artefatos imutáveis de Certificado. Para um banco local descartável,
+use os comandos de reset, seed e smoke somente conforme o
+[runbook de banco](docs/operations/database-and-migrations.md): eles recusam
+host remoto e exigem confirmação quando destrutivos.
 
 ## Desenvolvimento local com banco existente
 
@@ -73,4 +78,8 @@ O mapa completo, inclusive fluxos ponta a ponta, está em [Arquitetura](docs/arc
 
 ## Estado de verificação
 
-Esta documentação foi verificada contra o commit `2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa`. Infraestrutura Neon, Cloudflare, JMVStream, AbacatePay, Resend e Vercel não foi inspecionada em painéis externos; configuração de produção permanece “não verificada no ambiente”.
+O deploy alvo usa uma imagem standalone `linux/arm64` por SHA no Coolify; veja
+o [runbook de deploy](docs/operations/deploy-and-incidents.md). A imagem foi
+construída e recebeu smoke nativo em host AArch64, mas publicação GHCR,
+domínio, providers, alertas, backup e controles do painel continuam gates
+externos até a promoção real.

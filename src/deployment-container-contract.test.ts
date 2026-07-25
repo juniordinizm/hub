@@ -1,0 +1,90 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const projectRoot = resolve(import.meta.dirname, "..");
+const IMMUTABLE_GITHUB_IMAGE_TAG_PATTERN =
+  /ghcr\.io\/\$\{\{ github\.repository \}\}:\$\{\{ github\.sha \}\}/;
+const MUTABLE_GITHUB_IMAGE_TAG_PATTERN =
+  /ghcr\.io\/\$\{\{ github\.repository \}\}:latest/;
+const RUNTIME_SECRET_ARGUMENT_PATTERN =
+  /ARG (?:DATABASE_URL|BETTER_AUTH_SECRET|CRON_SECRET|R2_ACCESS_KEY_ID)/;
+
+describe("Coolify container contract", () => {
+  it("builds a versioned standalone Next.js artifact", async () => {
+    const source = await readFile(
+      resolve(projectRoot, "next.config.ts"),
+      "utf8"
+    );
+
+    expect(source).toContain('output: "standalone"');
+    expect(source).toContain("deploymentId");
+    expect(source).toContain("DEPLOYMENT_VERSION");
+  });
+
+  it("sets a global browser hardening baseline", async () => {
+    const source = await readFile(
+      resolve(projectRoot, "next.config.ts"),
+      "utf8"
+    );
+
+    expect(source).toContain("Content-Security-Policy");
+    expect(source).toContain("Strict-Transport-Security");
+    expect(source).toContain("X-Content-Type-Options");
+    expect(source).toContain("Referrer-Policy");
+    expect(source).toContain("Permissions-Policy");
+    expect(source).toContain("frame-ancestors 'none'");
+  });
+
+  it("uses the pinned build and ARM-compatible production runtimes", async () => {
+    const source = await readFile(resolve(projectRoot, "Dockerfile"), "utf8");
+
+    expect(source).toContain("oven/bun:1.3.11");
+    expect(source).toContain("node:24.18.0-bookworm-slim");
+    expect(source).toContain(
+      "COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone"
+    );
+    expect(source).toContain(
+      "COPY --from=builder --chown=nextjs:nodejs /app/.next/static"
+    );
+    expect(source).toContain(
+      "COPY --from=builder --chown=nextjs:nodejs /app/public"
+    );
+    expect(source).toContain("USER nextjs");
+    expect(source).toContain("HEALTHCHECK");
+    expect(source).toContain("migrate-production.mjs");
+    expect(source).toContain("/app/src/db/migrations");
+    expect(source).toContain("run-scheduled-job.mjs");
+    expect(source).toContain("/app/node_modules/@img");
+    expect(source).not.toMatch(RUNTIME_SECRET_ARGUMENT_PATTERN);
+  });
+
+  it("keeps local dependencies, outputs, and environment files out of context", async () => {
+    const source = await readFile(
+      resolve(projectRoot, ".dockerignore"),
+      "utf8"
+    );
+
+    expect(source).toContain(".env*");
+    expect(source).toContain("!.env.example");
+    expect(source).toContain("node_modules");
+    expect(source).toContain(".next");
+    expect(source).toContain(".git");
+    expect(source).toContain("tools");
+  });
+
+  it("builds and publishes an immutable ARM64 image in CI", async () => {
+    const source = await readFile(
+      resolve(projectRoot, ".github/workflows/ci.yml"),
+      "utf8"
+    );
+
+    expect(source).toContain("platforms: linux/arm64");
+    expect(source).toContain("docker/build-push-action@v7");
+    expect(source).toMatch(IMMUTABLE_GITHUB_IMAGE_TAG_PATTERN);
+    expect(source).toContain("NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=");
+    expect(source).toContain("Smoke ARM64 image");
+    expect(source).toContain("require('sharp').versions.sharp");
+    expect(source).not.toMatch(MUTABLE_GITHUB_IMAGE_TAG_PATTERN);
+  });
+});

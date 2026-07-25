@@ -37,8 +37,8 @@ O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-m
 ## Liveness, readiness e RED
 
 - `GET /api/health` é liveness: processo e relógio; continua 2xx mesmo sem banco.
-- `GET /api/health/ready` é readiness: exige `Authorization: Bearer <HEALTHCHECK_SECRET>` quando o segredo existe. Em produção, segredo ausente ou banco indisponível retorna 503 sem detalhes.
-- A readiness usa transação somente leitura, timeout de um segundo e journal `drizzle.__drizzle_migrations`. Providers externos não bloqueiam cada request.
+- `GET /api/health/ready` é readiness: exige `Authorization: Bearer <HEALTHCHECK_SECRET>` quando o segredo existe. Em produção, segredo ausente, conexão indisponível ou schema incompatível retorna 503 sem detalhes.
+- A readiness usa conexão com timeout de um segundo, transação somente leitura e exige no journal `drizzle.__drizzle_migrations` a migration mínima declarada em `src/db/migration-state.ts`. Providers externos não bloqueiam cada request.
 
 RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhook falho e vídeo pendente, com a idade do item mais antigo.
 

@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ---
 
 # Ambiente e desenvolvimento local
@@ -17,7 +17,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | Variável | Ambiente/obrigatoriedade | Consumidor | Sensível |
 |---|---|---|---|
 | `DATABASE_URL` | runtime com banco | `getPool` | sim |
-| `DATABASE_URL_DIRECT` | migrations/auditoria; fallback para `DATABASE_URL` | `drizzle.config.ts` | sim |
+| `DATABASE_URL_DIRECT` | somente job de migration/auditoria; proibida no web runtime de produção | `drizzle.config.ts`, `migrate-production.ts` | sim |
 | `E2E_TEST_MODE` | somente CI com `CI=true` | limite Better Auth | não |
 | `E2E_DATABASE_URL` | Playwright; banco descartável já migrado | seed e servidor E2E | sim |
 | `E2E_R2_BUCKET_NAME` | Playwright; confirmação explícita do bucket R2 isolado | seed e teardown E2E | não |
@@ -33,6 +33,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |
 | `NEXT_ALLOWED_DEV_ORIGINS` | dev atrás de proxy | `next.config.ts` | não |
 | `NEXT_PUBLIC_APP_URL` | obrigatória em produção | links/redirects | público |
+| `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` no Coolify direto ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
 | `RESEND_FROM_EMAIL` | envio de e-mail | Resend | não |
 | `SUPPORT_EMAIL` | suporte por e-mail | e-mail de suporte | dado operacional |
@@ -47,6 +48,8 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
 | `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | secret de build estável entre releases sobrepostas | `next build` | sim |
+| `DEPLOYMENT_VERSION` | build; SHA imutável do Git | `next.config.ts` | não |
 | `JMVSTREAM_API_BASE_URL` | vídeo | cliente JMVStream | não |
 | `JMVSTREAM_API_TOKEN` | fallback JWT | cliente JMVStream | sim |
 | `JMVSTREAM_PLAN_ID` | operações de vídeo | cliente JMVStream | identificador protegido |
@@ -59,6 +62,28 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `R2_PUBLIC_BASE_URL` | leitura pública | URLs/Next Image | público |
 
 Não configure os dois aliases AbacatePay com valores divergentes. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de login no banco efêmero da CI. O seed e o teardown E2E recusam operações R2 se `E2E_R2_BUCKET_NAME` estiver ausente ou não for exatamente igual a `R2_BUCKET_NAME`; nunca confirme um bucket de produção.
+
+### Separação por fase
+
+- build público: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`,
+  `R2_PUBLIC_BASE_URL` e `DEPLOYMENT_VERSION`;
+- build secreto: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e, opcionalmente,
+  `SENTRY_AUTH_TOKEN`, sempre via BuildKit secret;
+- runtime web: URLs, `DATABASE_URL` pooled e credenciais dos providers;
+- job de migration: `DATABASE_URL_DIRECT`;
+- ausentes no web de produção: `DATABASE_URL_DIRECT`,
+  `INTERNAL_BOOTSTRAP_SECRET`, `E2E_*`, `SMOKE_DATABASE_URL` e
+  `CERTIFICATE_CONCURRENCY_DATABASE_URL`.
+
+Em produção, `instrumentation.ts` chama `getServerEnv` no startup Node. O
+processo encerra antes de servir tráfego quando uma capacidade obrigatória
+está ausente. A lista de nomes fica em
+`src/lib/production-environment.ts`; mensagens nunca incluem valores.
+
+`CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
+fora da Cloudflare. No Traefik do Coolify exposto diretamente, use o default
+`x-forwarded-for`; a aplicação valida o endereço antes de usá-lo em rate
+limit.
 
 Não há variável de “aprovação jurídica” ou “retenção de privacidade”: o produto não tem workflow de anonimização. O cron de manutenção aplica o prazo técnico de analytics e remove registros técnicos expirados.
 

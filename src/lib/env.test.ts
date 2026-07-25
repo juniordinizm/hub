@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getServerEnv } from "./env";
 
+const DATABASE_URL_ERROR_PATTERN = /DATABASE_URL/;
+
 const ORIGINAL_ENV = { ...process.env };
 
 const setEnv = (name: string, value: string | undefined) => {
@@ -63,5 +65,16 @@ describe("server environment", () => {
 
     setEnv("CI", "true");
     expect(getServerEnv().E2E_TEST_MODE).toBe(true);
+  });
+
+  it("rejects an incomplete production web runtime", () => {
+    setEnv("NODE_ENV", "production");
+    setEnv("BETTER_AUTH_SECRET", "production-secret");
+    setEnv("BETTER_AUTH_URL", "https://app.example.com");
+    setEnv("NEXT_PUBLIC_APP_URL", "https://app.example.com");
+    setEnv("CERTIFICATE_PUBLIC_BASE_URL", "https://app.example.com");
+    setEnv("DATABASE_URL", undefined);
+
+    expect(() => getServerEnv()).toThrow(DATABASE_URL_ERROR_PATTERN);
   });
 });

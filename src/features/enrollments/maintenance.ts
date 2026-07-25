@@ -55,7 +55,7 @@ export const processEnrollmentMaintenance = async ({
         e.status,
         e.expires_at,
         e.expiry_warning_7d_sent_at,
-        e.expiry_warning_1d_sent_at,
+        e.expiry_warning_1d_sent_at
       from enrollments e
       where e.status = 'active'
         and e.expires_at >= $1

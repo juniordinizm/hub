@@ -37,6 +37,11 @@ journal é autoridade; nesta cadeia, `0040_snapshot.json`.
 - fallback do Drizzle: `DATABASE_URL` se a URL direta estiver ausente;
 - `withVerifiedSslMode` exige `sslmode=verify-full` para aliases menos estritos.
 
+O pool web limita a espera de conexão a um segundo, mantém no máximo dez
+conexões e não recebe `DATABASE_URL_DIRECT`. A readiness confirma a entrada da
+migration mínima compatível declarada em `src/db/migration-state.ts`; a CI
+falha se esse marcador não acompanhar o topo do journal.
+
 Neon recomenda pooled em runtime serverless e direto para migrations, `pg_dump` e operações com estado de sessão. O plano Free não fornece proteção de branch; confirme manualmente projeto, branch, host, banco e usuário antes de qualquer escrita compartilhada.
 
 ## Migrations e geração
@@ -66,6 +71,14 @@ Remove `privacy_requests` e seu enum, que não possuem usuário solicitante, flu
 ### `bun run db:migrate`
 
 Só na promoção controlada. Não é onboarding e não substitui auditoria de schema.
+
+### `bun run db:migrate:production`
+
+É o comando de promoção para produção. Exige `DATABASE_URL_DIRECT`, adquire um
+advisory lock global, executa a cadeia Drizzle e libera conexão/lock mesmo em
+falha. A mesma operação existe na imagem como
+`node /app/migrate-production.mjs`. Execute como job one-shot isolada antes do
+web release; nunca como entrypoint ou hook de startup.
 
 ## Comandos bloqueados
 
@@ -101,7 +114,7 @@ Não são alternativas para onboarding nem promoção. `db:push` altera schema s
 2. Rode `bun run db:migrations:check` e valide a migration em banco descartável.
 3. Crie backup ou branch isolada quando disponível; no Free, registre a ausência de proteção e o plano de recuperação.
 4. Rode `bun run db:migrations:inspect -- --environment=<rótulo-sem-segredo>` em modo somente leitura.
-5. Aplique `bun run db:migrate` uma única vez com aprovação explícita.
+5. Aplique `bun run db:migrate:production` uma única vez com aprovação explícita.
 6. Audite catálogo e journal; execute migrador uma segunda vez para confirmar ausência de reaplicação.
 7. Registre ambiente, operadora, migrations esperadas/aplicadas e impacto.
 
