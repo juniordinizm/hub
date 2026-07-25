@@ -8,6 +8,7 @@ const e2eObjectStorageEnvironment = {
   R2_ACCOUNT_ID: "e2e",
   R2_BUCKET_NAME: "hub-e2e",
   R2_ENDPOINT: "http://127.0.0.1:4568",
+  R2_PUBLIC_BASE_URL: "http://127.0.0.1:4568/hub-e2e",
   R2_SECRET_ACCESS_KEY: "S3RVER",
 } as const;
 

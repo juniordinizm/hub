@@ -95,6 +95,7 @@ cadastre Scheduled Tasks em UTC com os comandos abaixo:
 - `*/5 * * * *`: `node /app/run-scheduled-job.mjs jmvstream`;
 - `*/5 * * * *`: `node /app/run-scheduled-job.mjs outbox`;
 - `0 4 * * *`: `node /app/run-scheduled-job.mjs maintenance`;
+- timeout da tarefa no Coolify: 10 minutos para `enrollments` e `maintenance`; 4 minutos para `jmvstream` e `outbox`;
 - Bearer igual a `CRON_SECRET`;
 - última execução, duração, status e alerta de falha.
 
