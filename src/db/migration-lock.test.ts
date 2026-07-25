@@ -7,7 +7,11 @@ describe("runMigrationWithLock", () => {
     const client = {
       query: vi.fn((statement: string) => {
         events.push(statement);
-        return Promise.resolve();
+        return Promise.resolve(
+          statement.includes("pg_try_advisory_lock")
+            ? { rows: [{ acquired: true }] }
+            : undefined
+        );
       }),
       release: vi.fn(() => {
         events.push("release");
@@ -23,7 +27,7 @@ describe("runMigrationWithLock", () => {
     });
 
     expect(events).toEqual([
-      "select pg_advisory_lock($1)",
+      "select pg_try_advisory_lock($1) as acquired",
       "migrate",
       "select pg_advisory_unlock($1)",
       "release",
@@ -32,7 +36,10 @@ describe("runMigrationWithLock", () => {
 
   it("unlocks after a migration failure", async () => {
     const client = {
-      query: vi.fn(async () => undefined),
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ acquired: true }] })
+        .mockResolvedValueOnce(undefined),
       release: vi.fn(),
     };
 
@@ -55,7 +62,7 @@ describe("runMigrationWithLock", () => {
     const client = {
       query: vi
         .fn()
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ rows: [{ acquired: true }] })
         .mockRejectedValueOnce(new Error("unlock failed")),
       release,
     };
@@ -67,6 +74,26 @@ describe("runMigrationWithLock", () => {
       })
     ).rejects.toThrow("unlock failed");
 
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("fails fast when another production migration owns the lock", async () => {
+    const migrate = vi.fn(async () => undefined);
+    const release = vi.fn();
+    const client = {
+      query: vi.fn().mockResolvedValue({ rows: [{ acquired: false }] }),
+      release,
+    };
+
+    await expect(
+      runMigrationWithLock({
+        client,
+        migrate,
+      })
+    ).rejects.toThrow("Another production migration is already running.");
+
+    expect(migrate).not.toHaveBeenCalled();
+    expect(client.query).toHaveBeenCalledOnce();
     expect(release).toHaveBeenCalledOnce();
   });
 });

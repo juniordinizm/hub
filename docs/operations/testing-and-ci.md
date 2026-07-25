@@ -20,7 +20,9 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 8. jornadas Chromium;
 9. build;
 10. Knip;
-11. build `linux/arm64` do container e publicação em GHCR por SHA na `main`.
+11. auditoria das dependências de produção;
+12. build `linux/arm64`, migration e readiness contra PostgreSQL 18 isolado;
+13. publicação em GHCR por SHA na `main`.
 
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
@@ -32,6 +34,9 @@ própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
 `quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
 `last_verified_commit` ainda existe no histórico. O checkout raso padrão do GitHub Actions traz
 apenas o commit atual e produziria um falso erro para documentos verificados em commits anteriores.
+Todas as actions são fixadas em commit imutável. O Dependabot propõe
+atualizações semanais do ecossistema `github-actions`; cada mudança de SHA
+continua passando pelos mesmos gates.
 
 ## Banco efêmero da CI
 
@@ -184,6 +189,9 @@ Pull requests ainda constroem a imagem ARM64 com uma chave efêmera e URL
 `R2_PUBLIC_BASE_URL`, gera SBOM/provenance e publica somente
 `ghcr.io/<repositorio>:<git-sha>`. A chave de Server Actions é BuildKit secret
 e não vira `ARG`, layer ou variável do runtime. Não crie tag `latest`.
+Antes de publicar, o smoke inicia PostgreSQL 18 em rede isolada, aplica a
+cadeia pelo `migrate-production.mjs` empacotado e exige que o health check de
+readiness da própria imagem fique saudável.
 
 ## Verificação local
 

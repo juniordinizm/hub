@@ -8,7 +8,11 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. As migrations `0023` a `0030` e `0031`/`0032` foram promovidas para a branch `production` do projeto Neon `protear` em 2026-07-21. As migrations `0033_default_learning_analytics_preference` e `0034_remove_privacy_request_workflow` foram promovidas em 2026-07-22.
+O repositório usa cadeia Drizzle forward-only. Em 2026-07-25, as migrations
+`0033` a `0040` foram validadas em branch temporária e promovidas pelo fluxo
+controlado do Neon para a branch `production` do projeto `protear`. A auditoria
+posterior confirmou 41 entradas no journal, topo em `0040` e paridade dos
+objetos críticos descritos neste runbook.
 
 Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta conferida, branch/backup disponível, validação em banco descartável e aprovação explícita de promoção.
 
@@ -37,10 +41,12 @@ journal é autoridade; nesta cadeia, `0040_snapshot.json`.
 - fallback do Drizzle: `DATABASE_URL` se a URL direta estiver ausente;
 - `withVerifiedSslMode` exige `sslmode=verify-full` para aliases menos estritos.
 
-O pool web limita a espera de conexão a um segundo, mantém no máximo dez
-conexões e não recebe `DATABASE_URL_DIRECT`. A readiness confirma a entrada da
-migration mínima compatível declarada em `src/db/migration-state.ts`; a CI
-falha se esse marcador não acompanhar o topo do journal.
+O pool web limita a espera de conexão a dez segundos, mantém no máximo dez
+conexões e não recebe `DATABASE_URL_DIRECT`. A readiness usa um pool isolado de
+uma conexão e timeout de um segundo, para falhar rápido sem impor essa latência
+agressiva às requisições normais. Ela confirma a entrada da migration mínima
+compatível declarada em `src/db/migration-state.ts`; a CI falha se esse
+marcador não acompanhar o topo do journal.
 
 Neon recomenda pooled em runtime serverless e direto para migrations, `pg_dump` e operações com estado de sessão. O plano Free não fornece proteção de branch; confirme manualmente projeto, branch, host, banco e usuário antes de qualquer escrita compartilhada.
 
@@ -62,7 +68,12 @@ Uma migration criada com `--custom` preserva o snapshot anterior. Se o SQL manua
 
 ### `0033_default_learning_analytics_preference`
 
-O SQL forward-only renomeia `learning_analytics_consents` para `learning_analytics_preferences`, renomeia `consented_at`/`revoked_at` para `enabled_at`/`disabled_at`, remove `learning_reengagements` e seu enum. A promoção foi aplicada uma vez em 2026-07-22; a segunda execução do migrador não reaplicou alterações. A próxima geração de schema que envolver renomeação deve continuar sendo revisada em terminal interativo para o Drizzle reconhecer o pareamento sem metadata manual.
+O SQL forward-only renomeia `learning_analytics_consents` para
+`learning_analytics_preferences`, renomeia `consented_at`/`revoked_at` para
+`enabled_at`/`disabled_at`, remove `learning_reengagements` e seu enum. A
+próxima geração de schema que envolver renomeação deve continuar sendo
+revisada em terminal interativo para o Drizzle reconhecer o pareamento sem
+metadata manual.
 
 ### `0034_remove_privacy_request_workflow`
 
@@ -124,12 +135,15 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 
 - `0023`/`0024`: validadas em branch temporária e promovidas uma vez para `production`; auditoria posterior confirmou outbox vazio e journal com 25 entradas.
 - `0025` a `0030`: promovidas em 2026-07-21; são histórico da introdução de versões curriculares. A base não continha Cursos, Matrículas ou Certificados, portanto não é evidência de backfill com dados históricos.
-- `0035_course_publications_and_completions`: promovida em 2026-07-22 para `neondb` do projeto Neon `protear`, pelo endpoint direto confirmado. Renomeou versões para publicações, removeu a fixação curricular da Matrícula e criou `course_completions`. Antes da unicidade de Certificado válido por Aluna + Curso, a cadeia versionada conserva o Certificado válido mais antigo e revoga posteriores com `duplicate_or_technical_issue`; revise esse efeito em banco descartável quando houver histórico real. A auditoria posterior confirmou 36 entradas no journal, ausência de `course_versions` e `enrollments.course_version_id`, e presença das novas tabelas e da unicidade de certificado por Curso. A base tinha zero Certificados, portanto o backfill não constitui evidência com dados históricos.
-- `0036_ambitious_shinobi_shaw`: promovida em 2026-07-22 para `neondb` do projeto Neon `protear`, após auditoria somente leitura. Adiciona `lessons.curriculum_key`, seu índice, e a unicidade parcial de uma publicação `draft` por Curso. Não altera dados de Matrículas, Conclusões ou Certificados. A segunda execução do migrador confirmou que a entrada já estava registrada e não reaplicou schema.
-- `0037_certificate_templates` a `0040_certificate_render_claim`: promovidas em 2026-07-24 para `neondb` do projeto Neon `protear`. A auditoria somente leitura confirmou tabelas, enums, colunas, índice parcial de template publicado, remoção de `pdf_url`, claim persistido e constraints do artefato `ready`; a segunda execução do migrador não reaplicou schema.
 - `0031`/`0032`: promovidas para suportar analytics minimizado e métricas diárias. A configuração de produção e dados externos permanecem sujeitos a verificação humana no painel.
-- `0033`: promovida em 2026-07-22 pelo migrador Drizzle após auditoria de pré-condições; a segunda execução terminou sem reaplicar schema e o journal passou a conter a entrada correspondente.
-- `0034`: promovida em 2026-07-22 pelo migrador Drizzle; removeu a tabela e o enum do workflow de solicitações de dados. A auditoria posterior confirmou a ausência de ambos.
+- `0033` a `0040`: promovidas em 2026-07-25 pelo workflow de migration do Neon
+  após execução e auditoria em branch temporária. A verificação posterior em
+  `production` confirmou 41 entradas no journal, topo `0040`, tabelas de
+  publicações/conclusões/templates, ausência de `course_versions` e `pdf_url`,
+  oito campos de renderização, três constraints críticas, três índices
+  parciais esperados e zero duplicidades entre Certificados válidos. O banco
+  tinha zero Cursos e zero Certificados, portanto os backfills não foram
+  exercitados com dados históricos.
 
 ## Recuperação
 

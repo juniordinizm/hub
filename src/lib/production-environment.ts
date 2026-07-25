@@ -30,10 +30,73 @@ const REQUIRED_PRODUCTION_ALTERNATIVES = [
   },
 ] as const;
 
+const HTTPS_PRODUCTION_VARIABLES = [
+  "BETTER_AUTH_URL",
+  "CERTIFICATE_PUBLIC_BASE_URL",
+  "NEXT_PUBLIC_APP_URL",
+  "R2_PUBLIC_BASE_URL",
+] as const;
+
+const FIRST_PARTY_SECRET_VARIABLES = [
+  "BETTER_AUTH_SECRET",
+  "CRON_SECRET",
+  "HEALTHCHECK_SECRET",
+] as const;
+
+const MINIMUM_SECRET_LENGTH = 32;
+
 const hasValue = (
   environment: Readonly<Record<string, string | undefined>>,
   key: string
 ): boolean => Boolean(environment[key]?.trim());
+
+const getParsedUrl = (
+  environment: Readonly<Record<string, string | undefined>>,
+  key: string
+): URL | null => {
+  const value = environment[key]?.trim();
+
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+const getUrlProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] => {
+  const problems: string[] = [];
+
+  for (const key of HTTPS_PRODUCTION_VARIABLES) {
+    const url = getParsedUrl(environment, key);
+
+    if (hasValue(environment, key) && !url) {
+      problems.push(`${key} must be a valid URL`);
+    } else if (url && url.protocol !== "https:") {
+      problems.push(`${key} must use https`);
+    }
+  }
+
+  return problems;
+};
+
+const getSecretProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] =>
+  FIRST_PARTY_SECRET_VARIABLES.flatMap((key) => {
+    const secretLength = environment[key]?.trim().length ?? 0;
+
+    if (secretLength > 0 && secretLength < MINIMUM_SECRET_LENGTH) {
+      return [`${key} must contain at least 32 characters`];
+    }
+
+    return [];
+  });
 
 export const getProductionEnvironmentProblems = (
   environment: Readonly<Record<string, string | undefined>>
@@ -47,6 +110,33 @@ export const getProductionEnvironmentProblems = (
       problems.push(requirement.label);
     }
   }
+
+  problems.push(...getUrlProblems(environment));
+
+  const databaseUrl = getParsedUrl(environment, "DATABASE_URL");
+  if (
+    databaseUrl &&
+    databaseUrl.protocol !== "postgres:" &&
+    databaseUrl.protocol !== "postgresql:"
+  ) {
+    problems.push("DATABASE_URL must use the postgres or postgresql protocol");
+  }
+
+  const canonicalOrigins = [
+    "BETTER_AUTH_URL",
+    "CERTIFICATE_PUBLIC_BASE_URL",
+    "NEXT_PUBLIC_APP_URL",
+  ]
+    .map((key) => getParsedUrl(environment, key)?.origin)
+    .filter((origin): origin is string => Boolean(origin));
+
+  if (canonicalOrigins.length === 3 && new Set(canonicalOrigins).size !== 1) {
+    problems.push(
+      "BETTER_AUTH_URL, CERTIFICATE_PUBLIC_BASE_URL, and NEXT_PUBLIC_APP_URL must use the same origin"
+    );
+  }
+
+  problems.push(...getSecretProblems(environment));
 
   if (hasValue(environment, "DATABASE_URL_DIRECT")) {
     problems.push("DATABASE_URL_DIRECT must not be set in the web runtime");

@@ -18,11 +18,11 @@ jobs:
     name: Quality gates
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           # docs:check valida commits históricos registrados na documentação.
           fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
@@ -31,6 +31,7 @@ jobs:
       - run: bun run typecheck
       - run: bun run check
       - run: bun run test
+      - run: bun audit --production
 
   integration-db:
     name: PostgreSQL integration
@@ -38,8 +39,8 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
@@ -47,7 +48,7 @@ jobs:
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
         id: neon
-        uses: neondatabase/create-branch-action@v6
+        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-integration-${{ github.run_id }}-${{ github.run_attempt }}
@@ -66,7 +67,7 @@ jobs:
         run: bun run test:certificates:integration
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@v3
+        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}
@@ -78,8 +79,8 @@ jobs:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
@@ -88,7 +89,7 @@ jobs:
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
         id: neon
-        uses: neondatabase/create-branch-action@v6
+        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-e2e-${{ github.run_id }}-${{ github.run_attempt }}
@@ -116,7 +117,7 @@ jobs:
         run: bun scripts/report-playwright-metrics.ts test-results/playwright/results.json
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           if-no-files-found: ignore
           name: playwright-report-${{ github.run_id }}
@@ -125,7 +126,7 @@ jobs:
             test-results/playwright
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@v3
+        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}
@@ -140,8 +141,8 @@ jobs:
       (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
@@ -162,9 +163,9 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Prepare build-only secrets
         env:
           PRODUCTION_APP_URL: ${{ vars.PRODUCTION_APP_URL }}
@@ -189,13 +190,13 @@ jobs:
           printf '%s' "${PRODUCTION_SENTRY_AUTH_TOKEN}" > "${RUNNER_TEMP}/sentry-auth-token"
       - name: Authenticate to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
           username: ${{ github.actor }}
       - name: Build ARM64 smoke image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           build-args: |
             DEPLOYMENT_VERSION=${{ github.sha }}
@@ -218,6 +219,33 @@ jobs:
           IMAGE: hub-ci:${{ github.sha }}
         run: |
           set -euo pipefail
+          network_name="hub-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          database_container="${network_name}-db"
+          application_container="${network_name}-app"
+          cleanup() {
+            docker rm -f "${application_container}" "${database_container}" >/dev/null 2>&1 || true
+            docker network rm "${network_name}" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker network create "${network_name}" >/dev/null
+          docker run -d \
+            --name "${database_container}" \
+            --network "${network_name}" \
+            -e POSTGRES_DB=audit \
+            -e POSTGRES_PASSWORD=audit \
+            -e POSTGRES_USER=audit \
+            postgres:18-alpine >/dev/null
+          for _ in $(seq 1 60); do
+            if docker exec "${database_container}" pg_isready -U audit -d audit >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker exec "${database_container}" pg_isready -U audit -d audit
+          docker run --rm \
+            --network "${network_name}" \
+            -e "DATABASE_URL_DIRECT=postgresql://audit:audit@${database_container}:5432/audit?sslmode=disable" \
+            "${IMAGE}" node /app/migrate-production.mjs
           test "$(docker run --rm --entrypoint id "${IMAGE}" -u)" = "1001"
           test "$(docker run --rm --entrypoint node "${IMAGE}" -p process.arch)" = "arm64"
           docker run --rm --entrypoint node "${IMAGE}" -p "require('sharp').versions.sharp"
@@ -231,9 +259,9 @@ jobs:
           BETTER_AUTH_SECRET=audit-secret-at-least-thirty-two-characters
           BETTER_AUTH_URL=https://audit.invalid
           CERTIFICATE_PUBLIC_BASE_URL=https://audit.invalid
-          CRON_SECRET=audit-cron
-          DATABASE_URL=postgresql://audit:audit@127.0.0.1:9/audit
-          HEALTHCHECK_SECRET=audit-health
+          CRON_SECRET=audit-cron-secret-at-least-thirty-two-characters
+          DATABASE_URL=postgresql://audit:audit@DATABASE_CONTAINER:5432/audit?sslmode=disable
+          HEALTHCHECK_SECRET=audit-health-secret-at-least-thirty-two-characters
           JMVSTREAM_AUTH_RESOURCE=00000000-0000-4000-8000-000000000000
           JMVSTREAM_PLAN_ID=audit-plan
           NEXT_PUBLIC_APP_URL=https://audit.invalid
@@ -247,24 +275,28 @@ jobs:
           RESEND_FROM_EMAIL=noreply@audit.invalid
           SUPPORT_EMAIL=support@audit.invalid
           EOF
-          container_id="$(docker run -d --env-file "${RUNNER_TEMP}/hub-smoke.env" "${IMAGE}")"
-          trap 'docker rm -f "${container_id}" >/dev/null 2>&1 || true' EXIT
+          sed -i "s/DATABASE_CONTAINER/${database_container}/g" "${RUNNER_TEMP}/hub-smoke.env"
+          docker run -d \
+            --name "${application_container}" \
+            --network "${network_name}" \
+            --env-file "${RUNNER_TEMP}/hub-smoke.env" \
+            "${IMAGE}" >/dev/null
           for _ in $(seq 1 60); do
-            status="$(docker inspect "${container_id}" --format '{{.State.Health.Status}}')"
+            status="$(docker inspect "${application_container}" --format '{{.State.Health.Status}}')"
             if [[ "${status}" == "healthy" ]]; then
               exit 0
             fi
             if [[ "${status}" == "unhealthy" ]]; then
-              docker logs "${container_id}"
+              docker logs "${application_container}"
               exit 1
             fi
             sleep 2
           done
-          docker logs "${container_id}"
+          docker logs "${application_container}"
           exit 1
       - name: Publish immutable image
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           build-args: |
             DEPLOYMENT_VERSION=${{ github.sha }}

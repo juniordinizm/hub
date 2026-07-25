@@ -24,4 +24,4 @@ export const scheduledJobs = {
 export type ScheduledJobName = keyof typeof scheduledJobs;
 
 export const isScheduledJobName = (value: string): value is ScheduledJobName =>
-  value in scheduledJobs;
+  Object.hasOwn(scheduledJobs, value);

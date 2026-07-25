@@ -19,7 +19,9 @@ não compila o repositório e não usa tag mutável `latest`.
 - version skew: `DEPLOYMENT_VERSION=<git-sha>` alimenta `deploymentId`; releases
   que podem coexistir precisam usar a mesma
   `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` no build;
-- saúde: o `HEALTHCHECK` da imagem consulta somente `GET /api/health`;
+- saúde: o `HEALTHCHECK` da imagem consulta
+  `GET /api/health/ready` com `HEALTHCHECK_SECRET`, comprovando processo, banco
+  e migration mínima sem gravar o segredo nos metadados da imagem;
 - operações deliberadas: a imagem inclui `run-scheduled-job.mjs`,
   `migrate-production.mjs` e a cadeia SQL versionada.
 
@@ -33,7 +35,9 @@ registro privado configurado no servidor Coolify, não ao container.
 No Coolify, crie uma aplicação **Docker Image**, exponha apenas a porta interna
 `3000`, associe o domínio HTTPS e fixe a tag no SHA publicado. Não crie
 `ports_mappings` para a internet: o tráfego entra somente pelo Traefik. O
-Dockerfile já possui health check; não o substitua por um check autenticado.
+Dockerfile já possui health check autenticado de readiness; preserve
+`HEALTHCHECK_SECRET` no runtime e não duplique o segredo na configuração do
+check.
 Use uma instância durante o primeiro release. Rolling update só é seguro com a
 chave estável e migrations expand/contract.
 

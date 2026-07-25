@@ -2,6 +2,10 @@ import "server-only";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { withVerifiedSslMode } from "@/db/connection-url";
+import {
+  type DatabasePoolPurpose,
+  getDatabasePoolOptions,
+} from "@/db/pool-policy";
 import { getServerEnv } from "@/lib/env";
 import {
   accounts,
@@ -70,28 +74,36 @@ const schema = {
 };
 
 let pool: Pool | null = null;
+let readinessPool: Pool | null = null;
 let db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
-export const DATABASE_CONNECTION_TIMEOUT_MS = 1000;
-
-export const getPool = (): Pool => {
-  if (pool) {
-    return pool;
-  }
-
+const createPool = (purpose: DatabasePoolPurpose): Pool => {
   const { DATABASE_URL } = getServerEnv();
 
   if (!DATABASE_URL) {
     throw new Error("DATABASE_URL is required for database access.");
   }
 
-  pool = new Pool({
+  return new Pool({
     connectionString: withVerifiedSslMode(DATABASE_URL),
-    connectionTimeoutMillis: DATABASE_CONNECTION_TIMEOUT_MS,
-    idleTimeoutMillis: 30_000,
-    max: 10,
+    ...getDatabasePoolOptions(purpose),
   });
+};
+
+export const getPool = (): Pool => {
+  if (!pool) {
+    pool = createPool("application");
+  }
+
   return pool;
+};
+
+export const getReadinessPool = (): Pool => {
+  if (!readinessPool) {
+    readinessPool = createPool("readiness");
+  }
+
+  return readinessPool;
 };
 
 export const getDb = () => {

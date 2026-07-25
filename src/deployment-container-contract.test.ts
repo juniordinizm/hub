@@ -9,6 +9,7 @@ const MUTABLE_GITHUB_IMAGE_TAG_PATTERN =
   /ghcr\.io\/\$\{\{ github\.repository \}\}:latest/;
 const RUNTIME_SECRET_ARGUMENT_PATTERN =
   /ARG (?:DATABASE_URL|BETTER_AUTH_SECRET|CRON_SECRET|R2_ACCESS_KEY_ID)/;
+const MOVING_GITHUB_ACTION_TAG_PATTERN = /uses:\s+[^#\n]+@v\d+(?:\s|$)/;
 
 describe("Coolify container contract", () => {
   it("builds a versioned standalone Next.js artifact", async () => {
@@ -52,6 +53,8 @@ describe("Coolify container contract", () => {
     );
     expect(source).toContain("USER nextjs");
     expect(source).toContain("HEALTHCHECK");
+    expect(source).toContain("/api/health/ready");
+    expect(source).toContain("process.env.HEALTHCHECK_SECRET");
     expect(source).toContain("migrate-production.mjs");
     expect(source).toContain("/app/src/db/migrations");
     expect(source).toContain("run-scheduled-job.mjs");
@@ -80,11 +83,27 @@ describe("Coolify container contract", () => {
     );
 
     expect(source).toContain("platforms: linux/arm64");
-    expect(source).toContain("docker/build-push-action@v7");
+    expect(source).toContain(
+      "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a"
+    );
     expect(source).toMatch(IMMUTABLE_GITHUB_IMAGE_TAG_PATTERN);
     expect(source).toContain("NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=");
     expect(source).toContain("Smoke ARM64 image");
     expect(source).toContain("require('sharp').versions.sharp");
+    expect(source).toContain("postgres:18-alpine");
+    expect(source).toContain("node /app/migrate-production.mjs");
+    expect(source).toContain("bun audit --production");
     expect(source).not.toMatch(MUTABLE_GITHUB_IMAGE_TAG_PATTERN);
+    expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
+  });
+
+  it("keeps immutable GitHub Action pins current through Dependabot", async () => {
+    const source = await readFile(
+      resolve(projectRoot, ".github/dependabot.yml"),
+      "utf8"
+    );
+
+    expect(source).toContain("package-ecosystem: github-actions");
+    expect(source).toContain("interval: weekly");
   });
 });

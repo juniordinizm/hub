@@ -3,13 +3,13 @@ import { getProductionEnvironmentProblems } from "./production-environment";
 
 const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   ABACATEPAY_API_KEY: "payment-key",
-  ABACATEPAY_WEBHOOK_SECRET: "webhook-secret",
-  BETTER_AUTH_SECRET: "auth-secret",
+  ABACATEPAY_WEBHOOK_SECRET: "webhook-secret-at-least-thirty-two-characters",
+  BETTER_AUTH_SECRET: "auth-secret-at-least-thirty-two-characters",
   BETTER_AUTH_URL: "https://app.example.com",
   CERTIFICATE_PUBLIC_BASE_URL: "https://app.example.com",
-  CRON_SECRET: "cron-secret",
+  CRON_SECRET: "cron-secret-at-least-thirty-two-characters",
   DATABASE_URL: "postgresql://runtime.example/db",
-  HEALTHCHECK_SECRET: "health-secret",
+  HEALTHCHECK_SECRET: "health-secret-at-least-thirty-two-characters",
   JMVSTREAM_AUTH_RESOURCE: "resource-id",
   JMVSTREAM_PLAN_ID: "plan-id",
   NEXT_PUBLIC_APP_URL: "https://app.example.com",
@@ -54,5 +54,49 @@ describe("production environment contract", () => {
       "DATABASE_URL_DIRECT must not be set in the web runtime",
       "INTERNAL_BOOTSTRAP_SECRET must not be set in production",
     ]);
+  });
+
+  it("rejects insecure public URLs and non-Postgres database URLs", () => {
+    const problems = getProductionEnvironmentProblems({
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      BETTER_AUTH_URL: "http://app.example.com",
+      DATABASE_URL: "https://database.example.com",
+      R2_PUBLIC_BASE_URL: "http://media.example.com",
+    });
+
+    expect(problems).toContain("BETTER_AUTH_URL must use https");
+    expect(problems).toContain("R2_PUBLIC_BASE_URL must use https");
+    expect(problems).toContain(
+      "DATABASE_URL must use the postgres or postgresql protocol"
+    );
+  });
+
+  it("requires every canonical application URL to share the same origin", () => {
+    expect(
+      getProductionEnvironmentProblems({
+        ...COMPLETE_PRODUCTION_ENVIRONMENT,
+        CERTIFICATE_PUBLIC_BASE_URL: "https://certificates.example.com",
+      })
+    ).toContain(
+      "BETTER_AUTH_URL, CERTIFICATE_PUBLIC_BASE_URL, and NEXT_PUBLIC_APP_URL must use the same origin"
+    );
+  });
+
+  it("rejects weak first-party secrets without including their values", () => {
+    const problems = getProductionEnvironmentProblems({
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      BETTER_AUTH_SECRET: "auth-value",
+      CRON_SECRET: "cron-value",
+      HEALTHCHECK_SECRET: "health-value",
+    });
+
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        "BETTER_AUTH_SECRET must contain at least 32 characters",
+        "CRON_SECRET must contain at least 32 characters",
+        "HEALTHCHECK_SECRET must contain at least 32 characters",
+      ])
+    );
+    expect(problems.join(" ")).not.toContain("auth-value");
   });
 });

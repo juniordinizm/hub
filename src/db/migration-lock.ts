@@ -1,5 +1,8 @@
 interface MigrationLockClient {
-  query: (statement: string, values?: unknown[]) => Promise<unknown>;
+  query: (
+    statement: string,
+    values?: unknown[]
+  ) => Promise<{ rows?: Array<{ acquired?: boolean }> } | undefined>;
   release: () => void;
 }
 
@@ -15,9 +18,14 @@ export const runMigrationWithLock = async ({
   let acquired = false;
 
   try {
-    await client.query("select pg_advisory_lock($1)", [
-      PRODUCTION_MIGRATION_LOCK_ID,
-    ]);
+    const lockResult = await client.query(
+      "select pg_try_advisory_lock($1) as acquired",
+      [PRODUCTION_MIGRATION_LOCK_ID]
+    );
+    if (lockResult?.rows?.[0]?.acquired !== true) {
+      throw new Error("Another production migration is already running.");
+    }
+
     acquired = true;
     await migrate();
   } finally {

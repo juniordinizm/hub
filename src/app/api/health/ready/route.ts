@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPool } from "@/db";
+import { getReadinessPool } from "@/db";
 import { checkDatabaseReadiness } from "@/features/operations/readiness";
 import { getServerEnv } from "@/lib/env";
 import {
@@ -44,7 +44,7 @@ export const GET = async (request: Request): Promise<Response> => {
 
   const startedAt = Date.now();
   const readiness = await checkDatabaseReadiness({
-    connect: () => getPool().connect(),
+    connect: () => getReadinessPool().connect(),
   });
   const durationMs = Date.now() - startedAt;
 

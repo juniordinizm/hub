@@ -24,7 +24,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `LOCAL_DATABASE_NAMES` | reset local | proteção de comando destrutivo | não |
 | `SMOKE_DATABASE_URL` | `db:smoke:empty` | smoke PostgreSQL | sim |
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |
-| `BETTER_AUTH_SECRET` | obrigatória em produção | Better Auth | sim |
+| `BETTER_AUTH_SECRET` | obrigatória em produção; mínimo de 32 caracteres | Better Auth | sim |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
 | `BETTER_AUTH_URL` | obrigatória em produção | Better Auth | não |
 | `AUTH_PUBLIC_SIGNUP_ENABLED` | opcional, default `false` | rota Better Auth | não |
@@ -43,8 +43,8 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | obrigatória em produção | certificado/PDF | público |
-| `CRON_SECRET` | crons, obrigatória em produção | handlers cron | sim |
-| `HEALTHCHECK_SECRET` | readiness, obrigatória em produção | `GET /api/health/ready` | sim |
+| `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
+| `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
 | `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
@@ -79,6 +79,12 @@ Em produção, `instrumentation.ts` chama `getServerEnv` no startup Node. O
 processo encerra antes de servir tráfego quando uma capacidade obrigatória
 está ausente. A lista de nomes fica em
 `src/lib/production-environment.ts`; mensagens nunca incluem valores.
+As URLs públicas devem usar HTTPS; `BETTER_AUTH_URL`,
+`CERTIFICATE_PUBLIC_BASE_URL` e `NEXT_PUBLIC_APP_URL` devem ter a mesma
+origem. `DATABASE_URL` aceita somente os protocolos `postgres:` e
+`postgresql:`. Segredos emitidos por provedores externos seguem o contrato do
+provedor; o limite local de 32 caracteres vale somente para os segredos
+próprios de autenticação, cron e readiness.
 
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
 fora da Cloudflare. No Traefik do Coolify exposto diretamente, use o default

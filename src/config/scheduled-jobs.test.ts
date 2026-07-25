@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { invokeScheduledJob } from "./scheduled-job-runner";
-import { scheduledJobs } from "./scheduled-jobs";
+import { isScheduledJobName, scheduledJobs } from "./scheduled-jobs";
 
 describe("scheduled jobs", () => {
   it("is the provider-neutral authority for every Vercel compatibility cron", async () => {
@@ -55,5 +55,11 @@ describe("scheduled jobs", () => {
         jobName: "outbox",
       })
     ).rejects.toThrow("CRON_SECRET");
+  });
+
+  it("accepts only declared own-property job names", () => {
+    expect(isScheduledJobName("outbox")).toBe(true);
+    expect(isScheduledJobName("constructor")).toBe(false);
+    expect(isScheduledJobName("toString")).toBe(false);
   });
 });
