@@ -34,6 +34,8 @@ O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-m
 
 `instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
+As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
+
 ## Liveness, readiness e RED
 
 - `GET /api/health` é liveness: processo e relógio; continua 2xx mesmo sem banco.

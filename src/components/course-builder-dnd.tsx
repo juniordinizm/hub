@@ -21,6 +21,7 @@ import {
 } from "@dnd-kit/sortable";
 import type React from "react";
 import { useEffect, useState, useTransition } from "react";
+import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody } from "@/components/ui/table";
 import {
@@ -32,6 +33,7 @@ import type {
   AdminLesson,
   AdminModule,
 } from "@/features/admin/server";
+import { getAffectedLessonReorderGroups } from "./course-builder-reorder";
 import { SortableItem } from "./sortable-list";
 import { SortableTableRow } from "./sortable-table-row";
 
@@ -68,7 +70,7 @@ export function CourseBuilderClient({
   const [activeType, setActiveType] = useState<"module" | "lesson" | null>(
     null
   );
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     setModules(initialModules);
@@ -90,6 +92,10 @@ export function CourseBuilderClient({
   );
 
   function handleDragStart(event: DragStartEvent) {
+    if (isPending) {
+      return;
+    }
+
     const { active } = event;
     const type = active.data.current?.type;
     setActiveId(active.id as string);
@@ -97,6 +103,10 @@ export function CourseBuilderClient({
   }
 
   function handleDragOver(event: DragOverEvent) {
+    if (isPending) {
+      return;
+    }
+
     const { active, over } = event;
     if (!over) {
       return;
@@ -183,23 +193,46 @@ export function CourseBuilderClient({
     if (oldIndex !== -1 && newIndex !== -1) {
       const newModules = arrayMove(modules, oldIndex, newIndex);
       setModules(newModules);
-      startTransition(() => {
-        reorderModulesAction(
-          course.id,
-          newModules.map((m) => m.id)
-        );
+      startTransition(async () => {
+        try {
+          const result = await reorderModulesAction(
+            course.id,
+            newModules.map((moduleData) => moduleData.id)
+          );
+          if (!result.ok) {
+            setModules(initialModules);
+            toast.error(result.message);
+          }
+        } catch {
+          setModules(initialModules);
+          toast.error("Nao foi possivel salvar a nova ordem. Tente novamente.");
+        }
       });
     }
   }
 
-  function persistLessonReorder(finalLesson: LessonData) {
-    const moduleId = finalLesson.moduleId;
-    const moduleLessons = lessons.filter((l) => l.moduleId === moduleId);
-    startTransition(() => {
-      reorderLessonsAction(
-        moduleId,
-        moduleLessons.map((l) => l.id)
-      );
+  function persistLessonReorder(activeLessonId: string) {
+    const reorderGroups = getAffectedLessonReorderGroups({
+      activeLessonId,
+      currentLessons: lessons,
+      initialLessons,
+    });
+
+    if (reorderGroups.length === 0) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const result = await reorderLessonsAction(course.id, reorderGroups);
+        if (!result.ok) {
+          setLessons(initialLessons);
+          toast.error(result.message);
+        }
+      } catch {
+        setLessons(initialLessons);
+        toast.error("Nao foi possivel salvar a nova ordem. Tente novamente.");
+      }
     });
   }
 
@@ -215,14 +248,20 @@ export function CourseBuilderClient({
     if (activeId === overId) {
       const originalLesson = initialLessons.find((l) => l.id === activeId);
       if (originalLesson && originalLesson.moduleId !== finalLesson.moduleId) {
-        persistLessonReorder(finalLesson);
+        persistLessonReorder(finalLesson.id);
       }
     } else {
-      persistLessonReorder(finalLesson);
+      persistLessonReorder(finalLesson.id);
     }
   }
 
   function handleDragEnd(event: DragEndEvent) {
+    if (isPending) {
+      setActiveId(null);
+      setActiveType(null);
+      return;
+    }
+
     const { active, over } = event;
     setActiveId(null);
     setActiveType(null);

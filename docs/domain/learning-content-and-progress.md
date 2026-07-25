@@ -20,6 +20,8 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aula também tem uma chave curricular estável: ao clonar uma Aula para uma nova publicação, a chave é preservada e o `lesson_progress` anterior continua valendo; remover a Aula ou criar outra gera efeito no currículo vivo sem apagar histórico. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
 
+Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos Módulos afetados na mesma publicação em rascunho. Mover uma Aula entre Módulos renumera origem e destino em uma única transação; IDs de outra publicação ou Curso são rejeitados.
+
 ### REG-LEA-002 Progresso é vivo
 
 `getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente e reconhecem conclusões da mesma chave curricular em publicação anterior. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de uma Aluna já certificada; o certificado continua histórico e acessível.

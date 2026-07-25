@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import {
@@ -55,6 +56,11 @@ import {
   uploadDashboardBannerFile,
 } from "@/features/storage/r2";
 import { rolesForPermission } from "@/lib/auth-policy";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 import { requireRole } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
@@ -102,6 +108,39 @@ const audit = async ({
     `,
     [actorUserId, action, targetType, targetId ?? null]
   );
+};
+
+export interface LessonReorderGroup {
+  lessonIds: string[];
+  moduleId: string;
+}
+
+export type CourseContentReorderResult =
+  | { ok: true }
+  | { message: string; ok: false };
+
+const REORDER_FAILURE_MESSAGE =
+  "Nao foi possivel salvar a nova ordem. Tente novamente.";
+
+const hasExactlyTheSameIds = (
+  actualIds: string[],
+  expectedIds: string[]
+): boolean =>
+  actualIds.length === expectedIds.length &&
+  new Set(actualIds).size === actualIds.length &&
+  actualIds.every((id) => expectedIds.includes(id));
+
+const getActionCorrelationId = async (): Promise<string> =>
+  createCorrelationId((await headers()).get(CORRELATION_ID_HEADER));
+
+const rollbackTransaction = async (client: {
+  query: (sql: string) => Promise<unknown>;
+}): Promise<void> => {
+  try {
+    await client.query("ROLLBACK");
+  } catch {
+    // The transaction may have failed before BEGIN completed.
+  }
 };
 
 const auditEnrollmentExpirationChange = async ({
@@ -793,89 +832,190 @@ export const enableCertificateForCourseAction = async (
 export const reorderModulesAction = async (
   courseId: string,
   orderedModuleIds: string[]
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
+): Promise<CourseContentReorderResult> => {
+  const correlationId = await getActionCorrelationId();
 
-  const pool = getPool();
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await observeOperation({
+      aggregateId: courseId,
+      correlationId,
+      execute: async () => {
+        const session = await requireRole(["admin"]);
+        const client = await getPool().connect();
+        try {
+          await client.query("BEGIN");
+          const expectedModules = await client.query<{ id: string }>(
+            `
+              select m.id
+              from modules m
+              inner join course_publications cp on cp.id = m.course_publication_id
+              where m.course_id = $1 and cp.status = 'draft'
+              for update
+            `,
+            [courseId]
+          );
 
-    // Pass 1: Set to temporary negative order to avoid unique constraint violations
-    for (let i = 0; i < orderedModuleIds.length; i++) {
-      await client.query(
-        "update modules set sort_order = $1 where id = $2 and course_id = $3",
-        [-(i + 1), orderedModuleIds[i], courseId]
-      );
-    }
+          if (
+            !hasExactlyTheSameIds(
+              orderedModuleIds,
+              expectedModules.rows.map((module) => module.id)
+            )
+          ) {
+            throw new Error("Invalid module order.");
+          }
 
-    // Pass 2: Set to final correct order
-    for (let i = 0; i < orderedModuleIds.length; i++) {
-      await client.query(
-        "update modules set sort_order = $1, updated_at = now() where id = $2 and course_id = $3",
-        [i + 1, orderedModuleIds[i], courseId]
-      );
-    }
+          for (let i = 0; i < orderedModuleIds.length; i++) {
+            await client.query(
+              "update modules set sort_order = $1 where id = $2 and course_id = $3",
+              [-(i + 1), orderedModuleIds[i], courseId]
+            );
+          }
 
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
+          for (let i = 0; i < orderedModuleIds.length; i++) {
+            await client.query(
+              "update modules set sort_order = $1, updated_at = now() where id = $2 and course_id = $3",
+              [i + 1, orderedModuleIds[i], courseId]
+            );
+          }
+
+          await client.query(
+            `
+              insert into audit_logs (actor_user_id, action, target_type, target_id)
+              values ($1, $2, $3, $4)
+            `,
+            [session.user.id, "modules.reordered", "course", courseId]
+          );
+          await client.query("COMMIT");
+          revalidateAdmin();
+        } catch (error) {
+          await rollbackTransaction(client);
+          throw error;
+        } finally {
+          client.release();
+        }
+      },
+      failureErrorCode: "course_module_reorder_failed",
+      operation: "course_content.reorder_modules",
+      provider: "database",
+    });
+    return { ok: true };
+  } catch {
+    return { message: REORDER_FAILURE_MESSAGE, ok: false };
   }
-
-  await audit({
-    action: "modules.reordered",
-    actorUserId: session.user.id,
-    targetId: courseId,
-    targetType: "course",
-  });
-  revalidateAdmin();
 };
 
 export const reorderLessonsAction = async (
-  moduleId: string,
-  orderedLessonIds: string[]
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
+  courseId: string,
+  reorderGroups: LessonReorderGroup[]
+): Promise<CourseContentReorderResult> => {
+  const correlationId = await getActionCorrelationId();
 
-  const pool = getPool();
-  const client = await pool.connect();
   try {
-    await client.query("BEGIN");
+    await observeOperation({
+      aggregateId: courseId,
+      correlationId,
+      execute: async () => {
+        const session = await requireRole(["admin"]);
+        const client = await getPool().connect();
+        try {
+          await client.query("BEGIN");
+          const moduleIds = reorderGroups.map((group) => group.moduleId);
+          const orderedLessonIds = reorderGroups.flatMap(
+            (group) => group.lessonIds
+          );
 
-    // Pass 1: Set to temporary negative order to avoid unique constraint violations
-    for (let i = 0; i < orderedLessonIds.length; i++) {
-      await client.query("update lessons set sort_order = $1 where id = $2", [
-        -(i + 1),
-        orderedLessonIds[i],
-      ]);
-    }
+          if (
+            moduleIds.length === 0 ||
+            new Set(moduleIds).size !== moduleIds.length ||
+            new Set(orderedLessonIds).size !== orderedLessonIds.length
+          ) {
+            throw new Error("Invalid lesson order.");
+          }
 
-    // Pass 2: Set to final correct order AND update module_id
-    for (let i = 0; i < orderedLessonIds.length; i++) {
-      await client.query(
-        "update lessons set sort_order = $1, module_id = $3, updated_at = now() where id = $2",
-        [i + 1, orderedLessonIds[i], moduleId]
-      );
-    }
+          const modules = await client.query<{
+            course_publication_id: string;
+            id: string;
+          }>(
+            `
+              select m.id, m.course_publication_id
+              from modules m
+              inner join course_publications cp on cp.id = m.course_publication_id
+              where m.course_id = $1 and m.id = any($2::uuid[]) and cp.status = 'draft'
+              for update
+            `,
+            [courseId, moduleIds]
+          );
 
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
+          if (modules.rows.length !== moduleIds.length) {
+            throw new Error("Invalid lesson module.");
+          }
+
+          const coursePublicationId = modules.rows[0]?.course_publication_id;
+          if (
+            !coursePublicationId ||
+            modules.rows.some(
+              (module) => module.course_publication_id !== coursePublicationId
+            )
+          ) {
+            throw new Error("Invalid lesson publication.");
+          }
+
+          const expectedLessons = await client.query<{ id: string }>(
+            "select id from lessons where module_id = any($1::uuid[]) for update",
+            [moduleIds]
+          );
+
+          if (
+            !hasExactlyTheSameIds(
+              orderedLessonIds,
+              expectedLessons.rows.map((lesson) => lesson.id)
+            )
+          ) {
+            throw new Error("Invalid lesson order.");
+          }
+
+          let temporaryOrder = -1;
+          for (const lessonId of orderedLessonIds) {
+            await client.query(
+              "update lessons set sort_order = $1 where id = $2",
+              [temporaryOrder, lessonId]
+            );
+            temporaryOrder--;
+          }
+
+          for (const group of reorderGroups) {
+            for (let i = 0; i < group.lessonIds.length; i++) {
+              await client.query(
+                "update lessons set sort_order = $1, module_id = $3, updated_at = now() where id = $2",
+                [i + 1, group.lessonIds[i], group.moduleId]
+              );
+            }
+          }
+
+          await client.query(
+            `
+              insert into audit_logs (actor_user_id, action, target_type, target_id)
+              values ($1, $2, $3, $4)
+            `,
+            [session.user.id, "lessons.reordered", "course", courseId]
+          );
+          await client.query("COMMIT");
+          revalidateAdmin();
+        } catch (error) {
+          await rollbackTransaction(client);
+          throw error;
+        } finally {
+          client.release();
+        }
+      },
+      failureErrorCode: "course_lesson_reorder_failed",
+      operation: "course_content.reorder_lessons",
+      provider: "database",
+    });
+    return { ok: true };
+  } catch {
+    return { message: REORDER_FAILURE_MESSAGE, ok: false };
   }
-
-  await audit({
-    action: "lessons.reordered",
-    actorUserId: session.user.id,
-    targetId: moduleId,
-    targetType: "module",
-  });
-  revalidateAdmin();
 };
 
 const assertBannerLink = ({
