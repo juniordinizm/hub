@@ -53,7 +53,14 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 35 tabelas exportadas em `src/db/schema.ts`. SQL e journal possuem 41 entradas alinhadas; `db:migrations:check` valida a cadeia local, enquanto `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. Veja [Banco e migrations](operations/database-and-migrations.md).
+O schema possui 37 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 43 entradas alinhadas, com topo `0042_serverless_job_leases`;
+`db:migrations:check` valida a cadeia local, enquanto
+`db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
+migration `0042` foi validada em branch Neon temporária e ainda aguarda
+promoção explícita ao banco definitivo. Na Vercel, cada instância limita o pool
+de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
+[Banco e migrations](operations/database-and-migrations.md).
 
 ## Fluxos ponta a ponta
 
@@ -111,6 +118,10 @@ O schema possui 35 tabelas exportadas em `src/db/schema.ts`. SQL e journal possu
 - Pedidos e Concessões preservam IDs de origem;
 - eventos de Matrícula e `audit_logs` registram ações administrativas;
 - `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e dead letter; recuperação/ativação por senha é exceção por conter token secreto;
+- `scheduled_job_leases` impede sobreposição de uma mesma rotina entre
+  instâncias serverless sem depender de sessão Postgres;
+- `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
+  das artes substituídas;
 - upload JMVStream mantém sessão/estado persistido para retry e limpeza.
 
 ## Rotinas
@@ -122,7 +133,10 @@ O schema possui 35 tabelas exportadas em `src/db/schema.ts`. SQL e journal possu
 - `/api/cron/outbox` a cada cinco minutos;
 - `/api/cron/maintenance` diariamente às 04:00 UTC.
 
-Todos dependem de `CRON_SECRET`. Agendamento e segredo em produção não foram verificados externamente.
+Todos dependem de `CRON_SECRET` e do kill switch
+`SCHEDULED_JOBS_ENABLED`. Cada execução usa lease persistente e prazo interno
+menor que o limite da função. Agendamento e segredo em produção ainda não foram
+verificados externamente.
 
 ## Limitações arquiteturais conhecidas
 

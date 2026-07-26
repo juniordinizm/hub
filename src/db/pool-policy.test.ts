@@ -17,4 +17,12 @@ describe("database pool policy", () => {
       max: 1,
     });
   });
+
+  it("bounds each Vercel function instance to a small pooled connection budget", () => {
+    expect(getDatabasePoolOptions("application", { VERCEL: "1" })).toEqual({
+      connectionTimeoutMillis: 10_000,
+      idleTimeoutMillis: 30_000,
+      max: 3,
+    });
+  });
 });

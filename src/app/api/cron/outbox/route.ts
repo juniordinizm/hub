@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { scheduledJobs } from "@/config/scheduled-jobs";
+import { runWithScheduledJobLease } from "@/features/operations/scheduled-job-lease";
+import { getScheduledJobEarlyResponse } from "@/features/operations/scheduled-job-request";
 import { runOutboxWorker } from "@/features/outbox/runner";
-import { getServerEnv } from "@/lib/env";
 import {
   CORRELATION_ID_HEADER,
   createCorrelationId,
@@ -8,36 +10,35 @@ import {
 import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
-
-const getBearerToken = (authorization: string | null): string | null => {
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return authorization.slice("Bearer ".length).trim() || null;
-};
+export const maxDuration = 300;
+export const runtime = "nodejs";
 
 export const GET = async (request: Request): Promise<Response> => {
   const correlationId = createCorrelationId(
     request.headers.get(CORRELATION_ID_HEADER)
   );
-  const env = getServerEnv();
-  const receivedToken = getBearerToken(request.headers.get("authorization"));
-
-  if (env.CRON_SECRET) {
-    if (receivedToken !== env.CRON_SECRET) {
-      return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
-    }
-  } else if (env.NODE_ENV === "production") {
-    return NextResponse.json(
-      { error: "CRON_SECRET nao configurado." },
-      { status: 503 }
-    );
+  const earlyResponse = getScheduledJobEarlyResponse(request);
+  if (earlyResponse) {
+    return earlyResponse;
   }
 
   const result = await observeOperation({
     correlationId,
-    execute: runOutboxWorker,
+    execute: async () => {
+      const lease = await runWithScheduledJobLease({
+        deadlineMs: scheduledJobs.outbox.deadlineMs,
+        execute: ({ deadlineAt, isLeaseOwner }) =>
+          runOutboxWorker({
+            deadlineAt,
+            shouldContinue: isLeaseOwner,
+          }),
+        jobName: "outbox",
+        leaseMs: scheduledJobs.outbox.leaseMs,
+      });
+      return lease.acquired
+        ? lease.value
+        : { reason: "already_running", skipped: true };
+    },
     failureErrorCode: "outbox_worker_failed",
     operation: "cron.outbox",
     provider: "resend",

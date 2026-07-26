@@ -14,9 +14,11 @@ import {
   COURSE_COVER_ACCEPT,
   parseCourseCoverImage,
 } from "@/features/storage/course-cover";
+import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
 import { cn } from "@/lib/utils";
 
 interface CourseCoverUploadFieldProps {
+  aggregateId: string;
   className?: string;
   defaultCoverImage?: unknown;
   defaultThumbnailUrl?: string | null | undefined;
@@ -40,6 +42,7 @@ const isValidCoverFile = (file: File): boolean => {
 };
 
 export function CourseCoverUploadField({
+  aggregateId,
   className,
   defaultCoverImage,
   defaultThumbnailUrl,
@@ -48,6 +51,8 @@ export function CourseCoverUploadField({
   const [coverImageJson, setCoverImageJson] = useState(() =>
     parsedCover ? JSON.stringify(parsedCover) : ""
   );
+  const [coverUploadJson, setCoverUploadJson] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState(defaultThumbnailUrl ?? "");
   const [previewBlurDataUrl, setPreviewBlurDataUrl] = useState(
     parsedCover?.blurDataUrl ?? null
@@ -56,6 +61,7 @@ export function CourseCoverUploadField({
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const uploadRequestIdRef = useRef(0);
 
   useEffect(
     () => () => {
@@ -84,8 +90,78 @@ export function CourseCoverUploadField({
     setPreviewBlurDataUrl(null);
     setIsPreviewLoaded(false);
     setPreviewUrl(nextPreviewUrl);
-    toast.success("Capa selecionada. Salve o curso para enviar.");
     return true;
+  };
+
+  const clearSelectedFile = (): void => {
+    uploadRequestIdRef.current += 1;
+    setIsUploading(false);
+    setCoverUploadJson("");
+    setPreviewBlurDataUrl(null);
+    setIsPreviewLoaded(false);
+    setPreviewUrl("");
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const restorePersistedPreview = (): void => {
+    setCoverUploadJson("");
+    setPreviewBlurDataUrl(parsedCover?.blurDataUrl ?? null);
+    setIsPreviewLoaded(false);
+    setPreviewUrl(defaultThumbnailUrl ?? "");
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const stageFile = async (file: File): Promise<void> => {
+    if (!setLocalPreview(file)) {
+      return;
+    }
+
+    const requestId = uploadRequestIdRef.current + 1;
+    uploadRequestIdRef.current = requestId;
+    setCoverUploadJson("");
+    setIsUploading(true);
+    try {
+      const reference = await uploadStagedAdminImage({
+        aggregateId,
+        file,
+        purpose: "course-cover",
+      });
+      if (uploadRequestIdRef.current !== requestId) {
+        return;
+      }
+      setCoverUploadJson(JSON.stringify(reference));
+      toast.success("Capa enviada. Salve o curso para aplicar.");
+    } catch (error) {
+      if (uploadRequestIdRef.current !== requestId) {
+        return;
+      }
+      restorePersistedPreview();
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel enviar a capa."
+      );
+    } finally {
+      if (uploadRequestIdRef.current === requestId) {
+        setIsUploading(false);
+      }
+    }
   };
 
   const assignDroppedFile = (file: File): void => {
@@ -96,7 +172,7 @@ export function CourseCoverUploadField({
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     inputRef.current.files = dataTransfer.files;
-    setLocalPreview(file);
+    stageFile(file).catch(() => undefined);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -135,23 +211,18 @@ export function CourseCoverUploadField({
     e.preventDefault();
     e.stopPropagation();
     setCoverImageJson("");
-    setPreviewBlurDataUrl(null);
-    setIsPreviewLoaded(false);
-    setPreviewUrl("");
-
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
+    clearSelectedFile();
   };
 
   return (
     <div className={cn("flex w-full flex-col gap-2 sm:w-[280px]", className)}>
       <input name="coverImage" type="hidden" value={coverImageJson} />
+      <input name="coverUpload" type="hidden" value={coverUploadJson} />
+      <input
+        name="coverUploadPending"
+        type="hidden"
+        value={isUploading ? "on" : ""}
+      />
 
       <div className="relative aspect-video w-full">
         {/* biome-ignore lint/a11y/useSemanticElements: div is required for drag-and-drop drop zone with flexible sizing */}
@@ -172,12 +243,11 @@ export function CourseCoverUploadField({
           <input
             accept={COURSE_COVER_ACCEPT}
             className="sr-only"
-            name="coverFile"
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
 
               if (file) {
-                setLocalPreview(file);
+                stageFile(file).catch(() => undefined);
               }
             }}
             ref={inputRef}

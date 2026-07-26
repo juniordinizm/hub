@@ -277,7 +277,6 @@ const CertificateTemplateFieldItem = memo(
                   imageUrl={signaturePreviewUrl}
                   kind="signature"
                   label="Arraste a assinatura (fundo transparente)"
-                  name="signature"
                   onFileSelect={onSignatureFileSelect}
                   selectedFile={signatureFile}
                 />

@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { toast } from "sonner";
@@ -40,12 +41,14 @@ import {
   type CertificateTemplateSpec,
   createDefaultCertificateTemplateFields,
 } from "@/features/certificates/template-rules";
+import type { StagedAdminImageReference } from "@/features/storage/staged-image-upload";
+import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
 import { useOwnedObjectUrl } from "@/hooks/use-owned-object-url";
 import {
   type CertificateFieldChange,
   CertificateTemplateFields,
 } from "./certificate-template-fields";
-import { applyCertificateTemplateFiles } from "./certificate-template-form-data";
+import { applyCertificateTemplateUploads } from "./certificate-template-form-data";
 import { CertificateTemplatePreview } from "./certificate-template-preview";
 
 export interface CertificateTemplateEditorTemplate {
@@ -189,6 +192,8 @@ export function CertificateTemplateForm({
   template: CertificateTemplateEditorTemplate | undefined;
 }): React.JSX.Element {
   const router = useRouter();
+  const backgroundUploadRequestIdRef = useRef(0);
+  const signatureUploadRequestIdRef = useRef(0);
   const [fields, setFields] = useState(
     template?.spec.fields ?? createDefaultCertificateTemplateFields
   );
@@ -197,11 +202,16 @@ export function CertificateTemplateForm({
   const defaultBackgroundUrl = template?.backgroundUrl ?? null;
   const defaultSignatureUrl = template?.signatureUrl ?? null;
   const [backgroundFile, setBackgroundFile] = useState<File | null>(null);
+  const [backgroundUpload, setBackgroundUpload] =
+    useState<StagedAdminImageReference | null>(null);
   const [backgroundRemoved, setBackgroundRemoved] = useState(false);
   const [cropSource, setCropSource] = useState<File | null>(null);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signatureUpload, setSignatureUpload] =
+    useState<StagedAdminImageReference | null>(null);
   const [signatureRemoved, setSignatureRemoved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [pendingImageUploads, setPendingImageUploads] = useState(0);
   const [signerName, setSignerName] = useState(template?.signerName ?? "");
   const [signerRole, setSignerRole] = useState(template?.signerRole ?? "");
   const backgroundObjectUrl = useOwnedObjectUrl(backgroundFile);
@@ -229,9 +239,9 @@ export function CertificateTemplateForm({
     certificateTemplateInitialActionState
   );
   const prepareSubmission = (formData: FormData): void =>
-    applyCertificateTemplateFiles(formData, {
-      background: backgroundFile,
-      signature: signatureFile,
+    applyCertificateTemplateUploads(formData, {
+      background: backgroundUpload,
+      signature: signatureUpload,
     });
   const saveTemplate = (formData: FormData): void => {
     prepareSubmission(formData);
@@ -246,7 +256,9 @@ export function CertificateTemplateForm({
     notifyTemplateAction({
       onSuccess: () => {
         setBackgroundFile(null);
+        setBackgroundUpload(null);
         setSignatureFile(null);
+        setSignatureUpload(null);
         setCropSource(null);
         setIsDirty(false);
         router.refresh();
@@ -259,7 +271,9 @@ export function CertificateTemplateForm({
     notifyTemplateAction({
       onSuccess: () => {
         setBackgroundFile(null);
+        setBackgroundUpload(null);
         setSignatureFile(null);
+        setSignatureUpload(null);
         setCropSource(null);
         setIsDirty(false);
         router.refresh();
@@ -291,14 +305,49 @@ export function CertificateTemplateForm({
     },
     []
   );
-  const handleSignatureFileSelect = useCallback((file: File | null): void => {
-    selectSignatureFile({
-      file,
-      setIsDirty,
-      setSignatureFile,
-      setSignatureRemoved,
-    });
-  }, []);
+  const handleSignatureFileSelect = useCallback(
+    async (file: File | null): Promise<void> => {
+      const requestId = signatureUploadRequestIdRef.current + 1;
+      signatureUploadRequestIdRef.current = requestId;
+      selectSignatureFile({
+        file,
+        setIsDirty,
+        setSignatureFile,
+        setSignatureRemoved,
+      });
+      setSignatureUpload(null);
+      if (!file) {
+        return;
+      }
+
+      setPendingImageUploads((current) => current + 1);
+      try {
+        const upload = await uploadStagedAdminImage({
+          aggregateId: courseId,
+          file,
+          purpose: "certificate-signature",
+        });
+        if (signatureUploadRequestIdRef.current !== requestId) {
+          return;
+        }
+        setSignatureUpload(upload);
+      } catch (error) {
+        if (signatureUploadRequestIdRef.current !== requestId) {
+          return;
+        }
+        setSignatureFile(null);
+        setSignatureRemoved(true);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Nao foi possivel enviar a assinatura."
+        );
+      } finally {
+        setPendingImageUploads((current) => Math.max(0, current - 1));
+      }
+    },
+    [courseId]
+  );
   const handleSignerNameChange = useCallback((value: string): void => {
     setSignerName(value);
     setIsDirty(true);
@@ -308,7 +357,7 @@ export function CertificateTemplateForm({
     setIsDirty(true);
   }, []);
 
-  const isBusy = isSaving || isPublishing;
+  const isBusy = isSaving || isPublishing || pendingImageUploads > 0;
   const hasPublishableChanges = isDirty || template?.status === "draft";
 
   return (
@@ -316,11 +365,39 @@ export function CertificateTemplateForm({
       <CertificateTemplateCropDialog
         file={cropSource}
         onCancel={() => setCropSource(null)}
-        onComplete={(file) => {
+        onComplete={async (file) => {
+          const requestId = backgroundUploadRequestIdRef.current + 1;
+          backgroundUploadRequestIdRef.current = requestId;
           setBackgroundFile(file);
           setBackgroundRemoved(false);
           setCropSource(null);
           setIsDirty(true);
+          setBackgroundUpload(null);
+          setPendingImageUploads((current) => current + 1);
+          try {
+            const upload = await uploadStagedAdminImage({
+              aggregateId: courseId,
+              file,
+              purpose: "certificate-background",
+            });
+            if (backgroundUploadRequestIdRef.current !== requestId) {
+              return;
+            }
+            setBackgroundUpload(upload);
+          } catch (error) {
+            if (backgroundUploadRequestIdRef.current !== requestId) {
+              return;
+            }
+            setBackgroundFile(null);
+            setBackgroundRemoved(true);
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Nao foi possivel enviar a arte."
+            );
+          } finally {
+            setPendingImageUploads((current) => Math.max(0, current - 1));
+          }
         }}
       />
       <TemplateFormNotices
@@ -426,16 +503,19 @@ export function CertificateTemplateForm({
                       imageUrl={backgroundPreviewUrl}
                       kind="background"
                       label="Arraste a arte A4 (horizontal)"
-                      name="background"
-                      onFileSelect={(file) =>
+                      onFileSelect={(file) => {
+                        if (!file) {
+                          backgroundUploadRequestIdRef.current += 1;
+                          setBackgroundUpload(null);
+                        }
                         selectBackgroundFile({
                           file,
                           setBackgroundFile,
                           setBackgroundRemoved,
                           setCropSource,
                           setIsDirty,
-                        })
-                      }
+                        });
+                      }}
                       required={!backgroundPreviewUrl}
                       selectedFile={backgroundFile}
                     />

@@ -40,7 +40,6 @@ describe("CertificateImageUploadField", () => {
         <CertificateImageUploadField
           imageUrl={null}
           kind="background"
-          name="background"
           onFileSelect={onFileSelect}
         />
       );
@@ -64,7 +63,6 @@ describe("CertificateImageUploadField", () => {
         <CertificateImageUploadField
           imageUrl={null}
           kind="signature"
-          name="signature"
           onFileSelect={onFileSelect}
         />
       );

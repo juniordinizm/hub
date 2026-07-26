@@ -1,14 +1,16 @@
 import "server-only";
-import type { PoolClient } from "pg";
+import type { Pool } from "pg";
 import { getPool } from "@/db";
 import type { OutboxMessageInput } from "./rules";
 import type { ClaimedOutboxMessage } from "./worker";
+
+type OutboxQueryClient = Pick<Pool, "query">;
 
 export const enqueueOutboxMessage = async ({
   client,
   message,
 }: {
-  client: PoolClient;
+  client: OutboxQueryClient;
   message: OutboxMessageInput;
 }): Promise<{ id: string | null; inserted: boolean }> => {
   const result = await client.query<{ id: string }>(
@@ -43,7 +45,7 @@ export const claimOutboxMessages = async ({
   limit,
   workerId,
 }: {
-  client: PoolClient;
+  client: OutboxQueryClient;
   limit: number;
   workerId: string;
 }): Promise<ClaimedOutboxMessage[]> => {
@@ -91,7 +93,7 @@ export const markOutboxMessageDelivered = async ({
   id,
   workerId,
 }: {
-  client: PoolClient;
+  client: OutboxQueryClient;
   id: string;
   workerId: string;
 }): Promise<void> => {
@@ -117,7 +119,7 @@ export const markOutboxMessageForRetry = async ({
   retryDelayMs,
   workerId,
 }: {
-  client: PoolClient;
+  client: OutboxQueryClient;
   errorCode: string;
   id: string;
   retryDelayMs: number;
@@ -145,7 +147,7 @@ export const markOutboxMessageDeadLetter = async ({
   id,
   workerId,
 }: {
-  client: PoolClient;
+  client: OutboxQueryClient;
   errorCode: string;
   id: string;
   workerId: string;
@@ -172,7 +174,7 @@ export const requeueDeadLetterMessage = async ({
   reason,
 }: {
   actorUserId: string;
-  client: PoolClient;
+  client: OutboxQueryClient;
   messageId: string;
   reason: string;
 }): Promise<void> => {

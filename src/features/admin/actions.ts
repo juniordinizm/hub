@@ -30,7 +30,6 @@ import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
 import { parseCertificateTemplateSubmission } from "@/features/certificates/render-snapshot";
 import { CertificateTemplateDomainError } from "@/features/certificates/template-errors";
 import {
-  deleteUnreferencedCertificateTemplateAssets,
   disableCertificateForCourse,
   enableCertificateForCourse,
   publishCertificateTemplate,
@@ -55,6 +54,14 @@ import {
   publishR2Object,
   uploadDashboardBannerFile,
 } from "@/features/storage/r2";
+import {
+  parseStagedAdminImageReference,
+  type StagedAdminImageReference,
+} from "@/features/storage/staged-image-upload";
+import {
+  consumeStagedAdminImageUpload,
+  consumeStagedAdminImageUploads,
+} from "@/features/storage/staged-image-upload-registry";
 import { rolesForPermission } from "@/lib/auth-policy";
 import {
   CORRELATION_ID_HEADER,
@@ -715,13 +722,43 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
-const persistCertificateTemplateDraft = async (
-  formData: FormData
-): Promise<void> => {
+const readStagedImageReference = (
+  formData: FormData,
+  key: string
+): ReturnType<typeof parseStagedAdminImageReference> => {
+  const value = readString(formData, key);
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const reference = parseStagedAdminImageReference(
+      JSON.parse(value) as unknown
+    );
+    if (reference) {
+      return reference;
+    }
+  } catch {
+    // The domain error below is intentionally stable for malformed JSON.
+  }
+
+  throw new CertificateTemplateDomainError("Upload temporario invalido.");
+};
+
+const persistCertificateTemplateDraft = async ({
+  actorUserId,
+  formData,
+}: {
+  actorUserId: string;
+  formData: FormData;
+}): Promise<void> => {
   const courseId = readString(formData, "courseId");
   const specValue = readString(formData, "spec");
-  const background = formData.get("background") as File | null;
-  const signature = formData.get("signature") as File | null;
+  const backgroundUpload = readStagedImageReference(
+    formData,
+    "backgroundUpload"
+  );
+  const signatureUpload = readStagedImageReference(formData, "signatureUpload");
   if (!(courseId && specValue)) {
     throw new CertificateTemplateDomainError(
       "Template de certificado invalido."
@@ -729,38 +766,70 @@ const persistCertificateTemplateDraft = async (
   }
   const spec = parseCertificateTemplateSubmission(specValue);
   let signatureKey = readString(formData, "signatureKey") || null;
-
-  const replacedKeys = await runCertificateTemplateAssetMutation({
-    courseId,
-    operation: async (trackUploadedKey) => {
-      if (background?.size) {
-        spec.backgroundKey = await uploadCertificateBackground({
+  const persistWithFiles = async (
+    background: File | null,
+    signature: File | null
+  ): Promise<void> => {
+    await runCertificateTemplateAssetMutation({
+      courseId,
+      operation: async (trackUploadedKey) => {
+        if (background?.size) {
+          spec.backgroundKey = await uploadCertificateBackground({
+            courseId,
+            file: background,
+          });
+          trackUploadedKey(spec.backgroundKey);
+        }
+        const nextSignatureKey = signature?.size
+          ? await uploadCertificateSignature({ courseId, file: signature })
+          : signatureKey;
+        if (signature?.size && nextSignatureKey) {
+          trackUploadedKey(nextSignatureKey);
+        }
+        signatureKey = nextSignatureKey;
+        return await saveCertificateTemplateDraft({
           courseId,
-          file: background,
+          signerName: readString(formData, "signerName") || null,
+          signerRole: readString(formData, "signerRole") || null,
+          signatureKey: nextSignatureKey,
+          spec,
         });
-        trackUploadedKey(spec.backgroundKey);
-      }
-      const nextSignatureKey = signature?.size
-        ? await uploadCertificateSignature({ courseId, file: signature })
-        : signatureKey;
-      if (signature?.size && nextSignatureKey) {
-        trackUploadedKey(nextSignatureKey);
-      }
-      signatureKey = nextSignatureKey;
-      return await saveCertificateTemplateDraft({
-        courseId,
-        signerName: readString(formData, "signerName") || null,
-        signerRole: readString(formData, "signerRole") || null,
-        signatureKey: nextSignatureKey,
-        spec,
-      });
-    },
-  });
+      },
+    });
+  };
 
-  await deleteUnreferencedCertificateTemplateAssets({
-    courseId,
-    keys: replacedKeys,
-  }).catch(() => undefined);
+  const uploads = [
+    ...(backgroundUpload
+      ? [
+          {
+            purpose: "certificate-background" as const,
+            reference: backgroundUpload,
+          },
+        ]
+      : []),
+    ...(signatureUpload
+      ? [
+          {
+            purpose: "certificate-signature" as const,
+            reference: signatureUpload,
+          },
+        ]
+      : []),
+  ];
+  if (uploads.length > 0) {
+    await consumeStagedAdminImageUploads({
+      actorUserId,
+      aggregateId: courseId,
+      operation: async (files) => {
+        const background = backgroundUpload ? (files.shift() ?? null) : null;
+        const signature = signatureUpload ? (files.shift() ?? null) : null;
+        await persistWithFiles(background, signature);
+      },
+      uploads,
+    });
+  } else {
+    await persistWithFiles(null, null);
+  }
 };
 
 export const saveCertificateTemplateDraftFormAction = async (
@@ -768,8 +837,11 @@ export const saveCertificateTemplateDraftFormAction = async (
   formData: FormData
 ): Promise<CertificateTemplateActionState> => {
   try {
-    await requireRole(["admin"]);
-    await persistCertificateTemplateDraft(formData);
+    const session = await requireRole(["admin"]);
+    await persistCertificateTemplateDraft({
+      actorUserId: session.user.id,
+      formData,
+    });
     return { message: "Rascunho salvo.", status: "success" };
   } catch (error) {
     const message = getExpectedCertificateTemplateActionMessage(error);
@@ -789,12 +861,15 @@ export const publishCertificateTemplateFormAction = async (
   formData: FormData
 ): Promise<CertificateTemplateActionState> => {
   try {
-    await requireRole(["admin"]);
+    const session = await requireRole(["admin"]);
     await saveAndPublishCertificateTemplate({
       formData,
       publishDraft: publishCertificateTemplate,
       saveDraft: async (draftFormData) => {
-        await persistCertificateTemplateDraft(draftFormData);
+        await persistCertificateTemplateDraft({
+          actorUserId: session.user.id,
+          formData: draftFormData,
+        });
       },
     });
     return {
@@ -1059,31 +1134,61 @@ const synchronizeBannerObjects = async ({
   }
 };
 
-export const saveBannerAction = async (
-  formData: FormData
-): Promise<{ bannerId?: string } | undefined> => {
-  const session = await requireRole(["admin", "support"]);
-  let bannerId = readString(formData, "bannerId");
-  const linkUrl = readString(formData, "linkUrl") || null;
-  const buttonText = readString(formData, "buttonText") || null;
-  const isActive = readCheckbox(formData, "isActive");
-  const imageFile = formData.get("imageFile") as File | null;
+const parseOptionalStagedImageUpload = (
+  value: string
+): StagedAdminImageReference | null => {
+  if (!value) {
+    return null;
+  }
 
+  let parsedValue: unknown;
+  try {
+    parsedValue = JSON.parse(value) as unknown;
+  } catch {
+    throw new Error("Upload temporario invalido.");
+  }
+
+  const reference = parseStagedAdminImageReference(parsedValue);
+  if (!reference) {
+    throw new Error("Upload temporario invalido.");
+  }
+
+  return reference;
+};
+
+const persistDashboardBanner = async ({
+  actorUserId,
+  buttonText,
+  existingBannerId,
+  imageFile,
+  isActive,
+  linkUrl,
+  newBannerId,
+}: {
+  actorUserId: string;
+  buttonText: string | null;
+  existingBannerId: string;
+  imageFile: File | null;
+  isActive: boolean;
+  linkUrl: string | null;
+  newBannerId: string;
+}): Promise<{ bannerId: string }> => {
   assertBannerLink({ buttonText, linkUrl });
 
   const pool = getPool();
+  let bannerId = existingBannerId || newBannerId;
   let previousBlurDataUrl: string | null = null;
   let previousImageKey: string | null = null;
   let nextBlurDataUrl: string | null = null;
   let nextImageKey: string | null = null;
 
-  if (bannerId) {
+  if (existingBannerId) {
     const previous = await pool.query<{
       blur_data_url: string | null;
       image_url: string;
     }>(
       "select image_url, blur_data_url from dashboard_banners where id = $1 limit 1",
-      [bannerId]
+      [existingBannerId]
     );
     previousImageKey = previous.rows[0]?.image_url ?? null;
     previousBlurDataUrl = previous.rows[0]?.blur_data_url ?? null;
@@ -1100,14 +1205,21 @@ export const saveBannerAction = async (
       nextBlurDataUrl = uploadedBanner.blurDataUrl;
       await pool.query(
         "update dashboard_banners set image_url = $1, blur_data_url = $2, link_url = $3, button_text = $4, is_active = $5, updated_at = now() where id = $6",
-        [nextImageKey, nextBlurDataUrl, linkUrl, buttonText, isActive, bannerId]
+        [
+          nextImageKey,
+          nextBlurDataUrl,
+          linkUrl,
+          buttonText,
+          isActive,
+          existingBannerId,
+        ]
       );
     } else {
       nextImageKey = previousImageKey;
       nextBlurDataUrl = previousBlurDataUrl;
       await pool.query(
         "update dashboard_banners set link_url = $1, button_text = $2, is_active = $3, updated_at = now() where id = $4",
-        [linkUrl, buttonText, isActive, bannerId]
+        [linkUrl, buttonText, isActive, existingBannerId]
       );
     }
   } else {
@@ -1134,11 +1246,12 @@ export const saveBannerAction = async (
 
     const insertRes = await pool.query(
       `
-        insert into dashboard_banners (image_url, blur_data_url, link_url, button_text, is_active, sort_order)
-        values ($1, $2, $3, $4, $5, $6)
+        insert into dashboard_banners (id, image_url, blur_data_url, link_url, button_text, is_active, sort_order)
+        values ($1, $2, $3, $4, $5, $6, $7)
         returning id
       `,
       [
+        newBannerId,
         nextImageKey,
         nextBlurDataUrl,
         linkUrl,
@@ -1158,12 +1271,49 @@ export const saveBannerAction = async (
 
   await audit({
     action: "banner.saved",
-    actorUserId: session.user.id,
+    actorUserId,
     targetId: bannerId || undefined,
     targetType: "banner",
   });
   revalidateAdmin();
   return { bannerId };
+};
+
+export const saveBannerAction = async (
+  formData: FormData
+): Promise<{ bannerId?: string } | undefined> => {
+  const session = await requireRole(["admin"]);
+  const existingBannerId = readString(formData, "bannerId");
+  const linkUrl = readString(formData, "linkUrl") || null;
+  const buttonText = readString(formData, "buttonText") || null;
+  const isActive = readCheckbox(formData, "isActive");
+  const imageUpload = parseOptionalStagedImageUpload(
+    readString(formData, "imageUpload")
+  );
+  const newBannerId =
+    imageUpload?.aggregateId || readString(formData, "newBannerId");
+  const persist = async (imageFile: File | null) =>
+    await persistDashboardBanner({
+      actorUserId: session.user.id,
+      buttonText,
+      existingBannerId,
+      imageFile,
+      isActive,
+      linkUrl,
+      newBannerId,
+    });
+
+  if (!imageUpload) {
+    return await persist(null);
+  }
+
+  return await consumeStagedAdminImageUpload({
+    actorUserId: session.user.id,
+    aggregateId: existingBannerId || newBannerId,
+    operation: persist,
+    purpose: "dashboard-banner",
+    reference: imageUpload,
+  });
 };
 
 export const deleteBannerAction = async (formData: FormData): Promise<void> => {

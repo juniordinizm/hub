@@ -26,24 +26,25 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |
 | `BETTER_AUTH_SECRET` | obrigatória em produção; mínimo de 32 caracteres | Better Auth | sim |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
-| `BETTER_AUTH_URL` | obrigatória em produção | Better Auth | não |
+| `BETTER_AUTH_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | Better Auth | não |
 | `AUTH_PUBLIC_SIGNUP_ENABLED` | opcional, default `false` | rota Better Auth | não |
 | `BETTER_AUTH_API_KEY` | Infra opcional | Dash/Sentinel | sim |
 | `BETTER_AUTH_API_URL` | Infra opcional | Dash/Sentinel | não |
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |
 | `NEXT_ALLOWED_DEV_ORIGINS` | dev atrás de proxy | `next.config.ts` | não |
-| `NEXT_PUBLIC_APP_URL` | obrigatória em produção | links/redirects | público |
-| `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` no Coolify direto ou `cloudflare` com origem restrita | rate limits e checkout | não |
+| `NEXT_PUBLIC_APP_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | links/redirects | público |
+| `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
-| `RESEND_FROM_EMAIL` | envio de e-mail | Resend | não |
-| `SUPPORT_EMAIL` | suporte por e-mail | e-mail de suporte | dado operacional |
+| `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
+| `SUPPORT_EMAIL` | caixa real e `Reply-To` padrão; `suporte@neurocapacitar.com.br` em Production | e-mail de suporte | dado operacional |
 | `ABACATE_PAY_API_KEY` | checkout/reembolso | cliente AbacatePay | sim |
 | `ABACATEPAY_API_KEY` | alias legado | cliente AbacatePay | sim |
 | `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
-| `CERTIFICATE_PUBLIC_BASE_URL` | obrigatória em produção | certificado/PDF | público |
+| `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | certificado/PDF | público |
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
+| `SCHEDULED_JOBS_ENABLED` | kill switch; `true` somente após liberar os crons de Production | handlers cron | não |
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
@@ -68,7 +69,7 @@ Não configure os dois aliases AbacatePay com valores divergentes. Não coloque 
 - build público: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`,
   `R2_PUBLIC_BASE_URL` e `DEPLOYMENT_VERSION`;
 - build secreto: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e, opcionalmente,
-  `SENTRY_AUTH_TOKEN`, sempre via BuildKit secret;
+  `SENTRY_AUTH_TOKEN`, armazenados no ambiente Vercel correspondente;
 - runtime web: URLs, `DATABASE_URL` pooled e credenciais dos providers;
 - job de migration: `DATABASE_URL_DIRECT`;
 - ausentes no web de produção: `DATABASE_URL_DIRECT`,
@@ -78,13 +79,26 @@ Não configure os dois aliases AbacatePay com valores divergentes. Não coloque 
 Em produção, `instrumentation.ts` chama `getServerEnv` no startup Node. O
 processo encerra antes de servir tráfego quando uma capacidade obrigatória
 está ausente. A lista de nomes fica em
-`src/lib/production-environment.ts`; mensagens nunca incluem valores.
+`src/lib/production-environment.ts` para Production e
+`src/lib/preview-environment.ts` para Preview; mensagens nunca incluem valores.
 As URLs públicas devem usar HTTPS; `BETTER_AUTH_URL`,
 `CERTIFICATE_PUBLIC_BASE_URL` e `NEXT_PUBLIC_APP_URL` devem ter a mesma
-origem. `DATABASE_URL` aceita somente os protocolos `postgres:` e
-`postgresql:`. Segredos emitidos por provedores externos seguem o contrato do
-provedor; o limite local de 32 caracteres vale somente para os segredos
-próprios de autenticação, cron e readiness.
+origem. Production exige as três explicitamente e usa
+`https://app.neurocapacitar.com.br`. Preview deriva as três de
+`VERCEL_BRANCH_URL` somente com `VERCEL_ENV=preview`; `VERCEL_URL` é fallback
+apenas quando Standard Deployment Protection não estiver ativo. O projeto
+Vercel precisa manter habilitada a exposição automática de variáveis de
+sistema. O perfil Preview exige somente Neon pooled, autenticação e readiness
+próprios, mantém jobs desligados e recusa credenciais de providers.
+`DATABASE_URL` aceita somente os protocolos `postgres:` e `postgresql:`.
+Segredos emitidos por provedores externos seguem o contrato do provedor; o
+limite local de 32 caracteres vale somente para os segredos próprios de
+autenticação, cron e readiness.
+
+`RESEND_FROM_EMAIL` identifica o remetente, mas não cria uma caixa. E-mails
+automáticos usam `SUPPORT_EMAIL` como `Reply-To`; portanto, o endereço de
+suporte só pode ser cadastrado em Production depois que o recebimento externo
+for testado. Consulte [Resend e e-mail institucional](../integrations/resend.md).
 
 O runtime E2E compilado pela CI usa `next start`, mas não representa um deploy
 de produção. A dispensa das credenciais de providers só é aceita com
@@ -93,9 +107,8 @@ loopback. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
 proibidas nesse processo web.
 
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
-fora da Cloudflare. No Traefik do Coolify exposto diretamente, use o default
-`x-forwarded-for`; a aplicação valida o endereço antes de usá-lo em rate
-limit.
+fora da Cloudflare. Na Vercel, use o default `x-forwarded-for`; a aplicação
+valida o endereço antes de usá-lo em rate limit.
 
 Não há variável de “aprovação jurídica” ou “retenção de privacidade”: o produto não tem workflow de anonimização. O cron de manutenção aplica o prazo técnico de analytics e remove registros técnicos expirados.
 

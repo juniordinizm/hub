@@ -34,12 +34,15 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [AbacatePay](integrations/abacatepay.md)
 - [JMVStream](integrations/jmvstream.md)
 - [Cloudflare R2](integrations/r2.md)
+- [Resend e e-mail institucional](integrations/resend.md)
 
 ### Operação
 
 - [Ambiente e desenvolvimento local](operations/environment-and-local-development.md)
 - [Banco e migrations](operations/database-and-migrations.md)
 - [Deploy e incidentes](operations/deploy-and-incidents.md)
+- [Primeiro deploy Vercel-first](operations/vercel-first-launch-checklist.md)
+- [Status da migração Vercel-first](operations/vercel-migration-status.md)
 - [Testes e CI](operations/testing-and-ci.md)
 - [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
 - [Observabilidade e recuperaÃ§Ã£o](operations/observability-and-recovery.md)

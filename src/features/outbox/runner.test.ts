@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   claimOutboxMessages: vi.fn(),
@@ -26,9 +26,12 @@ vi.mock("./server", () => ({
 import { runOutboxWorker } from "./runner";
 
 describe("outbox runner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("delivers each claimed message and reports its terminal result", async () => {
-    const release = vi.fn();
-    const client = { release };
+    const client = { query: vi.fn() };
     const message = {
       aggregateId: "certificate-1",
       aggregateType: "certificate",
@@ -40,9 +43,11 @@ describe("outbox runner", () => {
       topic: "email.certificate-issued" as const,
     };
     dependencies.getPool.mockReturnValue({
-      connect: vi.fn().mockResolvedValue(client),
+      query: client.query,
     });
-    dependencies.claimOutboxMessages.mockResolvedValue([message]);
+    dependencies.claimOutboxMessages
+      .mockResolvedValueOnce([message])
+      .mockResolvedValue([]);
     dependencies.deliverOutboxMessage.mockResolvedValue(undefined);
     dependencies.markOutboxMessageDelivered.mockResolvedValue(undefined);
     dependencies.pruneOutboxRecords.mockResolvedValue({
@@ -55,7 +60,9 @@ describe("outbox runner", () => {
       runOutboxWorker({ limit: 10, workerId: "worker-a" })
     ).resolves.toEqual({
       deadLettered: 0,
+      deadlineReached: false,
       delivered: 1,
+      leaseLost: false,
       prunedDeadLetters: 0,
       prunedDelivered: 0,
       prunedReprocessAudits: 0,
@@ -64,7 +71,7 @@ describe("outbox runner", () => {
 
     expect(dependencies.claimOutboxMessages).toHaveBeenCalledWith({
       client,
-      limit: 10,
+      limit: 1,
       workerId: "worker-a",
     });
     expect(dependencies.markOutboxMessageDelivered).toHaveBeenCalledWith({
@@ -72,6 +79,46 @@ describe("outbox runner", () => {
       id: "outbox-1",
       workerId: "worker-a",
     });
-    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("stops before another claim when the invocation budget is exhausted", async () => {
+    const client = { query: vi.fn() };
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(100)
+      .mockReturnValueOnce(500)
+      .mockReturnValue(500);
+    dependencies.getPool.mockReturnValue(client);
+    dependencies.claimOutboxMessages.mockResolvedValue([]);
+
+    await expect(
+      runOutboxWorker({
+        deadlineAt: 500,
+        now,
+        workerId: "worker-a",
+      })
+    ).resolves.toMatchObject({
+      deadlineReached: true,
+      delivered: 0,
+    });
+    expect(dependencies.claimOutboxMessages).toHaveBeenCalledOnce();
+    expect(dependencies.pruneOutboxRecords).not.toHaveBeenCalled();
+  });
+
+  it("does not claim or prune after losing the durable lease", async () => {
+    dependencies.getPool.mockReturnValue({ query: vi.fn() });
+
+    await expect(
+      runOutboxWorker({
+        shouldContinue: async () => false,
+        workerId: "worker-a",
+      })
+    ).resolves.toMatchObject({
+      deadlineReached: false,
+      leaseLost: true,
+    });
+
+    expect(dependencies.claimOutboxMessages).not.toHaveBeenCalled();
+    expect(dependencies.pruneOutboxRecords).not.toHaveBeenCalled();
   });
 });

@@ -1138,6 +1138,84 @@ export const outboxMessages = pgTable(
   ]
 );
 
+export const scheduledJobLeases = pgTable("scheduled_job_leases", {
+  jobName: text("job_name").primaryKey(),
+  ownerToken: uuid("owner_token").notNull(),
+  lockedUntil: timestamp("locked_until", tz).notNull(),
+  ...timestamps,
+});
+
+export const certificateTemplateAssetCleanup = pgTable(
+  "certificate_template_asset_cleanup",
+  {
+    objectKey: text("object_key").primaryKey(),
+    courseId: uuid("course_id").notNull(),
+    status: text("status").default("pending").notNull(),
+    notBefore: timestamp("not_before", tz).defaultNow().notNull(),
+    ownerToken: uuid("owner_token"),
+    lockedAt: timestamp("locked_at", tz),
+    attempts: integer("attempts").default(0).notNull(),
+    lastErrorCode: text("last_error_code"),
+    lastErrorAt: timestamp("last_error_at", tz),
+    deletedAt: timestamp("deleted_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "certificate_template_asset_cleanup_status_check",
+      sql`${table.status} in ('pending', 'processing', 'deleted')`
+    ),
+    index("certificate_template_asset_cleanup_due_idx").on(
+      table.status,
+      table.notBefore
+    ),
+    index("certificate_template_asset_cleanup_locked_idx").on(
+      table.status,
+      table.lockedAt
+    ),
+  ]
+);
+
+export const stagedAdminImageUploads = pgTable(
+  "staged_admin_image_uploads",
+  {
+    objectKey: text("object_key").primaryKey(),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    aggregateType: text("aggregate_type").notNull(),
+    aggregateId: uuid("aggregate_id").notNull(),
+    purpose: text("purpose").notNull(),
+    contentType: text("content_type").notNull(),
+    fileName: text("file_name").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    status: text("status").default("prepared").notNull(),
+    ownerToken: uuid("owner_token"),
+    lockedAt: timestamp("locked_at", tz),
+    confirmedAt: timestamp("confirmed_at", tz),
+    consumedAt: timestamp("consumed_at", tz),
+    expiresAt: timestamp("expires_at", tz)
+      .default(sql`now() + interval '24 hours'`)
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "staged_admin_image_uploads_status_check",
+      sql`${table.status} in ('prepared', 'ready', 'processing', 'consumed')`
+    ),
+    index("staged_admin_image_uploads_expiry_idx").on(
+      table.status,
+      table.expiresAt
+    ),
+    index("staged_admin_image_uploads_actor_idx").on(
+      table.actorUserId,
+      table.aggregateType,
+      table.aggregateId
+    ),
+  ]
+);
+
 export const appSettings = pgTable("app_settings", {
   id: text("id").primaryKey(),
   certificateSignerName: text("certificate_signer_name"),

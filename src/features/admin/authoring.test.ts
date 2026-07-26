@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   createAbacatePayCourseProduct,
   confirmLessonResourceUpload,
+  consumeStagedAdminImageUpload,
   deletePublicR2Objects,
   deleteJmvstreamAssetsForLesson,
   deleteR2Objects,
@@ -12,11 +13,13 @@ const {
   resolveJmvstreamPlayerThumbnailUrl,
   uploadCourseCoverFile,
   publishR2Object,
+  readStagedAdminImageFile,
   connect,
   release,
 } = vi.hoisted(() => ({
   createAbacatePayCourseProduct: vi.fn(),
   confirmLessonResourceUpload: vi.fn(),
+  consumeStagedAdminImageUpload: vi.fn(),
   deletePublicR2Objects: vi.fn(),
   deleteJmvstreamAssetsForLesson: vi.fn(),
   deleteR2Objects: vi.fn(),
@@ -26,6 +29,7 @@ const {
   resolveJmvstreamPlayerThumbnailUrl: vi.fn(),
   uploadCourseCoverFile: vi.fn(),
   publishR2Object: vi.fn(),
+  readStagedAdminImageFile: vi.fn(),
   connect: vi.fn(),
   release: vi.fn(),
 }));
@@ -48,7 +52,11 @@ vi.mock("@/features/storage/r2", () => ({
   deletePublicR2Objects,
   deleteR2Objects,
   publishR2Object,
+  readStagedAdminImageFile,
   uploadCourseCoverFile,
+}));
+vi.mock("@/features/storage/staged-image-upload-registry", () => ({
+  consumeStagedAdminImageUpload,
 }));
 
 import {
@@ -134,6 +142,12 @@ const setDefaultMocks = (): void => {
   );
   createAbacatePayCourseProduct.mockResolvedValue({ productId: "product-1" });
   confirmLessonResourceUpload.mockResolvedValue(undefined);
+  consumeStagedAdminImageUpload.mockImplementation(
+    async ({ operation }: { operation: (file: File) => Promise<unknown> }) =>
+      await operation(
+        new File([new Uint8Array([1])], "cover.png", { type: "image/png" })
+      )
+  );
   deletePublicR2Objects.mockResolvedValue(undefined);
   deleteJmvstreamAssetsForLesson.mockResolvedValue({ attempted: 0, failed: 0 });
   deleteR2Objects.mockResolvedValue(undefined);
@@ -142,6 +156,9 @@ const setDefaultMocks = (): void => {
   resolveJmvstreamPlayerThumbnailUrl.mockResolvedValue(null);
   uploadCourseCoverFile.mockResolvedValue(coverImage);
   publishR2Object.mockResolvedValue(undefined);
+  readStagedAdminImageFile.mockResolvedValue(
+    new File([new Uint8Array([1])], "cover.png", { type: "image/png" })
+  );
   connect.mockResolvedValue({ query, release });
 };
 
@@ -261,8 +278,15 @@ describe("admin authoring", () => {
     formData.set("title", "Curso novo");
     formData.set("price", "100");
     formData.set(
-      "coverFile",
-      new File([new Uint8Array([1])], "cover.png", { type: "image/png" })
+      "coverUpload",
+      JSON.stringify({
+        aggregateId: "c989d54d-d13f-46a1-89ed-2069d7c1c45b",
+        contentType: "image/png",
+        fileName: "cover.png",
+        key: "uploads/admin-images/admin-1/course/c989d54d-d13f-46a1-89ed-2069d7c1c45b/course-cover/upload.png",
+        purpose: "course-cover",
+        sizeBytes: 1,
+      })
     );
 
     await expect(

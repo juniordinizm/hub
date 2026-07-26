@@ -26,7 +26,9 @@ export interface JmvstreamPlayerSyncResult {
 
 export interface JmvstreamPlayerSyncSummary {
   checked: number;
+  deadlineReached: boolean;
   failed: number;
+  leaseLost: boolean;
   pending: number;
   ready: number;
 }
@@ -102,18 +104,49 @@ export const syncJmvstreamLessonPlayer = async (
 };
 
 export const syncPendingJmvstreamPlayers = async (
-  limit = 20
+  limit = 20,
+  deadlineAt = Number.POSITIVE_INFINITY,
+  shouldContinue: () => Promise<boolean> = async () => true
 ): Promise<JmvstreamPlayerSyncSummary> => {
-  await expireStaleJmvstreamUploads();
-  const lessonIds = await getPendingJmvstreamPlayerLessons(limit);
   const summary: JmvstreamPlayerSyncSummary = {
-    checked: lessonIds.length,
+    checked: 0,
+    deadlineReached: false,
     failed: 0,
+    leaseLost: false,
     pending: 0,
     ready: 0,
   };
 
+  if (Date.now() >= deadlineAt) {
+    summary.deadlineReached = true;
+    return summary;
+  }
+  if (!(await shouldContinue())) {
+    summary.leaseLost = true;
+    return summary;
+  }
+  await expireStaleJmvstreamUploads();
+  if (Date.now() >= deadlineAt) {
+    summary.deadlineReached = true;
+    return summary;
+  }
+  if (!(await shouldContinue())) {
+    summary.leaseLost = true;
+    return summary;
+  }
+  const lessonIds = await getPendingJmvstreamPlayerLessons(limit);
+
   for (const lessonId of lessonIds) {
+    if (Date.now() >= deadlineAt) {
+      summary.deadlineReached = true;
+      break;
+    }
+    if (!(await shouldContinue())) {
+      summary.leaseLost = true;
+      break;
+    }
+
+    summary.checked += 1;
     try {
       const result = await syncJmvstreamLessonPlayer(lessonId);
 

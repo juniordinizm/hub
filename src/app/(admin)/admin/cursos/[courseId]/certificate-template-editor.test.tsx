@@ -6,16 +6,18 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { actionMocks, navigationMocks, toastMocks } = vi.hoisted(() => ({
-  actionMocks: {
-    disable: vi.fn(),
-    enable: vi.fn(),
-    publish: vi.fn(),
-    save: vi.fn(),
-  },
-  navigationMocks: { refresh: vi.fn() },
-  toastMocks: { error: vi.fn(), success: vi.fn() },
-}));
+const { actionMocks, navigationMocks, stagedUploadMock, toastMocks } =
+  vi.hoisted(() => ({
+    actionMocks: {
+      disable: vi.fn(),
+      enable: vi.fn(),
+      publish: vi.fn(),
+      save: vi.fn(),
+    },
+    navigationMocks: { refresh: vi.fn() },
+    stagedUploadMock: vi.fn(),
+    toastMocks: { error: vi.fn(), success: vi.fn() },
+  }));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
 vi.mock("next/navigation", () => ({
@@ -34,6 +36,9 @@ vi.mock("@/features/admin/actions", () => ({
 }));
 vi.mock("@/features/admin/certificate-template-action-state", () => ({
   certificateTemplateInitialActionState: { status: "idle" },
+}));
+vi.mock("@/features/storage/staged-image-upload-client", () => ({
+  uploadStagedAdminImage: stagedUploadMock,
 }));
 vi.mock("@/features/certificates/template-crop-dialog", () => ({
   CertificateTemplateCropDialog: ({
@@ -104,6 +109,24 @@ describe("CertificateTemplateEditor", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     actionMocks.save.mockResolvedValue({ status: "idle" });
     actionMocks.publish.mockResolvedValue({ status: "idle" });
+    stagedUploadMock.mockImplementation(
+      ({
+        aggregateId,
+        file,
+        purpose,
+      }: {
+        aggregateId: string;
+        file: File;
+        purpose: string;
+      }) =>
+        Promise.resolve({
+          aggregateId,
+          contentType: file.type,
+          fileName: file.name,
+          key: `uploads/admin-images/admin-1/${purpose}/upload.webp`,
+          sizeBytes: file.size,
+        })
+    );
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -198,7 +221,7 @@ describe("CertificateTemplateEditor", () => {
       );
     });
     const input = container.querySelector<HTMLInputElement>(
-      'input[name="background"]'
+      'input[data-upload-kind="background"]'
     );
     const source = new File(["image"], "original.png", { type: "image/png" });
     Object.defineProperty(input, "files", {
@@ -234,7 +257,9 @@ describe("CertificateTemplateEditor", () => {
     expect(data.get("signerName")).toBe("Dra. Maria");
     expect(data.get("signerRole")).toBe("Responsavel tecnica");
     expect(data.get("signatureKey")).toBe("certificates/signature.webp");
-    expect(container.querySelector('input[name="signature"]')).not.toBeNull();
+    expect(
+      container.querySelector('input[data-upload-kind="signature"]')
+    ).not.toBeNull();
   });
 
   it("toggles the preview between short and long sample data", () => {
@@ -305,9 +330,9 @@ describe("CertificateTemplateEditor", () => {
   });
 
   it("submits a selected background once and clears it after a successful save", async () => {
-    const submittedBackgrounds: Array<File | null> = [];
+    const submittedBackgrounds: Array<string | null> = [];
     actionMocks.save.mockImplementation((_state, data: FormData) => {
-      submittedBackgrounds.push(data.get("background") as File | null);
+      submittedBackgrounds.push(data.get("backgroundUpload") as string | null);
       return Promise.resolve({ message: "Rascunho salvo.", status: "success" });
     });
     act(() => {
@@ -321,7 +346,7 @@ describe("CertificateTemplateEditor", () => {
       );
     });
     const backgroundInput = container.querySelector<HTMLInputElement>(
-      'input[name="background"]'
+      'input[data-upload-kind="background"]'
     );
     const source = new File(["source"], "original.png", { type: "image/png" });
     Object.defineProperty(backgroundInput, "files", {
@@ -344,7 +369,10 @@ describe("CertificateTemplateEditor", () => {
     const confirm = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Confirmar recorte"
     );
-    act(() => confirm?.click());
+    await act(async () => {
+      confirm?.click();
+      await Promise.resolve();
+    });
 
     const save = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Salvar rascunho")
@@ -355,7 +383,9 @@ describe("CertificateTemplateEditor", () => {
     act(() => visibilitySwitch?.click());
     await act(async () => save?.click());
 
-    expect(submittedBackgrounds[0]?.size).toBeGreaterThan(0);
+    expect(
+      JSON.parse(submittedBackgrounds[0] ?? "{}").sizeBytes
+    ).toBeGreaterThan(0);
     expect(submittedBackgrounds[1]).toBeNull();
   });
 
@@ -379,7 +409,7 @@ describe("CertificateTemplateEditor", () => {
       );
     });
     const backgroundInput = container.querySelector<HTMLInputElement>(
-      'input[name="background"]'
+      'input[data-upload-kind="background"]'
     );
     Object.defineProperty(backgroundInput, "files", {
       configurable: true,
@@ -391,10 +421,13 @@ describe("CertificateTemplateEditor", () => {
     const confirm = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Confirmar recorte"
     );
-    act(() => confirm?.click());
+    await act(async () => {
+      confirm?.click();
+      await Promise.resolve();
+    });
 
     const signatureInput = container.querySelector<HTMLInputElement>(
-      'input[name="signature"]'
+      'input[data-upload-kind="signature"]'
     );
     const signature = new File(["signature"], "nova-assinatura.png", {
       type: "image/png",
@@ -403,9 +436,10 @@ describe("CertificateTemplateEditor", () => {
       configurable: true,
       value: [signature],
     });
-    act(() =>
-      signatureInput?.dispatchEvent(new Event("change", { bubbles: true }))
-    );
+    await act(async () => {
+      signatureInput?.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
     const signer = container.querySelector<HTMLInputElement>(
       'input[name="signerName"]'
     );
@@ -419,17 +453,17 @@ describe("CertificateTemplateEditor", () => {
       button.textContent?.includes("Salvar e publicar")
     );
     await act(async () => publish?.click());
-    expect((submissions[0]?.get("background") as File).name).toBe(
-      "arte-certificado.webp"
-    );
-    expect((submissions[0]?.get("signature") as File).name).toBe(
-      "nova-assinatura.png"
-    );
+    expect(
+      JSON.parse(String(submissions[0]?.get("backgroundUpload"))).fileName
+    ).toBe("arte-certificado.webp");
+    expect(
+      JSON.parse(String(submissions[0]?.get("signatureUpload"))).fileName
+    ).toBe("nova-assinatura.png");
     expect(submissions[0]?.get("signerName")).toBe("Dra. Atualizada");
 
     await act(async () => publish?.click());
-    expect(submissions[1]?.has("background")).toBe(false);
-    expect(submissions[1]?.has("signature")).toBe(false);
+    expect(submissions[1]?.has("backgroundUpload")).toBe(false);
+    expect(submissions[1]?.has("signatureUpload")).toBe(false);
   });
 
   it("provides accessible names for controls and renders the validation QR", async () => {
@@ -487,7 +521,7 @@ describe("CertificateTemplateEditor", () => {
       );
     });
     const backgroundInput = container.querySelector<HTMLInputElement>(
-      'input[name="background"]'
+      'input[data-upload-kind="background"]'
     );
     Object.defineProperty(backgroundInput, "files", {
       configurable: true,
@@ -499,9 +533,12 @@ describe("CertificateTemplateEditor", () => {
     const confirm = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Confirmar recorte"
     );
-    act(() => confirm?.click());
+    await act(async () => {
+      confirm?.click();
+      await Promise.resolve();
+    });
     const signatureInput = container.querySelector<HTMLInputElement>(
-      'input[name="signature"]'
+      'input[data-upload-kind="signature"]'
     );
     Object.defineProperty(signatureInput, "files", {
       configurable: true,
@@ -511,9 +548,10 @@ describe("CertificateTemplateEditor", () => {
         }),
       ],
     });
-    act(() =>
-      signatureInput?.dispatchEvent(new Event("change", { bubbles: true }))
-    );
+    await act(async () => {
+      signatureInput?.dispatchEvent(new Event("change", { bubbles: true }));
+      await Promise.resolve();
+    });
     const signer = container.querySelector<HTMLInputElement>(
       'input[name="signerName"]'
     );

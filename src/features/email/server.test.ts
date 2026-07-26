@@ -48,6 +48,28 @@ describe("transactional email", () => {
     });
   });
 
+  it("uses the monitored support inbox as the default reply-to", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.RESEND_FROM_EMAIL =
+      "Neuro Capacitar <notificacoes@neurocapacitar.com.br>";
+    process.env.SUPPORT_EMAIL = "suporte@neurocapacitar.com.br";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendTransactionalEmail({
+      react: "Conteúdo do e-mail",
+      subject: "Acesso liberado",
+      to: "student@example.com",
+    });
+
+    expect(send).toHaveBeenCalledWith({
+      from: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
+      react: "Conteúdo do e-mail",
+      replyTo: "suporte@neurocapacitar.com.br",
+      subject: "Acesso liberado",
+      to: "student@example.com",
+    });
+  });
+
   it("fails with the provider error instead of reporting a sent message", async () => {
     process.env.RESEND_API_KEY = "re_test";
     send.mockResolvedValue({

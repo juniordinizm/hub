@@ -1,6 +1,5 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
-import { CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT } from "./src/features/certificates/template-image-contract";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
@@ -8,6 +7,7 @@ const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
   ? new URL(process.env.R2_PUBLIC_BASE_URL)
   : null;
 const deploymentId = process.env.DEPLOYMENT_VERSION?.trim();
+const isVercel = Boolean(process.env.VERCEL);
 const isProduction = process.env.NODE_ENV === "production";
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -59,11 +59,6 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins?.length ? { allowedDevOrigins } : {}),
   ...(deploymentId ? { deploymentId } : {}),
-  experimental: {
-    serverActions: {
-      bodySizeLimit: CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT,
-    },
-  },
   images: {
     remotePatterns: [
       {
@@ -95,7 +90,7 @@ const nextConfig: NextConfig = {
       source: "/(.*)",
     },
   ],
-  output: "standalone",
+  ...(isVercel ? {} : { output: "standalone" }),
   reactCompiler: true,
 };
 
