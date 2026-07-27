@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
+last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
 ---
 
 # Ambiente e desenvolvimento local
@@ -9,6 +9,15 @@ last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ## Regra de segurança
 
 Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e provedores externos devem apontar a ambiente de desenvolvimento. `db:reset`, `db:seed` e `db:seed:student` recusam host remoto; siga o [runbook de banco](database-and-migrations.md).
+
+Na auditoria de 2026-07-27, o `.env.local` da estação principal ainda apontava
+ao compute Neon Production e continha providers definitivos. Ele não está
+liberado para desenvolvimento. A topologia aprovada, os recursos manuais e o
+procedimento de substituição estão no
+[guia de Development compartilhado](shared-development-and-release-guide.md).
+Development terá Neon, dois buckets R2, Resend, AbacatePay de teste, JMVStream e
+Sentry próprios; compartilhar o serviço não autoriza compartilhar credenciais
+ou recursos Production.
 
 ## Matriz de variáveis
 
@@ -118,9 +127,13 @@ Não há variável de “aprovação jurídica” ou “retenção de privacidad
 
 1. Instale Bun 1.3.11 e execute `bun install`.
 2. Copie `.env.example` para `.env.local`.
-3. Configure `DATABASE_URL` para branch dev já migrada ou banco descartável compatível.
+3. Configure `DATABASE_URL` para a branch compartilhada `development` já
+   migrada; nunca use o compute Production.
 4. Gere `BETTER_AUTH_SECRET` exclusivo para dev.
-5. Execute `bun run dev`.
+5. Configure somente os providers Development descritos no
+   [guia operacional](shared-development-and-release-guide.md).
+6. Execute a conferência obrigatória do guia.
+7. Execute `bun run dev`.
 
 Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota retorna 404.
 
