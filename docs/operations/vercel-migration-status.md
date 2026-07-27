@@ -88,16 +88,16 @@ confirma owner e project ID corretos.
 
 ### Pacote 5: promoção
 
-**Status:** projeto, domínio e Production configurados; primeiro Preview
-construído e primeiro deployment Production pendente.
+**Status:** projeto, domínio e Production configurados; Preview aprovado e
+primeira promoção Production em correção controlada.
 
 O checklist operacional detalha criação sem deploy automático, separação
 Preview/Production, matriz de secrets, GitHub Environments, domínio, providers,
 primeira aprovação e evidência de smoke. `0042`/`0043` já estão auditadas em
 produção. A branch Neon `vercel-preview` (`br-cool-leaf-acabyy5q`) foi criada,
 teve todo dado herdado removido e preservou as 44 migrations. Recursos Preview
-dos demais providers, domínio canônico e secrets do GitHub ainda dependem de
-configuração externa.
+dos demais providers permanecem deliberadamente ausentes. Domínio, identidade
+de e-mail e GitHub Environments já foram configurados.
 
 As variáveis Production independentes de domínio foram cadastradas diretamente
 na Vercel, com `SCHEDULED_JOBS_ENABLED=false`. O filtro excluiu
@@ -363,3 +363,25 @@ por CLI sem integração Git. O log da função registrou somente
 `Preview environment is invalid: VERCEL_BRANCH_URL`. A validação agora aceita
 `VERCEL_BRANCH_URL` ou `VERCEL_URL`, mantendo o primeiro como preferência e
 preservando a proteção do deployment.
+
+### Pacote 8: merge e primeira promoção Production
+
+**Status:** merge concluído; promoção bloqueada com segurança até corrigir o
+readiness.
+
+O PR `#7` foi aprovado pelos cinco gates e mesclado por squash no SHA
+`e2ca74de83f923fba537d271332498fbc38da53e`. A CI de `main`
+`30233330528` repetiu com sucesso Quality gates, 19 jornadas de navegador,
+integração PostgreSQL, build/auditoria e Preview readiness. O GitHub Environment
+`vercel-production` passou a conter também `VERCEL_TOKEN`.
+
+O workflow `30233711472` aplicou e auditou as 44 migrations no Neon definitivo,
+construiu dois deployments Production não promovidos e recusou promover ambos:
+`/api/health/ready` respondeu 503 em 822 ms e 838 ms. Os logs provaram que a
+requisição atravessou a proteção e falhou somente em `database_unavailable`.
+Uma reprodução local com a mesma URL pooled falhou em 1003 ms quando limitada
+pela política de conexão de 1 segundo e conectou corretamente com orçamento
+maior. A correção aumenta apenas o handshake do pool isolado de readiness para
+5 segundos; o `statement_timeout` da consulta permanece em 1 segundo. Nenhum
+deployment foi promovido e `app.neurocapacitar.com.br` não foi alterado durante
+as tentativas.
