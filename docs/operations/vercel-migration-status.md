@@ -284,3 +284,16 @@ para não permitir promoção silenciosa depois do merge. Production agora usa
 `workflow_dispatch` com SHA completo, confirmação booleana, igualdade com o
 `origin/main` atual e consulta autenticada das execuções verdes de `CI`. O teste
 do contrato de deployment passou com 3 casos e 40 asserções.
+
+O candidato inicial foi publicado no PR `#7`, SHA
+`d6843576b7ce3fb4d02f583d6c482dfaeb1ae902`. Quality gates e integração
+PostgreSQL passaram; 18 das 19 jornadas de navegador passaram. O trace da única
+falha comprovou que a CSP bloqueava o `PUT` direto da arte de Certificado para o
+storage hermético do E2E em `http://127.0.0.1:4568`. A correção preserva a CSP
+de Production e acrescenta a origem somente quando `R2_ENDPOINT` passa pela
+validação existente de E2E, restrita a HTTP loopback. O storage falso também
+passou a responder o preflight CORS do upload direto, aceitando apenas origens
+loopback e o header `content-type`. O preflight real respondeu `204` com origem,
+método e header esperados. Sete testes focados, a suíte integral com 162
+arquivos/643 testes, typecheck, documentação e Ultracite passaram; a nova
+execução remota ainda precisa comprovar a jornada completa.

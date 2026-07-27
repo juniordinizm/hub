@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
+import { resolveR2ClientEndpoint } from "./src/features/storage/r2-endpoint";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
+import { buildContentSecurityPolicy } from "./src/lib/content-security-policy";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
 const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
@@ -9,22 +11,21 @@ const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
 const deploymentId = process.env.DEPLOYMENT_VERSION?.trim();
 const isVercel = Boolean(process.env.VERCEL);
 const isProduction = process.env.NODE_ENV === "production";
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProduction ? "" : " 'unsafe-eval'"}`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' blob: data: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https: wss:",
-  "frame-src https:",
-  "media-src 'self' blob: https:",
-  "worker-src 'self' blob:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  ...(isProduction ? ["upgrade-insecure-requests"] : []),
-].join("; ");
+const e2eObjectStorageOrigin = process.env.R2_ENDPOINT
+  ? new URL(
+      resolveR2ClientEndpoint({
+        accountId: process.env.R2_ACCOUNT_ID ?? "e2e",
+        e2eTestMode: process.env.E2E_TEST_MODE === "true",
+        endpointOverride: process.env.R2_ENDPOINT,
+      }).endpoint
+    ).origin
+  : null;
+const contentSecurityPolicy = buildContentSecurityPolicy({
+  additionalConnectOrigins: e2eObjectStorageOrigin
+    ? [e2eObjectStorageOrigin]
+    : [],
+  isProduction,
+});
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
