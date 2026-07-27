@@ -42,6 +42,12 @@ consulta de compatibilidade usa `statement_timeout` de 1 segundo. Isso evita que
 latência transitória de conexão seja confundida com schema indisponível sem
 transformar a rota em uma consulta longa.
 
+Sharp é externo ao bundle do servidor e depende de binários por plataforma. O
+`outputFileTracingIncludes` deve preservar `node_modules/sharp/**/*` e
+`node_modules/@img/sharp-*/**/*`. Módulos de leitura do R2 não devem importar os
+processadores de imagem no topo; eles são carregados somente pelos fluxos de
+upload/renderização que precisam deles.
+
 ## Gate de deploy
 
 O caminho versionado é:

@@ -391,12 +391,19 @@ Não reutilize URL de túnel, VPS ou deployment Preview como callback definitivo
 
 ## Fase 7: primeira promoção
 
-**Status em andamento:** PR `#7` mesclado no SHA
-`e2ca74de83f923fba537d271332498fbc38da53e`; CI de `main` integralmente verde.
-Migration e auditoria Production passaram. Duas tentativas não promovidas
-detectaram falso negativo no readiness causado pelo orçamento de 1 segundo para
-o handshake TLS com Neon. O domínio não foi alterado. A política corrigida será
-submetida novamente aos gates antes de repetir a promoção.
+**Status em andamento:** PRs `#7` e `#8` mesclados; o SHA
+`64da497129d48d1518a336443f595d1ba7a5bfc8` passou na CI de `main` e foi
+promovido pelo workflow `30235583374`. Migration, auditoria e readiness
+Production passaram. A causa final dos 503 anteriores era a `DATABASE_URL`
+pooled de outro compute, enquanto migrations usavam corretamente o endpoint
+direto definitivo. Vercel Production e `.env.local` agora usam
+`ep-hidden-tooth-ac843qc2`.
+
+O smoke público aprovou domínio, TLS, health, login, cadastro, privacidade e
+proteção de `/admin`. `/app` revelou ausência do runtime nativo libvips no trace
+da função. A correção preserva explicitamente os ativos Sharp e remove sua carga
+dos consumidores R2 somente leitura. Repita CI, promoção e smoke antes de marcar
+esta fase como concluída. Crons permanecem desligados.
 
 1. Execute todos os gates locais.
 2. Faça commit da branch da sprint e abra PR para `main`.

@@ -85,6 +85,9 @@ const nextConfig: NextConfig = {
         : []),
     ],
   },
+  outputFileTracingIncludes: {
+    "/*": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+  },
   headers: async () => [
     {
       headers: securityHeaders,
