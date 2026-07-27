@@ -72,7 +72,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "bun scripts/check-development-environment.ts && next dev",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
@@ -94,6 +94,7 @@
     "db:reset": "bun scripts/reset-local-database.ts",
     "db:reset:local": "bun scripts/reset-local-database.ts",
     "db:seed": "bun scripts/seed-initial-data.ts",
+    "db:seed:development": "bun --conditions=react-server scripts/seed-shared-development.ts",
     "db:seed:student": "bun --conditions=react-server scripts/bootstrap-student.ts",
     "db:smoke:empty": "bun scripts/smoke-empty-database.ts",
     "storage:publish-active-course-covers": "bun --conditions=react-server scripts/publish-active-course-covers.ts",

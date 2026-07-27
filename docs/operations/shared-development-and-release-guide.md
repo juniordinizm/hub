@@ -36,6 +36,17 @@ preparação deste guia, não use esse arquivo para criar, editar ou remover dad
 Antes de liberar o desenvolvimento local, todos os itens da seção
 [Preparação única](#preparação-única) devem estar concluídos.
 
+Estado confirmado em 2026-07-27:
+
+- buckets `hub-development-private` e `hub-development-public` criados;
+- acesso público, CORS e API key dos buckets ainda pendentes no painel;
+- branch Neon `development` pendente porque o MCP não permite selecionar
+  `vercel-preview` como pai;
+- conector Resend atual aponta à conta de `agenciasummit.com`, não à conta
+  `neurocapacitar.com.br`; nenhuma alteração foi feita nessa conta;
+- AbacatePay, JMVStream e Sentry exigem configuração manual nas contas
+  Development corretas.
+
 ## Topologia aprovada
 
 ### Neon
@@ -199,12 +210,28 @@ Nunca use a chave financeira Production localmente.
 2. Crie ou copie uma API key de teste.
 3. Crie um webhook de teste.
 4. Gere um segredo exclusivo para o webhook Development.
-5. Use uma URL HTTPS pública apontando ao computador de desenvolvimento.
-6. Cadastre:
-   `https://ORIGEM-DEV/api/webhooks/abacatepay`.
-7. Configure no painel as camadas de segredo/assinatura solicitadas pelo
+5. Instale a CLI oficial AbacatePay.
+6. Autentique a CLI em Development.
+7. Encaminhe os webhooks pelo listener oficial diretamente para
+   `http://localhost:3000/api/webhooks/abacatepay`.
+8. Configure no painel as camadas de segredo/assinatura solicitadas pelo
    provider.
-8. Não registre em logs a URL completa quando ela contiver segredo na query.
+9. Não registre em logs a URL completa quando ela contiver segredo na query.
+
+```powershell
+abacatepay -l login
+abacatepay -l listen --forward-to http://localhost:3000/api/webhooks/abacatepay
+```
+
+Em outro terminal, um evento controlado pode ser disparado com:
+
+```powershell
+abacatepay -l trigger billing.paid
+```
+
+O endpoint da API continua `https://api.abacatepay.com/v2`; a API key determina
+se a chamada pertence a Development ou Production. O listener oficial elimina
+a necessidade de abrir um túnel genérico apenas para o webhook.
 
 Valores resultantes:
 
@@ -290,22 +317,27 @@ senha de usuário.
 
 ### 8. Criar dados fictícios
 
-Development deve possuir um seed idempotente e protegido, ainda a ser
-implementado, com:
+Development possui o comando protegido:
+
+```powershell
+bun run db:seed:development
+```
+
+Ele exige hostname Neon confirmado e
+`SHARED_DEVELOPMENT_SEED_CONFIRMATION=development`, recusa o compute Production
+e cria fixtures estáveis sem truncar tabelas ou chamar providers. O conjunto
+inicial inclui:
 
 - um Admin fictício;
-- duas Alunas fictícias;
+- uma Aluna fictícia;
 - um Curso publicado;
 - módulos e aulas;
 - uma Concessão ativa;
-- uma matrícula expirada;
-- progresso parcial e completo;
-- certificados pendente, disponível e revogado;
 - e-mails pertencentes somente à equipe de teste.
 
-O seed deve recusar o hostname Production antes de qualquer escrita. Até esse
-comando existir, não copie dados de Production e não execute o seed E2E
-manualmente: ele foi criado para branches descartáveis e dados aleatórios.
+Estados adicionais de expiração, progresso e certificado continuam cobertos
+pelo E2E descartável e podem ser criados manualmente quando uma jornada exigir.
+Não execute o seed E2E na branch compartilhada.
 
 ## Configuração do computador
 
@@ -331,6 +363,12 @@ Development:
 ```dotenv
 DATABASE_URL=<pooled-development>
 DATABASE_URL_DIRECT=<direct-development>
+DEVELOPMENT_DATABASE_HOST=<host-direto-development>
+SHARED_DEVELOPMENT_SEED_CONFIRMATION=development
+DEVELOPMENT_ADMIN_EMAIL=<caixa-interna-allowlisted>
+DEVELOPMENT_ADMIN_PASSWORD=<segredo>
+DEVELOPMENT_STUDENT_EMAIL=<caixa-interna-allowlisted>
+DEVELOPMENT_STUDENT_PASSWORD=<segredo>
 
 BETTER_AUTH_SECRET=<development>
 BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
@@ -343,16 +381,19 @@ CERTIFICATE_PUBLIC_BASE_URL=http://localhost:3000
 CLIENT_IP_SOURCE=x-forwarded-for
 
 RESEND_API_KEY=<development>
+DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST=<emails-internos-separados-por-virgula>
 RESEND_FROM_EMAIL=Neuro Capacitar Dev <notificacoes@dev.neurocapacitar.com.br>
 SUPPORT_EMAIL=<caixa-interna-de-teste>
 
 ABACATE_PAY_API_KEY=<test>
 ABACATEPAY_API_BASE_URL=https://api.abacatepay.com/v2
 ABACATEPAY_WEBHOOK_SECRET=<development>
+DEVELOPMENT_ABACATEPAY_DEV_MODE=true
 
 JMVSTREAM_API_BASE_URL=https://api.jmvstream.com
 JMVSTREAM_AUTH_RESOURCE=<development>
 JMVSTREAM_PLAN_ID=<development>
+DEVELOPMENT_JMVSTREAM_PLAN_ID=<mesmo-plan-id-development>
 
 R2_ACCOUNT_ID=<account>
 R2_BUCKET_NAME=hub-development-private
@@ -363,6 +404,7 @@ R2_PUBLIC_BASE_URL=<public-development-url>
 
 SENTRY_DSN=<hub-development>
 NEXT_PUBLIC_SENTRY_DSN=<hub-development>
+DEVELOPMENT_SENTRY_PROJECT_ID=<id-numerico-hub-development>
 
 CRON_SECRET=<development>
 SCHEDULED_JOBS_ENABLED=true
@@ -406,12 +448,15 @@ Em caso de dúvida, não execute a aplicação.
 bun run dev
 ```
 
-Abra `http://localhost:3000`. O terminal deve permanecer aberto.
+O comando executa `check-development-environment.ts` antes do Next. Ele recusa
+fingerprints Production, recursos ausentes e confirmações inconsistentes sem
+imprimir segredos. Abra `http://localhost:3000` somente depois da mensagem
+`Development environment verified`.
 
-## Quando o webhook precisar alcançar o computador
+## Quando outro provider precisar de uma origem pública
 
-AbacatePay não consegue chamar `localhost`. Use um túnel HTTPS apenas durante o
-teste:
+A CLI AbacatePay encaminha webhooks sem túnel. Se outro provider exigir uma
+origem HTTPS pública, use um túnel apenas durante o teste:
 
 1. inicie `bun run dev`;
 2. inicie o túnel para a porta 3000;

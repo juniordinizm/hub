@@ -71,6 +71,17 @@ Não registre a API key em chat, documento, commit ou GitHub Variable. Cadastre-
 como variável sensível no ambiente Production da Vercel. Preview não reutiliza
 a chave de Production nem envia mensagens a clientes.
 
+### Development
+
+Development entrega mensagens reais com domínio e API key próprios. O desenho
+aprovado usa `dev.neurocapacitar.com.br`, remetente identificado com `Dev` e
+`DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST`. A aplicação recusa qualquer
+destinatário Development fora da lista antes de construir o cliente Resend.
+
+O conector disponível em 2026-07-27 lista somente `agenciasummit.com`; ele não
+é a conta `neurocapacitar.com.br`. Nenhum domínio ou token Development deve ser
+criado por esse conector até a conta correta ser conectada.
+
 ## Verificação de liberação
 
 Antes do primeiro deploy:
