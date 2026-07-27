@@ -22,6 +22,23 @@ Contrato oficial consultado: [Webhooks v2](https://docs.abacatepay.com/pages/web
 
 `createAbacatePayClient` resolve a chave; `AbacatePayClient` envia Bearer token somente no servidor.
 
+### Development
+
+Development usa uma API key devMode. O endpoint permanece
+`https://api.abacatepay.com/v2`; o ambiente é determinado pela key. Para
+webhooks locais, prefira a CLI oficial:
+
+```powershell
+abacatepay -l login
+abacatepay -l listen --forward-to http://localhost:3000/api/webhooks/abacatepay
+abacatepay -l trigger billing.paid
+```
+
+Não reutilize a key Production. O preflight local exige
+`DEVELOPMENT_ABACATEPAY_DEV_MODE=true` como confirmação operacional, mas essa
+flag não transforma uma key Production em Development; confira a origem no
+painel e na CLI.
+
 ## Checkout
 
 1. `createPublicCourseCheckout` aplica limite e normaliza identidade.

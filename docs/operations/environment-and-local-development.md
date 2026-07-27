@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
+last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
 ---
 
 # Ambiente e desenvolvimento local
@@ -9,6 +9,15 @@ last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
 ## Regra de segurança
 
 Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e provedores externos devem apontar a ambiente de desenvolvimento. `db:reset`, `db:seed` e `db:seed:student` recusam host remoto; siga o [runbook de banco](database-and-migrations.md).
+
+Na auditoria de 2026-07-27, o `.env.local` da estação principal ainda apontava
+ao compute Neon Production e continha providers definitivos. Ele não está
+liberado para desenvolvimento. A topologia aprovada, os recursos manuais e o
+procedimento de substituição estão no
+[guia de Development compartilhado](shared-development-and-release-guide.md).
+Development terá Neon, dois buckets R2, Resend, AbacatePay de teste, JMVStream e
+Sentry próprios; compartilhar o serviço não autoriza compartilhar credenciais
+ou recursos Production.
 
 ## Matriz de variáveis
 
@@ -18,6 +27,12 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 |---|---|---|---|
 | `DATABASE_URL` | runtime com banco | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | somente job de migration/auditoria; proibida no web runtime de produção | `drizzle.config.ts`, `migrate-production.ts` | sim |
+| `DEVELOPMENT_DATABASE_HOST` | preflight e seed Development | confirmação do endpoint Neon | identificador protegido |
+| `SHARED_DEVELOPMENT_SEED_CONFIRMATION` | seed Development | confirmação literal `development` | não |
+| `DEVELOPMENT_ADMIN_EMAIL` | seed Development | Conta Admin fictícia | dado interno |
+| `DEVELOPMENT_ADMIN_PASSWORD` | seed Development | Conta Admin fictícia | sim |
+| `DEVELOPMENT_STUDENT_EMAIL` | seed Development | Conta Aluna fictícia | dado interno |
+| `DEVELOPMENT_STUDENT_PASSWORD` | seed Development | Conta Aluna fictícia | sim |
 | `E2E_TEST_MODE` | somente CI com `CI=true` | limite Better Auth | não |
 | `E2E_DATABASE_URL` | Playwright; banco descartável já migrado | seed e servidor E2E | sim |
 | `E2E_R2_BUCKET_NAME` | Playwright; confirmação explícita do bucket R2 isolado | seed e teardown E2E | não |
@@ -35,12 +50,14 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `NEXT_PUBLIC_APP_URL` | explícita em Production; derivada do hostname Vercel em Preview | links/redirects | público |
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
+| `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
 | `SUPPORT_EMAIL` | caixa real e `Reply-To` padrão; `suporte@neurocapacitar.com.br` em Production | e-mail de suporte | dado operacional |
 | `ABACATE_PAY_API_KEY` | checkout/reembolso | cliente AbacatePay | sim |
 | `ABACATEPAY_API_KEY` | alias legado | cliente AbacatePay | sim |
 | `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
+| `DEVELOPMENT_ABACATEPAY_DEV_MODE` | preflight Development | confirmação de chave devMode | não |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
@@ -48,12 +65,14 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
+| `DEVELOPMENT_SENTRY_PROJECT_ID` | preflight Development | confirmação do projeto Sentry | identificador protegido |
 | `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | secret de build estável entre releases sobrepostas | `next build` | sim |
 | `DEPLOYMENT_VERSION` | build; SHA imutável do Git | `next.config.ts` | não |
 | `JMVSTREAM_API_BASE_URL` | vídeo | cliente JMVStream | não |
 | `JMVSTREAM_API_TOKEN` | fallback JWT | cliente JMVStream | sim |
 | `JMVSTREAM_PLAN_ID` | operações de vídeo | cliente JMVStream | identificador protegido |
+| `DEVELOPMENT_JMVSTREAM_PLAN_ID` | preflight Development | confirmação do plano isolado | identificador protegido |
 | `JMVSTREAM_AUTH_RESOURCE` | autenticação preferida | `/v2/authenticate` | identificador protegido |
 | `R2_ACCOUNT_ID` | mídia R2 | cliente S3 | identificador protegido |
 | `R2_BUCKET_NAME` | mídia privada | cliente S3 | não |
@@ -118,9 +137,19 @@ Não há variável de “aprovação jurídica” ou “retenção de privacidad
 
 1. Instale Bun 1.3.11 e execute `bun install`.
 2. Copie `.env.example` para `.env.local`.
-3. Configure `DATABASE_URL` para branch dev já migrada ou banco descartável compatível.
+3. Configure `DATABASE_URL` para a branch compartilhada `development` já
+   migrada; nunca use o compute Production.
 4. Gere `BETTER_AUTH_SECRET` exclusivo para dev.
-5. Execute `bun run dev`.
+5. Configure somente os providers Development descritos no
+   [guia operacional](shared-development-and-release-guide.md).
+6. Execute a conferência obrigatória do guia.
+7. Execute `bun run dev`.
+
+`bun run dev` agora executa um preflight fail-closed. O comando recusa o compute
+Neon, buckets, remetente, plano JMVStream e projeto Sentry conhecidos de
+Production. Para popular a branch Neon compartilhada, use somente
+`bun run db:seed:development`; o comando local legado `db:seed` continua
+restrito a hosts loopback.
 
 Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota retorna 404.
 

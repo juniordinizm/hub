@@ -1,5 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
+import { assertDevelopmentEmailRecipientAllowed } from "@/features/email/development-recipient";
 import {
   AccessExpiryWarningEmail,
   AccessReleasedEmail,
@@ -33,6 +34,12 @@ export const sendTransactionalEmail = async ({
   if (!env.RESEND_API_KEY) {
     throw new Error("RESEND_API_KEY is required to send transactional email.");
   }
+
+  assertDevelopmentEmailRecipientAllowed({
+    allowlist: env.DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST,
+    environment: env.NODE_ENV,
+    recipient: to,
+  });
 
   const resolvedReplyTo = replyTo ?? env.SUPPORT_EMAIL;
   const email = {

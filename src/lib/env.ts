@@ -40,6 +40,7 @@ const serverEnvSchema = z.object({
   CRON_SECRET: optionalNonEmptyString,
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
+  DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST: optionalNonEmptyString,
   E2E_TEST_MODE: z
     .enum(["true", "false"])
     .default("false")
@@ -183,6 +184,8 @@ export const getServerEnv = () => {
     CRON_SECRET: process.env.CRON_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,
+    DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST:
+      process.env.DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST,
     E2E_TEST_MODE: process.env.E2E_TEST_MODE,
     HEALTHCHECK_SECRET: process.env.HEALTHCHECK_SECRET,
     INTERNAL_BOOTSTRAP_SECRET: process.env.INTERNAL_BOOTSTRAP_SECRET,

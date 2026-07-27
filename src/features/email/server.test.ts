@@ -118,4 +118,24 @@ describe("transactional email", () => {
     expect(Resend).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
   });
+
+  it("does not contact Resend for a recipient outside the Development allowlist", async () => {
+    process.env = {
+      ...process.env,
+      DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST: "dev@example.com",
+      NODE_ENV: "development",
+      RESEND_API_KEY: "re_development",
+    };
+
+    await expect(
+      sendTransactionalEmail({
+        react: "Conteudo do e-mail",
+        subject: "Acesso liberado",
+        to: "external@example.com",
+      })
+    ).rejects.toThrow("Email recipient is not allowlisted for Development.");
+
+    expect(Resend).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
 });
