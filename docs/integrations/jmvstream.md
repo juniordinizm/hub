@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 6e92fda7a8e22e5e98b340e4f61791fb5b6bf486
+last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
 ---
 
 # JMVStream
@@ -10,7 +10,7 @@ last_verified_commit: 6e92fda7a8e22e5e98b340e4f61791fb5b6bf486
 
 Hospedar vídeo, organizar galerias por Curso e fornecer player/thumbnail. O Hub persiste a sessão operacional e relaciona `video_hash` à Aula.
 
-Contrato oficial consultado: [Public API JMVStream](https://jmvstream.com/en/developer), que documenta upload multipart direto e `gallery` opcional no complete. Conta, CORS, plano e ativos reais não foram verificados.
+Contrato oficial consultado: [Public API JMVStream](https://jmvstream.com/en/developer), que documenta upload multipart direto e `gallery` opcional no complete. Em 2026-07-27, o recurso configurado autenticou e a consulta somente leitura retornou as três pastas reais. CORS, upload multipart e o contrato `gallery` continuam dependendo de um envio funcional controlado.
 
 ## Configuração correta
 

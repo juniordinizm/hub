@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 9fa916691ed1226233847f40b13bdfac6787c995
+last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
 ---
 
 # Status da migração Vercel-first
@@ -71,8 +71,7 @@ foi removida.
 
 ### Pacote 4: CI/CD
 
-**Status:** implementado; credencial GitHub project-scoped e primeiro run
-pendentes.
+**Status:** concluído e comprovado em 2026-07-27.
 
 A CI preserva todos os gates e cria um candidato Preview por build remoto após
 sucesso. Um workflow separado e manual serializa migration e deployment
@@ -88,8 +87,7 @@ confirma owner e project ID corretos.
 
 ### Pacote 5: promoção
 
-**Status:** projeto, domínio e Production configurados; Preview aprovado e
-primeira promoção Production em correção controlada.
+**Status:** concluído em 2026-07-27.
 
 O checklist operacional detalha criação sem deploy automático, separação
 Preview/Production, matriz de secrets, GitHub Environments, domínio, providers,
@@ -107,7 +105,7 @@ Resend restrita foram adicionados depois das respectivas validações externas.
 
 ### Pacote 6: domínio e identidade de e-mail
 
-**Status:** concluído; reset de senha real depende do primeiro deployment.
+**Status:** concluído; reset real aceito, confirmação dos cabeçalhos pendente.
 
 Definidos `app.neurocapacitar.com.br` como origem canônica da plataforma,
 `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` como remetente
@@ -158,8 +156,7 @@ suporte como `Reply-To` e alcançou o estado `delivered` no Lark.
 
 ### Pacote 7: Preview isolado e limitado
 
-**Status:** implementado localmente em 2026-07-26; runtime Preview configurado,
-credencial CI requer correção e smoke remoto permanece pendente.
+**Status:** concluído e comprovado remotamente em 2026-07-27.
 
 Preview será um smoke de infraestrutura com Neon sanitizado, autenticação e
 readiness próprios. Não receberá credenciais de AbacatePay, JMVStream, R2,
@@ -366,8 +363,7 @@ preservando a proteção do deployment.
 
 ### Pacote 8: merge e primeira promoção Production
 
-**Status:** merge concluído; promoção bloqueada com segurança até corrigir o
-readiness.
+**Status:** concluído em 2026-07-27; os bloqueios impediram promoção inválida.
 
 O PR `#7` foi aprovado pelos cinco gates e mesclado por squash no SHA
 `e2ca74de83f923fba537d271332498fbc38da53e`. A CI de `main`
@@ -388,7 +384,7 @@ as tentativas.
 
 ### Pacote 9: banco canônico e runtime nativo
 
-**Status:** Production promovida; correção do runtime Sharp em validação.
+**Status:** concluído em 2026-07-27.
 
 O PR `#8` elevou o timeout isolado de readiness e passou nos cinco gates, mas a
 tentativa `30235341376` continuou retornando 503 em 949 ms. A comparação com a
@@ -410,4 +406,38 @@ O mesmo smoke encontrou 500 em `/app`. O log do deployment identificou
 `libvips-cpp.so.8.18.3`. O núcleo R2 também importava processadores de imagem no
 topo, fazendo uma página somente leitura carregar Sharp. A correção mantém esses
 processadores lazy e inclui explicitamente Sharp e `@img/sharp-*` nos traces
-server-side. Crons continuam desligados até o novo deployment passar no smoke.
+server-side. O PR `#9` passou nos cinco gates e foi mesclado no SHA
+`4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d`; `/app` deixou de retornar 500 e
+voltou a aplicar a fronteira de autenticação.
+
+### Pacote 10: liberação funcional
+
+**Status:** concluído em 2026-07-27, com riscos funcionais explícitos.
+
+A CI `30236373367` aprovou Quality, PostgreSQL, 19 jornadas Chromium,
+build/auditoria e Preview. O workflow `30238080374` promoveu o SHA aprovado
+depois de migrations, auditoria e readiness. O deployment
+`dpl_A5nhjhk2BeVvNcLdSdGcgiKY9c4Z` ficou `READY` em `gru1` no domínio final.
+
+O smoke encontrou e corrigiu duas configurações externas antes da liberação:
+cadastro público ainda estava desligado e o CORS R2 permitia somente a origem da
+VPS. Cadastro, sessão Student, RBAC Admin, presign e preflight R2 passaram
+depois das correções; todas as contas e linhas sintéticas foram removidas.
+AbacatePay e JMVStream responderam a leituras autenticadas, o webhook sem
+assinatura falhou com 401 e o reset de senha foi aceito com 200. O banco não
+possuía backlog de outbox, vídeo, vencimentos ou limpeza antes da ativação.
+
+`SCHEDULED_JOBS_ENABLED=true` foi promovido somente depois desses gates. A VPS
+permanece como rollback temporário: sua origem foi preservada no CORS, mas DNS e
+tráfego principal pertencem à Vercel.
+
+Na primeira janela de cinco minutos, `/api/cron/jmvstream` e
+`/api/cron/outbox` responderam 200 e registraram `outcome: success`. As rotas de
+matrículas e manutenção permanecem cobertas pela CI e aguardam a primeira
+janela diária Production; não se rotacionou `CRON_SECRET` apenas para forçar uma
+execução antecipada.
+
+Não foram criados cobrança, vídeo, Certificado ou Banner artificiais. O primeiro
+uso real ainda deve confirmar upload multipart JMVStream, webhook assinado,
+processamento Sharp de imagem e emissão de Certificado. O reset foi aceito pelo
+provider; entrega e SPF/DKIM/DMARC precisam ser confirmados no e-mail recebido.

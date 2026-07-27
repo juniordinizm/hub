@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 9fa916691ed1226233847f40b13bdfac6787c995
+last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
 ---
 
 # Resend e e-mail institucional
@@ -81,8 +81,14 @@ Antes do primeiro deploy:
 4. [x] Cadastrar `RESEND_API_KEY` e `SUPPORT_EMAIL` na Vercel.
 5. [x] Enviar um e-mail controlado pelo Resend para a caixa de suporte.
 6. [x] Confirmar remetente, `Reply-To` e estado `delivered`.
-7. [ ] Executar um reset de senha real após o primeiro deployment.
+7. [x] Executar um reset de senha real após o primeiro deployment.
 8. [ ] Confirmar SPF, DKIM e DMARC nos cabeçalhos da mensagem de aplicação.
+
+Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
+Vercel não registrou erro de envio. O conector Resend disponível na sessão de
+operação aponta para outra conta e não deve ser usado como autoridade sobre a
+API key instalada na Vercel. A confirmação de entrega e dos cabeçalhos continua
+na caixa destinatária.
 
 ## Evidências
 
