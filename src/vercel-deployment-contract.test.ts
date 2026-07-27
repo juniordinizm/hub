@@ -30,6 +30,8 @@ describe("Vercel deployment contract", () => {
     expect(previewJob).toContain("timeout-minutes: 20");
     expect(previewJob).toContain("githubCommitRef=");
     expect(previewJob).toContain("githubCommitSha=");
+    expect(previewJob).toContain("VERCEL_SCOPE: neuro-capacitar");
+    expect(previewJob.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(2);
     expect(previewJob).toContain("HEALTHCHECK_SECRET");
     expect(previewJob).not.toContain("DATABASE_URL_DIRECT");
     expect(previewJob).not.toContain("R2_SECRET_ACCESS_KEY");
@@ -57,6 +59,8 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("DEPLOYMENT_GIT_REF: main");
     expect(source).toContain('--meta "githubCommitRef=');
     expect(source).toContain("githubCommitSha=");
+    expect(source).toContain("VERCEL_SCOPE: neuro-capacitar");
+    expect(source.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(3);
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("bun run db:migrate:production");
     expect(source).toContain(

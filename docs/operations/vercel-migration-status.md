@@ -88,8 +88,8 @@ confirma owner e project ID corretos.
 
 ### Pacote 5: promoção
 
-**Status:** projeto, domínio e Production configurados; Preview e primeiro
-deployment pendentes.
+**Status:** projeto, domínio e Production configurados; primeiro Preview
+construído e primeiro deployment Production pendente.
 
 O checklist operacional detalha criação sem deploy automático, separação
 Preview/Production, matriz de secrets, GitHub Environments, domínio, providers,
@@ -330,3 +330,12 @@ Também informa explicitamente `githubCommitRef` e `githubCommitSha`; isso evita
 registrar o merge checkout destacado como branch `HEAD` e mantém Preview e
 release rastreáveis ao SHA candidato correto. O contrato automatizado cobre
 esses invariantes.
+
+A Login Connection com o GitHub `juniordinizm` foi concluída. A execução
+`30229618404` aprovou os quatro gates anteriores e construiu o deployment
+Preview `dpl_25C4uTAs4VWWAh3TYc9xLFzKto67` em `gru1`, estado `READY`, para o
+SHA `f385123886f48258121b9170316806f01e62185e`. O único erro restante ocorreu
+no smoke: o `vercel curl` não inferiu o time e recusou o recurso sob o scope
+incorreto. Preview e Production agora passam `--scope neuro-capacitar`
+explicitamente em `deploy`, `curl` e `promote`; a nova execução da CI deve
+provar o readiness autenticado antes do merge.

@@ -71,8 +71,9 @@ herdam o snapshot do pai, todos os dados copiados foram removidos imediatamente;
 o journal permaneceu com 44 entradas/topo `0043`. O contrato limitado foi
 implementado e passou nos testes locais. Os seis valores de runtime foram
 auditados no escopo Preview: Neon, autenticação, readiness, IP, cadastro e kill
-switch estão configurados; o primeiro deployment e o smoke remoto continuam
-pendentes.
+switch estão configurados. O primeiro deployment chegou a `READY` em `gru1`;
+o smoke remoto precisa ser repetido depois da correção que fixa o scope
+`neuro-capacitar` em todos os comandos da CLI.
 
 Não conecte Preview à branch `production`. A branch dedicada já existe e não
 contém dados do ambiente definitivo.
@@ -185,6 +186,9 @@ O token nunca pertence à Vercel runtime, ao `.env`, ao chat ou ao histórico do
 terminal.
 
 ### Conectar a identidade Git do autor
+
+**Status:** concluído em 2026-07-26. A nova execução deixou de receber
+`TEAM_ACCESS_REQUIRED` e construiu o Preview.
 
 O CLI envia metadata do commit mesmo sem integração Git automática. Em times
 Pro, a Vercel bloqueia o candidato quando o autor não está associado a uma

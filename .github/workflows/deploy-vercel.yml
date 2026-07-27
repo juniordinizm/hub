@@ -33,6 +33,7 @@ jobs:
       DEPLOYMENT_GIT_SHA: ${{ inputs.release_sha }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: neuro-capacitar
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -88,7 +89,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
               echo "${name} is required by the vercel-production environment." >&2
               exit 1
@@ -111,6 +112,7 @@ jobs:
             bunx vercel@57.0.0 deploy --yes --prod --skip-domain \
               --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
               --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --scope="$VERCEL_SCOPE" \
               --token="$VERCEL_TOKEN"
           )"
           echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
@@ -121,6 +123,7 @@ jobs:
         run: >-
           bunx vercel@57.0.0 curl /api/health/ready
           --deployment="${{ steps.deploy.outputs.url }}"
+          --scope="$VERCEL_SCOPE"
           --token="$VERCEL_TOKEN" --
           --header "Authorization: Bearer ${HEALTHCHECK_SECRET}"
       - name: Promote verified deployment
@@ -129,4 +132,4 @@ jobs:
         run: >-
           bunx vercel@57.0.0 promote
           "${{ steps.deploy.outputs.url }}"
-          --yes --token="$VERCEL_TOKEN"
+          --yes --scope="$VERCEL_SCOPE" --token="$VERCEL_TOKEN"

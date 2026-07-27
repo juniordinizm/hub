@@ -195,6 +195,7 @@ jobs:
       DEPLOYMENT_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: neuro-capacitar
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
@@ -206,7 +207,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          for name in HEALTHCHECK_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+          for name in HEALTHCHECK_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
               echo "${name} is required by the vercel-preview environment." >&2
               exit 1
@@ -221,6 +222,7 @@ jobs:
             bunx vercel@57.0.0 deploy --yes \
               --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
               --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --scope="$VERCEL_SCOPE" \
               --token="$VERCEL_TOKEN"
           )"
           echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
@@ -231,5 +233,6 @@ jobs:
         run: >-
           bunx vercel@57.0.0 curl /api/health/ready
           --deployment="${{ steps.deploy.outputs.url }}"
+          --scope="$VERCEL_SCOPE"
           --token="$VERCEL_TOKEN" --
           --header "Authorization: Bearer ${HEALTHCHECK_SECRET}"
