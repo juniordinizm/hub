@@ -28,65 +28,71 @@ const REVOKED_ORPHAN_PREDICATE = `
   )
 `;
 
-export const reconcileRevokedCertificateArtifacts =
-  async (): Promise<number> => {
-    const pool = getPool();
+export const reconcileRevokedCertificateArtifacts = async ({
+  shouldContinue = async () => true,
+}: {
+  shouldContinue?: () => Promise<boolean>;
+} = {}): Promise<number> => {
+  const pool = getPool();
 
-    await pool.query(
-      `update certificates
+  await pool.query(
+    `update certificates
      set render_claim_token = null,
          render_claimed_at = null,
          updated_at = now()
      where status = 'revoked'
        and render_claim_token is not null
        and render_claimed_at < now() - ($1 * interval '1 minute')`,
-      [CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES]
-    );
+    [CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES]
+  );
 
-    const candidates = await pool.query<{ id: string }>(
-      `select certificate.id
+  const candidates = await pool.query<{ id: string }>(
+    `select certificate.id
      from certificates certificate
      where ${REVOKED_ORPHAN_PREDICATE}
      order by certificate.updated_at asc
      limit $1`,
-      [
-        RECONCILIATION_BATCH_LIMIT,
-        CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
-        OUTBOX_TOPICS.certificateRender,
-      ]
-    );
+    [
+      RECONCILIATION_BATCH_LIMIT,
+      CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
+      OUTBOX_TOPICS.certificateRender,
+    ]
+  );
 
-    let reconciled = 0;
-    for (const candidate of candidates.rows) {
-      const verification = await pool.query<{ id: string }>(
-        `select certificate.id
+  let reconciled = 0;
+  for (const candidate of candidates.rows) {
+    if (!(await shouldContinue())) {
+      break;
+    }
+    const verification = await pool.query<{ id: string }>(
+      `select certificate.id
        from certificates certificate
        where certificate.id = $1
          and ${REVOKED_ORPHAN_PREDICATE}
        limit 1`,
-        [
-          candidate.id,
-          CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
-          OUTBOX_TOPICS.certificateRender,
-        ]
-      );
-      if (!verification.rows[0]) {
-        continue;
-      }
+      [
+        candidate.id,
+        CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
+        OUTBOX_TOPICS.certificateRender,
+      ]
+    );
+    if (!verification.rows[0]) {
+      continue;
+    }
 
-      await deleteR2Objects([`certificates/${candidate.id}/certificate.pdf`]);
-      await pool.query(
-        `insert into audit_logs (action, target_type, target_id, metadata)
+    await deleteR2Objects([`certificates/${candidate.id}/certificate.pdf`]);
+    await pool.query(
+      `insert into audit_logs (action, target_type, target_id, metadata)
        values (
          'certificate.artifact_reconciled',
          'certificate',
          $1,
          '{"artifact":"pdf"}'::jsonb
        )`,
-        [candidate.id]
-      );
-      reconciled += 1;
-    }
+      [candidate.id]
+    );
+    reconciled += 1;
+  }
 
-    return reconciled;
-  };
+  return reconciled;
+};

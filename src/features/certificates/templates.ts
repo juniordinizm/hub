@@ -3,11 +3,15 @@ import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import {
   createR2ObjectReadUrl,
-  deleteR2Objects,
   uploadPrivateR2Object,
 } from "@/features/storage/r2";
 import { requireRole } from "@/lib/session";
 import { parseCertificateTemplateDraft } from "./render-snapshot";
+import {
+  prepareCertificateTemplateAssetReferences,
+  queueCertificateTemplateAssetCleanup,
+  scheduleCertificateTemplateAssetCleanup,
+} from "./template-asset-cleanup";
 import { CertificateTemplateDomainError } from "./template-errors";
 import {
   normalizeCertificateBackground,
@@ -15,63 +19,6 @@ import {
 } from "./template-image";
 import type { CertificateTemplateSpec } from "./template-rules";
 import { validateCertificateTemplate } from "./template-rules";
-
-export const deleteUnreferencedCertificateTemplateAssets = async ({
-  courseId,
-  keys,
-}: {
-  courseId: string;
-  keys: string[];
-}): Promise<void> => {
-  const uniqueKeys = Array.from(new Set(keys.filter(Boolean)));
-
-  if (uniqueKeys.length === 0) {
-    return;
-  }
-
-  const client = await getPool().connect();
-  let locked = false;
-  try {
-    await client.query("select pg_advisory_lock(hashtextextended($1, 0))", [
-      courseId,
-    ]);
-    locked = true;
-    const { rows } = await client.query<{ key: string }>(
-      `
-        select candidate.key
-        from unnest($1::text[]) as candidate(key)
-        where not exists (
-          select 1
-          from certificate_templates template
-          where template.background_key = candidate.key
-             or template.signature_key = candidate.key
-        )
-        and not exists (
-          select 1
-          from certificates certificate
-          where certificate.render_snapshot #>> '{template,backgroundKey}' = candidate.key
-             or certificate.render_snapshot #>> '{template,signatureKey}' = candidate.key
-        )
-      `,
-      [uniqueKeys]
-    );
-
-    if (rows.length > 0) {
-      await deleteR2Objects(rows.map((row) => row.key));
-    }
-  } finally {
-    try {
-      if (locked) {
-        await client.query(
-          "select pg_advisory_unlock(hashtextextended($1, 0))",
-          [courseId]
-        );
-      }
-    } finally {
-      client.release();
-    }
-  }
-};
 
 export const runCertificateTemplateAssetMutation = async <Result>({
   courseId,
@@ -90,7 +37,7 @@ export const runCertificateTemplateAssetMutation = async <Result>({
   } catch (error) {
     if (uploadedKeys.length > 0) {
       try {
-        await deleteUnreferencedCertificateTemplateAssets({
+        await scheduleCertificateTemplateAssetCleanup({
           courseId,
           keys: uploadedKeys,
         });
@@ -174,6 +121,17 @@ export const saveCertificateTemplateDraft = async ({
       [courseId]
     );
     const previousDraft = previous.rows[0];
+    const referencesAvailable = await prepareCertificateTemplateAssetReferences(
+      {
+        client,
+        keys: [spec.backgroundKey, signatureKey ?? ""],
+      }
+    );
+    if (!referencesAvailable) {
+      throw new CertificateTemplateDomainError(
+        "Uma imagem deste rascunho ja foi removida. Recarregue a pagina e envie a imagem novamente."
+      );
+    }
 
     if (previousDraft) {
       await client.query(
@@ -205,11 +163,20 @@ export const saveCertificateTemplateDraft = async ({
       );
     }
 
-    await client.query("commit");
-    return [previousDraft?.background_key, previousDraft?.signature_key].filter(
+    const replacedKeys = [
+      previousDraft?.background_key,
+      previousDraft?.signature_key,
+    ].filter(
       (key): key is string =>
         Boolean(key) && key !== spec.backgroundKey && key !== signatureKey
     );
+    await queueCertificateTemplateAssetCleanup({
+      client,
+      courseId,
+      keys: replacedKeys,
+    });
+    await client.query("commit");
+    return replacedKeys;
   } catch (error) {
     await client.query("rollback");
     throw error;

@@ -49,6 +49,55 @@ describe("server environment", () => {
     );
   });
 
+  it("accepts the isolated Vercel Preview runtime without providers", () => {
+    process.env = {
+      AUTH_PUBLIC_SIGNUP_ENABLED: "false",
+      BETTER_AUTH_SECRET: "preview-auth-secret-at-least-thirty-two-characters",
+      CLIENT_IP_SOURCE: "x-forwarded-for",
+      DATABASE_URL: "postgresql://preview.example/db",
+      HEALTHCHECK_SECRET:
+        "preview-health-secret-at-least-thirty-two-characters",
+      NODE_ENV: "production",
+      SCHEDULED_JOBS_ENABLED: "false",
+      VERCEL: "1",
+      VERCEL_BRANCH_URL: "hub-git-feature-neuro-capacitar.vercel.app",
+      VERCEL_ENV: "preview",
+    };
+
+    const env = getServerEnv();
+
+    expect(env.BETTER_AUTH_URL).toBe(
+      "https://hub-git-feature-neuro-capacitar.vercel.app"
+    );
+    expect(env.NEXT_PUBLIC_APP_URL).toBe(
+      "https://hub-git-feature-neuro-capacitar.vercel.app"
+    );
+    expect(env.CERTIFICATE_PUBLIC_BASE_URL).toBe(
+      "https://hub-git-feature-neuro-capacitar.vercel.app"
+    );
+  });
+
+  it("rejects provider credentials in Vercel Preview", () => {
+    process.env = {
+      AUTH_PUBLIC_SIGNUP_ENABLED: "false",
+      BETTER_AUTH_SECRET: "preview-auth-secret-at-least-thirty-two-characters",
+      CLIENT_IP_SOURCE: "x-forwarded-for",
+      DATABASE_URL: "postgresql://preview.example/db",
+      HEALTHCHECK_SECRET:
+        "preview-health-secret-at-least-thirty-two-characters",
+      NODE_ENV: "production",
+      RESEND_API_KEY: "must-not-be-used-in-preview",
+      SCHEDULED_JOBS_ENABLED: "false",
+      VERCEL: "1",
+      VERCEL_BRANCH_URL: "hub-git-feature-neuro-capacitar.vercel.app",
+      VERCEL_ENV: "preview",
+    };
+
+    expect(() => getServerEnv()).toThrow(
+      "RESEND_API_KEY must not be set in Preview"
+    );
+  });
+
   it("keeps public sign-up disabled by default", () => {
     setEnv("NODE_ENV", "development");
     setEnv("AUTH_PUBLIC_SIGNUP_ENABLED", undefined);

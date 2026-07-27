@@ -18,7 +18,6 @@ interface CertificateImageUploadFieldProps {
   imageUrl: string | null;
   kind: CertificateImageKind;
   label?: string;
-  name: string;
   onFileSelect: (file: File | null) => void;
   required?: boolean;
   selectedFile?: File | null;
@@ -30,7 +29,6 @@ export function CertificateImageUploadField({
   imageUrl,
   kind,
   label = "Arraste ou clique para selecionar a imagem",
-  name,
   onFileSelect,
   required,
   selectedFile,
@@ -70,8 +68,8 @@ export function CertificateImageUploadField({
       <input
         accept={CERTIFICATE_IMAGE_ACCEPT}
         className="sr-only"
+        data-upload-kind={kind}
         id={id}
-        name={name}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
           event.currentTarget.value = "";

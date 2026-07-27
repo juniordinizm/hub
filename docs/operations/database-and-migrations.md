@@ -8,13 +8,22 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. Em 2026-07-25, a cadeia completa
-`0000` a `0040` foi aplicada com o migrador oficial à branch `production`
+O repositório usa cadeia Drizzle forward-only. Em 2026-07-26, a cadeia
+`0000` a `0043` estava aplicada à branch `production`
 (`br-dark-boat-ac5ju6m4`) do projeto Neon definitivo
-`damp-snow-22911188`. A auditoria posterior confirmou 41 entradas no journal,
-topo em `0040`, 35 tabelas e paridade dos objetos críticos descritos neste
-runbook. O banco entrou em operação com uma Conta Admin e sem dados de Cursos,
-Certificados, Pedidos ou outbox.
+`damp-snow-22911188`. A auditoria posterior confirmou 44 entradas no journal,
+topo em `0043`, hashes idênticos ao repositório e paridade dos objetos críticos
+descritos neste runbook.
+
+`0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
+de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
+vincula ao agregado e garante claim exclusivo dos uploads administrativos
+diretos ao R2. O primeiro desenho de `0042` foi exercitado na branch temporária
+`br-raspy-cloud-aco4wfg2`, mas a validação foi descartada depois que a revisão
+encontrou requisitos adicionais; a branch temporária foi removida sem promover
+mudanças. A versão final foi validada na branch descartável
+`br-wild-dew-ac538g2r`, promovida com autorização explícita e auditada antes da
+remoção automática dessa branch.
 
 Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta conferida, branch/backup disponível, validação em banco descartável e aprovação explícita de promoção.
 
@@ -34,7 +43,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0040_snapshot.json`.
+journal é autoridade; nesta cadeia, `0043_snapshot.json`.
 
 ## Conexões
 
@@ -43,8 +52,9 @@ journal é autoridade; nesta cadeia, `0040_snapshot.json`.
 - fallback do Drizzle: `DATABASE_URL` se a URL direta estiver ausente;
 - `withVerifiedSslMode` exige `sslmode=verify-full` para aliases menos estritos.
 
-O pool web limita a espera de conexão a dez segundos, mantém no máximo dez
-conexões e não recebe `DATABASE_URL_DIRECT`. A readiness usa um pool isolado de
+O pool web limita a espera de conexão a dez segundos, mantém no máximo três
+conexões por instância Vercel e não recebe `DATABASE_URL_DIRECT`. Fora da
+Vercel, a política local mantém no máximo dez conexões. A readiness usa um pool isolado de
 uma conexão e timeout de um segundo, para falhar rápido sem impor essa latência
 agressiva às requisições normais. Ela confirma a entrada da migration mínima
 compatível declarada em `src/db/migration-state.ts`; a CI falha se esse
@@ -89,9 +99,9 @@ Só na promoção controlada. Não é onboarding e não substitui auditoria de s
 
 É o comando de promoção para produção. Exige `DATABASE_URL_DIRECT`, adquire um
 advisory lock global, executa a cadeia Drizzle e libera conexão/lock mesmo em
-falha. A mesma operação existe na imagem como
-`node /app/migrate-production.mjs`. Execute como job one-shot isolada antes do
-web release; nunca como entrypoint ou hook de startup.
+falha. No fluxo Vercel, o workflow protegido executa esse comando como etapa
+isolada antes de construir o deployment Production não promovido. Nunca
+execute como hook de inicialização da aplicação.
 
 ## Comandos bloqueados
 
@@ -156,6 +166,22 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   parciais esperados e zero duplicidades entre Certificados válidos. O banco
   tinha zero Cursos e zero Certificados, portanto os backfills não foram
   exercitados com dados históricos.
+- `0041_public_signup_student_profiles`: promovida em 2026-07-25 para o alvo
+  definitivo. A auditoria Vercel-first confirmou 42 entradas no journal e
+  paridade com o repositório.
+- `0042_serverless_job_leases`: o primeiro ensaio em 2026-07-26 na branch
+  temporária `br-raspy-cloud-aco4wfg2` confirmou o mecanismo básico, mas foi
+  cancelado sem promoção após a revisão exigir deadlines e fencing adicionais.
+- `0043_staged_admin_image_uploads`: gerada em 2026-07-26 para registrar,
+  confirmar, reivindicar e consumir uma única vez uploads administrativos
+  vinculados ao ator e agregado. A validação conjunta autoritativa de
+  `0042`/`0043` está na migration Neon
+  `ff79a0c9-5404-49d1-8582-bd7675fb8015`, branch temporária
+  `br-wild-dew-ac538g2r`: confirmou 44 entradas, hashes do repositório, topo
+  `0043`, quatro índices, três constraints e exclusão mútua/reclaim dos claims.
+  A migration foi promovida com autorização explícita em 2026-07-26. A
+  auditoria da branch definitiva repetiu as mesmas evidências e confirmou zero
+  leases, limpezas ou uploads temporários residuais.
 
 ## Recuperação
 

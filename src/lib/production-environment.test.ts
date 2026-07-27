@@ -21,6 +21,7 @@ const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   R2_SECRET_ACCESS_KEY: "r2-secret",
   RESEND_API_KEY: "resend-key",
   RESEND_FROM_EMAIL: "PROTEA-R <noreply@example.com>",
+  SCHEDULED_JOBS_ENABLED: "true",
   SUPPORT_EMAIL: "support@example.com",
 };
 

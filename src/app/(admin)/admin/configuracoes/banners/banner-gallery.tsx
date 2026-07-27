@@ -40,6 +40,7 @@ import {
   BANNER_ACCEPT,
   validateBannerUploadRequest,
 } from "@/features/storage/banner-image";
+import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
 import { cn } from "@/lib/utils";
 import { BannerEditModal } from "./banner-edit-modal";
 import { readBannerFileSelection } from "./banner-file-selection";
@@ -130,11 +131,17 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       const tempId = `temp-${Date.now()}`;
       setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
-      const formData = new FormData();
-      formData.append("imageFile", file);
-      formData.append("isActive", "on");
-
       try {
+        const bannerId = crypto.randomUUID();
+        const imageUpload = await uploadStagedAdminImage({
+          aggregateId: bannerId,
+          file,
+          purpose: "dashboard-banner",
+        });
+        const formData = new FormData();
+        formData.append("newBannerId", bannerId);
+        formData.append("imageUpload", JSON.stringify(imageUpload));
+        formData.append("isActive", "on");
         const res = await saveBannerAction(formData);
 
         if (res?.bannerId) {

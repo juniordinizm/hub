@@ -9,7 +9,7 @@ export type CourseCoverVariant = keyof typeof COURSE_COVER_VARIANTS;
 
 export const COURSE_COVER_ACCEPT = ".jpg,.jpeg,.png,.webp";
 
-const MAX_ORIGINAL_COVER_BYTES = 4 * 1024 * 1024;
+export const MAX_ORIGINAL_COVER_BYTES = 4 * 1024 * 1024;
 const ALLOWED_ORIGINAL_TYPES = new Set([
   "image/jpeg",
   "image/png",

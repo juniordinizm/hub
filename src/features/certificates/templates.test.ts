@@ -1,107 +1,51 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
-  deleteR2Objects: vi.fn(),
   getPool: vi.fn(),
+  prepareCertificateTemplateAssetReferences: vi.fn(),
+  queueCertificateTemplateAssetCleanup: vi.fn(),
+  scheduleCertificateTemplateAssetCleanup: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 vi.mock("@/features/storage/r2", () => ({
   createR2ObjectReadUrl: vi.fn(),
-  deleteR2Objects: dependencies.deleteR2Objects,
   uploadPrivateR2Object: vi.fn(),
 }));
 vi.mock("@/lib/session", () => ({ requireRole: vi.fn() }));
+vi.mock("./template-asset-cleanup", () => ({
+  prepareCertificateTemplateAssetReferences:
+    dependencies.prepareCertificateTemplateAssetReferences,
+  queueCertificateTemplateAssetCleanup:
+    dependencies.queueCertificateTemplateAssetCleanup,
+  scheduleCertificateTemplateAssetCleanup:
+    dependencies.scheduleCertificateTemplateAssetCleanup,
+}));
 
 import { CertificateTemplateDomainError } from "./template-errors";
 import {
-  deleteUnreferencedCertificateTemplateAssets,
   enableCertificateForCourse,
   runCertificateTemplateAssetMutation,
   saveCertificateTemplateDraft,
 } from "./templates";
 
-const createCleanupPool = (rows: { key: string }[]) => {
-  const query = vi.fn((sql: string) => {
-    if (sql.includes("from unnest")) {
-      return { rows };
-    }
-    return { rows: [] };
-  });
-  const release = vi.fn();
-  dependencies.getPool.mockReturnValue({
-    connect: vi.fn().mockResolvedValue({ query, release }),
-  });
-  return { query, release };
-};
+beforeEach(() => {
+  vi.clearAllMocks();
+  dependencies.prepareCertificateTemplateAssetReferences.mockResolvedValue(
+    true
+  );
+  dependencies.queueCertificateTemplateAssetCleanup.mockResolvedValue(
+    undefined
+  );
+  dependencies.scheduleCertificateTemplateAssetCleanup.mockResolvedValue(
+    undefined
+  );
+});
 
 describe("certificate template asset lifecycle", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("deletes only assets not referenced by a template or certificate snapshot", async () => {
-    const { query, release } = createCleanupPool([
-      { key: "templates/unreferenced.webp" },
-    ]);
-
-    await deleteUnreferencedCertificateTemplateAssets({
-      courseId: "course-1",
-      keys: [
-        "templates/published.webp",
-        "templates/pending-signature.webp",
-        "templates/unreferenced.webp",
-        "templates/unreferenced.webp",
-      ],
-    });
-
-    expect(query).toHaveBeenNthCalledWith(
-      1,
-      "select pg_advisory_lock(hashtextextended($1, 0))",
-      ["course-1"]
-    );
-    expect(query).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining("render_snapshot #>> '{template,backgroundKey}'"),
-      [
-        [
-          "templates/published.webp",
-          "templates/pending-signature.webp",
-          "templates/unreferenced.webp",
-        ],
-      ]
-    );
-    expect(query.mock.calls[1]?.[0]).toContain(
-      "render_snapshot #>> '{template,signatureKey}'"
-    );
-    expect(dependencies.deleteR2Objects).toHaveBeenCalledWith([
-      "templates/unreferenced.webp",
-    ]);
-    expect(query).toHaveBeenLastCalledWith(
-      "select pg_advisory_unlock(hashtextextended($1, 0))",
-      ["course-1"]
-    );
-    expect(release).toHaveBeenCalledOnce();
-  });
-
-  it("does not call R2 when every candidate remains referenced", async () => {
-    createCleanupPool([]);
-
-    await deleteUnreferencedCertificateTemplateAssets({
-      courseId: "course-1",
-      keys: ["templates/published.webp"],
-    });
-
-    expect(dependencies.deleteR2Objects).not.toHaveBeenCalled();
-  });
-
-  it("cleans newly uploaded assets when draft persistence fails", async () => {
+  it("schedules newly uploaded assets when draft persistence fails", async () => {
     const persistenceError = new Error("database unavailable");
-    createCleanupPool([
-      { key: "templates/new-background.webp" },
-      { key: "templates/new-signature.webp" },
-    ]);
 
     await expect(
       runCertificateTemplateAssetMutation({
@@ -114,26 +58,28 @@ describe("certificate template asset lifecycle", () => {
       })
     ).rejects.toBe(persistenceError);
 
-    expect(dependencies.deleteR2Objects).toHaveBeenCalledWith([
-      "templates/new-background.webp",
-      "templates/new-signature.webp",
-    ]);
+    expect(
+      dependencies.scheduleCertificateTemplateAssetCleanup
+    ).toHaveBeenCalledWith({
+      courseId: "course-1",
+      keys: ["templates/new-background.webp", "templates/new-signature.webp"],
+    });
   });
 
-  it("preserves an uploaded asset when an ambiguous failure left it referenced", async () => {
-    createCleanupPool([]);
+  it("preserves the original error if durable cleanup scheduling also fails", async () => {
+    dependencies.scheduleCertificateTemplateAssetCleanup.mockRejectedValueOnce(
+      new Error("cleanup unavailable")
+    );
 
     await expect(
       runCertificateTemplateAssetMutation({
         courseId: "course-1",
         operation: (trackUploadedKey) => {
-          trackUploadedKey("templates/possibly-persisted.webp");
+          trackUploadedKey("templates/new.webp");
           return Promise.reject(new Error("connection lost after commit"));
         },
       })
     ).rejects.toThrow("connection lost after commit");
-
-    expect(dependencies.deleteR2Objects).not.toHaveBeenCalled();
   });
 });
 
@@ -212,6 +158,19 @@ describe("certificate template draft serialization", () => {
       expect.stringContaining("for update"),
       ["course-1"]
     );
+    expect(
+      dependencies.prepareCertificateTemplateAssetReferences
+    ).toHaveBeenCalledWith({
+      client: expect.objectContaining({ query }),
+      keys: ["templates/new-background.webp", "templates/new-signature.webp"],
+    });
+    expect(
+      dependencies.queueCertificateTemplateAssetCleanup
+    ).toHaveBeenCalledWith({
+      client: expect.objectContaining({ query }),
+      courseId: "course-1",
+      keys: ["templates/old-background.webp", "templates/old-signature.webp"],
+    });
     expect(query).toHaveBeenLastCalledWith("commit");
     expect(release).toHaveBeenCalledOnce();
   });

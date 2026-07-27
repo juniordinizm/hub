@@ -37,9 +37,14 @@ Essa exceção não oferece retry durável nem idempotência de provedor. Para r
 
 `runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada cinco minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
 
+- A rota só executa com `SCHEDULED_JOBS_ENABLED=true` e adquire um lease
+  persistente por nome de job.
+- O worker reivindica uma mensagem por vez e encerra antes do prazo interno da
+  função; uma nova execução retoma o backlog.
 - O claim é uma atualização atômica com `FOR UPDATE SKIP LOCKED`.
 - Cada mensagem recebe lease de dez minutos com `locked_at` e `locked_by`.
 - Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
+- Nenhuma conexão do pool permanece reservada durante PDFKit, R2 ou Resend.
 - Uma mensagem é `delivered` somente depois de o adaptador confirmar a chamada ao Resend.
 - Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
 - Versão desconhecida de payload ou agregado não entregável vai para `dead_letter`.

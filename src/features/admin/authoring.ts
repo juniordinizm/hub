@@ -36,6 +36,8 @@ import {
   publishR2Object,
   uploadCourseCoverFile,
 } from "@/features/storage/r2";
+import { parseStagedAdminImageReference } from "@/features/storage/staged-image-upload";
+import { consumeStagedAdminImageUpload } from "@/features/storage/staged-image-upload-registry";
 
 const CREATED_CONTENT_STATUS = "draft";
 const PUBLISHED_CONTENT_STATUS = "active";
@@ -1064,33 +1066,59 @@ export const saveCourse = async ({
 }: AuthoringFormInput): Promise<{ courseId: string }> => {
   const courseId = readString(formData, "courseId");
   const values = readCourseFormValues(formData);
-  const coverFile = readCourseCoverFile(formData.get("coverFile"));
-  let savedCourseId = courseId;
+  if (readString(formData, "coverUploadPending") === "on") {
+    throw new Error("Aguarde o envio da capa terminar.");
+  }
+  const rawCoverUpload = parseJsonFormField(formData, "coverUpload");
+  const coverUpload = rawCoverUpload
+    ? parseStagedAdminImageReference(rawCoverUpload)
+    : null;
+  if (rawCoverUpload && !coverUpload) {
+    throw new Error("Upload temporario de capa invalido.");
+  }
+  const savedCourseId = courseId || coverUpload?.aggregateId || randomUUID();
   const previousCoverKeys = courseId
     ? (await getCourseR2ObjectKeys(courseId)).filter((key) =>
         key.includes("/cover/")
       )
     : [];
 
-  if (courseId) {
-    await updateExistingCourse({
-      actorUserId,
-      courseId,
-      coverFile,
-      formData,
-      previousCoverKeys,
-      values,
-    });
-  } else {
-    const insertedCourseId = randomUUID();
-    savedCourseId = insertedCourseId;
+  const persistCourse = async (
+    coverFile: CourseCoverFile | null
+  ): Promise<void> => {
+    if (courseId) {
+      await updateExistingCourse({
+        actorUserId,
+        courseId,
+        coverFile,
+        formData,
+        previousCoverKeys,
+        values,
+      });
+      return;
+    }
+
     await createNewCourse({
       actorUserId,
-      courseId: insertedCourseId,
+      courseId: savedCourseId,
       coverFile,
       formData,
       values,
     });
+  };
+
+  if (coverUpload) {
+    await consumeStagedAdminImageUpload({
+      actorUserId,
+      aggregateId: savedCourseId,
+      operation: async (file) => {
+        await persistCourse(readCourseCoverFile(file));
+      },
+      purpose: "course-cover",
+      reference: coverUpload,
+    });
+  } else {
+    await persistCourse(null);
   }
 
   await ensureJmvstreamCourseFolder(savedCourseId);

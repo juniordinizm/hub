@@ -12,6 +12,11 @@ const APPLICATION_POOL_OPTIONS = {
   max: 10,
 } as const satisfies DatabasePoolOptions;
 
+const VERCEL_APPLICATION_POOL_OPTIONS = {
+  ...APPLICATION_POOL_OPTIONS,
+  max: 3,
+} as const satisfies DatabasePoolOptions;
+
 const READINESS_POOL_OPTIONS = {
   connectionTimeoutMillis: 1000,
   idleTimeoutMillis: 10_000,
@@ -19,6 +24,14 @@ const READINESS_POOL_OPTIONS = {
 } as const satisfies DatabasePoolOptions;
 
 export const getDatabasePoolOptions = (
-  purpose: DatabasePoolPurpose
-): DatabasePoolOptions =>
-  purpose === "readiness" ? READINESS_POOL_OPTIONS : APPLICATION_POOL_OPTIONS;
+  purpose: DatabasePoolPurpose,
+  environment: Readonly<Record<string, string | undefined>> = process.env
+): DatabasePoolOptions => {
+  if (purpose === "readiness") {
+    return READINESS_POOL_OPTIONS;
+  }
+
+  return environment.VERCEL
+    ? VERCEL_APPLICATION_POOL_OPTIONS
+    : APPLICATION_POOL_OPTIONS;
+};

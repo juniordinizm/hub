@@ -295,6 +295,20 @@
       "when": 1785004383558,
       "tag": "0041_public_signup_student_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1785034808365,
+      "tag": "0042_serverless_job_leases",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1785037403006,
+      "tag": "0043_staged_admin_image_uploads",
+      "breakpoints": true
     }
   ]
 }

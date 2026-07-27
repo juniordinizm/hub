@@ -6,6 +6,6 @@
     "ultracite/biome/next"
   ],
   "files": {
-    "includes": ["!public/**/*.svg"]
+    "includes": ["!public/**/*.svg", "!src/db/migrations/meta/*.json"]
   }
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   Add01Icon,
   Book01Icon,
@@ -237,6 +238,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 }
 
 function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
+  const aggregateId = course?.id ?? randomUUID();
   return (
     <AutoCloseDialogForm
       action={saveCourseAction}
@@ -248,6 +250,7 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
           <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
             <Field className="row-span-2 justify-center">
               <CourseCoverUploadField
+                aggregateId={aggregateId}
                 className="sm:w-[240px]"
                 defaultCoverImage={course?.coverImage}
                 defaultThumbnailUrl={course?.thumbnailUrl}

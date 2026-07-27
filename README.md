@@ -16,9 +16,13 @@ Pré-requisitos:
 - acesso a um banco Postgres já compatível com o schema atual;
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
-O histórico de migrations está reconciliado até
-`0040_certificate_render_claim`, incluindo outbox transacional, publicações de
-Curso e artefatos imutáveis de Certificado. Para um banco local descartável,
+O histórico local de migrations está reconciliado até
+`0043_staged_admin_image_uploads`, incluindo outbox transacional,
+publicações de Curso, artefatos imutáveis de Certificado, perfil automático
+para cadastro público, leases dos jobs serverless e consumo único de uploads
+administrativos. A produção foi auditada em `0043` depois da validação
+descartável e promoção controlada de `0042`/`0043`. Para um banco local
+descartável,
 use os comandos de reset, seed e smoke somente conforme o
 [runbook de banco](docs/operations/database-and-migrations.md): eles recusam
 host remoto e exigem confirmação quando destrutivos.
@@ -78,8 +82,10 @@ O mapa completo, inclusive fluxos ponta a ponta, está em [Arquitetura](docs/arc
 
 ## Estado de verificação
 
-O deploy alvo usa uma imagem standalone `linux/arm64` por SHA no Coolify; veja
-o [runbook de deploy](docs/operations/deploy-and-incidents.md). A imagem foi
-construída e recebeu smoke nativo em host AArch64, mas publicação GHCR,
-domínio, providers, alertas, backup e controles do painel continuam gates
-externos até a promoção real.
+O deploy alvo é Vercel Pro com Next.js nativo, Functions Node.js 24 em `gru1`,
+Neon pooled em São Paulo e Cloudflare R2. A migração está sendo executada em
+pacotes verificáveis; consulte o
+[status Vercel-first](docs/operations/vercel-migration-status.md) e o
+[runbook de deploy](docs/operations/deploy-and-incidents.md). Projeto Vercel,
+domínio, secrets, providers e promoção continuam gates externos até o primeiro
+deployment validado.

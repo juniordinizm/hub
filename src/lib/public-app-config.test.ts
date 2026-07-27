@@ -21,6 +21,27 @@ describe("public app configuration", () => {
     ).toBe("https://app.example.com");
   });
 
+  it("derives the canonical URL from the protected Preview branch alias", () => {
+    expect(
+      getPublicAppUrl({
+        NODE_ENV: "production",
+        VERCEL_BRANCH_URL: "hub-git-feature-neuro-capacitar.vercel.app",
+        VERCEL_ENV: "preview",
+        VERCEL_URL: "hub-random-deployment.vercel.app",
+      })
+    ).toBe("https://hub-git-feature-neuro-capacitar.vercel.app");
+  });
+
+  it("does not use a generated Vercel URL as the Production origin", () => {
+    expect(() =>
+      getPublicAppUrl({
+        NODE_ENV: "production",
+        VERCEL_ENV: "production",
+        VERCEL_URL: "hub-neuro-capacitar.vercel.app",
+      })
+    ).toThrow("NEXT_PUBLIC_APP_URL is required in production.");
+  });
+
   it("uses localhost only outside production", () => {
     expect(
       getPublicAppUrl({

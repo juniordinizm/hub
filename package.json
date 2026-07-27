@@ -68,6 +68,9 @@
     "vitest": "4.1.9"
   },
   "name": "hub",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -95,7 +98,7 @@
     "db:smoke:empty": "bun scripts/smoke-empty-database.ts",
     "storage:publish-active-course-covers": "bun --conditions=react-server scripts/publish-active-course-covers.ts",
     "db:studio": "drizzle-kit studio",
-    "prepare": "lefthook install"
+    "prepare": "bun scripts/install-git-hooks.ts"
   },
   "version": "0.1.0",
   "private": true,

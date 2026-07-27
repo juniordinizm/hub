@@ -19,6 +19,7 @@ vi.mock("@aws-sdk/client-s3", () => {
     DeleteObjectsCommand: Command,
     GetObjectCommand: Command,
     HeadObjectCommand: Command,
+    ListObjectsV2Command: Command,
     PutObjectCommand: Command,
     S3Client: class {
       send = dependencies.send;
@@ -26,7 +27,10 @@ vi.mock("@aws-sdk/client-s3", () => {
   };
 });
 
-import { uploadPrivateR2ObjectIfAbsent } from "./r2";
+import {
+  deleteExpiredStagedAdminImages,
+  uploadPrivateR2ObjectIfAbsent,
+} from "./r2";
 
 describe("uploadPrivateR2ObjectIfAbsent", () => {
   beforeEach(() => {
@@ -87,5 +91,53 @@ describe("uploadPrivateR2ObjectIfAbsent", () => {
         key: "certificates/id/certificate.pdf",
       })
     ).rejects.toBe(error);
+  });
+
+  it("removes only expired staged admin images", async () => {
+    dependencies.send
+      .mockResolvedValueOnce({
+        Contents: [
+          {
+            Key: "uploads/admin-images/admin-1/course-cover/expired.png",
+            LastModified: new Date("2026-07-20T00:00:00.000Z"),
+          },
+          {
+            Key: "uploads/admin-images/admin-1/course-cover/current.png",
+            LastModified: new Date("2026-07-25T00:00:00.000Z"),
+          },
+        ],
+        IsTruncated: false,
+      })
+      .mockResolvedValueOnce({});
+
+    await expect(
+      deleteExpiredStagedAdminImages({
+        olderThan: new Date("2026-07-24T00:00:00.000Z"),
+      })
+    ).resolves.toBe(1);
+
+    expect(dependencies.send).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Prefix: "uploads/admin-images/",
+        }),
+      })
+    );
+    expect(dependencies.send).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Delete: {
+            Objects: [
+              {
+                Key: "uploads/admin-images/admin-1/course-cover/expired.png",
+              },
+            ],
+            Quiet: true,
+          },
+        }),
+      })
+    );
   });
 });

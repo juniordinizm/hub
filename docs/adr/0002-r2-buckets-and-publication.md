@@ -20,6 +20,9 @@ Usar:
 - `R2_PUBLIC_BASE_URL` para leitura pública;
 - LQIP armazenado com o registro;
 - banner 4:1, 1680×420, máximo 5 MiB.
+- imagens administrativas enviadas diretamente ao privado por PUT assinado;
+- referências temporárias vinculadas ao Admin e à finalidade, com reconciliação
+  após 24 horas.
 
 ## Alternativas consideradas
 
@@ -38,4 +41,8 @@ Usar:
 
 ## Evidências
 
-`getR2Config`, `getPublicR2Config`, `publishR2Object`, `createLessonResourceUploadUrl` e `uploadDashboardBannerFile` em `src/features/storage/r2.ts`; constantes em `src/features/storage/banner-image.ts`; testes em `src/features/storage`.
+`getR2Config`, `getPublicR2Config`, `publishR2Object`,
+`createLessonResourceUploadUrl`, `createStagedAdminImageUploadUrl` e
+`uploadDashboardBannerFile` em `src/features/storage/r2.ts`; contrato em
+`src/features/storage/staged-image-upload.ts`; constantes em
+`src/features/storage/banner-image.ts`; testes em `src/features/storage`.

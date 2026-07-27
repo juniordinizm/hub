@@ -3,6 +3,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { getE2eObjectStorageCorsHeaders } from "../src/features/storage/e2e-object-storage-cors";
 
 const PORT = 4568;
 const LEADING_SLASH_PATTERN = /^\/+/;
@@ -66,6 +67,23 @@ const handleRequest = async (
   response: ServerResponse
 ): Promise<void> => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
+  const corsHeaders = getE2eObjectStorageCorsHeaders({
+    ...(request.headers.origin ? { origin: request.headers.origin } : {}),
+    ...(request.headers["access-control-request-headers"]
+      ? {
+          requestedHeaders: request.headers["access-control-request-headers"],
+        }
+      : {}),
+  });
+  for (const [header, value] of Object.entries(corsHeaders)) {
+    response.setHeader(header, value);
+  }
+  if (request.method === "OPTIONS") {
+    response.writeHead(corsHeaders["access-control-allow-origin"] ? 204 : 403);
+    response.end();
+    return;
+  }
+
   if (url.pathname === "/") {
     response.end("ready");
     return;

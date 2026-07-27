@@ -65,6 +65,7 @@ export function CourseSettingsForm({
           <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
             <Field className="row-span-2">
               <CourseCoverUploadField
+                aggregateId={course.id}
                 defaultCoverImage={course.coverImage}
                 defaultThumbnailUrl={course.thumbnailUrl}
               />

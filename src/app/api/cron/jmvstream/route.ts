@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPool } from "@/db";
+import { scheduledJobs } from "@/config/scheduled-jobs";
 import { syncPendingJmvstreamPlayers } from "@/features/jmvstream/server";
-import { runWithAdvisoryLock } from "@/features/operations/advisory-lock";
-import { getServerEnv } from "@/lib/env";
+import { runWithScheduledJobLease } from "@/features/operations/scheduled-job-lease";
+import { getScheduledJobEarlyResponse } from "@/features/operations/scheduled-job-request";
 import {
   CORRELATION_ID_HEADER,
   createCorrelationId,
@@ -10,42 +10,27 @@ import {
 import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
-
-const JMVSTREAM_SYNC_LOCK_ID = 2_040_701;
-
-const getBearerToken = (authorization: string | null): string | null => {
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return authorization.slice("Bearer ".length).trim() || null;
-};
+export const maxDuration = 300;
+export const runtime = "nodejs";
 
 export const GET = async (request: Request): Promise<Response> => {
   const correlationId = createCorrelationId(
     request.headers.get(CORRELATION_ID_HEADER)
   );
-  const env = getServerEnv();
-  const receivedToken = getBearerToken(request.headers.get("authorization"));
-
-  if (env.CRON_SECRET) {
-    if (receivedToken !== env.CRON_SECRET) {
-      return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
-    }
-  } else if (env.NODE_ENV === "production") {
-    return NextResponse.json(
-      { error: "CRON_SECRET nao configurado." },
-      { status: 503 }
-    );
+  const earlyResponse = getScheduledJobEarlyResponse(request);
+  if (earlyResponse) {
+    return earlyResponse;
   }
 
   const result = await observeOperation({
     correlationId,
     execute: async () => {
-      const lockResult = await runWithAdvisoryLock({
-        connect: () => getPool().connect(),
-        execute: syncPendingJmvstreamPlayers,
-        lockId: JMVSTREAM_SYNC_LOCK_ID,
+      const lockResult = await runWithScheduledJobLease({
+        deadlineMs: scheduledJobs.jmvstream.deadlineMs,
+        execute: ({ deadlineAt, isLeaseOwner }) =>
+          syncPendingJmvstreamPlayers(20, deadlineAt, isLeaseOwner),
+        jobName: "jmvstream",
+        leaseMs: scheduledJobs.jmvstream.leaseMs,
       });
 
       return lockResult.acquired

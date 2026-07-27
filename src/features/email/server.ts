@@ -34,10 +34,11 @@ export const sendTransactionalEmail = async ({
     throw new Error("RESEND_API_KEY is required to send transactional email.");
   }
 
+  const resolvedReplyTo = replyTo ?? env.SUPPORT_EMAIL;
   const email = {
     from: env.RESEND_FROM_EMAIL,
     react,
-    ...(replyTo ? { replyTo } : {}),
+    ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
     subject,
     to,
   };

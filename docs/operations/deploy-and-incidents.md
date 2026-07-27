@@ -1,170 +1,177 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
+last_verified_commit: 9fa916691ed1226233847f40b13bdfac6787c995
 ---
 
 # Deploy e incidentes
 
-## Modelo de release no Coolify
+## Modelo de release na Vercel
 
-O artefato de produção é a imagem `linux/arm64` publicada pela CI em
-`ghcr.io/<owner>/<repositorio>:<git-sha>`. O Coolify consome a imagem pronta;
-não compila o repositório e não usa tag mutável `latest`.
+O Hub usa Next.js nativo na Vercel Pro, Node.js 24 e região primária `gru1`.
+Não existe imagem Docker, publicação GHCR ou runner de cron externo no caminho
+de produção. A VPS anterior permanece fora do fluxo e não é autoridade de
+release.
 
-- build: Bun `1.3.11`, `next build` standalone e chave estável de Server
-  Actions fornecida como secret do BuildKit;
-- runtime: Node `24.18.0` em Debian/glibc, usuário sem privilégios e porta
-  interna `3000`;
-- version skew: `DEPLOYMENT_VERSION=<git-sha>` alimenta `deploymentId`; releases
-  que podem coexistir precisam usar a mesma
-  `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` no build;
-- saúde: o `HEALTHCHECK` da imagem consulta
-  `GET /api/health/ready` com `HEALTHCHECK_SECRET`, comprovando processo, banco
-  e migration mínima sem gravar o segredo nos metadados da imagem;
-- operações deliberadas: a imagem inclui `run-scheduled-job.mjs`,
-  `migrate-production.mjs` e a cadeia SQL versionada.
+O workflow `CI` valida o código e cria um deployment Preview por build remoto
+na Vercel. O workflow manual `Deploy Vercel production` recebe o SHA completo
+aprovado, exige confirmação explícita, verifica que ele é o `origin/main` atual
+e consulta a API do GitHub para provar uma CI verde desse SHA. Só então aplica
+migrations com conexão direta, cria um deployment Production sem promovê-lo,
+testa sua readiness e o promove. Deploys Git automáticos da Vercel devem
+permanecer desligados para não criar uma segunda promoção concorrente.
 
-No GitHub, configure os secrets `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e,
-opcionalmente, `SENTRY_AUTH_TOKEN`; configure as variables
-`PRODUCTION_APP_URL`, `R2_PUBLIC_BASE_URL` e, opcionalmente,
-`NEXT_PUBLIC_SENTRY_DSN`. A CI recusa publicar na `main` sem chave estável,
-URL pública ou origem R2. O token de leitura do pacote GHCR pertence ao
-registro privado configurado no servidor Coolify, não ao container.
+### Ambientes
 
-No Coolify, crie uma aplicação **Docker Image**, exponha apenas a porta interna
-`3000`, associe o domínio HTTPS e fixe a tag no SHA publicado. Não crie
-`ports_mappings` para a internet: o tráfego entra somente pelo Traefik. O
-Dockerfile já possui health check autenticado de readiness; preserve
-`HEALTHCHECK_SECRET` no runtime e não duplique o segredo na configuração do
-check.
-Use uma instância durante o primeiro release. Rolling update só é seguro com a
-chave estável e migrations expand/contract.
+- `vercel-preview`: smoke descartável de build/runtime. Usa somente Neon
+  sanitizado, autenticação e readiness próprios;
+  `SCHEDULED_JOBS_ENABLED=false`.
+- `vercel-production`: ambiente protegido no GitHub. Contém token de deploy,
+  segredo de readiness e URL direta de migration.
+- Vercel Preview: contém apenas o núcleo permitido pelo perfil limitado e
+  nenhuma credencial de provider.
+- Vercel Production: contém todas as variáveis de runtime definitivas.
+
+`DATABASE_URL_DIRECT` não pertence ao runtime Vercel. Ela existe apenas como
+secret do GitHub Environment `vercel-production`. `DATABASE_URL` pooled pertence
+ao runtime Vercel.
 
 ## Gate de deploy
 
-Não avance quando houver migration sem validação controlada, falha em `docs:check`, testes, typecheck, check ou build, variável obrigatória ausente, webhook/cron não conferido ou mudança irreversível sem recuperação revisada.
+O caminho versionado é:
 
-### Checklist de código
+1. CI: documentação, migrations, typecheck, estilo, testes e audit.
+2. CI: integração PostgreSQL e jornadas Chromium em branches Neon efêmeras.
+3. CI: build e Knip.
+4. CI: `vercel deploy` remoto e smoke autenticado de Preview.
+5. Produção: despacho manual com SHA completo e confirmação de Production.
+6. Produção: prova de que o SHA é o `main` atual e possui CI verde.
+7. Produção: `db:migrate:production` e auditoria do journal.
+8. Produção: `vercel deploy --prod --skip-domain`.
+9. Produção: smoke autenticado de `/api/health/ready` no deployment isolado.
+10. Produção: `vercel promote` apenas depois do smoke aprovado.
 
-1. `bun run docs:check`
-2. `bun run test`
-3. `bun run typecheck`
-4. `bun run check`
-5. `bun run build`
-6. `bun run knip`
-7. `git diff --check`
+O grupo de concorrência de produção não cancela uma execução em andamento. Isso
+evita interromper uma migration para iniciar outra. Como o repositório é privado
+e required reviewers de Environments não estão disponíveis nos planos
+GitHub Free/Pro/Team, a autorização humana é o próprio `workflow_dispatch`:
+informe o SHA completo e marque `confirm_production`. O workflow recusa SHA que
+não seja o `main` atual ou não tenha CI verde.
 
-### Checklist de ambiente
+Não avance quando houver migration não validada, Preview usando dados
+definitivos, variável ausente, falha de CI, webhook não conferido ou alteração
+irreversível sem plano de recuperação.
 
-- URLs: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`, `CERTIFICATE_PUBLIC_BASE_URL`;
-- banco web: somente `DATABASE_URL` pooled;
-- job de migration: somente `DATABASE_URL_DIRECT`, nunca persistida no
-  container web;
-- auth: `BETTER_AUTH_SECRET` e origens confiáveis;
-- e-mail: `RESEND_API_KEY`, remetente/domínio e `SUPPORT_EMAIL`;
-- pagamentos: chave, base v2, segredo e endpoint HTTPS AbacatePay;
-- vídeo: `JMVSTREAM_AUTH_RESOURCE`, token fallback opcional e plan ID;
-- R2: conta, dois buckets, chave, domínio público e CORS;
-- crons: `CRON_SECRET`, incluindo manutenção;
-- Sentry/readiness: DSNs e `HEALTHCHECK_SECRET` quando aplicáveis.
+## Configuração obrigatória
 
-O processo Node valida o contrato completo antes de aceitar tráfego. Não
-configure no web container `DATABASE_URL_DIRECT`, `INTERNAL_BOOTSTRAP_SECRET`
-nem variáveis E2E. `SENTRY_AUTH_TOKEN`,
-`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e `DEPLOYMENT_VERSION` são entradas de
-build, não segredos de runtime.
+### GitHub Repository
 
-## Banco
+- secret `NEON_API_KEY`;
+- variable `NEON_PROJECT_ID`, apontando ao projeto Neon permitido para branches
+  efêmeras de CI.
 
-Com alteração de schema, valide migration forward em banco descartável, audite
-o alvo e aplique uma única vez com URL direta e aprovação explícita. Execute
-`bun run db:migrate:production` em uma job isolada ou
-`node /app/migrate-production.mjs` em um container one-shot da mesma imagem.
-O comando usa advisory lock; não o execute no startup do web container. Em
-seguida audite journal/catálogo e execute o migrador outra vez. Nunca use
-`db:push`, `db:reset` ou rollback destrutivo. Ver
-[Banco e migrations](database-and-migrations.md).
+### GitHub Environment `vercel-preview`
+
+- secret `VERCEL_TOKEN`;
+- secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Preview;
+- secret `VERCEL_AUTOMATION_BYPASS_SECRET`, dedicado ao smoke protegido;
+- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+
+### GitHub Environment `vercel-production`
+
+- secret `VERCEL_TOKEN`;
+- secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Production;
+- secret `VERCEL_AUTOMATION_BYPASS_SECRET`, igual ao bypass do projeto Vercel;
+- secret `DATABASE_URL_DIRECT`, apontando à branch Neon definitiva;
+- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+
+### Vercel
+
+Configure cada valor no ambiente correto. Preview nunca reutiliza banco, bucket,
+webhook ou credenciais financeiras de Production.
+
+Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
+`BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
+`CLIENT_IP_SOURCE=x-forwarded-for`, `AUTH_PUBLIC_SIGNUP_ENABLED=false` e
+`SCHEDULED_JOBS_ENABLED=false`. As variáveis de sistema da Vercel devem estar
+expostas; a origem prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` nos
+deployments criados pela CLI sem alias de branch.
+
+Os valores abaixo pertencem a Production:
+
+- URLs: `BETTER_AUTH_URL`, `NEXT_PUBLIC_APP_URL`,
+  `CERTIFICATE_PUBLIC_BASE_URL`;
+- banco: `DATABASE_URL` pooled;
+- auth: `BETTER_AUTH_SECRET`, `BETTER_AUTH_TRUSTED_ORIGINS` quando necessário e
+  `AUTH_PUBLIC_SIGNUP_ENABLED`;
+- e-mail: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPPORT_EMAIL`;
+- pagamentos: credenciais e segredo de webhook AbacatePay;
+- vídeo: credenciais JMVStream;
+- R2: conta, dois buckets, chaves, origem pública e CORS;
+- crons: `CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`;
+- observabilidade: Sentry e `HEALTHCHECK_SECRET`;
+- build: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`.
+
+As três URLs canônicas devem compartilhar a mesma origem HTTPS em Production.
+Atualize os callbacks/webhooks dos providers somente depois que o domínio
+definitivo responder no deployment novo.
 
 ## Crons
 
-O contrato autoritativo vive em `src/config/scheduled-jobs.ts`. No Coolify,
-cadastre Scheduled Tasks em UTC com os comandos abaixo:
+`vercel.json` é a autoridade das quatro agendas. A Vercel chama os Route
+Handlers com `Authorization: Bearer <CRON_SECRET>`. Cada rota:
 
-- `0 10 * * *`: `node /app/run-scheduled-job.mjs enrollments`;
-- `*/5 * * * *`: `node /app/run-scheduled-job.mjs jmvstream`;
-- `*/5 * * * *`: `node /app/run-scheduled-job.mjs outbox`;
-- `0 4 * * *`: `node /app/run-scheduled-job.mjs maintenance`;
-- timeout da tarefa no Coolify: 10 minutos para `enrollments` e `maintenance`; 4 minutos para `jmvstream` e `outbox`;
-- Bearer igual a `CRON_SECRET`;
-- última execução, duração, status e alerta de falha.
+- recusa execução quando `SCHEDULED_JOBS_ENABLED=false`;
+- adquire lease persistente em `scheduled_job_leases`;
+- limita o trabalho ao prazo interno menor que `maxDuration`;
+- libera somente o lease do próprio token;
+- pode ser repetida sem depender da memória de uma instância.
 
-Manutenção técnica expira sessões/rate limits e aplica a retenção de analytics. Não há cron, inbox ou execução de anonimização.
-O runner aplica timeout por tarefa e retorna código diferente de zero em erro.
-O Coolify não deve iniciar retry paralelo: repita somente depois do término ou
-timeout anterior. Outbox e manutenções são idempotentes; a sync JMVStream usa
-advisory lock e responde `skipped` quando outra execução está ativa.
+Agendas UTC:
+
+- `0 10 * * *`: matrículas;
+- `*/5 * * * *`: JMVStream;
+- `*/5 * * * *`: outbox;
+- `0 4 * * *`: manutenção.
+
+Mantenha o kill switch desligado durante configuração e smoke. Ative em
+Production somente depois de migrations, providers e observabilidade estarem
+confirmados.
 
 ## Smoke test
 
-- liveness pública em `/api/health` e readiness autenticada em
-  `/api/health/ready`, sem detalhes de dependência;
-- login e recuperação de senha em Conta de teste;
-- catálogo, Aula e painel conforme papel;
-- checkout seguro, webhook de teste e deduplicação;
-- upload/sync JMVStream e upload/download R2;
-- consulta pública de Certificado;
-- execução manual autorizada de cada cron em ambiente de teste.
-
-Infraestrutura externa não é comprovada pelo repositório. Registre ambiente, data e operadora da conferência.
+1. `/api/health` responde `ok`.
+2. `/api/health/ready`, com segredo, comprova banco e migration mínima.
+3. Login, cadastro, recuperação e fronteiras Admin/Aluna.
+4. Curso, Aula, checkout e webhook de teste.
+5. Upload direto JMVStream e R2, incluindo CORS.
+6. Emissão, download autenticado e consulta pública de Certificado.
+7. Uma chamada manual autorizada de cada cron em Preview.
+8. Logs e evento de teste no Sentry sem PII.
 
 ## Rollback
 
-- aplicação: selecionar a tag SHA anterior e reimplantar somente se ela for
-  compatível com o schema atual; o rollback nativo do Coolify depende de a
-  imagem ainda existir localmente, portanto GHCR e o SHA são a autoridade;
-- variáveis: restaurar valor anterior sem registrar segredo;
-- banco: forward-fix revisado, nunca reset;
-- mídia: preservar objetos até confirmar referências.
+- aplicação: redeploy de um SHA anterior somente se compatível com o schema;
+- banco: forward-fix revisado, nunca reset ou migration destrutiva improvisada;
+- variáveis: restaure a versão anterior no ambiente correto;
+- mídia: preserve objetos até confirmar referências;
+- jobs: desligue `SCHEDULED_JOBS_ENABLED` antes de conter um incidente recorrente.
 
-## Runbooks de incidente
+O deployment anterior da Vercel é um recurso operacional, não um rollback de
+schema. Migrations devem continuar expand/contract quando versões puderem
+coexistir.
 
-### Pagamento/webhook
+## Incidentes
 
-1. Identifique Pedido e evento externo.
-2. Verifique autenticação, `webhook_events` e revisão.
-3. Compare snapshot de valor/estado e Concessão/Matrícula.
-4. Use `retryWebhook` somente com registro de motivo.
+Use `correlationId`, deployment SHA e ambiente para localizar logs. Nunca copie
+tokens, URLs de banco ou payloads pessoais para tickets.
 
-### JMVStream e R2
+- pagamento: confira `webhook_events`, Pedido, revisão e projeção de acesso;
+- e-mail/outbox: confira tópico, tentativas, dead letter e janela de
+  idempotência do Resend;
+- JMVStream/R2: diferencie presign, CORS, upload, processamento, cópia e delete;
+- cron: confira kill switch, autenticação, lease, deadline e backlog;
+- banco: confira URL alvo sem expor credencial, journal e migration mínima.
 
-1. Isole sessão/ativo local e hash ou bucket/chave.
-2. Diferencie parte, complete, processamento, sync, delete, CORS e publicação.
-3. Preserve ETags e IDs; não reinicie upload ou limpeza ampla sem conferir estado.
-4. Trate divergência `gallery` como bloqueio de contrato.
-
-### E-mail e outbox
-
-1. Confirme commit do banco.
-2. Consulte dead letter em **Admin > Auditoria** para Certificado, acesso e expiração.
-3. Verifique tópico, tentativas, código e estado atual sem expor payload.
-4. Reprocesse com motivo; após 24 horas o Resend pode duplicar resultado ambíguo.
-
-### Manutenção, banco e recuperação
-
-1. Confira agenda, Bearer, status e `correlationId`; nunca registre o bearer.
-2. Confirme pool runtime, URL direta e journal antes de diagnosticar schema.
-3. Para indisponibilidade, restaure aplicação compatível ou aplique forward-fix revisado.
-4. Para ensaio de restore, use branch isolada e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação).
-
-## Registro mínimo
-
-Horário UTC, ambiente, capacidade, IDs internos/externos não sensíveis, impacto, decisão, comandos/ações, resultado, responsável pela próxima ação e necessidade de post-mortem.
-
-## Gates externos ao repositório
-
-Antes do primeiro tráfego real: habilite 2FA no Coolify, desative atualização
-automática do control plane, restrinja SSH por IP/VPN, configure alertas de
-deploy/task/backup/disco/servidor, preserve `APP_KEY` e chaves SSH fora da VPS
-e conclua um restore do backup em destino isolado. Nenhum teste deste
-repositório comprova esses controles.
+Registre horário UTC, ambiente, SHA, impacto, ação, resultado e responsável pela
+próxima decisão.

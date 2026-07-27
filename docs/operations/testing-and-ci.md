@@ -21,15 +21,25 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 9. build;
 10. Knip;
 11. auditoria das dependências de produção;
-12. build `linux/arm64`, migration e readiness contra PostgreSQL 18 isolado;
-13. publicação em GHCR por SHA na `main`.
+12. build remoto, deploy e smoke autenticado de um candidato Vercel Preview;
+13. migration controlada e deploy Production do SHA verde da `main`.
 
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
 contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
-`container` só inicia depois de todos esses gates.
+`vercel-preview` só inicia depois de todos esses gates.
+
+O deployment Preview é deliberadamente um smoke de infraestrutura: usa a
+branch Neon sanitizada, valida build/runtime e executa somente readiness
+autenticada. Não recebe R2, Resend, AbacatePay ou JMVStream e não substitui as
+jornadas funcionais do Playwright. A validação do ambiente bloqueia o
+deployment se credenciais desses providers ou jobs habilitados aparecerem em
+Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
+preferido quando existe alias de branch; o segundo é o hostname disponível nos
+deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
+o bypass de automação.
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
@@ -208,15 +218,20 @@ um segredo-placeholder e URLs `https://ci-build.invalid` somente para compilar; 
 provedores ou credenciais reais e não produz artefato para deploy. Um deploy continua exigindo as
 variáveis reais do ambiente alvo, conforme o [runbook de deploy](deploy-and-incidents.md).
 
-Pull requests ainda constroem a imagem ARM64 com uma chave efêmera e URL
-`.invalid`, sem publicar. Push na `main` exige
-`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`, `PRODUCTION_APP_URL` e
-`R2_PUBLIC_BASE_URL`, gera SBOM/provenance e publica somente
-`ghcr.io/<repositorio>:<git-sha>`. A chave de Server Actions é BuildKit secret
-e não vira `ARG`, layer ou variável do runtime. Não crie tag `latest`.
-Antes de publicar, o smoke inicia PostgreSQL 18 em rede isolada, aplica a
-cadeia pelo `migrate-production.mjs` empacotado e exige que o health check de
-readiness da própria imagem fique saudável.
+Depois desses gates, `vercel-preview` solicita à Vercel um build remoto, publica
+um candidato isolado e executa `vercel curl /api/health/ready` com autenticação.
+O ambiente `vercel-preview` do GitHub fornece token, IDs do projeto e uma cópia
+do `HEALTHCHECK_SECRET`; as demais variáveis de runtime ficam na Vercel.
+
+Uma CI verde na `main` habilita, mas não aciona, o workflow separado de
+produção. A proprietária o executa manualmente com o SHA completo e a
+confirmação de Production. O job prova que o SHA é o `main` atual e possui CI
+verde, usa o GitHub Environment `vercel-production`, aplica e audita as
+migrations com `DATABASE_URL_DIRECT`, solicita um build Production remoto sem
+promoção de domínio, executa o smoke de readiness nesse deployment isolado e só
+então o promove. O grupo de concorrência não cancela uma migration em andamento.
+Deploy Git automático da Vercel deve ficar desligado para não duplicar esse
+pipeline.
 
 ## Verificação local
 

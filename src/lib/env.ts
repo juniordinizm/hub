@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { resolveCanonicalApplicationEnvironment } from "@/lib/application-origin";
+import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 
 const optionalNonEmptyString = z.preprocess((value) => {
@@ -59,11 +61,19 @@ const serverEnvSchema = z.object({
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
   SENTRY_DSN: optionalNonEmptyString,
+  SCHEDULED_JOBS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   SUPPORT_EMAIL: optionalNonEmptyString,
   VERCEL: optionalNonEmptyString,
+  VERCEL_BRANCH_URL: optionalNonEmptyString,
+  VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
+  VERCEL_URL: optionalNonEmptyString,
 });
 
 type ServerEnvironment = z.infer<typeof serverEnvSchema>;
+type RawEnvironment = Readonly<Record<string, string | undefined>>;
 
 const isLoopbackE2eRuntime = (env: ServerEnvironment): boolean => {
   const applicationUrls = [
@@ -81,23 +91,42 @@ const isLoopbackE2eRuntime = (env: ServerEnvironment): boolean => {
   );
 };
 
-const validateServerEnvironment = (env: ServerEnvironment): void => {
+const validateCanonicalProductionUrls = (
+  rawEnvironment: RawEnvironment
+): void => {
+  if (!rawEnvironment.BETTER_AUTH_URL?.trim()) {
+    throw new Error("BETTER_AUTH_URL is required in production.");
+  }
+
+  if (!rawEnvironment.NEXT_PUBLIC_APP_URL?.trim()) {
+    throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
+  }
+
+  if (!rawEnvironment.CERTIFICATE_PUBLIC_BASE_URL?.trim()) {
+    throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
+  }
+};
+
+const getIsolatedE2eProductionProblems = (
+  rawEnvironment: RawEnvironment
+): string[] => [
+  ...(rawEnvironment.DATABASE_URL_DIRECT?.trim()
+    ? ["DATABASE_URL_DIRECT must not be set in the web runtime"]
+    : []),
+  ...(rawEnvironment.INTERNAL_BOOTSTRAP_SECRET?.trim()
+    ? ["INTERNAL_BOOTSTRAP_SECRET must not be set in production"]
+    : []),
+];
+
+const validateServerEnvironment = (
+  env: ServerEnvironment,
+  rawEnvironment: RawEnvironment
+): void => {
   if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
     throw new Error("BETTER_AUTH_SECRET is required in production.");
   }
 
-  if (env.NODE_ENV === "production" && !process.env.BETTER_AUTH_URL?.trim()) {
-    throw new Error("BETTER_AUTH_URL is required in production.");
-  }
-
-  if (
-    env.NODE_ENV === "production" &&
-    !process.env.NEXT_PUBLIC_APP_URL?.trim()
-  ) {
-    throw new Error("NEXT_PUBLIC_APP_URL is required in production.");
-  }
-
-  if (env.E2E_TEST_MODE && process.env.CI !== "true") {
+  if (env.E2E_TEST_MODE && rawEnvironment.CI !== "true") {
     throw new Error("E2E_TEST_MODE requires CI=true.");
   }
 
@@ -106,27 +135,27 @@ const validateServerEnvironment = (env: ServerEnvironment): void => {
     throw new Error("E2E_TEST_MODE requires loopback application URLs.");
   }
 
-  if (
-    env.NODE_ENV === "production" &&
-    !process.env.CERTIFICATE_PUBLIC_BASE_URL?.trim()
-  ) {
-    throw new Error("CERTIFICATE_PUBLIC_BASE_URL is required in production.");
+  if (env.NODE_ENV === "production" && env.VERCEL_ENV === "preview") {
+    const previewProblems = getPreviewEnvironmentProblems(rawEnvironment);
+
+    if (previewProblems.length > 0) {
+      throw new Error(
+        `Preview environment is invalid: ${previewProblems.join(", ")}.`
+      );
+    }
+
+    return;
   }
 
   if (env.NODE_ENV !== "production") {
     return;
   }
 
+  validateCanonicalProductionUrls(rawEnvironment);
+
   const productionProblems = isolatedE2eRuntime
-    ? [
-        ...(process.env.DATABASE_URL_DIRECT?.trim()
-          ? ["DATABASE_URL_DIRECT must not be set in the web runtime"]
-          : []),
-        ...(process.env.INTERNAL_BOOTSTRAP_SECRET?.trim()
-          ? ["INTERNAL_BOOTSTRAP_SECRET must not be set in production"]
-          : []),
-      ]
-    : getProductionEnvironmentProblems(process.env);
+    ? getIsolatedE2eProductionProblems(rawEnvironment)
+    : getProductionEnvironmentProblems(rawEnvironment);
 
   if (productionProblems.length > 0) {
     throw new Error(
@@ -136,7 +165,8 @@ const validateServerEnvironment = (env: ServerEnvironment): void => {
 };
 
 export const getServerEnv = () => {
-  const env = serverEnvSchema.parse({
+  const rawEnvironment = {
+    ...process.env,
     ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
     ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
@@ -166,11 +196,18 @@ export const getServerEnv = () => {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     VERCEL: process.env.VERCEL,
-  });
+    VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_URL: process.env.VERCEL_URL,
+  };
+  const sourceEnvironment =
+    resolveCanonicalApplicationEnvironment(rawEnvironment);
+  const env = serverEnvSchema.parse(sourceEnvironment);
 
-  validateServerEnvironment(env);
+  validateServerEnvironment(env, rawEnvironment);
 
   return {
     ...env,

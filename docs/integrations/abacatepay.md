@@ -43,9 +43,9 @@ segredo falha fechado. `verifyAbacatePaySignature` usa comparação segura.
 
 O `webhookSecret` na query não é fallback legado: a documentação oficial
 atual o define como uma das duas camadas, junto do HMAC. Por isso ele não pode
-ser removido em nome da migração Vercel/Coolify. O proxy não deve registrar
-query strings de webhook; mantenha access log desativado ou aplique redação
-antes de habilitá-lo. Nunca copie a URL completa para logs, alertas ou tickets.
+ser removido na migração de hospedagem. A observabilidade não deve registrar
+query strings de webhook; aplique redação antes de habilitar logs desse
+endpoint. Nunca copie a URL completa para logs, alertas ou tickets.
 
 Fluxo:
 

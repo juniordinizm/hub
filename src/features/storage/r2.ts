@@ -5,11 +5,11 @@ import {
   DeleteObjectsCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { validateBannerUploadRequest } from "@/features/storage/banner-image";
 import {
   createBannerBlurDataUrl,
   validateBannerImageFile,
@@ -27,6 +27,13 @@ import {
   validateLessonAttachmentUpload,
   validateLessonImagePreviewUpload,
 } from "@/features/storage/r2-objects";
+import {
+  assertStagedAdminImageOwnership,
+  buildStagedAdminImageUpload,
+  STAGED_ADMIN_IMAGE_PREFIX,
+  type StagedAdminImagePurpose,
+  type StagedAdminImageReference,
+} from "@/features/storage/staged-image-upload";
 
 const UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_URL_EXPIRES_SECONDS = 5 * 60;
@@ -197,36 +204,40 @@ export const createLessonResourceUploadUrl = async ({
   };
 };
 
-const buildBannerObjectKey = ({
-  nonce,
-  extension,
-}: {
-  nonce: string;
-  extension: string;
-}): string => `dashboard/banners/${nonce}.${extension}`;
-
-export const createBannerUploadUrl = async ({
+export const createStagedAdminImageUploadUrl = async ({
+  actorUserId,
+  aggregateId,
   contentType,
+  fileName,
+  purpose,
   sizeBytes,
-  extension,
 }: {
+  actorUserId: string;
+  aggregateId: string;
   contentType: string;
+  fileName: string;
+  purpose: StagedAdminImagePurpose;
   sizeBytes: number;
-  extension: string;
-}): Promise<{ uploadUrl: string; key: string }> => {
-  validateBannerUploadRequest({ contentType, sizeBytes });
-
+}): Promise<{
+  reference: StagedAdminImageReference;
+  uploadUrl: string;
+}> => {
+  const reference = buildStagedAdminImageUpload({
+    actorUserId,
+    aggregateId,
+    contentType,
+    fileName,
+    nonce: randomUUID(),
+    purpose,
+    sizeBytes,
+  });
   const config = getR2Config();
-  const nonce = randomUUID();
-  const key = buildBannerObjectKey({ nonce, extension });
-
-  const client = getR2Client(config);
   const uploadUrl = await getSignedUrl(
-    client,
+    getR2Client(config),
     new PutObjectCommand({
       Bucket: config.bucketName,
-      ContentType: contentType,
-      Key: key,
+      ContentType: reference.contentType,
+      Key: reference.key,
     }),
     {
       expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
@@ -234,7 +245,63 @@ export const createBannerUploadUrl = async ({
     }
   );
 
-  return { uploadUrl, key };
+  return { reference, uploadUrl };
+};
+
+export const readStagedAdminImageFile = async ({
+  actorUserId,
+  aggregateId,
+  purpose,
+  reference,
+}: {
+  actorUserId: string;
+  aggregateId: string;
+  purpose: StagedAdminImagePurpose;
+  reference: StagedAdminImageReference;
+}): Promise<File> => {
+  assertStagedAdminImageOwnership({
+    actorUserId,
+    aggregateId,
+    purpose,
+    reference,
+  });
+
+  await verifyStagedAdminImageObject(reference);
+
+  const config = getR2Config();
+  const client = getR2Client(config);
+  const object = await client.send(
+    new GetObjectCommand({
+      Bucket: config.bucketName,
+      Key: reference.key,
+    })
+  );
+  if (!object.Body) {
+    throw new Error("O arquivo temporario nao esta disponivel.");
+  }
+
+  const body = Uint8Array.from(await object.Body.transformToByteArray());
+  return new File([body.buffer], reference.fileName, {
+    type: reference.contentType,
+  });
+};
+
+export const verifyStagedAdminImageObject = async (
+  reference: StagedAdminImageReference
+): Promise<void> => {
+  const config = getR2Config();
+  const objectHead = await getR2Client(config).send(
+    new HeadObjectCommand({
+      Bucket: config.bucketName,
+      Key: reference.key,
+    })
+  );
+  if (
+    objectHead.ContentLength !== reference.sizeBytes ||
+    objectHead.ContentType !== reference.contentType
+  ) {
+    throw new Error("O arquivo enviado nao corresponde ao upload preparado.");
+  }
 };
 
 export const createLessonResourceDownloadUrl = async ({
@@ -474,6 +541,53 @@ export const deletePublicR2Objects = async (keys: string[]): Promise<void> => {
       })
     );
   }
+};
+
+export const deleteExpiredStagedAdminImages = async ({
+  olderThan,
+  shouldContinue = async () => true,
+}: {
+  olderThan: Date;
+  shouldContinue?: () => Promise<boolean>;
+}): Promise<number> => {
+  const config = getR2Config();
+  const client = getR2Client(config);
+  let continuationToken: string | undefined;
+  let removed = 0;
+
+  do {
+    if (!(await shouldContinue())) {
+      break;
+    }
+    const page = await client.send(
+      new ListObjectsV2Command({
+        Bucket: config.bucketName,
+        ContinuationToken: continuationToken,
+        Prefix: `${STAGED_ADMIN_IMAGE_PREFIX}/`,
+      })
+    );
+    const expiredKeys = (page.Contents ?? [])
+      .filter(
+        (object) =>
+          object.Key &&
+          object.LastModified &&
+          object.LastModified.getTime() < olderThan.getTime()
+      )
+      .map((object) => object.Key as string);
+
+    if (expiredKeys.length > 0) {
+      if (!(await shouldContinue())) {
+        break;
+      }
+      await deleteR2Objects(expiredKeys);
+      removed += expiredKeys.length;
+    }
+    continuationToken = page.IsTruncated
+      ? page.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  return removed;
 };
 
 export const uploadDashboardBannerFile = async ({

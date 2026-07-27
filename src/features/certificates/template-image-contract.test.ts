@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT,
   MAX_CERTIFICATE_BACKGROUND_BYTES,
   MAX_CERTIFICATE_SIGNATURE_BYTES,
   validateCertificateImageFile,
@@ -10,13 +9,6 @@ const image = (size: number, type = "image/png"): File =>
   new File([new Uint8Array(size)], "imagem.png", { type });
 
 describe("validateCertificateImageFile", () => {
-  it("reserves multipart overhead above the combined image limits", () => {
-    expect(CERTIFICATE_TEMPLATE_ACTION_BODY_SIZE_LIMIT).toBe("14mb");
-    expect(
-      MAX_CERTIFICATE_BACKGROUND_BYTES + MAX_CERTIFICATE_SIGNATURE_BYTES
-    ).toBeLessThan(14 * 1024 * 1024);
-  });
-
   it("uses the background limit from the shared contract", () => {
     expect(() =>
       validateCertificateImageFile(

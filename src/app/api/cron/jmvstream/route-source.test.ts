@@ -9,7 +9,8 @@ describe("JMVStream cron route", () => {
     );
 
     expect(source).toContain("syncPendingJmvstreamPlayers");
-    expect(source).toContain("env.CRON_SECRET");
-    expect(source).toContain("Bearer ");
+    expect(source).toContain("getScheduledJobEarlyResponse");
+    expect(source).toContain("runWithScheduledJobLease");
+    expect(source).toContain("export const maxDuration = 300");
   });
 });

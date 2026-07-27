@@ -8,7 +8,24 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 
 ## Certificados
 
-Cada Curso pode habilitar certificado e possuir um template publicado por vez. O template tem arte A4 horizontal privada, campos padronizados e coordenadas normalizadas. A administração recorta a arte na proporção A4 e o servidor decodifica e normaliza o resultado em WebP antes de gravá-lo no R2. Fundo e assinatura aceitam, respectivamente, até 10 MiB e 2 MiB; a Server Action reserva 14 MiB para os dois arquivos, o spec e o overhead multipart. Rascunho e publicação são separados; publicar substitui a versão ativa apenas para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ, é obrigatório para publicar; responsável e assinatura visual são opcionais por Curso. Não há HTML livre, campos arbitrários ou inferência automática de posicionamento.
+Cada Curso pode habilitar certificado e possuir um template publicado por vez.
+O template tem arte A4 horizontal privada, campos padronizados e coordenadas
+normalizadas. A administração recorta a arte na proporção A4 e envia o resultado
+diretamente ao R2 por URL assinada. A Server Action recebe somente a referência
+temporária; o servidor confirma tipo e tamanho, decodifica e normaliza a imagem
+em WebP. Fundo e assinatura aceitam, respectivamente, até 10 MiB e 2 MiB.
+Rascunho e publicação são separados; publicar substitui a versão ativa apenas
+para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ,
+é obrigatório para publicar; responsável e assinatura visual são opcionais por
+Curso. Não há HTML livre, campos arbitrários ou inferência automática de
+posicionamento.
+
+Quando um rascunho substitui fundo ou assinatura, a chave anterior entra em
+`certificate_template_asset_cleanup` com carência de 24 horas. A manutenção
+reconfirma que nenhum template referencia a chave antes de excluir no R2. O
+delete ocorre fora da transação Postgres, possui claim recuperável e mantém um
+tombstone depois do sucesso; assim, formulário antigo não ressuscita uma arte
+já removida e falha de provider pode ser repetida.
 
 Certificado preserva código público, Conta, Curso, publicação interna de origem, data, carga horária e snapshots de nome e título. Seus estados são `valid` e `revoked`.
 
@@ -52,6 +69,9 @@ Uma solicitação real é um incidente excepcional: registrar o caso no canal op
 - remove limites expirados da consulta pública de certificados;
 - consolida eventos de analytics anteriores ao dia atual em métricas diárias;
 - remove eventos brutos de analytics após 90 dias e métricas diárias após 13 meses;
+- remove uploads administrativos temporários abandonados após 24 horas;
+- reconcilia artes de template substituídas por uma fila persistente, com
+  carência, claim, nova verificação de referência e retry;
 - reconcilia PDFs determinísticos órfãos de Certificados revogados somente após expirar o lease, confirmar ausência de claim e de mensagem de renderização em processamento e repetir a verificação imediatamente antes da exclusão.
 
 As preferências de analytics da Aluna estão em [Aprendizagem e progresso](learning-content-and-progress.md). Base legal, canal de direitos, retenção de registros financeiros e qualquer anonimização exigem decisão jurídica futura.
