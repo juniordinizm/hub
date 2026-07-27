@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # PROTEA-R Hub
@@ -51,14 +51,14 @@ host remoto e exigem confirmação quando destrutivos.
 
 ```bash
 bun run dev
-bun run docs:check
-bun run test
-bun run typecheck
-bun run check
-bun run build
+bun run verify:quick
+bun run verify
 ```
 
-`bun run check` é somente leitura. Para correções automáticas deliberadas, use `bun run fix` e revise o diff.
+`verify:quick` executa os gates rápidos durante o desenvolvimento. `verify`
+executa a verificação completa exigida antes de um Pull Request. Os dois comandos
+param no primeiro erro. `bun run check` é somente leitura. Para correções
+automáticas deliberadas, use `bun run fix` e revise o diff.
 
 ## Mapa arquitetural
 
@@ -82,10 +82,13 @@ O mapa completo, inclusive fluxos ponta a ponta, está em [Arquitetura](docs/arc
 
 ## Estado de verificação
 
-O deploy alvo é Vercel Pro com Next.js nativo, Functions Node.js 24 em `gru1`,
-Neon pooled em São Paulo e Cloudflare R2. A migração está sendo executada em
-pacotes verificáveis; consulte o
-[status Vercel-first](docs/operations/vercel-migration-status.md) e o
-[runbook de deploy](docs/operations/deploy-and-incidents.md). Projeto Vercel,
-domínio, secrets, providers e promoção continuam gates externos até o primeiro
-deployment validado.
+Production está ativa em `https://app.neurocapacitar.com.br`, na Vercel Pro,
+com Next.js nativo, Functions Node.js 24 em `gru1`, Neon pooled em São Paulo e
+Cloudflare R2. Push e merge não publicam Production automaticamente: a promoção
+usa um workflow manual que aplica migrations pendentes, testa um deployment sem
+domínio e só então o promove.
+
+Para publicar qualquer mudança, siga o
+[tutorial de alteração até Production](docs/operations/production-release-guide.md).
+O [status Vercel-first](docs/operations/vercel-migration-status.md) é registro
+histórico da migração concluída, não o procedimento diário.

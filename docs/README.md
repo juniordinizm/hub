@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Documentação do Hub
@@ -39,11 +39,12 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 ### Operação
 
 - [Ambiente e desenvolvimento local](operations/environment-and-local-development.md)
-- [Desenvolvimento compartilhado e deploy para Production](operations/shared-development-and-release-guide.md)
+- [Desenvolvimento compartilhado](operations/shared-development-and-release-guide.md)
+- [Tutorial: da alteração até Production](operations/production-release-guide.md)
 - [Banco e migrations](operations/database-and-migrations.md)
 - [Deploy e incidentes](operations/deploy-and-incidents.md)
-- [Primeiro deploy Vercel-first](operations/vercel-first-launch-checklist.md)
-- [Status da migração Vercel-first](operations/vercel-migration-status.md)
+- [Configuração inicial Vercel-first, concluída](operations/vercel-first-launch-checklist.md)
+- [Registro histórico da migração Vercel-first](operations/vercel-migration-status.md)
 - [Testes e CI](operations/testing-and-ci.md)
 - [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
 - [Observabilidade e recuperaÃ§Ã£o](operations/observability-and-recovery.md)

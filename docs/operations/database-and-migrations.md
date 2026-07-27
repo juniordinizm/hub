@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Banco e migrations
@@ -26,6 +26,13 @@ mudanças. A versão final foi validada na branch descartável
 remoção automática dessa branch.
 
 Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta conferida, branch/backup disponível, validação em banco descartável e aprovação explícita de promoção.
+
+O procedimento normal não chama esse comando diretamente. Quando o pipeline
+estiver liberado, o workflow `Migrate Neon development` atualiza Development
+depois do merge e `Deploy Vercel production` atualiza Production antes do
+deployment. Existe hoje um ciclo conhecido entre migration nova, readiness do
+Preview persistente e exigência de CI verde da `main`; não use execução manual
+para contorná-lo. Veja o [tutorial de release](production-release-guide.md).
 
 ## Autoridades
 
