@@ -117,10 +117,9 @@ auditoria inicial encontrou `app` livre; depois da configuração, consultas
 públicas confirmaram o CNAME da Vercel, os MX/SPF do Lark Mail, o Return-Path,
 DKIM e DMARC do Resend.
 
-Preview agora deriva as três URLs canônicas do alias de branch somente quando
-`VERCEL_ENV=preview`; a implementação será ajustada para preferir
-`VERCEL_BRANCH_URL` e aceitar `VERCEL_URL` apenas sem Standard Deployment
-Protection. Production continua exigindo
+Preview deriva as três URLs canônicas do hostname Vercel somente quando
+`VERCEL_ENV=preview`; prefere `VERCEL_BRANCH_URL` e aceita `VERCEL_URL` nos
+deployments por CLI sem alias de branch. Production continua exigindo
 `https://app.neurocapacitar.com.br` explicitamente. E-mails transacionais usam
 `SUPPORT_EMAIL` como `Reply-To` padrão, evitando respostas para a identidade sem
 caixa `notificacoes@`.
@@ -168,16 +167,16 @@ Resend ou qualquer dado de Production; jobs permanecerão desligados. A
 validação falhará fechada se esses limites forem violados. Jornadas funcionais
 continuam na CI e providers definitivos pertencem ao candidato Production.
 
-O desenho também substitui a dependência primária de `VERCEL_URL` por
-`VERCEL_BRANCH_URL`, pois a documentação atual da Vercel declara
-`VERCEL_URL` incompatível com Standard Deployment Protection. O fallback antigo
-só permanece para deployments Preview explicitamente desprotegidos.
+O desenho prefere `VERCEL_BRANCH_URL`, pois ele representa um alias estável
+quando há integração Git. A execução real demonstrou que deploys por CLI sem
+integração Git não recebem esse alias e expõem somente `VERCEL_URL`; esse
+hostname é aceito sem remover Standard Deployment Protection.
 
 A auditoria read-only do projeto confirmou `autoExposeSystemEnvs=true`,
 Standard Deployment Protection em todos os deployments exceto domínios
-personalizados, ausência de conexão Git e zero deployments. Portanto,
-`VERCEL_BRANCH_URL` não é apenas preferência: é requisito para o primeiro
-Preview protegido criado pelo workflow.
+personalizados, ausência de conexão Git e zero deployments. A ausência de
+conexão Git explica por que o Preview criado pelo workflow não recebe
+`VERCEL_BRANCH_URL`.
 
 O runtime agora possui validação Preview separada e fail-closed. Ela exige Neon
 pooled, segredos próprios de autenticação/readiness, atribuição
@@ -186,9 +185,9 @@ branch. URLs canônicas explícitas, conexão direta, bootstrap, variáveis E2E 
 credenciais de AbacatePay, JMVStream, R2, Resend ou Sentry bloqueiam o startup.
 Production preserva seu contrato integral.
 
-`application-origin` prefere `VERCEL_BRANCH_URL`; o fallback em `VERCEL_URL`
-continua restrito ao utilitário para Preview desprotegido, enquanto o perfil
-deste projeto exige o alias. O job Preview continua sem secrets de provider.
+`application-origin` prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` somente em
+Preview quando o alias não existe. O job Preview continua sem secrets de
+provider.
 Verificação local desta fatia: 60 testes focados e typecheck passaram. Nenhum
 deployment ou commit ocorreu.
 
@@ -356,3 +355,11 @@ nos GitHub Environments `vercel-preview` e `vercel-production`. O smoke usa curl
 nativo com `x-vercel-protection-bypass` e o header próprio
 `Authorization: Bearer <HEALTHCHECK_SECRET>`. Deploy e promote continuam com o
 scope explícito do time; o comando beta `vercel curl` saiu dos workflows.
+
+A execução `30232152048` provou que o bypass funciona: a requisição atravessou
+Standard Deployment Protection e chegou ao Route Handler. O runtime respondeu
+500 porque o contrato Preview exigia `VERCEL_BRANCH_URL`, ausente em deployments
+por CLI sem integração Git. O log da função registrou somente
+`Preview environment is invalid: VERCEL_BRANCH_URL`. A validação agora aceita
+`VERCEL_BRANCH_URL` ou `VERCEL_URL`, mantendo o primeiro como preferência e
+preservando a proteção do deployment.

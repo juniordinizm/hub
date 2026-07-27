@@ -64,14 +64,24 @@ describe("Preview environment contract", () => {
     expect(problems.join(" ")).not.toContain(forbiddenValue);
   });
 
-  it("requires the protected Vercel branch alias", () => {
+  it("accepts the generated deployment hostname for CLI previews", () => {
     expect(
       getPreviewEnvironmentProblems({
         ...COMPLETE_PREVIEW_ENVIRONMENT,
         VERCEL_BRANCH_URL: "",
         VERCEL_URL: "protected-deployment.vercel.app",
       })
-    ).toContain("VERCEL_BRANCH_URL");
+    ).toEqual([]);
+  });
+
+  it("requires a Vercel branch alias or generated deployment hostname", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        VERCEL_BRANCH_URL: "",
+        VERCEL_URL: "",
+      })
+    ).toContain("VERCEL_BRANCH_URL or VERCEL_URL is required in Preview");
   });
 
   it("keeps jobs and public sign-up disabled", () => {

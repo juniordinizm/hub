@@ -26,13 +26,13 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |
 | `BETTER_AUTH_SECRET` | obrigatória em produção; mínimo de 32 caracteres | Better Auth | sim |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
-| `BETTER_AUTH_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | Better Auth | não |
+| `BETTER_AUTH_URL` | explícita em Production; derivada do hostname Vercel em Preview | Better Auth | não |
 | `AUTH_PUBLIC_SIGNUP_ENABLED` | opcional, default `false` | rota Better Auth | não |
 | `BETTER_AUTH_API_KEY` | Infra opcional | Dash/Sentinel | sim |
 | `BETTER_AUTH_API_URL` | Infra opcional | Dash/Sentinel | não |
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |
 | `NEXT_ALLOWED_DEV_ORIGINS` | dev atrás de proxy | `next.config.ts` | não |
-| `NEXT_PUBLIC_APP_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | links/redirects | público |
+| `NEXT_PUBLIC_APP_URL` | explícita em Production; derivada do hostname Vercel em Preview | links/redirects | público |
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
@@ -42,7 +42,7 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 | `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
-| `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada de `VERCEL_BRANCH_URL` em Preview | certificado/PDF | público |
+| `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
 | `SCHEDULED_JOBS_ENABLED` | kill switch; `true` somente após liberar os crons de Production | handlers cron | não |
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
@@ -84,12 +84,14 @@ está ausente. A lista de nomes fica em
 As URLs públicas devem usar HTTPS; `BETTER_AUTH_URL`,
 `CERTIFICATE_PUBLIC_BASE_URL` e `NEXT_PUBLIC_APP_URL` devem ter a mesma
 origem. Production exige as três explicitamente e usa
-`https://app.neurocapacitar.com.br`. Preview deriva as três de
-`VERCEL_BRANCH_URL` somente com `VERCEL_ENV=preview`; `VERCEL_URL` é fallback
-apenas quando Standard Deployment Protection não estiver ativo. O projeto
-Vercel precisa manter habilitada a exposição automática de variáveis de
-sistema. O perfil Preview exige somente Neon pooled, autenticação e readiness
-próprios, mantém jobs desligados e recusa credenciais de providers.
+`https://app.neurocapacitar.com.br`. Com `VERCEL_ENV=preview`, Preview prefere
+`VERCEL_BRANCH_URL`; deployments criados pela CLI sem integração Git usam
+`VERCEL_URL`, pois não recebem alias de branch. Os dois hostnames permanecem sob
+Standard Deployment Protection. O bypass de automação é usado somente pelo
+smoke da CI e não torna a URL pública. O projeto Vercel precisa manter habilitada
+a exposição automática de variáveis de sistema. O perfil Preview exige somente
+Neon pooled, autenticação e readiness próprios, mantém jobs desligados e recusa
+credenciais de providers.
 `DATABASE_URL` aceita somente os protocolos `postgres:` e `postgresql:`.
 Segredos emitidos por provedores externos seguem o contrato do provedor; o
 limite local de 32 caracteres vale somente para os segredos próprios de

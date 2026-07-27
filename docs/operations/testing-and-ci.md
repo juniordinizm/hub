@@ -36,8 +36,10 @@ branch Neon sanitizada, valida build/runtime e executa somente readiness
 autenticada. Não recebe R2, Resend, AbacatePay ou JMVStream e não substitui as
 jornadas funcionais do Playwright. A validação do ambiente bloqueia o
 deployment se credenciais desses providers ou jobs habilitados aparecerem em
-Preview. O contrato também exige `VERCEL_BRANCH_URL`, pois Standard Deployment
-Protection torna `VERCEL_URL` inadequada para essa origem.
+Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
+preferido quando existe alias de branch; o segundo é o hostname disponível nos
+deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
+o bypass de automação.
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,

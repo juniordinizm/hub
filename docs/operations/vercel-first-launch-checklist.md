@@ -367,8 +367,9 @@ Referências:
    - `RESEND_FROM_EMAIL=Neuro Capacitar <notificacoes@neurocapacitar.com.br>`.
 7. [x] Em **Settings > Environment Variables**, habilite
    **Automatically expose System Environment Variables**. Preview depende de
-   `VERCEL_ENV` e `VERCEL_BRANCH_URL`; `VERCEL_URL` só é fallback em
-   deployments sem Standard Deployment Protection.
+   `VERCEL_ENV` e de um hostname do deployment. O fluxo prefere
+   `VERCEL_BRANCH_URL`, mas usa `VERCEL_URL` quando o deploy por CLI não cria
+   alias de branch; Standard Deployment Protection continua ativa.
 8. Não cadastre `RESEND_API_KEY` de Production em Preview.
 
 ### 6.6 Atualizar callbacks e validar

@@ -5,7 +5,6 @@ const REQUIRED_PREVIEW_VARIABLES = [
   "DATABASE_URL",
   "HEALTHCHECK_SECRET",
   "SCHEDULED_JOBS_ENABLED",
-  "VERCEL_BRANCH_URL",
 ] as const;
 
 const FORBIDDEN_PREVIEW_VARIABLES = [
@@ -76,6 +75,12 @@ const getSecretProblems = (environment: Environment): string[] =>
       : [];
   });
 
+const getApplicationOriginProblems = (environment: Environment): string[] =>
+  hasValue(environment, "VERCEL_BRANCH_URL") ||
+  hasValue(environment, "VERCEL_URL")
+    ? []
+    : ["VERCEL_BRANCH_URL or VERCEL_URL is required in Preview"];
+
 export const getPreviewEnvironmentProblems = (
   environment: Environment
 ): string[] => {
@@ -103,7 +108,8 @@ export const getPreviewEnvironmentProblems = (
 
   problems.push(
     ...getSecretProblems(environment),
-    ...getDatabaseProblems(environment)
+    ...getDatabaseProblems(environment),
+    ...getApplicationOriginProblems(environment)
   );
 
   return [...new Set(problems)];

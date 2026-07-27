@@ -74,12 +74,14 @@ irreversível sem plano de recuperação.
 
 - secret `VERCEL_TOKEN`;
 - secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Preview;
+- secret `VERCEL_AUTOMATION_BYPASS_SECRET`, dedicado ao smoke protegido;
 - variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
 
 ### GitHub Environment `vercel-production`
 
 - secret `VERCEL_TOKEN`;
 - secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Production;
+- secret `VERCEL_AUTOMATION_BYPASS_SECRET`, igual ao bypass do projeto Vercel;
 - secret `DATABASE_URL_DIRECT`, apontando à branch Neon definitiva;
 - variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
 
@@ -92,7 +94,8 @@ Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
 `BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
 `CLIENT_IP_SOURCE=x-forwarded-for`, `AUTH_PUBLIC_SIGNUP_ENABLED=false` e
 `SCHEDULED_JOBS_ENABLED=false`. As variáveis de sistema da Vercel devem estar
-expostas; a origem vem de `VERCEL_BRANCH_URL`.
+expostas; a origem prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` nos
+deployments criados pela CLI sem alias de branch.
 
 Os valores abaixo pertencem a Production:
 
