@@ -33,8 +33,7 @@ const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
   R2_PUBLIC_BUCKET_NAME: "hub-development-public",
   R2_SECRET_ACCESS_KEY: "development-r2-secret",
   RESEND_API_KEY: "re_development",
-  RESEND_FROM_EMAIL:
-    "Neuro Capacitar Dev <notificacoes@dev.neurocapacitar.com.br>",
+  RESEND_FROM_EMAIL: "Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>",
   SCHEDULED_JOBS_ENABLED: "true",
   SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
   SUPPORT_EMAIL: "dev@example.com",
@@ -65,19 +64,29 @@ describe("Development environment contract", () => {
     expect(problems.join(" ")).not.toContain("secret");
   });
 
-  it("requires the approved Development buckets and Resend sender", () => {
+  it("accepts the shared Neuro Capacitar sender domain", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      RESEND_FROM_EMAIL:
+        "Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>",
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  it("requires the approved Development buckets and sender domain", () => {
     const problems = getDevelopmentEnvironmentProblems({
       ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
       R2_BUCKET_NAME: "neuro-prod-private",
       R2_PUBLIC_BUCKET_NAME: "neuro-prod-public",
-      RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
+      RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@example.com>",
     });
 
     expect(problems).toEqual(
       expect.arrayContaining([
         "R2_BUCKET_NAME must equal hub-development-private",
         "R2_PUBLIC_BUCKET_NAME must equal hub-development-public",
-        "RESEND_FROM_EMAIL must use dev.neurocapacitar.com.br",
+        "RESEND_FROM_EMAIL must use neurocapacitar.com.br",
       ])
     );
   });

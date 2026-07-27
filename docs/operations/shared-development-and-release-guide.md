@@ -39,11 +39,14 @@ Antes de liberar o desenvolvimento local, todos os itens da seção
 Estado confirmado em 2026-07-27:
 
 - buckets `hub-development-private` e `hub-development-public` criados;
-- acesso público, CORS e API key dos buckets ainda pendentes no painel;
-- branch Neon `development` pendente porque o MCP não permite selecionar
-  `vercel-preview` como pai;
-- conector Resend atual aponta à conta de `agenciasummit.com`, não à conta
-  `neurocapacitar.com.br`; nenhuma alteração foi feita nessa conta;
+- API key R2 Development criada; acesso público e CORS ainda precisam ser
+  confirmados no painel;
+- branch Neon `development` (`br-cool-voice-acsxtxyv`) criada com compute
+  `ep-silent-leaf-aclmy5uk`;
+- a leitura da branch confirmou 44 migrations e zero usuários, cursos e
+  matrículas antes do seed;
+- Resend Development reutiliza o domínio verificado
+  `neurocapacitar.com.br`, protegido por allowlist de destinatários;
 - AbacatePay, JMVStream e Sentry exigem configuração manual nas contas
   Development corretas.
 
@@ -54,11 +57,12 @@ Estado confirmado em 2026-07-27:
 - projeto: `damp-snow-22911188`;
 - branch Production: `production` (`br-dark-boat-ac5ju6m4`);
 - branch Preview: `vercel-preview` (`br-cool-leaf-acabyy5q`);
-- nova branch compartilhada: `development`;
-- pai da nova branch: `vercel-preview`, não `production`.
+- branch compartilhada: `development` (`br-cool-voice-acsxtxyv`);
+- compute Development: `ep-silent-leaf-aclmy5uk`;
+- pai da branch: `vercel-preview`, não `production`.
 
-Em 2026-07-27, `vercel-preview` possuía as 44 migrations e zero usuários,
-cursos e matrículas. Ela é uma origem limpa para `development`.
+Em 2026-07-27, a branch `development` possuía 44 migrations e zero usuários,
+cursos e matrículas antes do seed.
 
 ### Cloudflare R2
 
@@ -168,18 +172,14 @@ Valores resultantes:
 
 ### 3. Preparar o Resend Development
 
-Para separar reputação e identificação, prefira verificar
-`dev.neurocapacitar.com.br` no Resend. Isso não muda o domínio Production.
+Development reutiliza o domínio Resend verificado
+`neurocapacitar.com.br`. Não é necessário criar subdomínio adicional.
 
-1. No Resend, crie o domínio `dev.neurocapacitar.com.br`.
-2. Cadastre no DNS somente os registros exibidos pelo Resend.
-3. Aguarde o estado **Verified**.
-4. Crie uma API key chamada `hub-development`.
-5. Restrinja a key ao envio pelo domínio Development, quando o painel oferecer
-   esse escopo.
-6. Defina o remetente como
-   `Neuro Capacitar Dev <notificacoes@dev.neurocapacitar.com.br>`.
-7. Escolha uma caixa interna monitorada para receber os testes.
+1. Use um remetente identificado como
+   `Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>`.
+2. Escolha uma caixa interna monitorada para receber os testes.
+3. Cadastre somente caixas internas controladas em
+   `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST`.
 
 Valores resultantes:
 
@@ -187,11 +187,10 @@ Valores resultantes:
 - `RESEND_FROM_EMAIL`;
 - `SUPPORT_EMAIL`, apontando à caixa interna de teste.
 
-Não use a API key `hub-production`. Contas fictícias devem usar somente
-endereços controlados pela equipe. Antes de permitir cadastros arbitrários em
-Development, implemente uma allowlist ou redirecionamento técnico de
-destinatários; uma API key separada não impede envio a um endereço digitado por
-engano.
+O domínio e a credencial compartilhados ampliam o impacto de um vazamento
+local. Contas fictícias devem usar somente endereços controlados pela equipe.
+A allowlist obrigatória bloqueia destinatários arbitrários antes que o cliente
+Resend seja construído.
 
 Teste inicial:
 
@@ -199,7 +198,7 @@ Teste inicial:
 2. confirme a entrega;
 3. confira o remetente com o sufixo `Dev`;
 4. confira que o link aponta ao Development ativo;
-5. confira que nenhuma mensagem apareceu na atividade da API key Production.
+5. tente um destinatário fora da allowlist e confirme que o envio é bloqueado.
 
 ### 4. Preparar a AbacatePay de teste
 
@@ -382,7 +381,7 @@ CLIENT_IP_SOURCE=x-forwarded-for
 
 RESEND_API_KEY=<development>
 DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST=<emails-internos-separados-por-virgula>
-RESEND_FROM_EMAIL=Neuro Capacitar Dev <notificacoes@dev.neurocapacitar.com.br>
+RESEND_FROM_EMAIL=Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>
 SUPPORT_EMAIL=<caixa-interna-de-teste>
 
 ABACATE_PAY_API_KEY=<test>
