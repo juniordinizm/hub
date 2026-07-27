@@ -73,7 +73,7 @@ implementado e passou nos testes locais. Os seis valores de runtime foram
 auditados no escopo Preview: Neon, autenticação, readiness, IP, cadastro e kill
 switch estão configurados. O primeiro deployment chegou a `READY` em `gru1`;
 o smoke remoto precisa ser repetido depois da correção que fixa o scope
-`neuro-capacitar` em todos os comandos da CLI.
+`neuro-capacitar` como opção global, antes dos subcomandos da CLI.
 
 Não conecte Preview à branch `production`. A branch dedicada já existe e não
 contém dados do ambiente definitivo.

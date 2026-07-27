@@ -339,3 +339,9 @@ no smoke: o `vercel curl` não inferiu o time e recusou o recurso sob o scope
 incorreto. Preview e Production agora passam `--scope neuro-capacitar`
 explicitamente em `deploy`, `curl` e `promote`; a nova execução da CI deve
 provar o readiness autenticado antes do merge.
+
+A execução `30230235095` confirmou a autorização do time e criou outro Preview,
+mas expôs uma particularidade da CLI 57: em `vercel curl`, `--scope` depois do
+subcomando foi repassado ao curl nativo como opção desconhecida. O workflow
+agora posiciona essa opção global antes de `deploy`, `curl` e `promote`, conforme
+o contrato da CLI. Todos os demais gates dessa execução passaram novamente.
