@@ -157,7 +157,13 @@ presença. Nunca copie valores para uma conferência textual.
 
 Em `juniordinizm/hub`, abra **Settings > Environments**.
 
-**Status externo:** `vercel-preview` configurado. O token final
+**Status externo:** `vercel-preview` está completo.
+`vercel-production` foi criado com `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`,
+`DATABASE_URL_DIRECT` da branch Neon definitiva e `HEALTHCHECK_SECRET`
+sincronizado com a Vercel. Falta somente cadastrar `VERCEL_TOKEN`, reutilizando
+o token vigente e não comprometido do time.
+
+**Detalhe de Preview:** o token final
 `GitHub hub deploy 2026-07` está limitado ao time `Neuro Capacitar`, que contém
 somente o projeto `hub`, e expira em 2026-10-24. O token anterior sem expiração
 foi revogado e os dois tokens publicados por engano não aparecem mais na

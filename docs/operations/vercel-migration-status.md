@@ -296,4 +296,22 @@ passou a responder o preflight CORS do upload direto, aceitando apenas origens
 loopback e o header `content-type`. O preflight real respondeu `204` com origem,
 método e header esperados. Sete testes focados, a suíte integral com 162
 arquivos/643 testes, typecheck, documentação e Ultracite passaram; a nova
-execução remota ainda precisa comprovar a jornada completa.
+execução remota comprovou a jornada completa no SHA
+`99a988f3509bdc979f4f8e9a29e4005c04e54a2a`.
+
+Na mesma execução, Quality gates, Browser journeys, PostgreSQL integration e
+Build/dependency audit passaram. O primeiro candidato Vercel chegou ao upload,
+mas o build remoto parou no `bun install`: o script `prepare` tentava instalar
+hooks Lefthook em um pacote sem metadata `.git`. O instalador de hooks agora tem
+política explícita: instala e continua falhando normalmente em checkouts locais,
+mas não executa em CI, Vercel ou source archives. O caminho exato
+`VERCEL=1 bun install --frozen-lockfile` passou sem alterar dependências.
+
+O GitHub Environment vazio `R2_PUBLIC_BASE_URL`, criado por engano, foi removido.
+`vercel-production` foi criado com os IDs públicos corretos. O secret
+`DATABASE_URL_DIRECT` foi obtido da branch Neon definitiva e validado contra o
+compute direto `ep-hidden-tooth-ac843qc2`, sem reutilizar a credencial local
+obsoleta de outro projeto. `HEALTHCHECK_SECRET` foi rotacionado com 32 bytes
+aleatórios e sincronizado entre Vercel Production e GitHub. `VERCEL_TOKEN`
+continua pendente em Production porque o GitHub não permite copiar ou ler o
+secret já cadastrado em Preview.
