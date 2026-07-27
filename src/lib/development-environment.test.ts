@@ -91,12 +91,32 @@ describe("Development environment contract", () => {
     );
   });
 
-  it("rejects Production JMVStream and Sentry identifiers", () => {
+  it("requires explicit acknowledgement before using Production JMVStream", () => {
     const problems = getDevelopmentEnvironmentProblems({
       ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
-      DEVELOPMENT_JMVSTREAM_PLAN_ID: "OD-20912",
-      DEVELOPMENT_SENTRY_PROJECT_ID: "4511771125219328",
       JMVSTREAM_PLAN_ID: "OD-20912",
+    });
+
+    expect(problems).toContain(
+      "DEVELOPMENT_JMVSTREAM_USES_PRODUCTION must equal true for the Production plan"
+    );
+  });
+
+  it("accepts explicitly acknowledged Production JMVStream", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      DEVELOPMENT_JMVSTREAM_PLAN_ID: "",
+      DEVELOPMENT_JMVSTREAM_USES_PRODUCTION: "true",
+      JMVSTREAM_PLAN_ID: "OD-20912",
+    });
+
+    expect(problems).toEqual([]);
+  });
+
+  it("rejects Production Sentry identifiers", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      DEVELOPMENT_SENTRY_PROJECT_ID: "4511771125219328",
       NEXT_PUBLIC_SENTRY_DSN:
         "https://public@example.ingest.sentry.io/4511771125219328",
       SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511771125219328",
@@ -104,7 +124,6 @@ describe("Development environment contract", () => {
 
     expect(problems).toEqual(
       expect.arrayContaining([
-        "JMVSTREAM_PLAN_ID must not target the Production plan",
         "SENTRY_DSN must not target the Production project",
         "NEXT_PUBLIC_SENTRY_DSN must not target the Production project",
       ])
@@ -124,6 +143,22 @@ describe("Development environment contract", () => {
         "DEVELOPMENT_ABACATEPAY_DEV_MODE must equal true",
         "DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST is required",
         "SCHEDULED_JOBS_ENABLED must equal true",
+      ])
+    );
+  });
+
+  it("rejects copied placeholder values", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST:
+        "<emails-internos-separados-por-virgula>",
+      RESEND_API_KEY: "<development>",
+    });
+
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        "DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST is required",
+        "RESEND_API_KEY is required",
       ])
     );
   });

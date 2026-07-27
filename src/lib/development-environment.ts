@@ -8,11 +8,17 @@ const MINIMUM_SECRET_LENGTH = 32;
 const POOLED_HOST_MARKER = "-pooler.";
 const LEADING_SLASHES = /^\/+/;
 const DISPLAY_NAME_EMAIL = /<([^<>]+)>$/;
+const PLACEHOLDER_VALUE = /^<[^<>]+>$/;
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
 const hasValue = (environment: Environment, key: string): boolean =>
   Boolean(environment[key]?.trim());
+
+const hasConfiguredValue = (environment: Environment, key: string): boolean => {
+  const value = environment[key]?.trim();
+  return Boolean(value && !PLACEHOLDER_VALUE.test(value));
+};
 
 const readUrl = (environment: Environment, key: string): URL | null => {
   const value = environment[key]?.trim();
@@ -35,7 +41,7 @@ const getDatabaseProblems = (environment: Environment): string[] => {
 
   for (const key of ["DATABASE_URL", "DATABASE_URL_DIRECT"] as const) {
     const url = readUrl(environment, key);
-    if (!hasValue(environment, key)) {
+    if (!hasConfiguredValue(environment, key)) {
       problems.push(`${key} is required`);
       continue;
     }
@@ -110,7 +116,7 @@ const getR2Problems = (environment: Environment): string[] => {
     "R2_PUBLIC_BASE_URL",
     "R2_SECRET_ACCESS_KEY",
   ] as const) {
-    if (!hasValue(environment, key)) {
+    if (!hasConfiguredValue(environment, key)) {
       problems.push(`${key} is required`);
     }
   }
@@ -125,7 +131,7 @@ const getResendProblems = (environment: Environment): string[] => {
     "RESEND_FROM_EMAIL",
     "SUPPORT_EMAIL",
   ] as const) {
-    if (!hasValue(environment, key)) {
+    if (!hasConfiguredValue(environment, key)) {
       problems.push(`${key} is required`);
     }
   }
@@ -148,13 +154,13 @@ const getAbacatePayProblems = (environment: Environment): string[] => {
   }
   if (
     !(
-      hasValue(environment, "ABACATE_PAY_API_KEY") ||
-      hasValue(environment, "ABACATEPAY_API_KEY")
+      hasConfiguredValue(environment, "ABACATE_PAY_API_KEY") ||
+      hasConfiguredValue(environment, "ABACATEPAY_API_KEY")
     )
   ) {
     problems.push("ABACATE_PAY_API_KEY or ABACATEPAY_API_KEY is required");
   }
-  if (!hasValue(environment, "ABACATEPAY_WEBHOOK_SECRET")) {
+  if (!hasConfiguredValue(environment, "ABACATEPAY_WEBHOOK_SECRET")) {
     problems.push("ABACATEPAY_WEBHOOK_SECRET is required");
   }
   return problems;
@@ -164,15 +170,20 @@ const getJmvstreamProblems = (environment: Environment): string[] => {
   const problems: string[] = [];
   const planId = environment.JMVSTREAM_PLAN_ID?.trim();
   const expectedPlanId = environment.DEVELOPMENT_JMVSTREAM_PLAN_ID?.trim();
+  const usesProduction =
+    environment.DEVELOPMENT_JMVSTREAM_USES_PRODUCTION?.trim().toLowerCase() ===
+    "true";
 
-  if (!expectedPlanId) {
-    problems.push("DEVELOPMENT_JMVSTREAM_PLAN_ID is required");
-  }
   if (planId) {
     if (planId === PRODUCTION_JMVSTREAM_PLAN_ID) {
-      problems.push("JMVSTREAM_PLAN_ID must not target the Production plan");
-    }
-    if (expectedPlanId && planId !== expectedPlanId) {
+      if (!usesProduction) {
+        problems.push(
+          "DEVELOPMENT_JMVSTREAM_USES_PRODUCTION must equal true for the Production plan"
+        );
+      }
+    } else if (!expectedPlanId) {
+      problems.push("DEVELOPMENT_JMVSTREAM_PLAN_ID is required");
+    } else if (planId !== expectedPlanId) {
       problems.push(
         "JMVSTREAM_PLAN_ID must equal DEVELOPMENT_JMVSTREAM_PLAN_ID"
       );
@@ -182,8 +193,8 @@ const getJmvstreamProblems = (environment: Environment): string[] => {
   }
   if (
     !(
-      hasValue(environment, "JMVSTREAM_AUTH_RESOURCE") ||
-      hasValue(environment, "JMVSTREAM_API_TOKEN")
+      hasConfiguredValue(environment, "JMVSTREAM_AUTH_RESOURCE") ||
+      hasConfiguredValue(environment, "JMVSTREAM_API_TOKEN")
     )
   ) {
     problems.push("JMVSTREAM_AUTH_RESOURCE or JMVSTREAM_API_TOKEN is required");
@@ -226,10 +237,10 @@ const getFirstPartySecretProblems = (environment: Environment): string[] =>
   (
     ["BETTER_AUTH_SECRET", "CRON_SECRET", "HEALTHCHECK_SECRET"] as const
   ).flatMap((key) => {
-    const length = environment[key]?.trim().length ?? 0;
-    if (length === 0) {
+    if (!hasConfiguredValue(environment, key)) {
       return [`${key} is required`];
     }
+    const length = environment[key]?.trim().length ?? 0;
     return length < MINIMUM_SECRET_LENGTH
       ? [`${key} must contain at least ${MINIMUM_SECRET_LENGTH} characters`]
       : [];

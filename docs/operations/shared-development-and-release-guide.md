@@ -47,8 +47,8 @@ Estado confirmado em 2026-07-27:
   matrículas antes do seed;
 - Resend Development reutiliza o domínio verificado
   `neurocapacitar.com.br`, protegido por allowlist de destinatários;
-- AbacatePay, JMVStream e Sentry exigem configuração manual nas contas
-  Development corretas.
+- JMVStream reutiliza conscientemente o plano Production `OD-20912`;
+- AbacatePay usa teste e Sentry usa projeto Development separado.
 
 ## Topologia aprovada
 
@@ -84,8 +84,9 @@ Development deve permitir:
 - upload e processamento real de vídeo na JMVStream;
 - captura de erros reais em um projeto Sentry de Development.
 
-“Real” significa executar a integração externa. Não significa reutilizar
-conta, chave, evento, mídia ou destinatário de Production.
+“Real” significa executar a integração externa. JMVStream é a única exceção:
+reutiliza o plano Production por decisão explícita e exige cuidados adicionais
+com operações destrutivas.
 
 ## Preparação única
 
@@ -249,35 +250,26 @@ Faça um checkout de valor fictício e confirme:
 
 ### 5. Preparar a JMVStream Development
 
-A integração consegue criar, mover e apagar pastas e vídeos. Uma pasta com nome
-`DEV` não é isolamento suficiente se a credencial continuar autorizada a apagar
-vídeos Production.
+A integração reutiliza o plano Production `OD-20912`. A API oficial permite
+excluir vídeo por hash e Plan ID; portanto, não existe isolamento técnico entre
+os vídeos de teste e os vídeos reais.
 
-No painel ou com o suporte JMVStream:
+Configure:
 
-1. Crie um recurso/aplicação dedicado chamado `hub-development`.
-2. Use um plano Development separado, se a autorização continuar abrangendo
-   todos os vídeos do plano atual.
-3. Obtenha o UUID do recurso/aplicação.
-4. Obtenha o Plan ID correspondente.
-5. Confirme por consulta que a credencial Development não lista vídeos
-   Production.
-6. Confirme que uma tentativa de acessar ou apagar um hash Production é
-   recusada.
-
-Valores resultantes:
-
-- `JMVSTREAM_API_BASE_URL`;
+- `JMVSTREAM_API_BASE_URL=https://api.jmvstream.com`;
 - `JMVSTREAM_AUTH_RESOURCE`, preferencial;
-- `JMVSTREAM_PLAN_ID`;
+- `JMVSTREAM_PLAN_ID=OD-20912`;
+- `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true`;
 - `JMVSTREAM_API_TOKEN` apenas como fallback temporário.
 
-Se a credencial Development listar ou puder apagar ativos Production, pare. O
-ambiente ainda não está isolado. Solicite um plano/conta separado antes de
-entregar a credencial à equipe.
+Regras obrigatórias:
 
-Teste com um vídeo curto sem dados pessoais. Confirme upload, complete,
-processamento, player, thumbnail e remoção.
+1. envie somente um vídeo curto, descartável e sem dados pessoais;
+2. não associe hashes preexistentes por URL;
+3. não teste remoção, movimentação ou retry com ativos que não tenham sido
+   criados pelo próprio Development;
+4. confira o hash e a Aula local antes de qualquer deleção;
+5. trate a credencial local como segredo Production.
 
 ### 6. Criar o projeto Sentry Development
 
@@ -390,9 +382,9 @@ ABACATEPAY_WEBHOOK_SECRET=<development>
 DEVELOPMENT_ABACATEPAY_DEV_MODE=true
 
 JMVSTREAM_API_BASE_URL=https://api.jmvstream.com
-JMVSTREAM_AUTH_RESOURCE=<development>
-JMVSTREAM_PLAN_ID=<development>
-DEVELOPMENT_JMVSTREAM_PLAN_ID=<mesmo-plan-id-development>
+JMVSTREAM_AUTH_RESOURCE=<production-compartilhado>
+JMVSTREAM_PLAN_ID=OD-20912
+DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true
 
 R2_ACCOUNT_ID=<account>
 R2_BUCKET_NAME=hub-development-private
@@ -418,7 +410,7 @@ Não preencha localmente:
 - `SENTRY_AUTH_TOKEN`;
 - `E2E_DATABASE_URL`, `E2E_R2_BUCKET_NAME` ou
   `CERTIFICATE_CONCURRENCY_DATABASE_URL`;
-- qualquer credencial Production.
+- qualquer credencial Production, exceto a JMVStream explicitamente aprovada.
 
 `SCHEDULED_JOBS_ENABLED=true` permite exercitar outbox, sincronização de vídeo
 e manutenção no banco Development. Não existe agenda externa local: o
@@ -642,12 +634,12 @@ Depois do workflow verde:
 Pare sem tentar contornar quando:
 
 - o banco local aponta ao hostname Production;
-- uma chave Development lista recursos Production;
+- um provider não aprovado lista recursos Production;
 - a CI está vermelha;
 - o SHA informado não é o `main` atual;
 - migration falhou;
 - webhook chegou sem assinatura válida;
-- upload JMVStream apareceu entre vídeos Production;
+- JMVStream alterou ou removeu um ativo preexistente;
 - e-mail Development foi enviado a cliente;
 - R2 Development escreveu no bucket Production;
 - Sentry Development registrou PII ou segredo;
@@ -692,8 +684,8 @@ Antes de programar:
 - [ ] Git branch própria.
 - [ ] Banco `development`.
 - [ ] Buckets `hub-development-*`.
-- [ ] Providers identificados como Development/Test.
-- [ ] Nenhum segredo Production no `.env.local`.
+- [ ] Providers identificados como Development/Test, com exceção JMV registrada.
+- [ ] Nenhum segredo Production no `.env.local`, exceto JMV aprovada.
 
 Antes do PR:
 

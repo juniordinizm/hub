@@ -72,7 +72,8 @@ ou recursos Production.
 | `JMVSTREAM_API_BASE_URL` | vídeo | cliente JMVStream | não |
 | `JMVSTREAM_API_TOKEN` | fallback JWT | cliente JMVStream | sim |
 | `JMVSTREAM_PLAN_ID` | operações de vídeo | cliente JMVStream | identificador protegido |
-| `DEVELOPMENT_JMVSTREAM_PLAN_ID` | preflight Development | confirmação do plano isolado | identificador protegido |
+| `DEVELOPMENT_JMVSTREAM_PLAN_ID` | preflight Development | confirmação de plano isolado, quando usado | identificador protegido |
+| `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION` | preflight Development | confirmação explícita do plano Production compartilhado | `true` somente quando aprovado |
 | `JMVSTREAM_AUTH_RESOURCE` | autenticação preferida | `/v2/authenticate` | identificador protegido |
 | `R2_ACCOUNT_ID` | mídia R2 | cliente S3 | identificador protegido |
 | `R2_BUCKET_NAME` | mídia privada | cliente S3 | não |

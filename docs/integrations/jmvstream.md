@@ -18,8 +18,26 @@ Contrato oficial consultado: [Public API JMVStream](https://jmvstream.com/en/dev
 - `JMVSTREAM_AUTH_RESOURCE`: UUID do recurso/aplicação enviado a `/v2/authenticate`; não é e-mail, senha nem JWT.
 - `JMVSTREAM_API_TOKEN`: JWT opcional de fallback.
 - `JMVSTREAM_PLAN_ID`: identificador usado em operações que exigem plano.
+- `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION`: confirmação explícita exigida quando
+  o desenvolvimento local reutiliza o plano Production.
 
 Preferir `JMVSTREAM_AUTH_RESOURCE`; `authenticateJmvstreamApi` renova token. `assertValidJmvstreamResource` rejeita valor que não pareça UUID e orienta quando recebeu JWT.
+
+### Development compartilhando o plano Production
+
+Por decisão operacional, o ambiente Development reutiliza o plano Production.
+A API oficial autoriza upload por token e exclusão por `video_hash` mais Plan
+ID; portanto, a credencial local possui capacidade de alterar ativos reais.
+
+O preflight exige `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true`. Essa confirmação
+não cria isolamento técnico. Em Development:
+
+- envie somente vídeos descartáveis, sem dados pessoais;
+- não associe manualmente hashes de vídeos preexistentes;
+- não teste deleção, movimentação ou retry com hashes que não foram criados
+  pelo próprio ambiente Development;
+- confira o hash antes de qualquer operação destrutiva;
+- trate vazamento da credencial local como incidente Production.
 
 ## Modelo local
 
