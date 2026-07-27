@@ -65,16 +65,16 @@ O arquivo `.vercel` e o token OIDC local permanecem ignorados pelo Git.
 
 ## Fase 3: separar Preview de Production
 
-**Status parcial:** a branch Neon `vercel-preview`
+**Status:** a branch Neon `vercel-preview`
 (`br-cool-leaf-acabyy5q`) foi criada a partir do schema atual. Como branches
 herdam o snapshot do pai, todos os dados copiados foram removidos imediatamente;
 o journal permaneceu com 44 entradas/topo `0043`. O contrato limitado foi
 implementado e passou nos testes locais. Os seis valores de runtime foram
 auditados no escopo Preview: Neon, autenticação, readiness, IP, cadastro e kill
-switch estão configurados. O primeiro deployment chegou a `READY` em `gru1`;
-o smoke remoto precisa ser repetido com o Protection Bypass for Automation
-dedicado. O comando beta `vercel curl` foi removido do workflow porque sua
-resolução de scope falhou nas três formas testadas.
+switch estão configurados. Os Previews dos SHAs do PR e de `main` chegaram a
+`READY` em `gru1` e passaram no smoke remoto com o Protection Bypass for
+Automation dedicado. O comando beta `vercel curl` foi removido do workflow
+porque sua resolução de scope falhou nas três formas testadas.
 
 Não conecte Preview à branch `production`. A branch dedicada já existe e não
 contém dados do ambiente definitivo.
@@ -159,11 +159,11 @@ presença. Nunca copie valores para uma conferência textual.
 
 Em `juniordinizm/hub`, abra **Settings > Environments**.
 
-**Status externo:** `vercel-preview` está completo.
+**Status externo:** `vercel-preview` e `vercel-production` estão completos.
 `vercel-production` foi criado com `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`,
 `DATABASE_URL_DIRECT` da branch Neon definitiva e `HEALTHCHECK_SECRET`
-sincronizado com a Vercel. Falta somente cadastrar `VERCEL_TOKEN`, reutilizando
-o token vigente e não comprometido do time.
+sincronizado com a Vercel. `VERCEL_TOKEN` foi cadastrado com escopo do time
+Neuro Capacitar.
 
 Os dois environments também contêm `VERCEL_AUTOMATION_BYPASS_SECRET`, gerado
 pela Vercel exclusivamente para o smoke de readiness. Esse segredo não pertence
@@ -390,6 +390,13 @@ Referências:
 Não reutilize URL de túnel, VPS ou deployment Preview como callback definitivo.
 
 ## Fase 7: primeira promoção
+
+**Status em andamento:** PR `#7` mesclado no SHA
+`e2ca74de83f923fba537d271332498fbc38da53e`; CI de `main` integralmente verde.
+Migration e auditoria Production passaram. Duas tentativas não promovidas
+detectaram falso negativo no readiness causado pelo orçamento de 1 segundo para
+o handshake TLS com Neon. O domínio não foi alterado. A política corrigida será
+submetida novamente aos gates antes de repetir a promoção.
 
 1. Execute todos os gates locais.
 2. Faça commit da branch da sprint e abra PR para `main`.

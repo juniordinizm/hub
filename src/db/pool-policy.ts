@@ -18,7 +18,7 @@ const VERCEL_APPLICATION_POOL_OPTIONS = {
 } as const satisfies DatabasePoolOptions;
 
 const READINESS_POOL_OPTIONS = {
-  connectionTimeoutMillis: 1000,
+  connectionTimeoutMillis: 5000,
   idleTimeoutMillis: 10_000,
   max: 1,
 } as const satisfies DatabasePoolOptions;

@@ -36,6 +36,12 @@ permanecer desligados para não criar uma segunda promoção concorrente.
 secret do GitHub Environment `vercel-production`. `DATABASE_URL` pooled pertence
 ao runtime Vercel.
 
+O pool isolado de readiness permite até 5 segundos para estabelecer o handshake
+TLS com o Neon e continua limitado a uma conexão. Depois de conectado, a
+consulta de compatibilidade usa `statement_timeout` de 1 segundo. Isso evita que
+latência transitória de conexão seja confundida com schema indisponível sem
+transformar a rota em uma consulta longa.
+
 ## Gate de deploy
 
 O caminho versionado é:

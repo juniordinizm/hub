@@ -10,9 +10,9 @@ describe("database pool policy", () => {
     });
   });
 
-  it("keeps readiness connections short and isolated from application traffic", () => {
+  it("allows readiness TLS handshakes without sharing the application pool", () => {
     expect(getDatabasePoolOptions("readiness")).toEqual({
-      connectionTimeoutMillis: 1000,
+      connectionTimeoutMillis: 5000,
       idleTimeoutMillis: 10_000,
       max: 1,
     });
