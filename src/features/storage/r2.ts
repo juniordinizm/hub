@@ -10,15 +10,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import {
-  createBannerBlurDataUrl,
-  validateBannerImageFile,
-} from "@/features/storage/banner-upload";
 import type { CourseCoverImage } from "@/features/storage/course-cover";
-import {
-  type CourseCoverFile,
-  createCourseCoverUploadParts,
-} from "@/features/storage/course-cover-upload";
+import type { CourseCoverFile } from "@/features/storage/course-cover-upload";
 import { buildPublicMediaUrl } from "@/features/storage/public-media";
 import { resolveR2ClientEndpoint } from "@/features/storage/r2-endpoint";
 import {
@@ -336,6 +329,9 @@ export const uploadCourseCoverFile = async ({
   courseId: string;
   file: CourseCoverFile;
 }): Promise<CourseCoverImage> => {
+  const { createCourseCoverUploadParts } = await import(
+    "@/features/storage/course-cover-upload"
+  );
   const { coverImage, objects } = await createCourseCoverUploadParts({
     courseId,
     file,
@@ -595,6 +591,9 @@ export const uploadDashboardBannerFile = async ({
 }: {
   file: File;
 }): Promise<{ blurDataUrl: string; key: string }> => {
+  const { createBannerBlurDataUrl, validateBannerImageFile } = await import(
+    "@/features/storage/banner-upload"
+  );
   await validateBannerImageFile(file);
   const config = getR2Config();
   const client = getR2Client(config);

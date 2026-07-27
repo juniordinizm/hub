@@ -385,3 +385,29 @@ maior. A correção aumenta apenas o handshake do pool isolado de readiness para
 5 segundos; o `statement_timeout` da consulta permanece em 1 segundo. Nenhum
 deployment foi promovido e `app.neurocapacitar.com.br` não foi alterado durante
 as tentativas.
+
+### Pacote 9: banco canônico e runtime nativo
+
+**Status:** Production promovida; correção do runtime Sharp em validação.
+
+O PR `#8` elevou o timeout isolado de readiness e passou nos cinco gates, mas a
+tentativa `30235341376` continuou retornando 503 em 949 ms. A comparação com a
+API Neon revelou a divergência decisiva: Vercel e `.env.local` ainda usavam
+`ep-rough-field-acqbhhxu`, enquanto a branch definitiva
+`br-dark-boat-ac5ju6m4` usa `ep-hidden-tooth-ac843qc2`. A URL pooled oficial foi
+obtida diretamente do Neon, validada por conexão real e gravada como segredo
+somente em Vercel Production; as URLs locais pooled/direta também foram
+corrigidas sem entrar no Git.
+
+O workflow `30235583374` aprovou migration, auditoria, build não promovido,
+readiness e promoção do SHA `64da497129d48d1518a336443f595d1ba7a5bfc8`.
+O deployment `dpl_GPHpEjdX9u5RaQee15H9VVhxyvWy` chegou a `READY` em `gru1` e
+passou a responder em `https://app.neurocapacitar.com.br`. Health, login,
+cadastro, privacidade e fronteira Admin passaram no smoke público.
+
+O mesmo smoke encontrou 500 em `/app`. O log do deployment identificou
+`ERR_DLOPEN_FAILED`: o trace incluiu o binário Sharp Linux, mas não
+`libvips-cpp.so.8.18.3`. O núcleo R2 também importava processadores de imagem no
+topo, fazendo uma página somente leitura carregar Sharp. A correção mantém esses
+processadores lazy e inclui explicitamente Sharp e `@img/sharp-*` nos traces
+server-side. Crons continuam desligados até o novo deployment passar no smoke.

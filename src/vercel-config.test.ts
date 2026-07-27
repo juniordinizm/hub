@@ -10,6 +10,13 @@ const cronRoutes = [
 ] as const;
 
 describe("Vercel cron configuration", () => {
+  it("traces Sharp and its native runtime assets into server functions", async () => {
+    const source = await readFile("next.config.ts", "utf8");
+
+    expect(source).toContain('"node_modules/sharp/**/*"');
+    expect(source).toContain('"node_modules/@img/sharp-*/**/*"');
+  });
+
   it("runs database-backed functions in the same region as production Neon", async () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
       regions?: string[];
