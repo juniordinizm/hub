@@ -3,10 +3,11 @@ const PRODUCTION_JMVSTREAM_PLAN_ID = "OD-20912";
 const PRODUCTION_SENTRY_PROJECT_ID = "4511771125219328";
 const DEVELOPMENT_PRIVATE_BUCKET = "hub-development-private";
 const DEVELOPMENT_PUBLIC_BUCKET = "hub-development-public";
-const DEVELOPMENT_RESEND_DOMAIN = "dev.neurocapacitar.com.br";
+const APPROVED_RESEND_DOMAIN = "neurocapacitar.com.br";
 const MINIMUM_SECRET_LENGTH = 32;
 const POOLED_HOST_MARKER = "-pooler.";
 const LEADING_SLASHES = /^\/+/;
+const DISPLAY_NAME_EMAIL = /<([^<>]+)>$/;
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -130,8 +131,10 @@ const getResendProblems = (environment: Environment): string[] => {
   }
 
   const sender = environment.RESEND_FROM_EMAIL?.trim().toLowerCase();
-  if (sender && !sender.includes(`@${DEVELOPMENT_RESEND_DOMAIN}`)) {
-    problems.push(`RESEND_FROM_EMAIL must use ${DEVELOPMENT_RESEND_DOMAIN}`);
+  const address = sender?.match(DISPLAY_NAME_EMAIL)?.[1] ?? sender;
+  const senderDomain = address?.split("@").at(-1);
+  if (sender && senderDomain !== APPROVED_RESEND_DOMAIN) {
+    problems.push(`RESEND_FROM_EMAIL must use ${APPROVED_RESEND_DOMAIN}`);
   }
   return problems;
 };

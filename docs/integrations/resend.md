@@ -73,14 +73,16 @@ a chave de Production nem envia mensagens a clientes.
 
 ### Development
 
-Development entrega mensagens reais com domínio e API key próprios. O desenho
-aprovado usa `dev.neurocapacitar.com.br`, remetente identificado com `Dev` e
-`DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST`. A aplicação recusa qualquer
-destinatário Development fora da lista antes de construir o cliente Resend.
+Development entrega mensagens reais usando o domínio verificado
+`neurocapacitar.com.br`, compartilhado com Production por decisão operacional.
+O remetente deve ser identificado com `Dev` e
+`DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` permanece obrigatório. A aplicação
+recusa qualquer destinatário Development fora da lista antes de construir o
+cliente Resend.
 
-O conector disponível em 2026-07-27 lista somente `agenciasummit.com`; ele não
-é a conta `neurocapacitar.com.br`. Nenhum domínio ou token Development deve ser
-criado por esse conector até a conta correta ser conectada.
+Compartilhar domínio e credencial aumenta o impacto de um vazamento local. A
+allowlist reduz o risco de envio acidental, mas não substitui o cuidado com a
+API key. Não registre a chave em chat, documento, commit ou log.
 
 ## Verificação de liberação
 
