@@ -23,7 +23,7 @@ export const runMigrationWithLock = async ({
       [PRODUCTION_MIGRATION_LOCK_ID]
     );
     if (lockResult?.rows?.[0]?.acquired !== true) {
-      throw new Error("Another production migration is already running.");
+      throw new Error("Another database migration is already running.");
     }
 
     acquired = true;

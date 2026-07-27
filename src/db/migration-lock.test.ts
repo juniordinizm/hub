@@ -77,7 +77,7 @@ describe("runMigrationWithLock", () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
-  it("fails fast when another production migration owns the lock", async () => {
+  it("fails fast when another database migration owns the lock", async () => {
     const migrate = vi.fn(async () => undefined);
     const release = vi.fn();
     const client = {
@@ -90,7 +90,7 @@ describe("runMigrationWithLock", () => {
         client,
         migrate,
       })
-    ).rejects.toThrow("Another production migration is already running.");
+    ).rejects.toThrow("Another database migration is already running.");
 
     expect(migrate).not.toHaveBeenCalled();
     expect(client.query).toHaveBeenCalledOnce();

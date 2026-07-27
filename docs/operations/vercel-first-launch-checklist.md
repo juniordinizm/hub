@@ -249,12 +249,25 @@ tentar novamente. Não reutilize uma credencial exposta.
 7. Adicione variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
 
 A aprovação humana ocorre ao executar manualmente `Deploy Vercel production`.
-O formulário exige o SHA completo do `main` verde e a confirmação
-`confirm_production`. O workflow valida ambos antes de acessar migrations.
+O formulário exige somente `confirm_production`. O workflow deriva o SHA do
+checkout da `main`, confirma igualdade com `origin/main` e prova CI verde antes
+de acessar migrations.
 
 No nível do repositório, preserve `NEON_API_KEY` e `NEON_PROJECT_ID` usados
 pelas branches efêmeras de integração/E2E. Eles não substituem a URL direta do
 environment Production.
+
+### `neon-development`
+
+1. Crie o environment `neon-development`.
+2. Adicione secret `DATABASE_URL_DIRECT`, com endpoint direto da branch
+   `development`.
+3. Adicione variable `DEVELOPMENT_DATABASE_HOST`, contendo somente o hostname
+   direto do compute Development.
+
+Depois de merge com migration e CI verde na `main`, execute manualmente
+`Migrate Neon development`, mantenha a branch em `main`, marque
+`confirm_development` e aguarde migration e auditoria.
 
 ## Fase 6: domínio e providers
 
@@ -412,11 +425,12 @@ aplicação. `SCHEDULED_JOBS_ENABLED=true` entrou somente depois desses gates.
 3. Confirme CI verde e Preview smoke aprovado.
 4. Revise o deployment Preview manualmente.
 5. Faça merge.
-6. Copie o SHA completo do `main` cuja CI terminou verde.
+6. Aguarde a CI verde do commit final da `main`.
 7. Abra **Actions > Deploy Vercel production > Run workflow**.
-8. Mantenha a branch do workflow em `main`, cole o SHA em `release_sha`,
-   marque `confirm_production` e execute uma única vez.
-9. Observe a validação do SHA/CI, migration, auditoria, deploy e smoke; não
+8. Mantenha a branch do workflow em `main`, marque `confirm_production` e
+   execute uma única vez.
+9. Observe a derivação do SHA, validação da CI, migration, auditoria, deploy e
+   smoke; não
    inicie outro workflow.
 10. Execute o smoke funcional do runbook de
     [Deploy e incidentes](deploy-and-incidents.md).

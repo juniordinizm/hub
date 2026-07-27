@@ -38,6 +38,11 @@ Compare sempre, nesta ordem operacional:
 
 `bun run db:migrations:check` verifica a integridade versionada. Ele não prova que o banco remoto recebeu as migrations.
 
+Gerar ou commitar uma migration não altera banco algum. Cada branch Neon possui
+seu próprio catálogo e journal. Executar o migrador em `development` não altera
+`vercel-preview`, `production` ou branches já existentes. Uma branch nova herda
+o estado da branch-pai no instante da criação e depois evolui de forma isolada.
+
 O mesmo gate resolve o snapshot autoritativo pela última entrada do journal e
 valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshots
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
@@ -94,6 +99,17 @@ Remove `privacy_requests` e seu enum, que não possuem usuário solicitante, flu
 ### `bun run db:migrate`
 
 Só na promoção controlada. Não é onboarding e não substitui auditoria de schema.
+
+### `bun run db:migrate:development`
+
+É o comando exclusivo do workflow manual `Migrate Neon development`. Exige
+`DATABASE_URL_DIRECT` e `DEVELOPMENT_DATABASE_HOST`, normaliza aliases
+pooled/direto, recusa hostname divergente e recusa explicitamente o compute
+Production conhecido. Depois da guarda, reutiliza o advisory lock global e
+aplica somente migrations pendentes.
+
+Não execute esse comando manualmente na rotina local. O workflow protegido usa
+somente o SHA atual da `main` com CI verde e audita o banco depois da aplicação.
 
 ### `bun run db:migrate:production`
 
@@ -193,4 +209,9 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 
 ## Evidências
 
-`drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`, `src/db/schema.ts`, `src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`, `scripts/inspect-migration-state.ts`, `scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts` e `scripts/bootstrap-student.ts`.
+`drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`,
+`src/db/migration-target.ts`, `src/db/schema.ts`,
+`src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`,
+`scripts/inspect-migration-state.ts`, `scripts/migrate-development.ts`,
+`scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts` e
+`scripts/bootstrap-student.ts`.
