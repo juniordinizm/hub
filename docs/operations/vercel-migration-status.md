@@ -336,12 +336,18 @@ A Login Connection com o GitHub `juniordinizm` foi concluída. A execução
 Preview `dpl_25C4uTAs4VWWAh3TYc9xLFzKto67` em `gru1`, estado `READY`, para o
 SHA `f385123886f48258121b9170316806f01e62185e`. O único erro restante ocorreu
 no smoke: o `vercel curl` não inferiu o time e recusou o recurso sob o scope
-incorreto. Preview e Production agora passam `--scope neuro-capacitar`
-explicitamente em `deploy`, `curl` e `promote`; a nova execução da CI deve
-provar o readiness autenticado antes do merge.
+incorreto. A primeira correção tentou declarar `--scope neuro-capacitar`
+explicitamente em todos os comandos.
 
 A execução `30230235095` confirmou a autorização do time e criou outro Preview,
 mas expôs uma particularidade da CLI 57: em `vercel curl`, `--scope` depois do
-subcomando foi repassado ao curl nativo como opção desconhecida. O workflow
-agora posiciona essa opção global antes de `deploy`, `curl` e `promote`, conforme
-o contrato da CLI. Todos os demais gates dessa execução passaram novamente.
+subcomando foi repassado ao curl nativo como opção desconhecida. A execução
+`30230775100` provou que o comando beta também repassa a opção quando ela aparece
+antes do subcomando. Todos os demais gates das duas execuções passaram.
+
+O workflow contorna o defeito sem usar opção obsoleta: executa
+`vercel teams switch neuro-capacitar` no runner efêmero e depois chama `deploy`,
+`curl` e `promote` no scope ativo. A implementação oficial de `teams switch`
+persiste o ID do time no config global da CLI; `vercel curl` deixa de receber
+uma opção que ele incorretamente encaminharia ao binário nativo. O contrato
+automatizado exige a seleção explícita do time e proíbe `--scope` nesses jobs.

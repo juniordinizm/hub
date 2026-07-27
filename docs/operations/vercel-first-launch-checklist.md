@@ -72,8 +72,10 @@ o journal permaneceu com 44 entradas/topo `0043`. O contrato limitado foi
 implementado e passou nos testes locais. Os seis valores de runtime foram
 auditados no escopo Preview: Neon, autenticação, readiness, IP, cadastro e kill
 switch estão configurados. O primeiro deployment chegou a `READY` em `gru1`;
-o smoke remoto precisa ser repetido depois da correção que fixa o scope
-`neuro-capacitar` como opção global, antes dos subcomandos da CLI.
+o smoke remoto precisa ser repetido depois da correção que seleciona
+`neuro-capacitar` com `vercel teams switch`. O comando beta `vercel curl`
+repassa `--scope` incorretamente ao curl nativo e, por isso, não recebe essa
+opção.
 
 Não conecte Preview à branch `production`. A branch dedicada já existe e não
 contém dados do ambiente definitivo.

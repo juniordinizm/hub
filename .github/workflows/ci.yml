@@ -213,13 +213,17 @@ jobs:
               exit 1
             fi
           done
+      - name: Select Vercel team scope
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: bunx vercel@57.0.0 teams switch "$VERCEL_SCOPE"
       - name: Build and deploy isolated Preview
         id: deploy
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           deployment_url="$(
-            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
+            bunx vercel@57.0.0 deploy --yes \
               --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
               --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
               --token="$VERCEL_TOKEN"
@@ -230,7 +234,7 @@ jobs:
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: >-
-          bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" curl /api/health/ready
+          bunx vercel@57.0.0 curl /api/health/ready
           --deployment="${{ steps.deploy.outputs.url }}"
           --token="$VERCEL_TOKEN" --
           --header "Authorization: Bearer ${HEALTHCHECK_SECRET}"
