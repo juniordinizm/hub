@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 9fa916691ed1226233847f40b13bdfac6787c995
+last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
 ---
 
 # Primeiro deploy Vercel-first
@@ -94,8 +94,9 @@ continuam na CI e no candidato Production.
 
 ## Fase 4: variáveis na Vercel
 
-**Status parcial:** Production já contém banco pooled, autenticação, pagamentos,
-vídeo, R2, Sentry, Resend e segredos próprios. Crons permanecem desligados. O
+**Status concluído:** Production contém banco pooled, autenticação, pagamentos,
+vídeo, R2, Sentry, Resend e segredos próprios. Os crons foram ligados somente
+depois do smoke funcional de 2026-07-27. O
 runtime não recebeu URL direta Neon, segredo de bootstrap, variáveis E2E nem
 URLs ngrok. As três URLs canônicas, `RESEND_FROM_EMAIL`, `SUPPORT_EMAIL` e
 `RESEND_API_KEY` já foram cadastradas em Production. Preview não recebeu
@@ -173,7 +174,7 @@ ao runtime da aplicação, ao banco nem aos providers.
 `GitHub hub deploy 2026-07` está limitado ao time `Neuro Capacitar`, que contém
 somente o projeto `hub`, e expira em 2026-10-24. O token anterior sem expiração
 foi revogado e os dois tokens publicados por engano não aparecem mais na
-listagem. O primeiro job Preview ainda deve provar o valor compartilhado de
+listagem. Os jobs Preview e Production provaram o valor compartilhado de
 readiness e a credencial GitHub. Se outro projeto entrar no time, segregar os
 deploys antes de reutilizar a credencial.
 
@@ -260,10 +261,9 @@ environment Production.
 **Estado:** origem Production, domínio, remetente, API key Resend e caixa de
 suporte concluídos. Em 2026-07-26, o Resend confirmou o domínio como `verified`
 em `sa-east-1`, com envio habilitado e recebimento desabilitado. A caixa
-`suporte@neurocapacitar.com.br` foi criada e testada no Lark Mail. O painel
-Vercel confirmou `app.neurocapacitar.com.br`; DNS público, TLS e roteamento
-responderam corretamente com `DEPLOYMENT_NOT_FOUND`, pois ainda não há release
-Production.
+`suporte@neurocapacitar.com.br` foi criada e testada no Lark Mail. Em
+2026-07-27, o domínio passou a servir o deployment Production em `gru1`, com
+DNS, TLS, health e fronteiras de autenticação aprovados.
 
 ### 6.1 Preservar o DNS atual
 
@@ -376,10 +376,11 @@ Referências:
 
 1. Refaça o build Production; `NEXT_PUBLIC_APP_URL` só muda em deployments
    novos.
-2. Atualize Better Auth trusted origins, CORS do R2 e callbacks/webhooks dos
-   providers para `https://app.neurocapacitar.com.br`.
-3. Mantenha `SCHEDULED_JOBS_ENABLED=false`.
-4. Envie um reset de senha a uma conta de teste.
+2. [x] Validar Better Auth e atualizar o CORS do R2 para
+   `https://app.neurocapacitar.com.br`.
+3. [x] Validar as credenciais AbacatePay e JMVStream com chamadas somente
+   leitura e o webhook sem assinatura com falha fechada.
+4. [x] Enviar um reset de senha a uma conta real de controle.
 5. No e-mail recebido, confirme:
    - remetente `notificacoes@neurocapacitar.com.br`;
    - Reply-To `suporte@neurocapacitar.com.br`;
@@ -391,19 +392,20 @@ Não reutilize URL de túnel, VPS ou deployment Preview como callback definitivo
 
 ## Fase 7: primeira promoção
 
-**Status em andamento:** PRs `#7` e `#8` mesclados; o SHA
-`64da497129d48d1518a336443f595d1ba7a5bfc8` passou na CI de `main` e foi
-promovido pelo workflow `30235583374`. Migration, auditoria e readiness
-Production passaram. A causa final dos 503 anteriores era a `DATABASE_URL`
-pooled de outro compute, enquanto migrations usavam corretamente o endpoint
-direto definitivo. Vercel Production e `.env.local` agora usam
-`ep-hidden-tooth-ac843qc2`.
+**Status:** concluída em 2026-07-27. O PR `#9` corrigiu o trace nativo Sharp e
+foi mesclado no SHA `4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d`. A CI
+`30236373367` aprovou os cinco gates. O workflow final com jobs ligados,
+`30238080374`, aprovou migrations, auditoria, build isolado, readiness e
+promoção. O deployment `dpl_A5nhjhk2BeVvNcLdSdGcgiKY9c4Z` chegou a `READY`
+em `gru1`.
 
-O smoke público aprovou domínio, TLS, health, login, cadastro, privacidade e
-proteção de `/admin`. `/app` revelou ausência do runtime nativo libvips no trace
-da função. A correção preserva explicitamente os ativos Sharp e remove sua carga
-dos consumidores R2 somente leitura. Repita CI, promoção e smoke antes de marcar
-esta fase como concluída. Crons permanecem desligados.
+O smoke confirmou health, login, cadastro, privacidade, redirecionamentos,
+cadastro público, sessão Student, bloqueio de Admin e página `/app`. A conta
+sintética foi removida com seus registros em cascade. O erro
+`ERR_DLOPEN_FAILED` não reapareceu. O R2 emitiu URL assinada para Admin e passou
+em três preflights CORS consecutivos depois da correção da origem. Credenciais
+AbacatePay e JMVStream passaram em leitura; o reset de senha foi aceito pela
+aplicação. `SCHEDULED_JOBS_ENABLED=true` entrou somente depois desses gates.
 
 1. Execute todos os gates locais.
 2. Faça commit da branch da sprint e abra PR para `main`.
@@ -435,5 +437,20 @@ Registre no status da sprint:
 - confirmação de Preview isolado;
 - riscos aceitos e responsável por qualquer pendência.
 
-O primeiro deploy não está concluído apenas porque a Vercel mostra `Ready`.
-Todos os itens acima precisam de evidência.
+Evidência registrada:
+
+- projeto `hub` (`prj_oHQOBsqhr7wlWpJoGVMTlw7ciyFg`);
+- domínio `https://app.neurocapacitar.com.br`;
+- SHA de runtime `4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d`;
+- deployment `dpl_A5nhjhk2BeVvNcLdSdGcgiKY9c4Z`, `READY`, `gru1`;
+- Neon `production`, 44 migrations, topo `0043`;
+- Preview isolado, sanitizado e sem providers;
+- quatro agendas cadastradas; kill switch Production ligado depois do smoke;
+- JMVStream e outbox executados pela agenda de cinco minutos com HTTP 200 e
+  `outcome: success`; matrículas e manutenção aguardam a primeira janela diária.
+
+Permanecem cobertos pela CI, mas não foram exercitados com dados reais neste
+smoke: upload multipart JMVStream, checkout/webhook assinado AbacatePay, consumo
+de uma imagem pelo Sharp e emissão completa de Certificado. Esses fluxos exigem
+dados de controle e não devem criar cobrança, vídeo ou certificado artificial
+apenas para fechar o deploy.

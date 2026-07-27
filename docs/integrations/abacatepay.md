@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
 ---
 
 # AbacatePay
@@ -10,7 +10,7 @@ last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
 
 Criar produto/checkout de Curso, receber eventos financeiros e solicitar reembolso. O Hub é a fonte de autorização da experiência; AbacatePay é a fonte do evento financeiro externo.
 
-Contrato oficial consultado: [Webhooks v2](https://docs.abacatepay.com/pages/webhooks) e [referência de webhooks](https://docs.abacatepay.com/pages/webhooks/reference). Conta, endpoints cadastrados e dados de produção não foram verificados.
+Contrato oficial consultado: [Webhooks v2](https://docs.abacatepay.com/pages/webhooks), [referência de webhooks](https://docs.abacatepay.com/pages/webhooks/reference) e [listagem de produtos](https://docs.abacatepay.com/pages/products/list). Em 2026-07-27, a credencial configurada respondeu 200 a uma listagem de um produto, sem mutação. O endpoint Production recusou uma entrega sem segredo/assinatura com 401. O cadastro da URL no painel do provedor e uma entrega assinada ainda exigem conferência funcional.
 
 ## Configuração
 
