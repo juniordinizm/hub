@@ -345,9 +345,14 @@ subcomando foi repassado ao curl nativo como opção desconhecida. A execução
 `30230775100` provou que o comando beta também repassa a opção quando ela aparece
 antes do subcomando. Todos os demais gates das duas execuções passaram.
 
-O workflow contorna o defeito sem usar opção obsoleta: executa
-`vercel teams switch neuro-capacitar` no runner efêmero e depois chama `deploy`,
-`curl` e `promote` no scope ativo. A implementação oficial de `teams switch`
-persiste o ID do time no config global da CLI; `vercel curl` deixa de receber
-uma opção que ele incorretamente encaminharia ao binário nativo. O contrato
-automatizado exige a seleção explícita do time e proíbe `--scope` nesses jobs.
+A execução `30231483896` confirmou que `teams switch` persiste o time, mas o
+comando beta ainda resolve o projeto no scope pessoal ao iniciar outro processo.
+Esse caminho foi descartado.
+
+A solução final usa o mecanismo estável recomendado pela Vercel para CI:
+**Protection Bypass for Automation**. Um segredo dedicado, identificado no
+painel como `GitHub Actions readiness smoke`, foi criado no projeto e armazenado
+nos GitHub Environments `vercel-preview` e `vercel-production`. O smoke usa curl
+nativo com `x-vercel-protection-bypass` e o header próprio
+`Authorization: Bearer <HEALTHCHECK_SECRET>`. Deploy e promote continuam com o
+scope explícito do time; o comando beta `vercel curl` saiu dos workflows.

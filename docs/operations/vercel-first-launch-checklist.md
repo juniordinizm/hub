@@ -72,10 +72,9 @@ o journal permaneceu com 44 entradas/topo `0043`. O contrato limitado foi
 implementado e passou nos testes locais. Os seis valores de runtime foram
 auditados no escopo Preview: Neon, autenticação, readiness, IP, cadastro e kill
 switch estão configurados. O primeiro deployment chegou a `READY` em `gru1`;
-o smoke remoto precisa ser repetido depois da correção que seleciona
-`neuro-capacitar` com `vercel teams switch`. O comando beta `vercel curl`
-repassa `--scope` incorretamente ao curl nativo e, por isso, não recebe essa
-opção.
+o smoke remoto precisa ser repetido com o Protection Bypass for Automation
+dedicado. O comando beta `vercel curl` foi removido do workflow porque sua
+resolução de scope falhou nas três formas testadas.
 
 Não conecte Preview à branch `production`. A branch dedicada já existe e não
 contém dados do ambiente definitivo.
@@ -166,6 +165,10 @@ Em `juniordinizm/hub`, abra **Settings > Environments**.
 sincronizado com a Vercel. Falta somente cadastrar `VERCEL_TOKEN`, reutilizando
 o token vigente e não comprometido do time.
 
+Os dois environments também contêm `VERCEL_AUTOMATION_BYPASS_SECRET`, gerado
+pela Vercel exclusivamente para o smoke de readiness. Esse segredo não pertence
+ao runtime da aplicação, ao banco nem aos providers.
+
 **Detalhe de Preview:** o token final
 `GitHub hub deploy 2026-07` está limitado ao time `Neuro Capacitar`, que contém
 somente o projeto `hub`, e expira em 2026-10-24. O token anterior sem expiração
@@ -225,8 +228,10 @@ tentar novamente. Não reutilize uma credencial exposta.
 2. Adicione secret `VERCEL_TOKEN`.
 3. Adicione secret `HEALTHCHECK_SECRET`, com o mesmo valor do runtime Preview
    configurado na Vercel.
-4. Adicione variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
-5. Não adicione URL de produção, URL direta Neon ou credenciais de providers.
+4. Adicione secret `VERCEL_AUTOMATION_BYPASS_SECRET`, criado em
+   **Settings > Deployment Protection > Protection Bypass for Automation**.
+5. Adicione variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+6. Não adicione URL de produção, URL direta Neon ou credenciais de providers.
 
 ### `vercel-production`
 
@@ -236,9 +241,11 @@ tentar novamente. Não reutilize uma credencial exposta.
 3. Adicione secret `VERCEL_TOKEN`.
 4. Adicione secret `HEALTHCHECK_SECRET`, com o mesmo valor do runtime
    Production configurado na Vercel.
-5. Adicione secret `DATABASE_URL_DIRECT`, com endpoint direto da branch Neon
+5. Adicione secret `VERCEL_AUTOMATION_BYPASS_SECRET`, igual ao bypass dedicado
+   do projeto Vercel.
+6. Adicione secret `DATABASE_URL_DIRECT`, com endpoint direto da branch Neon
    `production`.
-6. Adicione variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+7. Adicione variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
 
 A aprovação humana ocorre ao executar manualmente `Deploy Vercel production`.
 O formulário exige o SHA completo do `main` verde e a confirmação

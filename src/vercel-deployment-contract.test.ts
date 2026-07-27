@@ -23,16 +23,20 @@ describe("Vercel deployment contract", () => {
     const previewJob = source.slice(source.indexOf("  vercel-preview:"));
 
     expect(source).toContain("needs: build-and-knip");
-    expect(source).toContain('teams switch "$VERCEL_SCOPE"');
-    expect(source).toContain("vercel@57.0.0 deploy --yes");
-    expect(source).toContain("vercel@57.0.0 curl /api/health/ready");
+    expect(source).toContain(
+      'vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes'
+    );
+    expect(source).toContain("curl --fail-with-body --silent --show-error");
+    expect(source).toContain("x-vercel-protection-bypass");
+    expect(source).not.toContain("vercel@57.0.0 curl");
     expect(source).not.toContain("vercel@57.0.0 pull");
     expect(previewJob).toContain("name: vercel-preview");
     expect(previewJob).toContain("timeout-minutes: 20");
     expect(previewJob).toContain("githubCommitRef=");
     expect(previewJob).toContain("githubCommitSha=");
     expect(previewJob).toContain("VERCEL_SCOPE: neuro-capacitar");
-    expect(previewJob).not.toContain('--scope="$VERCEL_SCOPE"');
+    expect(previewJob).toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
+    expect(previewJob.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(1);
     expect(previewJob).toContain("HEALTHCHECK_SECRET");
     expect(previewJob).not.toContain("DATABASE_URL_DIRECT");
     expect(previewJob).not.toContain("R2_SECRET_ACCESS_KEY");
@@ -61,26 +65,28 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain('--meta "githubCommitRef=');
     expect(source).toContain("githubCommitSha=");
     expect(source).toContain("VERCEL_SCOPE: neuro-capacitar");
-    expect(source).toContain('teams switch "$VERCEL_SCOPE"');
-    expect(source).not.toContain('--scope="$VERCEL_SCOPE"');
+    expect(source).toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
+    expect(source.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(2);
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("bun run db:migrate:production");
     expect(source).toContain(
       "bun run db:migrations:inspect -- --environment=vercel-production"
     );
     expect(source).toContain("--prod --skip-domain");
-    expect(source).toContain("vercel@57.0.0 curl /api/health/ready");
-    expect(source).toContain("vercel@57.0.0 promote");
+    expect(source).toContain("curl --fail-with-body --silent --show-error");
+    expect(source).toContain("x-vercel-protection-bypass");
+    expect(source).toContain('vercel@57.0.0 --scope="$VERCEL_SCOPE" promote');
+    expect(source).not.toContain("vercel@57.0.0 curl");
     expect(source).not.toContain("vercel@57.0.0 pull");
     expect(source).not.toContain("--prebuilt");
     expect(source.indexOf("bun run db:migrate:production")).toBeLessThan(
       source.indexOf("--prod --skip-domain")
     );
     expect(source.indexOf("--prod --skip-domain")).toBeLessThan(
-      source.indexOf("curl /api/health/ready")
+      source.indexOf("x-vercel-protection-bypass")
     );
-    expect(source.indexOf("curl /api/health/ready")).toBeLessThan(
-      source.indexOf("vercel@57.0.0 promote")
+    expect(source.indexOf("x-vercel-protection-bypass")).toBeLessThan(
+      source.indexOf('vercel@57.0.0 --scope="$VERCEL_SCOPE" promote')
     );
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
   });
