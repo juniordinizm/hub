@@ -22,7 +22,8 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 10. Knip;
 11. auditoria das dependências de produção;
 12. build remoto, deploy e smoke autenticado de um candidato Vercel Preview;
-13. migration controlada e deploy Production do SHA verde da `main`.
+13. habilitação dos workflows manuais de migration Development e deploy
+    Production para o SHA verde da `main`.
 
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
@@ -40,6 +41,12 @@ Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
 preferido quando existe alias de branch; o segundo é o hostname disponível nos
 deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
 o bypass de automação.
+
+A branch persistente `vercel-preview` não recebe migrations de Pull Request.
+Mudanças de schema são comprovadas por `integration-db` e `e2e`, cada uma em
+branch Neon descartável já migrada. O Preview visual só representa jornadas que
+continuam compatíveis com o schema persistente; uma validação manual dependente
+do schema novo exige branch Neon temporária.
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
@@ -224,28 +231,39 @@ O ambiente `vercel-preview` do GitHub fornece token, IDs do projeto e uma cópia
 do `HEALTHCHECK_SECRET`; as demais variáveis de runtime ficam na Vercel.
 
 Uma CI verde na `main` habilita, mas não aciona, o workflow separado de
-produção. A proprietária o executa manualmente com o SHA completo e a
-confirmação de Production. O job prova que o SHA é o `main` atual e possui CI
-verde, usa o GitHub Environment `vercel-production`, aplica e audita as
+produção. A proprietária o executa manualmente somente com a confirmação de
+Production. O job deriva o SHA do checkout da `main`, prova que ele ainda é o
+`origin/main` atual e possui CI verde, usa o GitHub Environment
+`vercel-production`, aplica e audita as
 migrations com `DATABASE_URL_DIRECT`, solicita um build Production remoto sem
 promoção de domínio, executa o smoke de readiness nesse deployment isolado e só
 então o promove. O grupo de concorrência não cancela uma migration em andamento.
 Deploy Git automático da Vercel deve ficar desligado para não duplicar esse
 pipeline.
 
+Quando a `main` contém migration nova, o workflow manual
+`Migrate Neon development` deriva e valida o mesmo SHA verde, usa o Environment
+`neon-development`, confere o hostname esperado e aplica a cadeia com lock antes
+de auditar o journal. Ele não recebe SHA digitado nem executa código de PR.
+
 ## Verificação local
 
-Para unitários e qualidade:
+Durante o desenvolvimento:
 
 ```bash
-bun run docs:check
-bun run db:migrations:check
-bun run typecheck
-bun run check
-bun run test
-bun run build
-bun run knip
+bun run verify:quick
 ```
+
+Antes do Pull Request:
+
+```bash
+bun run verify
+```
+
+O perfil rápido executa migrations check, typecheck, estilo e testes. O perfil
+completo acrescenta documentação, build e Knip. Ambos são fail-fast. O gate
+local de build reproduz a configuração sintética da CI com origem `.invalid` e
+segredo descartável para as variáveis mínimas exigidas pela compilação.
 
 E2E e integração requerem uma branch Neon ou banco descartável já migrado, nunca um banco
 compartilhado. A CI é o caminho recomendado até existir um procedimento local isolado equivalente.

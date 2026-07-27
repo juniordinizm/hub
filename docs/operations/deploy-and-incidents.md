@@ -14,9 +14,10 @@ de produção. A VPS anterior permanece fora do fluxo e não é autoridade de
 release.
 
 O workflow `CI` valida o código e cria um deployment Preview por build remoto
-na Vercel. O workflow manual `Deploy Vercel production` recebe o SHA completo
-aprovado, exige confirmação explícita, verifica que ele é o `origin/main` atual
-e consulta a API do GitHub para provar uma CI verde desse SHA. Só então aplica
+na Vercel. O workflow manual `Deploy Vercel production` exige confirmação
+explícita, deriva o SHA do checkout da `main`, verifica que ele é o
+`origin/main` atual e consulta a API do GitHub para provar uma CI verde desse
+SHA. Só então aplica
 migrations com conexão direta, cria um deployment Production sem promovê-lo,
 testa sua readiness e o promove. Deploys Git automáticos da Vercel devem
 permanecer desligados para não criar uma segunda promoção concorrente.
@@ -28,6 +29,8 @@ permanecer desligados para não criar uma segunda promoção concorrente.
   `SCHEDULED_JOBS_ENABLED=false`.
 - `vercel-production`: ambiente protegido no GitHub. Contém token de deploy,
   segredo de readiness e URL direta de migration.
+- `neon-development`: ambiente protegido no GitHub. Contém somente a URL direta
+  da branch Development e o hostname esperado desse compute.
 - Vercel Preview: contém apenas o núcleo permitido pelo perfil limitado e
   nenhuma credencial de provider.
 - Vercel Production: contém todas as variáveis de runtime definitivas.
@@ -56,8 +59,8 @@ O caminho versionado é:
 2. CI: integração PostgreSQL e jornadas Chromium em branches Neon efêmeras.
 3. CI: build e Knip.
 4. CI: `vercel deploy` remoto e smoke autenticado de Preview.
-5. Produção: despacho manual com SHA completo e confirmação de Production.
-6. Produção: prova de que o SHA é o `main` atual e possui CI verde.
+5. Produção: despacho manual com confirmação de Production.
+6. Produção: derivação do SHA e prova de que ele é o `main` atual com CI verde.
 7. Produção: `db:migrate:production` e auditoria do journal.
 8. Produção: `vercel deploy --prod --skip-domain`.
 9. Produção: smoke autenticado de `/api/health/ready` no deployment isolado.
@@ -67,8 +70,8 @@ O grupo de concorrência de produção não cancela uma execução em andamento.
 evita interromper uma migration para iniciar outra. Como o repositório é privado
 e required reviewers de Environments não estão disponíveis nos planos
 GitHub Free/Pro/Team, a autorização humana é o próprio `workflow_dispatch`:
-informe o SHA completo e marque `confirm_production`. O workflow recusa SHA que
-não seja o `main` atual ou não tenha CI verde.
+marque `confirm_production`. O workflow recusa execução fora da `main`, SHA
+atual sem CI verde ou checkout que tenha ficado desatualizado.
 
 Não avance quando houver migration não validada, Preview usando dados
 definitivos, variável ausente, falha de CI, webhook não conferido ou alteração
@@ -97,6 +100,16 @@ irreversível sem plano de recuperação.
 - secret `DATABASE_URL_DIRECT`, apontando à branch Neon definitiva;
 - variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
 
+### GitHub Environment `neon-development`
+
+- secret `DATABASE_URL_DIRECT`, apontando à branch Neon `development`;
+- variable `DEVELOPMENT_DATABASE_HOST`, contendo somente o hostname direto
+  `ep-silent-leaf-aclmy5uk...neon.tech`, sem protocolo, usuário ou senha.
+
+O workflow `Migrate Neon development` deve ser executado apenas na `main`, depois
+da CI verde, e somente quando o merge contiver migration. Sua concorrência não
+cancela uma migration em andamento.
+
 ### Vercel
 
 Configure cada valor no ambiente correto. Preview nunca reutiliza banco, bucket,
@@ -108,6 +121,9 @@ Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
 `SCHEDULED_JOBS_ENABLED=false`. As variáveis de sistema da Vercel devem estar
 expostas; a origem prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` nos
 deployments criados pela CLI sem alias de branch.
+
+O workflow Preview não promove migrations de PR para essa branch persistente.
+Integração PostgreSQL e E2E validam o schema novo em branches descartáveis.
 
 Os valores abaixo pertencem a Production:
 

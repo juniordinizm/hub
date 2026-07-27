@@ -499,14 +499,20 @@ bun run dev
 Antes do commit, rode primeiro o teste mais relacionado à mudança. Depois:
 
 ```powershell
-bun run docs:check
-bun run db:migrations:check
-bun run typecheck
-bun run check
-bun run test
-bun run build
-bun run knip
+bun run verify:quick
 ```
+
+`verify:quick` executa, em ordem, integridade das migrations, typecheck, estilo e
+testes. Antes de abrir o Pull Request, execute o perfil completo:
+
+```powershell
+bun run verify
+```
+
+`verify` acrescenta documentação, build Production e Knip. Ambos param no
+primeiro gate vermelho e mostram qual comando falhou. O build recebe somente
+as variáveis sintéticas mínimas de aplicação exigidas pela compilação e não
+exige copiar `.env.local` para um worktree limpo.
 
 Não rode E2E contra a branch compartilhada Development. E2E limpa e recria
 fixtures; a CI fornece branches descartáveis próprias.
@@ -548,6 +554,27 @@ O Preview não testa providers. Resend, AbacatePay, JMVStream e R2 são
 verificados localmente em Development e novamente no candidato Production
 quando necessário.
 
+O banco persistente `vercel-preview` também não recebe migrations de Pull
+Request. Mudanças de schema são validadas nas branches Neon descartáveis das
+jobs PostgreSQL e E2E. Quando a revisão manual depender do schema novo, use uma
+branch Neon temporária; nunca aplique migration de PR no Preview compartilhado.
+
+### 5. Sincronizar o banco Development depois do merge
+
+Quando o Pull Request contiver migration, aguarde a CI verde do commit final da
+`main`. Depois, no GitHub:
+
+1. abra **Actions**;
+2. escolha **Migrate Neon development**;
+3. clique em **Run workflow**;
+4. mantenha a branch em `main`;
+5. marque `confirm_development`;
+6. execute uma única vez e aguarde migration e auditoria verdes.
+
+O workflow deriva o SHA da `main`, exige CI verde e confere o hostname do secret
+`DATABASE_URL_DIRECT` contra `DEVELOPMENT_DATABASE_HOST` antes de abrir a
+conexão. Ele não aceita migration de uma feature ainda não integrada.
+
 ## Deploy para Production
 
 Deploy Production não acontece automaticamente no push.
@@ -569,25 +596,7 @@ Depois do merge, abra **GitHub > Actions > CI** e localize a execução da
 
 Uma CI verde do Pull Request não substitui a CI do commit final da `main`.
 
-### 3. Encontrar o SHA completo
-
-Opção pelo terminal:
-
-```powershell
-git switch main
-git pull origin main
-git rev-parse HEAD
-```
-
-O resultado deve conter 40 caracteres minúsculos. Copie somente o SHA.
-
-Opção pelo GitHub:
-
-1. abra a execução verde da CI da `main`;
-2. clique no commit exibido;
-3. copie o SHA completo pela tela do commit.
-
-### 4. Executar o workflow
+### 3. Executar o workflow
 
 No GitHub:
 
@@ -595,17 +604,16 @@ No GitHub:
 2. escolha **Deploy Vercel production**;
 3. clique em **Run workflow**;
 4. mantenha a branch do workflow em `main`;
-5. cole o SHA em `release_sha`;
-6. marque `confirm_production`;
-7. execute uma única vez.
+5. marque `confirm_production`;
+6. execute uma única vez.
 
 Não inicie um segundo deploy enquanto o primeiro estiver em andamento.
 
-### 5. Entender as etapas
+### 4. Entender as etapas
 
 O workflow:
 
-1. prova que o SHA é o `origin/main` atual;
+1. descobre e prova que o SHA do checkout é o `origin/main` atual;
 2. prova que existe CI verde para esse SHA;
 3. instala dependências;
 4. aplica migrations na branch Neon Production;
@@ -617,7 +625,7 @@ O workflow:
 Falha antes da promoção mantém o domínio no deployment anterior. Não tente
 “corrigir” executando migration ou deploy manual.
 
-### 6. Verificação pós-deploy
+### 5. Verificação pós-deploy
 
 Depois do workflow verde:
 
@@ -636,7 +644,7 @@ Pare sem tentar contornar quando:
 - o banco local aponta ao hostname Production;
 - um provider não aprovado lista recursos Production;
 - a CI está vermelha;
-- o SHA informado não é o `main` atual;
+- o workflow informa que o checkout não é a `main` atual;
 - migration falhou;
 - webhook chegou sem assinatura válida;
 - JMVStream alterou ou removeu um ativo preexistente;
@@ -698,7 +706,6 @@ Antes de Production:
 
 - [ ] PR aprovado e merged.
 - [ ] CI da `main` verde.
-- [ ] SHA completo da `main`.
 - [ ] Workflow manual executado uma vez.
 - [ ] Readiness e promoção verdes.
 - [ ] Smoke e observabilidade conferidos.
@@ -706,8 +713,10 @@ Antes de Production:
 ## Evidências
 
 `.github/workflows/ci.yml`, `.github/workflows/deploy-vercel.yml`,
+`.github/workflows/migrate-development.yml`,
 `.env.example`, `playwright.config.ts`, `src/lib/env.ts`,
 `src/lib/preview-environment.ts`, `src/lib/production-environment.ts`,
 `src/features/storage/r2.ts`, `src/features/email/server.ts`,
-`src/features/payments/abacatepay-client.ts`, `src/features/jmvstream/client.ts`
-e `src/lib/sentry-options.ts`.
+`src/features/payments/abacatepay-client.ts`, `src/features/jmvstream/client.ts`,
+`src/lib/sentry-options.ts`, `src/db/migration-target.ts` e
+`scripts/migrate-development.ts`.

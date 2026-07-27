@@ -5,6 +5,19 @@
     "ultracite/biome/react",
     "ultracite/biome/next"
   ],
+  "formatter": {
+    "lineEnding": "auto"
+  },
+  "css": {
+    "formatter": {
+      "lineEnding": "auto"
+    }
+  },
+  "json": {
+    "formatter": {
+      "lineEnding": "auto"
+    }
+  },
   "files": {
     "includes": ["!public/**/*.svg", "!src/db/migrations/meta/*.json"]
   }

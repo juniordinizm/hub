@@ -277,9 +277,10 @@ O repositório GitHub foi confirmado como privado. A documentação vigente do
 GitHub restringe required reviewers de Environments a repositórios públicos nos
 planos Free/Pro/Team; portanto, o gatilho automático `workflow_run` foi removido
 para não permitir promoção silenciosa depois do merge. Production agora usa
-`workflow_dispatch` com SHA completo, confirmação booleana, igualdade com o
-`origin/main` atual e consulta autenticada das execuções verdes de `CI`. O teste
-do contrato de deployment passou com 3 casos e 40 asserções.
+`workflow_dispatch` com confirmação booleana, deriva o SHA do checkout da
+`main`, confirma igualdade com o `origin/main` atual e consulta de forma
+autenticada as execuções verdes de `CI`. O contrato versionado também cobre o
+workflow manual e protegido de migration da branch Development.
 
 O candidato inicial foi publicado no PR `#7`, SHA
 `d6843576b7ce3fb4d02f583d6c482dfaeb1ae902`. Quality gates e integração

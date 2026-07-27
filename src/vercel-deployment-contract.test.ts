@@ -43,20 +43,23 @@ describe("Vercel deployment contract", () => {
     expect(previewJob).not.toContain("RESEND_API_KEY");
   });
 
-  it("requires an explicit approved main SHA before production migration and promotion", async () => {
+  it("derives an approved main SHA before production migration and promotion", async () => {
     const source = await readFile(
       ".github/workflows/deploy-vercel.yml",
       "utf8"
     );
 
     expect(source).toContain("workflow_dispatch:");
-    expect(source).toContain("release_sha:");
+    expect(source).not.toContain("      release_sha:");
     expect(source).toContain("confirm_production:");
     expect(source).toContain("actions: read");
     expect(source).toContain("Verify approved main SHA and green CI");
+    expect(source).toContain("ref: main");
+    expect(source).toContain('release_sha="$(git rev-parse HEAD)"');
+    expect(source).toContain("steps.release.outputs.sha");
+    expect(source).toContain('GITHUB_REF}" != "refs/heads/main"');
     expect(source).toContain("origin/main");
     expect(source).toContain("actions/workflows/ci.yml/runs");
-    expect(source).toContain(`ref: ${"${{"} inputs.release_sha }}`);
     expect(source).not.toMatch(WORKFLOW_RUN_TRIGGER_PATTERN);
     expect(source).toContain("environment:");
     expect(source).toContain("name: vercel-production");
