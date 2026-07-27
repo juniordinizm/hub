@@ -184,6 +184,20 @@ produziu erros desnecessários. O caminho operacional é:
 O token nunca pertence à Vercel runtime, ao `.env`, ao chat ou ao histórico do
 terminal.
 
+### Conectar a identidade Git do autor
+
+O CLI envia metadata do commit mesmo sem integração Git automática. Em times
+Pro, a Vercel bloqueia o candidato quando o autor não está associado a uma
+Login Connection do time. Não contorne essa regra alterando o autor do commit.
+
+1. Entre na Vercel como `neurocapacitarprojetos`.
+2. Abra **Account Settings > Authentication > Login Connections**.
+3. Em GitHub, selecione **Connect** e autorize `juniordinizm`.
+4. Confirme que `juniordinizm` aparece na conexão da mesma conta.
+5. Não convide outro membro nem compre um seat adicional para a mesma pessoa.
+6. Se o GitHub já estiver ligado a outra conta Vercel, pare e revise a conta
+   existente antes de desconectar ou transferir a conexão.
+
 Erros conhecidos:
 
 - `--token ... missing a value`: a variável de memória está vazia;

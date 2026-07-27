@@ -25,9 +25,12 @@ jobs:
   deploy:
     name: Migrate and deploy approved main SHA
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment:
       name: vercel-production
     env:
+      DEPLOYMENT_GIT_REF: main
+      DEPLOYMENT_GIT_SHA: ${{ inputs.release_sha }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
     steps:
@@ -104,7 +107,12 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deployment_url="$(bunx vercel@57.0.0 deploy --yes --prod --skip-domain --token="$VERCEL_TOKEN")"
+          deployment_url="$(
+            bunx vercel@57.0.0 deploy --yes --prod --skip-domain \
+              --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
+              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --token="$VERCEL_TOKEN"
+          )"
           echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
       - name: Smoke unpromoted Production readiness
         env:

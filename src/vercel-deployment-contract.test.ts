@@ -27,6 +27,9 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("vercel@57.0.0 curl /api/health/ready");
     expect(source).not.toContain("vercel@57.0.0 pull");
     expect(previewJob).toContain("name: vercel-preview");
+    expect(previewJob).toContain("timeout-minutes: 20");
+    expect(previewJob).toContain("githubCommitRef=");
+    expect(previewJob).toContain("githubCommitSha=");
     expect(previewJob).toContain("HEALTHCHECK_SECRET");
     expect(previewJob).not.toContain("DATABASE_URL_DIRECT");
     expect(previewJob).not.toContain("R2_SECRET_ACCESS_KEY");
@@ -50,6 +53,10 @@ describe("Vercel deployment contract", () => {
     expect(source).not.toMatch(WORKFLOW_RUN_TRIGGER_PATTERN);
     expect(source).toContain("environment:");
     expect(source).toContain("name: vercel-production");
+    expect(source).toContain("timeout-minutes: 30");
+    expect(source).toContain("DEPLOYMENT_GIT_REF: main");
+    expect(source).toContain('--meta "githubCommitRef=');
+    expect(source).toContain("githubCommitSha=");
     expect(source).toContain("cancel-in-progress: false");
     expect(source).toContain("bun run db:migrate:production");
     expect(source).toContain(

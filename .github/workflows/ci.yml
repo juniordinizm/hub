@@ -187,9 +187,12 @@ jobs:
       (github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     environment:
       name: vercel-preview
     env:
+      DEPLOYMENT_GIT_REF: ${{ github.head_ref || github.ref_name }}
+      DEPLOYMENT_GIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
     steps:
@@ -214,7 +217,12 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          deployment_url="$(bunx vercel@57.0.0 deploy --yes --token="$VERCEL_TOKEN")"
+          deployment_url="$(
+            bunx vercel@57.0.0 deploy --yes \
+              --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
+              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --token="$VERCEL_TOKEN"
+          )"
           echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
       - name: Smoke Preview readiness
         env:

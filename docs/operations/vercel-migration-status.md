@@ -315,3 +315,18 @@ obsoleta de outro projeto. `HEALTHCHECK_SECRET` foi rotacionado com 32 bytes
 aleatórios e sincronizado entre Vercel Production e GitHub. `VERCEL_TOKEN`
 continua pendente em Production porque o GitHub não permite copiar ou ler o
 secret já cadastrado em Preview.
+
+O candidato Preview seguinte não falhou no build: a API Vercel o encerrou como
+`BLOCKED`, com `TEAM_ACCESS_REQUIRED`, antes de executar qualquer build. A
+autoria do commit está corretamente ligada ao GitHub `juniordinizm`, mas esse
+GitHub ainda não consta em **Login Connections** da conta Vercel existente
+`neurocapacitarprojetos`. A correção aprovada não cria outro membro nem altera
+autoria: conecta o provedor GitHub à mesma conta Vercel. A execução presa foi
+cancelada depois que todos os quatro gates anteriores passaram.
+
+O workflow agora limita Preview a 20 minutos e Production a 30 minutos, evitando
+runner indefinido se um provider devolver estado terminal desconhecido pela CLI.
+Também informa explicitamente `githubCommitRef` e `githubCommitSha`; isso evita
+registrar o merge checkout destacado como branch `HEAD` e mantém Preview e
+release rastreáveis ao SHA candidato correto. O contrato automatizado cobre
+esses invariantes.
