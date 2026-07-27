@@ -1,14 +1,15 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
-# Desenvolvimento compartilhado e deploy para Production
+# Desenvolvimento compartilhado
 
-Este guia explica, em linguagem operacional, como preparar o computador,
-desenvolver sem atingir Production e publicar uma mudança. Ele foi escrito para
-quem ainda não conhece Neon, R2, Vercel ou GitHub Actions.
+Este guia explica, em linguagem operacional, como preparar o computador e
+desenvolver sem atingir Production. Para publicar uma mudança, use o
+[tutorial da alteração até Production](production-release-guide.md), que é a
+autoridade do procedimento diário de release.
 
 Não copie segredos para este documento, chat, issue ou commit. Os nomes dos
 recursos podem ser registrados; senhas, tokens e URLs de banco não.
@@ -27,20 +28,20 @@ O projeto possui quatro ambientes com finalidades diferentes:
 Branch Git e branch Neon são independentes. Trocar de branch com `git switch`
 não muda o banco. `bun run dev` usa a URL presente no `.env.local`.
 
-### Estado atual e bloqueio
+### Estado atual
 
-Na auditoria de 2026-07-27, o `.env.local` existente apontava ao compute Neon
-de Production e continha credenciais de providers definitivos. Até concluir a
-preparação deste guia, não use esse arquivo para criar, editar ou remover dados.
+Em 2026-07-27, a estação principal passou pelo preflight de Development com o
+compute Neon `ep-silent-leaf-aclmy5uk`, os dois buckets
+`hub-development-*`, o plano JMVStream compartilhado aprovado e o projeto
+Sentry Development. A configuração está liberada para desenvolvimento.
 
-Antes de liberar o desenvolvimento local, todos os itens da seção
-[Preparação única](#preparação-única) devem estar concluídos.
+Em uma estação nova, conclua todos os itens da seção
+[Preparação única](#preparação-única) antes de executar a aplicação.
 
 Estado confirmado em 2026-07-27:
 
 - buckets `hub-development-private` e `hub-development-public` criados;
-- API key R2 Development criada; acesso público e CORS ainda precisam ser
-  confirmados no painel;
+- API key, acesso público e CORS dos buckets R2 Development configurados;
 - branch Neon `development` (`br-cool-voice-acsxtxyv`) criada com compute
   `ep-silent-leaf-aclmy5uk`;
 - a leitura da branch confirmou 44 migrations e zero usuários, cursos e
@@ -428,7 +429,8 @@ Antes de iniciar:
 4. confira que o remetente contém `Dev`;
 5. confira que a chave AbacatePay é de teste;
 6. confira que o projeto Sentry é `hub-development`;
-7. confira que o recurso/plano JMVStream é Development;
+7. confira `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true` e trate a credencial
+   JMVStream como Production;
 8. confira `E2E_TEST_MODE=false`.
 
 Em caso de dúvida, não execute a aplicação.
@@ -559,9 +561,17 @@ Request. Mudanças de schema são validadas nas branches Neon descartáveis das
 jobs PostgreSQL e E2E. Quando a revisão manual depender do schema novo, use uma
 branch Neon temporária; nunca aplique migration de PR no Preview compartilhado.
 
+Há uma limitação operacional adicional: o marcador de readiness acompanha o
+topo do journal, então uma migration nova pode deixar o Preview vermelho antes
+que `Migrate Neon development` esteja autorizado a rodar. Esse workflow aceita
+somente a `main` com CI verde. Não contorne o ciclo com migration manual ou merge
+vermelho; siga a seção de migration do
+[tutorial de release](production-release-guide.md) e escale o caso.
+
 ### 5. Sincronizar o banco Development depois do merge
 
-Quando o Pull Request contiver migration, aguarde a CI verde do commit final da
+Quando o Pull Request contiver migration e o pipeline tiver sido liberado sem o
+bloqueio de Preview descrito acima, aguarde a CI verde do commit final da
 `main`. Depois, no GitHub:
 
 1. abra **Actions**;
@@ -575,67 +585,20 @@ O workflow deriva o SHA da `main`, exige CI verde e confere o hostname do secret
 `DATABASE_URL_DIRECT` contra `DEVELOPMENT_DATABASE_HOST` antes de abrir a
 conexão. Ele não aceita migration de uma feature ainda não integrada.
 
-## Deploy para Production
+## Da mudança local até Production
 
-Deploy Production não acontece automaticamente no push.
+Este guia termina no desenvolvimento compartilhado. O procedimento único de
+commit, Pull Request, CI, migration Development, merge e promoção Vercel está
+no [tutorial da alteração até Production](production-release-guide.md).
 
-### 1. Fazer merge
+Resumo da fronteira:
 
-Faça merge somente depois de:
-
-- CI verde;
-- Preview aprovado;
-- revisão concluída;
-- migration revisada, quando existir;
-- teste Development do provider afetado.
-
-### 2. Aguardar a CI da `main`
-
-Depois do merge, abra **GitHub > Actions > CI** e localize a execução da
-`main`. Aguarde todos os jobs ficarem verdes.
-
-Uma CI verde do Pull Request não substitui a CI do commit final da `main`.
-
-### 3. Executar o workflow
-
-No GitHub:
-
-1. abra **Actions**;
-2. escolha **Deploy Vercel production**;
-3. clique em **Run workflow**;
-4. mantenha a branch do workflow em `main`;
-5. marque `confirm_production`;
-6. execute uma única vez.
-
-Não inicie um segundo deploy enquanto o primeiro estiver em andamento.
-
-### 4. Entender as etapas
-
-O workflow:
-
-1. descobre e prova que o SHA do checkout é o `origin/main` atual;
-2. prova que existe CI verde para esse SHA;
-3. instala dependências;
-4. aplica migrations na branch Neon Production;
-5. audita o journal de migrations;
-6. cria um deployment Production sem apontar o domínio;
-7. testa readiness;
-8. promove o deployment verificado.
-
-Falha antes da promoção mantém o domínio no deployment anterior. Não tente
-“corrigir” executando migration ou deploy manual.
-
-### 5. Verificação pós-deploy
-
-Depois do workflow verde:
-
-1. abra `https://app.neurocapacitar.com.br`;
-2. confirme login;
-3. teste somente a jornada alterada;
-4. consulte erros recentes no Sentry Production;
-5. confira logs Vercel pelo SHA e `correlationId`;
-6. se a mudança afetou provider, confira o painel correspondente;
-7. não use pagamento real apenas como smoke genérico.
+- push cria CI e Preview, mas não publica Production;
+- merge atualiza `main`, mas também não publica Production;
+- migration em Development é manual e só ocorre depois do merge;
+- migration e deploy Production acontecem juntos no workflow manual
+  `Deploy Vercel production`;
+- não é necessário copiar ou digitar SHA.
 
 ## Quando parar e pedir ajuda
 
@@ -706,7 +669,9 @@ Antes de Production:
 
 - [ ] PR aprovado e merged.
 - [ ] CI da `main` verde.
-- [ ] Workflow manual executado uma vez.
+- [ ] Nenhuma migration presa no bloqueio conhecido de Preview.
+- [ ] Migration Development executada, quando houver migration.
+- [ ] Workflow `Deploy Vercel production` executado uma vez.
 - [ ] Readiness e promoção verdes.
 - [ ] Smoke e observabilidade conferidos.
 

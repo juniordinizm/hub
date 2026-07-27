@@ -1,10 +1,14 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 9fa916691ed1226233847f40b13bdfac6787c995
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Deploy e incidentes
+
+Este runbook explica o contrato técnico, configuração e recuperação. Para o
+passo a passo diário, use o
+[tutorial da alteração até Production](production-release-guide.md).
 
 ## Modelo de release na Vercel
 
@@ -110,6 +114,12 @@ O workflow `Migrate Neon development` deve ser executado apenas na `main`, depoi
 da CI verde, e somente quando o merge contiver migration. Sua concorrência não
 cancela uma migration em andamento.
 
+Limitação conhecida: o Preview persistente não recebe migrations de PR, mas sua
+readiness exige a migration mais recente do journal. A próxima migration pode
+bloquear a CI antes de o workflow Development ser elegível. Não aplique SQL
+manualmente nem faça merge vermelho; siga o
+[tutorial de release](production-release-guide.md).
+
 ### Vercel
 
 Configure cada valor no ambiente correto. Preview nunca reutiliza banco, bucket,
@@ -174,7 +184,9 @@ confirmados.
 4. Curso, Aula, checkout e webhook de teste.
 5. Upload direto JMVStream e R2, incluindo CORS.
 6. Emissão, download autenticado e consulta pública de Certificado.
-7. Uma chamada manual autorizada de cada cron em Preview.
+7. Uma chamada controlada do cron afetado em Development ou, quando
+   indispensável, no candidato/ambiente Production sob observação. Preview não
+   possui providers e mantém jobs desligados.
 8. Logs e evento de teste no Sentry sem PII.
 
 ## Rollback

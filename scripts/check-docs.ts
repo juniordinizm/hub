@@ -16,9 +16,16 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/integrations/abacatepay.md",
   "docs/integrations/jmvstream.md",
   "docs/integrations/r2.md",
+  "docs/integrations/resend.md",
   "docs/operations/environment-and-local-development.md",
+  "docs/operations/shared-development-and-release-guide.md",
+  "docs/operations/production-release-guide.md",
   "docs/operations/database-and-migrations.md",
   "docs/operations/deploy-and-incidents.md",
+  "docs/operations/vercel-first-launch-checklist.md",
+  "docs/operations/vercel-migration-status.md",
+  "docs/operations/testing-and-ci.md",
+  "docs/operations/outbox-and-transactional-effects.md",
   "docs/operations/observability-and-recovery.md",
   "docs/adr/0001-custom-rbac.md",
   "docs/adr/0002-r2-buckets-and-publication.md",
@@ -26,6 +33,8 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/adr/0004-access-grants-and-enrollment-projection.md",
   "docs/adr/0005-financial-precedence-and-manual-review.md",
   "docs/adr/0006-certificate-lifecycle.md",
+  "docs/adr/0007-course-versioning-and-enrollment-curriculum.md",
+  "docs/adr/0008-optional-learning-analytics.md",
 ] as const;
 
 const REMOVED_DOCUMENT_PATHS = [

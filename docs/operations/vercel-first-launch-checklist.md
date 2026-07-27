@@ -1,10 +1,15 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Primeiro deploy Vercel-first
+
+> Configuração inicial concluída em 2026-07-27. Este documento preserva a
+> evidência e o procedimento de reconstrução da infraestrutura; não deve ser
+> usado como checklist para releases comuns. Para publicar uma alteração, siga
+> o [tutorial da alteração até Production](production-release-guide.md).
 
 Este checklist transforma a configuração externa em uma sequência verificável.
 Não registre valores secretos neste documento, em issue, chat, commit ou log.

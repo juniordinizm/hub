@@ -1,14 +1,31 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Status da migração Vercel-first
 
-Este documento registra o estado executado da sprint. Ele não substitui os
-runbooks canônicos de deploy, banco, R2 e outbox; cada pacote atualiza também a
-autoridade correspondente.
+Migração concluída em 2026-07-27. Este documento é um registro cronológico da
+sprint: afirmações de uma etapa inicial podem ter sido superadas por uma etapa
+posterior do mesmo arquivo. Ele não substitui os runbooks canônicos de deploy,
+banco, R2 e outbox.
+
+Estado operacional atual:
+
+- Production responde em `https://app.neurocapacitar.com.br` pela Vercel;
+- o último deploy Production auditado foi o workflow `30239346714`, concluído
+  com sucesso para o SHA `a668d70826d7ea76c6d5ead17fe5c31f5c854d78`;
+- a cadeia local e Production contém 44 migrations, até
+  `0043_staged_admin_image_uploads`;
+- o ambiente local Development passa pelo preflight isolado;
+- CI, migration Development e deploy Production usam workflows separados;
+- push e merge não promovem Production automaticamente;
+- o SHA de release é derivado da `main`, sem cópia ou digitação manual.
+
+Para releases atuais, use o
+[tutorial da alteração até Production](production-release-guide.md). Para
+incidentes, use [Deploy e incidentes](deploy-and-incidents.md).
 
 ## Ambiente confirmado
 

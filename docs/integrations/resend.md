@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4b3c9b8a80b3bf3628b53c983dfd56d7ebec5b8d
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Resend e e-mail institucional
@@ -84,9 +84,9 @@ Compartilhar domínio e credencial aumenta o impacto de um vazamento local. A
 allowlist reduz o risco de envio acidental, mas não substitui o cuidado com a
 API key. Não registre a chave em chat, documento, commit ou log.
 
-## Verificação de liberação
+## Verificação operacional
 
-Antes do primeiro deploy:
+Estado da liberação inicial:
 
 1. [x] Confirmar o domínio como `Verified` no Resend.
 2. [x] Enviar de uma conta externa para `suporte@neurocapacitar.com.br`.

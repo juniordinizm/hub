@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Ambiente e desenvolvimento local
@@ -10,14 +10,16 @@ last_verified_commit: a668d70826d7ea76c6d5ead17fe5c31f5c854d78
 
 Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e provedores externos devem apontar a ambiente de desenvolvimento. `db:reset`, `db:seed` e `db:seed:student` recusam host remoto; siga o [runbook de banco](database-and-migrations.md).
 
-Na auditoria de 2026-07-27, o `.env.local` da estação principal ainda apontava
-ao compute Neon Production e continha providers definitivos. Ele não está
-liberado para desenvolvimento. A topologia aprovada, os recursos manuais e o
-procedimento de substituição estão no
-[guia de Development compartilhado](shared-development-and-release-guide.md).
-Development terá Neon, dois buckets R2, Resend, AbacatePay de teste, JMVStream e
-Sentry próprios; compartilhar o serviço não autoriza compartilhar credenciais
-ou recursos Production.
+O `.env.local` da estação principal foi corrigido e passa pelo preflight
+fail-closed de Development. Ele usa a branch Neon `development`, os buckets
+`hub-development-private` e `hub-development-public`, AbacatePay em modo de
+teste e o projeto Sentry de Development. Resend reutiliza o domínio verificado
+com allowlist obrigatória. JMVStream reutiliza conscientemente o plano
+Production e, por isso, continua sendo a única integração sem isolamento
+técnico completo.
+
+A topologia, o onboarding de outra estação e as restrições de cada provider
+estão no [guia de Development compartilhado](shared-development-and-release-guide.md).
 
 ## Matriz de variáveis
 
@@ -161,14 +163,14 @@ Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota r
 ## Verificação local
 
 ```bash
-bun run docs:check
-bun run test
-bun run typecheck
-bun run check
-bun run build
+bun run verify:quick
+bun run verify
 ```
 
-`bun run dev` serve o projeto. `bun run fix` altera arquivos e deve ser deliberado.
+Use `verify:quick` durante o trabalho e `verify` antes do Pull Request.
+`bun run dev` serve o projeto. `bun run fix` altera arquivos e deve ser
+deliberado. O fluxo completo até Production está no
+[tutorial de release](production-release-guide.md).
 
 ## Evidências
 

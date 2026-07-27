@@ -1,10 +1,13 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 72600abe9f85e945b15b6d81db5fb259bff22d7e
+last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 ---
 
 # Testes e CI
+
+Para transformar esses gates em uma publicação, siga o
+[tutorial da alteração até Production](production-release-guide.md).
 
 ## Objetivo e ordem dos gates
 
@@ -47,6 +50,13 @@ Mudanças de schema são comprovadas por `integration-db` e `e2e`, cada uma em
 branch Neon descartável já migrada. O Preview visual só representa jornadas que
 continuam compatíveis com o schema persistente; uma validação manual dependente
 do schema novo exige branch Neon temporária.
+
+O marcador de readiness é obrigado por teste a acompanhar a última entrada do
+journal. Por isso, uma migration nova pode fazer o Preview falhar contra o
+schema persistente antigo. Como `Migrate Neon development` só aceita `main` com
+CI verde, o caminho atual forma um bloqueio de promoção. Não ignore o check nem
+aplique a migration manualmente; trate o caso conforme o
+[tutorial de release](production-release-guide.md).
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
@@ -241,10 +251,12 @@ então o promove. O grupo de concorrência não cancela uma migration em andamen
 Deploy Git automático da Vercel deve ficar desligado para não duplicar esse
 pipeline.
 
-Quando a `main` contém migration nova, o workflow manual
-`Migrate Neon development` deriva e valida o mesmo SHA verde, usa o Environment
-`neon-development`, confere o hostname esperado e aplica a cadeia com lock antes
-de auditar o journal. Ele não recebe SHA digitado nem executa código de PR.
+Quando uma migration já chegou com segurança à `main` e possui CI verde, o
+workflow manual `Migrate Neon development` deriva e valida o mesmo SHA, usa o
+Environment `neon-development`, confere o hostname esperado e aplica a cadeia
+com lock antes de auditar o journal. Ele não recebe SHA digitado nem executa
+código de PR. O bloqueio de Preview descrito acima precisa ser resolvido antes
+da próxima migration nova.
 
 ## Verificação local
 
