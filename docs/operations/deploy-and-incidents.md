@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
 ---
 
 # Deploy e incidentes
@@ -17,11 +17,12 @@ Não existe imagem Docker, publicação GHCR ou runner de cron externo no caminh
 de produção. A VPS anterior permanece fora do fluxo e não é autoridade de
 release.
 
-O workflow `CI` valida o código e cria um deployment Preview por build remoto
-na Vercel. O workflow manual `Deploy Vercel production` exige confirmação
-explícita, deriva o SHA do checkout da `main`, verifica que ele é o
-`origin/main` atual e consulta a API do GitHub para provar uma CI verde desse
-SHA. Só então aplica
+O workflow `CI` valida o código e, em Pull Requests ou despachos manuais, cria
+um deployment Preview por build remoto na Vercel. A execução causada pelo merge
+na `main` repete os gates, mas não cria outro Preview. O workflow manual
+`Deploy Vercel production` exige confirmação explícita, deriva o SHA do checkout
+da `main`, verifica que ele é o `origin/main` atual e consulta a API do GitHub
+para provar uma CI verde desse SHA. Só então aplica
 migrations com conexão direta, cria um deployment Production sem promovê-lo,
 testa sua readiness e o promove. Deploys Git automáticos da Vercel devem
 permanecer desligados para não criar uma segunda promoção concorrente.
@@ -62,7 +63,8 @@ O caminho versionado é:
 1. CI: documentação, migrations, typecheck, estilo, testes e audit.
 2. CI: integração PostgreSQL e jornadas Chromium em branches Neon efêmeras.
 3. CI: build e Knip.
-4. CI: `vercel deploy` remoto e smoke autenticado de Preview.
+4. CI de Pull Request ou despacho manual: `vercel deploy` remoto e smoke
+   autenticado de Preview; a CI de push na `main` omite esta etapa.
 5. Produção: despacho manual com confirmação de Production.
 6. Produção: derivação do SHA e prova de que ele é o `main` atual com CI verde.
 7. Produção: `db:migrate:production` e auditoria do journal.
@@ -124,6 +126,12 @@ manualmente nem faça merge vermelho; siga o
 
 Configure cada valor no ambiente correto. Preview nunca reutiliza banco, bucket,
 webhook ou credenciais financeiras de Production.
+
+O projeto usa a máquina Standard na fila compartilhada. O On-Demand Concurrent
+Builds deve permanecer desligado no escopo do projeto: esta equipe não precisa
+furar a fila, e habilitá-lo torna os minutos da máquina Standard cobrados. Essa
+configuração de infraestrutura é independente do grupo de concorrência do
+workflow Production, que continua impedindo duas releases simultâneas.
 
 Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
 `BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,

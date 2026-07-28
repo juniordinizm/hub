@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
 ---
 
 # Testes e CI
@@ -235,10 +235,13 @@ um segredo-placeholder e URLs `https://ci-build.invalid` somente para compilar; 
 provedores ou credenciais reais e não produz artefato para deploy. Um deploy continua exigindo as
 variáveis reais do ambiente alvo, conforme o [runbook de deploy](deploy-and-incidents.md).
 
-Depois desses gates, `vercel-preview` solicita à Vercel um build remoto, publica
-um candidato isolado e executa `vercel curl /api/health/ready` com autenticação.
-O ambiente `vercel-preview` do GitHub fornece token, IDs do projeto e uma cópia
-do `HEALTHCHECK_SECRET`; as demais variáveis de runtime ficam na Vercel.
+Depois desses gates, em Pull Requests ou despachos manuais, `vercel-preview`
+solicita à Vercel um build remoto, publica um candidato isolado e testa
+`/api/health/ready` com autenticação. A execução de CI causada por push na
+`main` omite esse job porque Production fará seu próprio build isolado antes da
+promoção. O ambiente `vercel-preview` do GitHub fornece token, IDs do projeto e
+uma cópia do `HEALTHCHECK_SECRET`; as demais variáveis de runtime ficam na
+Vercel.
 
 Uma CI verde na `main` habilita, mas não aciona, o workflow separado de
 produção. A proprietária o executa manualmente somente com a confirmação de
