@@ -78,22 +78,31 @@ export const ensureCanCommentOnLesson = async ({
   const { rows } = await getPool().query<LessonSequenceRow>(
     `
       with target_lesson as (
-        select m.course_id
+        select l.course_publication_id
         from lessons l
-        join modules m on m.id = l.module_id
         where l.id = $2
         limit 1
       )
       select
-        m.course_id,
+        cp.course_id,
         l.id as lesson_id,
         lp.completed_at
       from target_lesson tl
-      join modules m on m.course_id = tl.course_id and m.status = 'active'
-      join lessons l on l.module_id = m.id and l.status = 'active'
-      join courses c on c.id = m.course_id
-      join enrollments e on e.course_id = m.course_id and e.user_id = $1
-      left join lesson_progress lp on lp.lesson_id = l.id and lp.user_id = e.user_id
+      join course_publications cp on cp.id = tl.course_publication_id
+        and cp.status = 'published'
+      join modules m on m.course_publication_id = cp.id and m.status = 'active'
+      join lessons l on l.module_id = m.id
+        and l.course_publication_id = cp.id
+        and l.status = 'active'
+      join courses c on c.id = cp.course_id
+      join enrollments e on e.course_id = cp.course_id and e.user_id = $1
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = e.user_id
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
       where e.status = 'active'
         and e.starts_at <= now()
         and e.expires_at >= now()

@@ -36,7 +36,19 @@ describe("lesson comments SQL contracts", () => {
     );
 
     expect(source).toContain("ensureCanCommentOnLesson");
-    expect(source).toContain("join enrollments e on e.course_id = m.course_id");
+    expect(source).toContain(
+      "join course_publications cp on cp.id = tl.course_publication_id"
+    );
+    expect(source).toContain(
+      "join modules m on m.course_publication_id = cp.id"
+    );
+    expect(source).toContain("and l.course_publication_id = cp.id");
+    expect(source).toContain(
+      "completed_lesson.curriculum_key = l.curriculum_key"
+    );
+    expect(source).not.toContain(
+      "join modules m on m.course_id = tl.course_id"
+    );
     expect(source).toContain("e.status = 'active'");
     expect(source).toContain("validateReplyTarget");
     expect(source).toContain("insert into lesson_comments");
