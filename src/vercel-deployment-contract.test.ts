@@ -32,6 +32,7 @@ describe("Vercel deployment contract", () => {
     expect(source).not.toContain("vercel@57.0.0 pull");
     expect(previewJob).toContain("name: vercel-preview");
     expect(previewJob).toContain("timeout-minutes: 20");
+    expect(previewJob).toContain("github.event_name != 'push'");
     expect(previewJob).toContain("githubCommitRef=");
     expect(previewJob).toContain("githubCommitSha=");
     expect(previewJob).toContain("VERCEL_SCOPE: neuro-capacitar");

@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
 ---
 
 # Tutorial: da alteração até Production
@@ -389,6 +389,9 @@ Depois do merge:
 
 A CI verde do Pull Request não substitui a CI da `main`. O workflow Production
 recusa um commit sem CI verde na própria `main`.
+
+Na `main`, os gates são repetidos, mas o Preview Vercel não é reconstruído. O
+workflow Production criará e testará o deployment definitivo antes da promoção.
 
 Não precisa copiar o SHA. O workflow fará essa conferência.
 
