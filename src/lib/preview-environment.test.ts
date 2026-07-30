@@ -99,6 +99,42 @@ describe("Preview environment contract", () => {
     );
   });
 
+  it.each(["authenticated", "public"])("rejects %s checkout mode", (mode) => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        PAYMENTS_CHECKOUT_MODE: mode,
+      })
+    ).toContain("PAYMENTS_CHECKOUT_MODE must equal disabled in Preview");
+  });
+
+  it("accepts an explicit disabled checkout mode", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        PAYMENTS_CHECKOUT_MODE: "disabled",
+      })
+    ).toEqual([]);
+  });
+
+  it("requires the AbacatePay webhook switch to stay false when set", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        ABACATEPAY_WEBHOOK_ENABLED: "true",
+      })
+    ).toContain("ABACATEPAY_WEBHOOK_ENABLED must equal false in Preview");
+  });
+
+  it("accepts an explicit disabled AbacatePay webhook switch", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        ABACATEPAY_WEBHOOK_ENABLED: "false",
+      })
+    ).toEqual([]);
+  });
+
   it("requires Vercel proxy attribution", () => {
     expect(
       getPreviewEnvironmentProblems({

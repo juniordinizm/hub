@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { canMutateStudentExperience } from "@/features/courses/preview";
+import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
 import {
   issueRefundConfirmation,
   requestFullRefund,
@@ -12,6 +13,7 @@ import {
   retryFailedAbacatePayWebhook,
 } from "@/features/payments/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { getServerEnv } from "@/lib/env";
 import { requireSession } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
@@ -20,6 +22,10 @@ const readString = (formData: FormData, key: string): string =>
 export const startCourseCheckoutAction = async (
   formData: FormData
 ): Promise<void> => {
+  assertCheckoutAvailable({
+    entry: "authenticated",
+    mode: getServerEnv().PAYMENTS_CHECKOUT_MODE,
+  });
   const session = await requireSession();
 
   if (!canMutateStudentExperience(session.role)) {

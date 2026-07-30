@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import {
+  assertCheckoutAvailable,
+  CheckoutUnavailableError,
+} from "@/features/payments/checkout-availability";
+import {
   createPublicCourseCheckout,
   PublicCheckoutRateLimitError,
 } from "@/features/payments/public-checkout";
@@ -22,6 +26,22 @@ const readOptionalString = (value: unknown): string | undefined => {
 
 export const POST = async (request: Request): Promise<NextResponse> => {
   const environment = getServerEnv();
+
+  try {
+    assertCheckoutAvailable({
+      entry: "public",
+      mode: environment.PAYMENTS_CHECKOUT_MODE,
+    });
+  } catch (error) {
+    if (!(error instanceof CheckoutUnavailableError)) {
+      throw error;
+    }
+
+    return NextResponse.json(
+      { error: "Servico de checkout indisponivel." },
+      { status: 503 }
+    );
+  }
   const correlationId = createCorrelationId(
     request.headers.get(CORRELATION_ID_HEADER)
   );

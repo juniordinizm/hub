@@ -106,6 +106,20 @@ export const getPreviewEnvironmentProblems = (
     problems.push("SCHEDULED_JOBS_ENABLED must equal false in Preview");
   }
 
+  if (
+    hasValue(environment, "ABACATEPAY_WEBHOOK_ENABLED") &&
+    environment.ABACATEPAY_WEBHOOK_ENABLED?.trim() !== "false"
+  ) {
+    problems.push("ABACATEPAY_WEBHOOK_ENABLED must equal false in Preview");
+  }
+
+  if (
+    hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
+    environment.PAYMENTS_CHECKOUT_MODE?.trim() !== "disabled"
+  ) {
+    problems.push("PAYMENTS_CHECKOUT_MODE must equal disabled in Preview");
+  }
+
   problems.push(
     ...getSecretProblems(environment),
     ...getDatabaseProblems(environment),

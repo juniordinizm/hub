@@ -18,6 +18,10 @@ Contrato oficial consultado: [Webhooks v2](https://docs.abacatepay.com/pages/web
 - `ABACATEPAY_API_KEY`: alias legado aceito; não configurar valores diferentes.
 - `ABACATEPAY_API_BASE_URL`: default `https://api.abacatepay.com/v2`.
 - `ABACATEPAY_WEBHOOK_SECRET`: segredo de webhook.
+- `ABACATEPAY_WEBHOOK_ENABLED`: kill switch obrigatório em Production; aceita
+  somente `true` ou `false`.
+- `PAYMENTS_CHECKOUT_MODE`: controla checkout legado com `disabled`,
+  `authenticated` ou `public`.
 - `NEXT_PUBLIC_APP_URL`: URLs de retorno.
 
 `createAbacatePayClient` resolve a chave; `AbacatePayClient` envia Bearer token somente no servidor.
@@ -47,16 +51,26 @@ painel e na CLI.
 4. `AbacatePayClient.createCheckout` chama `/checkouts/create`.
 5. Pedido `pending` persiste ID/URL externos e contrato vendido.
 
+`PAYMENTS_CHECKOUT_MODE=disabled` bloqueia as entradas pública e autenticada;
+`authenticated` mantém somente a entrada autenticada; `public` mantém ambas.
+Production exige valor explícito. Preview normaliza `disabled`; Development e
+test usam `public` quando a variável está ausente.
+
 Não liberar acesso na página de sucesso. Somente evento financeiro processado pode criar Concessão.
 
 ## Webhook
 
 Endpoint: `POST /api/webhooks/abacatepay`.
 
-`route.ts` lê o corpo bruto antes de parsear, aceita segredo em
-`webhookSecret` ou `x-webhook-secret` e assinatura em
-`x-webhook-signature` ou `abacatepay-signature`. Em produção, ausência/erro de
+`route.ts` consulta `ABACATEPAY_WEBHOOK_ENABLED` antes de ler o corpo, validar
+segredo/assinatura ou acessar processamento e banco. Quando a flag é `false`, o
+endpoint responde `204` sem corpo; o 2xx reconhece a entrega sem provocar retries
+do AbacatePay. Quando é `true`, a rota lê o corpo bruto antes de parsear, aceita
+segredo em `webhookSecret` ou `x-webhook-secret` e assinatura em
+`x-webhook-signature` ou `abacatepay-signature`. Em Production, ausência/erro de
 segredo falha fechado. `verifyAbacatePaySignature` usa comparação segura.
+Production exige a flag explícita; Preview normaliza `false`; Development e test
+usam `true` quando ela está ausente.
 
 O `webhookSecret` na query não é fallback legado: a documentação oficial
 atual o define como uma das duas camadas, junto do HMAC. Por isso ele não pode
@@ -66,15 +80,33 @@ endpoint. Nunca copie a URL completa para logs, alertas ou tickets.
 
 Fluxo:
 
-1. validar segredo e HMAC;
-2. parsear payload tolerante a campos novos;
-3. calcular chave externa;
-4. registrar/deduplicar em `webhook_events`;
-5. aplicar transição ou criar revisão;
-6. projetar acesso;
-7. responder 2xx após persistência.
+1. consultar o kill switch e, quando desligado, responder `204` sem ler o body;
+2. validar segredo e HMAC;
+3. parsear payload tolerante a campos novos;
+4. calcular chave externa;
+5. registrar/deduplicar em `webhook_events`;
+6. aplicar transição ou criar revisão;
+7. projetar acesso;
+8. responder 2xx após persistência.
 
 A documentação oficial recomenda HTTPS, HMAC, registro de eventos e idempotência. O endpoint cadastrado no dashboard deve ser conferido antes do deploy.
+
+## Sequência de contenção antes da limpeza
+
+1. Configurar Production com `PAYMENTS_CHECKOUT_MODE=disabled` e
+   `ABACATEPAY_WEBHOOK_ENABLED=false`.
+2. Publicar a Release A compatível com o schema `0043`, sem migration e sem
+   remover módulos AbacatePay. Checkout responde indisponível e o webhook
+   reconhece entregas com `204`, sem processamento.
+3. Confirmar a contenção e a ausência de novos Pedidos legados.
+4. Executar o cleanup aprovado enquanto o banco ainda permanece no schema
+   `0043`.
+5. Na Release B, remover a rota e todo código executável AbacatePay ainda
+   compatível com o schema `0043`.
+6. Confirmar que não restou referência executável AbacatePay; somente então
+   aplicar a migration `0044`.
+7. Revogar credenciais AbacatePay e remover a configuração remota do webhook
+   somente depois do smoke Asaas aprovado, conforme o contrato de cutover.
 
 ## Estados e exceções
 
