@@ -56,7 +56,7 @@ export const enrollmentGrantStatusEnum = pgEnum("enrollment_grant_status", [
 ]);
 export const enrollmentGrantSourceTypeEnum = pgEnum(
   "enrollment_grant_source_type",
-  ["abacatepay_order", "manual"]
+  ["paid_order", "manual"]
 );
 export const enrollmentAdjustmentTypeEnum = pgEnum(
   "enrollment_adjustment_type",
@@ -81,15 +81,29 @@ export const orderStatusEnum = pgEnum("order_status", [
   "disputed",
   "cancelled",
 ]);
+export const checkoutStatusEnum = pgEnum("checkout_status", [
+  "pending",
+  "creating",
+  "active",
+  "failed",
+  "uncertain",
+  "cancelled",
+  "expired",
+]);
 export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
+  "processing",
   "processed",
   "ignored",
+  "retryable",
   "failed",
 ]);
 export const paymentReviewTypeEnum = pgEnum("payment_review_type", [
   "amount_mismatch",
   "terminal_conflict",
+  "event_anomaly",
+  "partial_refund",
+  "uncertain_result",
 ]);
 export const paymentReviewStatusEnum = pgEnum("payment_review_status", [
   "pending",
@@ -98,6 +112,8 @@ export const paymentReviewStatusEnum = pgEnum("payment_review_status", [
 ]);
 export const refundRequestStatusEnum = pgEnum("refund_request_status", [
   "requested",
+  "processing",
+  "uncertain",
   "failed",
   "confirmed",
 ]);
@@ -246,7 +262,6 @@ export const courses = pgTable(
     priceInCents: integer("price_in_cents").default(0).notNull(),
     thumbnailUrl: text("thumbnail_url"),
     coverImageJson: jsonb("cover_image_json"),
-    paymentProviderProductId: text("payment_provider_product_id"),
     accessDurationMonths: integer("access_duration_months")
       .default(12)
       .notNull(),
@@ -264,8 +279,8 @@ export const courses = pgTable(
       sql`${table.workloadHours} >= 0`
     ),
     check(
-      "courses_price_in_cents_non_negative",
-      sql`${table.priceInCents} >= 0`
+      "courses_price_in_cents_zero_or_minimum",
+      sql`${table.priceInCents} = 0 or ${table.priceInCents} >= 1000`
     ),
   ]
 );
@@ -544,7 +559,7 @@ export const enrollmentGrants = pgTable(
     ),
     check(
       "enrollment_grants_source_shape_check",
-      sql`(${table.sourceType} = 'abacatepay_order' and ${table.orderId} is not null and ${table.manualReference} is null) or (${table.sourceType} = 'manual' and ${table.orderId} is null and ${table.manualReference} is not null)`
+      sql`(${table.sourceType} = 'paid_order' and ${table.orderId} is not null and ${table.manualReference} is null) or (${table.sourceType} = 'manual' and ${table.orderId} is null and ${table.manualReference} is not null)`
     ),
   ]
 );
@@ -818,25 +833,54 @@ export const orders = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id),
-    provider: text("provider").default("abacatepay").notNull(),
-    providerOrderId: text("provider_order_id").notNull(),
+    provider: text("provider").notNull(),
+    providerCheckoutId: text("provider_checkout_id"),
+    providerPaymentId: text("provider_payment_id"),
+    providerCustomerId: text("provider_customer_id"),
     externalId: text("external_id").notNull(),
     status: orderStatusEnum("status").default("pending").notNull(),
+    checkoutStatus: checkoutStatusEnum("checkout_status")
+      .default("pending")
+      .notNull(),
+    checkoutUrl: text("checkout_url"),
+    checkoutAttemptCount: integer("checkout_attempt_count")
+      .default(0)
+      .notNull(),
+    checkoutLastAttemptAt: timestamp("checkout_last_attempt_at", tz),
+    checkoutNextAttemptAt: timestamp("checkout_next_attempt_at", tz),
+    checkoutErrorMessage: text("checkout_error_message"),
+    providerCheckoutStatus: text("provider_checkout_status"),
+    providerPaymentStatus: text("provider_payment_status"),
+    providerRiskStatus: text("provider_risk_status"),
+    providerSettlementStatus: text("provider_settlement_status"),
+    providerRefundStatus: text("provider_refund_status"),
+    providerDisputeStatus: text("provider_dispute_status"),
     amountInCents: integer("amount_in_cents").default(0).notNull(),
     accessDurationMonths: integer("access_duration_months"),
     paidAmountInCents: integer("paid_amount_in_cents"),
+    netAmountInCents: integer("net_amount_in_cents"),
+    feeAmountInCents: integer("fee_amount_in_cents"),
     paymentMethod: text("payment_method"),
     receiptUrl: text("receipt_url"),
     paidAt: timestamp("paid_at", tz),
     refundedAt: timestamp("refunded_at", tz),
     customerEmail: text("customer_email"),
     customerName: text("customer_name"),
+    checkoutCourseSlug: text("checkout_course_slug").notNull(),
+    checkoutItemName: text("checkout_item_name").notNull(),
+    checkoutItemDescription: text("checkout_item_description").notNull(),
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("orders_provider_order_unique_idx").on(
-      table.provider,
-      table.providerOrderId
+    uniqueIndex("orders_provider_checkout_unique_idx")
+      .on(table.provider, table.providerCheckoutId)
+      .where(sql`${table.providerCheckoutId} is not null`),
+    uniqueIndex("orders_provider_payment_unique_idx")
+      .on(table.provider, table.providerPaymentId)
+      .where(sql`${table.providerPaymentId} is not null`),
+    index("orders_checkout_retry_idx").on(
+      table.checkoutStatus,
+      table.checkoutNextAttemptAt
     ),
     uniqueIndex("orders_external_unique_idx").on(table.externalId),
     index("orders_course_status_idx").on(table.courseId, table.status),
@@ -851,11 +895,23 @@ export const webhookEvents = pgTable(
   "webhook_events",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    provider: text("provider").default("abacatepay").notNull(),
+    provider: text("provider").notNull(),
     eventKey: text("event_key").notNull(),
     eventName: text("event_name").notNull(),
     status: webhookStatusEnum("status").default("received").notNull(),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
     payload: jsonb("payload").notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", tz),
+    nextAttemptAt: timestamp("next_attempt_at", tz),
+    lockedAt: timestamp("locked_at", tz),
+    lockedBy: text("locked_by"),
+    payloadExpiresAt: timestamp("payload_expires_at", tz)
+      .default(sql`now() + interval '30 days'`)
+      .notNull(),
+    payloadSanitizedAt: timestamp("payload_sanitized_at", tz),
     processedAt: timestamp("processed_at", tz),
     errorMessage: text("error_message"),
     ...timestamps,
@@ -865,7 +921,11 @@ export const webhookEvents = pgTable(
       table.provider,
       table.eventKey
     ),
-    index("webhook_events_status_idx").on(table.status),
+    index("webhook_events_status_retry_idx").on(
+      table.status,
+      table.nextAttemptAt
+    ),
+    index("webhook_events_order_idx").on(table.orderId),
   ]
 );
 
@@ -901,6 +961,9 @@ export const paymentReviews = pgTable(
     ...timestamps,
   },
   (table) => [
+    uniqueIndex("payment_reviews_webhook_event_unique_idx")
+      .on(table.webhookEventId)
+      .where(sql`${table.webhookEventId} is not null`),
     index("payment_reviews_order_status_idx").on(table.orderId, table.status),
     index("payment_reviews_status_idx").on(table.status),
   ]
@@ -918,7 +981,11 @@ export const refundRequests = pgTable(
       .references(() => users.id),
     reason: text("reason").notNull(),
     status: refundRequestStatusEnum("status").default("requested").notNull(),
-    providerRefundId: text("provider_refund_id"),
+    providerRefundStatus: text("provider_refund_status"),
+    providerRefundCreatedAt: text("provider_refund_created_at"),
+    providerRefundEndToEndId: text("provider_refund_end_to_end_id"),
+    providerRefundReceiptUrl: text("provider_refund_receipt_url"),
+    providerRefundedAmountInCents: integer("provider_refunded_amount_in_cents"),
     errorMessage: text("error_message"),
     confirmedAt: timestamp("confirmed_at", tz),
     ...timestamps,
@@ -926,6 +993,28 @@ export const refundRequests = pgTable(
   (table) => [
     uniqueIndex("refund_requests_order_unique_idx").on(table.orderId),
     index("refund_requests_status_idx").on(table.status),
+    check(
+      "refund_requests_provider_amount_positive",
+      sql`${table.providerRefundedAmountInCents} is null or ${table.providerRefundedAmountInCents} > 0`
+    ),
+  ]
+);
+
+export const asaasFinancialTransactions = pgTable(
+  "asaas_financial_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    providerTransactionId: text("provider_transaction_id").notNull(),
+    transactionDate: text("transaction_date").notNull(),
+    transactionType: text("transaction_type").notNull(),
+    valueInCents: integer("value_in_cents").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("asaas_financial_transactions_provider_id_unique_idx").on(
+      table.providerTransactionId
+    ),
+    index("asaas_financial_transactions_date_idx").on(table.transactionDate),
   ]
 );
 
@@ -1074,6 +1163,20 @@ export const publicCertificateRateLimits = pgTable(
   },
   (table) => [
     index("public_certificate_rate_limits_expires_at_idx").on(table.expiresAt),
+  ]
+);
+
+export const publicCheckoutRateLimits = pgTable(
+  "public_checkout_rate_limits",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    windowStartedAt: timestamp("window_started_at", tz).defaultNow().notNull(),
+    requestCount: integer("request_count").default(0).notNull(),
+    expiresAt: timestamp("expires_at", tz).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("public_checkout_rate_limits_expires_at_idx").on(table.expiresAt),
   ]
 );
 

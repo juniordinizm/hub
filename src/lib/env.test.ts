@@ -28,6 +28,22 @@ describe("server environment", () => {
     );
   });
 
+  it("defaults checkout to public in Development", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("PAYMENTS_CHECKOUT_MODE", undefined);
+    setEnv("VERCEL_ENV", undefined);
+
+    expect(getServerEnv().PAYMENTS_CHECKOUT_MODE).toBe("public");
+  });
+
+  it("defaults the Asaas webhook to enabled in Development", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("ASAAS_WEBHOOK_ENABLED", undefined);
+    setEnv("VERCEL_ENV", undefined);
+
+    expect(getServerEnv().ASAAS_WEBHOOK_ENABLED).toBe(true);
+  });
+
   it("requires an explicit auth secret in production", () => {
     setEnv("NODE_ENV", "production");
     setEnv("BETTER_AUTH_SECRET", "");
@@ -75,6 +91,8 @@ describe("server environment", () => {
     expect(env.CERTIFICATE_PUBLIC_BASE_URL).toBe(
       "https://hub-git-feature-neuro-capacitar.vercel.app"
     );
+    expect(env.PAYMENTS_CHECKOUT_MODE).toBe("disabled");
+    expect(env.ASAAS_WEBHOOK_ENABLED).toBe(false);
   });
 
   it("rejects provider credentials in Vercel Preview", () => {
@@ -108,6 +126,9 @@ describe("server environment", () => {
   it("only permits E2E mode in CI", () => {
     setEnv("NODE_ENV", "development");
     setEnv("E2E_TEST_MODE", "true");
+    setEnv("BETTER_AUTH_URL", "http://127.0.0.1:3100");
+    setEnv("CERTIFICATE_PUBLIC_BASE_URL", "http://127.0.0.1:3100");
+    setEnv("NEXT_PUBLIC_APP_URL", "http://127.0.0.1:3100");
     setEnv("CI", undefined);
 
     expect(() => getServerEnv()).toThrow("E2E_TEST_MODE requires CI=true.");

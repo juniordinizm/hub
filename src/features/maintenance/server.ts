@@ -1,10 +1,12 @@
 import { getPool } from "@/db";
 import { reconcileRevokedCertificateArtifacts } from "@/features/certificates/artifact-reconciliation";
 import { reconcileCertificateTemplateAssets } from "@/features/certificates/template-asset-cleanup";
+import { sanitizeExpiredAsaasWebhookPayloads } from "@/features/payments/asaas-webhook-inbox";
 import { reconcileStagedAdminImageUploads } from "@/features/storage/staged-image-reconciliation";
 
 interface MaintenanceResult {
   certificateTemplateAssetsRemoved: number;
+  checkoutReservationsRemoved: number;
   deadlineReached: boolean;
   expiredRateLimitsRemoved: number;
   expiredSessionsRemoved: number;
@@ -13,10 +15,12 @@ interface MaintenanceResult {
   leaseLost: boolean;
   revokedCertificateArtifactsReconciled: number;
   stagedAdminImagesRemoved: number;
+  webhookPayloadsSanitized: number;
 }
 
 const emptyMaintenanceResult = (): MaintenanceResult => ({
   certificateTemplateAssetsRemoved: 0,
+  checkoutReservationsRemoved: 0,
   deadlineReached: false,
   expiredRateLimitsRemoved: 0,
   expiredSessionsRemoved: 0,
@@ -25,6 +29,7 @@ const emptyMaintenanceResult = (): MaintenanceResult => ({
   leaseLost: false,
   revokedCertificateArtifactsReconciled: 0,
   stagedAdminImagesRemoved: 0,
+  webhookPayloadsSanitized: 0,
 });
 
 export const runMaintenance = async ({
@@ -65,6 +70,61 @@ export const runMaintenance = async ({
     "delete from public_certificate_rate_limits where expires_at < now()"
   );
   result.expiredRateLimitsRemoved = rateLimits.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  const checkoutRateLimits = await pool.query(
+    "delete from public_checkout_rate_limits where expires_at < now()"
+  );
+  result.expiredRateLimitsRemoved += checkoutRateLimits.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  const checkoutReservations = await pool.query(`
+    with stale_reservations as (
+      select id
+      from orders
+      where created_at < now() - interval '15 minutes'
+        and provider = 'asaas'
+        and status = 'pending'
+        and checkout_status = 'pending'
+        and provider_checkout_id is null
+        and provider_payment_id is null
+        and provider_customer_id is null
+        and checkout_url is null
+        and checkout_attempt_count = 0
+        and checkout_last_attempt_at is null
+        and checkout_next_attempt_at is null
+        and checkout_error_message is null
+        and provider_checkout_status is null
+        and provider_payment_status is null
+        and provider_risk_status is null
+        and provider_settlement_status is null
+        and provider_refund_status is null
+        and provider_dispute_status is null
+        and paid_amount_in_cents is null
+        and payment_method is null
+        and receipt_url is null
+        and paid_at is null
+        and refunded_at is null
+      order by created_at
+      limit 500
+      for update skip locked
+    )
+    delete from orders
+    using stale_reservations
+    where orders.id = stale_reservations.id
+  `);
+  result.checkoutReservationsRemoved = checkoutReservations.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  result.webhookPayloadsSanitized = await sanitizeExpiredAsaasWebhookPayloads({
+    client: pool,
+  });
 
   if (!(await canContinue())) {
     return result;

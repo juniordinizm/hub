@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -24,6 +25,7 @@ import {
   summarizeAdminFinancialHealth,
 } from "@/features/admin/presentation";
 import {
+  type AdminOrder,
   getAdminFinancialData,
   getAdminOverview,
 } from "@/features/admin/server";
@@ -33,7 +35,9 @@ import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
 import { CoursesRevenueTable } from "./courses-revenue-table";
 import {
+  ImportStatementOperation,
   PaymentReviewOperation,
+  ReconcilePaymentOperation,
   RefundOperation,
   RetryWebhookOperation,
 } from "./financial-operations";
@@ -55,16 +59,121 @@ const webhookStatusLabels: Record<string, string> = {
   received: "Recebido",
 };
 
-export default async function AdminFinancePage(): Promise<React.JSX.Element> {
+const readSearchParameter = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+
+const financialPageHref = ({
+  page,
+  search,
+}: {
+  page: number;
+  search: string;
+}): string => {
+  const params = new URLSearchParams();
+  if (search) {
+    params.set("q", search);
+  }
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+  const query = params.toString();
+  return query ? `/admin/financeiro?${query}` : "/admin/financeiro";
+};
+
+interface FinancialSearchParams {
+  page?: string | string[] | undefined;
+  q?: string | string[] | undefined;
+}
+
+const getOrderQuery = (
+  searchParams: FinancialSearchParams
+): { page: number; search: string } => {
+  const search = readSearchParameter(searchParams.q).trim();
+  const requestedPage = Number.parseInt(
+    readSearchParameter(searchParams.page),
+    10
+  );
+  return {
+    page:
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1,
+    search,
+  };
+};
+
+function FinancialOrderCard({
+  order,
+}: {
+  order: AdminOrder;
+}): React.JSX.Element {
+  return (
+    <div className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40">
+      <div className="flex items-center justify-between gap-3">
+        <p className="truncate font-medium text-sm">
+          {order.customerName ?? order.customerEmail ?? "Aluno"}
+        </p>
+        <Badge className="shrink-0" variant="secondary">
+          {orderStatusLabels[order.status] ?? order.status}
+        </Badge>
+      </div>
+      <p className="mt-1 truncate text-muted-foreground text-xs">
+        {order.courseTitle}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+        <span className="font-semibold text-sm">
+          Bruto:{" "}
+          {formatCurrencyInCents(
+            order.paidAmountInCents ?? order.amountInCents
+          )}
+        </span>
+        {order.netAmountInCents === null ? null : (
+          <span>Líquido: {formatCurrencyInCents(order.netAmountInCents)}</span>
+        )}
+        {order.feeAmountInCents === null ? null : (
+          <span>Tarifa: {formatCurrencyInCents(order.feeAmountInCents)}</span>
+        )}
+        <span className="text-muted-foreground">/</span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          checkout {order.providerCheckoutId ?? "pendente"}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          pagamento {order.providerPaymentId ?? "não correlacionado"}
+        </span>
+      </div>
+      <p className="mt-2 text-muted-foreground text-xs">
+        {order.paymentMethod ?? "Método pendente"} · checkout{" "}
+        {order.checkoutStatus} · pagamento{" "}
+        {order.providerPaymentStatus ?? "pendente"}
+        {order.refundRequestStatus
+          ? ` · reembolso ${order.refundRequestStatus}`
+          : ""}
+      </p>
+      {order.status === "paid" ? <RefundOperation orderId={order.id} /> : null}
+      {order.providerPaymentId ? (
+        <ReconcilePaymentOperation orderId={order.id} />
+      ) : null}
+    </div>
+  );
+}
+
+export default async function AdminFinancePage({
+  searchParams,
+}: {
+  searchParams: Promise<FinancialSearchParams>;
+}): Promise<React.JSX.Element> {
   const session = await requirePermission("viewFinancials");
+  const resolvedSearchParams = await searchParams;
+  const { page: orderPage, search: orderSearch } =
+    getOrderQuery(resolvedSearchParams);
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
-    getAdminFinancialData(),
+    getAdminFinancialData({ page: orderPage, search: orderSearch }),
   ]);
   const financialHealth = summarizeAdminFinancialHealth(data.orders);
   const financialSignal = getAdminFinancialSignal(financialHealth);
-  const recentOrders = data.orders.slice(0, 8);
+  const recentOrders = data.orders;
   const recentCertificates = data.certificates.slice(0, 6);
   const failedWebhooks = overview.recentWebhooks.filter(
     (event) => event.status === "failed"
@@ -211,36 +320,24 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
+              <form className="mb-2 flex gap-2" method="get">
+                <label className="sr-only" htmlFor="financial-order-search">
+                  Buscar pedidos
+                </label>
+                <input
+                  className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                  defaultValue={orderSearch}
+                  id="financial-order-search"
+                  name="q"
+                  placeholder="Pedido, checkout, pagamento ou e-mail"
+                />
+                <Button type="submit" variant="outline">
+                  Buscar
+                </Button>
+              </form>
               {recentOrders.length ? (
                 recentOrders.map((order) => (
-                  <div
-                    className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40"
-                    key={order.id}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate font-medium text-sm">
-                        {order.customerName ?? order.customerEmail ?? "Aluno"}
-                      </p>
-                      <Badge className="shrink-0" variant="secondary">
-                        {orderStatusLabels[order.status] ?? order.status}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 truncate text-muted-foreground text-xs">
-                      {order.courseTitle}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                      <span className="font-semibold text-sm">
-                        {formatCurrencyInCents(order.amountInCents)}
-                      </span>
-                      <span className="text-muted-foreground">/</span>
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {order.providerOrderId}
-                      </span>
-                    </div>
-                    {order.status === "paid" ? (
-                      <RefundOperation orderId={order.id} />
-                    ) : null}
-                  </div>
+                  <FinancialOrderCard key={order.id} order={order} />
                 ))
               ) : (
                 <div className="flex items-center justify-center rounded-lg border border-dashed p-6 text-center">
@@ -249,9 +346,55 @@ export default async function AdminFinancePage(): Promise<React.JSX.Element> {
                   </p>
                 </div>
               )}
+              {orderPage > 1 || recentOrders.length === 20 ? (
+                <nav
+                  aria-label="Paginação de pedidos"
+                  className="mt-2 flex items-center justify-between gap-3"
+                >
+                  {orderPage > 1 ? (
+                    <Link
+                      className="text-sm underline underline-offset-4"
+                      href={financialPageHref({
+                        page: orderPage - 1,
+                        search: orderSearch,
+                      })}
+                    >
+                      Anteriores
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  {recentOrders.length === 20 ? (
+                    <Link
+                      className="text-sm underline underline-offset-4"
+                      href={financialPageHref({
+                        page: orderPage + 1,
+                        search: orderSearch,
+                      })}
+                    >
+                      Próximos
+                    </Link>
+                  ) : null}
+                </nav>
+              ) : null}
             </CardContent>
           </Card>
         </section>
+
+        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Conciliação do extrato Asaas
+            </CardTitle>
+            <CardDescription>
+              Importe um período fechado. O extrato é paginado e cada
+              movimentação é deduplicada pelo identificador do Asaas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ImportStatementOperation />
+          </CardContent>
+        </Card>
 
         <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
           <CardHeader className="pb-4">

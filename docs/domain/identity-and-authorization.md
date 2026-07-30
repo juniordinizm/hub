@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
 ---
 
 # Identidade e autorização
@@ -63,6 +63,48 @@ Server Actions e páginas devem checar a capacidade apropriada; esconder botão 
 - bloqueio por curso é outra operação;
 - restaurar a plataforma não recria Concessões.
 
+### REG-IDA-005 Checkout não delega identidade ao provider
+
+**Contrato aprovado para Asaas:**
+
+- checkout autenticado vincula a Conta da sessão;
+- o provider não altera nome, e-mail, verificação ou credenciais;
+- checkout público captura nome e e-mail no Hub antes do redirect;
+- no checkout público, Compradora = Aluna;
+- Conta criada a partir da compra não é considerada verificada pelo provider;
+- Conta existente não é sobrescrita pelos dados do checkout;
+- compra como presente ou para terceiro fica fora do escopo.
+
+Esse contrato está aprovado em [DEC-DISC-007](../decisions.md#dec-disc-007) e implementado
+nas duas entradas Asaas. A ação autenticada ignora identidade enviada pelo formulário e
+usa somente `session.user`. A API pública exige nome, e-mail e tentativa UUID locais, não
+aceita CPF ou gifting e não cria nem altera Conta.
+
+`resolveLocalOrderIdentity`, em `src/features/payments/order-identity.ts`, resolve a
+identidade exclusivamente a partir do Pedido local já bloqueado. Pedido autenticado exige
+a Conta pelo ID persistido. Pedido público normaliza o snapshot local de e-mail, converge
+concorrência pelo índice `users_email_lower_unique_idx`, nunca sobrescreve Conta existente,
+cria Conta nova com `email_verified=false` e vincula o Pedido por CAS. A ausência de
+`accounts.provider_id='credential'` determina se ativação é necessária. O processor
+financeiro Asaas que chamará esse módulo ainda está pendente.
+
+### REG-IDA-006 Ativação por compra é durável sem persistir segredo
+
+A intenção `auth.account-activation` guarda exatamente `userId` e `orderId`, sem outros
+dados pessoais, token ou URL de callback. Na entrega, o adaptador exige Pedido Asaas
+`paid`, vínculo do Pedido com a Conta e Conta existente, resolve o e-mail atual e chama
+Better Auth `requestPasswordReset`. O token nasce apenas dentro do Better Auth/callback.
+Como Better Auth captura falhas do callback e resolve a API mesmo sem envio, a chamada
+interna abre um contexto assíncrono isolado, associado à chave HMAC da intenção, e só
+conclui quando o callback registra entrega. Falha ou ausência do callback usa
+`account_activation_failed` e permanece elegível para retry; Conta que já ganhou
+credential satisfaz a intenção como no-op. O contexto guarda somente chave e resultado,
+sem e-mail, token ou URL.
+
+Factory, parser e delivery implementam [DEC-DISC-001](../decisions.md#dec-disc-001). O
+processor financeiro Asaas que escolherá entre ativação e `email.access-released` ainda
+não foi implementado.
+
 ## Autenticação
 
 `getAuth`, em `src/lib/auth.ts`, configura Better Auth com adaptador Drizzle para `users`, `accounts`, `sessions` e `verifications`; e-mail e senha; token de redefinição por uma hora; revogação das sessões após redefinição; origens confiáveis de `parseTrustedOrigins`; e `nextCookies()` como último plugin.
@@ -91,7 +133,10 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
 ## Decisões e pendências
 
 - [ADR-0001](../adr/0001-custom-rbac.md): RBAC próprio, aceito.
-- [DEC-DISC-007](../decisions.md#dec-disc-007): identidade e verificação, pendente.
+- [DEC-DISC-001](../decisions.md#dec-disc-001): ativação durável somente com `userId` e
+  `orderId`, sem outros dados pessoais nem token persistido, implementada na outbox;
+  enfileiramento pelo processor Asaas pendente.
+- [DEC-DISC-007](../decisions.md#dec-disc-007): identidade de checkout e verificação,
+  aprovada; resolução local implementada e integração com o processor Asaas pendente.
 - ratificar a matriz de Suporte;
-- definir política formal de vinculação Compradora para Conta;
 - racional histórico para Better Auth e autenticação por e-mail e senha não localizado.

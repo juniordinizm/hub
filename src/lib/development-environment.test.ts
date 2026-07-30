@@ -5,6 +5,11 @@ const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
   ABACATE_PAY_API_KEY: "abc_dev_key",
   ABACATEPAY_WEBHOOK_SECRET:
     "development-webhook-secret-at-least-thirty-two-characters",
+  ASAAS_API_BASE_URL: "https://api-sandbox.asaas.com",
+  ASAAS_API_KEY: "asaas-development-key",
+  ASAAS_USER_AGENT: "hub-development/1.0 dev@example.com",
+  ASAAS_WEBHOOK_TOKEN:
+    "asaas-development-webhook-token-at-least-thirty-two-characters",
   BETTER_AUTH_SECRET: "development-auth-secret-at-least-thirty-two-characters",
   BETTER_AUTH_URL: "http://localhost:3000",
   CERTIFICATE_PUBLIC_BASE_URL: "http://localhost:3000",
@@ -43,6 +48,30 @@ describe("Development environment contract", () => {
   it("accepts the complete shared Development environment", () => {
     expect(
       getDevelopmentEnvironmentProblems(COMPLETE_DEVELOPMENT_ENVIRONMENT)
+    ).toEqual([]);
+  });
+
+  it.each([
+    ["https://api.asaas.com", "production"],
+    ["http://api-sandbox.asaas.com", "http"],
+    ["https://sandbox.example.com", "arbitrary host"],
+    ["https://api-sandbox.asaas.com/v3", "path"],
+    ["https://api-sandbox.asaas.com?tenant=1", "query"],
+  ])("rejects an unsafe Asaas Development URL: %s (%s)", (baseUrl) => {
+    expect(
+      getDevelopmentEnvironmentProblems({
+        ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+        ASAAS_API_BASE_URL: baseUrl,
+      })
+    ).toContain("ASAAS_API_BASE_URL must equal https://api-sandbox.asaas.com");
+  });
+
+  it("accepts a trailing slash on the exact Asaas sandbox origin", () => {
+    expect(
+      getDevelopmentEnvironmentProblems({
+        ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+        ASAAS_API_BASE_URL: "https://api-sandbox.asaas.com/",
+      })
     ).toEqual([]);
   });
 
@@ -145,6 +174,18 @@ describe("Development environment contract", () => {
         "SCHEDULED_JOBS_ENABLED must equal true",
       ])
     );
+  });
+
+  it("requires a strong Asaas webhook token without exposing its value", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      ASAAS_WEBHOOK_TOKEN: "weak-webhook",
+    });
+
+    expect(problems).toContain(
+      "ASAAS_WEBHOOK_TOKEN must contain at least 32 characters"
+    );
+    expect(problems.join(" ")).not.toContain("weak-webhook");
   });
 
   it("rejects copied placeholder values", () => {

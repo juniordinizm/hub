@@ -17,8 +17,7 @@ import {
   ensureJmvstreamCourseFolder,
   resolveJmvstreamPlayerThumbnailUrl,
 } from "@/features/jmvstream/server";
-import { parsePriceToCents } from "@/features/payments/abacatepay";
-import { createAbacatePayCourseProduct } from "@/features/payments/server";
+import { parseCoursePriceToCents } from "@/features/payments/course-price";
 import {
   type CourseCoverImage,
   getCourseCoverStorageKeys,
@@ -61,6 +60,7 @@ interface AuthoringFormInput {
 interface CourseFormValues {
   accessDurationMonths: number;
   description: string | null;
+  priceInCents: number;
   status: ContentStatus;
   subtitle: string | null;
   title: string;
@@ -156,6 +156,7 @@ const readContentStatus = (formData: FormData): ContentStatus => {
 const readCourseFormValues = (formData: FormData): CourseFormValues => ({
   accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
   description: readString(formData, "description") || null,
+  priceInCents: parseCoursePriceToCents(readString(formData, "price")),
   status: readContentStatus(formData),
   subtitle: readString(formData, "subtitle") || null,
   title: readString(formData, "title"),
@@ -926,17 +927,19 @@ const updateExistingCourse = async ({
         set title = $1,
             subtitle = $2,
             description = $3,
-            thumbnail_url = $4,
-            cover_image_json = $5::jsonb,
-            access_duration_months = $6,
-            status = $7,
+            price_in_cents = $4,
+            thumbnail_url = $5,
+            cover_image_json = $6::jsonb,
+            access_duration_months = $7,
+            status = $8,
             updated_at = now()
-        where id = $8
+        where id = $9
       `,
       [
         values.title,
         values.subtitle,
         values.description,
+        values.priceInCents,
         thumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,
@@ -995,14 +998,6 @@ const createNewCourse = async ({
     uploadedCoverImage = coverFile ? coverImage : null;
     const insertedThumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
     const slug = await resolveUniqueCourseSlug(values.title);
-    const priceInCents = parsePriceToCents(readString(formData, "price"));
-    const { productId } = await createAbacatePayCourseProduct({
-      courseId,
-      description: values.description,
-      imageUrl: insertedThumbnailUrl,
-      priceInCents,
-      title: values.title,
-    });
     const inserted = await getPool().query<{ id: string }>(
       `
         insert into courses (
@@ -1014,11 +1009,10 @@ const createNewCourse = async ({
           price_in_cents,
           thumbnail_url,
           cover_image_json,
-          payment_provider_product_id,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
         returning id
       `,
       [
@@ -1027,10 +1021,9 @@ const createNewCourse = async ({
         values.title,
         values.subtitle,
         values.description,
-        priceInCents,
+        values.priceInCents,
         insertedThumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
-        productId,
         values.accessDurationMonths,
         CREATED_CONTENT_STATUS,
       ]

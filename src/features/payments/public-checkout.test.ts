@@ -1,145 +1,109 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createCheckout, query } = vi.hoisted(() => ({
-  createCheckout: vi.fn(),
+const dependencies = vi.hoisted(() => ({
+  createAsaasCheckoutIntent: vi.fn(),
+  getApplicationUrl: vi.fn((path: string) => `https://hub.example${path}`),
   query: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
-vi.mock("@/features/payments/abacatepay-client", () => ({
-  AbacatePayClient: class {
-    createCheckout = createCheckout;
-  },
+vi.mock("@/db", () => ({ getPool: () => ({ query: dependencies.query }) }));
+vi.mock("@/features/payments/checkout", () => ({
+  createAsaasCheckoutIntent: dependencies.createAsaasCheckoutIntent,
+}));
+vi.mock("@/features/payments/provider", () => ({
+  getApplicationUrl: dependencies.getApplicationUrl,
+  getAsaasProviderClient: vi.fn(() => ({ createCheckout: vi.fn() })),
 }));
 vi.mock("@/lib/env", () => ({
-  getServerEnv: () => ({
-    ABACATE_PAY_API_KEY: "test-api-key",
-    NEXT_PUBLIC_APP_URL: "https://hub.example.test",
-  }),
+  getServerEnv: () => ({ BETTER_AUTH_SECRET: "test-secret" }),
 }));
 
-import { createPublicCourseCheckout } from "./public-checkout";
+import {
+  authorizePublicCheckoutIntent,
+  createPublicCourseCheckout,
+  PublicCheckoutRateLimitError,
+} from "./public-checkout";
 
-describe("public course checkout", () => {
-  afterEach(() => {
-    vi.useRealTimers();
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+
+describe("public checkout boundary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("limits checkout attempts per course and IP, then releases access when its window expires", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-06-28T12:00:00.000Z"));
-    query.mockImplementation(
-      (sql: string, [courseId]: [string | null] = [null]) => {
-        if (sql.includes("from courses")) {
-          return {
-            rows: [
-              {
-                access_duration_months: 12,
-                id: courseId ?? "course-123",
-                payment_provider_product_id: "product-123",
-                price_in_cents: 12_900,
-                slug: "course-123",
-                status: "active",
-              },
-            ],
-          };
-        }
+  it("adapts local buyer identity and public callbacks to the shared core", async () => {
+    dependencies.createAsaasCheckoutIntent.mockResolvedValue({
+      orderId: "order-id",
+      redirectUrl: "https://pay.example/checkout",
+      status: "ready",
+    });
 
-        return { rows: [] };
-      }
+    await createPublicCourseCheckout({
+      buyerEmail: "buyer@example.com",
+      buyerName: "Buyer Name",
+      checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
+      courseSlug: "canonical-course",
+      ipAddress: "203.0.113.10",
+    });
+
+    expect(dependencies.createAsaasCheckoutIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
+        buyer: {
+          email: "buyer@example.com",
+          kind: "public",
+          name: "Buyer Name",
+        },
+        callbacks: {
+          cancelUrl: "https://hub.example/checkout/cancelado",
+          expiredUrl: "https://hub.example/checkout/expirado",
+          successUrl: "https://hub.example/checkout/sucesso",
+        },
+        courseSlug: "canonical-course",
+      })
     );
-    createCheckout.mockResolvedValue({
-      id: "checkout-123",
-      url: "https://pay.example.test/checkout-123",
-    });
-    const checkoutAttempt = () =>
-      createPublicCourseCheckout({
-        courseId: "course-123",
-        ipAddress: "203.0.113.10",
-      });
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      await expect(checkoutAttempt()).resolves.toEqual({
-        redirectUrl: "https://pay.example.test/checkout-123",
-      });
-    }
-
-    await expect(checkoutAttempt()).rejects.toMatchObject({
-      message: "Muitas tentativas de checkout. Tente novamente em breve.",
-      name: "PublicCheckoutRateLimitError",
-      retryAfterSeconds: 600,
-    });
-
-    await expect(
-      createPublicCourseCheckout({
-        courseId: "course-456",
-        ipAddress: "203.0.113.10",
-      })
-    ).resolves.toEqual({
-      redirectUrl: "https://pay.example.test/checkout-123",
-    });
-
-    vi.advanceTimersByTime(10 * 60 * 1000);
-
-    await expect(checkoutAttempt()).resolves.toEqual({
-      redirectUrl: "https://pay.example.test/checkout-123",
-    });
   });
 
-  it("shares a checkout limit between the course slug and ID", async () => {
-    query.mockImplementation((sql: string) => {
-      if (sql.includes("from courses")) {
-        return {
-          rows: [
-            {
-              access_duration_months: 12,
-              id: "course-shared-limit",
-              payment_provider_product_id: "product-123",
-              price_in_cents: 12_900,
-              slug: "shared-limit-course",
-              status: "active",
-            },
-          ],
-        };
-      }
-
-      return { rows: [] };
-    });
-    createCheckout.mockResolvedValue({
-      id: "checkout-123",
-      url: "https://pay.example.test/checkout-123",
+  it("stores only an HMAC key and consumes a coordinated database window", async () => {
+    dependencies.query.mockResolvedValueOnce({
+      rows: [{ expires_at: new Date("2026-07-29T12:10:00.000Z") }],
     });
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      await expect(
-        createPublicCourseCheckout({
-          courseSlug: "shared-limit-course",
-          ipAddress: "203.0.113.11",
-        })
-      ).resolves.toEqual({
-        redirectUrl: "https://pay.example.test/checkout-123",
-      });
-    }
+    await authorizePublicCheckoutIntent({
+      courseId: "course-id",
+      ipAddress: "203.0.113.10",
+      now: new Date("2026-07-29T12:00:00.000Z"),
+      secret: "rate-limit-secret",
+    });
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      await expect(
-        createPublicCourseCheckout({
-          courseId: "course-shared-limit",
-          ipAddress: "203.0.113.11",
-        })
-      ).resolves.toEqual({
-        redirectUrl: "https://pay.example.test/checkout-123",
+    const [sql, values] = dependencies.query.mock.calls[0] as [
+      string,
+      unknown[],
+    ];
+    expect(sql).toContain("on conflict (key_hash) do update");
+    expect(sql).toContain("request_count < $3");
+    expect(sql).toContain("$2::timestamptz + interval '10 minutes'");
+    expect(values[0]).toMatch(SHA256_HEX_PATTERN);
+    expect(values).not.toContain("203.0.113.10");
+    expect(values).not.toContain("course-id");
+    expect(values[2]).toBe(5);
+  });
+
+  it("returns the remaining coordinated window when the limit is exhausted", async () => {
+    dependencies.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ expires_at: new Date("2026-07-29T12:03:21.000Z") }],
       });
-    }
 
     await expect(
-      createPublicCourseCheckout({
-        courseId: "course-shared-limit",
-        ipAddress: "203.0.113.11",
+      authorizePublicCheckoutIntent({
+        courseId: "course-id",
+        ipAddress: "203.0.113.10",
+        now: new Date("2026-07-29T12:00:00.000Z"),
+        secret: "rate-limit-secret",
       })
-    ).rejects.toMatchObject({
-      name: "PublicCheckoutRateLimitError",
-    });
+    ).rejects.toEqual(new PublicCheckoutRateLimitError(201));
   });
 });

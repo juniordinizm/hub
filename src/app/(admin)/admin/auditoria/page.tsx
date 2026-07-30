@@ -124,7 +124,7 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               conforme o runbook de observabilidade antes de reprocessar.
             </p>
           </div>
-          <dl className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+          <dl className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
             <div className="space-y-1 p-5">
               <dt className="text-muted-foreground text-sm">Outbox pendente</dt>
               <dd className="font-semibold text-2xl tabular-nums">
@@ -150,6 +150,26 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
                 {data.operationalBacklog.webhooks.oldestFailedAt
                   ? formatDate(data.operationalBacklog.webhooks.oldestFailedAt)
                   : "nenhum"}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Na fila: {data.operationalBacklog.webhooks.ready}
+              </dd>
+            </div>
+            <div className="space-y-1 p-5">
+              <dt className="text-muted-foreground text-sm">
+                Pendências financeiras
+              </dt>
+              <dd className="font-semibold text-2xl tabular-nums">
+                {data.operationalBacklog.payments.uncertainRefunds +
+                  data.operationalBacklog.payments.uncorrelatedOrders}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Reembolsos incertos:{" "}
+                {data.operationalBacklog.payments.uncertainRefunds}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Pedidos sem pagamento:{" "}
+                {data.operationalBacklog.payments.uncorrelatedOrders}
               </dd>
             </div>
             <div className="space-y-1 p-5">

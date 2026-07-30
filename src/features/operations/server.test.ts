@@ -18,8 +18,11 @@ describe("operational backlog snapshot", () => {
             oldest_video_at: new Date("2026-07-20T11:00:00.000Z"),
             oldest_webhook_at: new Date("2026-07-20T12:00:00.000Z"),
             outbox_ready: "3",
+            uncorrelated_orders: "6",
+            uncertain_refunds: "7",
             videos_pending: "4",
             webhooks_failed: "5",
+            webhooks_ready: "8",
           },
         ],
       }),
@@ -37,10 +40,27 @@ describe("operational backlog snapshot", () => {
         oldestPendingAt: new Date("2026-07-20T11:00:00.000Z"),
         pending: 4,
       },
+      payments: {
+        uncorrelatedOrders: 6,
+        uncertainRefunds: 7,
+      },
       webhooks: {
         failed: 5,
         oldestFailedAt: new Date("2026-07-20T12:00:00.000Z"),
+        ready: 8,
       },
     });
+  });
+
+  it("counts retryable Asaas webhooks in the ready backlog", async () => {
+    await getOperationalBacklogSnapshot();
+
+    expect(
+      dependencies.getPool.mock.results[0]?.value.query
+    ).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "status in ('received', 'processing', 'retryable')"
+      )
+    );
   });
 });

@@ -55,7 +55,9 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0043_snapshot.json`.
+journal é autoridade; nesta cadeia, `0051_snapshot.json`. As migrations Asaas
+`0044` a `0051` foram geradas e ensaiadas somente em banco descartável; ainda não foram
+aplicadas às branches persistentes.
 
 ## Conexões
 
@@ -126,6 +128,41 @@ falha. No fluxo Vercel, o workflow protegido executa esse comando como etapa
 isolada antes de construir o deployment Production não promovido. Nunca
 execute como hook de inicialização da aplicação.
 
+### `bun run db:cleanup:production`
+
+É o comando excepcional do corte Asaas para remover dados de teste em Production,
+preservando somente a Conta Admin atual e sua identidade. Não executa migration nem
+deploy. Use exclusivamente pelo workflow manual
+`cleanup-production-test-data.yml`, no GitHub Environment protegido
+`vercel-production`.
+
+O modo `plan` é somente leitura: valida host, database, branch Neon, as 38 tabelas
+exatas do schema `0043`, as 44 entradas do journal, um único Admin utilizável e as
+contagens; depois retorna um fingerprint SHA-256 sem PII. Ele não cria backup. O
+checkout deve estar em `PAYMENTS_CHECKOUT_MODE=disabled` antes do corte.
+
+O modo `execute` exige o fingerprint do `plan`, `confirm_cleanup=true` e a confirmação
+literal `DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN`. O workflow confirma `main` e CI,
+valida projeto/branch de origem, cria primeiro uma branch Neon de backup sem compute e
+sem expiração automática e só então executa uma transação serializável. Drift de
+schema, journal, Admin, contagem, fingerprint ou alvo aborta antes da exclusão.
+
+O GitHub Environment precisa do secret `NEON_API_KEY`, do secret
+`DATABASE_URL_DIRECT` e das variables `PRODUCTION_NEON_PROJECT_ID`,
+`PRODUCTION_NEON_BRANCH_ID` e `PRODUCTION_DATABASE_HOST`. Logs mostram somente
+contagens, fingerprint, status e ID da branch de backup; URL, credenciais, IDs de
+Conta e PII são proibidos.
+
+O journal aplicado em Production possui quatro hashes históricos que diferem do SQL
+hoje versionado (`0009`, `0037`, `0038` e `0039`). O contrato fixa os hashes realmente
+aplicados e calcula os outros 40 com quebras de linha LF canônicas, evitando divergência
+artificial em checkouts Windows com CRLF sem enfraquecer a comparação linha a linha.
+
+Em 2026-07-29, executor e CLI foram validados numa clone descartável de Production: o
+`plan` real passou em transação somente leitura, sem alterar o schema `public`; a suíte
+de integração cobriu execução, drift, tabela inesperada, lock concorrente, rollback e
+reexecução. A branch temporária foi removida após a prova.
+
 ## Comandos bloqueados
 
 ### `bun run db:reset` e `bun run db:reset:local`
@@ -148,7 +185,7 @@ Cria banco PostgreSQL local temporário, aplica a cadeia, roda seed duas vezes e
 
 ### `bun run test:certificates:integration`
 
-Executa concorrência de conclusão/outbox em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. Nunca aponte para banco compartilhado.
+Executa concorrência de conclusão, outbox e inbox Asaas em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. A suíte da inbox prova claim único entre dois workers, rollback do efeito, perda de posse e terminalização da quinta tentativa abandonada. Nunca aponte para banco compartilhado.
 
 ### `bun run db:push` e `bun run db:studio`
 
@@ -205,6 +242,20 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   A migration foi promovida com autorização explícita em 2026-07-26. A
   auditoria da branch definitiva repetiu as mesmas evidências e confirmou zero
   leases, limpezas ou uploads temporários residuais.
+- `0044` a `0051`: migrations da troca direta para Asaas. Incluem persistência do
+  comércio/inbox/revisões, evidência real de reembolso, limites públicos, valores
+  líquido/tarifa e extrato financeiro deduplicado. Em 2026-07-29, foram aplicadas e
+  auditadas na branch descartável `br-autumn-mouse-ac9ti4dr`, sem promoção para a
+  branch-pai. O primeiro ensaio confirmou que `0046` exige `orders` vazio: a branch
+  herdava cinco Pedidos de teste, dois webhooks e duas Concessões pagas. Após remover
+  somente esses dados financeiros de teste na branch isolada, a cadeia chegou ao topo
+  `0051`, a auditoria confirmou todas as entradas e os 20 testes PostgreSQL passaram.
+  Essa limpeza é uma pré-condição explícita do corte direto, não um backfill nem uma
+  autorização para alterar a branch persistente antes da Etapa 10.
+- `db:smoke:empty` não foi executado no host da Etapa 9 porque PostgreSQL local não está
+  instalado. A guarda recusaria corretamente a branch Neon remota; não foi afrouxada nem
+  contornada. A cadeia incremental e o catálogo foram provados na branch descartável,
+  mas o smoke local desde banco vazio permanece para um runner com PostgreSQL local.
 
 ## Recuperação
 

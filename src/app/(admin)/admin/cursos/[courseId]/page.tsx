@@ -73,7 +73,6 @@ export default async function AdminCourseDetailPage({
   const contentSignal = getAdminCourseContentSignal(contentSummary);
   const readiness = summarizeCoursePublicationReadiness({
     hasDescription: Boolean(course.description?.trim()),
-    hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
     hasThumbnail: Boolean(course.thumbnailUrl),
     moduleCount: modules.length,
     publishedLessonCount: publishedLessons.length,

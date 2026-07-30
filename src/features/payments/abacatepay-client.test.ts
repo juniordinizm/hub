@@ -8,50 +8,6 @@ describe("AbacatePayClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("creates products using the v2 API with bearer auth", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          success: true,
-          data: { id: "prod_123" },
-          error: null,
-        }),
-        { status: 200 }
-      )
-    );
-    const client = new AbacatePayClient({
-      apiKey: "abc_prod_token",
-      baseUrl: "https://api.abacatepay.com/v2",
-      fetcher: fetchMock,
-    });
-
-    await expect(
-      client.createProduct({
-        currency: "BRL",
-        externalId: "course_123",
-        name: "Curso",
-        price: 49_700,
-      })
-    ).resolves.toEqual({ id: "prod_123" });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.abacatepay.com/v2/products/create",
-      {
-        body: JSON.stringify({
-          currency: "BRL",
-          externalId: "course_123",
-          name: "Curso",
-          price: 49_700,
-        }),
-        headers: {
-          Authorization: "Bearer abc_prod_token",
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }
-    );
-  });
-
   it("creates checkouts and returns the checkout URL and id", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
@@ -146,11 +102,17 @@ describe("AbacatePayClient", () => {
     });
 
     await expect(
-      client.createProduct({
-        currency: "BRL",
-        externalId: "course_123",
-        name: "Curso",
-        price: 49_700,
+      client.createCheckout({
+        completionUrl: "https://example.com/sucesso",
+        externalId: "order_123",
+        frequency: "ONE_TIME",
+        items: [{ id: "legacy_product", quantity: 1 }],
+        metadata: {
+          accessDurationMonths: 6,
+          courseId: "course_123",
+        },
+        methods: ["PIX", "CARD"],
+        returnUrl: "https://example.com/app",
       })
     ).rejects.toThrow("externalId already exists");
   });
@@ -173,11 +135,17 @@ describe("AbacatePayClient", () => {
     });
 
     await expect(
-      client.createProduct({
-        currency: "BRL",
-        externalId: "course_123",
-        name: "Curso",
-        price: 0,
+      client.createCheckout({
+        completionUrl: "https://example.com/sucesso",
+        externalId: "order_123",
+        frequency: "ONE_TIME",
+        items: [{ id: "legacy_product", quantity: 1 }],
+        metadata: {
+          accessDurationMonths: 6,
+          courseId: "course_123",
+        },
+        methods: ["PIX", "CARD"],
+        returnUrl: "https://example.com/app",
       })
     ).rejects.toThrow(
       "Property 'price' should be one of: 'integer', 'integer'"

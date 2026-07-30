@@ -5,7 +5,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
 import { getDb } from "@/db";
 import { accounts, sessions, users, verifications } from "@/db/schema";
-import { sendPasswordResetEmail } from "@/features/email/server";
+import { sendBetterAuthPasswordResetEmail } from "@/lib/auth-password-reset";
 import {
   getBetterAuthRateLimitConfig,
   getResolvedBetterAuthInfraConfig,
@@ -63,12 +63,8 @@ const createAuth = () => {
       minPasswordLength: 8,
       resetPasswordTokenExpiresIn: 3600,
       revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ url, user }) => {
-        await sendPasswordResetEmail({
-          resetUrl: url,
-          to: user.email,
-          userName: user.name,
-        });
+      sendResetPassword: async (input, request) => {
+        await sendBetterAuthPasswordResetEmail(input, request);
       },
     },
     plugins: [...infraPlugins, nextCookies()],

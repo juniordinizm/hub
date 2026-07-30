@@ -2,24 +2,37 @@
 
 import { redirect } from "next/navigation";
 import { canMutateStudentExperience } from "@/features/courses/preview";
+import { requeueFailedAsaasWebhook } from "@/features/payments/asaas-webhook-worker";
+import { createAsaasCheckoutIntent } from "@/features/payments/checkout";
+import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
+import {
+  getApplicationUrl,
+  getAsaasProviderClient,
+} from "@/features/payments/provider";
+import {
+  importAsaasFinancialStatement,
+  reconcileAsaasPayment,
+} from "@/features/payments/reconciliation";
 import {
   issueRefundConfirmation,
   requestFullRefund,
 } from "@/features/payments/refunds";
-import {
-  createCourseCheckout,
-  resolvePaymentReview,
-  retryFailedAbacatePayWebhook,
-} from "@/features/payments/server";
+import { resolvePaymentReview } from "@/features/payments/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { getServerEnv } from "@/lib/env";
 import { requireSession } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const startCourseCheckoutAction = async (
   formData: FormData
 ): Promise<void> => {
+  assertCheckoutAvailable({
+    entry: "authenticated",
+    mode: getServerEnv().PAYMENTS_CHECKOUT_MODE,
+  });
   const session = await requireSession();
 
   if (!canMutateStudentExperience(session.role)) {
@@ -27,17 +40,40 @@ export const startCourseCheckoutAction = async (
   }
 
   const courseId = readString(formData, "courseId");
+  const checkoutAttemptId = readString(formData, "checkoutAttemptId");
 
-  if (!courseId) {
+  if (!(courseId && checkoutAttemptId)) {
     throw new Error("Curso invalido.");
   }
 
-  const { redirectUrl } = await createCourseCheckout({
+  const checkout = await createAsaasCheckoutIntent({
+    attemptId: checkoutAttemptId,
+    buyer: {
+      email: session.user.email,
+      kind: "authenticated",
+      name: session.user.name,
+      userId: session.user.id,
+    },
+    callbacks: {
+      cancelUrl: getApplicationUrl("/checkout/cancelado"),
+      expiredUrl: getApplicationUrl("/checkout/expirado"),
+      successUrl: getApplicationUrl(
+        `/app/checkout/sucesso?courseId=${encodeURIComponent(courseId)}`
+      ),
+    },
     courseId,
-    user: session.user,
+    gateway: getAsaasProviderClient(),
   });
 
-  redirect(redirectUrl as Parameters<typeof redirect>[0]);
+  if (checkout.status === "failed") {
+    throw new Error("Nao foi possivel iniciar o checkout.");
+  }
+
+  const destination =
+    checkout.status === "ready"
+      ? checkout.redirectUrl
+      : `/app/checkout/sucesso?courseId=${encodeURIComponent(courseId)}`;
+  redirect(destination as Parameters<typeof redirect>[0]);
 };
 
 export const confirmRefundPasswordAction = async (
@@ -76,6 +112,39 @@ export const requestFullRefundAction = async (
   });
 };
 
+export const reconcileAsaasPaymentAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requirePermission("viewFinancials");
+  const orderId = readString(formData, "orderId");
+  if (!orderId) {
+    throw new Error("Pedido invalido.");
+  }
+  await reconcileAsaasPayment({
+    actorUserId: session.user.id,
+    orderId,
+  });
+};
+
+export const importAsaasStatementAction = async (
+  formData: FormData
+): Promise<{ imported: number }> => {
+  const session = await requirePermission("viewFinancials");
+  const startDate = readString(formData, "startDate");
+  const finishDate = readString(formData, "finishDate");
+  if (!(ISO_DATE_RE.test(startDate) && ISO_DATE_RE.test(finishDate))) {
+    throw new Error("Periodo do extrato invalido.");
+  }
+  if (startDate > finishDate) {
+    throw new Error("A data inicial deve anteceder a data final.");
+  }
+  return await importAsaasFinancialStatement({
+    actorUserId: session.user.id,
+    finishDate,
+    startDate,
+  });
+};
+
 export const resolvePaymentReviewAction = async (
   formData: FormData
 ): Promise<void> => {
@@ -96,7 +165,7 @@ export const resolvePaymentReviewAction = async (
   });
 };
 
-export const retryFailedAbacatePayWebhookAction = async (
+export const retryFailedAsaasWebhookAction = async (
   formData: FormData
 ): Promise<void> => {
   const session = await requirePermission("retryWebhook");
@@ -106,8 +175,9 @@ export const retryFailedAbacatePayWebhookAction = async (
     throw new Error("Webhook invalido.");
   }
 
-  await retryFailedAbacatePayWebhook({
+  await requeueFailedAsaasWebhook({
     actorUserId: session.user.id,
-    webhookEventId,
+    eventId: webhookEventId,
+    reason: readString(formData, "reason"),
   });
 };

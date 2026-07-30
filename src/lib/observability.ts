@@ -16,7 +16,13 @@ export interface OperationalEvent {
   httpStatus?: number;
   operation: string;
   outcome: OperationalOutcome;
-  provider?: "abacatepay" | "database" | "jmvstream" | "r2" | "resend";
+  provider?:
+    | "abacatepay"
+    | "asaas"
+    | "database"
+    | "jmvstream"
+    | "r2"
+    | "resend";
 }
 
 type OperationalAttributeValue = number | string | undefined;

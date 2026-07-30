@@ -18,8 +18,18 @@ describe("scheduled jobs", () => {
   });
 
   it("accepts only declared own-property job names", () => {
+    expect(isScheduledJobName("asaasWebhooks")).toBe(true);
     expect(isScheduledJobName("outbox")).toBe(true);
     expect(isScheduledJobName("constructor")).toBe(false);
     expect(isScheduledJobName("toString")).toBe(false);
+  });
+
+  it("runs the Asaas inbox worker every minute inside the function budget", () => {
+    expect(scheduledJobs.asaasWebhooks).toEqual({
+      deadlineMs: 270_000,
+      leaseMs: 360_000,
+      path: "/api/cron/asaas-webhooks",
+      schedule: "* * * * *",
+    });
   });
 });

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
 ---
 
 # Registro de decisões de produto
@@ -9,7 +9,8 @@ last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
 ## Como ler
 
 - **Implementado:** comprovado no `HEAD`.
-- **Aprovado:** trade-off registrado em ADR aceito.
+- **Aprovado:** trade-off ratificado em ADR aceito ou decisão explícita registrada neste
+  documento.
 - **Aguardando ratificação:** código escolheu política sem aprovação documentada.
 - **Pendente:** ainda não há resposta suficiente.
 
@@ -18,23 +19,45 @@ Implementação não promove política a aprovada sozinha.
 ## DEC-DISC-001
 
 **Tema:** entrega de e-mail.
-**Estado:** aprovado e implementado parcialmente.
+**Estado:** factory, parser e delivery implementados; enfileiramento Asaas pendente.
 
-Resend envia redefinição, acesso, expiração, Certificado e suporte por `sendTransactionalEmail`. Certificado, acesso de Conta já ativada e expiração usam outbox sem PII, chave de idempotência Resend, cinco tentativas e dead letter. Recuperação/ativação por senha fica fora da outbox porque a callback URL contém token secreto. Ver [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md).
+A intenção durável de ativação guarda somente `userId` e `orderId`, sem outros dados
+pessoais, token ou URL de callback. No processamento, o worker resolve a Conta e chama Better Auth
+`requestPasswordReset`; o token nasce somente durante o envio. Falha de resolução ou
+entrega mantém a intenção elegível para retry, sem persistir o token.
+
+`auth.account-activation` implementa a intenção sem PII e resolve os dados no delivery. O
+processor financeiro Asaas que escolherá e enfileirará essa intenção permanece pendente.
+O fluxo legado AbacatePay continua fora da outbox. Os demais e-mails transacionais mantêm
+o contrato descrito em [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md).
 
 ## DEC-DISC-002
 
 **Tema:** precedência financeira.
-**Estado:** implementação aguardando ratificação.
+**Estado:** aprovado; matriz pura Asaas implementada, efeitos persistentes pendentes.
 
-`resolveAbacatePayOrderStatus` e `getAbacatePayOrderTransition` impedem sobrescrita silenciosa de estado terminal; conflito cria revisão manual. Falta ratificar matriz entre `paid`, `refunded`, `disputed` e `cancelled`. Proposta: [ADR-0005](adr/0005-financial-precedence-and-manual-review.md).
+`CHECKOUT_PAID` não libera. PIX libera em `PAYMENT_RECEIVED`; cartão libera em
+`PAYMENT_CONFIRMED` quando não há risco pendente ou reprovado. Aprovação posterior pode
+destravar confirmação armazenada. Reembolso confirmado, disputa e chargeback
+prevalecem e revogam. Pago tardio não reativa estado adverso; cancelamento ou expiração
+tardios não revogam Pedido pago. Evento parcial, desconhecido, regressivo ou contraditório
+abre revisão ou alerta. Ver
+[ADR-0005](adr/0005-financial-precedence-and-manual-review.md).
+
+`decideAsaasFinancialEvent`, em `src/features/payments/asaas-financial-events.ts`,
+materializa a matriz como decisão pura, sem SQL ou efeitos de acesso. O processor
+transacional que aplicará a decisão permanece pendente.
 
 ## DEC-DISC-003
 
 **Tema:** divergência de valor.
-**Estado:** implementação aguardando ratificação.
+**Estado:** aprovado; comparação pura Asaas implementada, revisão persistente pendente.
 
-Pagamento diferente do snapshot gera revisão `amount_mismatch` e não libera acesso automaticamente. Falta decidir tolerância de arredondamento, autoridade e efeito da aprovação.
+O valor bruto Asaas `value` deve coincidir exatamente com o snapshot do Pedido em
+centavos, com tolerância zero. Divergência não libera acesso e abre revisão. Decisão manual
+exige permissão, motivo e auditoria. A comparação e o código seguro da revisão são
+produzidos por `decideAsaasFinancialEvent`; a criação e decisão persistente da Revisão
+permanecem pendentes.
 
 ## DEC-DISC-004
 
@@ -60,9 +83,17 @@ Certificado tem snapshots, código público, estado válido/revogado e reemissã
 ## DEC-DISC-007
 
 **Tema:** identidade, verificação e recuperação.
-**Estado:** parcial e pendente.
+**Estado:** resolução local implementada; integração com processor Asaas pendente.
 
-Cadastro público é fechado; Conta pode nascer da compra; recuperação envia e-mail e revoga sessões. Falta decidir vínculo entre Compradora e Aluna, prova de posse do e-mail, duplicidade e atendimento de Conta sem acesso.
+No checkout autenticado, a Conta é a da sessão; o provider não pode alterar nome, e-mail,
+verificação ou credenciais. No checkout público, o Hub captura nome e e-mail localmente
+antes do redirect e registra Compradora = Aluna. Uma Conta nova não é considerada
+verificada pelo provider. Uma Conta existente não é sobrescrita pelos dados do checkout.
+Compra como presente ou para terceiro fica fora do escopo.
+
+`resolveLocalOrderIdentity` implementa o vínculo local seguro para Pedido já bloqueado,
+sem confiar no provider. O processor Asaas ainda não chama esse módulo. O fluxo
+AbacatePay atual permanece apenas como evidência legada.
 
 ## DEC-DISC-008
 
@@ -81,6 +112,22 @@ Para a plataforma pequena atual, analytics técnico minimizado fica habilitado p
 Admin vê somente métricas agregadas por Aula e `CoursePublication`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 90 dias para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
 
 Esta decisão de produto não prova base legal ou conformidade LGPD. Antes da ativação em produção, é obrigatória ratificação jurídica da base legal, transparência, prazos e canal de direitos aplicáveis.
+
+## DEC-DISC-010
+
+**Tema:** preço mínimo de Curso pago.
+**Estado:** aprovado; implementação pendente.
+
+Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10. A autoria valida o
+limite ao criar ou editar o Curso, e o checkout repete a validação antes de persistir o
+Pedido ou chamar o provider. Dados de teste abaixo desse mínimo devem ser ajustados ou
+removidos.
+
+Em 2026-07-28, o sandbox Asaas rejeitou uma tentativa de R$ 1 com `invalid_object` e
+mínimo de R$ 10. Essa evidência ratifica o limite externo observado, mas não prova a
+implementação no Hub. Ver
+[Comércio e acesso](domain/commerce-and-access.md#reg-com-001-pedido-preserva-o-contrato-vendido)
+e [Asaas](integrations/asaas.md).
 
 ## Outras ratificações necessárias
 

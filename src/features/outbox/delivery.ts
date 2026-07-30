@@ -6,6 +6,14 @@ import {
   sendAccessReleasedEmail,
   sendCertificateIssuedEmail,
 } from "@/features/email/server";
+import { getApplicationUrl } from "@/features/payments/provider";
+import { runWithAccountActivationDeliveryContext } from "@/lib/account-activation-delivery-context";
+import {
+  ACCOUNT_ACTIVATION_IDEMPOTENCY_HEADER,
+  deriveAccountActivationEmailIdempotencyKey,
+} from "@/lib/account-activation-idempotency";
+import { getAuth } from "@/lib/auth";
+import { getServerEnv } from "@/lib/env";
 import {
   createCertificateIssuedMessage,
   OUTBOX_TOPICS,
@@ -24,10 +32,124 @@ const deliveryFailure = (): OutboxDeliveryError =>
 const certificateRenderFailure = (): OutboxDeliveryError =>
   new OutboxDeliveryError("certificate_render_failed", { retryable: true });
 
-const unexpectedDeliveryFailure = (topic: string): OutboxDeliveryError =>
-  topic === OUTBOX_TOPICS.certificateRender
-    ? certificateRenderFailure()
-    : deliveryFailure();
+const accountActivationFailure = (): OutboxDeliveryError =>
+  new OutboxDeliveryError("account_activation_failed", { retryable: true });
+
+const unexpectedDeliveryFailure = (topic: string): OutboxDeliveryError => {
+  if (topic === OUTBOX_TOPICS.certificateRender) {
+    return certificateRenderFailure();
+  }
+  if (topic === OUTBOX_TOPICS.accountActivation) {
+    return accountActivationFailure();
+  }
+  return deliveryFailure();
+};
+
+interface AccountActivationDeliveryData {
+  hasCredential: boolean;
+  studentEmail: string;
+}
+
+const parseAccountActivationDeliveryData = (
+  row: unknown
+): AccountActivationDeliveryData | null => {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const hasCredential = Reflect.get(row, "has_credential");
+  const studentEmail = Reflect.get(row, "student_email");
+  if (
+    typeof hasCredential !== "boolean" ||
+    typeof studentEmail !== "string" ||
+    !studentEmail
+  ) {
+    return null;
+  }
+  return { hasCredential, studentEmail };
+};
+
+const getAccountActivationDeliveryData = async ({
+  orderId,
+  userId,
+}: {
+  orderId: string;
+  userId: string;
+}) => {
+  const result = await getPool().query(
+    `select
+       users.email as student_email,
+       exists (
+         select 1
+         from accounts
+         where accounts.user_id = users.id
+           and accounts.provider_id = 'credential'
+       ) as has_credential
+     from orders
+     join users on users.id = orders.user_id
+     where orders.id = $1
+       and orders.user_id = $2
+       and orders.provider = 'asaas'
+       and orders.status = 'paid'
+     limit 1`,
+    [orderId, userId]
+  );
+  const row: unknown = result.rows[0];
+  return parseAccountActivationDeliveryData(row);
+};
+
+const deliverAccountActivation = async ({
+  message,
+  payload,
+}: {
+  message: ClaimedOutboxMessage;
+  payload: OutboxPayload;
+}): Promise<boolean> => {
+  if (
+    message.topic !== OUTBOX_TOPICS.accountActivation ||
+    !("orderId" in payload) ||
+    !("userId" in payload)
+  ) {
+    return false;
+  }
+  if (message.aggregateId !== payload.orderId) {
+    throw unavailableAggregate();
+  }
+  const data = await getAccountActivationDeliveryData(payload);
+  if (!data) {
+    throw unavailableAggregate();
+  }
+  if (!data.hasCredential) {
+    const env = getServerEnv();
+    const idempotencyKey = deriveAccountActivationEmailIdempotencyKey({
+      authSecret: env.BETTER_AUTH_SECRET,
+      outboxIdempotencyKey: message.idempotencyKey,
+    });
+    const headers = {
+      [ACCOUNT_ACTIVATION_IDEMPOTENCY_HEADER]: idempotencyKey,
+    };
+    const emailDelivered = await runWithAccountActivationDeliveryContext({
+      idempotencyKey,
+      operation: async () => {
+        await getAuth().api.requestPasswordReset({
+          asResponse: false,
+          body: {
+            email: data.studentEmail,
+            redirectTo: getApplicationUrl("/redefinir-senha"),
+          },
+          headers,
+          request: new Request(env.BETTER_AUTH_URL, {
+            headers,
+            method: "POST",
+          }),
+        });
+      },
+    });
+    if (!emailDelivered) {
+      throw accountActivationFailure();
+    }
+  }
+  return true;
+};
 
 const getCertificateDeliveryData = async (certificateId: string) => {
   const result = await getPool().query<{
@@ -129,19 +251,28 @@ const deliverCertificateRender = async (
   }
 };
 
-export const deliverOutboxMessage = async (
+const parseClaimedOutboxPayload = (
   message: ClaimedOutboxMessage
-): Promise<void> => {
-  let payload: OutboxPayload;
+): OutboxPayload => {
   try {
-    payload = parseOutboxPayload(message);
+    return parseOutboxPayload(message);
   } catch {
     throw new OutboxDeliveryError("unknown_payload_version", {
       retryable: false,
     });
   }
+};
+
+export const deliverOutboxMessage = async (
+  message: ClaimedOutboxMessage
+): Promise<void> => {
+  const payload = parseClaimedOutboxPayload(message);
 
   try {
+    if (await deliverAccountActivation({ message, payload })) {
+      return;
+    }
+
     if (
       message.topic === OUTBOX_TOPICS.certificateRender &&
       "certificateId" in payload

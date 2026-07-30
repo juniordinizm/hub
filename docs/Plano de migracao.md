@@ -22,7 +22,8 @@
 - PIX e cartão.
 - Boleto, parcelamento, assinatura e compra para terceiros fora desta migração.
 - PIX libera acesso em `PAYMENT_RECEIVED`.
-- Cartão libera acesso em `PAYMENT_CONFIRMED`, após análise de risco.
+- Cartão libera acesso em `PAYMENT_CONFIRMED` quando não há risco pendente ou reprovado;
+  aprovação de risco posterior pode destravar uma confirmação já armazenada.
 - `CHECKOUT_PAID` não é autoridade financeira.
 - Compradora pública informa nome e e-mail no Hub antes do redirect.
 - Dados do provider não verificam nem alteram automaticamente uma Conta.
@@ -303,7 +304,9 @@ Não é necessário copiar todos os enums Asaas para o domínio. A recomendaçã
 - ID do checkout;
 - ID do pagamento;
 - ID do cliente quando emitido;
-- ID do reembolso;
+- correlação do reembolso pelo `provider_payment_id` do Pedido e pelo
+  `refund_requests.id` local;
+- evidências reais do reembolso: status, data, `endToEndIdentifier`, comprovante e valor;
 - método de pagamento;
 - valor bruto em centavos;
 - estado de análise de risco;
@@ -512,20 +515,30 @@ Fontes oficiais:
 
 ## Riscos, premissas e dúvidas em aberto
 
-### Riscos confirmados no estado atual
+### Riscos confirmados no estado incremental
 
-1. **Crítico:** primeira falha de webhook pode ser apagada pelo rollback.
-2. **Alto:** checkout externo é criado antes do Pedido local.
-3. **Alto:** reembolso aceito externamente pode ser marcado localmente como falho.
-4. **Alto:** dados do pagador são tratados como identidade e verificação de e-mail.
-5. **Alto:** criação de Curso depende do gateway financeiro.
-6. **Alto:** não há timeout, idempotência ampla ou tratamento de resultado incerto.
-7. **Médio:** rate limit público não é coordenado entre instâncias.
-8. **Médio:** ativação de Conta sem credencial não tem retry durável.
-9. **Médio:** payload bruto com PII não possui retenção definida.
-10. **Médio:** políticas de conflito, valor e identidade ainda não foram ratificadas nos ADRs.
-11. **Médio:** sucesso aguarda no máximo cerca de 75 segundos, insuficiente para alguns fluxos assíncronos.
-12. **Médio:** testes estáticos de SQL não comprovam comportamento transacional.
+As etapas concluídas já mitigaram rollback da primeira falha de webhook, criação externa
+antes do Pedido, dependência de produto remoto para Curso, rate limit apenas em memória,
+ausência de retenção técnica e falta de decisões ratificadas. Permanecem:
+
+1. **Alto:** processor, worker e agenda Asaas existem e as migrations passaram em banco
+   descartável, mas nenhum ambiente persistente recebeu DDL ou deploy; a fila permanece
+   pausada.
+2. **Alto:** reserva, checkout e entrega real `CHECKOUT_CREATED` foram provados no
+   Sandbox; pagamento PIX/cartão, resultado financeiro e reembolso ainda dependem da
+   conclusão manual das sessões abertas.
+3. **Médio:** factory, parser, delivery e enfileiramento de ativação passaram no
+   PostgreSQL descartável e no E2E local; credencial e webhook Sandbox estão ativos,
+   mas nenhum pagamento foi concluído.
+4. **Médio:** checkout e conciliação preservam resultado incerto e precedência sem retry
+   cego; a correlação real entre Checkout, pagamento e eventos ainda precisa do sandbox.
+5. **Médio:** a página de sucesso possui uma janela finita de espera e pode terminar antes
+   de fluxos financeiros assíncronos; o estado durável, não a tela, continua autoritativo.
+6. **Médio:** as provas unitária, transacional e E2E passaram, mas não substituem os
+   cenários financeiros e diferenças conhecidas do sandbox.
+7. **Médio:** credenciais e webhook Sandbox foram configurados e validados por túnel
+   temporário; credenciais, allowlist e comportamento de produção pertencem ao corte e
+   ainda não foram validados.
 
 ### Riscos específicos da migração
 
@@ -553,21 +566,58 @@ Fontes oficiais:
 - O Asaas é autoridade do estado externo; o Hub é autoridade do Pedido, acesso e identidade pretendida.
 - Eventos adversos não podem ser revertidos automaticamente por evento pago tardio.
 - Eventos desconhecidos ou contraditórios não quebram a fila; abrem alerta ou Revisão.
+- Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10; autoria e checkout
+  validam o limite, e dados de teste abaixo dele são ajustados ou removidos.
+- DEC-DISC-001: a intenção durável de ativação guarda somente `userId` e `orderId`, sem
+  outros dados pessoais ou token; no processamento, o worker resolve a Conta e chama Better Auth
+  `requestPasswordReset`; o token nasce apenas no envio e falha mantém retry.
+
+Essa política está implementada de forma incremental: identidade local, factory, parser,
+delivery e enfileiramento de `auth.account-activation` existem, com payload sem PII e
+idempotência de e-mail. Ativação legada AbacatePay e recuperação pública de senha
+continuam fora da outbox.
+
+### Validações externas confirmadas
+
+Evidência operacional fornecida pelo controlador em 2026-07-28:
+
+- `GET /v3/myAccount/status/` no sandbox retornou `commercialInfo`,
+  `bankAccountInfo`, `documentation` e `general` como `APPROVED`;
+- `GET /v3/pix/addressKeys?status=ACTIVE` retornou uma chave Pix ativa;
+- o webhook já cadastrado retornou `enabled=false`, `interrupted=true`,
+  `sendType=SEQUENTIALLY` e `hasAuthToken=true`; sua seleção não inclui eventos
+  `CHECKOUT`.
+- um probe de R$ 1 retornou `invalid_object` por estar abaixo do mínimo de R$ 10; outro
+  probe de R$ 10 sem `imageBase64` criou checkout `ACTIVE`, cancelado em seguida com
+  estado `CANCELED`.
+
+Essa era a configuração inicial. Em 2026-07-29, após a rota durável existir, o mesmo
+webhook Sandbox foi corrigido para `NON_SEQUENTIALLY`, passou a incluir os 33 eventos
+necessários e foi apontado a um túnel temporário. Duas entregas reais
+`CHECKOUT_CREATED` retornaram `200`, foram deduplicadas, correlacionadas e processadas na
+branch Neon descartável. A evidência não valida credencial de produção, token forte
+dedicado nem allowlist de produção.
+
+O checkout criado pelo probe de R$ 10 foi cancelado, e nenhum ID, URL ou conteúdo da
+chave Pix é registrado. O OpenAPI marca `imageBase64` como obrigatória, mas o guia não
+estabelece essa exigência e o sandbox aceitou sua ausência. O adapter inicial omitirá a
+imagem.
 
 ### Pendências de validação externa
 
 1. Confirmar no sandbox como o ID do Checkout se relaciona ao ID do pagamento.
 2. Confirmar se `externalReference` é propagado em todos os eventos necessários.
-3. Confirmar o comportamento real de item/imagem no Checkout e eventual exigência de Base64.
+3. Confirmar em produção que a omissão de `imageBase64` continua aceita e monitorar
+   breaking changes na divergência entre OpenAPI, guia e comportamento observado.
 4. Confirmar se a conta Asaas de produção está verificada e apta a receber PIX/cartão.
-5. Confirmar que existe chave Pix registrada.
-6. Criar chave de API com menor privilégio compatível.
-7. Criar token de webhook forte e registrar allowlist de IPs oficiais.
-8. Confirmar formalmente se existe mecanismo de assinatura além do token.
-9. Definir política de retenção e acesso aos payloads com PII.
-10. Definir configuração de fila não sequencial e serialização local por Pedido.
-11. Definir como pesquisar um checkout após timeout de resultado incerto.
-12. Confirmar tarifas e campos financeiros que o suporte precisa visualizar.
+5. Criar chave de API com menor privilégio compatível.
+6. Criar token de webhook forte e registrar allowlist de IPs oficiais.
+7. Confirmar formalmente se existe mecanismo de assinatura além do token.
+8. Ratificar juridicamente a retenção e o acesso aos payloads com PII; a retenção técnica
+   de 30 dias com sanitização posterior já está implementada.
+9. Definir configuração de fila não sequencial e serialização local por Pedido.
+10. Definir como pesquisar um checkout após timeout de resultado incerto.
+11. Confirmar tarifas e campos financeiros que o suporte precisa visualizar.
 
 ## Plano de migração por etapas
 
@@ -582,23 +632,27 @@ Fontes oficiais:
 - **Responsável sugerido:** Tech Lead com Produto/Financeiro.
 - **Status:** Concluído.
 
-### Etapa 1: ratificar contratos e preparar a conta Asaas
+### Etapa 1: ratificar contratos e confirmar prontidão sandbox
 
-- **Objetivo:** transformar as decisões deste plano em contratos aceitos.
+- **Objetivo:** transformar decisões em contratos aceitos e registrar a prontidão
+  cadastral e os probes não financeiros do sandbox.
 - **O que analisar ou preparar:**
   - ratificar ADR-0004 e ADR-0005;
-  - fechar DEC-DISC-002, DEC-DISC-003 e DEC-DISC-007;
+  - fechar DEC-DISC-002, DEC-DISC-003, DEC-DISC-007 e DEC-DISC-010;
   - aprovar a matriz evento, estado e efeito;
-  - criar conta sandbox;
-  - verificar conta de produção, chave Pix, API key e token de webhook;
-  - definir fila não sequencial e IP allowlist;
+  - aprovar preço mínimo de `1000` centavos na autoria e no checkout;
+  - validar cadastro sandbox e chave Pix;
+  - registrar os probes de preço mínimo, imagem opcional e cancelamento;
+  - manter o webhook existente desabilitado e sem ativação antecipada;
   - registrar checklist de breaking changes.
 - **Componentes/arquivos/áreas impactadas:** `C:\Users\Junior\Documents\0 - Dev\hub\docs\decisions.md`, ADRs, integração e runbooks.
-- **Dependências:** Produto, Financeiro, Segurança e acesso administrativo ao Asaas.
-- **Riscos:** implementar uma política não ratificada ou descobrir impedimentos da conta tarde demais.
-- **Validação:** decisões assinadas; sandbox operacional; credenciais existentes sem exposição; webhook de teste recebido.
+- **Dependências:** Produto, Financeiro e acesso de leitura ao sandbox Asaas.
+- **Riscos:** confundir prontidão cadastral com checkout PIX E2E ou ativar webhook antes
+  da rota durável.
+- **Validação:** decisões registradas; cadastro sandbox aprovado; chave Pix ativa; probes
+  documentados e checkout criado pelo probe cancelado.
 - **Responsável sugerido:** Tech Lead; apoio de Produto/Financeiro e Plataforma.
-- **Status:** Não iniciado.
+- **Status:** Concluído.
 
 ### Etapa 2: definir e aprofundar a arquitetura financeira
 
@@ -616,7 +670,7 @@ Fontes oficiais:
 - **Riscos:** criar abstração genérica demais ou mover complexidade sem aumentar locality.
 - **Validação:** deletion test; remover o adapter deve expor apenas complexidade externa, e remover nomes Asaas do acesso deve reduzir complexidade sem duplicá-la.
 - **Responsável sugerido:** Tech Lead/Backend.
-- **Status:** Não iniciado.
+- **Status:** Concluído.
 
 ### Etapa 3: desenhar schema e limpeza dos dados de teste
 
@@ -631,15 +685,40 @@ Fontes oficiais:
   - definir retenção de payload;
   - definir índices únicos e locks por Pedido;
   - preparar remoção seletiva e em ordem de FK dos dados financeiros de teste;
+  - ajustar ou remover Cursos pagos de teste abaixo de `1000` centavos;
   - recompor Matrículas afetadas sem apagar Concessões manuais.
 - **Componentes/arquivos/áreas impactadas:** `C:\Users\Junior\Documents\0 - Dev\hub\src\db\schema.ts`, migrations, scripts de verificação e tabelas financeiras.
 - **Dependências:** matriz financeira da Etapa 1 e arquitetura da Etapa 2.
 - **Riscos:** apagar Concessões manuais, Cursos ou Contas que não fazem parte dos testes; enum incompatível; migration não reversível.
 - **Validação:** dry-run com contagens; revisão das FKs; `bun run db:migrations:check`; banco vazio; seed; `bun run db:smoke:empty`.
 - **Responsável sugerido:** Backend responsável por dados; revisão do Tech Lead.
-- **Status:** Não iniciado.
+- **Status:** Concluído.
 
 Não haverá transformação, backfill ou importação de dados AbacatePay. Haverá apenas DDL e remoção controlada dos registros de teste.
+
+Contrato de persistência aprovado e implementado no schema:
+
+- `orders.status` permanece canônico em
+  `pending | paid | refunded | disputed | cancelled`;
+- checkout, pagamento, cliente, risco, liquidação, reembolso e disputa têm IDs ou estados
+  externos separados;
+- checkout e inbox registram tentativas, erro, próxima execução e locks necessários;
+- payload bruto da inbox expira em 30 dias e será sanitizado depois desse prazo,
+  preservando metadados operacionais;
+- `paid_order` substitui a origem vinculada ao gateway no domínio de acesso;
+- `refund_requests` continua sendo a dimensão do reembolso. O Asaas não fornece um ID
+  próprio de estorno: a correlação usa `provider_payment_id` do Pedido e o
+  `refund_requests.id` local;
+- a evidência real devolvida pelo provider fica em status, data de criação, EndToEnd ID,
+  URL de comprovante e valor reembolsado, sem inventar `provider_refund_id`.
+
+O schema e as migrations `0044_asaas_commerce_persistence` a
+`0051_asaas_financial_statement` foram gerados. Checkout, webhook, reembolso e
+conciliação Asaas já usam o contrato novo; o reembolso não escreve
+`provider_refund_id` nem depende da coluna de produto remoto removida. A cadeia foi
+aplicada e auditada somente em branch descartável removida depois da Etapa 9; nenhuma
+branch persistente recebeu o DDL. A limpeza dos dados de teste e a aplicação controlada
+continuam pendentes.
 
 ### Etapa 4: implementar o adapter Asaas
 
@@ -663,7 +742,13 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - **Riscos:** repetir operação após timeout; erro monetário; expor token; assumir enum incompleto.
 - **Validação:** testes de contrato HTTP, snapshots de payload, 429, timeout, resposta inválida, centavos e eventos desconhecidos.
 - **Responsável sugerido:** Backend.
-- **Status:** Não iniciado.
+- **Status:** Concluído.
+
+O adapter estreito, o parser estrutural de envelopes e o fake contratual estão
+implementados e cobertos por testes locais. O adapter está conectado ao checkout
+autenticado e público da aplicação. A rota de webhook e o reembolso administrativo ainda
+pertencem às Etapas 6 e 8. As revisões independentes de especificação e qualidade do
+adapter foram aprovadas.
 
 ### Etapa 5: migrar autoria e checkout
 
@@ -672,6 +757,7 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
   - permitir criar e editar Curso sem gateway;
   - remover requisito de produto na publicação;
   - gerar item inline a partir do snapshot do Pedido;
+  - validar preço mínimo de `1000` centavos na autoria e novamente no checkout;
   - persistir Pedido antes do checkout;
   - representar criação em andamento e resultado incerto;
   - checkout autenticado usa `userId` imutável da sessão;
@@ -683,10 +769,29 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
   - mensagens seguras para falhas do provider.
 - **Componentes/arquivos/áreas impactadas:** autoria, ações, checkout público, rotas, páginas de sucesso, apresentação do Curso e schema.
 - **Dependências:** adapter e schema.
-- **Riscos:** checkout externo órfão; duplicidade por clique/retry; experiência pública mais longa; exigência inesperada de imagem Base64.
+- **Riscos:** checkout externo órfão; duplicidade por clique/retry; experiência pública
+  mais longa; produção ou breaking change passar a exigir `imageBase64`.
 - **Validação:** Curso criado com Asaas indisponível; clique duplicado produz um Pedido; checkout autenticado/público; retorno cancelado/expirado; falha externa não perde a intenção local.
 - **Responsável sugerido:** Backend com Frontend.
-- **Status:** Não iniciado.
+- **Status:** Concluído. A autoria usa somente
+  preço local e rejeita Curso pago abaixo de `1000` centavos. O núcleo compartilhado
+  persiste Pedido e snapshots antes da mutação externa, deduplica a tentativa UUID e
+  representa rejeição ou resultado incerto. As entradas autenticada e pública agora usam
+  esse núcleo e o adapter Asaas; a identidade autenticada vem exclusivamente da sessão e a
+  pública é capturada localmente sem criar ou alterar Conta. O limite público coordenado
+  permite cinco novas intenções por dez minutos usando HMAC de IP e Curso canônico, sem
+  persistir IP, e a duplicata da mesma tentativa não o consome. Callbacks absolutos cobrem
+  sucesso, cancelamento e expiração sem afirmar pagamento antes do evento financeiro.
+  E-mail e nome locais são validados antes de DB/provider; erros esperados são tipados e
+  falha inesperada retorna `503` genérico. Development e Production aceitam somente as
+  origens oficiais sandbox e produção do Asaas, respectivamente, enquanto Preview proíbe
+  credenciais do provider. As
+  migrations `0046`, `0047` e `0048_asaas_public_checkout_rate_limit` foram geradas, mas não
+  aplicadas. A implementação duplicada de checkout AbacatePay foi removida; cliente,
+  webhook e reembolso legados permanecem até suas etapas próprias. As revisões
+  independentes de especificação e qualidade foram aprovadas. Rejeições anteriores ao
+  provider removem somente a reserva inequivocamente pré-provider; reservas abandonadas
+  nessa condição são removidas pela manutenção após 15 minutos.
 
 ### Etapa 6: criar inbox e processamento durável de webhooks
 
@@ -710,7 +815,16 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - **Riscos:** responder `200` antes da persistência; duplicar efeitos; worker não ser executado; fila Asaas pausada.
 - **Validação:** primeiro erro permanece durável; duplicata retorna `200`; concorrência produz um efeito; banco indisponível não retorna sucesso; p95 do ingresso bem abaixo de 10 segundos.
 - **Responsável sugerido:** Backend/Plataforma.
-- **Status:** Não iniciado.
+- **Status:** Concluído em código. Inbox durável, autenticação exclusiva por header, limite de
+  corpo, deduplicação persist-before-200, sanitização após 30 dias e infraestrutura
+  genérica de claim/retry/conclusão foram implementados. Retry administrativo possui
+  serviço transacional com motivo e auditoria; action/UI ficam para a Etapa 8. O worker
+  exige processor injetado e oferece contrato transacional de row lock por Pedido.
+  `/api/cron/asaas-webhooks` injeta o processor real a cada minuto UTC, sob
+  `CRON_SECRET`, kill switch, lease de seis minutos e deadline de 270 segundos.
+  Migration `0049` e anteriores não foram aplicadas; o teste PostgreSQL real permanece
+  pendente para a Etapa 9/ambiente por ausência local de
+  `CERTIFICATE_CONCURRENCY_DATABASE_URL`. Deploy e homologação não foram executados.
 
 ### Etapa 7: aplicar ciclo financeiro, identidade e acesso
 
@@ -719,7 +833,8 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
   - matriz completa de precedência;
   - PIX libera em `PAYMENT_RECEIVED`;
   - cartão libera em `PAYMENT_CONFIRMED`;
-  - risco pendente não libera;
+  - risco `AWAITING_RISK_ANALYSIS` ou `REPROVED_BY_RISK_ANALYSIS` não libera;
+  - `PAYMENT_APPROVED_BY_RISK_ANALYSIS` posterior pode destravar confirmação armazenada;
   - `CHECKOUT_PAID` não libera;
   - comparar `value` bruto com snapshot em centavos;
   - divergência abre Revisão;
@@ -736,7 +851,12 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - **Riscos:** acesso duplicado, acesso prematuro, revogação incorreta, takeover de Conta e conflito fora de ordem.
 - **Validação:** testes por método, valor, ordem de eventos, identidade existente/nova e efeito único sobre Concessão.
 - **Responsável sugerido:** Backend de domínio; revisão de Produto e Segurança.
-- **Status:** Não iniciado.
+- **Status:** Concluída em código. Matriz, processor transacional, correlação exata, persistência
+  de Revisão idempotente, identidade local, Concessão/revogação, projeção de Matrícula e
+  outbox de ativação/acesso e schedule do worker foram implementados e passaram pelos
+  gates locais. As migrations `0044` a `0051` e o worker passaram em PostgreSQL
+  descartável, sem promoção para branch persistente. Deploy e homologação financeira
+  pertencem às etapas de ambiente e validação seguintes.
 
 ### Etapa 8: migrar reembolso, administração, conciliação e observabilidade
 
@@ -745,7 +865,10 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
   - manter confirmação recente de senha;
   - reservar intenção antes da chamada externa;
   - resultado ambíguo permanece `requested/reconciling`, não `failed`;
-  - persistir ID externo;
+  - correlacionar pelo ID do pagamento e pelo ID local da solicitação, pois o Asaas não
+    devolve ID próprio de estorno;
+  - persistir status, data de criação, EndToEnd ID, URL de comprovante e valor
+    reembolsado quando devolvidos;
   - confirmar revogação por evento financeiro;
   - oferecer somente reembolso integral;
   - registrar que tarifas podem não ser devolvidas;
@@ -759,7 +882,18 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - **Riscos:** reembolso duplicado; estado local falso; suporte sem visibilidade; excesso de polling e 429.
 - **Validação:** sucesso, falha definitiva e resultado incerto; retry não duplica; auditoria completa; reconciliação corrige somente o Pedido alvo.
 - **Responsável sugerido:** Backend com Financeiro/Suporte e Plataforma.
-- **Status:** Não iniciado.
+- **Status:** Concluída em código. O reembolso integral Asaas reserva intenção antes da
+  mutação, mantém confirmação recente de senha, não inventa ID externo e diferencia
+  rejeição definitiva de resultado incerto sem retry cego. Evidências reais são
+  persistidas pela resposta e pelo webhook; `dateCreated` permanece texto exato porque
+  o provider não publica fuso. O painel financeiro ganhou busca paginada, IDs de
+  checkout/pagamento, método, bruto, líquido, tarifa, estados e ações de conciliação.
+  A conciliação por pagamento exige IDs e referência exatos e altera somente o Pedido
+  bloqueado; o extrato por período fechado é paginado e deduplicado em
+  `asaas_financial_transactions`, sem inventar correlação entre movimento e pagamento.
+  Alertas operacionais agora cobrem fila/falhas Asaas, Pedidos pagos sem correlação e
+  reembolsos incertos. As migrations `0044` a `0051` não foram aplicadas; PostgreSQL
+  real, sandbox, deploy e homologação pertencem às etapas seguintes.
 
 ### Etapa 9: homologar ponta a ponta
 
@@ -772,35 +906,182 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
   - callbacks e polling;
   - observabilidade e retry;
   - teste de fila pausada;
-  - compra controlada real em produção antes da abertura;
-  - reembolso controlado real;
   - diferenças conhecidas do sandbox.
 - **Componentes/arquivos/áreas impactadas:** testes Vitest, Playwright, sandbox, runbooks e monitoramento.
 - **Dependências:** todas as etapas de implementação.
-- **Riscos:** falso positivo do sandbox; teste real criar registro financeiro; webhook configurado na conta errada.
-- **Validação:** todos os gates da seção seguinte aprovados e evidência anexada ao release.
+- **Riscos:** falso positivo do sandbox; teste criar registro financeiro simulado;
+  webhook sandbox configurado na conta errada.
+- **Validação:** todos os gates sandbox da seção seguinte aprovados e evidência anexada
+  ao release. A Etapa 9 termina no sandbox; nenhuma compra, reembolso ou validação de fila
+  em produção ocorre aqui.
 - **Responsável sugerido:** QA/Backend com Financeiro e Plataforma.
-- **Status:** Não iniciado.
+- **Status:** Concluído. Os gates sem provider passaram em 2026-07-29:
+  1.031 testes unitários/contrato em 197 arquivos, build de produção e Knip. A auditoria
+  corrente sinaliza duas vulnerabilidades transitivas no CLI `shadcn` de Development,
+  ainda sem atualização compatível publicada; migrations `0044` a `0051` aplicadas e auditadas na branch Neon
+  descartável `br-autumn-mouse-ac9ti4dr`; 20 testes PostgreSQL reais e 19 jornadas
+  Chromium aprovados. O ensaio confirmou a pré-condição do corte: os Pedidos e webhooks
+  AbacatePay de teste precisam ser removidos antes de `0046`, que adiciona snapshots
+  `NOT NULL` sem backfill legado.
+
+  Em 2026-07-29, as quatro variáveis Sandbox foram configuradas no `.env.local` ignorado
+  do worktree e a autenticação de leitura do Asaas respondeu HTTP `200`. A branch Neon
+  descartável `br-sparkling-truth-acx2m6pf` foi criada sem Pedidos legados, recebeu e
+  passou a auditoria das migrations `0044` a `0051`. Um Curso fictício de R$ 10 foi
+  criado somente nessa branch. Ao final, o worktree voltou ao banco normal de
+  Development; a solicitação de remoção da branch temporária foi enviada, mas o
+  connector Neon retornou `UNAVAILABLE` e não confirmou a operação.
+
+  O webhook Sandbox único `testeneuro` deixou de apontar ao Preview protegido da Vercel,
+  passou a usar a rota temporária ngrok `/api/webhooks/asaas` e foi corrigido de
+  `SEQUENTIALLY` para `NON_SEQUENTIALLY`. Pelo endpoint público, token ausente retornou
+  `401`, a primeira entrega sintética retornou `200`, a duplicata retornou `200` e o
+  PostgreSQL preservou exatamente uma entrada.
+
+  O launcher de Development passou a preservar chaves Asaas iniciadas por `$` e a
+  preparar o ambiente antes de o Next reler `.env.local`; o formato canônico local é
+  `ASAAS_API_KEY=\$...`. Testes cobrem tanto o subprocesso público quanto a fronteira do
+  Next. A homologação também revelou e corrigiu casts ausentes em dois SQLs PostgreSQL:
+  rate limit público e correlação do processor de webhook.
+
+  Sessões reais de checkout Sandbox foram criadas pelo endpoint público do Hub com HTTP
+  `200`, estado `ready` e URL hospedada do Asaas. O contrato real usa
+  `minutesToExpire`; `customerData` com apenas nome/e-mail retornou `invalid_object`
+  exigindo `cpfCnpj`, então o adapter passou a omitir o objeto conforme a decisão de não
+  coletar nem inventar CPF. Eventos `CHECKOUT_CREATED` originados pelo Asaas atravessaram
+  o túnel, foram correlacionados aos Pedidos e terminaram `processed`; o evento futuro
+  sintético terminou `ignored`. A fila Sandbox foi pausada preservando `enabled=true`,
+  envio `NON_SEQUENTIALLY`, token e 33 eventos e entregou os eventos acumulados ao ser
+  reativada.
+
+  O ensaio manual concluiu PIX em `PAYMENT_RECEIVED` e cartão em
+  `PAYMENT_CONFIRMED`. Cada compra criou exatamente uma Concessão e uma Matrícula ativa.
+  A primeira tentativa revelou que o Curso fictício não possuía a publicação vigente
+  exigida pelo domínio; depois de completar somente a fixture descartável, o retry
+  durável processou os dois eventos na quarta tentativa. O cancelamento de Checkout
+  também atravessou a rota e encerrou o Pedido pendente sem conceder acesso.
+
+  O reembolso integral do cartão passou pela confirmação de senha e reserva local. A
+  chamada externa ficou `uncertain` e não foi repetida; o webhook
+  `PAYMENT_REFUNDED` confirmou a operação, o valor integral e a solicitação, alterou o
+  Pedido e a Concessão para `refunded` e recompôs a Matrícula como `revoked`. A consulta
+  real mostrou que o `Payment` criado por Checkout conserva `checkoutSession`, mas omite
+  `externalReference`. A conciliação passou a aceitar essa omissão somente quando os IDs
+  de pagamento e sessão forem exatos e continuou rejeitando qualquer identificador
+  conflitante; depois disso, a consulta Sandbox foi concluída.
+
+  Um `PAYMENT_CONFIRMED` sintético tardio foi entregue duas vezes depois do reembolso.
+  A inbox preservou uma entrada, o worker abriu uma única Revisão `terminal_conflict` e
+  não reativou Pedido, Concessão ou Matrícula. O launcher passou a preservar os overrides
+  isolados do Playwright, e setup, servidor e teardown E2E agora compartilham a mesma
+  origem loopback. As 19 jornadas Chromium passaram; uma repetição diagnóstica ocorreu
+  na jornada de avanço de Aula e permanece sinalizada como flakiness.
+
+  A expiração real também foi concluída. A primeira entrega `CHECKOUT_EXPIRED` encontrou
+  a aplicação desligada e recebeu `502`; o Asaas repetiu a entrega duas vezes, alcançou
+  `200` depois da recuperação da rota e a inbox preservou um evento. O worker processou
+  a entrada uma vez, encerrou o Pedido como `cancelled/expired` e não criou Conta,
+  Concessão ou Matrícula. O webhook Sandbox foi pausado ao final, preservando
+  `enabled=true`, token, envio `NON_SEQUENTIALLY` e 33 eventos.
+
+  A compra real de cartão observada não emitiu eventos de análise de risco, portanto
+  esse ramo não foi simulável no Sandbox. A matriz de risco permanece coberta pelos
+  testes de contrato e processor; a ausência do evento real está registrada como
+  limitação do ambiente, não como comportamento garantido do provider.
+
+  `db:smoke:empty` também não roda neste host porque não há PostgreSQL local; sua guarda
+  recusa corretamente usar Neon ou outro banco remoto. Nenhum ambiente de produção foi
+  acionado.
 
 ### Etapa 10: executar o corte direto
 
 - **Objetivo:** desligar AbacatePay e abrir Asaas sem coexistência.
 - **O que analisar ou preparar:**
-  1. Pausar novos checkouts.
+  1. Entregar primeiro uma release de contenção compatível com o schema `0043` e
+     pausar novos checkouts.
   2. Confirmar que os dados AbacatePay são somente testes.
-  3. Executar limpeza controlada e DDL.
-  4. Publicar código Asaas.
-  5. Configurar secrets, webhook e allowlist.
-  6. Realizar smoke PIX e cartão.
-  7. Confirmar Pedido, webhook, Concessão, Matrícula e reembolso.
-  8. Reabrir checkout.
-  9. Revogar chaves e webhook AbacatePay.
+  3. Confirmar que rota durável, inbox, worker, deduplicação e retry foram homologados
+     sem ativar o webhook de produção.
+  4. Verificar conta de produção, aptidão para PIX/cartão, credencial e comportamento da
+     omissão de `imageBase64`.
+  5. Executar limpeza controlada, inclusive dados de teste abaixo de `1000` centavos,
+     preservando somente a Conta Admin atual.
+  6. Aplicar DDL e publicar o código Asaas com checkout e webhook ainda desabilitados.
+  7. Validar health e readiness da rota publicada, inbox, worker, banco, retry e alertas,
+     ainda sem tráfego financeiro.
+  8. Criar chave de API restrita e token forte, configurar allowlist e cadastrar o
+     webhook de produção não sequencial com os eventos necessários. Ativar de forma
+     controlada somente após o readiness.
+  9. Com checkout público ainda desabilitado, realizar compra controlada real PIX e
+     cartão, reembolso integral, smoke de Pedido, webhook, Concessão e Matrícula,
+     conferência de taxas e extrato e confirmação da fila e dos alertas.
+  10. Reabrir checkout.
+  11. Revogar chaves e webhook AbacatePay.
 - **Componentes/arquivos/áreas impactadas:** deploy, banco, secrets, Asaas, AbacatePay, observabilidade e suporte.
-- **Dependências:** homologação aprovada e janela de mudança.
+- **Dependências:** Etapa 9 aprovada, rota durável homologada e janela de mudança.
 - **Riscos:** indisponibilidade de checkout; webhook apontar para versão errada; migration parcialmente aplicada.
-- **Validação:** smoke completo, métricas verdes, zero novo evento AbacatePay e fila Asaas ativa.
+- **Validação:** conta e credenciais de produção verificadas; token forte e allowlist
+  ativos; webhook aponta somente para a rota durável e não usa fila sequencial; smoke
+  completo; métricas verdes; zero novo evento AbacatePay e fila Asaas ativa.
 - **Responsável sugerido:** Tech Lead/Plataforma, com Backend e Financeiro presentes.
-- **Status:** Não iniciado.
+- **Status:** Preflight concluído; corte bloqueado aguardando confirmação humana e
+  versionamento. Em 2026-07-29, a inspeção somente leitura confirmou:
+  - Production permanece no deployment Vercel `READY` do commit `1414bf5`;
+    `origin/main` está em `d64fc66`, com CI verde, mas toda a implementação Asaas ainda
+    está somente no worktree `codex/asaas-migration`, sem commit, push, Pull Request ou
+    CI remota;
+  - o GitHub Environment `vercel-production` possui os secrets e IDs exigidos pelo
+    workflow de deploy, mas a Vercel Production ainda não possui `ASAAS_API_KEY`,
+    `ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` nem `ASAAS_WEBHOOK_TOKEN`; as variáveis
+    AbacatePay continuam configuradas;
+  - a branch Neon Production está no topo `0043`, com 44 entradas no journal. Ela
+    contém cinco Pedidos AbacatePay de R$ 250, sendo dois `paid` e três `pending`, dois
+    webhooks AbacatePay e duas Concessões `abacatepay_order`. Esses agregados coincidem
+    com o ensaio descartável, mas não provam tecnicamente que os registros são testes;
+    a exclusão exige confirmação explícita da responsável pelo negócio;
+  - não havia erro de runtime Vercel agrupado nem log `error`/`fatal` no deployment
+    Production nas 24 horas inspecionadas.
+
+  Nenhuma variável, migration, dado, deployment ou workflow de Production foi alterado.
+  Em 2026-07-29, a responsável confirmou explicitamente que todos os dados de todas as
+  branches são testes descartáveis, incluindo pagamentos, Cursos, Contas de Aluna e
+  demais registros da aplicação. A limpeza pode, portanto, remover todo o conteúdo
+  operacional, preservando somente infraestrutura, schema e journal necessários para a
+  promoção. A decisão posterior determinou preservar a Conta Admin atual e apagar as
+  demais Contas e dados da aplicação. O desenho escrito e auto-revisado está em
+  `docs/superpowers/specs/2026-07-29-asaas-production-cutover-cleanup-design.md`.
+  A especificação foi aprovada e o plano de implementação detalhado está em
+  `docs/superpowers/plans/2026-07-29-asaas-production-cutover-cleanup.md`.
+  Ele separa uma Release A de contenção, compatível com `0043`, da Release B Asaas;
+  define limpeza manual com modo `plan`, fingerprint, backup Neon, alvo verificado e
+  transação única; e nunca incorpora exclusão ao deploy recorrente. Em 2026-07-29, as Tasks 1 a 3
+  do plano foram concluídas por TDD: a política `PAYMENTS_CHECKOUT_MODE`, os contratos
+  de Production/Preview e os guards autenticado/público estão implementados no worktree
+  Asaas. A Release A foi reaplicada isoladamente sobre `origin/main` no worktree
+  `codex/asaas-cutover-containment`; 173 arquivos/695 testes, TypeScript e build Next.js
+  passaram, sem migrations `0044` a `0051`. Commit, push, Pull Request e corte continuam
+  exigindo autorização específica. A Task 4 também foi concluída por TDD:
+  `ASAAS_WEBHOOK_ENABLED` agora é explícita com Asaas em Production, permanece
+  desabilitada em Preview e interrompe tanto o ingresso quanto o worker antes de body,
+  persistência ou lease. Os 91 testes focais e o typecheck passaram. As Tasks 5 a 9
+  também foram concluídas em código: contrato puro, executor PostgreSQL transacional,
+  integração em schema isolado, CLI `plan|execute` e workflow manual com backup Neon.
+  A suíte PostgreSQL de limpeza passou em sete cenários, incluindo drift, lock,
+  rollback e reexecução; os 27 testes focais finais do contrato/CLI passaram.
+  O `plan` real foi executado em uma clone descartável de Production, validou as 38
+  tabelas, 44 migrations até `0043`, exatamente um Admin utilizável e as contagens sem
+  escrever no banco. A branch temporária foi removida. A comparação do journal preserva
+  os quatro hashes históricos realmente aplicados e normaliza LF para evitar falso drift
+  em checkout Windows. Nenhuma branch persistente, variável, migration, deployment ou
+  dado de Production foi alterado. A documentação canônica passou em 32 documentos.
+  A verificação final passou com 27 testes PostgreSQL em quatro arquivos de integração,
+  201 arquivos/1.083 testes no `bun run verify`, typecheck, Ultracite, migrations,
+  build Next.js, Knip e 19 jornadas Playwright. O E2E revelou e corrigiu uma corrida do
+  próprio teste: o botão de conclusão já existia no stream React, mas ainda estava em
+  um container oculto; a jornada agora aguarda o heading visível antes de decidir se
+  conclui ou avança. Builds E2E também não tentam criar release ou enviar source maps
+  ao Sentry. A branch Neon efêmera usada para o gate foi removida. O único gate local
+  restante é a autorização específica para commit, push e Pull Requests.
 
 **Rollback:**
 
@@ -834,9 +1115,10 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 |---|---|---|
 | `CHECKOUT_CREATED` | Checkout ativo | Nenhum |
 | `CHECKOUT_PAID` | Jornada paga, aguardando autoridade financeira | Nenhum |
-| Análise de risco pendente | Pagamento em análise | Nenhum |
+| Risco pendente ou reprovado | Pagamento sem autoridade de acesso | Nenhum |
 | PIX `PAYMENT_RECEIVED` | Pago e recebido | Conceder uma vez |
-| Cartão `PAYMENT_CONFIRMED` | Pago e confirmado | Conceder uma vez |
+| Cartão `PAYMENT_CONFIRMED` sem risco bloqueante | Pago e confirmado | Conceder uma vez |
+| Risco aprovado após confirmação armazenada | Pago e confirmado | Conceder uma vez |
 | Cartão `PAYMENT_RECEIVED` | Liquidação atualizada | Não duplicar |
 | Valor divergente | Revisão pendente | Não conceder |
 | Checkout expirado/cancelado antes do pagamento | Encerrado | Nenhum |
@@ -853,7 +1135,9 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 ### Testes unitários
 
 - Conversão de `12990` centavos para `129.90`.
-- Valores com zero, centavos e limites aceitos.
+- Autoria rejeita `999` centavos e aceita `1000` centavos para Curso pago.
+- Checkout rejeita snapshot abaixo de `1000` centavos sem chamar o provider.
+- Valores com zero, centavos e limites aceitos nos fluxos não comerciais aplicáveis.
 - Mapeamento de todos os eventos usados.
 - Enum desconhecido.
 - Precedência fora de ordem.
@@ -869,6 +1153,7 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - Header `access_token`.
 - `User-Agent`.
 - Checkout PIX/cartão e item inline.
+- Adapter não envia checkout abaixo de R$ 10.
 - Callback URLs.
 - Timeout.
 - 400/401/403/404.
@@ -890,7 +1175,8 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - Concessão e Matrícula permanecem consistentes.
 - Outbox é criada na mesma transação do efeito de acesso.
 - Reembolso aceito com falha local fica em reconciliação.
-- Limpeza não remove Concessões manuais.
+- A migration de neutralização não remove Concessões manuais; a limpeza destrutiva
+  separada da Etapa 10 remove todas as Concessões de teste.
 
 ### Testes de rota
 
@@ -907,6 +1193,7 @@ Não haverá transformação, backfill ou importação de dados AbacatePay. Have
 - Curso nasce sem produto remoto.
 - Checkout autenticado.
 - Checkout público com captura local de identidade.
+- Autoria e checkout impedem Curso pago abaixo de `1000` centavos.
 - Clique duplicado.
 - Cancelamento e expiração.
 - Retorno com pagamento pendente.
@@ -933,22 +1220,23 @@ Executar no sandbox:
 - consulta de conciliação;
 - verificação do ID do pagamento gerado pelo Checkout.
 
-Depois, ainda com checkout público pausado, executar em produção:
+A Etapa 9 termina após essas validações sandbox. Compras reais, reembolso, conferência de
+taxas e extrato e validação da fila e dos alertas em produção ocorrem exclusivamente na
+Etapa 10: depois da publicação com checkout desabilitado, do health/readiness e da
+configuração controlada do webhook, e antes de reabrir vendas.
 
-- uma compra real PIX de baixo valor;
-- uma compra real cartão de baixo valor;
-- reembolso integral;
-- conferência de taxas e extrato;
-- confirmação da fila e alertas.
-
-Isso não constitui migração gradual nem dual gateway. É um gate de homologação do único provider ativo.
+Isso não constitui migração gradual nem dual gateway. O único provider ativo é validado
+em produção apenas durante o corte controlado da Etapa 10.
 
 ### Comandos de gate
+
+O gate de dados deve falhar se restar Curso pago de teste abaixo de `1000` centavos. A
+suíte precisa provar a validação tanto na autoria quanto no checkout antes do corte.
 
 Na futura implementação:
 
 ```text
-bun test
+bun run test
 bun run typecheck
 bun run check
 bun run docs:check
@@ -970,6 +1258,8 @@ bun run verify
 - Evento adverso revoga.
 - Conta não é verificada ou alterada pelo provider.
 - Curso não depende do gateway.
+- Curso pago abaixo de `1000` centavos é rejeitado na autoria e no checkout.
+- Nenhum dado de teste pago abaixo do mínimo permanece no corte.
 - Reembolso incerto não é repetido cegamente.
 - Conciliação não é o fluxo normal.
 - Nenhum secret aparece em logs ou respostas.
@@ -988,73 +1278,103 @@ bun run verify
 - [x] **Concluído:** fechar processamento durável de webhook.
 - [x] **Concluído:** fechar fronteira arquitetural.
 - [x] **Concluído:** fechar divergência e precedência financeira.
-- [ ] **Não iniciado:** ratificar ADR-0004 e ADR-0005.
-- [ ] **Não iniciado:** encerrar DEC-DISC-002, 003 e 007.
+- [x] **Concluído:** ratificar ADR-0004 e ADR-0005.
+- [x] **Concluído:** encerrar DEC-DISC-002, 003 e 007.
+- [x] **Concluído:** aprovar DEC-DISC-010 e o preço mínimo de Curso pago.
 
 ### Conta e segurança Asaas
 
-- [ ] **Não iniciado:** criar e validar sandbox.
-- [ ] **Não iniciado:** verificar conta de produção.
-- [ ] **Não iniciado:** registrar chave Pix.
-- [ ] **Não iniciado:** criar chave de API restrita.
-- [ ] **Não iniciado:** criar token forte de webhook.
-- [ ] **Não iniciado:** configurar allowlist.
-- [ ] **Não iniciado:** confirmar ausência ou disponibilidade de HMAC.
-- [ ] **Não iniciado:** definir retenção de payload e PII.
+- [x] **Concluído:** validar cadastro sandbox e chave Pix.
+- [ ] **Não iniciado:** verificar conta e credenciais de produção na Etapa 10.
+- [ ] **Não iniciado:** criar chave de API restrita na Etapa 10.
+- [ ] **Não iniciado:** criar token forte de webhook na Etapa 10.
+- [ ] **Não iniciado:** configurar allowlist na Etapa 10.
+- [ ] **Não iniciado:** configurar e ativar webhook de produção na Etapa 10, somente
+  após a rota durável homologada.
+- [ ] **Não iniciado:** confirmar ausência ou disponibilidade de HMAC na Etapa 10.
+- [x] **Concluído:** definir retenção de payload bruto por 30 dias e sanitização posterior.
 
 ### Arquitetura e dados
 
-- [ ] **Não iniciado:** desenhar módulo profundo de comércio.
-- [ ] **Não iniciado:** definir adapter Asaas e fake contratual.
-- [ ] **Não iniciado:** remover provider do domínio de acesso.
-- [ ] **Não iniciado:** desenhar estados internos normalizados.
-- [ ] **Não iniciado:** separar IDs de checkout, pagamento, cliente e reembolso.
-- [ ] **Não iniciado:** remover produto remoto do Curso.
-- [ ] **Não iniciado:** preparar limpeza dos dados de teste.
-- [ ] **Não iniciado:** validar migrations e FKs.
+- [x] **Concluído:** desenhar fronteira financeira neutra do módulo de comércio.
+- [x] **Concluído:** definir adapter Asaas e fake contratual, com testes e revisões
+  independentes aprovados.
+- [x] **Concluído:** remover provider da origem de Concessão no schema e no domínio de acesso.
+- [x] **Concluído:** desenhar estados internos normalizados.
+- [x] **Concluído:** separar IDs de checkout, pagamento, cliente e reembolso.
+- [x] **Concluído:** remover produto remoto do Curso e dos checkouts.
+- [x] **Concluído em código e validado em clone descartável:** preparar limpeza
+  integral dos dados de teste, preservando somente a Conta Admin atual, infraestrutura,
+  schema e journal. Desenho em
+  `docs/superpowers/specs/2026-07-29-asaas-production-cutover-cleanup-design.md`; plano
+  executável em
+  `docs/superpowers/plans/2026-07-29-asaas-production-cutover-cleanup.md`.
+- [x] **Concluído:** validar migration, snapshot, índices e FKs em PostgreSQL
+  descartável, sem aplicar DDL a branch persistente.
 
 ### Checkout
 
-- [ ] **Não iniciado:** persistir Pedido antes do checkout.
-- [ ] **Não iniciado:** unificar implementação pública/autenticada.
-- [ ] **Não iniciado:** capturar identidade pública localmente.
-- [ ] **Não iniciado:** substituir rate limit em memória.
-- [ ] **Não iniciado:** validar item e imagem no Checkout Asaas.
-- [ ] **Não iniciado:** adaptar callbacks e página de sucesso.
-- [ ] **Não iniciado:** tratar resultado externo incerto.
+- [x] **Concluído:** persistir Pedido antes do checkout nas duas entradas.
+- [x] **Concluído:** reservar a tentativa como `pending` antes da autorização coordenada e
+  exigir CAS para `creating` antes de chamar o provedor.
+- [x] **Concluído:** compartilhar o núcleo entre checkout público e autenticado.
+- [x] **Concluído:** capturar identidade pública local sem criar ou alterar Conta.
+- [x] **Concluído:** validar preço mínimo na autoria e no checkout ativo.
+- [x] **Concluído:** substituir rate limit em memória por janela coordenada no PostgreSQL.
+- [x] **Concluído:** validar item inline e omissão de imagem no adapter Asaas.
+- [x] **Concluído:** adaptar callbacks e páginas de sucesso, cancelamento e expiração.
+- [x] **Concluído:** núcleo preserva resultado externo incerto sem retry cego; a
+  reconciliação durável pertence às Etapas 6 e 8.
 
 ### Webhooks e domínio
 
-- [ ] **Não iniciado:** criar rota Asaas.
-- [ ] **Não iniciado:** criar inbox durável.
-- [ ] **Não iniciado:** responder `200` apenas após persistência.
-- [ ] **Não iniciado:** criar executor com retry.
-- [ ] **Não iniciado:** implementar deduplicação concorrente.
-- [ ] **Não iniciado:** implementar matriz de precedência.
-- [ ] **Não iniciado:** implementar Revisão de divergência.
-- [ ] **Não iniciado:** generalizar Concessão.
-- [ ] **Não iniciado:** tornar ativação pública durável.
+- [x] **Concluído:** criar rota Asaas.
+- [x] **Concluído:** criar inbox durável.
+- [x] **Concluído:** responder `200` apenas após persistência.
+- [x] **Concluído:** criar infraestrutura de executor com retry.
+- [x] **Concluído:** implementar deduplicação concorrente no ingresso e ownership por
+  evento no worker.
+- [x] **Concluído:** implementar matriz pura de precedência e processor transacional sob
+  lock do Pedido.
+- [x] **Concluído:** persistir evidências, correlação exata, alertas seguros e Revisão
+  idempotente por Webhook.
+- [x] **Concluído:** neutralizar Concessão e razões de revogação no módulo de acesso.
+- [x] **Concluído:** implementar e enfileirar factory, parser e delivery duráveis de
+  ativação pública; acesso de Conta com credencial usa outbox idempotente.
+- [x] **Concluído:** revisar 7C e executar os gates focais e completos locais.
+- [x] **Concluído em código:** habilitar o schedule do worker em unidade própria, a cada
+  minuto UTC, com `CRON_SECRET`, kill switch, lease e deadline.
 
 ### Reembolso e operação
 
-- [ ] **Não iniciado:** implementar reembolso integral Asaas.
-- [ ] **Não iniciado:** modelar resultado incerto.
-- [ ] **Não iniciado:** criar conciliação por ID/extrato.
-- [ ] **Não iniciado:** atualizar admin financeiro.
-- [ ] **Não iniciado:** atualizar auditoria e observabilidade.
-- [ ] **Não iniciado:** criar alertas da fila Asaas.
-- [ ] **Não iniciado:** atualizar runbooks de incidente.
+- [x] **Concluído em código:** implementar reembolso integral Asaas.
+- [x] **Concluído em código:** modelar resultado incerto.
+- [x] **Concluído em código:** criar conciliação por ID/extrato com precedência
+  financeira, correlação exata, concorrência limitada e backoff em `429`.
+- [x] **Concluído em código:** atualizar admin financeiro.
+- [x] **Concluído em código:** atualizar auditoria e observabilidade.
+- [x] **Concluído em código:** criar alertas da fila Asaas, incluindo eventos
+  `retryable`.
+- [x] **Concluído em código:** atualizar runbooks de incidente.
 
 ### Validação e corte
 
-- [ ] **Não iniciado:** concluir testes unitários.
-- [ ] **Não iniciado:** concluir testes de contrato.
-- [ ] **Não iniciado:** concluir testes PostgreSQL.
-- [ ] **Não iniciado:** concluir E2E.
-- [ ] **Não iniciado:** homologar sandbox.
+- [x] **Concluído:** concluir testes unitários.
+- [x] **Concluído:** concluir testes de contrato.
+- [x] **Concluído:** concluir testes PostgreSQL.
+- [x] **Concluído:** concluir E2E.
+- [x] **Validado localmente:** implementar e provar contenção, cleanup e workflow do
+  corte Asaas; `verify`, PostgreSQL descartável e 19 jornadas E2E passaram em
+  2026-07-30.
+- [x] **Concluído:** homologar checkout PIX/cartão E2E no sandbox, incluindo pagamento,
+  acesso, cancelamento, expiração, duplicata, entrega fora de ordem, reembolso,
+  indisponibilidade temporária, retry e conciliação. A compra de cartão observada não
+  emitiu eventos de risco; esse ramo permanece coberto por testes automatizados e
+  registrado como limitação não simulável do Sandbox.
 - [ ] **Não iniciado:** executar smoke real controlado.
 - [ ] **Não iniciado:** pausar checkout para o corte.
-- [ ] **Não iniciado:** remover dados de teste.
+- [ ] **Pendente de autorização:** remover dados de teste; `plan` real já validado em
+  clone descartável e `execute` ainda não foi acionado.
 - [ ] **Não iniciado:** publicar Asaas.
 - [ ] **Não iniciado:** revogar AbacatePay.
 - [ ] **Não iniciado:** monitorar por pelo menos 14 dias.

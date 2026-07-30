@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 import { getDevelopmentEnvironmentProblems } from "../src/lib/development-environment";
 
-config({ path: ".env.local", quiet: true });
+config({ path: ".env.local", override: true, quiet: true });
 config({ path: ".env", quiet: true });
 
 const problems = getDevelopmentEnvironmentProblems(process.env);

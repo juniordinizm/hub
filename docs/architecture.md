@@ -53,12 +53,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 37 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 43 entradas alinhadas, com topo `0042_serverless_job_leases`;
+O schema possui 39 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 50 entradas alinhadas, com topo `0049_payment_review_webhook_idempotency`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
-migration `0042` foi validada em branch Neon temporária e ainda aguarda
-promoção explícita ao banco definitivo. Na Vercel, cada instância limita o pool
+migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
+`0049` foram geradas e ainda não foram aplicadas. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -75,12 +75,19 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 ### Checkout e acesso
 
 1. Route Handler/Action chama `createPublicCourseCheckout` ou `createCourseCheckout`.
-2. `AbacatePayClient` cria produto e checkout; o Pedido guarda snapshots.
-3. `/api/webhooks/abacatepay` verifica segredo/assinatura e chama `processAbacatePayWebhook`.
-4. O evento é deduplicado em `webhook_events`.
-5. Transição válida atualiza Pedido e chama `applyPaidWebhookAccess` ou `applyPaymentRevocation`.
-6. Concessões são recalculadas por `rebuildEnrollmentProjection`.
-7. Conflitos geram `payment_reviews`; falhas operacionais ficam disponíveis para retry autorizado.
+2. O núcleo Asaas persiste o Pedido e seus snapshots antes da chamada externa.
+3. `/api/webhooks/asaas` autentica, limita, valida e persiste a inbox antes de `200`.
+4. O worker reivindica o evento e abre uma transação com posse exclusiva.
+5. `processAsaasWebhookEvent` correlaciona somente identificadores exatos, bloqueia o
+   Pedido e aplica a matriz financeira sobre o snapshot bloqueado.
+6. A transação persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe
+   Matrícula; ativação ou acesso liberado entram na outbox no mesmo commit.
+7. Conflitos ambíguos não escolhem Pedido e geram alerta durável sem payload ou PII.
+
+O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
+Asaas a cada minuto sob autenticação compartilhada, kill switch, lease e deadline. Isso
+não comprova deploy ou homologação. O fluxo legado AbacatePay permanece somente para
+webhook e reembolso durante a migração.
 
 ### Aprendizagem
 
@@ -103,7 +110,11 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 - a conclusão elegível ou emissão manual cria o Certificado `pending` e uma mensagem `certificate.render`; o worker obtém claim persistido, gera o PDF uma vez, grava o artefato privado no R2 e só então enfileira o e-mail;
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
 - download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
-- não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa limpeza técnica limitada: sessões e rate limits expirados, agregação diária de analytics e retenção de analytics brutos por 90 dias e agregados por 13 meses.
+- não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
+  limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
+  inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas
+  após 30 dias, agregação diária de analytics e retenção de analytics brutos por 90 dias
+  e agregados por 13 meses.
 
 ## Observabilidade
 
@@ -113,11 +124,16 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 ## Concorrência, idempotência e auditoria
 
-- webhooks usam chave externa e registro persistido para deduplicação;
+- webhooks usam chave externa e registro persistido para deduplicação; a inbox Asaas
+  separa recebimento do processor transacional agendado;
 - alterações críticas usam transações e locks explícitos onde implementado;
 - Pedidos e Concessões preservam IDs de origem;
-- eventos de Matrícula e `audit_logs` registram ações administrativas;
-- `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e dead letter; recuperação/ativação por senha é exceção por conter token secreto;
+- `payment_reviews.webhook_event_id` é único quando preenchido, e conflitos de correlação
+  sem Pedido seguro ficam em `audit_logs` com motivo sem PII;
+- eventos de Matrícula e `audit_logs` registram ações administrativas e operacionais;
+- `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e
+  dead letter; `auth.account-activation` persiste apenas IDs locais e cria token no
+  callback Better Auth. Recuperação pública e ativação legada continuam fora da outbox;
 - `scheduled_job_leases` impede sobreposição de uma mesma rotina entre
   instâncias serverless sem depender de sessão Postgres;
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
@@ -128,6 +144,7 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 `vercel.json` agenda:
 
+- `/api/cron/asaas-webhooks` a cada minuto;
 - `/api/cron/enrollments` diariamente às 10:00 UTC;
 - `/api/cron/jmvstream` a cada cinco minutos;
 - `/api/cron/outbox` a cada cinco minutos;
@@ -143,7 +160,7 @@ verificados externamente.
 - catálogo remoto pode divergir da cadeia local quando a promoção controlada não for executada ou auditada;
 - ausência de coortes: publicar conteúdo altera a experiência de todas as Matrículas elegíveis;
 - reversão de ajuste de expiração pode sobrescrever ajustes posteriores;
-- recuperação/ativação por senha ainda não usa outbox por token secreto;
+- recuperação pública e ativação legada permanecem fora da outbox;
 - decisões implementadas sem ratificação de produto;
 - infraestrutura e dados de produção não verificados;
 - JMVStream `gallery` no complete diverge da documentação histórica do projeto;

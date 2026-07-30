@@ -24,7 +24,6 @@ export interface CourseData {
   coverImage?: unknown;
   description: string | null;
   id: string;
-  paymentProviderProductId: string | null;
   priceInCents: number;
   slug: string;
   status: string;
@@ -91,10 +90,14 @@ export function CourseSettingsForm({
 
           <div className="grid gap-5 md:grid-cols-3">
             <Field>
-              <FieldLabel>Preco do curso</FieldLabel>
+              <FieldLabel htmlFor="course-settings-price">
+                Preco do curso
+              </FieldLabel>
               <Input
                 defaultValue={formatCurrencyInCents(course.priceInCents)}
-                disabled
+                id="course-settings-price"
+                name="price"
+                required
               />
             </Field>
             <Field>

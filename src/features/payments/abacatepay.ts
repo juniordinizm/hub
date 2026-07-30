@@ -1,31 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { normalizeBuyerEmail } from "@/features/payments/buyer-identity";
+import type { PersistedOrderStatus } from "@/features/payments/financial-policy";
 
-export type PersistedOrderStatus =
-  | "pending"
-  | "paid"
-  | "refunded"
-  | "disputed"
-  | "cancelled";
 export type OrderStatus = PersistedOrderStatus | "ignored";
-export interface AbacatePayOrderTransition {
-  finalOrderStatus: PersistedOrderStatus;
-  shouldApplyDisputeRevocation: boolean;
-  shouldApplyPaidAccess: boolean;
-  shouldApplyRefundRevocation: boolean;
-}
-
-export type PaymentReviewType = "amount_mismatch" | "terminal_conflict";
-
-export interface PaymentReviewRequired {
-  reason: string;
-  type: PaymentReviewType;
-}
 
 const ABACATEPAY_WEBHOOK_PUBLIC_HMAC_KEY =
   "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
-const COURSE_PRICE_INVALID_MESSAGE = "Preco do curso invalido.";
-const DEFAULT_PAYMENT_METHODS = ["PIX", "CARD"] as const;
 
 interface AbacatePayCheckoutPayload {
   amount?: unknown;
@@ -69,23 +49,12 @@ export interface AbacatePayOrderPayload {
   userId: string | null;
 }
 
-export interface AbacatePayProductRequest {
-  currency: "BRL";
-  description?: string;
-  externalId: string;
-  imageUrl?: string;
-  name: string;
-  price: number;
-}
-
+/** Legacy client contract retained until the AbacatePay adapter is removed. */
 export interface AbacatePayCheckoutRequest {
   completionUrl: string;
   externalId: string;
   frequency: "ONE_TIME";
-  items: Array<{
-    id: string;
-    quantity: number;
-  }>;
+  items: Array<{ id: string; quantity: number }>;
   metadata: {
     accessDurationMonths: number;
     courseId: string;
@@ -104,13 +73,6 @@ const paidEvents = new Set([
 const refundedEvents = new Set(["checkout.refunded", "transparent.refunded"]);
 const disputedEvents = new Set(["checkout.disputed"]);
 const cancelledEvents = new Set(["checkout.cancelled"]);
-const terminalOrderStatuses = new Set<PersistedOrderStatus>([
-  "cancelled",
-  "refunded",
-  "disputed",
-]);
-const DECIMAL_PRICE_RE = /^\d+(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:\.\d{1,2})?$/;
-const THOUSANDS_ONLY_RE = /^\d{1,3}(?:\.\d{3})+$/;
 
 const isString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
@@ -228,191 +190,6 @@ export const mapAbacatePayEventToOrderStatus = (event: string): OrderStatus => {
   }
 
   return "ignored";
-};
-
-export const resolveAbacatePayOrderStatus = ({
-  currentStatus,
-  incomingStatus,
-}: {
-  currentStatus: PersistedOrderStatus | null;
-  incomingStatus: PersistedOrderStatus;
-}): PersistedOrderStatus => {
-  if (currentStatus && terminalOrderStatuses.has(currentStatus)) {
-    return currentStatus;
-  }
-
-  if (currentStatus === "paid" && incomingStatus === "cancelled") {
-    return currentStatus;
-  }
-
-  return incomingStatus;
-};
-
-export const getAbacatePayOrderTransition = ({
-  currentStatus,
-  incomingStatus,
-}: {
-  currentStatus: PersistedOrderStatus | null;
-  incomingStatus: PersistedOrderStatus;
-}): AbacatePayOrderTransition => {
-  const finalOrderStatus = resolveAbacatePayOrderStatus({
-    currentStatus,
-    incomingStatus,
-  });
-
-  return {
-    finalOrderStatus,
-    shouldApplyPaidAccess:
-      incomingStatus === "paid" &&
-      finalOrderStatus === "paid" &&
-      currentStatus !== "paid",
-    shouldApplyRefundRevocation:
-      incomingStatus === "refunded" &&
-      finalOrderStatus === "refunded" &&
-      currentStatus !== "refunded",
-    shouldApplyDisputeRevocation:
-      incomingStatus === "disputed" &&
-      finalOrderStatus === "disputed" &&
-      currentStatus !== "disputed",
-  };
-};
-
-export const getPaymentReviewRequired = ({
-  currentAmountInCents,
-  currentStatus,
-  incomingAmountInCents,
-  incomingStatus,
-}: {
-  currentAmountInCents: number | null;
-  currentStatus: PersistedOrderStatus | null;
-  incomingAmountInCents: number;
-  incomingStatus: PersistedOrderStatus;
-}): PaymentReviewRequired | null => {
-  if (
-    currentStatus &&
-    terminalOrderStatuses.has(currentStatus) &&
-    incomingStatus !== currentStatus
-  ) {
-    return {
-      type: "terminal_conflict",
-      reason: `O pedido ja esta terminal em ${currentStatus}; evento posterior recebido como ${incomingStatus}.`,
-    };
-  }
-
-  if (
-    incomingStatus === "paid" &&
-    (currentAmountInCents === null ||
-      currentAmountInCents !== incomingAmountInCents)
-  ) {
-    return {
-      type: "amount_mismatch",
-      reason:
-        currentAmountInCents === null
-          ? "Pagamento recebido sem snapshot interno de checkout para validacao."
-          : `Valor recebido (${incomingAmountInCents}) diverge do snapshot do checkout (${currentAmountInCents}).`,
-    };
-  }
-
-  return null;
-};
-
-export const parsePriceToCents = (value: string): number => {
-  const normalized = value.replace(/[R$\s]/g, "").trim();
-
-  if (!DECIMAL_PRICE_RE.test(normalized)) {
-    throw new Error(COURSE_PRICE_INVALID_MESSAGE);
-  }
-
-  const decimalSeparator =
-    normalized.includes(",") || THOUSANDS_ONLY_RE.test(normalized) ? "," : ".";
-  const withoutThousands =
-    decimalSeparator === ","
-      ? normalized.replace(/\./g, "")
-      : normalized.replace(/,/g, "");
-  const [reais = "", cents = ""] = withoutThousands.split(decimalSeparator);
-  const amountInCents =
-    Number.parseInt(reais, 10) * 100 +
-    Number.parseInt(cents.padEnd(2, "0").slice(0, 2) || "0", 10);
-
-  if (!Number.isSafeInteger(amountInCents) || amountInCents <= 0) {
-    throw new Error(COURSE_PRICE_INVALID_MESSAGE);
-  }
-
-  return amountInCents;
-};
-
-export const buildAbacatePayProductRequest = ({
-  courseId,
-  description,
-  imageUrl,
-  priceInCents,
-  title,
-}: {
-  courseId: string;
-  description: string | null;
-  imageUrl: string | null;
-  priceInCents: number;
-  title: string;
-}): AbacatePayProductRequest => {
-  const request: AbacatePayProductRequest = {
-    currency: "BRL",
-    externalId: courseId,
-    name: title,
-    price: priceInCents,
-  };
-
-  if (description) {
-    request.description = description;
-  }
-
-  if (imageUrl?.startsWith("http")) {
-    request.imageUrl = imageUrl;
-  }
-
-  return request;
-};
-
-export const buildAbacatePayCheckoutRequest = ({
-  accessDurationMonths,
-  completionUrl,
-  courseId,
-  externalId,
-  productId,
-  returnUrl,
-  source,
-  userId,
-}: {
-  accessDurationMonths: number;
-  completionUrl: string;
-  courseId: string;
-  externalId: string;
-  productId: string;
-  returnUrl: string;
-  source?: string;
-  userId?: string;
-}): AbacatePayCheckoutRequest => {
-  const metadata: AbacatePayCheckoutRequest["metadata"] = {
-    accessDurationMonths,
-    courseId,
-  };
-
-  if (userId) {
-    metadata.userId = userId;
-  }
-
-  if (source) {
-    metadata.source = source;
-  }
-
-  return {
-    completionUrl,
-    externalId,
-    frequency: "ONE_TIME",
-    items: [{ id: productId, quantity: 1 }],
-    metadata,
-    methods: [...DEFAULT_PAYMENT_METHODS],
-    returnUrl,
-  };
 };
 
 export const getAbacatePayEventKey = (

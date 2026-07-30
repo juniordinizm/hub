@@ -10,34 +10,23 @@ import { createPaidAccessReleasedMessage } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
   type AbacatePayOrderPayload,
-  type AbacatePayOrderTransition,
-  buildAbacatePayCheckoutRequest,
-  buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
-  getAbacatePayOrderTransition,
-  getPaymentReviewRequired,
   mapAbacatePayEventToOrderStatus,
-  type PersistedOrderStatus,
 } from "@/features/payments/abacatepay";
 import { normalizeBuyerEmail } from "@/features/payments/buyer-identity";
 import {
-  getAbacatePayProviderClient,
-  getApplicationUrl,
-} from "@/features/payments/provider";
+  getOrderTransition,
+  getPaymentReviewRequired,
+  type OrderTransition,
+  type PersistedOrderStatus,
+} from "@/features/payments/financial-policy";
+import { getApplicationUrl } from "@/features/payments/provider";
 import { getAuth } from "@/lib/auth";
 
 interface WebhookResult {
   eventKey: string;
   status: "processed" | "ignored" | "duplicate";
-}
-
-interface CreatedCourseProduct {
-  productId: string;
-}
-
-interface CourseCheckoutResult {
-  redirectUrl: string;
 }
 
 interface WebhookCourse {
@@ -262,7 +251,7 @@ const getWebhookOrder = async ({
       select status, amount_in_cents
       from orders
       where provider = 'abacatepay'
-        and provider_order_id = $1
+        and provider_checkout_id = $1
       limit 1
     `,
     [providerOrderId]
@@ -390,7 +379,8 @@ const upsertWebhookOrder = async ({
       insert into orders (
         course_id,
         user_id,
-        provider_order_id,
+        provider,
+        provider_checkout_id,
         external_id,
         status,
         amount_in_cents,
@@ -403,8 +393,10 @@ const upsertWebhookOrder = async ({
         customer_name,
         access_duration_months
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-      on conflict (provider, provider_order_id) do update set
+      values ($1, $2, 'abacatepay', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      on conflict (provider, provider_checkout_id)
+      where provider_checkout_id is not null
+      do update set
         user_id = case when $15 then orders.user_id else excluded.user_id end,
         status = case when $15 then orders.status else excluded.status end,
         amount_in_cents = orders.amount_in_cents,
@@ -482,7 +474,7 @@ const applyWebhookEnrollmentTransition = async ({
         select id
         from orders
         where provider = 'abacatepay'
-          and provider_order_id = $1
+          and provider_checkout_id = $1
         limit 1
       `,
       [orderPayload.providerOrderId]
@@ -531,8 +523,8 @@ const applyWebhookEnrollmentTransition = async ({
       now,
       orderId,
       reason: shouldApplyDisputeRevocation
-        ? "abacatepay_dispute"
-        : "abacatepay_refund",
+        ? "payment_dispute"
+        : "payment_refund",
       userId,
     });
 
@@ -542,126 +534,6 @@ const applyWebhookEnrollmentTransition = async ({
   }
 
   return { activationEmail: null };
-};
-
-export const createAbacatePayCourseProduct = async (
-  input: Parameters<typeof buildAbacatePayProductRequest>[0]
-): Promise<CreatedCourseProduct> => {
-  const request = buildAbacatePayProductRequest(input);
-  const product = await getAbacatePayProviderClient().createProduct(request);
-
-  return { productId: product.id };
-};
-
-export const createCourseCheckout = async ({
-  courseId,
-  user,
-}: {
-  courseId: string;
-  user: {
-    email: string;
-    id: string;
-    name: string;
-  };
-}): Promise<CourseCheckoutResult> => {
-  const { rows } = await getPool().query<{
-    access_duration_months: number;
-    id: string;
-    payment_provider_product_id: string | null;
-    price_in_cents: number;
-    status: string;
-  }>(
-    `
-      select id, payment_provider_product_id, price_in_cents, access_duration_months, status
-      from courses
-      where id = $1
-      limit 1
-    `,
-    [courseId]
-  );
-  const course = rows[0];
-
-  if (course?.status !== "active") {
-    throw new Error("Curso indisponivel para compra.");
-  }
-
-  const enrollment = await getPool().query<{ id: string }>(
-    `
-      select id
-      from enrollments
-      where user_id = $1
-        and course_id = $2
-        and status = 'active'
-        and starts_at <= now()
-        and expires_at >= now()
-      limit 1
-    `,
-    [user.id, course.id]
-  );
-
-  if (enrollment.rows[0]) {
-    return { redirectUrl: `/app/cursos/${course.id}` };
-  }
-
-  if (!course.payment_provider_product_id) {
-    throw new Error("Curso sem produto AbacatePay configurado.");
-  }
-
-  if (course.price_in_cents <= 0) {
-    throw new Error("Curso sem preco configurado.");
-  }
-
-  const externalId = `order_${randomUUID()}`;
-  const checkout = await getAbacatePayProviderClient().createCheckout(
-    buildAbacatePayCheckoutRequest({
-      accessDurationMonths: course.access_duration_months,
-      completionUrl: getApplicationUrl(
-        `/app/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
-      ),
-      courseId: course.id,
-      externalId,
-      productId: course.payment_provider_product_id,
-      returnUrl: getApplicationUrl("/app"),
-      userId: user.id,
-    })
-  );
-
-  await getPool().query(
-    `
-      insert into orders (
-        course_id,
-        user_id,
-        provider_order_id,
-        external_id,
-        status,
-        amount_in_cents,
-        customer_email,
-        customer_name,
-        access_duration_months
-      )
-      values ($1, $2, $3, $4, 'pending', $5, $6, $7, $8)
-      on conflict (provider, provider_order_id) do update set
-        user_id = excluded.user_id,
-        external_id = excluded.external_id,
-        amount_in_cents = excluded.amount_in_cents,
-        customer_email = excluded.customer_email,
-        customer_name = excluded.customer_name,
-        access_duration_months = excluded.access_duration_months,
-        updated_at = now()
-    `,
-    [
-      course.id,
-      user.id,
-      checkout.id,
-      externalId,
-      course.price_in_cents,
-      user.email,
-      user.name,
-      course.access_duration_months,
-    ]
-  );
-
-  return { redirectUrl: checkout.url };
 };
 
 export const processAbacatePayWebhook = async (
@@ -754,11 +626,11 @@ export const processAbacatePayWebhook = async (
         orderPayload.paidAmountInCents ?? orderPayload.amountInCents,
       incomingStatus: incomingOrderStatus,
     });
-    const transition = getAbacatePayOrderTransition({
+    const transition = getOrderTransition({
       currentStatus: existingOrder?.status ?? null,
       incomingStatus: incomingOrderStatus,
     });
-    const effectiveTransition: AbacatePayOrderTransition = review
+    const effectiveTransition: OrderTransition = review
       ? {
           finalOrderStatus: existingOrder?.status ?? "pending",
           shouldApplyDisputeRevocation: false,

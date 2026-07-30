@@ -43,3 +43,52 @@ describe("Development migration workflow", () => {
     );
   });
 });
+
+describe("Production cleanup workflow", () => {
+  it("plans or executes cleanup without deploying or migrating", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("mode:");
+    expect(workflow).toContain("fingerprint:");
+    expect(workflow).toContain("confirm_cleanup:");
+    expect(workflow).toContain("DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN");
+    expect(workflow).toContain("name: vercel-production");
+    expect(workflow).toContain("group: production-test-data-cleanup");
+    expect(workflow).toContain("cancel-in-progress: false");
+    expect(workflow).toContain(
+      `PRODUCTION_DATABASE_HOST: ${githubExpression(
+        "vars.PRODUCTION_DATABASE_HOST"
+      )}`
+    );
+    expect(workflow).toContain(
+      `PRODUCTION_NEON_PROJECT_ID: ${githubExpression(
+        "vars.PRODUCTION_NEON_PROJECT_ID"
+      )}`
+    );
+    expect(workflow).toContain(
+      `PRODUCTION_NEON_BRANCH_ID: ${githubExpression(
+        "vars.PRODUCTION_NEON_BRANCH_ID"
+      )}`
+    );
+    expect(workflow).toContain(
+      `NEON_API_KEY: ${githubExpression("secrets.NEON_API_KEY")}`
+    );
+    expect(workflow).toContain("bun run db:cleanup:production");
+    expect(workflow).toContain(
+      "No successful CI run exists for the current main SHA."
+    );
+    expect(workflow).not.toContain("db:migrate:production");
+    expect(workflow).not.toContain("vercel deploy");
+    expect(workflow).not.toContain("expires_at");
+  });
+
+  it("creates and confirms a backup only for execute mode", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("if: inputs.mode == 'execute'");
+    expect(workflow).toContain("https://console.neon.tech/api/v2/projects/");
+    expect(workflow).toContain(".branch.parent_id == $parent");
+    expect(workflow).toContain('.branch.current_state == "ready"');
+    expect(workflow).toContain("backup_branch_id=");
+  });
+});

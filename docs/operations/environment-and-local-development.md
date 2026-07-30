@@ -40,7 +40,7 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `E2E_R2_BUCKET_NAME` | Playwright; confirmação explícita do bucket R2 isolado | seed e teardown E2E | não |
 | `LOCAL_DATABASE_NAMES` | reset local | proteção de comando destrutivo | não |
 | `SMOKE_DATABASE_URL` | `db:smoke:empty` | smoke PostgreSQL | sim |
-| `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados | sim |
+| `CERTIFICATE_CONCURRENCY_DATABASE_URL` | teste de integração | certificados, outbox e inbox Asaas | sim |
 | `BETTER_AUTH_SECRET` | obrigatória em produção; mínimo de 32 caracteres | Better Auth | sim |
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
 | `BETTER_AUTH_URL` | explícita em Production; derivada do hostname Vercel em Preview | Better Auth | não |
@@ -60,6 +60,12 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
 | `DEVELOPMENT_ABACATEPAY_DEV_MODE` | preflight Development | confirmação de chave devMode | não |
+| `ASAAS_API_KEY` | checkout Asaas server-only | adapter Asaas | sim |
+| `ASAAS_API_BASE_URL` | sandbox em Development e endpoint aprovado em Production | adapter Asaas | não |
+| `ASAAS_USER_AGENT` | identificação estável com contato técnico | adapter Asaas | não |
+| `ASAAS_WEBHOOK_TOKEN` | segredo próprio com mínimo de 32 caracteres | inbox Asaas | sim |
+| `ASAAS_WEBHOOK_ENABLED` | `false` no pré-corte; habilita ingresso e worker Asaas juntos | inbox/cron Asaas | não |
+| `PAYMENTS_CHECKOUT_MODE` | `disabled`, `authenticated` ou `public`; explícita em Production e sempre `disabled` em Preview | entradas de checkout | não |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
@@ -84,7 +90,21 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `R2_PUBLIC_BUCKET_NAME` | publicação pública | Copy/Delete | não |
 | `R2_PUBLIC_BASE_URL` | leitura pública | URLs/Next Image | público |
 
-Não configure os dois aliases AbacatePay com valores divergentes. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de login no banco efêmero da CI. O seed e o teardown E2E recusam operações R2 se `E2E_R2_BUCKET_NAME` estiver ausente ou não for exatamente igual a `R2_BUCKET_NAME`; nunca confirme um bucket de produção.
+As cinco rotas cron, inclusive `/api/cron/asaas-webhooks`, compartilham
+`CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`. O worker Asaas está agendado a cada minuto em
+UTC, mas deve permanecer desabilitado até migrations, configuração e homologação do
+ambiente alvo.
+
+Não configure os dois aliases AbacatePay com valores divergentes. As quatro variáveis Asaas
+são opcionais no parser; o factory exige as três do adapter e a rota de webhook exige o
+token próprio. Development exige as quatro para a homologação sandbox. Production permite
+o deploy pré-corte sem elas enquanto checkout, webhook e worker estão desabilitados; quando
+configuradas, a origem e a força do token são validadas, e o adapter e a rota falham de
+forma segura se o respectivo segredo estiver ausente. Preview recusa credenciais de
+provider. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de
+login no banco efêmero da CI. O seed e o teardown E2E recusam operações R2 se
+`E2E_R2_BUCKET_NAME` estiver ausente ou não for exatamente igual a `R2_BUCKET_NAME`; nunca
+confirme um bucket de produção.
 
 ### Separação por fase
 
@@ -154,11 +174,22 @@ Production. Para popular a branch Neon compartilhada, use somente
 `bun run db:seed:development`; o comando local legado `db:seed` continua
 restrito a hosts loopback.
 
+Chaves Asaas começam com `$`. No `.env.local`, grave `ASAAS_API_KEY=\$...`, pois o
+Next expande referências iniciadas por cifrão. O launcher de Development normaliza esse
+escape para os subprocessos, executa o preflight no mesmo ambiente e remove somente a
+chave herdada antes de o Next reler o arquivo. Não remova o escape nem inicie o Next
+diretamente durante a homologação.
+
+Em uma execução isolada com `CI=true` e `E2E_TEST_MODE=true`, o launcher preserva os
+overrides explícitos recebidos do Playwright sobre `.env.local`. O preflight E2E ainda
+exige banco descartável, bucket confirmado, endpoint R2 loopback e URLs canônicas na
+mesma origem; essa precedência não se aplica ao Development comum.
+
 Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota retorna 404.
 
 ## Manutenção técnica
 
-`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, consolida analytics diários e remove eventos brutos após 90 dias e agregados após 13 meses. Não executa anonimização ou pedidos de dados.
+`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, remove em lotes reservas Asaas pré-autorização abandonadas há mais de 15 minutos, sanitiza payloads de webhook Asaas vencidos há 30 dias, consolida analytics diários e remove eventos brutos após 90 dias e agregados após 13 meses. A limpeza de checkout exige estado canônico e checkout `pending`, zero tentativas e ausência completa de URL, IDs e estados do provedor. A sanitização troca somente o JSON bruto por `{}` e preserva os metadados operacionais. Ambas respeitam lease/deadline; a sanitização não disputa evento `processing` com lock vigente. Não executa anonimização ou pedidos de dados.
 
 ## Verificação local
 

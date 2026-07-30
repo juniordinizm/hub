@@ -29,7 +29,6 @@ const courseRow = {
   cover_image_json: { key: "cover" },
   description: "Course description",
   id: courseId,
-  payment_provider_product_id: "product-1",
   price_in_cents: 12_900,
   slug: "course-one",
   status: "active",
@@ -111,7 +110,7 @@ describe("admin read projections", () => {
           customer_name: "Student",
           id: "order-1",
           paid_at: new Date("2026-01-02T00:00:00.000Z"),
-          provider_order_id: "provider-order-1",
+          provider_checkout_id: "provider-order-1",
           status: "paid",
         },
       ],
@@ -134,14 +133,28 @@ describe("admin read projections", () => {
 
     expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
     expect(query).toHaveBeenCalledTimes(6);
+    expect(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("from courses")
+      )?.[0]
+    ).not.toContain("payment_provider_product_id");
     expect(detail).toMatchObject({
       certificates: [{ code: "CERT-1", courseId }],
       course: { id: courseId, title: "Course one" },
       enrollments: [{ courseId, id: "enrollment-1" }],
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
-      orders: [{ courseId, id: "order-1" }],
+      orders: [
+        {
+          courseId,
+          id: "order-1",
+          providerCheckoutId: "provider-order-1",
+        },
+      ],
     });
+    expect(detail?.orders[0]).not.toHaveProperty(
+      ["providerOrder", "Id"].join("")
+    );
   });
 
   it("returns the failed JMVStream deletion asset for the requested lesson", async () => {

@@ -40,7 +40,6 @@ export interface StudentCourseHrefInput {
 
 export interface CoursePublicationReadinessInput {
   hasDescription: boolean;
-  hasPaymentProviderProductId: boolean;
   hasThumbnail: boolean;
   moduleCount: number;
   publishedLessonCount: number;
@@ -185,7 +184,6 @@ export const groupStudentCatalogCourses = <
 
 export const summarizeCoursePublicationReadiness = ({
   hasDescription,
-  hasPaymentProviderProductId,
   hasThumbnail,
   moduleCount,
   publishedLessonCount,
@@ -207,10 +205,6 @@ export const summarizeCoursePublicationReadiness = ({
     {
       complete: totalLessonCount > 0 && publishedLessonCount > 0,
       missing: "Publicar pelo menos uma aula",
-    },
-    {
-      complete: hasPaymentProviderProductId,
-      missing: "Vincular produto AbacatePay",
     },
   ];
   const missingItems = checks

@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildAbacatePayCheckoutRequest,
-  buildAbacatePayProductRequest,
   getAbacatePayEventKey,
   getAbacatePayOrderPayload,
-  getAbacatePayOrderTransition,
-  getPaymentReviewRequired,
   mapAbacatePayEventToOrderStatus,
   parseAbacatePayWebhookPayload,
-  parsePriceToCents,
-  resolveAbacatePayOrderStatus,
   verifyAbacatePaySignature,
   verifyAbacatePayWebhookSecret,
 } from "./abacatepay";
@@ -43,70 +37,6 @@ describe("AbacatePay webhook mapping", () => {
     expect(mapAbacatePayEventToOrderStatus("checkout.cancelled")).toBe(
       "cancelled"
     );
-  });
-
-  it("does not reopen refunded or disputed orders with late paid events", () => {
-    expect(
-      resolveAbacatePayOrderStatus({
-        currentStatus: "refunded",
-        incomingStatus: "paid",
-      })
-    ).toBe("refunded");
-    expect(
-      resolveAbacatePayOrderStatus({
-        currentStatus: "disputed",
-        incomingStatus: "paid",
-      })
-    ).toBe("disputed");
-    expect(
-      resolveAbacatePayOrderStatus({
-        currentStatus: "paid",
-        incomingStatus: "disputed",
-      })
-    ).toBe("disputed");
-  });
-
-  it("keeps the first terminal payment outcome when a later terminal event conflicts", () => {
-    expect(
-      resolveAbacatePayOrderStatus({
-        currentStatus: "refunded",
-        incomingStatus: "disputed",
-      })
-    ).toBe("refunded");
-    expect(
-      resolveAbacatePayOrderStatus({
-        currentStatus: "disputed",
-        incomingStatus: "refunded",
-      })
-    ).toBe("disputed");
-  });
-
-  it("does not revoke paid access when a paid order receives a cancellation", () => {
-    expect(
-      getAbacatePayOrderTransition({
-        currentStatus: "paid",
-        incomingStatus: "cancelled",
-      })
-    ).toEqual({
-      finalOrderStatus: "paid",
-      shouldApplyDisputeRevocation: false,
-      shouldApplyPaidAccess: false,
-      shouldApplyRefundRevocation: false,
-    });
-  });
-
-  it("does not apply paid access twice for the same already paid checkout", () => {
-    expect(
-      getAbacatePayOrderTransition({
-        currentStatus: "paid",
-        incomingStatus: "paid",
-      })
-    ).toEqual({
-      finalOrderStatus: "paid",
-      shouldApplyDisputeRevocation: false,
-      shouldApplyPaidAccess: false,
-      shouldApplyRefundRevocation: false,
-    });
   });
 
   it("builds an idempotency key from event id when present", () => {
@@ -261,140 +191,5 @@ describe("AbacatePay webhook security", () => {
         signature: `t=${timestamp},v1=${hash}`,
       })
     ).toBe(true);
-  });
-});
-
-describe("Payment review policy", () => {
-  it("requires review when a paid amount differs from the checkout snapshot", () => {
-    expect(
-      getPaymentReviewRequired({
-        currentAmountInCents: 10_000,
-        currentStatus: "pending",
-        incomingAmountInCents: 9000,
-        incomingStatus: "paid",
-      })
-    ).toMatchObject({ type: "amount_mismatch" });
-  });
-
-  it("requires review when a later terminal event conflicts with the first one", () => {
-    expect(
-      getPaymentReviewRequired({
-        currentAmountInCents: 10_000,
-        currentStatus: "refunded",
-        incomingAmountInCents: 10_000,
-        incomingStatus: "disputed",
-      })
-    ).toMatchObject({ type: "terminal_conflict" });
-  });
-
-  it("accepts an exact first paid event", () => {
-    expect(
-      getPaymentReviewRequired({
-        currentAmountInCents: 10_000,
-        currentStatus: "pending",
-        incomingAmountInCents: 10_000,
-        incomingStatus: "paid",
-      })
-    ).toBeNull();
-  });
-});
-
-describe("AbacatePay v2 requests", () => {
-  it("parses BRL prices into cents without floating point drift", () => {
-    expect(parsePriceToCents("497")).toBe(49_700);
-    expect(parsePriceToCents("497,90")).toBe(49_790);
-    expect(parsePriceToCents("1.497")).toBe(149_700);
-    expect(parsePriceToCents("1.497,90")).toBe(149_790);
-    expect(parsePriceToCents("R$ 1.497,90")).toBe(149_790);
-  });
-
-  it("rejects invalid course prices", () => {
-    expect(() => parsePriceToCents("")).toThrow("Preco do curso invalido.");
-    expect(() => parsePriceToCents("0")).toThrow("Preco do curso invalido.");
-    expect(() => parsePriceToCents("-10")).toThrow("Preco do curso invalido.");
-  });
-
-  it("builds a v2 product payload for a one-time course product", () => {
-    expect(
-      buildAbacatePayProductRequest({
-        courseId: "course_123",
-        description: "Descricao do curso",
-        imageUrl: "/protear/capa.png",
-        priceInCents: 49_790,
-        title: "Curso PROTEA-R",
-      })
-    ).toEqual({
-      currency: "BRL",
-      description: "Descricao do curso",
-      externalId: "course_123",
-      name: "Curso PROTEA-R",
-      price: 49_790,
-    });
-  });
-
-  it("sends product imageUrl only when it is a public URL", () => {
-    expect(
-      buildAbacatePayProductRequest({
-        courseId: "course_123",
-        description: null,
-        imageUrl: "https://example.com/course.png",
-        priceInCents: 49_790,
-        title: "Curso PROTEA-R",
-      })
-    ).toMatchObject({
-      imageUrl: "https://example.com/course.png",
-    });
-  });
-
-  it("builds a checkout payload for a single course purchase", () => {
-    expect(
-      buildAbacatePayCheckoutRequest({
-        accessDurationMonths: 6,
-        completionUrl: "https://example.com/app/checkout/sucesso",
-        courseId: "course_123",
-        externalId: "order_123",
-        productId: "prod_123",
-        returnUrl: "https://example.com/app",
-        userId: "user_123",
-      })
-    ).toEqual({
-      completionUrl: "https://example.com/app/checkout/sucesso",
-      externalId: "order_123",
-      frequency: "ONE_TIME",
-      items: [{ id: "prod_123", quantity: 1 }],
-      metadata: {
-        accessDurationMonths: 6,
-        courseId: "course_123",
-        userId: "user_123",
-      },
-      methods: ["PIX", "CARD"],
-      returnUrl: "https://example.com/app",
-    });
-  });
-
-  it("builds a guest landing checkout without user metadata", () => {
-    expect(
-      buildAbacatePayCheckoutRequest({
-        accessDurationMonths: 6,
-        completionUrl: "https://example.com/checkout/sucesso",
-        courseId: "course_123",
-        externalId: "order_guest",
-        productId: "prod_123",
-        returnUrl: "https://example.com",
-        source: "landing",
-      })
-    ).toEqual({
-      completionUrl: "https://example.com/checkout/sucesso",
-      externalId: "order_guest",
-      frequency: "ONE_TIME",
-      items: [{ id: "prod_123", quantity: 1 }],
-      metadata: {
-        accessDurationMonths: 6,
-        courseId: "course_123",
-        source: "landing",
-      },
-      methods: ["PIX", "CARD"],
-      returnUrl: "https://example.com",
-    });
   });
 });

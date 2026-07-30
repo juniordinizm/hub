@@ -8,6 +8,7 @@ const REQUIRED_PRODUCTION_VARIABLES = [
   "HEALTHCHECK_SECRET",
   "JMVSTREAM_PLAN_ID",
   "NEXT_PUBLIC_APP_URL",
+  "PAYMENTS_CHECKOUT_MODE",
   "R2_ACCESS_KEY_ID",
   "R2_ACCOUNT_ID",
   "R2_BUCKET_NAME",
@@ -42,9 +43,24 @@ const FIRST_PARTY_SECRET_VARIABLES = [
   "BETTER_AUTH_SECRET",
   "CRON_SECRET",
   "HEALTHCHECK_SECRET",
+  "ASAAS_WEBHOOK_TOKEN",
+] as const;
+
+const ASAAS_PRODUCTION_VARIABLES = [
+  "ASAAS_API_BASE_URL",
+  "ASAAS_API_KEY",
+  "ASAAS_USER_AGENT",
+  "ASAAS_WEBHOOK_ENABLED",
+  "ASAAS_WEBHOOK_TOKEN",
 ] as const;
 
 const MINIMUM_SECRET_LENGTH = 32;
+const ASAAS_PRODUCTION_ORIGIN = "https://api.asaas.com";
+const PAYMENTS_CHECKOUT_MODES = new Set([
+  "authenticated",
+  "disabled",
+  "public",
+]);
 
 const hasValue = (
   environment: Readonly<Record<string, string | undefined>>,
@@ -99,6 +115,22 @@ const getSecretProblems = (
     return [];
   });
 
+const getCheckoutModeProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] =>
+  hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
+  !PAYMENTS_CHECKOUT_MODES.has(environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? "")
+    ? ["PAYMENTS_CHECKOUT_MODE is invalid"]
+    : [];
+
+const getAsaasWebhookSwitchProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] =>
+  hasValue(environment, "ASAAS_WEBHOOK_ENABLED") &&
+  !["false", "true"].includes(environment.ASAAS_WEBHOOK_ENABLED?.trim() ?? "")
+    ? ["ASAAS_WEBHOOK_ENABLED must equal true or false"]
+    : [];
+
 export const getProductionEnvironmentProblems = (
   environment: Readonly<Record<string, string | undefined>>
 ): string[] => {
@@ -112,7 +144,35 @@ export const getProductionEnvironmentProblems = (
     }
   }
 
+  problems.push(...getCheckoutModeProblems(environment));
+
+  const configuredAsaasVariables = ASAAS_PRODUCTION_VARIABLES.filter((key) =>
+    hasValue(environment, key)
+  );
+  if (
+    configuredAsaasVariables.length > 0 &&
+    configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
+  ) {
+    problems.push(
+      ...ASAAS_PRODUCTION_VARIABLES.filter((key) => !hasValue(environment, key))
+    );
+  }
+
+  problems.push(...getAsaasWebhookSwitchProblems(environment));
+
   problems.push(...getUrlProblems(environment));
+
+  const asaasBaseUrl = getParsedUrl(environment, "ASAAS_API_BASE_URL");
+  if (
+    hasValue(environment, "ASAAS_API_BASE_URL") &&
+    (!asaasBaseUrl ||
+      asaasBaseUrl.origin !== ASAAS_PRODUCTION_ORIGIN ||
+      asaasBaseUrl.pathname !== "/" ||
+      Boolean(asaasBaseUrl.search || asaasBaseUrl.hash) ||
+      Boolean(asaasBaseUrl.username || asaasBaseUrl.password))
+  ) {
+    problems.push(`ASAAS_API_BASE_URL must equal ${ASAAS_PRODUCTION_ORIGIN}`);
+  }
 
   const databaseUrl = getParsedUrl(environment, "DATABASE_URL");
   if (

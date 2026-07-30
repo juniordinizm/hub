@@ -96,7 +96,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                 </DialogTriggerButton>
               }
             >
-              <CourseForm />
+              <CourseForm priceFieldId="header-course-price" />
             </DiscardAwareDialog>
           </div>
         </header>
@@ -129,7 +129,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     </DialogTriggerButton>
                   }
                 >
-                  <CourseForm />
+                  <CourseForm priceFieldId="empty-course-price" />
                 </DiscardAwareDialog>
               </EmptyContent>
             </Empty>
@@ -237,7 +237,13 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
   );
 }
 
-function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
+function CourseForm({
+  course,
+  priceFieldId,
+}: {
+  course?: CourseData;
+  priceFieldId: string;
+}): React.JSX.Element {
   const aggregateId = course?.id ?? randomUUID();
   return (
     <AutoCloseDialogForm
@@ -283,15 +289,15 @@ function CourseForm({ course }: { course?: CourseData }): React.JSX.Element {
               />
             </Field>
             <Field>
-              <FieldLabel>Preço do curso</FieldLabel>
+              <FieldLabel htmlFor={priceFieldId}>Preço do curso</FieldLabel>
               <Input
                 defaultValue={
                   course ? formatCurrencyInCents(course.priceInCents) : ""
                 }
-                disabled={Boolean(course)}
+                id={priceFieldId}
                 name="price"
                 placeholder="497,00"
-                required={!course}
+                required
               />
             </Field>
           </div>

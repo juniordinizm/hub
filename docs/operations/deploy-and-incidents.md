@@ -104,7 +104,28 @@ irreversível sem plano de recuperação.
 - secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Production;
 - secret `VERCEL_AUTOMATION_BYPASS_SECRET`, igual ao bypass do projeto Vercel;
 - secret `DATABASE_URL_DIRECT`, apontando à branch Neon definitiva;
-- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+- secret `NEON_API_KEY`, usado somente pelo workflow manual de limpeza;
+- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`;
+- variables `PRODUCTION_NEON_PROJECT_ID`, `PRODUCTION_NEON_BRANCH_ID` e
+  `PRODUCTION_DATABASE_HOST`, usadas para fechar o alvo da limpeza.
+
+### Corte Asaas em duas releases
+
+A Release A deve ser publicada primeiro sobre o schema `0043`, com
+`PAYMENTS_CHECKOUT_MODE=disabled` já configurado em Vercel Production. O smoke deve
+provar que as entradas autenticada e pública retornam indisponibilidade antes de sessão,
+banco ou provider e que a Conta Admin continua acessível.
+
+A Release B deve entrar com `ASAAS_WEBHOOK_ENABLED=false` e checkout ainda
+desabilitado. A limpeza dos dados de teste é um workflow manual separado: `plan` não
+escreve nem cria backup; `execute` exige fingerprint, duas confirmações e cria uma
+branch Neon de backup sem expiração automática antes da transação. O backup permanece
+durante a estabilização e só pode ser removido após aceite explícito. O workflow não
+executa migration, deploy ou exclusão da branch de backup.
+
+Nunca registrar respostas completas da API Neon, URLs de conexão, tokens, IDs de Conta
+ou PII. Somente presença de configuração, contagens, fingerprint, status e ID da branch
+de backup podem aparecer nos logs.
 
 ### GitHub Environment `neon-development`
 
@@ -151,7 +172,7 @@ Os valores abaixo pertencem a Production:
 - auth: `BETTER_AUTH_SECRET`, `BETTER_AUTH_TRUSTED_ORIGINS` quando necessário e
   `AUTH_PUBLIC_SIGNUP_ENABLED`;
 - e-mail: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPPORT_EMAIL`;
-- pagamentos: credenciais e segredo de webhook AbacatePay;
+- pagamentos: credencial, base URL, User-Agent e token de webhook Asaas;
 - vídeo: credenciais JMVStream;
 - R2: conta, dois buckets, chaves, origem pública e CORS;
 - crons: `CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`;
@@ -164,7 +185,7 @@ definitivo responder no deployment novo.
 
 ## Crons
 
-`vercel.json` é a autoridade das quatro agendas. A Vercel chama os Route
+`vercel.json` é a autoridade das cinco agendas. A Vercel chama os Route
 Handlers com `Authorization: Bearer <CRON_SECRET>`. Cada rota:
 
 - recusa execução quando `SCHEDULED_JOBS_ENABLED=false`;
@@ -175,6 +196,7 @@ Handlers com `Authorization: Bearer <CRON_SECRET>`. Cada rota:
 
 Agendas UTC:
 
+- `* * * * *`: inbox de webhooks Asaas;
 - `0 10 * * *`: matrículas;
 - `*/5 * * * *`: JMVStream;
 - `*/5 * * * *`: outbox;
@@ -214,7 +236,9 @@ coexistir.
 Use `correlationId`, deployment SHA e ambiente para localizar logs. Nunca copie
 tokens, URLs de banco ou payloads pessoais para tickets.
 
-- pagamento: confira `webhook_events`, Pedido, revisão e projeção de acesso;
+- pagamento: confira `webhook_events`, Pedido, revisão, solicitação de reembolso,
+  movimentos do extrato e projeção de acesso. Alertas administrativos expõem fila
+  Asaas, eventos falhos, Pedidos pagos sem ID de pagamento e reembolsos incertos;
 - e-mail/outbox: confira tópico, tentativas, dead letter e janela de
   idempotência do Resend;
 - JMVStream/R2: diferencie presign, CORS, upload, processamento, cópia e delete;

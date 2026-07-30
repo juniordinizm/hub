@@ -11,10 +11,23 @@ const e2eObjectStorageEnvironment = {
   R2_PUBLIC_BASE_URL: "http://127.0.0.1:4568/hub-e2e",
   R2_SECRET_ACCESS_KEY: "S3RVER",
 } as const;
+const e2eApplicationEnvironment = {
+  AUTH_PUBLIC_SIGNUP_ENABLED: "true",
+  BETTER_AUTH_TRUSTED_ORIGINS: "http://127.0.0.1:3100",
+  BETTER_AUTH_URL: "http://127.0.0.1:3100",
+  CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+  CI: "true",
+  ...(e2eDatabaseUrl ? { DATABASE_URL: e2eDatabaseUrl } : {}),
+  DATABASE_URL_DIRECT: "",
+  E2E_TEST_MODE: "true",
+  INTERNAL_BOOTSTRAP_SECRET: "",
+  NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+} as const;
 
 for (const [key, value] of Object.entries(e2eObjectStorageEnvironment)) {
   process.env[key] = value;
 }
+Object.assign(process.env, e2eApplicationEnvironment);
 
 const serverCommand = process.env.CI
   ? `${bunCommand} scripts/e2e-next-server.ts`
@@ -51,16 +64,7 @@ export default defineConfig({
       command: serverCommand,
       env: {
         ...process.env,
-        BETTER_AUTH_TRUSTED_ORIGINS: "http://127.0.0.1:3100",
-        BETTER_AUTH_URL: "http://127.0.0.1:3100",
-        AUTH_PUBLIC_SIGNUP_ENABLED: "true",
-        CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
-        CI: "true",
-        ...(e2eDatabaseUrl ? { DATABASE_URL: e2eDatabaseUrl } : {}),
-        DATABASE_URL_DIRECT: "",
-        E2E_TEST_MODE: "true",
-        INTERNAL_BOOTSTRAP_SECRET: "",
-        NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+        ...e2eApplicationEnvironment,
       },
       name: "Next.js",
       reuseExistingServer: false,

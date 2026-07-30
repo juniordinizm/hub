@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
+  gateway: {
+    refundPayment: vi.fn(),
+  },
+  getAsaasProviderClient: vi.fn(),
   getPool: vi.fn(),
   verifyPassword: vi.fn(),
 }));
@@ -10,8 +14,100 @@ vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 vi.mock("@better-auth/utils/password", () => ({
   verifyPassword: dependencies.verifyPassword,
 }));
+vi.mock("@/features/payments/provider", () => ({
+  getAsaasProviderClient: dependencies.getAsaasProviderClient,
+}));
 
-import { issueRefundConfirmation } from "./refunds";
+import { AsaasGatewayError } from "./asaas-client";
+import { issueRefundConfirmation, requestFullRefund } from "./refunds";
+
+const ORDER_ID = "00000000-0000-4000-8000-000000000001";
+const REFUND_ID = "00000000-0000-4000-8000-000000000002";
+const ACTOR_ID = "admin-1";
+
+interface QueryRecord {
+  text: string;
+  values?: unknown[];
+}
+
+const createRefundDatabase = ({
+  confirmedBeforePostMutation = false,
+  reservationExists = true,
+}: {
+  confirmedBeforePostMutation?: boolean;
+  reservationExists?: boolean;
+} = {}) => {
+  const queries: QueryRecord[] = [];
+  const query = vi.fn((text: string, values?: unknown[]) => {
+    queries.push(values ? { text, values } : { text });
+    if (text.includes("delete from verifications")) {
+      return Promise.resolve({ rows: [{ id: "confirmation-id" }] });
+    }
+    if (text.includes("from orders")) {
+      return Promise.resolve({
+        rows: [
+          {
+            amount_in_cents: 12_990,
+            external_id: `order_${ORDER_ID}`,
+            provider_payment_id: "pay_123",
+            status: "paid",
+          },
+        ],
+      });
+    }
+    if (text.includes("insert into refund_requests")) {
+      return Promise.resolve({
+        rows: reservationExists ? [{ id: REFUND_ID }] : [],
+      });
+    }
+    if (text.includes("update refund_requests")) {
+      if (
+        confirmedBeforePostMutation &&
+        text.includes("status = 'processing'")
+      ) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.resolve({ rows: [{ id: REFUND_ID }] });
+    }
+    if (text.includes("select status from refund_requests")) {
+      return Promise.resolve({ rows: [{ status: "confirmed" }] });
+    }
+    return Promise.resolve({ rows: [] });
+  });
+  const release = vi.fn();
+  const connect = vi.fn(async () => ({ query, release }));
+  dependencies.getPool.mockReturnValue({ connect, query });
+  return { connect, queries, query, release };
+};
+
+const validRefundPayment = {
+  billingType: "PIX",
+  checkoutSession: "chk_123",
+  customer: "cus_123",
+  externalReference: `order_${ORDER_ID}`,
+  id: "pay_123",
+  netValueInCents: 0,
+  refunds: [
+    {
+      dateCreated: "2026-07-29 10:19:06",
+      endToEndIdentifier: "E123",
+      status: "DONE",
+      transactionReceiptUrl: "https://asaas.example/refund-receipt",
+      valueInCents: 12_990,
+    },
+  ],
+  status: "REFUNDED",
+  valueInCents: 12_990,
+} as const;
+
+const requestRefund = (): Promise<void> =>
+  requestFullRefund({
+    actorUserId: ACTOR_ID,
+    confirmationToken: "confirmation-token",
+    orderId: ORDER_ID,
+    reason: "Solicitação aprovada pelo suporte",
+    typedOrderId: ORDER_ID,
+  });
 
 describe("refund audit transactions", () => {
   it("creates the confirmation token and audit record in one transaction", async () => {
@@ -47,5 +143,225 @@ describe("refund audit transactions", () => {
     );
     expect(clientQuery).toHaveBeenLastCalledWith("commit");
     expect(release).toHaveBeenCalledOnce();
+  });
+});
+
+describe("Asaas full refund requests", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.getAsaasProviderClient.mockReturnValue(dependencies.gateway);
+  });
+
+  it("reserves once, performs one full mutation and persists exact evidence as processing", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue(validRefundPayment);
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    expect(dependencies.gateway.refundPayment).toHaveBeenCalledOnce();
+    expect(dependencies.gateway.refundPayment).toHaveBeenCalledWith({
+      description: "Solicitação aprovada pelo suporte",
+      paymentId: "pay_123",
+    });
+    const reservation = queries.find(({ text }) =>
+      text.includes("insert into refund_requests")
+    );
+    expect(reservation?.text).toContain("'processing'");
+    expect(reservation?.text).toContain(
+      "where refund_requests.status = 'failed'"
+    );
+    const evidence = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("2026-07-29 10:19:06")
+    );
+    expect(evidence?.text).toContain("provider_refund_created_at");
+    expect(evidence?.text).toContain("status = 'processing'");
+    expect(evidence?.values).toEqual([
+      REFUND_ID,
+      "DONE",
+      "2026-07-29 10:19:06",
+      "E123",
+      "https://asaas.example/refund-receipt",
+      12_990,
+    ]);
+  });
+
+  it("does not mutate Asaas when an active reservation already exists", async () => {
+    createRefundDatabase({ reservationExists: false });
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Ja existe uma solicitacao de estorno para este pedido."
+    );
+
+    expect(dependencies.gateway.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it("marks a definitive provider rejection failed using only a safe code", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockRejectedValue(
+      new AsaasGatewayError({
+        kind: "validation",
+        message: "private provider message",
+        outcome: "rejected",
+        providerCode: "refund_not_allowed",
+        retryable: false,
+      })
+    );
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Solicitacao de reembolso rejeitada pelo Asaas."
+    );
+    const failure = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("refund_not_allowed")
+    );
+    expect(failure?.text).toContain("status = 'failed'");
+    expect(JSON.stringify(queries)).not.toContain("private provider message");
+  });
+
+  it.each([
+    ["timeout", "timeout"],
+    ["5xx", "provider_unavailable"],
+    ["transport", "transport"],
+  ] as const)("marks an unknown %s outcome uncertain without retrying", async (_label, kind) => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockRejectedValue(
+      new AsaasGatewayError({
+        kind,
+        message: "secret@example.com token=private",
+        outcome: "unknown",
+        retryable: false,
+      })
+    );
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Resultado do reembolso pendente de conciliacao."
+    );
+    expect(dependencies.gateway.refundPayment).toHaveBeenCalledOnce();
+    const uncertain = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes(`asaas_refund_${kind}`)
+    );
+    expect(uncertain?.text).toContain("status = 'uncertain'");
+    expect(JSON.stringify(queries)).not.toContain("secret@example.com");
+  });
+
+  it("marks a semantically invalid success uncertain instead of retrying", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      refunds: [
+        {
+          ...validRefundPayment.refunds[0],
+          valueInCents: 1000,
+        },
+      ],
+    });
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Resultado do reembolso pendente de conciliacao."
+    );
+    expect(dependencies.gateway.refundPayment).toHaveBeenCalledOnce();
+    const uncertain = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("asaas_refund_invalid_result")
+    );
+    expect(uncertain?.text).toContain("status = 'uncertain'");
+  });
+
+  it("marks a response for another payment uncertain even when the amount matches", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      id: "pay_other",
+    });
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Resultado do reembolso pendente de conciliacao."
+    );
+    const uncertain = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("asaas_refund_invalid_result")
+    );
+    expect(uncertain?.text).toContain("status = 'uncertain'");
+  });
+
+  it("marks a response for another external reference uncertain", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      externalReference: "order_other",
+    });
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Resultado do reembolso pendente de conciliacao."
+    );
+    const uncertain = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("asaas_refund_invalid_result")
+    );
+    expect(uncertain?.text).toContain("status = 'uncertain'");
+  });
+
+  it("preserves webhook confirmation that wins the race with a successful response", async () => {
+    const { queries } = createRefundDatabase({
+      confirmedBeforePostMutation: true,
+    });
+    dependencies.gateway.refundPayment.mockResolvedValue(validRefundPayment);
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    const evidenceUpdate = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("2026-07-29 10:19:06")
+    );
+    expect(evidenceUpdate?.text).toContain("status = 'processing'");
+    expect(evidenceUpdate?.text).toContain(
+      "where id = $1 and status = 'processing'"
+    );
+    expect(
+      queries.some(({ text }) =>
+        text.includes("select status from refund_requests")
+      )
+    ).toBe(true);
+  });
+
+  it("preserves webhook confirmation that wins the race with a timeout", async () => {
+    const { queries } = createRefundDatabase({
+      confirmedBeforePostMutation: true,
+    });
+    dependencies.gateway.refundPayment.mockRejectedValue(
+      new AsaasGatewayError({
+        kind: "timeout",
+        message: "timeout",
+        outcome: "unknown",
+        retryable: false,
+      })
+    );
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    const failureUpdate = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("asaas_refund_timeout")
+    );
+    expect(failureUpdate?.text).toContain(
+      "where id = $1 and status = 'processing'"
+    );
+    expect(
+      queries.some(
+        ({ text, values }) =>
+          text.includes("insert into audit_logs") &&
+          values?.includes("refund.uncertain")
+      )
+    ).toBe(false);
   });
 });

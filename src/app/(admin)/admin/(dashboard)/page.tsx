@@ -79,7 +79,6 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
 
       return {
         hasDescription: Boolean(course.description?.trim()),
-        hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
         hasThumbnail: Boolean(course.thumbnailUrl),
         id: course.id,
         moduleCount: courseModules.length,

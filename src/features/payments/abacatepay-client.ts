@@ -1,8 +1,5 @@
 import "server-only";
-import type {
-  AbacatePayCheckoutRequest,
-  AbacatePayProductRequest,
-} from "@/features/payments/abacatepay";
+import type { AbacatePayCheckoutRequest } from "@/features/payments/abacatepay";
 
 interface AbacatePayClientOptions {
   apiKey: string;
@@ -14,10 +11,6 @@ interface AbacatePayApiResponse<T> {
   data?: T | null;
   error?: { message?: string } | null;
   success?: boolean;
-}
-
-interface ProductResponse {
-  id: string;
 }
 
 interface CheckoutResponse {
@@ -68,21 +61,6 @@ export class AbacatePayClient {
     this.apiKey = apiKey;
     this.baseUrl = trimTrailingSlash(baseUrl);
     this.fetcher = fetcher;
-  }
-
-  async createProduct(
-    input: AbacatePayProductRequest
-  ): Promise<ProductResponse> {
-    const response = await this.post<AbacatePayProductRequest, ProductResponse>(
-      "/products/create",
-      input
-    );
-
-    if (!response.id) {
-      throw new Error("AbacatePay nao retornou o produto criado.");
-    }
-
-    return response;
   }
 
   async createCheckout(

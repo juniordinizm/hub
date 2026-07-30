@@ -93,6 +93,13 @@ com espera limitada entre tentativas. A criação de uma branch não garante que
 compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A
 quinta falha preserva o erro do migrador e bloqueia os gates seguintes.
 
+O teste PostgreSQL real do worker Asaas depende de
+`CERTIFICATE_CONCURRENCY_DATABASE_URL`. Em 2026-07-29, a Etapa 9 executou essa prova na
+branch Neon descartável `br-autumn-mouse-ac9ti4dr`: 20 testes de integração passaram,
+incluindo claim concorrente, rollback, perda de ownership, esgotamento de tentativas e
+sanitização. Testes unitários da rota, worker e processor continuam complementares, não
+substitutos dessa prova transacional.
+
 ### Paridade de ambiente
 
 O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
@@ -112,6 +119,9 @@ Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, co
 efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
+As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
+quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
+`E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
 
 Em CI, `scripts/e2e-next-server.ts` replica stdout/stderr do build e do processo Next para
 `test-results/next-server.log`. O arquivo vai junto ao artefato privado do Playwright inclusive
@@ -188,7 +198,7 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
 | Certificado | `certificates/rules.test.ts`, integração concorrente, E2E público |
-| Efeitos transacionais | `outbox/*.test.ts`, integração PostgreSQL de locks e emissão de certificado |
+| Efeitos transacionais | `outbox/*.test.ts`, worker da inbox Asaas e integração PostgreSQL de locks, rollback e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
 | Páginas críticas | jornadas Chromium de login, painel, Aula, checkout e certificado |

@@ -40,13 +40,14 @@ export default async function CheckoutSuccessPage({
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <Badge variant="outline">Compra confirmada</Badge>
+        <Badge variant="outline">Pagamento em verificação</Badge>
         <h1 className="mt-4 font-bold text-2xl tracking-tight">
           Seu acesso está sendo liberado
         </h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
-          Obrigado pela compra. Esta página vai abrir seu curso automaticamente
-          assim que o acesso estiver disponível.
+          O Asaas ainda pode estar processando o pagamento. Esta página vai
+          abrir seu curso automaticamente somente quando o acesso estiver
+          confirmado.
         </p>
         <CheckoutAccessWaiter courseId={courseId} />
         <div className="mt-6 flex flex-wrap gap-3">

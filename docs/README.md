@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
 ---
 
 # Documentação do Hub
@@ -32,6 +32,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 ### Integrações
 
 - [AbacatePay](integrations/abacatepay.md)
+- [Asaas, contrato proposto](integrations/asaas.md)
 - [JMVStream](integrations/jmvstream.md)
 - [Cloudflare R2](integrations/r2.md)
 - [Resend e e-mail institucional](integrations/resend.md)

@@ -1,37 +1,19 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { getPool } from "@/db";
-import { buildAbacatePayCheckoutRequest } from "@/features/payments/abacatepay";
+import type { AsaasGateway } from "@/features/payments/asaas";
 import {
-  getAbacatePayProviderClient,
+  type CheckoutIntentResult,
+  createAsaasCheckoutIntent,
+} from "@/features/payments/checkout";
+import {
   getApplicationUrl,
+  getAsaasProviderClient,
 } from "@/features/payments/provider";
+import { getServerEnv } from "@/lib/env";
 
-const PUBLIC_CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
+const PUBLIC_CHECKOUT_WINDOW_SECONDS = 10 * 60;
 const PUBLIC_CHECKOUT_MAX_ATTEMPTS = 5;
-
-interface PublicCheckoutRateLimitState {
-  count: number;
-  resetAt: number;
-}
-
-interface PublicCourseCheckoutResult {
-  redirectUrl: string;
-}
-
-interface PublicCheckoutCourse {
-  access_duration_months: number;
-  id: string;
-  payment_provider_product_id: string | null;
-  price_in_cents: number;
-  slug: string;
-  status: string;
-}
-
-const publicCheckoutRateLimitState = new Map<
-  string,
-  PublicCheckoutRateLimitState
->();
 
 export class PublicCheckoutRateLimitError extends Error {
   readonly retryAfterSeconds: number;
@@ -39,147 +21,137 @@ export class PublicCheckoutRateLimitError extends Error {
   constructor(retryAfterSeconds: number) {
     super("Muitas tentativas de checkout. Tente novamente em breve.");
     this.name = "PublicCheckoutRateLimitError";
-    this.retryAfterSeconds = retryAfterSeconds;
+    this.retryAfterSeconds = Math.max(1, retryAfterSeconds);
   }
 }
 
-const consumePublicCheckoutAttempt = ({
-  courseKey,
-  ipAddress,
-}: {
-  courseKey: string;
-  ipAddress: string;
-}): { allowed: true } | { allowed: false; retryAfterSeconds: number } => {
-  const key = `${ipAddress}:${courseKey}`;
-  const timestamp = Date.now();
-  const current = publicCheckoutRateLimitState.get(key);
+interface RateLimitRow {
+  expires_at: Date;
+}
 
-  if (!current || current.resetAt <= timestamp) {
-    publicCheckoutRateLimitState.set(key, {
-      count: 1,
-      resetAt: timestamp + PUBLIC_CHECKOUT_WINDOW_MS,
-    });
-    return { allowed: true };
-  }
-
-  if (current.count >= PUBLIC_CHECKOUT_MAX_ATTEMPTS) {
-    return {
-      allowed: false,
-      retryAfterSeconds: Math.ceil((current.resetAt - timestamp) / 1000),
-    };
-  }
-
-  current.count += 1;
-  publicCheckoutRateLimitState.set(key, current);
-  return { allowed: true };
-};
-
-const getPublicCheckoutCourse = async ({
+const getRateLimitKey = ({
   courseId,
-  courseSlug,
+  ipAddress,
+  secret,
 }: {
-  courseId?: string;
-  courseSlug?: string;
-}): Promise<PublicCheckoutCourse> => {
-  if (!(courseId || courseSlug)) {
-    throw new Error("Informe o curso para iniciar o checkout.");
+  courseId: string;
+  ipAddress: string;
+  secret: string;
+}): string =>
+  createHmac("sha256", secret)
+    .update(ipAddress)
+    .update("\0")
+    .update(courseId)
+    .digest("hex");
+
+export const authorizePublicCheckoutIntent = async ({
+  courseId,
+  ipAddress,
+  now = new Date(),
+  secret,
+}: {
+  courseId: string;
+  ipAddress: string;
+  now?: Date;
+  secret: string;
+}): Promise<void> => {
+  const keyHash = getRateLimitKey({ courseId, ipAddress, secret });
+  const consumed = await getPool().query<RateLimitRow>(
+    `
+      insert into public_checkout_rate_limits (
+        key_hash, window_started_at, request_count, expires_at, created_at, updated_at
+      )
+      values (
+        $1,
+        $2::timestamptz,
+        1,
+        $2::timestamptz + interval '10 minutes',
+        $2::timestamptz,
+        $2::timestamptz
+      )
+      on conflict (key_hash) do update set
+        window_started_at = case
+          when public_checkout_rate_limits.expires_at <= $2::timestamptz
+            then $2::timestamptz
+          else public_checkout_rate_limits.window_started_at
+        end,
+        request_count = case
+          when public_checkout_rate_limits.expires_at <= $2::timestamptz then 1
+          else public_checkout_rate_limits.request_count + 1
+        end,
+        expires_at = case
+          when public_checkout_rate_limits.expires_at <= $2::timestamptz
+            then $2::timestamptz + interval '10 minutes'
+          else public_checkout_rate_limits.expires_at
+        end,
+        updated_at = $2::timestamptz
+      where public_checkout_rate_limits.expires_at <= $2::timestamptz
+         or public_checkout_rate_limits.request_count < $3
+      returning expires_at
+    `,
+    [keyHash, now, PUBLIC_CHECKOUT_MAX_ATTEMPTS]
+  );
+
+  if (consumed.rows[0]) {
+    return;
   }
 
-  const { rows } = await getPool().query<PublicCheckoutCourse>(
+  const current = await getPool().query<RateLimitRow>(
     `
-      select id, slug, payment_provider_product_id, price_in_cents, access_duration_months, status
-      from courses
-      where ($1::uuid is not null and id = $1::uuid)
-         or ($2::text is not null and slug = $2::text)
+      select expires_at
+      from public_checkout_rate_limits
+      where key_hash = $1
       limit 1
     `,
-    [courseId ?? null, courseSlug ?? null]
+    [keyHash]
   );
-  const course = rows[0];
+  const expiresAt = current.rows[0]?.expires_at;
+  const retryAfterSeconds = expiresAt
+    ? Math.ceil((expiresAt.getTime() - now.getTime()) / 1000)
+    : PUBLIC_CHECKOUT_WINDOW_SECONDS;
 
-  if (course?.status !== "active") {
-    throw new Error("Curso indisponivel para compra.");
-  }
-
-  if (!course.payment_provider_product_id) {
-    throw new Error("Curso sem produto AbacatePay configurado.");
-  }
-
-  if (course.price_in_cents <= 0) {
-    throw new Error("Curso sem preco configurado.");
-  }
-
-  return course;
+  throw new PublicCheckoutRateLimitError(retryAfterSeconds);
 };
 
 export const createPublicCourseCheckout = async ({
+  buyerEmail,
+  buyerName,
+  checkoutAttemptId,
   courseId,
   courseSlug,
+  gateway = getAsaasProviderClient(),
   ipAddress,
 }: {
+  buyerEmail: string;
+  buyerName: string;
+  checkoutAttemptId: string;
   courseId?: string;
   courseSlug?: string;
+  gateway?: AsaasGateway;
   ipAddress: string;
-}): Promise<PublicCourseCheckoutResult> => {
-  const course = await getPublicCheckoutCourse({
+}): Promise<CheckoutIntentResult> => {
+  const secret = getServerEnv().BETTER_AUTH_SECRET;
+
+  return await createAsaasCheckoutIntent({
+    attemptId: checkoutAttemptId,
+    authorizeNewIntent: async ({ courseId: canonicalCourseId }) =>
+      await authorizePublicCheckoutIntent({
+        courseId: canonicalCourseId,
+        ipAddress,
+        secret,
+      }),
+    buyer: {
+      email: buyerEmail,
+      kind: "public",
+      name: buyerName,
+    },
+    callbacks: {
+      cancelUrl: getApplicationUrl("/checkout/cancelado"),
+      expiredUrl: getApplicationUrl("/checkout/expirado"),
+      successUrl: getApplicationUrl("/checkout/sucesso"),
+    },
     ...(courseId ? { courseId } : {}),
     ...(courseSlug ? { courseSlug } : {}),
+    gateway,
   });
-  const rateLimit = consumePublicCheckoutAttempt({
-    courseKey: course.id,
-    ipAddress,
-  });
-
-  if (!rateLimit.allowed) {
-    throw new PublicCheckoutRateLimitError(rateLimit.retryAfterSeconds);
-  }
-
-  const productId = course.payment_provider_product_id;
-
-  if (!productId) {
-    throw new Error("Curso sem produto AbacatePay configurado.");
-  }
-
-  const externalId = `order_${randomUUID()}`;
-  const checkout = await getAbacatePayProviderClient().createCheckout(
-    buildAbacatePayCheckoutRequest({
-      accessDurationMonths: course.access_duration_months,
-      completionUrl: getApplicationUrl(
-        `/checkout/sucesso?courseId=${encodeURIComponent(course.id)}`
-      ),
-      courseId: course.id,
-      externalId,
-      productId,
-      returnUrl: getApplicationUrl("/entrar"),
-      source: "landing",
-    })
-  );
-
-  await getPool().query(
-    `
-      insert into orders (
-        course_id,
-        provider_order_id,
-        external_id,
-        status,
-        amount_in_cents,
-        access_duration_months
-      )
-      values ($1, $2, $3, 'pending', $4, $5)
-      on conflict (provider, provider_order_id) do update set
-        external_id = excluded.external_id,
-        amount_in_cents = excluded.amount_in_cents,
-        access_duration_months = excluded.access_duration_months,
-        updated_at = now()
-    `,
-    [
-      course.id,
-      checkout.id,
-      externalId,
-      course.price_in_cents,
-      course.access_duration_months,
-    ]
-  );
-
-  return { redirectUrl: checkout.url };
 };

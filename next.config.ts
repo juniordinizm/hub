@@ -11,6 +11,8 @@ const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
 const deploymentId = process.env.DEPLOYMENT_VERSION?.trim();
 const isVercel = Boolean(process.env.VERCEL);
 const isProduction = process.env.NODE_ENV === "production";
+const isE2eTest = process.env.E2E_TEST_MODE === "true";
+const sentryAuthToken = isE2eTest ? "" : process.env.SENTRY_AUTH_TOKEN;
 const e2eObjectStorageOrigin = process.env.R2_ENDPOINT
   ? new URL(
       resolveR2ClientEndpoint({
@@ -101,13 +103,11 @@ const nextConfig: NextConfig = {
 export default withSentryConfig(nextConfig, {
   org: "summit-studio-ij",
   project: "protear",
-  ...(process.env.SENTRY_AUTH_TOKEN
-    ? { authToken: process.env.SENTRY_AUTH_TOKEN }
-    : {}),
+  ...(sentryAuthToken === undefined ? {} : { authToken: sentryAuthToken }),
   silent: !process.env.CI,
   widenClientFileUpload: true,
   sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
+    disable: isE2eTest || !process.env.SENTRY_AUTH_TOKEN,
   },
   webpack: {
     treeshake: {

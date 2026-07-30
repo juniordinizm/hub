@@ -16,6 +16,10 @@ const FORBIDDEN_PREVIEW_VARIABLES = [
   "ABACATEPAY_API_KEY",
   "ABACATEPAY_WEBHOOK_SECRET",
   "ABACATE_PAY_API_KEY",
+  "ASAAS_API_BASE_URL",
+  "ASAAS_API_KEY",
+  "ASAAS_USER_AGENT",
+  "ASAAS_WEBHOOK_TOKEN",
   "BETTER_AUTH_URL",
   "CERTIFICATE_CONCURRENCY_DATABASE_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -97,6 +101,42 @@ describe("Preview environment contract", () => {
         "SCHEDULED_JOBS_ENABLED must equal false in Preview",
       ])
     );
+  });
+
+  it.each(["authenticated", "public"])("rejects %s checkout mode", (mode) => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        PAYMENTS_CHECKOUT_MODE: mode,
+      })
+    ).toContain("PAYMENTS_CHECKOUT_MODE must equal disabled in Preview");
+  });
+
+  it("accepts an explicit disabled checkout mode", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        PAYMENTS_CHECKOUT_MODE: "disabled",
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects an enabled Asaas webhook", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        ASAAS_WEBHOOK_ENABLED: "true",
+      })
+    ).toContain("ASAAS_WEBHOOK_ENABLED must equal false in Preview");
+  });
+
+  it("accepts an explicitly disabled Asaas webhook", () => {
+    expect(
+      getPreviewEnvironmentProblems({
+        ...COMPLETE_PREVIEW_ENVIRONMENT,
+        ASAAS_WEBHOOK_ENABLED: "false",
+      })
+    ).toEqual([]);
   });
 
   it("requires Vercel proxy attribution", () => {

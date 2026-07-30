@@ -115,7 +115,6 @@ describe("course presentation helpers", () => {
     expect(
       summarizeCoursePublicationReadiness({
         hasDescription: false,
-        hasPaymentProviderProductId: false,
         hasThumbnail: true,
         moduleCount: 1,
         publishedLessonCount: 0,
@@ -123,13 +122,9 @@ describe("course presentation helpers", () => {
       })
     ).toEqual({
       completedCount: 2,
-      totalCount: 5,
-      percent: 40,
-      missingItems: [
-        "Adicionar descrição",
-        "Publicar pelo menos uma aula",
-        "Vincular produto AbacatePay",
-      ],
+      totalCount: 4,
+      percent: 50,
+      missingItems: ["Adicionar descrição", "Publicar pelo menos uma aula"],
     });
   });
 

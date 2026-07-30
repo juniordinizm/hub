@@ -253,6 +253,9 @@ test("completion persists and advances to the next lesson", async ({
   const fixture = await readFixture();
   await signIn(page, fixture.studentForCompletion, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
+  await expect(
+    page.getByRole("heading", { name: "Primeira aula" })
+  ).toBeVisible();
   const completionButton = page.getByRole("button", {
     name: "Concluir aula e avançar",
   });

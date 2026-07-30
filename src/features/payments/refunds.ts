@@ -1,9 +1,15 @@
 import "server-only";
 import { createHmac, randomUUID } from "node:crypto";
 import { verifyPassword } from "@better-auth/utils/password";
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { getPool } from "@/db";
-import { AbacatePayClient } from "@/features/payments/abacatepay-client";
+import type {
+  AsaasGateway,
+  AsaasPayment,
+  AsaasRefundEvidence,
+} from "@/features/payments/asaas";
+import { AsaasGatewayError } from "@/features/payments/asaas-client";
+import { getAsaasProviderClient } from "@/features/payments/provider";
 import { getServerEnv } from "@/lib/env";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000;
@@ -20,20 +26,6 @@ const tokenDigest = (token: string): string =>
   createHmac("sha256", getServerEnv().BETTER_AUTH_SECRET)
     .update(token)
     .digest("hex");
-
-const getAbacatePayClient = (): AbacatePayClient => {
-  const env = getServerEnv();
-  const apiKey = env.ABACATE_PAY_API_KEY ?? env.ABACATEPAY_API_KEY;
-
-  if (!apiKey) {
-    throw new Error("Configure ABACATE_PAY_API_KEY para solicitar estornos.");
-  }
-
-  return new AbacatePayClient({
-    apiKey,
-    baseUrl: env.ABACATEPAY_API_BASE_URL,
-  });
-};
 
 const auditRefund = async ({
   action,
@@ -122,30 +114,31 @@ export const issueRefundConfirmation = async ({
   return { confirmationToken };
 };
 
-export const requestFullRefund = async ({
-  actorUserId,
-  confirmationToken,
-  orderId,
-  reason,
-  typedOrderId,
-}: {
+interface RefundRequestInput {
   actorUserId: string;
   confirmationToken: string;
+  gateway?: AsaasGateway;
   orderId: string;
   reason: string;
   typedOrderId: string;
-}): Promise<void> => {
-  if (!reason.trim()) {
-    throw new Error("Informe o motivo do estorno.");
-  }
-  if (typedOrderId.trim() !== orderId) {
-    throw new Error("A confirmacao digitada do pedido nao confere.");
-  }
+}
 
-  const pool = getPool();
-  const client = await pool.connect();
-  let providerOrderId: string;
+interface ReservedRefund {
+  amountInCents: number;
+  externalReference: string;
+  providerPaymentId: string;
+  refundRequestId: string;
+}
 
+const reserveRefund = async ({
+  actorUserId,
+  client,
+  confirmationToken,
+  orderId,
+  reason,
+}: Omit<RefundRequestInput, "gateway" | "typedOrderId"> & {
+  client: PoolClient;
+}): Promise<ReservedRefund> => {
   try {
     await client.query("begin");
     const confirmation = await client.query<{ id: string }>(
@@ -167,14 +160,16 @@ export const requestFullRefund = async ({
     }
 
     const order = await client.query<{
-      provider_order_id: string;
+      amount_in_cents: number;
+      external_id: string;
+      provider_payment_id: string | null;
       status: "cancelled" | "disputed" | "paid" | "pending" | "refunded";
     }>(
       `
-        select provider_order_id, status
+        select amount_in_cents, external_id, provider_payment_id, status
         from orders
         where id = $1
-          and provider = 'abacatepay'
+          and provider = 'asaas'
         for update
       `,
       [orderId]
@@ -187,13 +182,17 @@ export const requestFullRefund = async ({
 
     const reservation = await client.query<{ id: string }>(
       `
-        insert into refund_requests (order_id, requested_by_user_id, reason)
-        values ($1, $2, $3)
+        insert into refund_requests (order_id, requested_by_user_id, reason, status)
+        values ($1, $2, $3, 'processing')
         on conflict (order_id) do update set
           requested_by_user_id = excluded.requested_by_user_id,
           reason = excluded.reason,
-          status = 'requested',
-          provider_refund_id = null,
+          status = 'processing',
+          provider_refund_status = null,
+          provider_refund_created_at = null,
+          provider_refund_end_to_end_id = null,
+          provider_refund_receipt_url = null,
+          provider_refunded_amount_in_cents = null,
           error_message = null,
           updated_at = now()
         where refund_requests.status = 'failed'
@@ -206,7 +205,9 @@ export const requestFullRefund = async ({
       throw new Error("Ja existe uma solicitacao de estorno para este pedido.");
     }
 
-    providerOrderId = selectedOrder.provider_order_id;
+    if (!selectedOrder.provider_payment_id) {
+      throw new Error("Pedido sem pagamento Asaas para reembolso.");
+    }
     await auditRefund({
       action: "refund.requested",
       actorUserId,
@@ -214,54 +215,178 @@ export const requestFullRefund = async ({
       orderId,
     });
     await client.query("commit");
+    return {
+      amountInCents: selectedOrder.amount_in_cents,
+      externalReference: selectedOrder.external_id,
+      providerPaymentId: selectedOrder.provider_payment_id,
+      refundRequestId: reservation.rows[0].id,
+    };
   } catch (error) {
     await client.query("rollback");
     throw error;
   } finally {
     client.release();
   }
+};
 
+const getSafeRefundErrorCode = (error: unknown): string => {
+  if (error instanceof AsaasGatewayError) {
+    return error.providerCode ?? `asaas_refund_${error.kind}`;
+  }
+  if (
+    error instanceof Error &&
+    error.message === "asaas_refund_invalid_result"
+  ) {
+    return error.message;
+  }
+  return "asaas_refund_unknown_outcome";
+};
+
+const persistRefundFailure = async ({
+  actorUserId,
+  error,
+  orderId,
+  pool,
+  refundRequestId,
+}: {
+  actorUserId: string;
+  error: unknown;
+  orderId: string;
+  pool: Pool;
+  refundRequestId: string;
+}): Promise<void> => {
+  const rejected =
+    error instanceof AsaasGatewayError && error.outcome === "rejected";
+  const status = rejected ? "failed" : "uncertain";
+  const failureClient = await pool.connect();
   try {
-    const response = await getAbacatePayClient().refundCheckout({
-      checkoutId: providerOrderId,
-      reason: reason.trim(),
-    });
-    await pool.query(
+    await failureClient.query("begin");
+    const transition = await failureClient.query<{ id: string }>(
       `
         update refund_requests
-        set provider_refund_id = $2,
+        set status = '${status}',
+            error_message = $2,
             updated_at = now()
-        where order_id = $1
+        where id = $1 and status = 'processing'
+        returning id
       `,
-      [orderId, response.refundPublicId]
+      [refundRequestId, getSafeRefundErrorCode(error)]
     );
-  } catch (error) {
-    const failureClient = await pool.connect();
-    try {
-      await failureClient.query("begin");
-      await failureClient.query(
-        `
-          update refund_requests
-          set status = 'failed',
-              error_message = $2,
-              updated_at = now()
-          where order_id = $1
-        `,
-        [orderId, error instanceof Error ? error.message : "Erro desconhecido"]
-      );
+    if (transition.rows[0]) {
       await auditRefund({
-        action: "refund.failed",
+        action: rejected ? "refund.rejected" : "refund.uncertain",
         actorUserId,
         client: failureClient,
         orderId,
       });
-      await failureClient.query("commit");
-    } catch (failureError) {
-      await failureClient.query("rollback");
-      throw failureError;
-    } finally {
-      failureClient.release();
+    } else {
+      const current = await failureClient.query<{ status: string }>(
+        "select status from refund_requests where id = $1",
+        [refundRequestId]
+      );
+      if (current.rows[0]?.status === "confirmed") {
+        await failureClient.query("commit");
+        return;
+      }
     }
-    throw error;
+    await failureClient.query("commit");
+  } catch (failureError) {
+    await failureClient.query("rollback");
+    throw failureError;
+  } finally {
+    failureClient.release();
+  }
+  throw new Error(
+    rejected
+      ? "Solicitacao de reembolso rejeitada pelo Asaas."
+      : "Resultado do reembolso pendente de conciliacao."
+  );
+};
+
+export const requestFullRefund = async ({
+  actorUserId,
+  confirmationToken,
+  gateway = getAsaasProviderClient(),
+  orderId,
+  reason,
+  typedOrderId,
+}: RefundRequestInput): Promise<void> => {
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("Informe o motivo do estorno.");
+  }
+  if (typedOrderId.trim() !== orderId) {
+    throw new Error("A confirmacao digitada do pedido nao confere.");
+  }
+
+  const pool = getPool();
+  const reserved = await reserveRefund({
+    actorUserId,
+    client: await pool.connect(),
+    confirmationToken,
+    orderId,
+    reason: normalizedReason,
+  });
+  try {
+    const response = await gateway.refundPayment({
+      description: normalizedReason,
+      paymentId: reserved.providerPaymentId,
+    });
+    const evidence =
+      response.id === reserved.providerPaymentId
+        ? findExactRefundEvidence(response, reserved.amountInCents)
+        : undefined;
+    if (
+      !evidence ||
+      response.externalReference !== reserved.externalReference
+    ) {
+      throw new Error("asaas_refund_invalid_result");
+    }
+    const persisted = await pool.query<{ id: string }>(
+      `update refund_requests
+       set status = 'processing',
+           provider_refund_status = $2,
+           provider_refund_created_at = $3,
+           provider_refund_end_to_end_id = $4,
+           provider_refund_receipt_url = $5,
+           provider_refunded_amount_in_cents = $6,
+           error_message = null,
+           updated_at = now()
+       where id = $1 and status = 'processing'
+       returning id`,
+      [
+        reserved.refundRequestId,
+        evidence.status,
+        evidence.dateCreated,
+        evidence.endToEndIdentifier ?? null,
+        evidence.transactionReceiptUrl ?? null,
+        evidence.valueInCents,
+      ]
+    );
+    if (!persisted.rows[0]) {
+      const current = await pool.query<{ status: string }>(
+        "select status from refund_requests where id = $1",
+        [reserved.refundRequestId]
+      );
+      if (current.rows[0]?.status !== "confirmed") {
+        throw new Error("asaas_refund_invalid_result");
+      }
+    }
+  } catch (error) {
+    await persistRefundFailure({
+      actorUserId,
+      error,
+      orderId,
+      pool,
+      refundRequestId: reserved.refundRequestId,
+    });
   }
 };
+
+const findExactRefundEvidence = (
+  payment: AsaasPayment,
+  expectedAmountInCents: number
+): AsaasRefundEvidence | undefined =>
+  payment.refunds.find(
+    (refund) => refund.valueInCents === expectedAmountInCents
+  );

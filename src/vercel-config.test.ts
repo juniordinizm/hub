@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const cronRoutes = [
+  ["asaas-webhooks", 300],
   ["enrollments", 800],
   ["jmvstream", 300],
   ["outbox", 300],
@@ -15,6 +16,14 @@ describe("Vercel cron configuration", () => {
 
     expect(source).toContain('"node_modules/sharp/**/*"');
     expect(source).toContain('"node_modules/@img/sharp-*/**/*"');
+  });
+
+  it("disables Sentry release and source-map uploads in isolated E2E builds", async () => {
+    const source = await readFile("next.config.ts", "utf8");
+
+    expect(source).toContain('process.env.E2E_TEST_MODE === "true"');
+    expect(source).toContain('isE2eTest ? "" : process.env.SENTRY_AUTH_TOKEN');
+    expect(source).toContain("isE2eTest || !process.env.SENTRY_AUTH_TOKEN");
   });
 
   it("runs database-backed functions in the same region as production Neon", async () => {
@@ -37,6 +46,17 @@ describe("Vercel cron configuration", () => {
     expect(config.crons).toContainEqual({
       path: "/api/cron/jmvstream",
       schedule: "*/5 * * * *",
+    });
+  });
+
+  it("schedules the Asaas webhook inbox worker every minute", async () => {
+    const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
+      crons?: Array<{ path: string; schedule: string }>;
+    };
+
+    expect(config.crons).toContainEqual({
+      path: "/api/cron/asaas-webhooks",
+      schedule: "* * * * *",
     });
   });
 
