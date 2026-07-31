@@ -1,4 +1,7 @@
+import { isPaymentsCheckoutMode } from "@/lib/payments-environment";
+
 const REQUIRED_PRODUCTION_VARIABLES = [
+  "ABACATEPAY_WEBHOOK_ENABLED",
   "ABACATEPAY_WEBHOOK_SECRET",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
@@ -8,6 +11,7 @@ const REQUIRED_PRODUCTION_VARIABLES = [
   "HEALTHCHECK_SECRET",
   "JMVSTREAM_PLAN_ID",
   "NEXT_PUBLIC_APP_URL",
+  "PAYMENTS_CHECKOUT_MODE",
   "R2_ACCESS_KEY_ID",
   "R2_ACCOUNT_ID",
   "R2_BUCKET_NAME",
@@ -110,6 +114,22 @@ export const getProductionEnvironmentProblems = (
     if (!requirement.keys.some((key) => hasValue(environment, key))) {
       problems.push(requirement.label);
     }
+  }
+
+  if (
+    hasValue(environment, "ABACATEPAY_WEBHOOK_ENABLED") &&
+    !["true", "false"].includes(
+      environment.ABACATEPAY_WEBHOOK_ENABLED?.trim() ?? ""
+    )
+  ) {
+    problems.push("ABACATEPAY_WEBHOOK_ENABLED is invalid");
+  }
+
+  if (
+    hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
+    !isPaymentsCheckoutMode(environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? "")
+  ) {
+    problems.push("PAYMENTS_CHECKOUT_MODE is invalid");
   }
 
   problems.push(...getUrlProblems(environment));

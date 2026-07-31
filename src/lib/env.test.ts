@@ -28,6 +28,25 @@ describe("server environment", () => {
     );
   });
 
+  it("defaults checkout to public in Development", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("PAYMENTS_CHECKOUT_MODE", undefined);
+    setEnv("VERCEL_ENV", undefined);
+
+    expect(getServerEnv().PAYMENTS_CHECKOUT_MODE).toBe("public");
+  });
+
+  it.each([
+    "development",
+    "test",
+  ] as const)("keeps the legacy AbacatePay webhook enabled by default in %s", (nodeEnvironment) => {
+    setEnv("ABACATEPAY_WEBHOOK_ENABLED", undefined);
+    setEnv("NODE_ENV", nodeEnvironment);
+    setEnv("VERCEL_ENV", undefined);
+
+    expect(getServerEnv().ABACATEPAY_WEBHOOK_ENABLED).toBe(true);
+  });
+
   it("requires an explicit auth secret in production", () => {
     setEnv("NODE_ENV", "production");
     setEnv("BETTER_AUTH_SECRET", "");
@@ -75,6 +94,8 @@ describe("server environment", () => {
     expect(env.CERTIFICATE_PUBLIC_BASE_URL).toBe(
       "https://hub-git-feature-neuro-capacitar.vercel.app"
     );
+    expect(env.ABACATEPAY_WEBHOOK_ENABLED).toBe(false);
+    expect(env.PAYMENTS_CHECKOUT_MODE).toBe("disabled");
   });
 
   it("rejects provider credentials in Vercel Preview", () => {

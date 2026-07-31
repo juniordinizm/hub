@@ -59,6 +59,8 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `ABACATEPAY_API_KEY` | alias legado | cliente AbacatePay | sim |
 | `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
 | `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
+| `ABACATEPAY_WEBHOOK_ENABLED` | obrigatória em Production; `false` na contenção e em Preview; default `true` em Development/test | kill switch do webhook legado | não |
+| `PAYMENTS_CHECKOUT_MODE` | obrigatória em Production; `disabled` na contenção e em Preview; default `public` em Development/test | entradas pública e autenticada de checkout | não |
 | `DEVELOPMENT_ABACATEPAY_DEV_MODE` | preflight Development | confirmação de chave devMode | não |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
@@ -112,8 +114,10 @@ origem. Production exige as três explicitamente e usa
 Standard Deployment Protection. O bypass de automação é usado somente pelo
 smoke da CI e não torna a URL pública. O projeto Vercel precisa manter habilitada
 a exposição automática de variáveis de sistema. O perfil Preview exige somente
-Neon pooled, autenticação e readiness próprios, mantém jobs desligados e recusa
-credenciais de providers.
+Neon pooled, autenticação e readiness próprios, mantém jobs desligados, normaliza
+`PAYMENTS_CHECKOUT_MODE=disabled` e `ABACATEPAY_WEBHOOK_ENABLED=false` e recusa
+credenciais de providers. Production exige as duas variáveis de contenção
+explicitamente; a Release A usa `disabled` e `false`, respectivamente.
 `DATABASE_URL` aceita somente os protocolos `postgres:` e `postgresql:`.
 Segredos emitidos por provedores externos seguem o contrato do provedor; o
 limite local de 32 caracteres vale somente para os segredos próprios de

@@ -3,6 +3,7 @@ import { getProductionEnvironmentProblems } from "./production-environment";
 
 const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   ABACATEPAY_API_KEY: "payment-key",
+  ABACATEPAY_WEBHOOK_ENABLED: "false",
   ABACATEPAY_WEBHOOK_SECRET: "webhook-secret-at-least-thirty-two-characters",
   BETTER_AUTH_SECRET: "auth-secret-at-least-thirty-two-characters",
   BETTER_AUTH_URL: "https://app.example.com",
@@ -13,6 +14,7 @@ const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   JMVSTREAM_AUTH_RESOURCE: "resource-id",
   JMVSTREAM_PLAN_ID: "plan-id",
   NEXT_PUBLIC_APP_URL: "https://app.example.com",
+  PAYMENTS_CHECKOUT_MODE: "disabled",
   R2_ACCESS_KEY_ID: "r2-key",
   R2_ACCOUNT_ID: "r2-account",
   R2_BUCKET_NAME: "private-bucket",
@@ -30,6 +32,48 @@ describe("production environment contract", () => {
     expect(
       getProductionEnvironmentProblems(COMPLETE_PRODUCTION_ENVIRONMENT)
     ).toEqual([]);
+  });
+
+  it("requires an explicit checkout mode in Production", () => {
+    const environment = {
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      PAYMENTS_CHECKOUT_MODE: undefined,
+    };
+
+    expect(getProductionEnvironmentProblems(environment)).toContain(
+      "PAYMENTS_CHECKOUT_MODE"
+    );
+  });
+
+  it("requires an explicit AbacatePay webhook switch in Production", () => {
+    const environment = {
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      ABACATEPAY_WEBHOOK_ENABLED: undefined,
+    };
+
+    expect(getProductionEnvironmentProblems(environment)).toContain(
+      "ABACATEPAY_WEBHOOK_ENABLED"
+    );
+  });
+
+  it("accepts only true or false for the AbacatePay webhook switch", () => {
+    const problems = getProductionEnvironmentProblems({
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      ABACATEPAY_WEBHOOK_ENABLED: "secret-invalid-value",
+    });
+
+    expect(problems).toContain("ABACATEPAY_WEBHOOK_ENABLED is invalid");
+    expect(problems.join(" ")).not.toContain("secret-invalid-value");
+  });
+
+  it("rejects an invalid checkout mode without exposing its value", () => {
+    const problems = getProductionEnvironmentProblems({
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      PAYMENTS_CHECKOUT_MODE: "secret-invalid-mode",
+    });
+
+    expect(problems).toContain("PAYMENTS_CHECKOUT_MODE is invalid");
+    expect(problems.join(" ")).not.toContain("secret-invalid-mode");
   });
 
   it("reports missing capabilities by variable name without values", () => {

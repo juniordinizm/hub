@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveCanonicalApplicationEnvironment } from "@/lib/application-origin";
+import { PAYMENTS_CHECKOUT_MODES } from "@/lib/payments-environment";
 import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 
@@ -18,6 +19,9 @@ const serverEnvSchema = z.object({
     .url()
     .default("https://api.abacatepay.com/v2"),
   ABACATEPAY_API_KEY: optionalNonEmptyString,
+  ABACATEPAY_WEBHOOK_ENABLED: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true"),
   ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
   ABACATE_PAY_API_KEY: optionalNonEmptyString,
   AUTH_PUBLIC_SIGNUP_ENABLED: z
@@ -56,6 +60,7 @@ const serverEnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
+  PAYMENTS_CHECKOUT_MODE: z.enum(PAYMENTS_CHECKOUT_MODES),
   RESEND_API_KEY: optionalNonEmptyString,
   RESEND_FROM_EMAIL: z
     .string()
@@ -170,6 +175,7 @@ export const getServerEnv = () => {
     ...process.env,
     ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
     ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
+    ABACATEPAY_WEBHOOK_ENABLED: process.env.ABACATEPAY_WEBHOOK_ENABLED,
     ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
     ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
     AUTH_PUBLIC_SIGNUP_ENABLED: process.env.AUTH_PUBLIC_SIGNUP_ENABLED,
@@ -196,6 +202,7 @@ export const getServerEnv = () => {
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NODE_ENV: process.env.NODE_ENV,
+    PAYMENTS_CHECKOUT_MODE: process.env.PAYMENTS_CHECKOUT_MODE,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SENTRY_DSN: process.env.SENTRY_DSN,
@@ -208,7 +215,16 @@ export const getServerEnv = () => {
   };
   const sourceEnvironment =
     resolveCanonicalApplicationEnvironment(rawEnvironment);
-  const env = serverEnvSchema.parse(sourceEnvironment);
+  const environmentWithRuntimeDefaults = {
+    ...sourceEnvironment,
+    ABACATEPAY_WEBHOOK_ENABLED:
+      sourceEnvironment.ABACATEPAY_WEBHOOK_ENABLED ??
+      (sourceEnvironment.VERCEL_ENV === "preview" ? "false" : "true"),
+    PAYMENTS_CHECKOUT_MODE:
+      sourceEnvironment.PAYMENTS_CHECKOUT_MODE ??
+      (sourceEnvironment.VERCEL_ENV === "preview" ? "disabled" : "public"),
+  };
+  const env = serverEnvSchema.parse(environmentWithRuntimeDefaults);
 
   validateServerEnvironment(env, rawEnvironment);
 

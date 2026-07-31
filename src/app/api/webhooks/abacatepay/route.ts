@@ -13,11 +13,16 @@ import {
 import { observeOperation } from "@/lib/observe-operation";
 
 export const POST = async (request: Request) => {
+  const env = getServerEnv();
+
+  if (!env.ABACATEPAY_WEBHOOK_ENABLED) {
+    return new Response(null, { status: 204 });
+  }
+
   const correlationId = createCorrelationId(
     request.headers.get(CORRELATION_ID_HEADER)
   );
   const rawBody = await request.text();
-  const env = getServerEnv();
   const url = new URL(request.url);
   const receivedSecret =
     url.searchParams.get("webhookSecret") ??
