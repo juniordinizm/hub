@@ -21,6 +21,9 @@ describe("Vercel deployment contract", () => {
   it("builds remotely and smokes an isolated preview only after every CI gate", async () => {
     const source = await readFile(".github/workflows/ci.yml", "utf8");
     const previewJob = source.slice(source.indexOf("  vercel-preview:"));
+    const deploymentSteps = previewJob.slice(
+      previewJob.indexOf("- name: Build and deploy isolated Preview")
+    );
 
     expect(source).toContain("needs: build-and-knip");
     expect(source).toContain(
@@ -39,7 +42,8 @@ describe("Vercel deployment contract", () => {
     expect(previewJob).toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
     expect(previewJob.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(1);
     expect(previewJob).toContain("HEALTHCHECK_SECRET");
-    expect(previewJob).not.toContain("DATABASE_URL_DIRECT");
+    expect(previewJob).toContain("DATABASE_URL_DIRECT");
+    expect(deploymentSteps).not.toContain("DATABASE_URL_DIRECT");
     expect(previewJob).not.toContain("R2_SECRET_ACCESS_KEY");
     expect(previewJob).not.toContain("RESEND_API_KEY");
   });
