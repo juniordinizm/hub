@@ -142,11 +142,9 @@ O workflow `Migrate Neon development` deve ser executado apenas na `main`, depoi
 da CI verde, e somente quando o merge contiver migration. Sua concorrência não
 cancela uma migration em andamento.
 
-Limitação conhecida: o Preview persistente não recebe migrations de PR, mas sua
-readiness exige a migration mais recente do journal. A próxima migration pode
-bloquear a CI antes de o workflow Development ser elegível. Não aplique SQL
-manualmente nem faça merge vermelho; siga o
-[tutorial de release](production-release-guide.md).
+O Preview persistente não recebe migrations de PR. Cada candidato da CI cria
+uma branch Neon efêmera, aplica nela a cadeia validada e a injeta somente no
+deployment daquele run. Não aplique SQL manualmente em `vercel-preview`.
 
 ### Vercel
 
@@ -159,15 +157,16 @@ furar a fila, e habilitá-lo torna os minutos da máquina Standard cobrados. Ess
 configuração de infraestrutura é independente do grupo de concorrência do
 workflow Production, que continua impedindo duas releases simultâneas.
 
-Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
-`BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
+Preview recebe `BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
 `CLIENT_IP_SOURCE=x-forwarded-for`, `AUTH_PUBLIC_SIGNUP_ENABLED=false` e
 `SCHEDULED_JOBS_ENABLED=false`. As variáveis de sistema da Vercel devem estar
 expostas; a origem prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` nos
 deployments criados pela CLI sem alias de branch.
 
-O workflow Preview não promove migrations de PR para essa branch persistente.
-Integração PostgreSQL e E2E validam o schema novo em branches descartáveis.
+`DATABASE_URL` continua configurada para a branch persistente como fallback de
+infraestrutura, mas o workflow substitui o valor somente no deployment candidato
+pela URL pooled da branch efêmera migrada. Integração PostgreSQL, E2E e Preview
+usam três branches descartáveis distintas e as removem ao terminar.
 
 Os valores abaixo pertencem a Production:
 

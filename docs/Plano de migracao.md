@@ -1305,7 +1305,14 @@ adapter foram aprovadas.
   lock; em `0052`, o mesmo comando é no-op. O gate completo posterior passou com
   215 arquivos/1.323 testes, typecheck, Ultracite em 625 arquivos, 32 documentos,
   migrations, build e Knip. Nenhuma branch persistente foi alterada; a prova remota
-  ainda depende do próximo run do PR.
+  confirmou quality gates, preparação/migration efêmera, 20 testes PostgreSQL, 24
+  jornadas Chromium, exclusão das branches e build/Knip. O candidato Vercel foi
+  construído, mas seu readiness retornou `503`: ele ainda apontava para a branch
+  persistente `vercel-preview` em `0043`, incompatível com o marcador `0052`.
+  O bloqueio operacional já documentado foi então removido no pipeline: Preview
+  também cria uma branch Neon efêmera própria, prepara/migra, substitui
+  `DATABASE_URL` somente naquele deployment, executa o smoke e apaga a branch em
+  passo `always()`. Essa correção aguarda o próximo run remoto.
 
 **Rollback:**
 

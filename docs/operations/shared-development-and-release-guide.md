@@ -536,20 +536,14 @@ quando necessário.
 
 O banco persistente `vercel-preview` também não recebe migrations de Pull
 Request. Mudanças de schema são validadas nas branches Neon descartáveis das
-jobs PostgreSQL e E2E. Quando a revisão manual depender do schema novo, use uma
-branch Neon temporária; nunca aplique migration de PR no Preview compartilhado.
-
-Há uma limitação operacional adicional: o marcador de readiness acompanha o
-topo do journal, então uma migration nova pode deixar o Preview vermelho antes
-que `Migrate Neon development` esteja autorizado a rodar. Esse workflow aceita
-somente a `main` com CI verde. Não contorne o ciclo com migration manual ou merge
-vermelho; siga a seção de migration do
-[tutorial de release](production-release-guide.md) e escale o caso.
+jobs PostgreSQL, E2E e Preview. A última cria uma branch própria, migra, injeta
+sua URL somente no deployment candidato, executa readiness e apaga a branch.
+Quando a revisão manual depender do schema novo, use outra branch Neon
+temporária; nunca aplique migration de PR no Preview compartilhado.
 
 ### 5. Sincronizar o banco Development depois do merge
 
-Quando o Pull Request contiver migration e o pipeline tiver sido liberado sem o
-bloqueio de Preview descrito acima, aguarde a CI verde do commit final da
+Quando o Pull Request contiver migration, aguarde a CI verde do commit final da
 `main`. Depois, no GitHub:
 
 1. abra **Actions**;

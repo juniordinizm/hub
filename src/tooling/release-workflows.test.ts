@@ -94,11 +94,11 @@ describe("Production cleanup workflow", () => {
 });
 
 describe("CI workflow", () => {
-  it("prepares inherited data only inside each ephemeral Neon branch", () => {
+  it("prepares inherited data only inside the three ephemeral Neon branches", () => {
     const workflow = readWorkflow("ci.yml");
 
-    expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
-    expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
+    expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(3);
+    expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(3);
     expect(workflow).toContain(
       `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
     );
@@ -114,5 +114,32 @@ describe("CI workflow", () => {
       expect(prepare).toBeGreaterThan(jobStart);
       expect(migrate).toBeGreaterThan(prepare);
     }
+  });
+
+  it("deploys Preview against a migrated ephemeral database and always deletes it", () => {
+    const workflow = readWorkflow("ci.yml");
+    const previewJob = workflow.slice(workflow.indexOf("vercel-preview:"));
+
+    expect(previewJob).toContain(
+      `branch_name: ci-preview-${githubExpression(
+        "github.run_id"
+      )}-${githubExpression("github.run_attempt")}`
+    );
+    expect(previewJob).toContain("bun run db:prepare:ci-migration");
+    expect(previewJob).toContain("bun run db:migrate:e2e");
+    expect(previewJob).toContain(
+      `PREVIEW_DATABASE_URL: ${githubExpression(
+        "steps.neon.outputs.db_url_pooled"
+      )}`
+    );
+    expect(previewJob).toContain(
+      `--env "DATABASE_URL=${shellVariable("PREVIEW_DATABASE_URL")}"`
+    );
+    expect(previewJob).toContain(
+      "if: always() && steps.neon.outputs.branch_id != ''"
+    );
+    expect(previewJob).toContain(
+      `branch: ${githubExpression("steps.neon.outputs.branch_id")}`
+    );
   });
 });

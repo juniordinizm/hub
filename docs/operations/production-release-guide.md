@@ -168,33 +168,23 @@ bun run db:migrate:production
 
 Também não edite o journal ou snapshot JSON manualmente.
 
-### Limitação atual do pipeline para migration nova
+### Preview de uma migration nova
 
-Em 2026-07-27 existe um bloqueio conhecido:
-
-1. o marcador de readiness precisa acompanhar a migration mais recente;
-2. o Preview Vercel usa a branch persistente `vercel-preview`;
-3. essa branch não recebe migrations do Pull Request;
-4. `Migrate Neon development` só aceita o código já integrado na `main` com CI
-   verde;
-5. o Preview pode falhar antes de a CI ficar verde porque seu banco ainda não
-   contém a migration nova.
-
-Consequência: uma alteração com migration nova não possui hoje um caminho
-autônomo seguro para um desenvolvedor júnior.
+O bloqueio histórico entre readiness e a branch persistente `vercel-preview`
+foi removido em 2026-07-31. O candidato Preview agora cria uma terceira branch
+Neon efêmera, valida o estado herdado, aplica as migrations do PR e substitui
+`DATABASE_URL` somente naquele deployment. O smoke autenticado roda antes do
+passo `always()` que apaga a branch; expiração de 24 horas cobre cancelamentos.
 
 Se o Pull Request contém migration:
 
-- deixe os testes PostgreSQL e E2E da CI validarem a migration em branches
-  efêmeras;
-- não aplique a migration manualmente em `vercel-preview`, `development` ou
+- deixe integração PostgreSQL, E2E e Preview validarem três branches efêmeras
+  independentes;
+- não aplique migration manualmente em `vercel-preview`, `development` ou
   `production`;
-- não faça merge ignorando o Preview vermelho;
-- pare a release e solicite ao responsável de engenharia a correção do pipeline
-  ou um procedimento extraordinário revisado.
-
-Isso é um bloqueio operacional conhecido, não um erro que deve ser contornado.
-Releases sem migration seguem normalmente pelas próximas etapas.
+- não reutilize o deployment candidato para revisão posterior, pois seu banco
+  é deliberadamente removido depois do gate;
+- não faça merge enquanto qualquer gate estiver vermelho.
 
 ## Etapa 4: executar a verificação completa
 

@@ -33,30 +33,26 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
 contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
-`vercel-preview` só inicia depois de todos esses gates.
+`vercel-preview` só inicia depois de todos esses gates, com uma terceira branch Neon.
 
 O deployment Preview é deliberadamente um smoke de infraestrutura: usa a
-branch Neon sanitizada, valida build/runtime e executa somente readiness
+branch Neon efêmera criada pela própria job, prepara dados legados, aplica as
+migrations, injeta sua URL pooled apenas naquele deployment, valida build/runtime
+e executa somente readiness
 autenticada. Não recebe R2, Resend, Asaas ou JMVStream e não substitui as
 jornadas funcionais do Playwright. A validação do ambiente bloqueia o
 deployment se credenciais desses providers ou jobs habilitados aparecerem em
 Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
 preferido quando existe alias de branch; o segundo é o hostname disponível nos
 deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
-o bypass de automação.
+o bypass de automação. A branch é apagada em passo `always()` depois do smoke;
+expiração de 24 horas cobre cancelamento abrupto do runner.
 
-A branch persistente `vercel-preview` não recebe migrations de Pull Request.
-Mudanças de schema são comprovadas por `integration-db` e `e2e`, cada uma em
-branch Neon descartável já migrada. O Preview visual só representa jornadas que
-continuam compatíveis com o schema persistente; uma validação manual dependente
-do schema novo exige branch Neon temporária.
-
-O marcador de readiness é obrigado por teste a acompanhar a última entrada do
-journal. Por isso, uma migration nova pode fazer o Preview falhar contra o
-schema persistente antigo. Como `Migrate Neon development` só aceita `main` com
-CI verde, o caminho atual forma um bloqueio de promoção. Não ignore o check nem
-aplique a migration manualmente; trate o caso conforme o
-[tutorial de release](production-release-guide.md).
+A branch persistente `vercel-preview` permanece sem migrations de Pull Request
+e não é usada pelo candidato da CI. Assim, readiness acompanha o journal do
+commit sem exigir escrita em Preview, Development ou Production. O deployment
+de candidato deixa de funcionar quando sua branch descartável é removida; ele é
+evidência de gate, não ambiente compartilhado para revisão manual.
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
