@@ -176,7 +176,7 @@ suporte como `Reply-To` e alcançou o estado `delivered` no Lark.
 **Status:** concluído e comprovado remotamente em 2026-07-27.
 
 Preview será um smoke de infraestrutura com Neon sanitizado, autenticação e
-readiness próprios. Não receberá credenciais de AbacatePay, JMVStream, R2,
+readiness próprios. Não receberá credenciais de pagamento, JMVStream, R2,
 Resend ou qualquer dado de Production; jobs permanecerão desligados. A
 validação falhará fechada se esses limites forem violados. Jornadas funcionais
 continuam na CI e providers definitivos pertencem ao candidato Production.
@@ -196,7 +196,7 @@ O runtime agora possui validação Preview separada e fail-closed. Ela exige Neo
 pooled, segredos próprios de autenticação/readiness, atribuição
 `x-forwarded-for`, cadastro público desligado, jobs desligados e alias de
 branch. URLs canônicas explícitas, conexão direta, bootstrap, variáveis E2E e
-credenciais de AbacatePay, JMVStream, R2, Resend ou Sentry bloqueiam o startup.
+credenciais de pagamento, JMVStream, R2, Resend ou Sentry bloqueiam o startup.
 Production preserva seu contrato integral.
 
 `application-origin` prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` somente em
@@ -277,7 +277,7 @@ código zero e a busca final não encontrou token Vercel em nenhum arquivo novo
 ou alterado. Commit e push continuam condicionados à autorização explícita.
 
 A auditoria nominal de Production confirmou 29 variáveis no escopo correto,
-incluindo URLs canônicas, Neon pooled, Better Auth, R2, Resend, AbacatePay,
+incluindo URLs canônicas, Neon pooled, Better Auth, R2, Resend, pagamentos,
 JMVStream, Sentry, readiness e kill switch de jobs. Nenhuma URL direta Neon,
 variável E2E ou segredo de bootstrap foi encontrada no runtime. Uma busca nos
 workflows, código, configuração e documentação canônica também confirmou que

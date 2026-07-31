@@ -72,7 +72,7 @@
     "node": "24.x"
   },
   "scripts": {
-    "dev": "bun scripts/check-development-environment.ts && next dev",
+    "dev": "bun scripts/run-development.ts node --experimental-strip-types scripts/run-next-development.mts dev",
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
@@ -91,8 +91,11 @@
     "db:migrations:check": "bun scripts/check-migrations.ts",
     "db:migrations:inspect": "bun scripts/inspect-migration-state.ts",
     "db:migrate": "drizzle-kit migrate",
+    "db:prepare:ci-migration": "bun scripts/prepare-ci-migration.ts",
+    "db:migrate:e2e": "bun scripts/migrate-e2e.ts",
     "db:migrate:development": "bun scripts/migrate-development.ts",
     "db:migrate:production": "bun scripts/migrate-production.ts",
+    "db:cleanup:production": "bun scripts/cleanup-production-test-data.ts",
     "db:push": "drizzle-kit push",
     "db:reset": "bun scripts/reset-local-database.ts",
     "db:reset:local": "bun scripts/reset-local-database.ts",

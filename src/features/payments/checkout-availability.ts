@@ -1,6 +1,5 @@
-import type { PaymentsCheckoutMode } from "@/lib/payments-environment";
-
 export type CheckoutEntry = "authenticated" | "public";
+export type PaymentsCheckoutMode = "authenticated" | "disabled" | "public";
 
 export class CheckoutUnavailableError extends Error {
   constructor() {

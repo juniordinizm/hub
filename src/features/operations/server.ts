@@ -7,6 +7,11 @@ export interface OperationalBacklogSnapshot {
     oldestReadyAt: Date | null;
     ready: number;
   };
+  payments: {
+    uncertainCheckouts: number;
+    uncorrelatedOrders: number;
+    uncertainRefunds: number;
+  };
   videos: {
     oldestPendingAt: Date | null;
     pending: number;
@@ -14,6 +19,7 @@ export interface OperationalBacklogSnapshot {
   webhooks: {
     failed: number;
     oldestFailedAt: Date | null;
+    ready: number;
   };
 }
 
@@ -23,8 +29,12 @@ interface OperationalBacklogRow {
   oldest_video_at: Date | null;
   oldest_webhook_at: Date | null;
   outbox_ready: string;
+  uncertain_checkouts: string;
+  uncertain_refunds: string;
+  uncorrelated_orders: string;
   videos_pending: string;
   webhooks_failed: string;
+  webhooks_ready: string;
 }
 
 const BACKLOG_STATUSES = "'pending', 'retrying', 'processing'";
@@ -37,8 +47,12 @@ export const getOperationalBacklogSnapshot =
       (select count(*) from outbox_messages where status in (${BACKLOG_STATUSES})) as outbox_ready,
       (select min(created_at) from outbox_messages where status in (${BACKLOG_STATUSES})) as oldest_outbox_at,
       (select count(*) from outbox_messages where status = 'dead_letter') as dead_letters,
-      (select count(*) from webhook_events where provider = 'abacatepay' and status = 'failed') as webhooks_failed,
-      (select min(created_at) from webhook_events where provider = 'abacatepay' and status = 'failed') as oldest_webhook_at,
+      (select count(*) from webhook_events where provider = 'asaas' and status = 'failed') as webhooks_failed,
+      (select min(created_at) from webhook_events where provider = 'asaas' and status = 'failed') as oldest_webhook_at,
+      (select count(*) from webhook_events where provider = 'asaas' and status in ('received', 'processing', 'retryable')) as webhooks_ready,
+      (select count(*) from orders where provider = 'asaas' and checkout_status = 'uncertain') as uncertain_checkouts,
+      (select count(*) from orders where provider = 'asaas' and status = 'paid' and provider_payment_id is null) as uncorrelated_orders,
+      (select count(*) from refund_requests where status = 'uncertain') as uncertain_refunds,
       (select count(*) from jmvstream_video_assets where upload_status in (${PENDING_VIDEO_STATUSES})) as videos_pending,
       (select min(updated_at) from jmvstream_video_assets where upload_status in (${PENDING_VIDEO_STATUSES})) as oldest_video_at
   `);
@@ -54,9 +68,15 @@ export const getOperationalBacklogSnapshot =
         oldestPendingAt: row?.oldest_video_at ?? null,
         pending: Number(row?.videos_pending ?? 0),
       },
+      payments: {
+        uncertainCheckouts: Number(row?.uncertain_checkouts ?? 0),
+        uncorrelatedOrders: Number(row?.uncorrelated_orders ?? 0),
+        uncertainRefunds: Number(row?.uncertain_refunds ?? 0),
+      },
       webhooks: {
         failed: Number(row?.webhooks_failed ?? 0),
         oldestFailedAt: row?.oldest_webhook_at ?? null,
+        ready: Number(row?.webhooks_ready ?? 0),
       },
     };
   };

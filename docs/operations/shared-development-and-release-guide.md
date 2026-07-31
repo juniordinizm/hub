@@ -49,7 +49,7 @@ Estado confirmado em 2026-07-27:
 - Resend Development reutiliza o domínio verificado
   `neurocapacitar.com.br`, protegido por allowlist de destinatários;
 - JMVStream reutiliza conscientemente o plano Production `OD-20912`;
-- AbacatePay usa teste e Sentry usa projeto Development separado.
+- Asaas usa Sandbox e Sentry usa projeto Development separado.
 
 ## Topologia aprovada
 
@@ -81,7 +81,7 @@ Uma credencial R2 exclusiva deve acessar somente esses dois buckets.
 Development deve permitir:
 
 - entrega real de e-mails pelo Resend;
-- checkout e webhook de teste da AbacatePay;
+- checkout e webhook de teste do Asaas Sandbox;
 - upload e processamento real de vídeo na JMVStream;
 - captura de erros reais em um projeto Sentry de Development.
 
@@ -202,52 +202,29 @@ Teste inicial:
 4. confira que o link aponta ao Development ativo;
 5. tente um destinatário fora da allowlist e confirme que o envio é bloqueado.
 
-### 4. Preparar a AbacatePay de teste
+### 4. Preparar o Asaas Sandbox
 
-Use somente o modo, conta ou chave de teste oferecido pelo painel AbacatePay.
-Nunca use a chave financeira Production localmente.
+Use somente a conta e a chave Sandbox. Nunca use a credencial financeira
+Production localmente.
 
-1. Abra o ambiente de teste da AbacatePay.
-2. Crie ou copie uma API key de teste.
-3. Crie um webhook de teste.
-4. Gere um segredo exclusivo para o webhook Development.
-5. Instale a CLI oficial AbacatePay.
-6. Autentique a CLI em Development.
-7. Encaminhe os webhooks pelo listener oficial diretamente para
-   `http://localhost:3000/api/webhooks/abacatepay`.
-8. Configure no painel as camadas de segredo/assinatura solicitadas pelo
-   provider.
-9. Não registre em logs a URL completa quando ela contiver segredo na query.
-
-```powershell
-abacatepay -l login
-abacatepay -l listen --forward-to http://localhost:3000/api/webhooks/abacatepay
-```
-
-Em outro terminal, um evento controlado pode ser disparado com:
-
-```powershell
-abacatepay -l trigger billing.paid
-```
-
-O endpoint da API continua `https://api.abacatepay.com/v2`; a API key determina
-se a chamada pertence a Development ou Production. O listener oficial elimina
-a necessidade de abrir um túnel genérico apenas para o webhook.
-
-Valores resultantes:
-
-- `ABACATE_PAY_API_KEY`;
-- `ABACATEPAY_API_BASE_URL`, mantendo o default salvo se o painel de teste não
-  fornecer outro endpoint;
-- `ABACATEPAY_WEBHOOK_SECRET`.
+1. Configure `ASAAS_API_BASE_URL=https://api-sandbox.asaas.com`.
+2. Crie ou copie uma `ASAAS_API_KEY` Sandbox.
+3. Defina um `ASAAS_USER_AGENT` estável com produto e contato técnico.
+4. Crie um webhook Sandbox para `/api/webhooks/asaas`.
+5. Gere um `ASAAS_WEBHOOK_TOKEN` exclusivo para Development.
+6. Mantenha `ASAAS_WEBHOOK_ENABLED=true` somente enquanto o pipeline Sandbox
+   estiver sob teste.
 
 Faça um checkout de valor fictício e confirme:
 
 - Pedido criado somente no banco Development;
-- webhook recebido somente pela origem Development;
+- webhook autenticado e recebido somente pela origem Development;
 - evento deduplicado em `webhook_events`;
 - Concessão e Matrícula criadas somente após evento financeiro válido;
-- nenhum produto ou pedido criado na conta Production.
+- nenhum checkout ou pagamento criado na conta Production.
+
+O contrato completo e os limites do ensaio ficam em
+[Asaas](../integrations/asaas.md).
 
 ### 5. Preparar a JMVStream Development
 
@@ -377,10 +354,11 @@ DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST=<emails-internos-separados-por-virgula>
 RESEND_FROM_EMAIL=Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>
 SUPPORT_EMAIL=<caixa-interna-de-teste>
 
-ABACATE_PAY_API_KEY=<test>
-ABACATEPAY_API_BASE_URL=https://api.abacatepay.com/v2
-ABACATEPAY_WEBHOOK_SECRET=<development>
-DEVELOPMENT_ABACATEPAY_DEV_MODE=true
+ASAAS_API_BASE_URL=https://api-sandbox.asaas.com
+ASAAS_API_KEY=<sandbox>
+ASAAS_USER_AGENT=hub-development/1.0 <contato-tecnico>
+ASAAS_WEBHOOK_TOKEN=<development>
+ASAAS_WEBHOOK_ENABLED=true
 
 JMVSTREAM_API_BASE_URL=https://api.jmvstream.com
 JMVSTREAM_AUTH_RESOURCE=<production-compartilhado>
@@ -427,7 +405,7 @@ Antes de iniciar:
 2. confira `R2_BUCKET_NAME=hub-development-private`;
 3. confira `R2_PUBLIC_BUCKET_NAME=hub-development-public`;
 4. confira que o remetente contém `Dev`;
-5. confira que a chave AbacatePay é de teste;
+5. confira que a base URL e a chave Asaas pertencem ao Sandbox;
 6. confira que o projeto Sentry é `hub-development`;
 7. confira `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true` e trate a credencial
    JMVStream como Production;
@@ -448,8 +426,8 @@ imprimir segredos. Abra `http://localhost:3000` somente depois da mensagem
 
 ## Quando outro provider precisar de uma origem pública
 
-A CLI AbacatePay encaminha webhooks sem túnel. Se outro provider exigir uma
-origem HTTPS pública, use um túnel apenas durante o teste:
+Se um provider exigir uma origem HTTPS pública, use um túnel apenas durante o
+teste:
 
 1. inicie `bun run dev`;
 2. inicie o túnel para a porta 3000;
@@ -459,7 +437,7 @@ origem HTTPS pública, use um túnel apenas durante o teste:
    `CERTIFICATE_PUBLIC_BASE_URL`;
 5. adicione a origem em `BETTER_AUTH_TRUSTED_ORIGINS`;
 6. adicione a origem exata ao CORS R2 privado;
-7. atualize o webhook de teste AbacatePay;
+7. atualize o webhook de teste do provider;
 8. reinicie `bun run dev`.
 
 Ao terminar:
@@ -552,26 +530,20 @@ No GitHub:
 8. peça revisão quando a mudança envolver autenticação, pagamento, migration,
    storage ou autorização.
 
-O Preview não testa providers. Resend, AbacatePay, JMVStream e R2 são
+O Preview não testa providers. Resend, Asaas, JMVStream e R2 são
 verificados localmente em Development e novamente no candidato Production
 quando necessário.
 
 O banco persistente `vercel-preview` também não recebe migrations de Pull
 Request. Mudanças de schema são validadas nas branches Neon descartáveis das
-jobs PostgreSQL e E2E. Quando a revisão manual depender do schema novo, use uma
-branch Neon temporária; nunca aplique migration de PR no Preview compartilhado.
-
-Há uma limitação operacional adicional: o marcador de readiness acompanha o
-topo do journal, então uma migration nova pode deixar o Preview vermelho antes
-que `Migrate Neon development` esteja autorizado a rodar. Esse workflow aceita
-somente a `main` com CI verde. Não contorne o ciclo com migration manual ou merge
-vermelho; siga a seção de migration do
-[tutorial de release](production-release-guide.md) e escale o caso.
+jobs PostgreSQL, E2E e Preview. A última cria uma branch própria, migra, injeta
+sua URL somente no deployment candidato, executa readiness e apaga a branch.
+Quando a revisão manual depender do schema novo, use outra branch Neon
+temporária; nunca aplique migration de PR no Preview compartilhado.
 
 ### 5. Sincronizar o banco Development depois do merge
 
-Quando o Pull Request contiver migration e o pipeline tiver sido liberado sem o
-bloqueio de Preview descrito acima, aguarde a CI verde do commit final da
+Quando o Pull Request contiver migration, aguarde a CI verde do commit final da
 `main`. Depois, no GitHub:
 
 1. abra **Actions**;
@@ -682,6 +654,6 @@ Antes de Production:
 `.env.example`, `playwright.config.ts`, `src/lib/env.ts`,
 `src/lib/preview-environment.ts`, `src/lib/production-environment.ts`,
 `src/features/storage/r2.ts`, `src/features/email/server.ts`,
-`src/features/payments/abacatepay-client.ts`, `src/features/jmvstream/client.ts`,
+`src/features/payments/asaas-client.ts`, `src/features/jmvstream/client.ts`,
 `src/lib/sentry-options.ts`, `src/db/migration-target.ts` e
 `scripts/migrate-development.ts`.

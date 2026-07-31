@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { getPool } from "@/db";
+import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
 import { deleteR2Objects } from "@/features/storage/r2";
 import type { E2eFixture } from "./seed-e2e";
@@ -16,6 +17,7 @@ const requireE2eMode = (): void => {
   if (!process.env.DATABASE_URL) {
     throw new Error("teardown-e2e requires DATABASE_URL.");
   }
+  assertSafeE2eDatabaseEnvironment(process.env);
 };
 
 const readFixture = async (): Promise<E2eFixture> =>

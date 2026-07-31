@@ -32,6 +32,8 @@ import {
   formatCourseWorkload,
   summarizeCoursePublicationReadiness,
 } from "@/features/courses/presentation";
+import { getCoursePurchaseLink } from "@/features/payments/course-purchase-link";
+import { getServerEnv } from "@/lib/env";
 import { route } from "@/lib/routes";
 import { CertificateTemplateEditor } from "./certificate-template-editor";
 import {
@@ -42,6 +44,7 @@ import {
 } from "./course-builder-components";
 import { CourseSettingsForm } from "./course-dialogs-client";
 import { CourseEnrollmentsTable } from "./course-enrollments-table";
+import { CoursePurchaseLink } from "./course-purchase-link";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +67,17 @@ export default async function AdminCourseDetailPage({
   }
 
   const { certificates, course, enrollments, lessons, modules, orders } = data;
+  const serverEnv = getServerEnv();
+  const purchaseLink = getCoursePurchaseLink({
+    appUrl: serverEnv.NEXT_PUBLIC_APP_URL,
+    checkoutMode: serverEnv.PAYMENTS_CHECKOUT_MODE,
+    course: {
+      hasPublishedPublication: publicationState.hasPublished,
+      priceInCents: course.priceInCents,
+      slug: course.slug,
+      status: course.status,
+    },
+  });
   modules.sort((a, b) => a.sortOrder - b.sortOrder);
   const publishedLessons = lessons.filter((lesson) => lesson.isPublished);
   const activeEnrollments = enrollments.filter(
@@ -73,7 +87,6 @@ export default async function AdminCourseDetailPage({
   const contentSignal = getAdminCourseContentSignal(contentSummary);
   const readiness = summarizeCoursePublicationReadiness({
     hasDescription: Boolean(course.description?.trim()),
-    hasPaymentProviderProductId: Boolean(course.paymentProviderProductId),
     hasThumbnail: Boolean(course.thumbnailUrl),
     moduleCount: modules.length,
     publishedLessonCount: publishedLessons.length,
@@ -309,6 +322,9 @@ export default async function AdminCourseDetailPage({
                   Dados que aparecem para o aluno e conectam o curso ao checkout
                   externo.
                 </p>
+              </div>
+              <div className="mb-6 border-b pb-6">
+                <CoursePurchaseLink link={purchaseLink} />
               </div>
               <CourseSettingsForm course={course} />
             </section>

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Arquitetura
@@ -53,12 +53,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 37 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 43 entradas alinhadas, com topo `0042_serverless_job_leases`;
+O schema possui 40 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 52 entradas alinhadas, com topo `0051_asaas_financial_statement`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
-migration `0042` foi validada em branch Neon temporária e ainda aguarda
-promoção explícita ao banco definitivo. Na Vercel, cada instância limita o pool
+migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
+`0051` foram geradas e ainda não foram aplicadas em Production. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -75,12 +75,19 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 ### Checkout e acesso
 
 1. Route Handler/Action chama `createPublicCourseCheckout` ou `createCourseCheckout`.
-2. `AbacatePayClient` cria produto e checkout; o Pedido guarda snapshots.
-3. `/api/webhooks/abacatepay` verifica segredo/assinatura e chama `processAbacatePayWebhook`.
-4. O evento é deduplicado em `webhook_events`.
-5. Transição válida atualiza Pedido e chama `applyPaidWebhookAccess` ou `applyPaymentRevocation`.
-6. Concessões são recalculadas por `rebuildEnrollmentProjection`.
-7. Conflitos geram `payment_reviews`; falhas operacionais ficam disponíveis para retry autorizado.
+2. O núcleo Asaas persiste o Pedido e seus snapshots antes da chamada externa.
+3. `/api/webhooks/asaas` autentica, limita, valida e persiste a inbox antes de `200`.
+4. O worker reivindica o evento e abre uma transação com posse exclusiva.
+5. `processAsaasWebhookEvent` correlaciona somente identificadores exatos, bloqueia o
+   Pedido e aplica a matriz financeira sobre o snapshot bloqueado.
+6. A transação persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe
+   Matrícula; ativação ou acesso liberado entram na outbox no mesmo commit.
+7. Conflitos ambíguos não escolhem Pedido e geram alerta durável sem payload ou PII.
+
+O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
+Asaas a cada minuto sob autenticação compartilhada, kill switch, lease e deadline. Isso
+não comprova deploy de Production. A migration `0044` remove a persistência específica
+do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ### Aprendizagem
 
@@ -103,7 +110,11 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 - a conclusão elegível ou emissão manual cria o Certificado `pending` e uma mensagem `certificate.render`; o worker obtém claim persistido, gera o PDF uma vez, grava o artefato privado no R2 e só então enfileira o e-mail;
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
 - download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
-- não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa limpeza técnica limitada: sessões e rate limits expirados, agregação diária de analytics e retenção de analytics brutos por 90 dias e agregados por 13 meses.
+- não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
+  limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
+  inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas
+  após 30 dias, agregação diária de analytics e retenção de analytics brutos por 90 dias
+  e agregados por 13 meses.
 
 ## Observabilidade
 
@@ -113,11 +124,16 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 ## Concorrência, idempotência e auditoria
 
-- webhooks usam chave externa e registro persistido para deduplicação;
+- webhooks usam chave externa e registro persistido para deduplicação; a inbox Asaas
+  separa recebimento do processor transacional agendado;
 - alterações críticas usam transações e locks explícitos onde implementado;
 - Pedidos e Concessões preservam IDs de origem;
-- eventos de Matrícula e `audit_logs` registram ações administrativas;
-- `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e dead letter; recuperação/ativação por senha é exceção por conter token secreto;
+- `payment_reviews.webhook_event_id` é único quando preenchido, e conflitos de correlação
+  sem Pedido seguro ficam em `audit_logs` com motivo sem PII;
+- eventos de Matrícula e `audit_logs` registram ações administrativas e operacionais;
+- `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e
+  dead letter; `auth.account-activation` persiste apenas IDs locais e cria token no
+  callback Better Auth. Recuperação pública e ativação legada continuam fora da outbox;
 - `scheduled_job_leases` impede sobreposição de uma mesma rotina entre
   instâncias serverless sem depender de sessão Postgres;
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
@@ -128,6 +144,7 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 `vercel.json` agenda:
 
+- `/api/cron/asaas-webhooks` a cada minuto;
 - `/api/cron/enrollments` diariamente às 10:00 UTC;
 - `/api/cron/jmvstream` a cada cinco minutos;
 - `/api/cron/outbox` a cada cinco minutos;
@@ -143,7 +160,7 @@ verificados externamente.
 - catálogo remoto pode divergir da cadeia local quando a promoção controlada não for executada ou auditada;
 - ausência de coortes: publicar conteúdo altera a experiência de todas as Matrículas elegíveis;
 - reversão de ajuste de expiração pode sobrescrever ajustes posteriores;
-- recuperação/ativação por senha ainda não usa outbox por token secreto;
+- recuperação pública e ativação legada permanecem fora da outbox;
 - decisões implementadas sem ratificação de produto;
 - infraestrutura e dados de produção não verificados;
 - JMVStream `gallery` no complete diverge da documentação histórica do projeto;
@@ -160,7 +177,10 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `courses/server.ts`: catálogo, acesso da aluna, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
-- `payments/provider.ts` concentra credencial/configuração do AbacatePay e URLs da aplicação; `payments/server.ts` coordena checkout autenticado, webhook, revisão e retry; `public-checkout.ts` aplica rate limit para a entrada pública. Provider e transição financeira não devem ser misturados em uma API genérica.
+- `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
+  compartilhada, `asaas-webhook-processor.ts` aplica
+  a decisão financeira e `public-checkout.ts` autoriza a entrada pública. Provider e
+  transição financeira não devem ser misturados em uma API genérica.
 - `jmvstream/server.ts` é a façade de leitura operacional e dos casos de uso ainda consumidos; `auth.ts` resolve token, `client.ts` é o contrato HTTP e `upload.ts` executa multipart no navegador. `asset-persistence.ts`, `course-folders.ts`, `upload-session.ts`, `upload-completion.ts`, `player-sync.ts`, `asset-deletion.ts` e `manual-video-sync.ts` separam persistência e lifecycle. `provider-mapper.ts` traduz o estado remoto em operação de galeria. O upload multipart direto é invariante.
 - resources de aula: autoria e player tinham regras duplicadas de extensão, tipo e tamanho. `src/features/courses/resource-presentation.ts` concentra apenas essa apresentação pura, sem importar React ou providers.
 - actions administrativas de matrícula e certificados: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.
@@ -186,8 +206,12 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 #### Acesso e comércio
 
 - **Símbolos:** `resolveCourseAccess` e `resolveLessonAccess`; concessões, projeção e ajustes de expiração; checkout autenticado/público, webhook, revisão e retry de pagamento.
-- **Consumidores:** cursos, actions administrativas, handlers de checkout e webhook AbacatePay.
-- **Invariante, transação e efeitos:** Concessão é fonte e Matrícula é projeção. O webhook deduplicado só aplica transição financeira válida; conflitos entram em revisão. O adapter AbacatePay concentra HTTP/configuração, e o rate limit pertence exclusivamente ao checkout público.
+- **Consumidores:** cursos, actions administrativas, handlers de checkout e webhook
+  Asaas.
+- **Invariante, transação e efeitos:** Concessão é fonte e Matrícula é projeção. A inbox
+  deduplicada só aplica transição financeira válida; conflitos entram em revisão. O
+  adapter Asaas concentra HTTP/configuração, e o rate limit pertence exclusivamente ao
+  checkout público.
 
 #### JMVStream e resources
 

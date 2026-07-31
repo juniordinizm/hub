@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { assertSafeE2eDatabaseEnvironment } from "../../src/db/e2e-database-guard";
 
 const getBunExecutable = (): string => {
   if (process.platform !== "win32") {
@@ -13,6 +14,7 @@ const getBunExecutable = (): string => {
 };
 
 export default async function globalTeardown(): Promise<void> {
+  assertSafeE2eDatabaseEnvironment(process.env);
   await new Promise<void>((resolveTeardown, rejectTeardown) => {
     const child = spawn(getBunExecutable(), ["run", "test:e2e:teardown"], {
       cwd: process.cwd(),

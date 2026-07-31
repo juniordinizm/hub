@@ -13,9 +13,10 @@ const COMPLETE_PREVIEW_ENVIRONMENT: Record<string, string> = {
 };
 
 const FORBIDDEN_PREVIEW_VARIABLES = [
-  "ABACATEPAY_API_KEY",
-  "ABACATEPAY_WEBHOOK_SECRET",
-  "ABACATE_PAY_API_KEY",
+  "ASAAS_API_BASE_URL",
+  "ASAAS_API_KEY",
+  "ASAAS_USER_AGENT",
+  "ASAAS_WEBHOOK_TOKEN",
   "BETTER_AUTH_URL",
   "CERTIFICATE_CONCURRENCY_DATABASE_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -117,20 +118,20 @@ describe("Preview environment contract", () => {
     ).toEqual([]);
   });
 
-  it("requires the AbacatePay webhook switch to stay false when set", () => {
+  it("rejects an enabled Asaas webhook", () => {
     expect(
       getPreviewEnvironmentProblems({
         ...COMPLETE_PREVIEW_ENVIRONMENT,
-        ABACATEPAY_WEBHOOK_ENABLED: "true",
+        ASAAS_WEBHOOK_ENABLED: "true",
       })
-    ).toContain("ABACATEPAY_WEBHOOK_ENABLED must equal false in Preview");
+    ).toContain("ASAAS_WEBHOOK_ENABLED must equal false in Preview");
   });
 
-  it("accepts an explicit disabled AbacatePay webhook switch", () => {
+  it("accepts an explicitly disabled Asaas webhook", () => {
     expect(
       getPreviewEnvironmentProblems({
         ...COMPLETE_PREVIEW_ENVIRONMENT,
-        ABACATEPAY_WEBHOOK_ENABLED: "false",
+        ASAAS_WEBHOOK_ENABLED: "false",
       })
     ).toEqual([]);
   });

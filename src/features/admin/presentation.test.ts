@@ -14,7 +14,6 @@ describe("admin presentation", () => {
     const summary = summarizeAdminCourseHealth([
       {
         hasDescription: true,
-        hasPaymentProviderProductId: true,
         hasThumbnail: true,
         id: "course-ready",
         moduleCount: 2,
@@ -25,7 +24,6 @@ describe("admin presentation", () => {
       },
       {
         hasDescription: false,
-        hasPaymentProviderProductId: false,
         hasThumbnail: true,
         id: "course-incomplete",
         moduleCount: 0,
@@ -38,12 +36,12 @@ describe("admin presentation", () => {
 
     expect(summary).toEqual({
       activeCourses: 1,
-      averageReadinessPercent: 60,
+      averageReadinessPercent: 63,
       coursesNeedingAttention: [
         {
           id: "course-incomplete",
-          missingCount: 4,
-          readinessPercent: 20,
+          missingCount: 3,
+          readinessPercent: 25,
           title: "Curso incompleto",
         },
       ],

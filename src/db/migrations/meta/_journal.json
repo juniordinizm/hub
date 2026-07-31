@@ -309,6 +309,69 @@
       "when": 1785037403006,
       "tag": "0043_staged_admin_image_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1785291113366,
+      "tag": "0044_asaas_commerce_persistence",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1785292672068,
+      "tag": "0045_asaas_refund_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1785297093161,
+      "tag": "0046_order_checkout_item_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1785297845580,
+      "tag": "0047_order_checkout_course_slug_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1785298927840,
+      "tag": "0048_asaas_public_checkout_rate_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1785354351903,
+      "tag": "0049_payment_review_webhook_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1785360028332,
+      "tag": "0050_asaas_financial_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1785360286998,
+      "tag": "0051_asaas_financial_statement",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1785424607559,
+      "tag": "0052_public_buyer_identity",
+      "breakpoints": true
     }
   ]
 }

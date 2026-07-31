@@ -33,30 +33,26 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
 contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
-`vercel-preview` só inicia depois de todos esses gates.
+`vercel-preview` só inicia depois de todos esses gates, com uma terceira branch Neon.
 
 O deployment Preview é deliberadamente um smoke de infraestrutura: usa a
-branch Neon sanitizada, valida build/runtime e executa somente readiness
-autenticada. Não recebe R2, Resend, AbacatePay ou JMVStream e não substitui as
+branch Neon efêmera criada pela própria job, prepara dados legados, aplica as
+migrations, injeta sua URL pooled apenas naquele deployment, valida build/runtime
+e executa somente readiness
+autenticada. Não recebe R2, Resend, Asaas ou JMVStream e não substitui as
 jornadas funcionais do Playwright. A validação do ambiente bloqueia o
 deployment se credenciais desses providers ou jobs habilitados aparecerem em
 Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
 preferido quando existe alias de branch; o segundo é o hostname disponível nos
 deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
-o bypass de automação.
+o bypass de automação. A branch é apagada em passo `always()` depois do smoke;
+expiração de 24 horas cobre cancelamento abrupto do runner.
 
-A branch persistente `vercel-preview` não recebe migrations de Pull Request.
-Mudanças de schema são comprovadas por `integration-db` e `e2e`, cada uma em
-branch Neon descartável já migrada. O Preview visual só representa jornadas que
-continuam compatíveis com o schema persistente; uma validação manual dependente
-do schema novo exige branch Neon temporária.
-
-O marcador de readiness é obrigado por teste a acompanhar a última entrada do
-journal. Por isso, uma migration nova pode fazer o Preview falhar contra o
-schema persistente antigo. Como `Migrate Neon development` só aceita `main` com
-CI verde, o caminho atual forma um bloqueio de promoção. Não ignore o check nem
-aplique a migration manualmente; trate o caso conforme o
-[tutorial de release](production-release-guide.md).
+A branch persistente `vercel-preview` permanece sem migrations de Pull Request
+e não é usada pelo candidato da CI. Assim, readiness acompanha o journal do
+commit sem exigir escrita em Preview, Development ou Production. O deployment
+de candidato deixa de funcionar quando sua branch descartável é removida; ele é
+evidência de gate, não ambiente compartilhado para revisão manual.
 
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
@@ -86,12 +82,31 @@ Antes da primeira execução remota, configure no repositório GitHub:
 
 Não use o projeto Neon de produção, sua URL de conexão ou uma chave com escopo de produção.
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
-mascarados, usadas para `db:migrate`, integração e E2E.
+mascarados, usadas pelos migradores, integração e E2E.
 
-Antes de rodar integração ou E2E, cada job tenta `db:migrate` até cinco vezes,
-com espera limitada entre tentativas. A criação de uma branch não garante que o
-compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A
-quinta falha preserva o erro do migrador e bloqueia os gates seguintes.
+Antes de rodar integração ou E2E, cada job tenta seu migrador até cinco vezes,
+com espera limitada entre tentativas. Integração usa `db:migrate`; E2E usa
+`db:migrate:e2e`, com `DATABASE_URL`, `DATABASE_URL_DIRECT` e `E2E_DATABASE_URL`
+fixadas na mesma URL direta descartável. A criação de uma branch não garante que
+o compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A quinta falha
+preserva o erro do migrador e bloqueia os gates seguintes.
+
+Quando a branch-pai ainda está em `0043`, ela contém os Pedidos de teste legados que
+`0046` deliberadamente não converte. Por isso, as duas jobs executam
+`db:prepare:ci-migration` antes do migrador. O preparador exige `CI=true`, o ID devolvido
+pela action Neon, URLs direta e runtime idênticas, host Neon diferente do compute
+Production conhecido e journal exatamente com 44 entradas até `0043`. Somente então
+executa `truncate table public.orders cascade` em transação e sob advisory lock. Esse
+passo existe exclusivamente para clones efêmeros; não é um comando de limpeza de
+Development ou Production. Se a branch-pai já estiver exatamente em `0052`, o comando
+não altera dados; qualquer journal intermediário, anterior ou posterior falha fechado.
+
+O teste PostgreSQL real do worker Asaas depende de
+`CERTIFICATE_CONCURRENCY_DATABASE_URL`. Em 2026-07-29, a Etapa 9 executou essa prova na
+branch Neon descartável `br-autumn-mouse-ac9ti4dr`: 20 testes de integração passaram,
+incluindo claim concorrente, rollback, perda de ownership, esgotamento de tentativas e
+sanitização. Testes unitários da rota, worker e processor continuam complementares, não
+substitutos dessa prova transacional.
 
 ### Paridade de ambiente
 
@@ -112,6 +127,23 @@ Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, co
 efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
+As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
+quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
+`E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
+A configuração executa a guarda fail-closed antes do `globalSetup`; setup, seed e teardown
+repetem a mesma validação. Processos mutadores exigem igualdade exata entre `DATABASE_URL` e
+`E2E_DATABASE_URL`, protocolo PostgreSQL e alvo diferente do compute Production conhecido.
+O migrador E2E também fixa `DATABASE_URL_DIRECT` no mesmo alvo antes de carregar a
+configuração Drizzle, impedindo que `.env.local` selecione outra branch.
+
+O Playwright também inicia `scripts/e2e-asaas.ts` em `127.0.0.1:4570`. Esse servidor
+determinístico atende somente criação de Checkout, leitura do cliente fixture e página
+hospedada; não imprime corpo, token, nome ou e-mail. A jornada financeira
+envia webhook autenticado, executa o cron real e consulta o resultado usando exclusivamente
+`E2E_DATABASE_URL`. Duplicar o mesmo evento deve manter um Pedido, uma Concessão e uma
+ativação. As asserções também comprovam Conta não verificada, Perfil Student, Matrícula
+ativa única, preservação da identidade da sessão no checkout autenticado e reuso do mesmo
+UUID/Checkout após remount com `sessionStorage`.
 
 Em CI, `scripts/e2e-next-server.ts` replica stdout/stderr do build e do processo Next para
 `test-results/next-server.log`. O arquivo vai junto ao artefato privado do Playwright inclusive
@@ -139,6 +171,10 @@ As jornadas atuais verificam:
 - bloqueio de sequência, conclusão persistida e avanço;
 - fronteira Admin/Aluna;
 - erro seguro de checkout sem provedor configurado;
+- handoff público sem formulário, checkout Asaas fake, identidade pós-evento, idempotência,
+  callbacks e bloqueios de Conta ativa, revogada, bloqueada ou de equipe;
+- colisões pós-pagamento da compra anônima com Conta bloqueada ou de equipe: Pedido pago,
+  revisão `buyer_identity` pendente e zero Concessão, Matrícula ou outbox de acesso;
 - certificado público válido e revogado;
 - foco de teclado no formulário e navegação da sidebar;
 - alertas seguros para falha simulada de leitura, material R2 indisponível e
@@ -184,11 +220,11 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Risco | Evidência principal |
 |---|---|
 | Identidade e RBAC | `auth-policy.test.ts`, `trusted-origins.test.ts`, E2E login/Admin |
-| Pagamento e webhook | `abacatepay*.test.ts`, `public-checkout.test.ts`, E2E checkout seguro |
+| Pagamento e webhook | `asaas*.test.ts`, `public-checkout.test.ts`, E2E checkout seguro |
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
 | Certificado | `certificates/rules.test.ts`, integração concorrente, E2E público |
-| Efeitos transacionais | `outbox/*.test.ts`, integração PostgreSQL de locks e emissão de certificado |
+| Efeitos transacionais | `outbox/*.test.ts`, worker da inbox Asaas e integração PostgreSQL de locks, rollback e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
 | Páginas críticas | jornadas Chromium de login, painel, Aula, checkout e certificado |
@@ -278,7 +314,10 @@ bun run verify
 O perfil rápido executa migrations check, typecheck, estilo e testes. O perfil
 completo acrescenta documentação, build e Knip. Ambos são fail-fast. O gate
 local de build reproduz a configuração sintética da CI com origem `.invalid` e
-segredo descartável para as variáveis mínimas exigidas pela compilação.
+segredo descartável para as variáveis mínimas exigidas pela compilação. O gate
+Knip também recebe `DATABASE_URL` e `E2E_DATABASE_URL` iguais, sintéticas e sob
+host `.invalid`, apenas para carregar `playwright.config.ts`; ele não abre conexão
+nem reutiliza banco real.
 
 E2E e integração requerem uma branch Neon ou banco descartável já migrado, nunca um banco
 compartilhado. A CI é o caminho recomendado até existir um procedimento local isolado equivalente.

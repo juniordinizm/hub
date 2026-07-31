@@ -15,9 +15,19 @@ const { Resend, send } = vi.hoisted(() => {
 vi.mock("server-only", () => ({}));
 vi.mock("resend", () => ({ Resend }));
 
-import { sendTransactionalEmail } from "./server";
+import { deriveAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
+import { sendPasswordResetEmail, sendTransactionalEmail } from "./server";
 
 const ORIGINAL_ENV = { ...process.env };
+const VALID_ACTIVATION_IDEMPOTENCY_KEY =
+  deriveAccountActivationEmailIdempotencyKey({
+    authSecret: "auth-secret",
+    outboxIdempotencyKey: "auth.account-activation/order-1/v1",
+  });
+const TAMPERED_ACTIVATION_IDEMPOTENCY_KEY = `${VALID_ACTIVATION_IDEMPOTENCY_KEY.slice(
+  0,
+  -1
+)}${VALID_ACTIVATION_IDEMPOTENCY_KEY.endsWith("0") ? "1" : "0"}`;
 
 describe("transactional email", () => {
   afterEach(() => {
@@ -102,9 +112,95 @@ describe("transactional email", () => {
     });
   });
 
+  it("forwards an activation idempotency key from password reset email", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendPasswordResetEmail({
+      idempotencyKey:
+        "auth-account-activation-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      resetUrl: "https://auth.example.test/reset/token",
+      to: "student@example.com",
+      userName: "Student",
+    });
+
+    expect(send).toHaveBeenCalledWith(expect.any(Object), {
+      idempotencyKey:
+        "auth-account-activation-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    });
+  });
+
+  it("treats an activation payload conflict as an already accepted email", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.BETTER_AUTH_SECRET = "auth-secret";
+    send.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Idempotency key reused with a different payload",
+        name: "invalid_idempotent_request",
+      },
+    });
+
+    await expect(
+      sendPasswordResetEmail({
+        idempotencyKey: VALID_ACTIVATION_IDEMPOTENCY_KEY,
+        resetUrl: "https://auth.example.test/reset/new-token",
+        to: "student@example.com",
+        userName: "Student",
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it.each([
+    `auth-account-activation-v1-${"a".repeat(64)}-${"b".repeat(64)}`,
+    TAMPERED_ACTIVATION_IDEMPOTENCY_KEY,
+  ])("rejects an unauthenticated activation idempotency conflict", async (idempotencyKey) => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.BETTER_AUTH_SECRET = "auth-secret";
+    send.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Idempotency key reused with a different payload",
+        name: "invalid_idempotent_request",
+      },
+    });
+
+    await expect(
+      sendPasswordResetEmail({
+        idempotencyKey,
+        resetUrl: "https://auth.example.test/reset/new-token",
+        to: "student@example.com",
+        userName: "Student",
+      })
+    ).rejects.toThrow("Idempotency key reused with a different payload");
+  });
+
+  it("does not suppress an idempotency conflict for another email topic", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Idempotency key reused with a different payload",
+        name: "invalid_idempotent_request",
+      },
+    });
+
+    await expect(
+      sendTransactionalEmail({
+        idempotencyKey: "email.certificate-issued/certificate-1/v1",
+        react: "Certificate",
+        subject: "Certificate",
+        to: "student@example.com",
+      })
+    ).rejects.toThrow("Idempotency key reused with a different payload");
+  });
+
   it("does not contact Resend in isolated E2E mode", async () => {
+    process.env.BETTER_AUTH_URL = "http://127.0.0.1:3100";
+    process.env.CERTIFICATE_PUBLIC_BASE_URL = "http://127.0.0.1:3100";
     process.env.CI = "true";
     process.env.E2E_TEST_MODE = "true";
+    process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3100";
     process.env.RESEND_API_KEY = "";
 
     await expect(

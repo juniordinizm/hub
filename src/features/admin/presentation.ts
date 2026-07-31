@@ -2,7 +2,6 @@ import { getLessonContentReadiness } from "@/features/courses/lesson-content";
 
 export interface AdminCourseHealthInput {
   hasDescription: boolean;
-  hasPaymentProviderProductId: boolean;
   hasThumbnail: boolean;
   id: string;
   moduleCount: number;
@@ -103,7 +102,7 @@ export interface AdminCourseContentSignal {
   tone: "attention" | "healthy" | "watch";
 }
 
-const COURSE_HEALTH_CHECK_COUNT = 5;
+const COURSE_HEALTH_CHECK_COUNT = 4;
 const EXPIRING_ACCESS_DAYS = 30;
 const MAX_ATTENTION_COURSES = 4;
 const MILLISECONDS_PER_DAY = 86_400_000;
@@ -116,7 +115,6 @@ const getCourseReadiness = (
     course.hasThumbnail,
     course.moduleCount > 0,
     course.totalLessonCount > 0 && course.publishedLessonCount > 0,
-    course.hasPaymentProviderProductId,
   ];
   const completedCount = checks.filter(Boolean).length;
 

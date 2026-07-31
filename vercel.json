@@ -3,6 +3,10 @@
   "regions": ["gru1"],
   "crons": [
     {
+      "path": "/api/cron/asaas-webhooks",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/enrollments",
       "schedule": "0 10 * * *"
     },

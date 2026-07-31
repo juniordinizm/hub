@@ -92,7 +92,7 @@ Preview é somente um smoke de infraestrutura. Configure:
 - `AUTH_PUBLIC_SIGNUP_ENABLED=false`;
 - `SCHEDULED_JOBS_ENABLED=false`.
 
-Não crie buckets, remetentes ou credenciais de AbacatePay, JMVStream, R2 ou
+Não crie buckets, remetentes ou credenciais de Asaas, JMVStream, R2 ou
 Resend para satisfazer o Preview. Não copie nenhum provider de Production e não
 cadastre webhooks apontando para deployments Preview. Jornadas funcionais
 continuam na CI e no candidato Production.
@@ -144,7 +144,7 @@ Não cadastre `CRON_SECRET` nem credenciais de providers.
 - `CRON_SECRET`;
 - `SCHEDULED_JOBS_ENABLED`;
 - `HEALTHCHECK_SECRET`;
-- credenciais Resend, AbacatePay, JMVStream, R2 e Sentry descritas em
+- credenciais Resend, Asaas, JMVStream, R2 e Sentry descritas em
   [Ambiente](environment-and-local-development.md).
 
 ### Build
@@ -396,7 +396,7 @@ Referências:
    novos.
 2. [x] Validar Better Auth e atualizar o CORS do R2 para
    `https://app.neurocapacitar.com.br`.
-3. [x] Validar as credenciais AbacatePay e JMVStream com chamadas somente
+3. [x] Validar as credenciais de pagamento e JMVStream com chamadas somente
    leitura e o webhook sem assinatura com falha fechada.
 4. [x] Enviar um reset de senha a uma conta real de controle.
 5. No e-mail recebido, confirme:
@@ -469,7 +469,7 @@ Evidência registrada:
   `outcome: success`; matrículas e manutenção aguardam a primeira janela diária.
 
 Permanecem cobertos pela CI, mas não foram exercitados com dados reais neste
-smoke: upload multipart JMVStream, checkout/webhook assinado AbacatePay, consumo
+smoke: upload multipart JMVStream, checkout/webhook de pagamento, consumo
 de uma imagem pelo Sharp e emissão completa de Certificado. Esses fluxos exigem
 dados de controle e não devem criar cobrança, vídeo ou certificado artificial
 apenas para fechar o deploy.

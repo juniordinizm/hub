@@ -1,12 +1,12 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # PROTEA-R Hub
 
-Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, checkout via AbacatePay, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
+Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, comércio Asaas em preparação para o corte de produção, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
 
 ## Antes de começar
 
@@ -17,11 +17,12 @@ Pré-requisitos:
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
 O histórico local de migrations está reconciliado até
-`0043_staged_admin_image_uploads`, incluindo outbox transacional,
+`0051_asaas_financial_statement`, incluindo outbox transacional,
 publicações de Curso, artefatos imutáveis de Certificado, perfil automático
 para cadastro público, leases dos jobs serverless e consumo único de uploads
-administrativos. A produção foi auditada em `0043` depois da validação
-descartável e promoção controlada de `0042`/`0043`. Para um banco local
+administrativos. As migrations Asaas `0044` a `0051` foram validadas apenas em
+PostgreSQL descartável; Production permanece auditada em `0043` e não recebeu o
+corte. Para um banco local
 descartável,
 use os comandos de reset, seed e smoke somente conforme o
 [runbook de banco](docs/operations/database-and-migrations.md): eles recusam

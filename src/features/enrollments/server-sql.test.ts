@@ -7,6 +7,8 @@ const readServerSource = async (): Promise<string> =>
     "\n"
   );
 
+const PROVIDER_NAME_PATTERN = /asaas/i;
+
 describe("enrollment server SQL contracts", () => {
   it("stores paid access in grants and keeps enrollments as a projection", async () => {
     const source = await readServerSource();
@@ -14,7 +16,7 @@ describe("enrollment server SQL contracts", () => {
     expect(source).toContain("applyPaidWebhookAccess");
     expect(source).toContain("insert into enrollment_grants");
     expect(source).toContain("rebuildEnrollmentProjection");
-    expect(source).toContain("source_type = 'abacatepay_order'");
+    expect(source).toContain("source_type = 'paid_order'");
   });
 
   it("does not overwrite the original paid expiration when a paid event is replayed", async () => {
@@ -65,5 +67,13 @@ describe("enrollment server SQL contracts", () => {
     expect(projectionSource).toContain("course_publications");
     expect(projectionSource).not.toContain("course_version_id");
     expect(source).not.toContain("migrateEnrollmentCourseVersion");
+  });
+
+  it("uses provider-neutral payment revocation reasons", async () => {
+    const source = await readServerSource();
+
+    expect(source).toContain('"payment_dispute"');
+    expect(source).toContain('"payment_refund"');
+    expect(source).not.toMatch(PROVIDER_NAME_PATTERN);
   });
 });

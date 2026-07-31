@@ -104,7 +104,33 @@ irreversível sem plano de recuperação.
 - secret `HEALTHCHECK_SECRET`, igual ao valor configurado no runtime Production;
 - secret `VERCEL_AUTOMATION_BYPASS_SECRET`, igual ao bypass do projeto Vercel;
 - secret `DATABASE_URL_DIRECT`, apontando à branch Neon definitiva;
-- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`.
+- secret `NEON_API_KEY`, usado somente pelo workflow manual de limpeza;
+- variables `VERCEL_ORG_ID` e `VERCEL_PROJECT_ID`;
+- variables `PRODUCTION_NEON_PROJECT_ID`, `PRODUCTION_NEON_BRANCH_ID` e
+  `PRODUCTION_DATABASE_HOST`, usadas para fechar o alvo da limpeza.
+
+### Corte Asaas em duas releases
+
+A Release A deve ser publicada primeiro sobre o schema `0043`, com
+`PAYMENTS_CHECKOUT_MODE=disabled` já configurado em Vercel Production. O smoke deve
+provar que as entradas autenticada e pública retornam indisponibilidade antes de sessão,
+banco ou provider e que a Conta Admin continua acessível.
+
+Ao definir enum ou booleano pela Vercel CLI em PowerShell, não use pipeline textual
+com CRLF. O caractere `CR` pode ser persistido depois que a CLI remove apenas o `LF` e
+faz o preflight Zod falhar. Envie bytes exatos sem terminador ou use o painel; um novo
+deployment é obrigatório porque variáveis Vercel são capturadas no build.
+
+A Release B deve entrar com `ASAAS_WEBHOOK_ENABLED=false` e checkout ainda
+desabilitado. A limpeza dos dados de teste é um workflow manual separado: `plan` não
+escreve nem cria backup; `execute` exige fingerprint, duas confirmações e cria uma
+branch Neon de backup sem expiração automática antes da transação. O backup permanece
+durante a estabilização e só pode ser removido após aceite explícito. O workflow não
+executa migration, deploy ou exclusão da branch de backup.
+
+Nunca registrar respostas completas da API Neon, URLs de conexão, tokens, IDs de Conta
+ou PII. Somente presença de configuração, contagens, fingerprint, status e ID da branch
+de backup podem aparecer nos logs.
 
 ### GitHub Environment `neon-development`
 
@@ -116,11 +142,9 @@ O workflow `Migrate Neon development` deve ser executado apenas na `main`, depoi
 da CI verde, e somente quando o merge contiver migration. Sua concorrência não
 cancela uma migration em andamento.
 
-Limitação conhecida: o Preview persistente não recebe migrations de PR, mas sua
-readiness exige a migration mais recente do journal. A próxima migration pode
-bloquear a CI antes de o workflow Development ser elegível. Não aplique SQL
-manualmente nem faça merge vermelho; siga o
-[tutorial de release](production-release-guide.md).
+O Preview persistente não recebe migrations de PR. Cada candidato da CI cria
+uma branch Neon efêmera, aplica nela a cadeia validada e a injeta somente no
+deployment daquele run. Não aplique SQL manualmente em `vercel-preview`.
 
 ### Vercel
 
@@ -133,15 +157,16 @@ furar a fila, e habilitá-lo torna os minutos da máquina Standard cobrados. Ess
 configuração de infraestrutura é independente do grupo de concorrência do
 workflow Production, que continua impedindo duas releases simultâneas.
 
-Preview recebe somente `DATABASE_URL` pooled da branch `vercel-preview`,
-`BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
+Preview recebe `BETTER_AUTH_SECRET`, `HEALTHCHECK_SECRET`,
 `CLIENT_IP_SOURCE=x-forwarded-for`, `AUTH_PUBLIC_SIGNUP_ENABLED=false` e
 `SCHEDULED_JOBS_ENABLED=false`. As variáveis de sistema da Vercel devem estar
 expostas; a origem prefere `VERCEL_BRANCH_URL` e usa `VERCEL_URL` nos
 deployments criados pela CLI sem alias de branch.
 
-O workflow Preview não promove migrations de PR para essa branch persistente.
-Integração PostgreSQL e E2E validam o schema novo em branches descartáveis.
+`DATABASE_URL` continua configurada para a branch persistente como fallback de
+infraestrutura, mas o workflow substitui o valor somente no deployment candidato
+pela URL pooled da branch efêmera migrada. Integração PostgreSQL, E2E e Preview
+usam três branches descartáveis distintas e as removem ao terminar.
 
 Os valores abaixo pertencem a Production:
 
@@ -151,7 +176,7 @@ Os valores abaixo pertencem a Production:
 - auth: `BETTER_AUTH_SECRET`, `BETTER_AUTH_TRUSTED_ORIGINS` quando necessário e
   `AUTH_PUBLIC_SIGNUP_ENABLED`;
 - e-mail: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `SUPPORT_EMAIL`;
-- pagamentos: credenciais e segredo de webhook AbacatePay;
+- pagamentos: credencial, base URL, User-Agent e token de webhook Asaas;
 - vídeo: credenciais JMVStream;
 - R2: conta, dois buckets, chaves, origem pública e CORS;
 - crons: `CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`;
@@ -164,7 +189,7 @@ definitivo responder no deployment novo.
 
 ## Crons
 
-`vercel.json` é a autoridade das quatro agendas. A Vercel chama os Route
+`vercel.json` é a autoridade das cinco agendas. A Vercel chama os Route
 Handlers com `Authorization: Bearer <CRON_SECRET>`. Cada rota:
 
 - recusa execução quando `SCHEDULED_JOBS_ENABLED=false`;
@@ -175,6 +200,7 @@ Handlers com `Authorization: Bearer <CRON_SECRET>`. Cada rota:
 
 Agendas UTC:
 
+- `* * * * *`: inbox de webhooks Asaas;
 - `0 10 * * *`: matrículas;
 - `*/5 * * * *`: JMVStream;
 - `*/5 * * * *`: outbox;
@@ -214,7 +240,9 @@ coexistir.
 Use `correlationId`, deployment SHA e ambiente para localizar logs. Nunca copie
 tokens, URLs de banco ou payloads pessoais para tickets.
 
-- pagamento: confira `webhook_events`, Pedido, revisão e projeção de acesso;
+- pagamento: confira `webhook_events`, Pedido, revisão, solicitação de reembolso,
+  movimentos do extrato e projeção de acesso. Alertas administrativos expõem fila
+  Asaas, eventos falhos, Pedidos pagos sem ID de pagamento e reembolsos incertos;
 - e-mail/outbox: confira tópico, tentativas, dead letter e janela de
   idempotência do Resend;
 - JMVStream/R2: diferencie presign, CORS, upload, processamento, cópia e delete;

@@ -14,7 +14,7 @@ type EnrollmentGrantStatus =
   | "expired"
   | "refunded";
 
-type PaymentRevocationReason = "abacatepay_dispute" | "abacatepay_refund";
+type PaymentRevocationReason = "payment_dispute" | "payment_refund";
 
 interface EnrollmentEventInput {
   actorUserId?: string | null;
@@ -382,7 +382,7 @@ export const applyPaidWebhookAccess = async ({
         revoked_at,
         revoked_reason
       )
-      values ($1, $2, 'abacatepay_order', $3, 'active', $4, $5, $5, null, null)
+      values ($1, $2, 'paid_order', $3, 'active', $4, $5, $5, null, null)
       on conflict (order_id) do update set
         status = case
           when enrollment_grants.status in ('refunded', 'disputed', 'cancelled')
@@ -496,8 +496,8 @@ export const applyPaymentRevocation = async ({
   orderId: string;
   reason: PaymentRevocationReason;
   userId: string;
-}): Promise<void> => {
-  const status = reason === "abacatepay_dispute" ? "disputed" : "refunded";
+}): Promise<boolean> => {
+  const status = reason === "payment_dispute" ? "disputed" : "refunded";
   const { rows } = await client.query<{ id: string }>(
     `
       update enrollment_grants
@@ -505,24 +505,29 @@ export const applyPaymentRevocation = async ({
           revoked_at = $2,
           revoked_reason = $3,
           updated_at = now()
-      where source_type = 'abacatepay_order'
+      where source_type = 'paid_order'
         and order_id = $4
+        and status in ('active', 'expired')
       returning id
     `,
     [status, now, reason, orderId]
   );
   const grantId = rows[0]?.id ?? null;
+  if (!grantId) {
+    return false;
+  }
 
   await insertEnrollmentEvent(client, {
     courseId,
     eventType:
-      reason === "abacatepay_dispute" ? "payment_disputed" : "payment_refunded",
+      reason === "payment_dispute" ? "payment_disputed" : "payment_refunded",
     grantId,
     metadata: { reason },
     orderId,
     userId,
   });
   await rebuildEnrollmentProjection({ client, courseId, now, userId });
+  return true;
 };
 
 const getActivePaidGrantForEnrollment = async ({
@@ -546,7 +551,7 @@ const getActivePaidGrantForEnrollment = async ({
         on eg.user_id = e.user_id
        and eg.course_id = e.course_id
       where e.id = $1
-        and eg.source_type = 'abacatepay_order'
+        and eg.source_type = 'paid_order'
         and eg.status in ('active', 'expired')
       order by eg.effective_expires_at desc
       limit 1
@@ -556,7 +561,7 @@ const getActivePaidGrantForEnrollment = async ({
   const grant = rows[0];
 
   if (!grant) {
-    throw new Error("Matricula sem pagamento AbacatePay ajustavel.");
+    throw new Error("Matricula sem pagamento ajustavel.");
   }
 
   return grant;
@@ -611,7 +616,7 @@ const getPaidAccessGrantsForEnrollment = async ({
         on eg.user_id = e.user_id
        and eg.course_id = e.course_id
       where e.id = $1
-        and eg.source_type = 'abacatepay_order'
+        and eg.source_type = 'paid_order'
         and eg.status = any($2::enrollment_grant_status[])
       order by eg.effective_expires_at desc
     `,

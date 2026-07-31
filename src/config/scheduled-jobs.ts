@@ -1,4 +1,10 @@
 export const scheduledJobs = {
+  asaasWebhooks: {
+    deadlineMs: 270 * 1000,
+    leaseMs: 6 * 60 * 1000,
+    path: "/api/cron/asaas-webhooks",
+    schedule: "* * * * *",
+  },
   enrollments: {
     deadlineMs: 12 * 60 * 1000,
     leaseMs: 15 * 60 * 1000,

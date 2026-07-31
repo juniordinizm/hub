@@ -60,6 +60,7 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
       `
         select id, event_key, event_name, status, error_message, created_at
         from webhook_events
+        where provider = 'asaas'
         order by created_at desc
         limit 8
       `
@@ -114,7 +115,6 @@ export interface AdminCourse {
   coverImage: unknown;
   description: string | null;
   id: string;
-  paymentProviderProductId: string | null;
   priceInCents: number;
   slug: string;
   status: string;
@@ -179,24 +179,54 @@ export interface AdminModule {
   title: string;
 }
 
+const paymentReviewTypes = [
+  "amount_mismatch",
+  "terminal_conflict",
+  "event_anomaly",
+  "partial_refund",
+  "uncertain_result",
+  "buyer_identity",
+] as const;
+
+type PaymentReviewType = (typeof paymentReviewTypes)[number];
+
+const isPaymentReviewType = (value: unknown): value is PaymentReviewType =>
+  typeof value === "string" &&
+  paymentReviewTypes.some((reviewType) => reviewType === value);
+
+const parsePaymentReviewType = (value: unknown): PaymentReviewType => {
+  if (isPaymentReviewType(value)) {
+    return value;
+  }
+  throw new Error("Revisao financeira invalida.");
+};
+
 export interface AdminPaymentReview {
   id: string;
   orderId: string;
-  providerOrderId: string;
+  providerCheckoutId: string | null;
   reason: string;
   status: "approved" | "pending" | "rejected";
-  type: "amount_mismatch" | "terminal_conflict";
+  type: PaymentReviewType;
 }
 
 export interface AdminOrder {
   amountInCents: number;
+  checkoutStatus: string;
   courseId: string;
   courseTitle: string;
   customerEmail: string | null;
   customerName: string | null;
+  feeAmountInCents: number | null;
   id: string;
+  netAmountInCents: number | null;
+  paidAmountInCents: number | null;
   paidAt: Date | null;
-  providerOrderId: string;
+  paymentMethod: string | null;
+  providerCheckoutId: string | null;
+  providerPaymentId: string | null;
+  providerPaymentStatus: string | null;
+  refundRequestStatus: string | null;
   status: string;
 }
 
@@ -247,7 +277,6 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     certificate_enabled: boolean;
     description: string | null;
     id: string;
-    payment_provider_product_id: string | null;
     price_in_cents: number;
     slug: string;
     status: string;
@@ -258,8 +287,8 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     workload_hours: number;
   }>(
     courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, payment_provider_product_id, access_duration_months, certificate_enabled, status from courses order by created_at desc",
+      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
+      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
     courseId ? [courseId] : undefined
   );
 
@@ -268,7 +297,6 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     certificateEnabled: row.certificate_enabled,
     description: row.description,
     id: row.id,
-    paymentProviderProductId: row.payment_provider_product_id,
     priceInCents: row.price_in_cents,
     slug: row.slug,
     status: row.status,
@@ -553,39 +581,93 @@ const readEnrollments = async (
   }));
 };
 
-const readOrders = async (courseId?: string): Promise<AdminOrder[]> => {
+interface AdminOrderQuery {
+  page?: number;
+  search?: string;
+}
+
+const readOrders = async (
+  courseId?: string,
+  options: AdminOrderQuery = {}
+): Promise<AdminOrder[]> => {
+  const pageSize = courseId ? 40 : 20;
+  const page = Math.max(1, Math.trunc(options.page ?? 1));
+  const search = options.search?.trim() ?? "";
+  const filters: string[] = [];
+  const values: unknown[] = [];
+  if (courseId) {
+    values.push(courseId);
+    filters.push(`o.course_id = $${values.length}`);
+  }
+  if (search) {
+    values.push(`%${search}%`);
+    const parameter = `$${values.length}`;
+    filters.push(`(
+      o.id::text ilike ${parameter}
+      or o.provider_checkout_id ilike ${parameter}
+      or o.provider_payment_id ilike ${parameter}
+      or o.customer_email ilike ${parameter}
+    )`);
+  }
+  const paginationClause = courseId
+    ? "limit 40"
+    : (() => {
+        values.push(pageSize, (page - 1) * pageSize);
+        return `limit $${values.length - 1} offset $${values.length}`;
+      })();
   const { rows } = await getPool().query<{
     amount_in_cents: number;
+    checkout_status: string;
     course_id: string;
     course_title: string;
     customer_email: string | null;
     customer_name: string | null;
+    fee_amount_in_cents: number | null;
     id: string;
+    net_amount_in_cents: number | null;
     paid_at: Date | null;
-    provider_order_id: string;
+    paid_amount_in_cents: number | null;
+    payment_method: string | null;
+    provider_checkout_id: string | null;
+    provider_payment_id: string | null;
+    provider_payment_status: string | null;
+    refund_request_status: string | null;
     status: string;
   }>(
     `
-      select o.id, c.id as course_id, c.title as course_title, o.provider_order_id, o.status,
-             o.amount_in_cents, o.customer_email, o.customer_name, o.paid_at
+      select o.id, c.id as course_id, c.title as course_title,
+             o.provider_checkout_id, o.provider_payment_id, o.status,
+             o.checkout_status, o.provider_payment_status, o.payment_method,
+             o.amount_in_cents, o.paid_amount_in_cents, o.net_amount_in_cents,
+             o.fee_amount_in_cents, o.customer_email, o.customer_name, o.paid_at,
+             rr.status as refund_request_status
       from orders o
       join courses c on c.id = o.course_id
-      ${courseId ? "where o.course_id = $1" : ""}
+      left join refund_requests rr on rr.order_id = o.id
+      ${filters.length ? `where ${filters.join(" and ")}` : ""}
       order by o.created_at desc
-      limit 40
+      ${paginationClause}
     `,
-    courseId ? [courseId] : undefined
+    values
   );
 
   return rows.map((row) => ({
     amountInCents: row.amount_in_cents,
+    checkoutStatus: row.checkout_status,
     courseId: row.course_id,
     courseTitle: row.course_title,
     customerEmail: row.customer_email,
     customerName: row.customer_name,
+    feeAmountInCents: row.fee_amount_in_cents,
     id: row.id,
+    netAmountInCents: row.net_amount_in_cents,
     paidAt: row.paid_at,
-    providerOrderId: row.provider_order_id,
+    paidAmountInCents: row.paid_amount_in_cents,
+    paymentMethod: row.payment_method,
+    providerCheckoutId: row.provider_checkout_id,
+    providerPaymentId: row.provider_payment_id,
+    providerPaymentStatus: row.provider_payment_status,
+    refundRequestStatus: row.refund_request_status,
     status: row.status,
   }));
 };
@@ -623,12 +705,12 @@ const readPaymentReviews = async (): Promise<AdminPaymentReview[]> => {
   const { rows } = await getPool().query<{
     id: string;
     order_id: string;
-    provider_order_id: string;
+    provider_checkout_id: string | null;
     reason: string;
     status: "approved" | "pending" | "rejected";
-    type: "amount_mismatch" | "terminal_conflict";
+    type: unknown;
   }>(`
-    select pr.id, pr.order_id, pr.type, pr.status, pr.reason, o.provider_order_id
+    select pr.id, pr.order_id, pr.type, pr.status, pr.reason, o.provider_checkout_id
     from payment_reviews pr
     join orders o on o.id = pr.order_id
     order by pr.created_at desc
@@ -638,10 +720,10 @@ const readPaymentReviews = async (): Promise<AdminPaymentReview[]> => {
   return rows.map((row) => ({
     id: row.id,
     orderId: row.order_id,
-    providerOrderId: row.provider_order_id,
+    providerCheckoutId: row.provider_checkout_id,
     reason: row.reason,
     status: row.status,
-    type: row.type,
+    type: parsePaymentReviewType(row.type),
   }));
 };
 
@@ -884,7 +966,9 @@ export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {
   return { faqs: await readFaqs() };
 };
 
-export const getAdminFinancialData = async (): Promise<{
+export const getAdminFinancialData = async (
+  orderQuery: AdminOrderQuery = {}
+): Promise<{
   certificates: AdminCertificate[];
   coursesRevenue: CourseRevenueSummary[];
   orders: AdminOrder[];
@@ -893,7 +977,7 @@ export const getAdminFinancialData = async (): Promise<{
   await requireAdminReadAccess();
   const [orders, certificates, paymentReviews, coursesRevenue] =
     await Promise.all([
-      readOrders(),
+      readOrders(undefined, orderQuery),
       readCertificates(),
       readPaymentReviews(),
       readCourseRevenue(),
@@ -940,16 +1024,24 @@ export const getAdminCourseDetailData = async (
 
 export const getAdminCoursePublicationState = async (
   courseId: string
-): Promise<{ hasDraft: boolean }> => {
+): Promise<{ hasDraft: boolean; hasPublished: boolean }> => {
   await requireAdminReadAccess();
-  const result = await getPool().query<{ id: string }>(
-    `select id from course_publications
-     where course_id = $1 and status = 'draft'
-     limit 1`,
+  const result = await getPool().query<{
+    has_draft: boolean;
+    has_published: boolean;
+  }>(
+    `select coalesce(bool_or(status = 'draft'), false) as has_draft,
+            coalesce(bool_or(status = 'published'), false) as has_published
+     from course_publications
+     where course_id = $1 and status in ('draft', 'published')`,
     [courseId]
   );
+  const state = result.rows[0];
 
-  return { hasDraft: Boolean(result.rows[0]) };
+  return {
+    hasDraft: state?.has_draft ?? false,
+    hasPublished: state?.has_published ?? false,
+  };
 };
 
 export const getAdminLessonEditorData = async ({

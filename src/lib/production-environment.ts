@@ -1,8 +1,4 @@
-import { isPaymentsCheckoutMode } from "@/lib/payments-environment";
-
 const REQUIRED_PRODUCTION_VARIABLES = [
-  "ABACATEPAY_WEBHOOK_ENABLED",
-  "ABACATEPAY_WEBHOOK_SECRET",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -26,10 +22,6 @@ const REQUIRED_PRODUCTION_VARIABLES = [
 
 const REQUIRED_PRODUCTION_ALTERNATIVES = [
   {
-    keys: ["ABACATEPAY_API_KEY", "ABACATE_PAY_API_KEY"],
-    label: "ABACATEPAY_API_KEY or ABACATE_PAY_API_KEY",
-  },
-  {
     keys: ["JMVSTREAM_AUTH_RESOURCE", "JMVSTREAM_API_TOKEN"],
     label: "JMVSTREAM_AUTH_RESOURCE or JMVSTREAM_API_TOKEN",
   },
@@ -46,9 +38,24 @@ const FIRST_PARTY_SECRET_VARIABLES = [
   "BETTER_AUTH_SECRET",
   "CRON_SECRET",
   "HEALTHCHECK_SECRET",
+  "ASAAS_WEBHOOK_TOKEN",
+] as const;
+
+const ASAAS_PRODUCTION_VARIABLES = [
+  "ASAAS_API_BASE_URL",
+  "ASAAS_API_KEY",
+  "ASAAS_USER_AGENT",
+  "ASAAS_WEBHOOK_ENABLED",
+  "ASAAS_WEBHOOK_TOKEN",
 ] as const;
 
 const MINIMUM_SECRET_LENGTH = 32;
+const ASAAS_PRODUCTION_ORIGIN = "https://api.asaas.com";
+const PAYMENTS_CHECKOUT_MODES = new Set([
+  "authenticated",
+  "disabled",
+  "public",
+]);
 
 const hasValue = (
   environment: Readonly<Record<string, string | undefined>>,
@@ -103,6 +110,29 @@ const getSecretProblems = (
     return [];
   });
 
+const getCheckoutModeProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] =>
+  hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
+  !PAYMENTS_CHECKOUT_MODES.has(environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? "")
+    ? ["PAYMENTS_CHECKOUT_MODE is invalid"]
+    : [];
+
+const getAsaasWebhookSwitchProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] =>
+  hasValue(environment, "ASAAS_WEBHOOK_ENABLED") &&
+  !["false", "true"].includes(environment.ASAAS_WEBHOOK_ENABLED?.trim() ?? "")
+    ? ["ASAAS_WEBHOOK_ENABLED must equal true or false"]
+    : [];
+
+const requiresAsaasCapability = (
+  environment: Readonly<Record<string, string | undefined>>
+): boolean =>
+  ["authenticated", "public"].includes(
+    environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? ""
+  ) || environment.ASAAS_WEBHOOK_ENABLED?.trim() === "true";
+
 export const getProductionEnvironmentProblems = (
   environment: Readonly<Record<string, string | undefined>>
 ): string[] => {
@@ -116,23 +146,36 @@ export const getProductionEnvironmentProblems = (
     }
   }
 
+  problems.push(...getCheckoutModeProblems(environment));
+
+  const configuredAsaasVariables = ASAAS_PRODUCTION_VARIABLES.filter((key) =>
+    hasValue(environment, key)
+  );
   if (
-    hasValue(environment, "ABACATEPAY_WEBHOOK_ENABLED") &&
-    !["true", "false"].includes(
-      environment.ABACATEPAY_WEBHOOK_ENABLED?.trim() ?? ""
-    )
+    (configuredAsaasVariables.length > 0 ||
+      requiresAsaasCapability(environment)) &&
+    configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
   ) {
-    problems.push("ABACATEPAY_WEBHOOK_ENABLED is invalid");
+    problems.push(
+      ...ASAAS_PRODUCTION_VARIABLES.filter((key) => !hasValue(environment, key))
+    );
   }
 
-  if (
-    hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
-    !isPaymentsCheckoutMode(environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? "")
-  ) {
-    problems.push("PAYMENTS_CHECKOUT_MODE is invalid");
-  }
+  problems.push(...getAsaasWebhookSwitchProblems(environment));
 
   problems.push(...getUrlProblems(environment));
+
+  const asaasBaseUrl = getParsedUrl(environment, "ASAAS_API_BASE_URL");
+  if (
+    hasValue(environment, "ASAAS_API_BASE_URL") &&
+    (!asaasBaseUrl ||
+      asaasBaseUrl.origin !== ASAAS_PRODUCTION_ORIGIN ||
+      asaasBaseUrl.pathname !== "/" ||
+      Boolean(asaasBaseUrl.search || asaasBaseUrl.hash) ||
+      Boolean(asaasBaseUrl.username || asaasBaseUrl.password))
+  ) {
+    problems.push(`ASAAS_API_BASE_URL must equal ${ASAAS_PRODUCTION_ORIGIN}`);
+  }
 
   const databaseUrl = getParsedUrl(environment, "DATABASE_URL");
   if (

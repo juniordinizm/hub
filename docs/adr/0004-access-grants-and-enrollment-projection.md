@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: accepted
 owner: product
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # ADR-0004 Concessão como fonte e Matrícula como projeção
@@ -10,9 +10,14 @@ last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
 
 Uma Conta pode adquirir o mesmo Curso mais de uma vez. Reembolso, disputa, renovação e ajuste pertencem à origem individual; a experiência da Aluna precisa de um único acesso atual.
 
-## Proposta
+## Decisão
 
-Tratar `enrollment_grants` como ledger de direitos por fonte e `enrollments` como projeção Conta + Curso. Toda mutação financeira altera a Concessão e chama `rebuildEnrollmentProjection`. Não criar Matrícula diretamente.
+Tratar Concessão como ledger e fonte dos direitos por origem, e Matrícula como projeção
+de Conta + Curso. Toda mutação financeira altera a Concessão e recompõe a Matrícula;
+nenhum fluxo financeiro cria ou altera Matrícula diretamente.
+
+A origem financeira aprovada é neutra: `paid_order`. Nomes de providers pertencem à
+integração e aos identificadores externos, não ao domínio de acesso.
 
 ## Alternativas
 
@@ -28,7 +33,11 @@ Tratar `enrollment_grants` como ledger de direitos por fonte e `enrollments` com
 
 ## Estado
 
-Implementado no código, aguardando ratificação de produto. `db:seed:student` respeita a proposta:
-cria uma Concessão `manual` idempotente, identificada por `manual_reference`, e recompõe a
-Matrícula pela projeção oficial. As migrations `0021` e `0022` foram promovidas para produção
-em 2026-07-20.
+Decisão aceita. Schema, código e testes usam a origem neutra `paid_order`. Razões de
+revogação do módulo de Matrículas também são neutras: `payment_refund` e
+`payment_dispute`. O processor financeiro Asaas aplica a Concessão e recompõe a
+Matrícula na mesma transação do evento financeiro.
+
+O bootstrap local cria uma Concessão `manual` idempotente, identificada por
+`manual_reference`, e recompõe a Matrícula. O corte de Production da migração financeira
+permanece pendente.

@@ -55,7 +55,23 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0043_snapshot.json`.
+journal é autoridade; nesta cadeia, `0052_snapshot.json`. As migrations Asaas e
+da compra pública `0044` a `0052` foram geradas e ensaiadas em banco descartável;
+Production permanece no topo `0043`.
+
+Em 2026-07-30, uma preparação E2E local chamou o migrador genérico enquanto
+`drizzle.config.ts` carregava `DATABASE_URL_DIRECT` de `.env.local` com prioridade sobre
+a URL E2E pretendida. O incidente originou o harness isolado descrito abaixo; a
+execução acidental não vale como prova E2E nem como autoridade sobre o estado posterior
+da branch.
+
+Ainda em 2026-07-30, a auditoria do alvo Development vigente
+(`br-cool-voice-acsxtxyv`) encontrou 44 entradas no journal, topo em `0043`, apesar de o
+aplicativo local já exigir `0052`. Depois de confirmar zero Pedidos, Webhooks e
+Concessões financeiras, e mediante autorização explícita, `0044` a `0052` foram
+promovidas com `bun run db:migrate:development`. A auditoria posterior confirmou 53
+entradas, `provider_checkout_id`, um único Admin preservado e uma segunda execução
+idempotente. Production permaneceu inalterada em `0043`.
 
 ## Conexões
 
@@ -126,6 +142,41 @@ falha. No fluxo Vercel, o workflow protegido executa esse comando como etapa
 isolada antes de construir o deployment Production não promovido. Nunca
 execute como hook de inicialização da aplicação.
 
+### `bun run db:cleanup:production`
+
+É o comando excepcional do corte Asaas para remover dados de teste em Production,
+preservando somente a Conta Admin atual e sua identidade. Não executa migration nem
+deploy. Use exclusivamente pelo workflow manual
+`cleanup-production-test-data.yml`, no GitHub Environment protegido
+`vercel-production`.
+
+O modo `plan` é somente leitura: valida host, database, branch Neon, as 38 tabelas
+exatas do schema `0043`, as 44 entradas do journal, um único Admin utilizável e as
+contagens; depois retorna um fingerprint SHA-256 sem PII. Ele não cria backup. O
+checkout deve estar em `PAYMENTS_CHECKOUT_MODE=disabled` antes do corte.
+
+O modo `execute` exige o fingerprint do `plan`, `confirm_cleanup=true` e a confirmação
+literal `DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN`. O workflow confirma `main` e CI,
+valida projeto/branch de origem, cria primeiro uma branch Neon de backup sem compute e
+sem expiração automática e só então executa uma transação serializável. Drift de
+schema, journal, Admin, contagem, fingerprint ou alvo aborta antes da exclusão.
+
+O GitHub Environment precisa do secret `NEON_API_KEY`, do secret
+`DATABASE_URL_DIRECT` e das variables `PRODUCTION_NEON_PROJECT_ID`,
+`PRODUCTION_NEON_BRANCH_ID` e `PRODUCTION_DATABASE_HOST`. Logs mostram somente
+contagens, fingerprint, status e ID da branch de backup; URL, credenciais, IDs de
+Conta e PII são proibidos.
+
+O journal aplicado em Production possui quatro hashes históricos que diferem do SQL
+hoje versionado (`0009`, `0037`, `0038` e `0039`). O contrato fixa os hashes realmente
+aplicados e calcula os outros 40 com quebras de linha LF canônicas, evitando divergência
+artificial em checkouts Windows com CRLF sem enfraquecer a comparação linha a linha.
+
+Em 2026-07-29, executor e CLI foram validados numa clone descartável de Production: o
+`plan` real passou em transação somente leitura, sem alterar o schema `public`; a suíte
+de integração cobriu execução, drift, tabela inesperada, lock concorrente, rollback e
+reexecução. A branch temporária foi removida após a prova.
+
 ## Comandos bloqueados
 
 ### `bun run db:reset` e `bun run db:reset:local`
@@ -148,7 +199,7 @@ Cria banco PostgreSQL local temporário, aplica a cadeia, roda seed duas vezes e
 
 ### `bun run test:certificates:integration`
 
-Executa concorrência de conclusão/outbox em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. Nunca aponte para banco compartilhado.
+Executa concorrência de conclusão, outbox e inbox Asaas em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. A suíte da inbox prova claim único entre dois workers, rollback do efeito, perda de posse e terminalização da quinta tentativa abandonada. Nunca aponte para banco compartilhado.
 
 ### `bun run db:push` e `bun run db:studio`
 
@@ -205,6 +256,24 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   A migration foi promovida com autorização explícita em 2026-07-26. A
   auditoria da branch definitiva repetiu as mesmas evidências e confirmou zero
   leases, limpezas ou uploads temporários residuais.
+- `0044` a `0051`: migrations da troca direta para Asaas. Incluem persistência do
+  comércio/inbox/revisões, evidência real de reembolso, limites públicos, valores
+  líquido/tarifa e extrato financeiro deduplicado. Em 2026-07-29, foram aplicadas e
+  auditadas na branch descartável `br-autumn-mouse-ac9ti4dr`, sem promoção para a
+  branch-pai. O primeiro ensaio confirmou que `0046` exige `orders` vazio: a branch
+  herdava cinco Pedidos de teste, dois webhooks e duas Concessões pagas. Após remover
+  somente esses dados financeiros de teste na branch isolada, a cadeia chegou ao topo
+  `0051`, a auditoria confirmou todas as entradas e os 20 testes PostgreSQL passaram.
+  Essa limpeza é uma pré-condição explícita do corte direto, não um backfill nem uma
+  autorização para alterar a branch persistente antes da Etapa 10.
+- Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
+  ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
+  `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito
+  acima, reproduzindo a ordem real do corte sem alterar a branch-pai.
+- `db:smoke:empty` não foi executado no host da Etapa 9 porque PostgreSQL local não está
+  instalado. A guarda recusaria corretamente a branch Neon remota; não foi afrouxada nem
+  contornada. A cadeia incremental e o catálogo foram provados na branch descartável,
+  mas o smoke local desde banco vazio permanece para um runner com PostgreSQL local.
 
 ## Recuperação
 
@@ -214,11 +283,43 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 - não use `db:reset`, `db:push` ou rollback SQL destrutivo;
 - para ensaio, use branch/banco isolado e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação).
 
+## Banco da jornada pública E2E
+
+Os helpers financeiros Playwright aceitam exclusivamente `E2E_DATABASE_URL`. Ausência da
+variável falha com mensagem explícita; não existe fallback para `DATABASE_URL`, Development
+ou Production. A suíte deve receber uma branch descartável já migrada.
+
+A guarda central roda na configuração Playwright antes do `globalSetup` e também no setup,
+seed, teardown e global teardown. Todo processo que pode alterar o banco exige
+`DATABASE_URL` exatamente igual a `E2E_DATABASE_URL`, aceita somente protocolo PostgreSQL e
+recusa o compute Neon Production conhecido sem registrar URL ou credencial. Uma
+`DATABASE_URL` preexistente e divergente aborta a suíte antes do seed.
+
+Para migrar a branch descartável, use somente `bun run db:migrate:e2e`. O harness exige
+`DATABASE_URL` e `E2E_DATABASE_URL` iguais, recusa uma `DATABASE_URL_DIRECT` divergente e
+fixa as três variáveis na mesma URL antes de iniciar o Drizzle. Assim, `.env.local` não
+pode redirecionar o migrador:
+
+```powershell
+$env:E2E_DATABASE_URL = "<url-postgresql-descartavel>"
+$env:DATABASE_URL = $env:E2E_DATABASE_URL
+$env:DATABASE_URL_DIRECT = $env:E2E_DATABASE_URL
+bun run db:migrate:e2e
+```
+
+O comando `bun run db:prepare:ci-migration` não é de uso manual. A CI o executa somente
+nas branches criadas pela própria job enquanto a branch-pai está em `0043`. Ele valida
+ambiente CI, branch Neon, URLs, compute não Production e journal antes de truncar
+`orders` com dependências somente no clone efêmero. O journal diferente de `0043`
+ou `0052` interrompe o comando; em `0052`, ele não altera dados. Assim, a exceção de
+corte não se transforma em limpeza recorrente nem bloqueia a CI depois da promoção.
+
 ## Evidências
 
 `drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`,
 `src/db/migration-target.ts`, `src/db/schema.ts`,
 `src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`,
 `scripts/inspect-migration-state.ts`, `scripts/migrate-development.ts`,
+`scripts/migrate-e2e.ts`,
 `scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts` e
 `scripts/bootstrap-student.ts`.

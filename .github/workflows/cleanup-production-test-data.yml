@@ -1,0 +1,219 @@
+name: Cleanup Production test data
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: plan is read-only; execute deletes approved test data
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - execute
+      fingerprint:
+        description: Required only for execute
+        required: false
+        type: string
+      confirm_cleanup:
+        description: Confirm destructive cleanup
+        required: true
+        default: false
+        type: boolean
+      confirmation:
+        description: Type DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN for execute
+        required: false
+        type: string
+
+concurrency:
+  group: production-test-data-cleanup
+  cancel-in-progress: false
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  cleanup:
+    name: Plan or execute approved Production cleanup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: vercel-production
+    env:
+      PRODUCTION_DATABASE_HOST: ${{ vars.PRODUCTION_DATABASE_HOST }}
+      PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+      PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Verify current main SHA and green CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Production cleanup must be dispatched from the main branch." >&2
+            exit 1
+          fi
+
+          release_sha="$(git rev-parse HEAD)"
+          if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "The resolved main SHA is not a lowercase 40-character Git SHA." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          if [[ "${release_sha}" != "${main_sha}" ]]; then
+            echo "The checked out SHA must equal the current origin/main SHA." >&2
+            exit 1
+          fi
+
+          ci_runs="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=100"
+          )"
+          if ! jq -e --arg sha "${release_sha}" \
+            '.workflow_runs | any(.head_sha == $sha and .conclusion == "success")' \
+            <<< "${ci_runs}" > /dev/null; then
+            echo "No successful CI run exists for the current main SHA." >&2
+            exit 1
+          fi
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      - name: Validate cleanup inputs and environment
+        env:
+          CONFIRM_CLEANUP: ${{ inputs.confirm_cleanup }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          MODE: ${{ inputs.mode }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${MODE}" != "plan" && "${MODE}" != "execute" ]]; then
+            echo "Cleanup mode must equal plan or execute." >&2
+            exit 1
+          fi
+          for name in DATABASE_URL_DIRECT PRODUCTION_DATABASE_HOST PRODUCTION_NEON_BRANCH_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "${name} is required by the vercel-production environment." >&2
+              exit 1
+            fi
+          done
+          if [[ "${MODE}" == "execute" ]]; then
+            if [[ "${CONFIRM_CLEANUP}" != "true" ]]; then
+              echo "Destructive cleanup was not explicitly confirmed." >&2
+              exit 1
+            fi
+            if [[ "${CONFIRMATION}" != "DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN" ]]; then
+              echo "Destructive cleanup confirmation is invalid." >&2
+              exit 1
+            fi
+            if [[ ! "${FINGERPRINT}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Cleanup fingerprint is invalid." >&2
+              exit 1
+            fi
+            for name in NEON_API_KEY PRODUCTION_NEON_PROJECT_ID; do
+              if [[ -z "${!name:-}" ]]; then
+                echo "${name} is required for execute mode." >&2
+                exit 1
+              fi
+            done
+          fi
+      - name: Create and confirm Neon backup branch
+        if: inputs.mode == 'execute'
+        id: backup
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          source_branch="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Accept: application/json" \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches/${PRODUCTION_NEON_BRANCH_ID}"
+          )"
+          jq -e \
+            --arg project "${PRODUCTION_NEON_PROJECT_ID}" \
+            --arg branch "${PRODUCTION_NEON_BRANCH_ID}" \
+            '.branch.project_id == $project and
+             .branch.id == $branch and
+             .branch.current_state == "ready"' \
+            <<< "${source_branch}" > /dev/null
+
+          backup_name="asaas-cutover-backup-$(date -u +%Y%m%dT%H%M%SZ)"
+          backup_branch="$(
+            jq -n \
+              --arg name "${backup_name}" \
+              --arg parent "${PRODUCTION_NEON_BRANCH_ID}" \
+              '{branch:{name:$name,parent_id:$parent}}' |
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Accept: application/json" \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data @- \
+              "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches"
+          )"
+          backup_id="$(jq -er '.branch.id' <<< "${backup_branch}")"
+
+          backup_ready=false
+          for _attempt in {1..12}; do
+            backup_branch="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Accept: application/json" \
+                --header "Authorization: Bearer ${NEON_API_KEY}" \
+                "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches/${backup_id}"
+            )"
+            if jq -e \
+              --arg project "${PRODUCTION_NEON_PROJECT_ID}" \
+              --arg parent "${PRODUCTION_NEON_BRANCH_ID}" \
+              --arg backup "${backup_id}" \
+              '.branch.project_id == $project and
+               .branch.parent_id == $parent and
+               .branch.id == $backup and
+               .branch.current_state == "ready"' \
+              <<< "${backup_branch}" > /dev/null; then
+              backup_ready=true
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${backup_ready}" != "true" ]]; then
+            echo "Neon backup branch was not confirmed ready." >&2
+            exit 1
+          fi
+          echo "backup_branch_id=${backup_id}" >> "$GITHUB_OUTPUT"
+          echo "Neon backup branch confirmed: ${backup_id}"
+      - name: Run Production cleanup
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          FINGERPRINT: ${{ inputs.fingerprint }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${MODE}" == "plan" ]]; then
+            bun run db:cleanup:production -- \
+              --mode=plan \
+              --environment=production
+          else
+            bun run db:cleanup:production -- \
+              --mode=execute \
+              --environment=production \
+              --fingerprint="${FINGERPRINT}" \
+              --confirm-cleanup=true \
+              --confirmation=DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN
+          fi

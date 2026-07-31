@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { resolveCanonicalApplicationEnvironment } from "@/lib/application-origin";
-import { PAYMENTS_CHECKOUT_MODES } from "@/lib/payments-environment";
 import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 
@@ -14,16 +13,13 @@ const optionalNonEmptyString = z.preprocess((value) => {
 }, z.string().min(1).optional());
 
 const serverEnvSchema = z.object({
-  ABACATEPAY_API_BASE_URL: z
-    .string()
-    .url()
-    .default("https://api.abacatepay.com/v2"),
-  ABACATEPAY_API_KEY: optionalNonEmptyString,
-  ABACATEPAY_WEBHOOK_ENABLED: z
+  ASAAS_API_BASE_URL: z.string().url().optional(),
+  ASAAS_API_KEY: optionalNonEmptyString,
+  ASAAS_USER_AGENT: optionalNonEmptyString,
+  ASAAS_WEBHOOK_ENABLED: z
     .enum(["true", "false"])
     .transform((value) => value === "true"),
-  ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
-  ABACATE_PAY_API_KEY: optionalNonEmptyString,
+  ASAAS_WEBHOOK_TOKEN: optionalNonEmptyString,
   AUTH_PUBLIC_SIGNUP_ENABLED: z
     .enum(["true", "false"])
     .default("false")
@@ -60,7 +56,7 @@ const serverEnvSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  PAYMENTS_CHECKOUT_MODE: z.enum(PAYMENTS_CHECKOUT_MODES),
+  PAYMENTS_CHECKOUT_MODE: z.enum(["disabled", "authenticated", "public"]),
   RESEND_API_KEY: optionalNonEmptyString,
   RESEND_FROM_EMAIL: z
     .string()
@@ -173,11 +169,11 @@ const validateServerEnvironment = (
 export const getServerEnv = () => {
   const rawEnvironment = {
     ...process.env,
-    ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
-    ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
-    ABACATEPAY_WEBHOOK_ENABLED: process.env.ABACATEPAY_WEBHOOK_ENABLED,
-    ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
-    ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
+    ASAAS_API_BASE_URL: process.env.ASAAS_API_BASE_URL,
+    ASAAS_API_KEY: process.env.ASAAS_API_KEY,
+    ASAAS_USER_AGENT: process.env.ASAAS_USER_AGENT,
+    ASAAS_WEBHOOK_ENABLED: process.env.ASAAS_WEBHOOK_ENABLED,
+    ASAAS_WEBHOOK_TOKEN: process.env.ASAAS_WEBHOOK_TOKEN,
     AUTH_PUBLIC_SIGNUP_ENABLED: process.env.AUTH_PUBLIC_SIGNUP_ENABLED,
     BETTER_AUTH_API_KEY: process.env.BETTER_AUTH_API_KEY,
     BETTER_AUTH_API_URL: process.env.BETTER_AUTH_API_URL,
@@ -217,9 +213,9 @@ export const getServerEnv = () => {
     resolveCanonicalApplicationEnvironment(rawEnvironment);
   const environmentWithRuntimeDefaults = {
     ...sourceEnvironment,
-    ABACATEPAY_WEBHOOK_ENABLED:
-      sourceEnvironment.ABACATEPAY_WEBHOOK_ENABLED ??
-      (sourceEnvironment.VERCEL_ENV === "preview" ? "false" : "true"),
+    ASAAS_WEBHOOK_ENABLED:
+      sourceEnvironment.ASAAS_WEBHOOK_ENABLED ??
+      (sourceEnvironment.NODE_ENV === "production" ? "false" : "true"),
     PAYMENTS_CHECKOUT_MODE:
       sourceEnvironment.PAYMENTS_CHECKOUT_MODE ??
       (sourceEnvironment.VERCEL_ENV === "preview" ? "disabled" : "public"),

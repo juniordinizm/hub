@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Documentação do Hub
@@ -31,7 +31,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Integrações
 
-- [AbacatePay](integrations/abacatepay.md)
+- [Asaas](integrations/asaas.md)
 - [JMVStream](integrations/jmvstream.md)
 - [Cloudflare R2](integrations/r2.md)
 - [Resend e e-mail institucional](integrations/resend.md)
@@ -60,6 +60,16 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [ADR-0006: ciclo de certificados](adr/0006-certificate-lifecycle.md)
 - [ADR-0007: versionamento curricular](adr/0007-course-versioning-and-enrollment-curriculum.md)
 - [ADR-0008: analytics opcional de aprendizagem](adr/0008-optional-learning-analytics.md)
+
+### Revisões
+
+- [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
+- [Pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md)
+
+### Especificações aceitas em implementação
+
+- [Compra pública por link estável de Curso](superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md)
+- [Plano de implementação da compra pública](superpowers/plans/2026-07-30-public-course-purchase-handoff.md)
 
 ## Contrato de manutenção
 

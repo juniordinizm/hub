@@ -5,15 +5,34 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   confirmRefundPasswordAction,
+  importAsaasStatementAction,
+  reconcileAsaasPaymentAction,
   requestFullRefundAction,
   resolvePaymentReviewAction,
-  retryFailedAbacatePayWebhookAction,
+  retryFailedAsaasWebhookAction,
 } from "@/features/payments/actions";
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
     : "Nao foi possivel concluir a operacao.";
+
+type PaymentReviewType =
+  | "amount_mismatch"
+  | "buyer_identity"
+  | "event_anomaly"
+  | "partial_refund"
+  | "terminal_conflict"
+  | "uncertain_result";
+
+const PAYMENT_REVIEW_LABELS: Record<PaymentReviewType, string> = {
+  amount_mismatch: "Divergencia de valor",
+  buyer_identity: "Identidade da compra requer suporte",
+  event_anomaly: "Anomalia de evento",
+  partial_refund: "Reembolso parcial",
+  terminal_conflict: "Conflito terminal",
+  uncertain_result: "Resultado incerto",
+};
 
 export function RefundOperation({
   orderId,
@@ -139,6 +158,93 @@ export function RefundOperation({
   );
 }
 
+export function ReconcilePaymentOperation({
+  orderId,
+}: {
+  orderId: string;
+}): React.JSX.Element {
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const reconcile = async (formData: FormData): Promise<void> => {
+    setError(null);
+    setPending(true);
+    try {
+      await reconcileAsaasPaymentAction(formData);
+      router.refresh();
+    } catch (caught) {
+      setError(getErrorMessage(caught));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <form action={reconcile} className="mt-2">
+      <input name="orderId" type="hidden" value={orderId} />
+      <Button disabled={pending} size="sm" type="submit" variant="outline">
+        {pending ? "Conciliando..." : "Conciliar pagamento"}
+      </Button>
+      {error ? (
+        <p aria-live="polite" className="mt-1 text-destructive text-xs">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+export function ImportStatementOperation(): React.JSX.Element {
+  const router = useRouter();
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const importStatement = async (formData: FormData): Promise<void> => {
+    setMessage(null);
+    setPending(true);
+    try {
+      const result = await importAsaasStatementAction(formData);
+      setMessage(`${result.imported} movimentações importadas.`);
+      router.refresh();
+    } catch (caught) {
+      setMessage(getErrorMessage(caught));
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <form action={importStatement} className="grid gap-3 sm:grid-cols-3">
+      <label className="grid gap-1 text-xs">
+        Data inicial
+        <input
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          name="startDate"
+          required
+          type="date"
+        />
+      </label>
+      <label className="grid gap-1 text-xs">
+        Data final
+        <input
+          className="rounded-md border bg-background px-3 py-2 text-sm"
+          name="finishDate"
+          required
+          type="date"
+        />
+      </label>
+      <Button className="self-end" disabled={pending} type="submit">
+        {pending ? "Importando..." : "Importar extrato"}
+      </Button>
+      {message ? (
+        <p
+          aria-live="polite"
+          className="text-muted-foreground text-xs sm:col-span-3"
+        >
+          {message}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function PaymentReviewOperation({
   canResolveTerminalConflicts,
   review,
@@ -147,10 +253,10 @@ export function PaymentReviewOperation({
   review: {
     id: string;
     orderId: string;
-    providerOrderId: string;
+    providerCheckoutId: string | null;
     reason: string;
     status: "approved" | "pending" | "rejected";
-    type: "amount_mismatch" | "terminal_conflict";
+    type: PaymentReviewType;
   };
 }): React.JSX.Element {
   const router = useRouter();
@@ -170,17 +276,33 @@ export function PaymentReviewOperation({
     }
   };
 
+  if (review.status === "pending" && review.type === "buyer_identity") {
+    return (
+      <article className="rounded-lg border p-4">
+        <p className="font-medium text-sm">
+          {PAYMENT_REVIEW_LABELS[review.type]}
+        </p>
+        <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
+        <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
+        <p className="mt-3 text-sm">
+          Não libere ou transfira o acesso. Execute o reembolso integral.
+        </p>
+        <RefundOperation orderId={review.orderId} />
+      </article>
+    );
+  }
+
   return (
     <article className="rounded-lg border p-4">
       <p className="font-medium text-sm">
-        {review.type === "amount_mismatch"
-          ? "Divergencia de valor"
-          : "Conflito terminal"}
+        {PAYMENT_REVIEW_LABELS[review.type]}
       </p>
       <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
-      <p className="mt-2 font-mono text-xs">{review.providerOrderId}</p>
+      <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
       {review.status === "pending" &&
-      (review.type !== "terminal_conflict" || canResolveTerminalConflicts) ? (
+      (review.type === "amount_mismatch" ||
+        (review.type === "terminal_conflict" &&
+          canResolveTerminalConflicts)) ? (
         <form action={resolve} className="mt-3 grid gap-3">
           <input name="reviewId" type="hidden" value={review.id} />
           <div className="grid gap-1.5">
@@ -247,6 +369,7 @@ export function RetryWebhookOperation({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [reason, setReason] = useState("");
 
   const retry = async (): Promise<void> => {
     setError(null);
@@ -254,7 +377,8 @@ export function RetryWebhookOperation({
     try {
       const data = new FormData();
       data.set("webhookEventId", webhookEventId);
-      await retryFailedAbacatePayWebhookAction(data);
+      data.set("reason", reason);
+      await retryFailedAsaasWebhookAction(data);
       router.refresh();
     } catch (caught) {
       setError(getErrorMessage(caught));
@@ -264,9 +388,18 @@ export function RetryWebhookOperation({
   };
 
   return (
-    <div className="mt-3">
+    <div className="mt-3 grid gap-2">
+      <label className="grid gap-1 text-xs">
+        Motivo do reprocessamento
+        <input
+          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+          onChange={(event) => setReason(event.target.value)}
+          required
+          value={reason}
+        />
+      </label>
       <Button
-        disabled={pending}
+        disabled={pending || !reason.trim()}
         onClick={retry}
         size="sm"
         type="button"

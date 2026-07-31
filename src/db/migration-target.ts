@@ -1,4 +1,4 @@
-const PRODUCTION_NEON_COMPUTE = "ep-hidden-tooth-ac843qc2";
+export const PRODUCTION_NEON_COMPUTE = "ep-hidden-tooth-ac843qc2";
 const POOLED_HOST_MARKER = "-pooler.";
 
 type Environment = Readonly<Record<string, string | undefined>>;
@@ -6,6 +6,9 @@ type MigrationTarget = "development";
 
 const normalizeNeonHost = (host: string): string =>
   host.trim().toLowerCase().replace(POOLED_HOST_MARKER, ".");
+
+export const isProductionNeonHost = (host: string): boolean =>
+  normalizeNeonHost(host).startsWith(PRODUCTION_NEON_COMPUTE);
 
 const parsePostgresUrl = (value: string): URL | null => {
   try {
@@ -32,7 +35,7 @@ export const getMigrationTargetProblems = (
     const databaseUrl = parsePostgresUrl(rawDatabaseUrl);
     if (databaseUrl) {
       const normalizedDatabaseHost = normalizeNeonHost(databaseUrl.hostname);
-      if (normalizedDatabaseHost.startsWith(PRODUCTION_NEON_COMPUTE)) {
+      if (isProductionNeonHost(normalizedDatabaseHost)) {
         problems.push(
           "DATABASE_URL_DIRECT must not target the Production Neon compute"
         );

@@ -4,6 +4,7 @@ const PRODUCTION_SENTRY_PROJECT_ID = "4511771125219328";
 const DEVELOPMENT_PRIVATE_BUCKET = "hub-development-private";
 const DEVELOPMENT_PUBLIC_BUCKET = "hub-development-public";
 const APPROVED_RESEND_DOMAIN = "neurocapacitar.com.br";
+const ASAAS_DEVELOPMENT_ORIGIN = "https://api-sandbox.asaas.com";
 const MINIMUM_SECRET_LENGTH = 32;
 const POOLED_HOST_MARKER = "-pooler.";
 const LEADING_SLASHES = /^\/+/;
@@ -145,23 +146,28 @@ const getResendProblems = (environment: Environment): string[] => {
   return problems;
 };
 
-const getAbacatePayProblems = (environment: Environment): string[] => {
+const getAsaasProblems = (environment: Environment): string[] => {
   const problems: string[] = [];
-  if (
-    environment.DEVELOPMENT_ABACATEPAY_DEV_MODE?.trim().toLowerCase() !== "true"
-  ) {
-    problems.push("DEVELOPMENT_ABACATEPAY_DEV_MODE must equal true");
+  for (const key of [
+    "ASAAS_API_BASE_URL",
+    "ASAAS_API_KEY",
+    "ASAAS_USER_AGENT",
+    "ASAAS_WEBHOOK_TOKEN",
+  ] as const) {
+    if (!hasConfiguredValue(environment, key)) {
+      problems.push(`${key} is required`);
+    }
   }
+
+  const baseUrl = readUrl(environment, "ASAAS_API_BASE_URL");
   if (
-    !(
-      hasConfiguredValue(environment, "ABACATE_PAY_API_KEY") ||
-      hasConfiguredValue(environment, "ABACATEPAY_API_KEY")
-    )
+    baseUrl &&
+    (baseUrl.origin !== ASAAS_DEVELOPMENT_ORIGIN ||
+      baseUrl.pathname !== "/" ||
+      Boolean(baseUrl.search || baseUrl.hash) ||
+      Boolean(baseUrl.username || baseUrl.password))
   ) {
-    problems.push("ABACATE_PAY_API_KEY or ABACATEPAY_API_KEY is required");
-  }
-  if (!hasConfiguredValue(environment, "ABACATEPAY_WEBHOOK_SECRET")) {
-    problems.push("ABACATEPAY_WEBHOOK_SECRET is required");
+    problems.push(`ASAAS_API_BASE_URL must equal ${ASAAS_DEVELOPMENT_ORIGIN}`);
   }
   return problems;
 };
@@ -235,7 +241,12 @@ const getSentryProblems = (environment: Environment): string[] => {
 
 const getFirstPartySecretProblems = (environment: Environment): string[] =>
   (
-    ["BETTER_AUTH_SECRET", "CRON_SECRET", "HEALTHCHECK_SECRET"] as const
+    [
+      "BETTER_AUTH_SECRET",
+      "CRON_SECRET",
+      "HEALTHCHECK_SECRET",
+      "ASAAS_WEBHOOK_TOKEN",
+    ] as const
   ).flatMap((key) => {
     if (!hasConfiguredValue(environment, key)) {
       return [`${key} is required`];
@@ -304,7 +315,7 @@ export const getDevelopmentEnvironmentProblems = (
     ...getCanonicalOriginProblems(environment),
     ...getR2Problems(environment),
     ...getResendProblems(environment),
-    ...getAbacatePayProblems(environment),
+    ...getAsaasProblems(environment),
     ...getJmvstreamProblems(environment),
     ...getSentryProblems(environment),
     ...getFirstPartySecretProblems(environment),

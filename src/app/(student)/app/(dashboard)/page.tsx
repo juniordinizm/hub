@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   BookOpen01Icon,
   CheckmarkCircle02Icon,
@@ -393,6 +394,7 @@ function CoursePurchaseForm({
 }): React.JSX.Element {
   return (
     <form action={startCourseCheckoutAction}>
+      <input name="checkoutAttemptId" type="hidden" value={randomUUID()} />
       <input name="courseId" type="hidden" value={course.courseId} />
       <Button className="w-full" size="sm" type="submit">
         <HugeiconsIcon icon={ShoppingBasketDone01Icon} />

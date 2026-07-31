@@ -1,0 +1,1 @@
+ALTER TABLE "orders" ADD COLUMN "checkout_course_slug" text NOT NULL;

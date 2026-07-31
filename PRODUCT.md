@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Produto PROTEA-R Hub
@@ -13,7 +13,9 @@ Centralizar venda, entrega e operação de Cursos da PROTEA-R. O Hub permite que
 ## Público
 
 - **Aluna:** aprende, acompanha acesso/progresso, comenta, baixa materiais e consulta Certificados.
-- **Compradora:** fornece identidade e dados financeiros no checkout; pode não ser a Aluna.
+- **Compradora:** fornece identidade no checkout hospedado Asaas. Na compra de Curso
+  atual, Compradora e Aluna são a mesma pessoa; compra para terceiro permanece fora do
+  escopo.
 - **Especialista:** define conteúdo, experiência pedagógica e decisões de produto.
 - **Suporte:** atende acesso, financeiro, Certificados e solicitações de dados conforme permissão.
 - **Admin:** opera todas as capacidades administrativas e configurações.
@@ -24,11 +26,21 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 ### Compra e liberação
 
-1. Visitante escolhe Curso ativo e inicia checkout.
-2. Hub cria produto/checkout AbacatePay e persiste Pedido com snapshots.
-3. Webhook autenticado atualiza Pedido.
-4. Pagamento válido cria ou atualiza Conta, Concessão e projeção de Matrícula.
-5. Hub envia e-mail de acesso; divergência financeira cria revisão humana.
+1. Visitante ou Aluna autenticada escolhe Curso ativo e inicia checkout.
+2. Hub persiste o Pedido e seus snapshots antes de criar o checkout hospedado Asaas com
+   item inline; não existe produto remoto por Curso.
+3. Webhook autenticado entra em inbox durável e o worker atualiza o Pedido.
+4. Pagamento válido vincula a compra à Conta existente pelo e-mail local ou cria uma
+   Conta não verificada, depois cria Concessão e recompõe a Matrícula.
+5. Hub envia ativação ou aviso de acesso pela outbox; divergência financeira cria revisão
+   humana.
+
+A jornada pública aprovada está implementada em código: usa o link estável
+`/comprar/[slug]`, copiável pela administração e consumido pela landing page externa; o
+handoff cria o Checkout sem formulário local e mantém `/` protegida. O worker enriquece a
+identidade fora da transação e trata Conta de equipe, bloqueio e revogação sem liberar
+acesso. A execução E2E em PostgreSQL descartável, a homologação Sandbox pós-mudança e o
+corte de Production permanecem pendentes.
 
 ### Aprendizagem
 
@@ -56,7 +68,10 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 - vídeo JMVStream, texto rico, anexos e imagens R2;
 - catálogo, Matrícula, expiração, bloqueio, progresso e analytics técnico minimizado;
 - comentários com uma camada de resposta e moderação;
-- checkout, webhook, revisão de divergências e reembolso AbacatePay;
+- núcleo Asaas anterior da compra autenticada, inbox/worker, conciliação e reembolso
+  integral implementados e homologados em Sandbox, ainda sem corte de Production;
+- API, jornada pública e revisão de identidade implementadas em código, pendentes de
+  prova E2E em PostgreSQL descartável e homologação Sandbox pós-mudança;
 - Certificados públicos, PDF, revogação e reemissão;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.
@@ -65,19 +80,27 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 - marketplace, múltiplas especialistas, multi-tenancy ou organizações de clientes;
 - assinaturas recorrentes e coortes de conteúdo;
+- parcelamento sem um contrato próprio de múltiplas cobranças por Pedido;
 - aplicativo móvel nativo;
 - pipeline próprio de vídeo no lugar de JMVStream;
 - ferramenta de CRM/reengajamento baseada em analytics;
 - declarar conformidade jurídica integral somente por controles técnicos;
 - inferir que política implementada já foi aprovada.
 
-O racional histórico para Next.js, Neon, Better Auth, AbacatePay, JMVStream, R2, Resend e Vercel não foi localizado. Esses provedores descrevem o estado atual, não uma decisão arquitetural retroativamente inventada.
+O racional histórico para Next.js, Neon, Better Auth, JMVStream, R2, Resend e Vercel não
+foi localizado. A substituição direta do provedor de pagamentos anterior pelo Asaas está
+documentada no plano de migração; esses provedores descrevem o estado atual, não uma
+decisão arquitetural retroativamente inventada.
 
 ## Políticas ainda abertas
 
 O [registro de decisões](docs/decisions.md) separa comportamento implementado, decisão aprovada, implementação aguardando ratificação e pendência real.
 
-Pendências principais: base legal e texto final de transparência para analytics padrão antes da produção; identidade entre Compradora e Aluna; precedência financeira; reversão de ajustes encadeados; critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão tratados como caso excepcional quando houver política jurídica formal e demanda real.
+Pendências principais: base legal e texto final de transparência para analytics padrão
+antes da produção; prova E2E PostgreSQL e homologação Sandbox da jornada pública; modelo
+financeiro do parcelamento e repasse de juros; reversão de ajustes encadeados;
+critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão
+tratados como caso excepcional quando houver política jurídica formal e demanda real.
 
 ## Capacidades administrativas vigentes
 

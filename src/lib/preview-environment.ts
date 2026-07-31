@@ -8,9 +8,10 @@ const REQUIRED_PREVIEW_VARIABLES = [
 ] as const;
 
 const FORBIDDEN_PREVIEW_VARIABLES = [
-  "ABACATEPAY_API_KEY",
-  "ABACATEPAY_WEBHOOK_SECRET",
-  "ABACATE_PAY_API_KEY",
+  "ASAAS_API_BASE_URL",
+  "ASAAS_API_KEY",
+  "ASAAS_USER_AGENT",
+  "ASAAS_WEBHOOK_TOKEN",
   "BETTER_AUTH_URL",
   "CERTIFICATE_CONCURRENCY_DATABASE_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -107,17 +108,17 @@ export const getPreviewEnvironmentProblems = (
   }
 
   if (
-    hasValue(environment, "ABACATEPAY_WEBHOOK_ENABLED") &&
-    environment.ABACATEPAY_WEBHOOK_ENABLED?.trim() !== "false"
-  ) {
-    problems.push("ABACATEPAY_WEBHOOK_ENABLED must equal false in Preview");
-  }
-
-  if (
     hasValue(environment, "PAYMENTS_CHECKOUT_MODE") &&
     environment.PAYMENTS_CHECKOUT_MODE?.trim() !== "disabled"
   ) {
     problems.push("PAYMENTS_CHECKOUT_MODE must equal disabled in Preview");
+  }
+
+  if (
+    hasValue(environment, "ASAAS_WEBHOOK_ENABLED") &&
+    environment.ASAAS_WEBHOOK_ENABLED?.trim() !== "false"
+  ) {
+    problems.push("ASAAS_WEBHOOK_ENABLED must equal false in Preview");
   }
 
   problems.push(

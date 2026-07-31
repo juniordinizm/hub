@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  createAbacatePayCourseProduct,
   confirmLessonResourceUpload,
   consumeStagedAdminImageUpload,
   deletePublicR2Objects,
@@ -17,7 +16,6 @@ const {
   connect,
   release,
 } = vi.hoisted(() => ({
-  createAbacatePayCourseProduct: vi.fn(),
   confirmLessonResourceUpload: vi.fn(),
   consumeStagedAdminImageUpload: vi.fn(),
   deletePublicR2Objects: vi.fn(),
@@ -43,9 +41,6 @@ vi.mock("@/features/jmvstream/server", () => ({
   deleteJmvstreamAssetsForLesson,
   ensureJmvstreamCourseFolder,
   resolveJmvstreamPlayerThumbnailUrl,
-}));
-vi.mock("@/features/payments/server", () => ({
-  createAbacatePayCourseProduct,
 }));
 vi.mock("@/features/storage/r2", () => ({
   confirmLessonResourceUpload,
@@ -140,7 +135,6 @@ const setDefaultMocks = (): void => {
   query.mockImplementation(
     (sql: string) => versioningQueryResult(sql) ?? { rows: [] }
   );
-  createAbacatePayCourseProduct.mockResolvedValue({ productId: "product-1" });
   confirmLessonResourceUpload.mockResolvedValue(undefined);
   consumeStagedAdminImageUpload.mockImplementation(
     async ({ operation }: { operation: (file: File) => Promise<unknown> }) =>
@@ -214,29 +208,22 @@ describe("admin authoring", () => {
 
     const result = await saveCourse({ actorUserId: "admin-1", formData });
 
-    expect(createAbacatePayCourseProduct).toHaveBeenCalledWith({
-      courseId: result.courseId,
-      description: "Descricao",
-      imageUrl: null,
-      priceInCents: 12_990,
-      title: "Curso novo",
-    });
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("insert into courses"),
-      [
-        result.courseId,
-        "curso-novo",
-        "Curso novo",
-        "Subtitulo",
-        "Descricao",
-        12_990,
-        null,
-        null,
-        "product-1",
-        6,
-        "draft",
-      ]
+    const courseInsert = query.mock.calls.find(([sql]) =>
+      String(sql).includes("insert into courses")
     );
+    expect(courseInsert?.[0]).not.toContain("payment_provider_product_id");
+    expect(courseInsert?.[1]).toEqual([
+      result.courseId,
+      "curso-novo",
+      "Curso novo",
+      "Subtitulo",
+      "Descricao",
+      12_990,
+      null,
+      null,
+      6,
+      "draft",
+    ]);
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "course.created", "course", result.courseId]
@@ -306,14 +293,27 @@ describe("admin authoring", () => {
     formData.set("courseId", "course-1");
     formData.set("title", "Curso existente");
     formData.set("accessDurationMonths", "12");
+    formData.set("price", "10,00");
     formData.set("status", "archived");
 
     await saveCourse({ actorUserId: "admin-1", formData });
 
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("update courses"),
-      ["Curso existente", null, null, null, null, 12, "archived", "course-1"]
+    const updateCourseCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("update courses")
     );
+    expect(updateCourseCall?.[0]).toContain("price_in_cents = $4");
+    expect(updateCourseCall?.[0]).toContain("where id = $9");
+    expect(updateCourseCall?.[1]).toEqual([
+      "Curso existente",
+      null,
+      null,
+      1000,
+      null,
+      null,
+      12,
+      "archived",
+      "course-1",
+    ]);
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith("course-1");
   });
 

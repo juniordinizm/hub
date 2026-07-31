@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAccountActivationMessage,
   createCertificateIssuedMessage,
   createEnrollmentExpiryWarningMessage,
   createPaidAccessReleasedMessage,
@@ -8,6 +9,8 @@ import {
 } from "./rules";
 
 const FORBIDDEN_PAYLOAD_KEY_PATTERN = /email|name|token|password|secret/i;
+const ACTIVATION_FORBIDDEN_PAYLOAD_KEY_PATTERN =
+  /email|name|token|password|url|courseId/i;
 
 describe("outbox message contracts", () => {
   it("stores only stable identifiers in a certificate notification", () => {
@@ -42,6 +45,58 @@ describe("outbox message contracts", () => {
       payload: { courseId: "course-1", userId: "user-1" },
       topic: "email.access-released",
     });
+  });
+
+  it("stores an activation intent with exactly the local account and order ids", () => {
+    const message = createAccountActivationMessage({
+      orderId: "order-1",
+      userId: "user-1",
+    });
+
+    expect(message).toEqual({
+      aggregateId: "order-1",
+      aggregateType: "order",
+      idempotencyKey: "auth.account-activation/order-1/v1",
+      payload: { orderId: "order-1", userId: "user-1" },
+      payloadVersion: 1,
+      topic: "auth.account-activation",
+    });
+    expect(Object.keys(message.payload).sort()).toEqual(["orderId", "userId"]);
+    expect(JSON.stringify(message.payload)).not.toMatch(
+      ACTIVATION_FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
+    expect(
+      parseOutboxPayload({
+        payload: message.payload,
+        payloadVersion: message.payloadVersion,
+        topic: message.topic,
+      })
+    ).toEqual({ orderId: "order-1", userId: "user-1" });
+    expect(() =>
+      parseOutboxPayload({
+        payload: {
+          email: "private@example.test",
+          orderId: "order-1",
+          userId: "user-1",
+        },
+        payloadVersion: 1,
+        topic: "auth.account-activation",
+      })
+    ).toThrow("Versao de payload nao suportada");
+    expect(() =>
+      parseOutboxPayload({
+        payload: message.payload,
+        payloadVersion: 2,
+        topic: message.topic,
+      })
+    ).toThrow("Versao de payload nao suportada");
+    expect(() =>
+      parseOutboxPayload({
+        payload: message.payload,
+        payloadVersion: 1,
+        topic: "email.access-released",
+      })
+    ).toThrow("Versao de payload nao suportada");
   });
 
   it("keeps the enrollment warning idempotent per warning window", () => {

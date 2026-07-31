@@ -1,4 +1,5 @@
 export const OUTBOX_TOPICS = {
+  accountActivation: "auth.account-activation",
   accessExpiryWarning: "email.access-expiry-warning",
   accessReleased: "email.access-released",
   certificateIssued: "email.certificate-issued",
@@ -10,7 +11,8 @@ export type OutboxTopic = (typeof OUTBOX_TOPICS)[keyof typeof OUTBOX_TOPICS];
 export type OutboxPayload =
   | { certificateId: string }
   | { courseId: string; userId: string }
-  | { enrollmentId: string; warningKind: "1d" | "7d" };
+  | { enrollmentId: string; warningKind: "1d" | "7d" }
+  | { orderId: string; userId: string };
 
 export interface OutboxMessageInput {
   aggregateId: string;
@@ -27,6 +29,25 @@ const RETRY_MAX_JITTER_RATIO = 0.125;
 const unsupportedPayloadVersion = (): Error =>
   new Error("Versao de payload nao suportada.");
 
+const parseAccountActivationPayload = (
+  payload: object
+): { orderId: string; userId: string } | null => {
+  const { orderId, userId } = payload as {
+    orderId?: unknown;
+    userId?: unknown;
+  };
+  if (
+    Object.keys(payload).length !== 2 ||
+    typeof orderId !== "string" ||
+    !orderId ||
+    typeof userId !== "string" ||
+    !userId
+  ) {
+    return null;
+  }
+  return { orderId, userId };
+};
+
 export const createCertificateIssuedMessage = ({
   certificateId,
 }: {
@@ -38,6 +59,21 @@ export const createCertificateIssuedMessage = ({
   payload: { certificateId },
   payloadVersion: 1,
   topic: OUTBOX_TOPICS.certificateIssued,
+});
+
+export const createAccountActivationMessage = ({
+  orderId,
+  userId,
+}: {
+  orderId: string;
+  userId: string;
+}): OutboxMessageInput => ({
+  aggregateId: orderId,
+  aggregateType: "order",
+  idempotencyKey: `${OUTBOX_TOPICS.accountActivation}/${orderId}/v1`,
+  payload: { orderId, userId },
+  payloadVersion: 1,
+  topic: OUTBOX_TOPICS.accountActivation,
 });
 
 export const createCertificateRenderMessage = ({
@@ -106,6 +142,13 @@ export const parseOutboxPayload = ({
       .certificateId;
     if (typeof certificateId === "string" && certificateId) {
       return { certificateId };
+    }
+  }
+
+  if (topic === OUTBOX_TOPICS.accountActivation) {
+    const activationPayload = parseAccountActivationPayload(payload);
+    if (activationPayload) {
+      return activationPayload;
     }
   }
 

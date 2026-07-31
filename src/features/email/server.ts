@@ -8,6 +8,7 @@ import {
   PasswordResetEmail,
   SupportRequestEmail,
 } from "@/features/email/templates";
+import { isAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
 import { getServerEnv } from "@/lib/env";
 
 interface SendEmailInput {
@@ -54,21 +55,34 @@ export const sendTransactionalEmail = async ({
     ...(idempotencyKey ? [{ idempotencyKey }] : [])
   );
 
-  if (error) {
+  const activationEmailAlreadyAccepted =
+    error?.name === "invalid_idempotent_request" &&
+    Boolean(
+      idempotencyKey &&
+        isAccountActivationEmailIdempotencyKey({
+          authSecret: env.BETTER_AUTH_SECRET,
+          value: idempotencyKey,
+        })
+    );
+
+  if (error && !activationEmailAlreadyAccepted) {
     throw new Error(error.message);
   }
 };
 
 export const sendPasswordResetEmail = async ({
+  idempotencyKey,
   resetUrl,
   to,
   userName,
 }: {
+  idempotencyKey?: string;
   resetUrl: string;
   to: string;
   userName: string;
 }): Promise<void> =>
   sendTransactionalEmail({
+    ...(idempotencyKey ? { idempotencyKey } : {}),
     react: PasswordResetEmail({ actionUrl: resetUrl, name: userName }),
     subject: "Criar ou redefinir senha do PROTEA-R Hub",
     to,

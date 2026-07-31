@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { assertSafeE2eDatabaseEnvironment } from "../../src/db/e2e-database-guard";
 
 const getBunExecutable = (): string => {
   if (process.platform !== "win32") {
@@ -39,10 +40,6 @@ const runE2eSeed = async (): Promise<void> =>
   });
 
 export default async function globalSetup(): Promise<void> {
-  if (!process.env.E2E_DATABASE_URL) {
-    throw new Error(
-      "E2E_DATABASE_URL is required for the disposable E2E database."
-    );
-  }
+  assertSafeE2eDatabaseEnvironment(process.env);
   await runE2eSeed();
 }

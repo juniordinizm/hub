@@ -43,3 +43,103 @@ describe("Development migration workflow", () => {
     );
   });
 });
+
+describe("Production cleanup workflow", () => {
+  it("plans or executes cleanup without deploying or migrating", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("mode:");
+    expect(workflow).toContain("fingerprint:");
+    expect(workflow).toContain("confirm_cleanup:");
+    expect(workflow).toContain("DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN");
+    expect(workflow).toContain("name: vercel-production");
+    expect(workflow).toContain("group: production-test-data-cleanup");
+    expect(workflow).toContain("cancel-in-progress: false");
+    expect(workflow).toContain(
+      `PRODUCTION_DATABASE_HOST: ${githubExpression(
+        "vars.PRODUCTION_DATABASE_HOST"
+      )}`
+    );
+    expect(workflow).toContain(
+      `PRODUCTION_NEON_PROJECT_ID: ${githubExpression(
+        "vars.PRODUCTION_NEON_PROJECT_ID"
+      )}`
+    );
+    expect(workflow).toContain(
+      `PRODUCTION_NEON_BRANCH_ID: ${githubExpression(
+        "vars.PRODUCTION_NEON_BRANCH_ID"
+      )}`
+    );
+    expect(workflow).toContain(
+      `NEON_API_KEY: ${githubExpression("secrets.NEON_API_KEY")}`
+    );
+    expect(workflow).toContain("bun run db:cleanup:production");
+    expect(workflow).toContain(
+      "No successful CI run exists for the current main SHA."
+    );
+    expect(workflow).not.toContain("db:migrate:production");
+    expect(workflow).not.toContain("vercel deploy");
+    expect(workflow).not.toContain("expires_at");
+  });
+
+  it("creates and confirms a backup only for execute mode", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("if: inputs.mode == 'execute'");
+    expect(workflow).toContain("https://console.neon.tech/api/v2/projects/");
+    expect(workflow).toContain(".branch.parent_id == $parent");
+    expect(workflow).toContain('.branch.current_state == "ready"');
+    expect(workflow).toContain("backup_branch_id=");
+  });
+});
+
+describe("CI workflow", () => {
+  it("prepares inherited data only inside the three ephemeral Neon branches", () => {
+    const workflow = readWorkflow("ci.yml");
+
+    expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(3);
+    expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(3);
+    expect(workflow).toContain(
+      `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
+    );
+
+    for (const job of ["integration-db:", "e2e:"]) {
+      const jobStart = workflow.indexOf(job);
+      const prepare = workflow.indexOf(
+        "bun run db:prepare:ci-migration",
+        jobStart
+      );
+      const migrate = workflow.indexOf("name: Apply migrations", jobStart);
+      expect(jobStart).toBeGreaterThanOrEqual(0);
+      expect(prepare).toBeGreaterThan(jobStart);
+      expect(migrate).toBeGreaterThan(prepare);
+    }
+  });
+
+  it("deploys Preview against a migrated ephemeral database and always deletes it", () => {
+    const workflow = readWorkflow("ci.yml");
+    const previewJob = workflow.slice(workflow.indexOf("vercel-preview:"));
+
+    expect(previewJob).toContain(
+      `branch_name: ci-preview-${githubExpression(
+        "github.run_id"
+      )}-${githubExpression("github.run_attempt")}`
+    );
+    expect(previewJob).toContain("bun run db:prepare:ci-migration");
+    expect(previewJob).toContain("bun run db:migrate:e2e");
+    expect(previewJob).toContain(
+      `PREVIEW_DATABASE_URL: ${githubExpression(
+        "steps.neon.outputs.db_url_pooled"
+      )}`
+    );
+    expect(previewJob).toContain(
+      `--env "DATABASE_URL=${shellVariable("PREVIEW_DATABASE_URL")}"`
+    );
+    expect(previewJob).toContain(
+      "if: always() && steps.neon.outputs.branch_id != ''"
+    );
+    expect(previewJob).toContain(
+      `branch: ${githubExpression("steps.neon.outputs.branch_id")}`
+    );
+  });
+});

@@ -1,22 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
-  createCourseCheckout: vi.fn(),
+  createAsaasCheckoutIntent: vi.fn(),
+  createCheckoutCallbacks: vi.fn((attemptId: string) => ({
+    cancelUrl: `https://hub.example/checkout/cancelado?attemptId=${attemptId}`,
+    expiredUrl: `https://hub.example/checkout/expirado?attemptId=${attemptId}`,
+    successUrl: "https://hub.example/checkout/sucesso",
+  })),
   getServerEnv: vi.fn(),
+  importAsaasFinancialStatement: vi.fn(),
+  redirect: vi.fn(),
+  reconcileAsaasPayment: vi.fn(),
+  requirePermission: vi.fn(),
   requireSession: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: dependencies.redirect }));
+vi.mock("server-only", () => ({}));
+vi.mock("@/features/payments/checkout", () => ({
+  createAsaasCheckoutIntent: dependencies.createAsaasCheckoutIntent,
+  createCheckoutCallbacks: dependencies.createCheckoutCallbacks,
+}));
+vi.mock("@/features/payments/provider", () => ({
+  getApplicationUrl: (path: string) => `https://hub.example${path}`,
+  getAsaasProviderClient: () => ({ createCheckout: vi.fn() }),
+}));
 vi.mock("@/features/payments/refunds", () => ({
   issueRefundConfirmation: vi.fn(),
   requestFullRefund: vi.fn(),
 }));
-vi.mock("@/features/payments/server", () => ({
-  createCourseCheckout: dependencies.createCourseCheckout,
-  resolvePaymentReview: vi.fn(),
-  retryFailedAbacatePayWebhook: vi.fn(),
+vi.mock("@/features/payments/reconciliation", () => ({
+  importAsaasFinancialStatement: dependencies.importAsaasFinancialStatement,
+  reconcileAsaasPayment: dependencies.reconcileAsaasPayment,
 }));
-vi.mock("@/lib/auth-permissions", () => ({ requirePermission: vi.fn() }));
+vi.mock("@/features/payments/asaas-webhook-worker", () => ({
+  requeueFailedAsaasWebhook: vi.fn(),
+}));
+vi.mock("@/features/payments/payment-reviews", () => ({
+  resolvePaymentReview: vi.fn(),
+}));
+vi.mock("@/lib/auth-permissions", () => ({
+  requirePermission: dependencies.requirePermission,
+}));
 vi.mock("@/lib/env", () => ({
   getServerEnv: dependencies.getServerEnv,
 }));
@@ -24,11 +49,29 @@ vi.mock("@/lib/session", () => ({
   requireSession: dependencies.requireSession,
 }));
 
-import { startCourseCheckoutAction } from "./actions";
+import {
+  importAsaasStatementAction,
+  reconcileAsaasPaymentAction,
+  startCourseCheckoutAction,
+} from "./actions";
 
-describe("legacy authenticated checkout containment", () => {
+const ATTEMPT_ID = "7fb3447e-2702-48f8-abe2-6c47b091bdcb";
+const COURSE_ID = "4a45d650-fc63-44c9-b2d1-6c73d52de84c";
+
+describe("authenticated checkout action", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dependencies.getServerEnv.mockReturnValue({
+      PAYMENTS_CHECKOUT_MODE: "public",
+    });
+    dependencies.requireSession.mockResolvedValue({
+      role: "student",
+      user: {
+        email: "session@example.com",
+        id: "session-user",
+        name: "Session User",
+      },
+    });
   });
 
   it("blocks disabled checkout before session and provider", async () => {
@@ -36,12 +79,155 @@ describe("legacy authenticated checkout containment", () => {
       PAYMENTS_CHECKOUT_MODE: "disabled",
     });
     const form = new FormData();
-    form.set("courseId", "4a45d650-fc63-44c9-b2d1-6c73d52de84c");
+    form.set("courseId", COURSE_ID);
+    form.set("checkoutAttemptId", ATTEMPT_ID);
 
     await expect(startCourseCheckoutAction(form)).rejects.toThrow(
       "Checkout indisponivel."
     );
     expect(dependencies.requireSession).not.toHaveBeenCalled();
-    expect(dependencies.createCourseCheckout).not.toHaveBeenCalled();
+    expect(dependencies.createAsaasCheckoutIntent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "admin",
+    "support",
+  ] as const)("rejects a %s session before starting checkout", async (role) => {
+    dependencies.requireSession.mockResolvedValue({
+      role,
+      user: {
+        email: `${role}@example.com`,
+        id: `${role}-user`,
+        name: role,
+      },
+    });
+    const form = new FormData();
+    form.set("courseId", COURSE_ID);
+    form.set("checkoutAttemptId", ATTEMPT_ID);
+
+    await expect(startCourseCheckoutAction(form)).rejects.toThrow(
+      "Apenas alunos podem iniciar checkout."
+    );
+    expect(dependencies.createAsaasCheckoutIntent).not.toHaveBeenCalled();
+  });
+
+  it("preserves the session boundary for a blocked student account", async () => {
+    const blockedAccountError = new Error("blocked session redirect");
+    dependencies.requireSession.mockRejectedValue(blockedAccountError);
+    const form = new FormData();
+    form.set("courseId", COURSE_ID);
+    form.set("checkoutAttemptId", ATTEMPT_ID);
+
+    await expect(startCourseCheckoutAction(form)).rejects.toBe(
+      blockedAccountError
+    );
+    expect(dependencies.createAsaasCheckoutIntent).not.toHaveBeenCalled();
+  });
+
+  it("uses only session identity and redirects a ready checkout", async () => {
+    dependencies.createAsaasCheckoutIntent.mockResolvedValue({
+      orderId: ATTEMPT_ID,
+      redirectUrl: "https://pay.example/checkout",
+      status: "ready",
+    });
+    const form = new FormData();
+    form.set("courseId", COURSE_ID);
+    form.set("checkoutAttemptId", ATTEMPT_ID);
+    form.set("buyerEmail", "attacker@example.com");
+    form.set("buyerName", "Attacker");
+
+    await startCourseCheckoutAction(form);
+
+    expect(dependencies.createAsaasCheckoutIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: ATTEMPT_ID,
+        buyer: {
+          email: "session@example.com",
+          kind: "authenticated",
+          name: "Session User",
+          userId: "session-user",
+        },
+        callbacks: {
+          cancelUrl: `https://hub.example/checkout/cancelado?attemptId=${ATTEMPT_ID}`,
+          expiredUrl: `https://hub.example/checkout/expirado?attemptId=${ATTEMPT_ID}`,
+          successUrl: `https://hub.example/app/checkout/sucesso?courseId=${COURSE_ID}`,
+        },
+      })
+    );
+    expect(dependencies.createCheckoutCallbacks).toHaveBeenCalledWith(
+      ATTEMPT_ID
+    );
+    expect(dependencies.redirect).toHaveBeenCalledWith(
+      "https://pay.example/checkout"
+    );
+  });
+
+  it("redirects uncertain creation to safe tracking and rejects failed creation", async () => {
+    const form = new FormData();
+    form.set("courseId", COURSE_ID);
+    form.set("checkoutAttemptId", ATTEMPT_ID);
+    dependencies.createAsaasCheckoutIntent.mockResolvedValueOnce({
+      orderId: ATTEMPT_ID,
+      status: "processing",
+    });
+
+    await startCourseCheckoutAction(form);
+    expect(dependencies.redirect).toHaveBeenLastCalledWith(
+      `/app/checkout/sucesso?courseId=${COURSE_ID}`
+    );
+
+    dependencies.createAsaasCheckoutIntent.mockResolvedValueOnce({
+      orderId: ATTEMPT_ID,
+      status: "failed",
+    });
+    await expect(startCourseCheckoutAction(form)).rejects.toThrow(
+      "Nao foi possivel iniciar o checkout."
+    );
+  });
+});
+
+describe("financial mutation actions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.requirePermission.mockResolvedValue({
+      role: "admin",
+      user: { id: "admin-user" },
+    });
+  });
+
+  it("requires mutable financial access to reconcile a payment", async () => {
+    const form = new FormData();
+    form.set("orderId", ATTEMPT_ID);
+
+    await reconcileAsaasPaymentAction(form);
+
+    expect(dependencies.requirePermission).toHaveBeenCalledWith(
+      "manageFinancialOperations"
+    );
+    expect(dependencies.reconcileAsaasPayment).toHaveBeenCalledWith({
+      actorUserId: "admin-user",
+      orderId: ATTEMPT_ID,
+    });
+  });
+
+  it("requires mutable financial access to import a statement", async () => {
+    dependencies.importAsaasFinancialStatement.mockResolvedValue({
+      imported: 2,
+    });
+    const form = new FormData();
+    form.set("startDate", "2026-07-01");
+    form.set("finishDate", "2026-07-30");
+
+    await expect(importAsaasStatementAction(form)).resolves.toEqual({
+      imported: 2,
+    });
+    expect(dependencies.requirePermission).toHaveBeenCalledWith(
+      "manageFinancialOperations"
+    );
+    expect(dependencies.importAsaasFinancialStatement).toHaveBeenCalledWith({
+      actorUserId: "admin-user",
+      finishDate: "2026-07-30",
+      startDate: "2026-07-01",
+    });
   });
 });

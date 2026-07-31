@@ -81,6 +81,8 @@ describe("auth policy", () => {
     expect(canPerform("admin", "retryWebhook")).toBe(true);
     expect(canPerform("support", "retryOutbox")).toBe(false);
     expect(canPerform("admin", "retryOutbox")).toBe(true);
+    expect(canPerform("support", "manageFinancialOperations")).toBe(false);
+    expect(canPerform("admin", "manageFinancialOperations")).toBe(true);
     expect(canPerform("student", "viewAdminPanel")).toBe(false);
   });
 
