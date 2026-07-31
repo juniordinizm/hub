@@ -91,6 +91,7 @@
     "db:migrations:check": "bun scripts/check-migrations.ts",
     "db:migrations:inspect": "bun scripts/inspect-migration-state.ts",
     "db:migrate": "drizzle-kit migrate",
+    "db:prepare:ci-migration": "bun scripts/prepare-ci-migration.ts",
     "db:migrate:e2e": "bun scripts/migrate-e2e.ts",
     "db:migrate:development": "bun scripts/migrate-development.ts",
     "db:migrate:production": "bun scripts/migrate-production.ts",

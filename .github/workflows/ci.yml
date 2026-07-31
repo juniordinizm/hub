@@ -57,6 +57,12 @@ jobs:
           branch_name: ci-integration-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_EXPIRES_AT }}
           project_id: ${{ vars.NEON_PROJECT_ID }}
+      - name: Prepare inherited migration data
+        env:
+          CI_NEON_BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
+        run: bun run db:prepare:ci-migration
       - name: Apply migrations
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
@@ -110,6 +116,12 @@ jobs:
           branch_name: ci-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_EXPIRES_AT }}
           project_id: ${{ vars.NEON_PROJECT_ID }}
+      - name: Prepare inherited migration data
+        env:
+          CI_NEON_BRANCH_ID: ${{ steps.neon.outputs.branch_id }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
+        run: bun run db:prepare:ci-migration
       - name: Apply migrations
         env:
           DATABASE_URL: ${{ steps.neon.outputs.db_url }}

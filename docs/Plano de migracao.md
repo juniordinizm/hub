@@ -1292,6 +1292,21 @@ adapter foram aprovadas.
   permaneceram em `5/2/2`. O login Admin ainda precisa de confirmação humana antes da
   limpeza destrutiva.
 
+  A Release B foi consolidada sobre `main`, versionada nos commits `3ec3842` e
+  `641faca`, publicada no PR
+  [#19](https://github.com/juniordinizm/hub/pull/19) e passou novamente pelo gate local
+  completo: 214 arquivos/1.314 testes, typecheck, Ultracite, 32 documentos, migrations,
+  build e Knip. O primeiro run remoto `30602650068` passou quality gates, mas integração
+  e E2E falharam ao migrar clones efêmeros de Production: os cinco Pedidos legados
+  herdados impedem `0046`, conforme a pré-condição já provada nos ensaios. A correção
+  foi concluída por TDD: antes das migrations, cada job prepara somente sua branch
+  efêmera com guardas de CI, ID Neon, URLs idênticas, compute não Production e journal
+  exato em `0043`, truncando apenas `orders` e dependências sob transação e advisory
+  lock; em `0052`, o mesmo comando é no-op. O gate completo posterior passou com
+  215 arquivos/1.323 testes, typecheck, Ultracite em 625 arquivos, 32 documentos,
+  migrations, build e Knip. Nenhuma branch persistente foi alterada; a prova remota
+  ainda depende do próximo run do PR.
+
 **Rollback:**
 
 - Antes do primeiro pagamento real Asaas: pausar checkout e reverter release/schema conforme runbook.
@@ -1593,7 +1608,9 @@ bun run verify
   financeiras.
 - [ ] **Pendente de execução:** remover dados de teste; `plan` real já validado em
   clone descartável e `execute` ainda não foi acionado.
-- [ ] **Não iniciado:** publicar Asaas.
+- [ ] **Em validação remota:** integrar e publicar a Release B pelo PR
+  [#19](https://github.com/juniordinizm/hub/pull/19); implementação e gate local
+  completos, com correção do preparo das branches efêmeras aguardando CI verde.
 - [x] **Concluído em código na Release B:** rota, cliente, parser, processor, retry,
   configuração operacional e documentação canônica AbacatePay removidos. Typecheck,
   Ultracite, 1.062 testes, docs:check e allowlist estática passaram em 2026-07-30;

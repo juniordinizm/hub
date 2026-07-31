@@ -95,6 +95,16 @@ fixadas na mesma URL direta descartável. A criação de uma branch não garante
 o compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A quinta falha
 preserva o erro do migrador e bloqueia os gates seguintes.
 
+Quando a branch-pai ainda está em `0043`, ela contém os Pedidos de teste legados que
+`0046` deliberadamente não converte. Por isso, as duas jobs executam
+`db:prepare:ci-migration` antes do migrador. O preparador exige `CI=true`, o ID devolvido
+pela action Neon, URLs direta e runtime idênticas, host Neon diferente do compute
+Production conhecido e journal exatamente com 44 entradas até `0043`. Somente então
+executa `truncate table public.orders cascade` em transação e sob advisory lock. Esse
+passo existe exclusivamente para clones efêmeros; não é um comando de limpeza de
+Development ou Production. Se a branch-pai já estiver exatamente em `0052`, o comando
+não altera dados; qualquer journal intermediário, anterior ou posterior falha fechado.
+
 O teste PostgreSQL real do worker Asaas depende de
 `CERTIFICATE_CONCURRENCY_DATABASE_URL`. Em 2026-07-29, a Etapa 9 executou essa prova na
 branch Neon descartável `br-autumn-mouse-ac9ti4dr`: 20 testes de integração passaram,

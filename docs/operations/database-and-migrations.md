@@ -266,6 +266,10 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   `0051`, a auditoria confirmou todas as entradas e os 20 testes PostgreSQL passaram.
   Essa limpeza é uma pré-condição explícita do corte direto, não um backfill nem uma
   autorização para alterar a branch persistente antes da Etapa 10.
+- Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
+  ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
+  `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito
+  acima, reproduzindo a ordem real do corte sem alterar a branch-pai.
 - `db:smoke:empty` não foi executado no host da Etapa 9 porque PostgreSQL local não está
   instalado. A guarda recusaria corretamente a branch Neon remota; não foi afrouxada nem
   contornada. A cadeia incremental e o catálogo foram provados na branch descartável,
@@ -302,6 +306,13 @@ $env:DATABASE_URL = $env:E2E_DATABASE_URL
 $env:DATABASE_URL_DIRECT = $env:E2E_DATABASE_URL
 bun run db:migrate:e2e
 ```
+
+O comando `bun run db:prepare:ci-migration` não é de uso manual. A CI o executa somente
+nas branches criadas pela própria job enquanto a branch-pai está em `0043`. Ele valida
+ambiente CI, branch Neon, URLs, compute não Production e journal antes de truncar
+`orders` com dependências somente no clone efêmero. O journal diferente de `0043`
+ou `0052` interrompe o comando; em `0052`, ele não altera dados. Assim, a exceção de
+corte não se transforma em limpeza recorrente nem bloqueia a CI depois da promoção.
 
 ## Evidências
 

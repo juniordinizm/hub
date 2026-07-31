@@ -92,3 +92,27 @@ describe("Production cleanup workflow", () => {
     expect(workflow).toContain("backup_branch_id=");
   });
 });
+
+describe("CI workflow", () => {
+  it("prepares inherited data only inside each ephemeral Neon branch", () => {
+    const workflow = readWorkflow("ci.yml");
+
+    expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
+    expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
+    expect(workflow).toContain(
+      `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
+    );
+
+    for (const job of ["integration-db:", "e2e:"]) {
+      const jobStart = workflow.indexOf(job);
+      const prepare = workflow.indexOf(
+        "bun run db:prepare:ci-migration",
+        jobStart
+      );
+      const migrate = workflow.indexOf("name: Apply migrations", jobStart);
+      expect(jobStart).toBeGreaterThanOrEqual(0);
+      expect(prepare).toBeGreaterThan(jobStart);
+      expect(migrate).toBeGreaterThan(prepare);
+    }
+  });
+});
