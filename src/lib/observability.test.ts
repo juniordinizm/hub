@@ -45,7 +45,7 @@ describe("observability", () => {
         errorCode: "provider_failed",
         operation: "checkout.create",
         outcome: "failure",
-        provider: "abacatepay",
+        provider: "asaas",
       },
       write
     );

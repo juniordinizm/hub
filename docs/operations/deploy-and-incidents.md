@@ -116,6 +116,11 @@ A Release A deve ser publicada primeiro sobre o schema `0043`, com
 provar que as entradas autenticada e pública retornam indisponibilidade antes de sessão,
 banco ou provider e que a Conta Admin continua acessível.
 
+Ao definir enum ou booleano pela Vercel CLI em PowerShell, não use pipeline textual
+com CRLF. O caractere `CR` pode ser persistido depois que a CLI remove apenas o `LF` e
+faz o preflight Zod falhar. Envie bytes exatos sem terminador ou use o painel; um novo
+deployment é obrigatório porque variáveis Vercel são capturadas no build.
+
 A Release B deve entrar com `ASAAS_WEBHOOK_ENABLED=false` e checkout ainda
 desabilitado. A limpeza dos dados de teste é um workflow manual separado: `plan` não
 escreve nem cria backup; `execute` exige fingerprint, duas confirmações e cria uma

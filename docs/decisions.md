@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Registro de decisões de produto
@@ -19,7 +19,7 @@ Implementação não promove política a aprovada sozinha.
 ## DEC-DISC-001
 
 **Tema:** entrega de e-mail.
-**Estado:** factory, parser e delivery implementados; enfileiramento Asaas pendente.
+**Estado:** implementado no fluxo Asaas.
 
 A intenção durável de ativação guarda somente `userId` e `orderId`, sem outros dados
 pessoais, token ou URL de callback. No processamento, o worker resolve a Conta e chama Better Auth
@@ -27,14 +27,14 @@ pessoais, token ou URL de callback. No processamento, o worker resolve a Conta e
 entrega mantém a intenção elegível para retry, sem persistir o token.
 
 `auth.account-activation` implementa a intenção sem PII e resolve os dados no delivery. O
-processor financeiro Asaas que escolherá e enfileirará essa intenção permanece pendente.
-O fluxo legado AbacatePay continua fora da outbox. Os demais e-mails transacionais mantêm
-o contrato descrito em [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md).
+processor financeiro Asaas escolhe e enfileira essa intenção no mesmo commit do acesso.
+Os demais e-mails transacionais mantêm o contrato descrito em
+[Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md).
 
 ## DEC-DISC-002
 
 **Tema:** precedência financeira.
-**Estado:** aprovado; matriz pura Asaas implementada, efeitos persistentes pendentes.
+**Estado:** aprovado e implementado no fluxo Asaas.
 
 `CHECKOUT_PAID` não libera. PIX libera em `PAYMENT_RECEIVED`; cartão libera em
 `PAYMENT_CONFIRMED` quando não há risco pendente ou reprovado. Aprovação posterior pode
@@ -45,19 +45,19 @@ abre revisão ou alerta. Ver
 [ADR-0005](adr/0005-financial-precedence-and-manual-review.md).
 
 `decideAsaasFinancialEvent`, em `src/features/payments/asaas-financial-events.ts`,
-materializa a matriz como decisão pura, sem SQL ou efeitos de acesso. O processor
-transacional que aplicará a decisão permanece pendente.
+materializa a matriz como decisão pura, sem SQL ou efeitos de acesso.
+`processAsaasWebhookEvent` aplica a decisão sob lock na transação do worker.
 
 ## DEC-DISC-003
 
 **Tema:** divergência de valor.
-**Estado:** aprovado; comparação pura Asaas implementada, revisão persistente pendente.
+**Estado:** aprovado e implementado no fluxo Asaas.
 
 O valor bruto Asaas `value` deve coincidir exatamente com o snapshot do Pedido em
 centavos, com tolerância zero. Divergência não libera acesso e abre revisão. Decisão manual
 exige permissão, motivo e auditoria. A comparação e o código seguro da revisão são
-produzidos por `decideAsaasFinancialEvent`; a criação e decisão persistente da Revisão
-permanecem pendentes.
+produzidos por `decideAsaasFinancialEvent`; o processor persiste a Revisão idempotente
+por Webhook.
 
 ## DEC-DISC-004
 
@@ -83,17 +83,27 @@ Certificado tem snapshots, código público, estado válido/revogado e reemissã
 ## DEC-DISC-007
 
 **Tema:** identidade, verificação e recuperação.
-**Estado:** resolução local implementada; integração com processor Asaas pendente.
+**Estado:** aprovado e implementado em código; homologação PostgreSQL/Sandbox pendente.
 
 No checkout autenticado, a Conta é a da sessão; o provider não pode alterar nome, e-mail,
-verificação ou credenciais. No checkout público, o Hub captura nome e e-mail localmente
-antes do redirect e registra Compradora = Aluna. Uma Conta nova não é considerada
-verificada pelo provider. Uma Conta existente não é sobrescrita pelos dados do checkout.
-Compra como presente ou para terceiro fica fora do escopo.
+verificação ou credenciais. No checkout público, o Pedido nasce sem PII e o Asaas coleta
+os dados do pagador. Depois do evento financeiro autoritativo, o Hub consulta o cliente
+Asaas, persiste uma vez somente nome/e-mail necessários e registra Compradora = Aluna. O
+provider informa identidade pretendida, mas não verifica Conta.
 
-`resolveLocalOrderIdentity` implementa o vínculo local seguro para Pedido já bloqueado,
-sem confiar no provider. O processor Asaas ainda não chama esse módulo. O fluxo
-AbacatePay atual permanece apenas como evidência legada.
+O e-mail normalizado vincula o Pedido a uma Conta Student existente ou cria Conta local
+não verificada; a ativação permite definir a senha. Conta existente não é sobrescrita.
+Identidade ausente, inválida, divergente, pertencente a Admin/Suporte, vinculada a Conta
+com bloqueio geral ou a Matrícula `revoked` no Curso não concede acesso: abre Revisão sem
+opção de aprovação e permite somente reembolso integral e nova compra elegível. Quando a
+sessão já revela bloqueio ou revogação, o Checkout é impedido antes da cobrança e a pessoa
+é orientada ao Suporte. Transferência manual e compra para terceiro ficam fora do escopo.
+
+A entrada comercial é um link estável do Hub em `/comprar/[slug]`, copiado da configuração
+do Curso e usado pela landing page externa. O handoff não possui formulário ou segundo
+clique visível em condições normais, mas cria a tentativa por `POST` para evitar que o
+`GET` de robôs e previews produza Checkout. Ver a
+[especificação aceita](superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md).
 
 ## DEC-DISC-008
 
@@ -116,7 +126,7 @@ Esta decisão de produto não prova base legal ou conformidade LGPD. Antes da at
 ## DEC-DISC-010
 
 **Tema:** preço mínimo de Curso pago.
-**Estado:** aprovado; implementação pendente.
+**Estado:** aprovado e implementado.
 
 Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10. A autoria valida o
 limite ao criar ou editar o Curso, e o checkout repete a validação antes de persistir o
@@ -124,14 +134,46 @@ Pedido ou chamar o provider. Dados de teste abaixo desse mínimo devem ser ajust
 removidos.
 
 Em 2026-07-28, o sandbox Asaas rejeitou uma tentativa de R$ 1 com `invalid_object` e
-mínimo de R$ 10. Essa evidência ratifica o limite externo observado, mas não prova a
-implementação no Hub. Ver
+mínimo de R$ 10. Autoria e checkout validam o mesmo limite no Hub. Ver
 [Comércio e acesso](domain/commerce-and-access.md#reg-com-001-pedido-preserva-o-contrato-vendido)
 e [Asaas](integrations/asaas.md).
 
+## DEC-DISC-011
+
+**Tema:** oferta de pagamento configurável por Curso.
+**Estado:** intenção de produto aprovada; implementação e viabilidade de juros pendentes.
+
+Cada Curso pago deve possuir configuração própria de preço e oferta:
+
+- Pix, cartão ou ambos;
+- cartão à vista ou parcelado;
+- quantidade máxima de parcelas definida pelo Admin;
+- política desejada de parcelamento com ou sem acréscimo para a Compradora.
+
+O padrão inicial desejado é Pix + cartão e cartão em até 3x com juros. Preço e oferta
+efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso não altere
+o contrato vendido.
+
+O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
+`installment.maxInstallmentCount`, mas não documenta juros comerciais por checkout. O
+campo `interest` das APIs de cobrança significa juros por atraso. Além disso, cada
+parcela Asaas possui seu próprio ID de pagamento; o modelo atual do Hub suporta somente
+um pagamento por Pedido. Portanto:
+
+- métodos e limite de parcelas são viáveis, mas ainda não implementados;
+- não ativar `INSTALLMENT` no adapter atual;
+- “com juros” permanece bloqueado até validação oficial ou aprovação de outro fluxo;
+- parcelamento exige modelagem de múltiplos pagamentos, conciliação e reembolso integral
+  do parcelamento antes do rollout.
+
+Ver a
+[pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).
+
 ## Outras ratificações necessárias
 
-- escopo definitivo de `support`;
+- escopo definitivo de `support` e capacidades financeiras mutáveis;
+- tratamento de compra pública com e-mail já pertencente a Admin/Suporte;
+- viabilidade e cálculo do acréscimo comercial por parcelamento;
 - política de reversão de ajustes encadeados;
 - confiabilidade banco e e-mail sem outbox;
 - critérios de incidente e SLOs;

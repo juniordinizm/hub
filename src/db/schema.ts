@@ -81,6 +81,11 @@ export const orderStatusEnum = pgEnum("order_status", [
   "disputed",
   "cancelled",
 ]);
+export const buyerIdentityStatusEnum = pgEnum("buyer_identity_status", [
+  "pending",
+  "resolved",
+  "review_required",
+]);
 export const checkoutStatusEnum = pgEnum("checkout_status", [
   "pending",
   "creating",
@@ -104,6 +109,7 @@ export const paymentReviewTypeEnum = pgEnum("payment_review_type", [
   "event_anomaly",
   "partial_refund",
   "uncertain_result",
+  "buyer_identity",
 ]);
 export const paymentReviewStatusEnum = pgEnum("payment_review_status", [
   "pending",
@@ -833,6 +839,9 @@ export const orders = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
     userId: text("user_id").references(() => users.id),
+    buyerIdentityStatus: buyerIdentityStatusEnum(
+      "buyer_identity_status"
+    ).notNull(),
     provider: text("provider").notNull(),
     providerCheckoutId: text("provider_checkout_id"),
     providerPaymentId: text("provider_payment_id"),

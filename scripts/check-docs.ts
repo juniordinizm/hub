@@ -13,7 +13,7 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/domain/commerce-and-access.md",
   "docs/domain/learning-content-and-progress.md",
   "docs/domain/certificates-and-data-rights.md",
-  "docs/integrations/abacatepay.md",
+  "docs/integrations/asaas.md",
   "docs/integrations/jmvstream.md",
   "docs/integrations/r2.md",
   "docs/integrations/resend.md",

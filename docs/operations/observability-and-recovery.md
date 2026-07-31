@@ -17,8 +17,8 @@ Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos.
 | Capacidade | Sinal | Dona | Severidade | Ação |
 |---|---|---|---|---|
 | Auth | `auth.sign_in`, exceção de request e fallback de interface | Engenharia | alta se login indisponível | localizar `correlationId`, consultar Sentry e Better Auth |
-| Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração AbacatePay e Pedido sem PII |
-| Webhook e concessão | `webhook.abacatepay`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
+| Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração Asaas e Pedido sem PII |
+| Webhook e concessão | `webhook.asaas`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
 | Player e upload | `cron.jmvstream`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) |
 | Certificado e e-mail | outbox, dead letter e exceção | Operações | alta se emissão não notifica | conferir agregado, outbox e Resend; não editar snapshot |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
@@ -49,7 +49,7 @@ RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `duration
 Colete uma linha de base de 30 dias antes de fixar meta, janela, error budget ou pager. Registre diariamente:
 
 1. disponibilidade de login e player por check sintético autenticado;
-2. tempo entre `webhook.abacatepay` e projeção de Matrícula/Concessão;
+2. tempo entre `webhook.asaas` e projeção de Matrícula/Concessão;
 3. idade e quantidade de outbox pendente/dead letter;
 4. tempo entre vídeo pendente e `ready`;
 5. falha e latência de `checkout.create`.
@@ -65,10 +65,10 @@ Até haver baseline e aprovação de produto/operações, excedente gera investi
 3. Runtime usa `DATABASE_URL` pooled; migrations usam `DATABASE_URL_DIRECT`. Nunca recupere com `db:push` ou `db:reset`.
 4. Branch, PITR, proteção e retenção de produção requerem verificação humana no Neon.
 
-### AbacatePay
+### Asaas
 
 1. Relacione `correlationId`, ID do Pedido e `event_key`, sem payload bruto.
-2. Confira assinatura, deduplicação, estado financeiro e `payment_reviews`.
+2. Confira token de acesso, deduplicação, estado financeiro e `payment_reviews`.
 3. Use somente retry autorizado; não crie Matrícula diretamente para simular pagamento.
 
 ### JMVStream e R2

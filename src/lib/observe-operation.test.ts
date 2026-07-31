@@ -32,7 +32,7 @@ describe("observe operation", () => {
         correlationId: "fbe7b6eb-e066-4b41-970a-f4ea65ca1772",
         execute: () => Promise.reject(new Error("token=secret")),
         now: () => 142,
-        operation: "webhook.abacatepay",
+        operation: "webhook.asaas",
         startedAt: 100,
         write,
       })

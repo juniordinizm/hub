@@ -7,6 +7,8 @@ import {
 
 const PROVIDER_SECRET_OR_PII_RE = /aluna@example|sandbox-token/;
 const TRANSPORT_SECRET_OR_PII_RE = /sandbox-token|aluna@example|Motivo privado/;
+const CUSTOMER_PII_RE =
+  /aluna@example|Rua privada|12345678900|11999999999|01001000/;
 
 const checkoutResponse = {
   id: "chk_123",
@@ -155,6 +157,183 @@ describe("AsaasClient", () => {
       })
     );
     expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty("body");
+  });
+
+  it("gets only the safe customer identity without sending a body", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        address: "Rua privada",
+        cpfCnpj: "12345678900",
+        email: "aluna@example.com",
+        id: "cus_123",
+        mobilePhone: "11999999999",
+        name: "Aluna Teste",
+        phone: "1133333333",
+        postalCode: "01001000",
+      })
+    );
+
+    await expect(createClient(fetcher).getCustomer("cus_123")).resolves.toEqual(
+      {
+        email: "aluna@example.com",
+        id: "cus_123",
+        name: "Aluna Teste",
+      }
+    );
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api-sandbox.asaas.com/v3/customers/cus_123",
+      expect.objectContaining({
+        headers: {
+          "User-Agent": "Hub/1.0 payments@example.com",
+          access_token: "sandbox-token",
+        },
+        method: "GET",
+      })
+    );
+    expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty("body");
+    expect(fetcher.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
+      "Content-Type"
+    );
+  });
+
+  it("encodes the customer ID in the path", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        email: "aluna@example.com",
+        id: "cus/with space",
+        name: "Aluna Teste",
+      })
+    );
+
+    await expect(
+      createClient(fetcher).getCustomer("cus/with space")
+    ).resolves.toEqual({
+      email: "aluna@example.com",
+      id: "cus/with space",
+      name: "Aluna Teste",
+    });
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      "https://api-sandbox.asaas.com/v3/customers/cus%2Fwith%20space"
+    );
+  });
+
+  it.each([
+    "",
+    "   ",
+  ])("rejects an empty customer ID before fetch: %j", async (customerId) => {
+    const fetcher = vi.fn();
+
+    await expect(
+      createClient(fetcher).getCustomer(customerId)
+    ).rejects.toMatchObject({
+      kind: "validation",
+      outcome: "rejected",
+      retryable: false,
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["null", null],
+    ["array", []],
+    ["missing id", { email: "aluna@example.com", name: "Aluna Teste" }],
+    [
+      "different id",
+      { email: "aluna@example.com", id: "cus_other", name: "Aluna Teste" },
+    ],
+    [
+      "non-string id",
+      { email: "aluna@example.com", id: 123, name: "Aluna Teste" },
+    ],
+    ["missing name", { email: "aluna@example.com", id: "cus_123" }],
+    [
+      "non-string name",
+      { email: "aluna@example.com", id: "cus_123", name: null },
+    ],
+    ["empty name", { email: "aluna@example.com", id: "cus_123", name: "" }],
+    [
+      "whitespace name",
+      { email: "aluna@example.com", id: "cus_123", name: "   " },
+    ],
+    ["missing email", { id: "cus_123", name: "Aluna Teste" }],
+    ["non-string email", { email: null, id: "cus_123", name: "Aluna Teste" }],
+    ["empty email", { email: "", id: "cus_123", name: "Aluna Teste" }],
+    ["whitespace email", { email: "   ", id: "cus_123", name: "Aluna Teste" }],
+  ] as const)("rejects an invalid customer response: %s", async (_label, payload) => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json(payload));
+    const promise = createClient(fetcher).getCustomer("cus_123");
+
+    await expect(promise).rejects.toMatchObject({
+      kind: "invalid_response",
+      outcome: "rejected",
+      retryable: true,
+    });
+    await expect(promise).rejects.not.toThrow(CUSTOMER_PII_RE);
+  });
+
+  it.each([
+    [401, "auth", false],
+    [404, "not_found", false],
+    [429, "rate_limited", true],
+    [503, "provider_unavailable", true],
+  ] as const)("classifies customer HTTP %s without exposing provider PII", async (status, kind, retryable) => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json(
+        {
+          errors: [
+            {
+              code: "customer_lookup_error",
+              description: "aluna@example.com Rua privada 12345678900",
+            },
+          ],
+        },
+        { headers: { "Retry-After": "5" }, status }
+      )
+    );
+    const promise = createClient(fetcher).getCustomer("cus_123");
+
+    await expect(promise).rejects.toMatchObject({
+      httpStatus: status,
+      kind,
+      outcome: "rejected",
+      retryable,
+    });
+    await expect(promise).rejects.not.toThrow(CUSTOMER_PII_RE);
+  });
+
+  it("classifies a customer transport failure as a retryable query", async () => {
+    const fetcher = vi
+      .fn()
+      .mockRejectedValue(
+        new Error("aluna@example.com Rua privada 12345678900")
+      );
+    const promise = createClient(fetcher).getCustomer("cus_123");
+
+    await expect(promise).rejects.toMatchObject({
+      kind: "transport",
+      outcome: "rejected",
+      retryable: true,
+    });
+    await expect(promise).rejects.not.toThrow(CUSTOMER_PII_RE);
+  });
+
+  it("classifies a customer timeout as a retryable query", async () => {
+    const fetcher = vi.fn(
+      (_url, request) =>
+        new Promise<Response>((_resolve, reject) => {
+          request?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        })
+    );
+
+    await expect(
+      createClient(fetcher, { timeoutMs: 1 }).getCustomer("cus_123")
+    ).rejects.toMatchObject({
+      kind: "timeout",
+      outcome: "rejected",
+      retryable: true,
+    });
   });
 
   it("gets and normalizes a payment without sending a body", async () => {

@@ -7,7 +7,7 @@ describe("request error logging", () => {
 
     const correlationId = logRequestFailure(
       {
-        context: { routePath: "/api/webhooks/abacatepay", routeType: "route" },
+        context: { routePath: "/api/webhooks/asaas", routeType: "route" },
         request: {
           headers: {
             "x-correlation-id": "fbe7b6eb-e066-4b41-970a-f4ea65ca1772",
@@ -19,7 +19,7 @@ describe("request error logging", () => {
 
     expect(correlationId).toBe("fbe7b6eb-e066-4b41-970a-f4ea65ca1772");
     expect(write).toHaveBeenCalledWith(
-      expect.stringContaining('"operation":"route./api/webhooks/abacatepay"')
+      expect.stringContaining('"operation":"route./api/webhooks/asaas"')
     );
   });
 });

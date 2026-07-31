@@ -1,5 +1,6 @@
 import type {
   AsaasCheckout,
+  AsaasCustomer,
   AsaasFinancialTransactionPage,
   AsaasGateway,
   AsaasPayment,
@@ -9,6 +10,7 @@ import type {
   ListAsaasPayments,
   RefundAsaasPayment,
 } from "./asaas";
+import { AsaasGatewayError } from "./asaas-client";
 
 type FakeOutcome<T> = Error | T;
 
@@ -24,6 +26,7 @@ interface FakeAsaasGatewayConfig {
 interface FakeAsaasGatewayCalls {
   cancelCheckout: string[];
   createCheckout: CreateAsaasCheckout[];
+  getCustomer: string[];
   getPayment: string[];
   listFinancialTransactions: ListAsaasFinancialTransactions[];
   listPayments: ListAsaasPayments[];
@@ -49,11 +52,14 @@ export class FakeAsaasGateway implements AsaasGateway {
   readonly calls: FakeAsaasGatewayCalls = {
     cancelCheckout: [],
     createCheckout: [],
+    getCustomer: [],
     getPayment: [],
     listFinancialTransactions: [],
     listPayments: [],
     refundPayment: [],
   };
+
+  readonly customers = new Map<string, AsaasCustomer>();
 
   private readonly config: FakeAsaasGatewayConfig;
 
@@ -69,6 +75,21 @@ export class FakeAsaasGateway implements AsaasGateway {
   async createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout> {
     this.calls.createCheckout.push(input);
     return await resolveOutcome("createCheckout", this.config.createCheckout);
+  }
+
+  async getCustomer(customerId: string): Promise<AsaasCustomer> {
+    this.calls.getCustomer.push(customerId);
+    const customer = this.customers.get(customerId);
+    if (!customer) {
+      throw new AsaasGatewayError({
+        kind: "not_found",
+        message: "Cliente fake nao encontrado.",
+        outcome: "rejected",
+        retryable: false,
+      });
+    }
+
+    return await Promise.resolve({ ...customer });
   }
 
   async getPayment(paymentId: string): Promise<AsaasPayment> {

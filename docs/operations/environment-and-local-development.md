@@ -12,8 +12,8 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 
 O `.env.local` da estação principal foi corrigido e passa pelo preflight
 fail-closed de Development. Ele usa a branch Neon `development`, os buckets
-`hub-development-private` e `hub-development-public`, AbacatePay em modo de
-teste e o projeto Sentry de Development. Resend reutiliza o domínio verificado
+`hub-development-private` e `hub-development-public`, Asaas Sandbox e o projeto
+Sentry de Development. Resend reutiliza o domínio verificado
 com allowlist obrigatória. JMVStream reutiliza conscientemente o plano
 Production e, por isso, continua sendo a única integração sem isolamento
 técnico completo.
@@ -55,11 +55,6 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
 | `SUPPORT_EMAIL` | caixa real e `Reply-To` padrão; `suporte@neurocapacitar.com.br` em Production | e-mail de suporte | dado operacional |
-| `ABACATE_PAY_API_KEY` | checkout/reembolso | cliente AbacatePay | sim |
-| `ABACATEPAY_API_KEY` | alias legado | cliente AbacatePay | sim |
-| `ABACATEPAY_API_BASE_URL` | integração | cliente AbacatePay | não |
-| `ABACATEPAY_WEBHOOK_SECRET` | webhook de produção | route webhook | sim |
-| `DEVELOPMENT_ABACATEPAY_DEV_MODE` | preflight Development | confirmação de chave devMode | não |
 | `ASAAS_API_KEY` | checkout Asaas server-only | adapter Asaas | sim |
 | `ASAAS_API_BASE_URL` | sandbox em Development e endpoint aprovado em Production | adapter Asaas | não |
 | `ASAAS_USER_AGENT` | identificação estável com contato técnico | adapter Asaas | não |
@@ -95,13 +90,15 @@ As cinco rotas cron, inclusive `/api/cron/asaas-webhooks`, compartilham
 UTC, mas deve permanecer desabilitado até migrations, configuração e homologação do
 ambiente alvo.
 
-Não configure os dois aliases AbacatePay com valores divergentes. As quatro variáveis Asaas
-são opcionais no parser; o factory exige as três do adapter e a rota de webhook exige o
-token próprio. Development exige as quatro para a homologação sandbox. Production permite
+As quatro variáveis Asaas são opcionais no parser; o factory exige as três do adapter e a
+rota de webhook exige o token próprio. Development exige as quatro para a homologação
+sandbox. Production permite
 o deploy pré-corte sem elas enquanto checkout, webhook e worker estão desabilitados; quando
-configuradas, a origem e a força do token são validadas, e o adapter e a rota falham de
-forma segura se o respectivo segredo estiver ausente. Preview recusa credenciais de
-provider. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de
+`PAYMENTS_CHECKOUT_MODE` é `authenticated`/`public` ou
+`ASAAS_WEBHOOK_ENABLED=true`, as cinco variáveis `ASAAS_*` da tabela tornam-se
+obrigatórias em conjunto. A origem e a força do token são validadas, e o adapter e a
+rota falham de forma segura se o respectivo segredo estiver ausente. Preview recusa
+credenciais de provider. Não coloque JWT em `JMVSTREAM_AUTH_RESOURCE`. `E2E_TEST_MODE` só eleva limite de
 login no banco efêmero da CI. O seed e o teardown E2E recusam operações R2 se
 `E2E_R2_BUCKET_NAME` estiver ausente ou não for exatamente igual a `R2_BUCKET_NAME`; nunca
 confirme um bucket de produção.

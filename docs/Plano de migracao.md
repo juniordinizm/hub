@@ -25,11 +25,19 @@
 - Cartão libera acesso em `PAYMENT_CONFIRMED` quando não há risco pendente ou reprovado;
   aprovação de risco posterior pode destravar uma confirmação já armazenada.
 - `CHECKOUT_PAID` não é autoridade financeira.
-- Compradora pública informa nome e e-mail no Hub antes do redirect.
+- Compradora pública informa os dados no Checkout Asaas; o Hub os consulta somente após
+  evento financeiro autoritativo e não considera o provider prova de verificação.
 - Dados do provider não verificam nem alteram automaticamente uma Conta.
 - Divergência monetária tem tolerância zero e abre Revisão.
 - Reembolso confirmado, disputa e chargeback prevalecem e revogam acesso.
 - Reembolso oferecido pelo Hub continuará sendo apenas integral.
+
+**Decisão posterior ao escopo original:** em 2026-07-30, Produto aprovou como evolução
+uma oferta de pagamento própria por Curso, com Pix, cartão ou ambos e limite de parcelas
+administrável. O padrão desejado é até 3x com juros. Isso é backlog pós-migração, não
+falha retroativa deste escopo. A viabilidade dos juros e o agregado de múltiplos
+pagamentos permanecem pendentes conforme
+[DEC-DISC-011](decisions.md#dec-disc-011).
 
 ### Evidência desta fase
 
@@ -39,6 +47,144 @@
 - Testes executados: nenhum, porque esta fase foi estritamente de leitura e planejamento.
 - Documentação atual de Asaas e AbacatePay consultada via Context7 e fontes oficiais em 2026-07-28.
 - Tempo registrado da análise: aproximadamente 17 minutos.
+
+## Revisão pós-sprint de 2026-07-30
+
+O núcleo Asaas foi implementado e homologado em Sandbox, mas a substituição operacional
+do AbacatePay ainda não está concluída. O resultado detalhado, achados priorizados,
+novas regras e ordem de correção estão na
+[revisão pós-sprint](reviews/2026-07-30-asaas-sprint-review.md).
+
+Gates novos ou reabertos pela revisão:
+
+1. separar e versionar Release A de contenção e Release B Asaas;
+2. desativar o ingresso AbacatePay na Release A antes da limpeza e remover a rota e o
+   código legado na Release B, antes de aplicar a migration `0044`;
+3. **Concluído em código na Release B:** restringir conciliação e importação de extrato
+   à capacidade mutável `manageFinancialOperations`, exclusiva de Admin;
+4. disponibilizar a jornada pública real, não apenas a API;
+5. **Concluído em código na Release B:** aceitar `externalReference=null` no reembolso
+   somente com pagamento e sessão de Checkout exatos e nenhum identificador conflitante;
+6. **Concluído em código na Release B:** incluir Checkout `uncertain` no backlog e na
+   auditoria operacional;
+7. concluir corte, smoke real e estabilização antes de declarar a migração encerrada;
+8. tratar parcelamento como evolução arquitetural própria.
+
+**Desenho aprovado para o item 4 em 2026-07-30:** as landing pages permanecem em outro
+repositório e usam o link estável `APP_URL/comprar/[slug]`, copiável na configuração do
+Curso. O handoff inicia uma tentativa por `POST` e redireciona automaticamente ao Asaas,
+sem formulário ou segundo clique visível em condições normais. O Checkout Asaas coleta a
+identidade; o worker consulta o cliente antes da transação financeira. Conta Student é
+vinculada/criada sem sobrescrita nem verificação implícita. Identidade de Admin/Suporte,
+Conta com bloqueio geral ou Matrícula `revoked` no Curso abre Revisão, não concede acesso e
+só permite reembolso integral pelo Suporte e nova compra elegível. Quando sessão já revela
+bloqueio/revogação, a cobrança é impedida. A especificação aceita está em
+`docs/superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md` e o plano TDD
+em `docs/superpowers/plans/2026-07-30-public-course-purchase-handoff.md`. Histórico da
+execução TDD: na Task 1, o parser único de identidade foi implementado antes do
+enriquecimento das Tasks seguintes. A Task 1
+passou em 45 testes focais, typecheck, Ultracite e revisões independentes de conformidade e
+qualidade. A migration `0052_public_buyer_identity`, timestamp `1785424607559`, foi gerada
+com backfill seguro e validada em 12 testes e na cadeia Drizzle; não foi aplicada a ambiente
+persistente. O núcleo público agora cria Pedido sem PII com identidade `pending`, exige Curso
+ativo e publicado, bloqueia acesso ativo ou revogado antes do provider e restringe a action
+autenticada a Student; a Task 3 passou em 51 testes focais, typecheck, Ultracite e duas
+revisões independentes. Esse histórico incremental foi concluído pelas Tasks 5–11
+descritas a seguir. Naquele checkpoint, nenhum commit, merge ou deploy havia sido
+executado. API sem PII e página de
+handoff concluídas. A
+matriz HTTP estrita passou em 49 testes focais e nas revisões de conformidade e qualidade.
+O handoff `/comprar/[slug]` está implementado e homologado com compra PIX real no Sandbox.
+A projeção é read-only, usa o relógio do PostgreSQL para acesso efetivo e o Client faz um
+único POST, sem formulário ou PII. A navegação aceita somente HTTPS nos hosts Asaas exatos
+documentados/permitidos e falha fechada para qualquer outro destino. A Task 5 passou em 44
+testes focais, typecheck, Ultracite e revisões independentes.
+O link copiável foi implementado na configuração do Curso, com disponibilidade derivada de
+modo público, estado ativo, publicação e preço mínimo. Clipboard possui fallback acessível;
+18 testes focais e as duas revisões passaram. Verificação visual não foi usada, conforme a
+regra do projeto.
+Adapter `getCustomer` e worker bifásico concluídos. O contrato descarta toda PII além
+de `id`, `name` e `email`, exige correlação exata e passou em 67 testes focais e duas
+revisões independentes.
+O worker agora é bifásico: correlação e `getCustomer` acontecem antes de `pool.connect()` e
+`BEGIN`; nenhuma chamada externa ocorre dentro da transação. Envelope e todos os IDs
+presentes precisam convergir antes da busca de PII. A Task 8 passou em 78 testes unitários e
+duas revisões; a integração PostgreSQL e o E2E foram executados depois em branches Neon
+descartáveis.
+Resolução transacional da identidade concluída em código: Student existente, Conta nova não
+verificada, Admin, Suporte, papel ausente, bloqueio geral, revogação no mesmo Curso,
+revogação em outro Curso e corrida de e-mail estão cobertos. CAS de PII e vínculo é
+write-once/idempotente; colisão abre Revisão `buyer_identity`, preserva `paid` e bloqueia
+Concessão/outbox. A Task 9 passou em 75 testes e duas revisões. Revisão
+`buyer_identity` agora rejeita decisões genéricas e encerra somente depois de reembolso
+integral confirmado; a UI mantém uma única operação de reembolso por Pedido mesmo com
+paginação independente. A Task 10 passou em 80 testes, typecheck, Ultracite e revisões
+independentes de conformidade e qualidade. Callbacks cancelado/expirado agora carregam a
+tentativa nos fluxos público e autenticado, validam UUID antes da consulta e retornam ao
+link estável do Curso; retorno inválido ou ausente oferece login/Suporte, nunca a raiz
+protegida nem uma nova tentativa. A Task 11 passou em 62 testes, typecheck, Ultracite e
+revisões independentes de conformidade e qualidade. A prova de concorrência em PostgreSQL
+real continua pendente pela mesma ausência de banco local descartável.
+
+Checkpoint da jornada pública:
+
+- [x] Link estável e handoff sem formulário — unitários e E2E fake aprovados.
+- [x] Identidade Asaas pós-evento — unitários e processor aprovados.
+- [x] Conta de equipe/bloqueada/revogada — Revisão sem acesso aprovada.
+- [x] Homologação Sandbox real pós-mudança — checkout, PIX, webhooks, acesso, entrega do
+  e-mail de ativação, criação da senha, login e abertura do Curso foram comprovados.
+
+O harness E2E inclui servidor Asaas local determinístico, seed sem PII, guard fail-closed
+que rejeita banco divergente ou o compute de produção conhecido, compra pública e
+autenticada, remount com UUID estável, callbacks, idempotência e colisões pós-pagamento.
+As 24 jornadas Chromium passaram em branch Neon CI efêmero já migrado; o teardown concluiu
+e o branch foi excluído. Os gates locais finais passaram com 214 arquivos/1.314 testes,
+typecheck, Ultracite em 622 arquivos, 32 documentos canônicos, cadeia de migrations e
+`git diff --check`. Nesse fechamento local anterior ao corte, nenhum commit, merge,
+push ou deploy havia sido executado.
+
+Preflight Sandbox de 2026-07-31: a credencial local autenticou a listagem de webhooks. O
+webhook `testeneuro` está habilitado, não interrompido, com 33 eventos e aponta para o
+domínio ngrok reservado em `/api/webhooks/asaas`. O pacote oficial `Ngrok.Ngrok` foi
+instalado e atualizado do agente `3.3.1` para `3.39.10`; o domínio existente foi reutilizado
+sem alterar a configuração Asaas. O CLI imprimiu o authtoken durante o upgrade da
+configuração, portanto esse token deve ser rotacionado antes do próximo uso.
+
+O ensaio pós-mudança usou somente a branch Neon CI descartável
+`br-sparkling-thunder-acsoydjw`. Cinco Pedidos de teste herdados foram removidos nessa branch
+para permitir a migration `0046`; a cadeia completa então foi aplicada com
+`db:migrate:e2e`. O handoff público respondeu `200` pelo túnel e criou um Checkout real
+Sandbox em estado local `ready`. O formulário hospedado aceitou identificação, endereço e
+cartão/Pix, mas o reCAPTCHA reiniciou a jornada nas tentativas headless antes de criar um
+Payment. A fonte autoritativa permaneceu com Pedido `pending`, sem `provider_payment_id` e
+zero webhooks. A conclusão exige uma interação humana para gerar o Pix; nenhuma cobrança foi
+confirmada. Ao encerrar o ensaio, app e ngrok foram parados e a branch descartável foi
+excluída. Nenhum ambiente persistente, configuração Asaas, deploy ou Production foi alterado.
+
+A continuação humana gerou o PIX do mesmo Checkout. Como a primeira branch já havia sido
+excluída, o estado mínimo do Pedido foi reconstruído somente na branch Neon CI descartável
+`br-bitter-morning-ac77jova`. O Sandbox confirmou o pagamento
+`pay_osaegxudgt1s8kbb`; `CHECKOUT_PAID` e `PAYMENT_RECEIVED` atravessaram o ngrok com
+HTTP `200`, e o worker processou dois eventos sem falha. O Pedido terminou `paid`, com
+R$ 250,00 bruto, R$ 248,01 líquido e R$ 1,99 de taxa. Foram criadas exatamente uma
+Concessão e uma Matrícula até 2027-07-31, e a repetição do worker não duplicou nenhum
+efeito. A entrega de ativação revelou uma incompatibilidade entre a normalização inicial
+da Compradora e o Sentinel do Better Auth: Gmail/Googlemail com pontos ou `+tag` não
+convergiam. O contrato foi alinhado em `normalizeBuyerEmail`, coberto por regressão, e a
+outbox entregou o e-mail pelo Resend (`delivered=1`, `retried=0`). A Compradora confirmou
+a criação da senha, o login e a abertura do Curso. A auditoria final encontrou exatamente
+uma credencial, uma Concessão ativa e uma Matrícula ativa. Nenhum ambiente persistente,
+deploy, Production ou configuração Asaas foi alterado.
+
+No reteste manual seguinte, o app foi reaberto pelo mesmo domínio ngrok contra
+Development. A superfície Admin revelou que o código em `0052` estava à frente do
+journal desse alvo, ainda em `0043`. Depois de confirmar zero Pedidos, Webhooks e
+Concessões financeiras, a promoção de `0044` a `0052` foi autorizada e executada com
+`db:migrate:development`. A auditoria confirmou 53 entradas, a consulta administrativa
+antes incompatível, um único Admin preservado e uma segunda execução idempotente. O
+reteste manual foi aprovado; app e ngrok foram então encerrados. Production permaneceu
+inalterada em `0043`, e o webhook Sandbox continua apontando para o domínio reservado
+agora offline.
 
 ## Como o sistema funciona hoje
 
@@ -524,14 +670,15 @@ ausência de retenção técnica e falta de decisões ratificadas. Permanecem:
 1. **Alto:** processor, worker e agenda Asaas existem e as migrations passaram em banco
    descartável, mas nenhum ambiente persistente recebeu DDL ou deploy; a fila permanece
    pausada.
-2. **Alto:** reserva, checkout e entrega real `CHECKOUT_CREATED` foram provados no
-   Sandbox; pagamento PIX/cartão, resultado financeiro e reembolso ainda dependem da
-   conclusão manual das sessões abertas.
+2. **Alto:** reserva, checkout, `CHECKOUT_CREATED`, pagamento PIX, resultado financeiro e
+   entrega de acesso foram provados no Sandbox; a nova jornada de cartão e seu
+   parcelamento ainda dependem de homologação.
 3. **Médio:** factory, parser, delivery e enfileiramento de ativação passaram no
-   PostgreSQL descartável e no E2E local; credencial e webhook Sandbox estão ativos,
-   mas nenhum pagamento foi concluído.
+   PostgreSQL descartável, no E2E local e em uma compra PIX Sandbox; o Resend aceitou o
+   e-mail real, criação da senha, login e abertura do Curso.
 4. **Médio:** checkout e conciliação preservam resultado incerto e precedência sem retry
-   cego; a correlação real entre Checkout, pagamento e eventos ainda precisa do sandbox.
+   cego; a correlação real entre Checkout, pagamento PIX e eventos foi comprovada, mas
+   cartão e eventos de risco permanecem pendentes.
 5. **Médio:** a página de sucesso possui uma janela finita de espera e pode terminar antes
    de fluxos financeiros assíncronos; o estado durável, não a tela, continua autoritativo.
 6. **Médio:** as provas unitária, transacional e E2E passaram, mas não substituem os
@@ -716,9 +863,11 @@ O schema e as migrations `0044_asaas_commerce_persistence` a
 `0051_asaas_financial_statement` foram gerados. Checkout, webhook, reembolso e
 conciliação Asaas já usam o contrato novo; o reembolso não escreve
 `provider_refund_id` nem depende da coluna de produto remoto removida. A cadeia foi
-aplicada e auditada somente em branch descartável removida depois da Etapa 9; nenhuma
-branch persistente recebeu o DDL. A limpeza dos dados de teste e a aplicação controlada
-continuam pendentes.
+primeiro aplicada e auditada em branch descartável removida depois da Etapa 9. Em
+2026-07-31, após autorização explícita e auditoria das pré-condições vazias, Development
+recebeu `0044` a `0052` e chegou a 53 entradas no journal; Production permanece em
+`0043`. A limpeza dos dados de teste de Production e sua aplicação controlada continuam
+pendentes.
 
 ### Etapa 4: implementar o adapter Asaas
 
@@ -761,7 +910,8 @@ adapter foram aprovadas.
   - persistir Pedido antes do checkout;
   - representar criação em andamento e resultado incerto;
   - checkout autenticado usa `userId` imutável da sessão;
-  - checkout público captura nome/e-mail antes do redirect;
+  - checkout público nasce sem PII e resolve nome/e-mail do cliente Asaas somente após
+    evento financeiro autoritativo;
   - não alterar Conta com dados Asaas;
   - usar implementação interna compartilhada;
   - substituir rate limit em memória por mecanismo coordenado;
@@ -875,7 +1025,8 @@ adapter foram aprovadas.
   - ampliar busca/paginação de Pedidos;
   - mostrar checkout, pagamento, método, gross, net, taxas e estado;
   - criar reconciliação por pagamento e extrato;
-  - alertas para fila, eventos falhos, Pedidos sem correlação e reembolsos incertos;
+  - alertas para fila, eventos falhos, Checkouts incertos, Pedidos sem correlação e
+    reembolsos incertos;
   - remover strings operacionais AbacatePay.
 - **Componentes/arquivos/áreas impactadas:** refunds, actions, admin financeiro, operations, observability e outbox.
 - **Dependências:** Etapas 4, 6 e 7.
@@ -888,12 +1039,15 @@ adapter foram aprovadas.
   persistidas pela resposta e pelo webhook; `dateCreated` permanece texto exato porque
   o provider não publica fuso. O painel financeiro ganhou busca paginada, IDs de
   checkout/pagamento, método, bruto, líquido, tarifa, estados e ações de conciliação.
-  A conciliação por pagamento exige IDs e referência exatos e altera somente o Pedido
-  bloqueado; o extrato por período fechado é paginado e deduplicado em
+  A conciliação por pagamento exige IDs convergentes e altera somente o Pedido
+  bloqueado; ela e a importação de extrato exigem `manageFinancialOperations`, exclusiva
+  de Admin. O extrato por período fechado é paginado e deduplicado em
   `asaas_financial_transactions`, sem inventar correlação entre movimento e pagamento.
-  Alertas operacionais agora cobrem fila/falhas Asaas, Pedidos pagos sem correlação e
-  reembolsos incertos. As migrations `0044` a `0051` não foram aplicadas; PostgreSQL
-  real, sandbox, deploy e homologação pertencem às etapas seguintes.
+  A resposta do reembolso exige pagamento exato, evidência integral, nenhum
+  identificador conflitante e `externalReference` ou sessão de Checkout exata. Alertas
+  operacionais agora cobrem fila/falhas Asaas, Checkouts incertos, Pedidos pagos sem
+  correlação e reembolsos incertos. As migrations `0044` a `0051` não foram aplicadas;
+  PostgreSQL real, sandbox, deploy e homologação pertencem às etapas seguintes.
 
 ### Etapa 9: homologar ponta a ponta
 
@@ -989,6 +1143,23 @@ adapter foram aprovadas.
   testes de contrato e processor; a ausência do evento real está registrada como
   limitação do ambiente, não como comportamento garantido do provider.
 
+  Em 2026-07-31, o novo handoff público também concluiu uma compra PIX real ponta a
+  ponta: Checkout hospedado, `CHECKOUT_PAID`, `PAYMENT_RECEIVED`, resultado financeiro,
+  Conta sem credencial, ativação via Resend, criação de senha, login e abertura do Curso.
+  O ensaio revelou e corrigiu a divergência de identidade entre Compradora e a
+  normalização de e-mail do Sentinel. A auditoria final encontrou um Pedido `paid`, uma
+  credencial, uma Concessão ativa e uma Matrícula ativa, sem duplicação após retry. App,
+  ngrok e branch Neon descartável foram removidos; nenhum deploy ou ambiente persistente
+  foi alterado. O webhook Sandbox `testeneuro` permaneceu habilitado e apontando para o
+  domínio ngrok reservado, agora offline, até decisão operacional explícita.
+
+  O fechamento local repetiu `verify:quick` com migrations, typecheck, Ultracite e
+  1.314 testes em 214 arquivos; o build Next.js de produção e o Knip também passaram.
+  Durante esse gate, o Knip revelou que carregar `playwright.config.ts` sem
+  `E2E_DATABASE_URL` emitia erro sem status diferente de zero. O perfil de verificação
+  agora fornece ao Knip apenas URLs PostgreSQL sintéticas sob host `.invalid`, cobertas
+  por teste, sem conexão ou credencial real.
+
   `db:smoke:empty` também não roda neste host porque não há PostgreSQL local; sua guarda
   recusa corretamente usar Neon ou outro banco remoto. Nenhum ambiente de produção foi
   acionado.
@@ -997,16 +1168,19 @@ adapter foram aprovadas.
 
 - **Objetivo:** desligar AbacatePay e abrir Asaas sem coexistência.
 - **O que analisar ou preparar:**
-  1. Entregar primeiro uma release de contenção compatível com o schema `0043` e
-     pausar novos checkouts.
+  1. Entregar primeiro uma release de contenção compatível com o schema `0043`,
+     pausar novos checkouts e desativar o ingresso do webhook AbacatePay com resposta
+     `204` antes de ler corpo, validar segredo ou acessar banco.
   2. Confirmar que os dados AbacatePay são somente testes.
   3. Confirmar que rota durável, inbox, worker, deduplicação e retry foram homologados
      sem ativar o webhook de produção.
   4. Verificar conta de produção, aptidão para PIX/cartão, credencial e comportamento da
      omissão de `imageBase64`.
-  5. Executar limpeza controlada, inclusive dados de teste abaixo de `1000` centavos,
+  5. Confirmar zero processamento novo do AbacatePay e então executar a limpeza
+     controlada, inclusive dados de teste abaixo de `1000` centavos,
      preservando somente a Conta Admin atual.
-  6. Aplicar DDL e publicar o código Asaas com checkout e webhook ainda desabilitados.
+  6. Remover a rota e o código executável AbacatePay, aplicar DDL e publicar o código
+     Asaas com checkout e webhook ainda desabilitados.
   7. Validar health e readiness da rota publicada, inbox, worker, banco, retry e alertas,
      ainda sem tráfego financeiro.
   8. Criar chave de API restrita e token forte, configurar allowlist e cadastrar o
@@ -1016,7 +1190,8 @@ adapter foram aprovadas.
      cartão, reembolso integral, smoke de Pedido, webhook, Concessão e Matrícula,
      conferência de taxas e extrato e confirmação da fila e dos alertas.
   10. Reabrir checkout.
-  11. Revogar chaves e webhook AbacatePay.
+  11. Revogar as credenciais e a configuração remota AbacatePay que já não possuem
+      endpoint executável no Hub.
 - **Componentes/arquivos/áreas impactadas:** deploy, banco, secrets, Asaas, AbacatePay, observabilidade e suporte.
 - **Dependências:** Etapa 9 aprovada, rota durável homologada e janela de mudança.
 - **Riscos:** indisponibilidade de checkout; webhook apontar para versão errada; migration parcialmente aplicada.
@@ -1024,12 +1199,14 @@ adapter foram aprovadas.
   ativos; webhook aponta somente para a rota durável e não usa fila sequencial; smoke
   completo; métricas verdes; zero novo evento AbacatePay e fila Asaas ativa.
 - **Responsável sugerido:** Tech Lead/Plataforma, com Backend e Financeiro presentes.
-- **Status:** Preflight concluído; corte bloqueado aguardando confirmação humana e
-  versionamento. Em 2026-07-29, a inspeção somente leitura confirmou:
+- **Status:** Corte autorizado e em execução controlada. Release A publicada e
+  contenção comprovada; Release B ainda não integrada. Em 2026-07-29, a inspeção
+  somente leitura inicial confirmou:
   - Production permanece no deployment Vercel `READY` do commit `1414bf5`;
-    `origin/main` está em `d64fc66`, com CI verde, mas toda a implementação Asaas ainda
-    está somente no worktree `codex/asaas-migration`, sem commit, push, Pull Request ou
-    CI remota;
+    `origin/main` está em `d64fc66`, com CI verde. Em 2026-07-30, a implementação Asaas
+    foi reunida no commit local `384db5a`, ainda sem push, Pull Request ou CI remota; o
+    commit combina Release A e Release B e precisa ser separado antes do caminho de
+    corte especificado;
   - o GitHub Environment `vercel-production` possui os secrets e IDs exigidos pelo
     workflow de deploy, mas a Vercel Production ainda não possui `ASAAS_API_KEY`,
     `ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` nem `ASAAS_WEBHOOK_TOKEN`; as variáveis
@@ -1080,8 +1257,40 @@ adapter foram aprovadas.
   próprio teste: o botão de conclusão já existia no stream React, mas ainda estava em
   um container oculto; a jornada agora aguarda o heading visível antes de decidir se
   conclui ou avança. Builds E2E também não tentam criar release ou enviar source maps
-  ao Sentry. A branch Neon efêmera usada para o gate foi removida. O único gate local
-  restante é a autorização específica para commit, push e Pull Requests.
+  ao Sentry. A branch Neon efêmera usada para o gate foi removida.
+  Em 2026-07-30, Produto autorizou commit, push e Pull Request da Release A e confirmou
+  que o AbacatePay pode ser removido. A sequência foi corrigida: a Release A desativa
+  o ingresso legado antes da limpeza, com `204` para não provocar retentativas, e a
+  Release B remove definitivamente a rota e o código legado antes da migration `0044`.
+  A Release A foi versionada isoladamente no commit `dd78e0f`, publicada na branch
+  `codex/asaas-cutover-containment-release-a` e aberta no Pull Request
+  [#18](https://github.com/juniordinizm/hub/pull/18). O diff possui somente contenção
+  compatível com `0043`: `PAYMENTS_CHECKOUT_MODE`,
+  `ABACATEPAY_WEBHOOK_ENABLED`, guards antecipados, testes e documentação
+  correspondente. O gate completo passou com 174 arquivos/706 testes, TypeScript,
+  Ultracite, migrations, build Next.js, Knip e 32 documentos canônicos. As revisões
+  independentes de especificação e qualidade foram aprovadas sem achados. A CI remota
+  do PR passou em quality gates, integração PostgreSQL, jornadas Chromium, build,
+  auditoria de dependências e candidato Preview Vercel. Merge, configuração das flags
+  e deploy de Production ainda não foram executados.
+  Por decisão de Produto em 2026-07-30, o PR permanecerá aberto sem merge enquanto a
+  Release B é concluída e validada localmente, reduzindo builds intermediários. Essa
+  espera não altera a ordem do corte: quando todo o pacote estiver pronto, a Release A
+  ainda será integrada e publicada primeiro; somente depois da contenção comprovada e
+  da limpeza será permitido integrar e publicar a Release B.
+
+  Em 2026-07-31, Produto liberou merge, deploy e Production após a homologação manual
+  de Development. O PR #18 foi integrado por squash no commit `0e043fa`, e a CI da
+  `main` passou em quality gates, PostgreSQL, Chromium e build/auditoria. Vercel
+  Production recebeu `PAYMENTS_CHECKOUT_MODE=disabled` e
+  `ABACATEPAY_WEBHOOK_ENABLED=false`. A primeira tentativa de deploy falhou antes da
+  promoção porque o pipeline PowerShell usado para definir as flags acrescentou `CR`;
+  o readiness rejeitou os dois enums. Os valores foram substituídos por stdin sem
+  terminador e o run `30602278594` concluiu migration/auditoria `0043`, build,
+  readiness e promoção. O smoke público retornou `200` na raiz, `503` no checkout
+  público e `204` no webhook AbacatePay; Pedidos, Webhooks e Concessões pagas
+  permaneceram em `5/2/2`. O login Admin ainda precisa de confirmação humana antes da
+  limpeza destrutiva.
 
 **Rollback:**
 
@@ -1318,7 +1527,8 @@ bun run verify
 - [x] **Concluído:** reservar a tentativa como `pending` antes da autorização coordenada e
   exigir CAS para `creating` antes de chamar o provedor.
 - [x] **Concluído:** compartilhar o núcleo entre checkout público e autenticado.
-- [x] **Concluído:** capturar identidade pública local sem criar ou alterar Conta.
+- [x] **Concluído:** resolver a identidade pública do cliente Asaas somente após evento
+  financeiro autoritativo e criar ou vincular a Conta sem sobrescrever identidade.
 - [x] **Concluído:** validar preço mínimo na autoria e no checkout ativo.
 - [x] **Concluído:** substituir rate limit em memória por janela coordenada no PostgreSQL.
 - [x] **Concluído:** validar item inline e omissão de imagem no adapter Asaas.
@@ -1366,17 +1576,28 @@ bun run verify
 - [x] **Validado localmente:** implementar e provar contenção, cleanup e workflow do
   corte Asaas; `verify`, PostgreSQL descartável e 19 jornadas E2E passaram em
   2026-07-30.
+- [x] **Concluído em Development:** aplicar `0044` a `0052` após autorização,
+  auditar 53 entradas no journal, preservar o único Admin, comprovar idempotência e
+  aprovar o reteste manual da superfície administrativa em 2026-07-31.
 - [x] **Concluído:** homologar checkout PIX/cartão E2E no sandbox, incluindo pagamento,
   acesso, cancelamento, expiração, duplicata, entrega fora de ordem, reembolso,
   indisponibilidade temporária, retry e conciliação. A compra de cartão observada não
   emitiu eventos de risco; esse ramo permanece coberto por testes automatizados e
   registrado como limitação não simulável do Sandbox.
 - [ ] **Não iniciado:** executar smoke real controlado.
-- [ ] **Não iniciado:** pausar checkout para o corte.
-- [ ] **Pendente de autorização:** remover dados de teste; `plan` real já validado em
+- [x] **Release A publicada:** checkout pausado e ingresso do webhook AbacatePay
+  desativado antes da limpeza. O PR
+  [#18](https://github.com/juniordinizm/hub/pull/18) foi integrado, a CI da `main`
+  passou e o deployment Production `0e043fa` foi promovido. Smoke confirmou raiz
+  `200`, checkout público `503`, webhook legado `204` e zero alteração nas contagens
+  financeiras.
+- [ ] **Pendente de execução:** remover dados de teste; `plan` real já validado em
   clone descartável e `execute` ainda não foi acionado.
 - [ ] **Não iniciado:** publicar Asaas.
-- [ ] **Não iniciado:** revogar AbacatePay.
+- [x] **Concluído em código na Release B:** rota, cliente, parser, processor, retry,
+  configuração operacional e documentação canônica AbacatePay removidos. Typecheck,
+  Ultracite, 1.062 testes, docs:check e allowlist estática passaram em 2026-07-30;
+  credenciais/configuração remota só serão revogadas após o smoke Asaas.
 - [ ] **Não iniciado:** monitorar por pelo menos 14 dias.
 - [ ] **Não iniciado:** remover resíduos e ratificar documentação.
 

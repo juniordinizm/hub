@@ -8,6 +8,7 @@ export interface OperationalBacklogSnapshot {
     ready: number;
   };
   payments: {
+    uncertainCheckouts: number;
     uncorrelatedOrders: number;
     uncertainRefunds: number;
   };
@@ -28,6 +29,7 @@ interface OperationalBacklogRow {
   oldest_video_at: Date | null;
   oldest_webhook_at: Date | null;
   outbox_ready: string;
+  uncertain_checkouts: string;
   uncertain_refunds: string;
   uncorrelated_orders: string;
   videos_pending: string;
@@ -48,6 +50,7 @@ export const getOperationalBacklogSnapshot =
       (select count(*) from webhook_events where provider = 'asaas' and status = 'failed') as webhooks_failed,
       (select min(created_at) from webhook_events where provider = 'asaas' and status = 'failed') as oldest_webhook_at,
       (select count(*) from webhook_events where provider = 'asaas' and status in ('received', 'processing', 'retryable')) as webhooks_ready,
+      (select count(*) from orders where provider = 'asaas' and checkout_status = 'uncertain') as uncertain_checkouts,
       (select count(*) from orders where provider = 'asaas' and status = 'paid' and provider_payment_id is null) as uncorrelated_orders,
       (select count(*) from refund_requests where status = 'uncertain') as uncertain_refunds,
       (select count(*) from jmvstream_video_assets where upload_status in (${PENDING_VIDEO_STATUSES})) as videos_pending,
@@ -66,6 +69,7 @@ export const getOperationalBacklogSnapshot =
         pending: Number(row?.videos_pending ?? 0),
       },
       payments: {
+        uncertainCheckouts: Number(row?.uncertain_checkouts ?? 0),
         uncorrelatedOrders: Number(row?.uncorrelated_orders ?? 0),
         uncertainRefunds: Number(row?.uncertain_refunds ?? 0),
       },

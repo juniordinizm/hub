@@ -134,7 +134,7 @@ export const getStudentCatalogAccessPresentation = ({
     return {
       tone: "revoked",
       label:
-        revokedReason === "abacatepay_dispute"
+        revokedReason === "payment_dispute"
           ? "Acesso em analise"
           : "Acesso encerrado",
       helper: "Fale com o suporte para regularizar este acesso.",

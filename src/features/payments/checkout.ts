@@ -3,20 +3,16 @@ import { getPool } from "@/db";
 import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
-import { normalizeBuyerEmail } from "./buyer-identity";
+import { parseBuyerIdentity } from "./buyer-identity";
+import { getApplicationUrl } from "./provider";
 
 const CHECKOUT_EXPIRATION_MINUTES = 60;
 const CHECKOUT_ITEM_NAME_MAX_LENGTH = 30;
 const CHECKOUT_ITEM_DESCRIPTION_MAX_LENGTH = 150;
-const BUYER_EMAIL_MAX_LENGTH = 254;
-const BUYER_EMAIL_LOCAL_PART_MAX_LENGTH = 64;
-const BUYER_NAME_MAX_LENGTH = 120;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const BUYER_EMAIL_PATTERN =
-  /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/i;
 
-interface CheckoutCallbacks {
+export interface CheckoutCallbacks {
   cancelUrl: string;
   expiredUrl: string;
   successUrl: string;
@@ -29,11 +25,7 @@ type CheckoutBuyer =
       name: string;
       userId: string;
     }
-  | {
-      email: string;
-      kind: "public";
-      name: string;
-    };
+  | { kind: "provider_pending" };
 
 export interface CreateAsaasCheckoutIntentInput {
   attemptId: string;
@@ -72,7 +64,8 @@ type CheckoutIntentErrorReason =
   | "course_id_invalid"
   | "course_selection_invalid"
   | "course_unavailable"
-  | "identity_invalid";
+  | "identity_invalid"
+  | "revoked_access";
 const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   CheckoutIntentErrorReason,
   string
@@ -84,6 +77,7 @@ const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   course_selection_invalid: "Informe exatamente um curso.",
   course_unavailable: "Curso indisponível para checkout pago.",
   identity_invalid: "Identidade local inválida.",
+  revoked_access: "Acesso ao curso está revogado.",
 };
 
 export class CheckoutIntentError extends Error {
@@ -106,6 +100,7 @@ export class CheckoutIntentError extends Error {
 interface CheckoutCourse {
   access_duration_months: number;
   description: string | null;
+  has_published_publication: boolean;
   id: string;
   price_in_cents: number;
   slug: string;
@@ -116,6 +111,7 @@ interface CheckoutCourse {
 interface CheckoutOrder {
   access_duration_months: number | null;
   amount_in_cents: number;
+  buyer_identity_status: "pending" | "resolved" | "review_required";
   checkout_course_slug: string;
   checkout_item_description: string;
   checkout_item_name: string;
@@ -153,6 +149,36 @@ const isHttpUrl = (value: string): boolean => {
   }
 };
 
+export const createCheckoutCallbacks = (
+  attemptId: string
+): CheckoutCallbacks => {
+  if (!UUID_PATTERN.test(attemptId)) {
+    throw new CheckoutIntentError("validation", "attempt_invalid");
+  }
+  const query = `?attemptId=${encodeURIComponent(attemptId)}`;
+  return {
+    cancelUrl: getApplicationUrl(`/checkout/cancelado${query}`),
+    expiredUrl: getApplicationUrl(`/checkout/expirado${query}`),
+    successUrl: getApplicationUrl("/checkout/sucesso"),
+  };
+};
+
+export const resolveCheckoutRetryPath = async (
+  attemptId: string | undefined
+): Promise<string | null> => {
+  if (!(attemptId && UUID_PATTERN.test(attemptId))) {
+    return null;
+  }
+
+  const result = await getPool().query<{ checkout_course_slug: string }>(
+    "select checkout_course_slug from orders where id = $1 and provider = 'asaas' limit 1",
+    [attemptId]
+  );
+  const courseSlug = result.rows[0]?.checkout_course_slug;
+
+  return courseSlug ? `/comprar/${encodeURIComponent(courseSlug)}` : null;
+};
+
 const validateInput = ({
   attemptId,
   buyer,
@@ -161,8 +187,8 @@ const validateInput = ({
   courseSlug,
 }: Omit<CreateAsaasCheckoutIntentInput, "gateway" | "now">): {
   courseSlug: string | undefined;
-  customerEmail: string;
-  customerName: string;
+  customerEmail: string | null;
+  customerName: string | null;
 } => {
   if (!UUID_PATTERN.test(attemptId)) {
     throw new CheckoutIntentError("validation", "attempt_invalid");
@@ -175,19 +201,12 @@ const validateInput = ({
     throw new CheckoutIntentError("validation", "course_id_invalid");
   }
 
-  const customerEmail = normalizeBuyerEmail(buyer.email);
-  const customerName = normalizeRequired(buyer.name);
-  const emailLocalPart = customerEmail.split("@", 1)[0] ?? "";
+  const buyerIdentity =
+    buyer.kind === "authenticated" ? parseBuyerIdentity(buyer) : null;
   if (
-    customerEmail.length > BUYER_EMAIL_MAX_LENGTH ||
-    emailLocalPart.length > BUYER_EMAIL_LOCAL_PART_MAX_LENGTH ||
-    !BUYER_EMAIL_PATTERN.test(customerEmail) ||
-    !customerName ||
-    Array.from(customerName).length > BUYER_NAME_MAX_LENGTH
+    buyer.kind === "authenticated" &&
+    !(buyerIdentity && buyer.userId.trim())
   ) {
-    throw new CheckoutIntentError("validation", "identity_invalid");
-  }
-  if (buyer.kind === "authenticated" && !buyer.userId.trim()) {
     throw new CheckoutIntentError("validation", "identity_invalid");
   }
 
@@ -203,8 +222,8 @@ const validateInput = ({
 
   return {
     courseSlug: courseSlug ? normalizeCourseSlug(courseSlug) : undefined,
-    customerEmail,
-    customerName,
+    customerEmail: buyerIdentity?.email ?? null,
+    customerName: buyerIdentity?.name ?? null,
   };
 };
 
@@ -226,38 +245,23 @@ const buildItemSnapshot = (
 
 const isSameBuyer = ({
   buyer,
-  customerEmail,
-  customerName,
   order,
 }: {
   buyer: CheckoutBuyer;
-  customerEmail: string;
-  customerName: string;
   order: CheckoutOrder;
-}): boolean => {
-  if (buyer.kind === "authenticated") {
-    return order.user_id === buyer.userId;
-  }
-
-  return (
-    order.user_id === null &&
-    order.customer_email !== null &&
-    normalizeBuyerEmail(order.customer_email) === customerEmail &&
-    order.customer_name?.trim() === customerName
-  );
-};
+}): boolean =>
+  buyer.kind === "authenticated"
+    ? order.user_id === buyer.userId &&
+      order.buyer_identity_status === "resolved"
+    : order.user_id === null && order.buyer_identity_status === "pending";
 
 const resolveDuplicate = ({
   buyer,
-  customerEmail,
-  customerName,
   order,
   requestedCourseId,
   requestedCourseSlug,
 }: {
   buyer: CheckoutBuyer;
-  customerEmail: string;
-  customerName: string;
   order: CheckoutOrder;
   requestedCourseId: string | undefined;
   requestedCourseSlug: string | undefined;
@@ -269,7 +273,7 @@ const resolveDuplicate = ({
   if (
     order.provider !== "asaas" ||
     !isSameCourse ||
-    !isSameBuyer({ buyer, customerEmail, customerName, order })
+    !isSameBuyer({ buyer, order })
   ) {
     throw new CheckoutIntentError("conflict", "attempt_invalid");
   }
@@ -322,7 +326,7 @@ const safeGatewayFailure = (
   };
 };
 
-const ensureNoActiveAccess = async ({
+const ensureCheckoutAccessEligible = async ({
   buyer,
   courseId,
 }: {
@@ -333,27 +337,30 @@ const ensureNoActiveAccess = async ({
     return;
   }
 
-  const activeEnrollment = await getPool().query<{ id: string }>(
+  const enrollment = await getPool().query<{ status: "active" | "revoked" }>(
     `
-      select id from enrollments
+      select status from enrollments
       where user_id = $1
         and course_id = $2
-        and status = 'active'
-        and starts_at <= now()
-        and expires_at >= now()
+        and status in ('active', 'revoked')
+        and (
+          status = 'revoked'
+          or (starts_at <= now() and expires_at >= now())
+        )
       limit 1
     `,
     [buyer.userId, courseId]
   );
-  if (activeEnrollment.rows[0]) {
+  if (enrollment.rows[0]?.status === "active") {
     throw new CheckoutIntentError("conflict", "active_access");
+  }
+  if (enrollment.rows[0]?.status === "revoked") {
+    throw new CheckoutIntentError("conflict", "revoked_access");
   }
 };
 
 interface AttemptResolutionContext {
   buyer: CheckoutBuyer;
-  customerEmail: string;
-  customerName: string;
   orderId: string;
   pool: ReturnType<typeof getPool>;
   requestedCourseId: string | undefined;
@@ -369,7 +376,7 @@ const readCheckoutOrder = async ({
   const result = await pool.query<CheckoutOrder>(
     `
       select
-        id, course_id, user_id, provider, checkout_status, checkout_url,
+        id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description
@@ -398,8 +405,6 @@ const resolveAfterLostCheckoutCas = async (
 
   return resolveDuplicate({
     buyer: context.buyer,
-    customerEmail: context.customerEmail,
-    customerName: context.customerName,
     order,
     requestedCourseId: context.requestedCourseId,
     requestedCourseSlug: context.requestedCourseSlug,
@@ -534,7 +539,7 @@ export const createAsaasCheckoutIntent = async (
   const existingAttempt = await pool.query<CheckoutOrder>(
     `
       select
-        id, course_id, user_id, provider, checkout_status, checkout_url,
+        id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description
@@ -547,8 +552,6 @@ export const createAsaasCheckoutIntent = async (
   if (existingAttempt.rows[0]) {
     return resolveDuplicate({
       buyer: input.buyer,
-      customerEmail,
-      customerName,
       order: existingAttempt.rows[0],
       requestedCourseId: input.courseId,
       requestedCourseSlug,
@@ -557,10 +560,15 @@ export const createAsaasCheckoutIntent = async (
 
   const courseResult = await pool.query<CheckoutCourse>(
     `
-      select id, title, slug, description, price_in_cents, access_duration_months, status
-      from courses
-      where ($1::uuid is not null and id = $1::uuid)
-         or ($2::text is not null and slug = $2::text)
+      select c.id, c.title, c.slug, c.description, c.price_in_cents,
+             c.access_duration_months, c.status,
+             exists (
+               select 1 from course_publications cp
+               where cp.course_id = c.id and cp.status = 'published'
+             ) as has_published_publication
+      from courses c
+      where ($1::uuid is not null and c.id = $1::uuid)
+         or ($2::text is not null and c.slug = $2::text)
       limit 1
     `,
     [input.courseId ?? null, requestedCourseSlug ?? null]
@@ -569,12 +577,16 @@ export const createAsaasCheckoutIntent = async (
 
   if (
     course?.status !== "active" ||
+    !course.has_published_publication ||
     course.price_in_cents < ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS
   ) {
     throw new CheckoutIntentError("unavailable", "course_unavailable");
   }
 
-  await ensureNoActiveAccess({ buyer: input.buyer, courseId: course.id });
+  await ensureCheckoutAccessEligible({
+    buyer: input.buyer,
+    courseId: course.id,
+  });
 
   const item = buildItemSnapshot(course);
   const externalReference = `order_${input.attemptId}`;
@@ -585,6 +597,7 @@ export const createAsaasCheckoutIntent = async (
         id,
         course_id,
         user_id,
+        buyer_identity_status,
         provider,
         provider_checkout_id,
         provider_payment_id,
@@ -603,12 +616,12 @@ export const createAsaasCheckoutIntent = async (
         checkout_attempt_count
       )
       values (
-        $1, $2, $3, 'asaas', null, null, null, $4, 'pending', 'pending',
-        null, $5, $6, $7, $8, $9, $10, $11, 0
+        $1, $2, $3, $4, 'asaas', null, null, null, $5, 'pending', 'pending',
+        null, $6, $7, $8, $9, $10, $11, $12, 0
       )
       on conflict (id) do nothing
       returning
-        id, course_id, user_id, provider, checkout_status, checkout_url,
+        id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description
@@ -617,6 +630,7 @@ export const createAsaasCheckoutIntent = async (
       input.attemptId,
       course.id,
       input.buyer.kind === "authenticated" ? input.buyer.userId : null,
+      input.buyer.kind === "authenticated" ? "resolved" : "pending",
       externalReference,
       item.valueInCents,
       course.access_duration_months,
@@ -633,7 +647,7 @@ export const createAsaasCheckoutIntent = async (
     const existing = await pool.query<CheckoutOrder>(
       `
         select
-          id, course_id, user_id, provider, checkout_status, checkout_url,
+          id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
           provider_checkout_status, amount_in_cents, access_duration_months,
           customer_email, customer_name, checkout_course_slug, checkout_item_name,
           checkout_item_description
@@ -649,8 +663,6 @@ export const createAsaasCheckoutIntent = async (
     }
     return resolveDuplicate({
       buyer: input.buyer,
-      customerEmail,
-      customerName,
       order: existingOrder,
       requestedCourseId: input.courseId,
       requestedCourseSlug,
@@ -659,8 +671,6 @@ export const createAsaasCheckoutIntent = async (
 
   const attemptContext: AttemptResolutionContext = {
     buyer: input.buyer,
-    customerEmail,
-    customerName,
     orderId: input.attemptId,
     pool,
     requestedCourseId: input.courseId,

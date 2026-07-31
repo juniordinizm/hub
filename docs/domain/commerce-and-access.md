@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Comércio e acesso
@@ -12,8 +12,7 @@ Une checkout, Pedido, webhook, revisão, reembolso, Concessão, Matrícula, expi
 
 ## Estados
 
-O processor Asaas aplica estes estados sobre o Pedido bloqueado; o fluxo legado
-AbacatePay permanece durante a migração:
+O processor Asaas aplica estes estados sobre o Pedido bloqueado:
 
 - Pedido: `pending`, `paid`, `refunded`, `disputed`, `cancelled`.
 - Webhook: `received`, `processing`, `retryable`, `processed`, `ignored`, `failed`.
@@ -40,21 +39,20 @@ externo e usa exclusivamente os snapshots obrigatórios de nome, descrição, va
 duração. As entradas autenticada e pública usam esse mesmo núcleo. O limite público é
 coordenado no PostgreSQL por HMAC de IP e ID canônico do Curso, com cinco novas intenções
 por dez minutos; uma tentativa já persistida não consome novamente o limite. As migrations
-`0046`, `0047` e `0048` ainda não foram aplicadas.
+`0044` a `0051` passaram em PostgreSQL descartável, mas ainda não foram aplicadas em
+Production.
 
 **Falha:** preço abaixo de `1000` centavos, Curso indisponível, limite público ou provider
 sem configuração impedem checkout.
 
 ### REG-COM-002 Webhook é autenticado e idempotente
 
-`verifyAbacatePayWebhookSecret`/`verifyAbacatePaySignature` validam origem. `getAbacatePayEventKey` e `webhook_events` impedem reaplicar a mesma entrega.
-
 Para Asaas, `POST /api/webhooks/asaas` compara somente o header `asaas-access-token` com
 o segredo server-only, limita o corpo antes de JSON e persiste eventos estruturalmente
 válidos antes de responder `200`. Duplicata também responde `200`; falha de banco não.
 O worker genérico separado possui claim, posse, stale-lock recovery, retry e conclusão
-CAS. O processor financeiro existe, mas o worker não está agendado; schedule permanece
-uma unidade separada da Etapa 7.
+CAS. A rota cron está agendada a cada minuto em `vercel.json`, sob kill switch, lease e
+deadline; o deploy de Production permanece pendente.
 Payload vencido nunca volta ao worker: a manutenção sanitiza a evidência bruta e
 terminaliza qualquer evento não concluído com código seguro.
 
@@ -103,7 +101,7 @@ chave idempotente por Pedido.
 `processAsaasWebhookEvent` a aplica sob lock na mesma transação do worker. Valor
 divergente, anomalia, reembolso parcial e conflito terminal criam uma Revisão
 idempotente pelo `webhook_event_id`; identificadores ambíguos não escolhem Pedido nem
-produzem efeito. O fluxo AbacatePay ainda usa sua precedência legada.
+produzem efeito.
 
 ### REG-COM-004 Concessão é a origem; Matrícula é a projeção
 
@@ -159,8 +157,11 @@ Não confundir com reembolso/disputa nem bloqueio da plataforma. Ambos registram
 
 `confirmRefundPasswordAction` emite confirmação; `requestFullRefundAction`/`requestFullRefund`
 reservam a intenção local, chamam o Asaas uma única vez e persistem em
-`refund_requests` somente a evidência correlacionada ao mesmo pagamento, referência
-externa e valor integral.
+`refund_requests` somente a evidência de valor integral correlacionada ao mesmo
+pagamento. Todos os identificadores presentes precisam convergir e ao menos um dos
+identificadores do Pedido precisa corresponder: `externalReference` exata ou
+`checkoutSession` exata. Isso admite `externalReference=null` no Payment de Checkout
+sem admitir referência ou sessão conflitante.
 
 **Autorização:** `executeRefund`.
 
@@ -173,12 +174,39 @@ O token de confirmação e sua auditoria usam uma transação local. A reserva e
 auditoria usam outra transação local antes da mutação externa. A persistência da
 evidência ou da falha ocorre depois da resposta do provider.
 
+Conciliação por pagamento e importação de extrato são mutações administrativas e
+exigem `manageFinancialOperations`, exclusiva de Admin. Resolução de Revisão continua
+sob `viewFinancials`; o conflito terminal mantém a restrição adicional a Admin. A área
+financeira não renderiza os controles de conciliação nem importação para Suporte, embora
+a autorização do servidor continue sendo a barreira efetiva.
+
+### REG-COM-009 Oferta de pagamento pertence ao Curso e ao Pedido
+
+**Decisão de produto:** cada Curso pago deve definir preço, métodos permitidos e política
+de cartão. Admin poderá oferecer Pix, cartão ou ambos; cartão à vista ou parcelado; e
+limite máximo próprio. A oferta efetiva precisa ser copiada para o Pedido.
+
+**Estado atual:** somente o preço é configurável por Curso. O adapter envia sempre Pix +
+cartão, somente `DETACHED`, sem parcelamento. O Asaas documenta métodos e teto de parcelas
+por Checkout, mas não documenta juros comerciais por parcela.
+
+**Gate de implementação:** não basta adicionar `INSTALLMENT` ao payload. Cada parcela
+Asaas possui ID de pagamento próprio, enquanto o Hub guarda um único
+`provider_payment_id`, compara cada evento ao valor total e reembolsa um pagamento. Antes
+do rollout, modelar o agregado do parcelamento, snapshots, correlação, concessão,
+conciliação e estorno do parcelamento completo. O padrão desejado de até 3x com juros
+permanece pendente de viabilidade oficial; não reutilizar juros por atraso.
+
+Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
+[pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
+
 ## Evidências
 
 - schema: `orders`, `webhookEvents`, `paymentReviews`, `refundRequests`, `enrollmentGrants`, `enrollments`, `enrollmentExpirationAdjustments`, `enrollmentEvents`;
 - implementação: `src/features/payments`, `src/features/enrollments/server.ts`;
-- testes: `src/features/payments/*.test.ts`, `src/features/enrollments/*.test.ts`, `src/features/admin/enrollment-*.test.ts`;
-- endpoints: `src/app/api/checkouts/course/route.ts`, `src/app/api/webhooks/abacatepay/route.ts`, `src/app/api/webhooks/asaas/route.ts`, `src/app/api/cron/enrollments/route.ts`.
+- testes: `src/features/payments/*.test.ts`, `src/features/enrollments/*.test.ts`,
+  `src/features/admin/enrollment-*.test.ts` e `tests/e2e/critical-journeys.spec.ts`;
+- endpoints: `src/app/api/checkouts/course/route.ts`, `src/app/api/webhooks/asaas/route.ts`, `src/app/api/cron/enrollments/route.ts`.
 
 ## Decisões e bloqueios
 
@@ -191,10 +219,11 @@ evidência ou da falha ocorre depois da resposta do provider.
   mesmo commit do acesso, e o delivery resolve a Conta e gera o token apenas ao chamar
   Better Auth. Veja o
   [runbook de outbox](../operations/outbox-and-transactional-effects.md).
-- Infraestrutura AbacatePay e dados reais não verificados.
 - Adapter, schema, checkout, inbox, processor, worker agendado, reembolso e conciliação
   Asaas existem em código. As migrations e os fluxos PIX, cartão, cancelamento,
   expiração, reembolso, conciliação e retry após indisponibilidade passaram em
-  PostgreSQL descartável e Sandbox. O Sandbox não emitiu eventos de risco na compra de
+  PostgreSQL descartável e Sandbox antes do novo handoff. O Sandbox não emitiu eventos de risco na compra de
   cartão observada; esse ramo está coberto por testes automatizados. O corte de produção
-  permanece pendente.
+  permanece pendente. A jornada pública nova passou no servidor Asaas fake, no E2E com
+  PostgreSQL e em uma compra PIX Sandbox até a criação da senha, login e abertura do
+  Curso.

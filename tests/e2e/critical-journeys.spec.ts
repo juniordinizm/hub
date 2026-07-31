@@ -4,6 +4,17 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import sharp from "sharp";
 import type { E2eFixture } from "../../scripts/seed-e2e";
+import {
+  readAuthenticatedOrderIdentity,
+  readBuyerIdentityReviewOutcome,
+  readCheckoutDeduplicationOutcome,
+  readCheckoutMutationOutcome,
+  readOrderOutcome,
+  readPaymentEventCount,
+  runAsaasWorker,
+  sendPaidWebhook,
+  setE2ePlatformBlock,
+} from "./payment-helpers";
 
 const fixturePath = resolve(
   process.env.E2E_FIXTURE_PATH ?? ".e2e-fixture.json"
@@ -14,6 +25,9 @@ const STUDENT_SEARCH_PLACEHOLDER_PATTERN = /Buscar/;
 const CORRELATION_ID_PATTERN = /Identificador de correlação/;
 const DOWNLOAD_PDF_PATTERN = /Baixar PDF/;
 const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CHECKOUT_ID_PREFIX_PATTERN = /^chk_/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -70,6 +84,231 @@ const signIn = async (
     page.off("pageerror", capturePageError);
   }
 };
+
+test("landing CTA handoff creates one checkout and activation", async ({
+  page,
+  request,
+}) => {
+  const fixture = await readFixture();
+  let checkoutRequestCount = 0;
+  page.on("request", (browserRequest) => {
+    if (
+      browserRequest.method() === "POST" &&
+      new URL(browserRequest.url()).pathname === "/api/checkouts/course"
+    ) {
+      checkoutRequestCount += 1;
+    }
+  });
+
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await expect(page.getByText("Iniciando checkout seguro...")).toBeVisible();
+  await page.waitForURL("http://127.0.0.1:4570/checkout/**");
+  expect(checkoutRequestCount).toBe(1);
+
+  const checkoutId = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  const attemptId = checkoutId.replace(CHECKOUT_ID_PREFIX_PATTERN, "");
+  expect(attemptId).toMatch(UUID_PATTERN);
+
+  await sendPaidWebhook({ attemptId, request });
+  await sendPaidWebhook({ attemptId, request });
+  await runAsaasWorker(request);
+  await runAsaasWorker(request);
+
+  await expect
+    .poll(() => readOrderOutcome(attemptId))
+    .toEqual({
+      activationCount: 1,
+      activeEnrollmentCount: 1,
+      accountLinked: true,
+      buyerIdentityStatus: "resolved",
+      enrollmentCount: 1,
+      grantCount: 1,
+      studentProfileCount: 1,
+      status: "paid",
+      unverifiedAccount: true,
+    });
+  expect(await readPaymentEventCount(attemptId)).toBe(1);
+
+  for (const state of ["cancelado", "expirado"]) {
+    await page.goto(`/checkout/${state}?attemptId=${attemptId}`);
+    const retryLink = page.getByRole("link", { name: "Tentar novamente" });
+    await expect(retryLink).toHaveAttribute(
+      "href",
+      `/comprar/${fixture.course.slug}`
+    );
+  }
+});
+
+test("authenticated Student purchase keeps the session identity", async ({
+  page,
+  request,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentForAuthenticatedPurchase, APP_URL_PATTERN);
+
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await page.waitForURL("http://127.0.0.1:4570/checkout/**");
+  const checkoutId = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  const attemptId = checkoutId.replace(CHECKOUT_ID_PREFIX_PATTERN, "");
+
+  await sendPaidWebhook({ attemptId, request });
+  await runAsaasWorker(request);
+
+  await expect
+    .poll(() =>
+      readAuthenticatedOrderIdentity({
+        attemptId,
+        expectedUserId: fixture.studentForAuthenticatedPurchase.id,
+      })
+    )
+    .toEqual({
+      buyerIdentityResolved: true,
+      grantCount: 1,
+      providerIdentityIgnored: true,
+      sessionEmailPreserved: true,
+      sessionNamePreserved: true,
+      sessionUserPreserved: true,
+      status: "paid",
+    });
+});
+
+test("checkout remount reuses the stored UUID and one provider mutation", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  const observedAttemptIds: string[] = [];
+  let applicationPostCount = 0;
+
+  await page.route("**/api/checkouts/course", async (route) => {
+    const payload = route.request().postDataJSON() as {
+      checkoutAttemptId?: string;
+    };
+    observedAttemptIds.push(payload.checkoutAttemptId ?? "");
+    applicationPostCount += 1;
+    const response = await route.fetch();
+    if (applicationPostCount === 1) {
+      const body = (await response.json()) as { orderId: string };
+      await route.fulfill({
+        json: {
+          orderId: body.orderId,
+          retryAllowed: false,
+          status: "processing",
+        },
+        response,
+      });
+      return;
+    }
+    await route.fulfill({ response });
+  });
+
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await expect(
+    page.getByText("O checkout esta sendo preparado.")
+  ).toBeVisible();
+  await page.reload();
+  await page.waitForURL("http://127.0.0.1:4570/checkout/**");
+
+  expect(applicationPostCount).toBe(2);
+  expect(observedAttemptIds).toHaveLength(2);
+  expect(observedAttemptIds[0]).toMatch(UUID_PATTERN);
+  expect(observedAttemptIds[1]).toBe(observedAttemptIds[0]);
+  await expect
+    .poll(() => readCheckoutDeduplicationOutcome(observedAttemptIds[0] ?? ""))
+    .toEqual({
+      checkoutAttemptCount: 1,
+      orderCount: 1,
+      providerCheckoutMatchesAttempt: true,
+    });
+});
+
+test("authenticated purchase blocks active, revoked, blocked, and team accounts before charge", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await expect(page.getByText("Sua Matricula ja esta ativa.")).toBeVisible();
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.studentWithRevokedAccess, APP_URL_PATTERN);
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await expect(
+    page.getByRole("heading", { name: "Acesso encerrado" })
+  ).toBeVisible();
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.studentForBlockedPurchase, APP_URL_PATTERN);
+  await setE2ePlatformBlock({
+    blocked: true,
+    userId: fixture.studentForBlockedPurchase.id,
+  });
+  let checkoutMutationRequestCount = 0;
+  page.on("request", (browserRequest) => {
+    if (
+      browserRequest.method() === "POST" &&
+      new URL(browserRequest.url()).pathname === "/api/checkouts/course"
+    ) {
+      checkoutMutationRequestCount += 1;
+    }
+  });
+  try {
+    await page.goto(`/comprar/${fixture.course.slug}`);
+    await expect(
+      page.getByRole("heading", { name: "Conta bloqueada" })
+    ).toBeVisible();
+    expect(checkoutMutationRequestCount).toBe(0);
+    expect(
+      await readCheckoutMutationOutcome({
+        courseId: fixture.course.id,
+        userId: fixture.studentForBlockedPurchase.id,
+      })
+    ).toEqual({ orderCount: 0, providerCheckoutCount: 0 });
+  } finally {
+    await setE2ePlatformBlock({
+      blocked: false,
+      userId: fixture.studentForBlockedPurchase.id,
+    });
+  }
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await expect(
+    page.getByRole("heading", { name: "Conta de equipe" })
+  ).toBeVisible();
+});
+
+test("anonymous paid collisions open identity review without access", async ({
+  request,
+}) => {
+  const fixture = await readFixture();
+
+  for (const customerId of [
+    fixture.paymentCustomers.blockedId,
+    fixture.paymentCustomers.teamId,
+  ]) {
+    const attemptId = crypto.randomUUID();
+    const checkout = await request.post("/api/checkouts/course", {
+      data: { checkoutAttemptId: attemptId, courseSlug: fixture.course.slug },
+    });
+    expect(checkout.ok()).toBe(true);
+
+    await sendPaidWebhook({ attemptId, customerId, request });
+    await runAsaasWorker(request);
+
+    await expect
+      .poll(() => readBuyerIdentityReviewOutcome(attemptId))
+      .toEqual({
+        accessOutboxCount: 0,
+        buyerIdentityStatus: "review_required",
+        enrollmentCount: 0,
+        grantCount: 0,
+        pendingReviewCount: 1,
+        status: "paid",
+      });
+  }
+});
 
 test("login and password recovery do not enumerate accounts", async ({
   page,

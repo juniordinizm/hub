@@ -63,4 +63,15 @@ describe("runVerificationProfile", () => {
       NEXT_PUBLIC_APP_URL: "https://verification-build.invalid",
     });
   });
+
+  it("uses a non-production synthetic database only to load the E2E config in Knip", () => {
+    const expectedDatabaseUrl =
+      "postgresql://verification:verification@e2e-verification.invalid/hub";
+
+    expect(getVerificationEnvironmentOverrides("knip")).toEqual({
+      DATABASE_URL: expectedDatabaseUrl,
+      E2E_DATABASE_URL: expectedDatabaseUrl,
+    });
+    expect(getVerificationEnvironmentOverrides("test")).toEqual({});
+  });
 });

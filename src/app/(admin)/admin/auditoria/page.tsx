@@ -160,8 +160,13 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
                 Pendências financeiras
               </dt>
               <dd className="font-semibold text-2xl tabular-nums">
-                {data.operationalBacklog.payments.uncertainRefunds +
+                {data.operationalBacklog.payments.uncertainCheckouts +
+                  data.operationalBacklog.payments.uncertainRefunds +
                   data.operationalBacklog.payments.uncorrelatedOrders}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Checkouts incertos:{" "}
+                {data.operationalBacklog.payments.uncertainCheckouts}
               </dd>
               <dd className="text-muted-foreground text-sm">
                 Reembolsos incertos:{" "}

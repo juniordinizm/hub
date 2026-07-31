@@ -19,6 +19,7 @@ const getErrorMessage = (error: unknown): string =>
 
 type PaymentReviewType =
   | "amount_mismatch"
+  | "buyer_identity"
   | "event_anomaly"
   | "partial_refund"
   | "terminal_conflict"
@@ -26,6 +27,7 @@ type PaymentReviewType =
 
 const PAYMENT_REVIEW_LABELS: Record<PaymentReviewType, string> = {
   amount_mismatch: "Divergencia de valor",
+  buyer_identity: "Identidade da compra requer suporte",
   event_anomaly: "Anomalia de evento",
   partial_refund: "Reembolso parcial",
   terminal_conflict: "Conflito terminal",
@@ -200,7 +202,7 @@ export function ImportStatementOperation(): React.JSX.Element {
     setPending(true);
     try {
       const result = await importAsaasStatementAction(formData);
-      setMessage(`${result.imported} movimentações conciliadas.`);
+      setMessage(`${result.imported} movimentações importadas.`);
       router.refresh();
     } catch (caught) {
       setMessage(getErrorMessage(caught));
@@ -273,6 +275,22 @@ export function PaymentReviewOperation({
       setPending(false);
     }
   };
+
+  if (review.status === "pending" && review.type === "buyer_identity") {
+    return (
+      <article className="rounded-lg border p-4">
+        <p className="font-medium text-sm">
+          {PAYMENT_REVIEW_LABELS[review.type]}
+        </p>
+        <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
+        <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
+        <p className="mt-3 text-sm">
+          Não libere ou transfira o acesso. Execute o reembolso integral.
+        </p>
+        <RefundOperation orderId={review.orderId} />
+      </article>
+    );
+  }
 
   return (
     <article className="rounded-lg border p-4">

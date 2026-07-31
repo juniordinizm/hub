@@ -17,6 +17,8 @@ vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
   getAdminCourseDetailData,
+  getAdminCoursePublicationState,
+  getAdminFinancialData,
   getAdminLessonEditorData,
   getAdminStudentsData,
 } from "./server";
@@ -80,6 +82,92 @@ beforeEach(() => {
 });
 
 describe("admin read projections", () => {
+  it("projects buyer identity payment reviews with their order in the financial read", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from payment_reviews")) {
+        return {
+          rows: [
+            {
+              id: "review-1",
+              order_id: "order-1",
+              provider_checkout_id: "chk-1",
+              reason: "buyer_identity_team_account",
+              status: "pending",
+              type: "buyer_identity",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialData();
+
+    expect(data.paymentReviews).toEqual([
+      {
+        id: "review-1",
+        orderId: "order-1",
+        providerCheckoutId: "chk-1",
+        reason: "buyer_identity_team_account",
+        status: "pending",
+        type: "buyer_identity",
+      },
+    ]);
+    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    const reviewSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("from payment_reviews")
+      )?.[0]
+    );
+    expect(reviewSql).toContain("pr.type");
+    expect(reviewSql).toContain("join orders o on o.id = pr.order_id");
+  });
+
+  it.each([
+    "future_review_type",
+    null,
+    42,
+  ])("fails closed when payment review type drifts to %s", async (type) => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from payment_reviews")) {
+        return {
+          rows: [
+            {
+              id: "review-1",
+              order_id: "order-1",
+              provider_checkout_id: "chk-1",
+              reason: "unexpected_review",
+              status: "pending",
+              type,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    await expect(getAdminFinancialData()).rejects.toThrow(
+      "Revisao financeira invalida."
+    );
+  });
+
+  it("aggregates draft and published publication state in one query", async () => {
+    query.mockResolvedValue({
+      rows: [{ has_draft: true, has_published: true }],
+    });
+
+    await expect(getAdminCoursePublicationState(courseId)).resolves.toEqual({
+      hasDraft: true,
+      hasPublished: true,
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[1]).toEqual([courseId]);
+    expect(String(query.mock.calls[0]?.[0])).toContain("status = 'draft'");
+    expect(String(query.mock.calls[0]?.[0])).toContain("status = 'published'");
+  });
+
   it("returns one course detail from records scoped to that course", async () => {
     const rows = [
       [courseRow],

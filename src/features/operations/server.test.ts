@@ -18,6 +18,7 @@ describe("operational backlog snapshot", () => {
             oldest_video_at: new Date("2026-07-20T11:00:00.000Z"),
             oldest_webhook_at: new Date("2026-07-20T12:00:00.000Z"),
             outbox_ready: "3",
+            uncertain_checkouts: "9",
             uncorrelated_orders: "6",
             uncertain_refunds: "7",
             videos_pending: "4",
@@ -41,6 +42,7 @@ describe("operational backlog snapshot", () => {
         pending: 4,
       },
       payments: {
+        uncertainCheckouts: 9,
         uncorrelatedOrders: 6,
         uncertainRefunds: 7,
       },
@@ -60,6 +62,18 @@ describe("operational backlog snapshot", () => {
     ).toHaveBeenCalledWith(
       expect.stringContaining(
         "status in ('received', 'processing', 'retryable')"
+      )
+    );
+  });
+
+  it("counts uncertain Asaas checkout creation in the financial backlog", async () => {
+    await getOperationalBacklogSnapshot();
+
+    expect(
+      dependencies.getPool.mock.results[0]?.value.query
+    ).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "provider = 'asaas' and checkout_status = 'uncertain'"
       )
     );
   });

@@ -112,11 +112,12 @@ jobs:
           project_id: ${{ vars.NEON_PROJECT_ID }}
       - name: Apply migrations
         env:
-          DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
           DATABASE_URL_DIRECT: ${{ steps.neon.outputs.db_url }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
         run: |
           for attempt in 1 2 3 4 5; do
-            if bun run db:migrate; then
+            if bun run db:migrate:e2e; then
               exit 0
             fi
             if [[ "${attempt}" == "5" ]]; then

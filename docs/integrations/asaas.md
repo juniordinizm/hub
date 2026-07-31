@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: canonical
 owner: engineering
-last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Asaas
@@ -12,16 +12,16 @@ O contrato financeiro neutro, o schema de persistência, o adapter Asaas estreit
 núcleo compartilhado de intenção de checkout estão implementados no código. As
 migrations `0044_asaas_commerce_persistence` a
 `0051_asaas_financial_statement` foram geradas e passaram em branch Neon descartável,
-sem promoção. O worktree já voltou ao banco normal de Development; a solicitação de
-remoção da branch de homologação não foi confirmada porque o connector Neon retornou
-`UNAVAILABLE`. O adapter está conectado às entradas autenticada e pública de checkout, e a inbox durável
+antes da promoção autorizada de `0044` a `0052` para Development em 2026-07-31. A
+auditoria desse alvo confirmou 53 entradas no journal, o único Admin preservado e
+idempotência; Production permanece em `0043`. O adapter está conectado às entradas
+autenticada e pública de checkout, e a inbox durável
 recebe e deduplica webhooks antes do processor financeiro transacional. O worker é
 chamado a cada minuto pela rota cron protegida, com lease de seis minutos e prazo interno
 de 270 segundos. Checkout, pagamento PIX/cartão, cancelamento, expiração, reembolso,
 conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. Conta e
 credenciais de produção não foram validadas.
-A implementação histórica AbacatePay permanece isolada até a etapa de limpeza; checkout,
-processamento financeiro e reembolso operacionais usam Asaas.
+Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
 O schema mantém `orders.status` como estado canônico
 `pending | paid | refunded | disputed | cancelled`. O ciclo externo fica separado:
@@ -38,17 +38,15 @@ O schema mantém `orders.status` como estado canônico
   execução.
 
 A remoção de `courses.payment_provider_product_id` está no schema e na migration. As
-leituras e fluxos AbacatePay que ainda consultam essa coluna por SQL bruto são uma
-incompatibilidade transitória intencional: a migration só pode ser aplicada depois que a
-Etapa 5 substituir esses fluxos. Isso não autoriza aplicar a migration antecipadamente.
+rotas e clientes do provedor anterior foram removidos antes da aplicação desse DDL.
 As colunas obrigatórias de snapshot de item e slug das migrations
 `0046_order_checkout_item_snapshot` e `0047_order_checkout_course_slug_snapshot` também
 pressupõem a limpeza dos Pedidos de teste legados antes do DDL.
 
 ## Escopo do checkout
 
-O Hub criará checkout hospedado `DETACHED`, com pagamento único por `PIX` e
-`CREDIT_CARD`. Cada checkout terá item inline; Curso não terá produto remoto no Asaas.
+O Hub cria checkout hospedado `DETACHED`, com pagamento único por `PIX` e
+`CREDIT_CARD`. Cada checkout tem item inline; Curso não possui produto remoto no Asaas.
 
 - `externalReference` carrega somente uma referência local opaca, sem nome, e-mail ou
   outro dado pessoal;
@@ -64,6 +62,25 @@ O Hub criará checkout hospedado `DETACHED`, com pagamento único por `PIX` e
   essa exigência e o sandbox aceitou sua ausência;
 - o adapter inicial omite `imageBase64`; imagem só entra após novo contrato e validação;
 - callback não é autoridade financeira nem libera acesso.
+
+### Configuração comercial por Curso
+
+O estado atual é fixo: todos os Cursos pagos oferecem Pix + cartão à vista. O Admin ainda
+não configura métodos nem parcelamento por Curso.
+
+O contrato oficial permite variar `billingTypes`, incluir `INSTALLMENT` e enviar
+`installment.maxInstallmentCount`. O padrão desejado pelo produto é Pix + cartão e até 3x
+com juros. Entretanto:
+
+- o Checkout não documenta campo para juros comerciais ou repasse de taxa;
+- `interest` nas APIs de cobrança significa juros por atraso;
+- cada parcela possui um ID de pagamento próprio, incompatível com o agregado atual de
+  um pagamento por Pedido;
+- Pix + cartão parcelado no mesmo Checkout ainda exige prova específica no Sandbox.
+
+Não ativar `INSTALLMENT` apenas alterando o payload. Primeiro implementar o contrato
+descrito em [DEC-DISC-011](../decisions.md#dec-disc-011) e validar os casos da
+[pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
 
 `src/features/payments/checkout.ts` usa o UUID estável fornecido pela entrada como ID do
 Pedido e uma `externalReference` opaca sem PII. O insert `pending` com identidade local
@@ -116,8 +133,10 @@ Secrets não entram no repositório, payload persistido, `externalReference`, lo
 respostas ao navegador.
 
 `src/features/payments/asaas-client.ts` implementa criação e cancelamento de checkout,
-consulta individual e listagem filtrada de pagamentos e solicitação de reembolso
-integral. A fronteira:
+consulta individual de cliente, consulta/listagem de pagamentos e solicitação de reembolso
+integral. `getCustomer` usa `GET /v3/customers/{id}`, exige correlação exata e expõe somente
+`id`, `name` e `email`; CPF/CNPJ, telefones, endereço e demais campos da resposta oficial são
+descartados antes de sair do adapter. A fronteira:
 
 - recebe e devolve dinheiro em centavos inteiros seguros;
 - converte decimal em reais somente ao serializar ou validar a resposta externa;
@@ -143,20 +162,20 @@ de persistir uma nova intenção local.
 `POST /api/checkouts/course` não é cacheado e aceita JSON com exatamente:
 
 - `checkoutAttemptId`, UUID opaco e idempotente;
-- `buyerName` e `buyerEmail`, capturados no Hub;
 - exatamente um entre `courseId` e `courseSlug`.
 
-CPF, gifting e campos extras são rejeitados. `ready` retorna `200` com `status`,
-`orderId` e `redirectUrl`; `processing` retorna `202` com `status` e `orderId`; rejeição
-externa conhecida retorna mensagem genérica. Validação retorna `400`. Limite público
-retorna `429` e `Retry-After`, sem ecoar PII ou payload externo.
+Nome, e-mail, CPF, preço, callbacks, método de pagamento, gifting e quaisquer campos extras
+são rejeitados antes do checkout. Visitante segue sem identidade local; Student elegível usa
+nome/e-mail da sessão; Admin, Suporte e Student com bloqueio geral recebem `403`. `ready`
+retorna `200` com `status`, `orderId` e `redirectUrl`; `processing` retorna `202` com
+`status` e `orderId`; rejeição externa conhecida retorna `502` com retry explícito;
+resultado incerto retorna `202` sem retry automático. Validação retorna `400`. Limite
+público retorna `429` e `Retry-After`, sem ecoar PII ou payload externo.
 
-Antes de acessar banco ou provider, o núcleo normaliza e valida o e-mail local com no
-máximo 254 caracteres e estrutura conservadora `local@dominio.tld`, sem whitespace ou
-controles. O nome local é obrigatório e limitado a 120 caracteres Unicode. Esses limites
-são proteção do Hub e não uma afirmação sobre campos adicionais do Asaas. Erros esperados
-são tipados como validação, conflito ou indisponibilidade; falhas inesperadas de
-DB, ambiente ou runtime retornam `503` genérico.
+O núcleo normaliza e valida nome/e-mail somente para a identidade autenticada. A tentativa
+pública persiste `user_id`, nome e e-mail nulos com identidade `pending`; o Checkout Asaas
+coleta os dados. Erros esperados são tipados como validação, conflito ou indisponibilidade;
+falhas inesperadas de DB, ambiente ou runtime retornam `503` genérico.
 
 O limite permite cinco novas intenções em dez minutos por HMAC-SHA-256 de IP e ID
 canônico do Curso, usando `BETTER_AUTH_SECRET`. O PostgreSQL coordena a janela em
@@ -171,20 +190,55 @@ vêm da sessão. Os callbacks absolutos são:
 
 - autenticado: sucesso em `/app/checkout/sucesso?courseId=...`;
 - público: sucesso em `/checkout/sucesso`;
-- ambos: cancelamento em `/checkout/cancelado` e expiração em `/checkout/expirado`.
+- ambos: cancelamento em `/checkout/cancelado?attemptId=...` e expiração em
+  `/checkout/expirado?attemptId=...`.
 
-Páginas de retorno informam processamento ou ausência de confirmação; callback de checkout
-não é autoridade para declarar pagamento.
+Cancelamento e expiração validam o UUID antes de consultar somente o snapshot do slug no
+Pedido Asaas e oferecem nova tentativa pelo link estável `/comprar/[slug]`. Referência
+inválida ou inexistente oferece login e contato com Suporte, nunca navega para `/` nem cria
+tentativa em GET. Páginas de retorno informam processamento ou ausência de confirmação;
+callback de checkout não é autoridade para declarar pagamento.
+
+A raiz da aplicação continua protegida. O handoff estável `/comprar/[slug]` é público,
+read-only no `GET` e não contém formulário; um Client Component cria/reutiliza um UUID no
+`sessionStorage`, faz um único `POST` e redireciona ao Checkout hospedado. Falha de rede ou
+resposta malformada permite retry manual com a mesma tentativa; recusa terminal substitui a
+tentativa somente no clique. A navegação aceita somente HTTPS, sem credenciais ou porta, nos
+hosts exatos `sandbox.asaas.com`, `www.asaas.com` ou `asaas.com`; qualquer outro destino
+falha fechado. O runtime E2E permite adicionalmente apenas
+`http://127.0.0.1:4570`, condicionado a `NEXT_PUBLIC_E2E_TEST_MODE=true`; essa origem não é
+aceita no build normal. A jornada está implementada em código e ainda não foi homologada
+novamente no Sandbox.
+A configuração administrativa do Curso mostra esse link absoluto somente quando checkout
+público, Curso ativo, publicação `published` e preço mínimo estão válidos. O botão usa a
+Clipboard API e, quando indisponível, seleciona o campo read-only para cópia manual.
 
 ## Identidade
 
-O Hub é a autoridade sobre identidade:
+O contrato alvo mantém o Hub como autoridade sobre Contas e usa o Asaas apenas como fonte
+da identidade pretendida do pagador:
 
 - checkout autenticado usa a Conta da sessão;
-- checkout público captura nome e e-mail localmente antes do redirect;
+- checkout público nasce sem PII e o Asaas coleta os dados do pagador;
+- após evento financeiro autoritativo, o Hub consulta somente nome/e-mail do cliente;
 - no fluxo público, Compradora = Aluna;
+- a compra pode ocorrer antes de existir credencial;
 - o Asaas não verifica Conta e não sobrescreve Conta existente;
 - compra como presente ou para terceiro está fora do escopo.
+
+Após pagamento autoritativo, o processor vincula pelo e-mail normalizado, cria Conta local
+não verificada quando necessário e envia ativação por outbox. A resolução usa CAS
+write-once para PII, vínculo e status de identidade; retry idêntico converge sem sobrescrita.
+Colisão com Conta Admin/Suporte, bloqueio geral ou Matrícula `revoked` no Curso abrirá
+Revisão sem acesso e permitirá somente reembolso integral pelo Suporte seguido de nova
+compra elegível. Aprovação ou rejeição genérica não resolve `buyer_identity`; somente a
+confirmação financeira do reembolso integral encerra automaticamente a Revisão. Reembolso
+parcial, incerto ou apenas solicitado mantém a Revisão pendente. A tela financeira oferece
+uma única operação por Pedido, inclusive quando Pedido e Revisão aparecem em paginações
+independentes. Quando a sessão já revela o impedimento, o Checkout falha antes da cobrança.
+A entrada e o Pedido públicos nascem sem PII; o enriquecimento e a resolução das colisões
+já estão implementados em código. A homologação PostgreSQL/Sandbox da jornada completa
+ainda está pendente. Ver [DEC-DISC-007](../decisions.md#dec-disc-007).
 
 ## Inbox de webhook
 
@@ -225,7 +279,11 @@ seguros. O processor é obrigatório e injetado; para alterar um Pedido, recebe 
 transacional e deve obter `lockOrder`, que executa lock da linha do Pedido. Nenhuma
 recuperação executa uma sexta tentativa: um lock abandonado na quinta é terminalizado
 como `failed` sem reinvocar o processor.
-Nenhuma conexão ou lock externo é mantido fora dessa transação local.
+O processor é bifásico. `prepare` valida o envelope e a convergência de todos os IDs,
+correlaciona somente por `Pool.query` e consulta o cliente Asaas antes de `pool.connect()`;
+zero, múltiplos ou IDs divergentes não consultam PII. Somente depois o worker abre a
+transação e chama `process`. Nenhuma chamada HTTP externa ocorre dentro da transação local.
+Falha de preparação usa o CAS/backoff da inbox pelo próprio Pool, sem `BEGIN`.
 
 `GET /api/cron/asaas-webhooks` usa o guard compartilhado de `CRON_SECRET` e
 `SCHEDULED_JOBS_ENABLED`, adquire lease persistente de seis minutos e entrega ao worker o
@@ -323,6 +381,14 @@ semanticamente inválida viram `uncertain`. Somente `failed` aceita nova solicit
 sempre com nova confirmação recente de senha. `processing`, `uncertain` e `confirmed`
 impedem repetição cega.
 
+No Sandbox, o recurso `Payment` originado pelo Checkout devolveu
+`externalReference=null`. A solicitação de reembolso aceita essa omissão somente quando
+o ID do pagamento e a `checkoutSession` são exatamente os reservados no Pedido. Todos
+os identificadores presentes precisam convergir, ao menos `externalReference` ou
+`checkoutSession` precisa corresponder, e a evidência deve comprovar o valor integral.
+Resposta com qualquer identificador conflitante permanece `uncertain`, sem repetição
+cega.
+
 Webhook é o fluxo normal. Consultas de cobrança, webhook e extrato servem para reparo
 direcionado, respeitando os limites publicados de 25.000 requisições por 12 horas e 50
 GETs concorrentes em [Rate e quota limit](https://docs.asaas.com/reference/rate-e-quota-limit).
@@ -346,6 +412,12 @@ A conciliação administrativa tem dois comandos separados:
 - por extrato, consulta `GET /v3/financialTransactions` em período fechado, páginas de
   100 e ordem crescente, persistindo cada movimento em
   `asaas_financial_transactions` com deduplicação pelo ID do Asaas.
+
+Os dois comandos mutáveis exigem `manageFinancialOperations`, capacidade exclusiva de
+Admin. `viewFinancials` permanece suficiente para leitura e resolução ordinária de
+Revisões. O snapshot e a tela de auditoria contam separadamente Checkouts com
+`checkout_status='uncertain'`, reembolsos incertos e Pedidos pagos sem pagamento
+correlacionado.
 
 O extrato publicado expõe `id`, `type`, `value` e `date`, mas não um vínculo contratual
 direto com `payment`. Portanto, o Hub não tenta correlacionar tarifa e Pedido por
@@ -427,7 +499,46 @@ O ensaio de expiração real manteve a aplicação desligada até a primeira ent
 `CHECKOUT_EXPIRED`. O túnel registrou duas respostas `502`; depois da recuperação da
 rota, o próprio Asaas repetiu a entrega e recebeu `200`. A inbox preservou um evento, o
 worker o processou uma vez e encerrou o Pedido como `cancelled/expired`, sem criar Conta,
-Concessão ou Matrícula. O webhook Sandbox foi pausado ao final.
+  Concessão ou Matrícula. O webhook Sandbox foi pausado ao final daquele ensaio.
+
+Em 2026-07-31, o pacote oficial `Ngrok.Ngrok` foi instalado no Windows e o agente foi
+atualizado de `3.3.1` para `3.39.10`. O domínio já configurado no webhook `testeneuro`
+estava reservado na conta e foi reutilizado com sucesso; nenhuma URL ou configuração Asaas
+foi alterada. O upgrade do arquivo de configuração imprimiu o authtoken no terminal, então
+ele deve ser rotacionado antes de uma nova exposição.
+
+A homologação pós-mudança usou a branch Neon CI descartável
+`br-sparkling-thunder-acsoydjw`, aplicou a cadeia completa de migrations e expôs o app local
+pelo domínio existente. O handoff público respondeu `200` e o Hub criou um Checkout real
+Sandbox em estado `ready`. O reCAPTCHA do Checkout hospedado rejeitou as tentativas
+headless de finalizar cartão ou gerar Pix: o Pedido permaneceu `pending`, sem
+`provider_payment_id`, e nenhum webhook foi recebido. A prova financeira ainda exigia uma
+interação humana no formulário hospedado naquele ponto; ela foi concluída na continuação
+descrita abaixo. App e túnel foram encerrados e a branch
+descartável foi excluída ao final; nenhum banco persistente, deploy, Production ou
+configuração Asaas foi alterado.
+
+A interação humana posterior gerou o PIX do Checkout aberto. O ensaio foi retomado na
+branch Neon CI descartável `br-bitter-morning-ac77jova`, reconstruindo somente o Pedido de
+homologação porque a branch anterior já havia sido excluída. A confirmação oficial do
+Sandbox emitiu `CHECKOUT_PAID` e `PAYMENT_RECEIVED`; ambos receberam HTTP `200` pelo
+ngrok. O worker confirmou o Pedido de R$ 250,00, registrou R$ 248,01 líquido e R$ 1,99 de
+taxa, criou uma Concessão, uma Matrícula e uma intenção de ativação. Uma segunda execução
+não duplicou efeitos. A primeira entrega da ativação expôs que o Sentinel do Better Auth
+remove pontos e `+tag` de Gmail/Googlemail, enquanto a identidade da Compradora removia
+apenas espaços e caixa. `normalizeBuyerEmail` agora usa o mesmo contrato, inclusive para
+provedores conhecidos de `+tag`; os testes de regressão passaram e o retry da outbox foi
+entregue pelo Resend. A Compradora confirmou a criação da senha, o login e a abertura do
+Curso; a auditoria encontrou uma credencial, uma Concessão ativa e uma Matrícula ativa.
+App, túnel e branch descartável foram removidos ao final. O webhook Sandbox `testeneuro`
+permaneceu habilitado e apontando para o domínio ngrok reservado, agora offline, até
+decisão operacional explícita.
+
+Um reteste manual posterior reabriu o app pelo domínio reservado contra Development. A
+leitura administrativa detectou incompatibilidade porque esse alvo ainda estava em
+`0043`; depois da promoção autorizada até `0052`, a consulta original passou e a pessoa
+operadora aprovou o reteste. App e túnel foram encerrados novamente. Essa evidência não
+altera Production nem substitui o smoke controlado da Etapa 10.
 
 Estas afirmações não são assumidas como comportamento do provider e precisam ser
 comprovadas no sandbox ou na conta:

@@ -7,11 +7,7 @@ const dependencies = vi.hoisted(() => ({
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/env", () => ({ getServerEnv: dependencies.getServerEnv }));
 
-import {
-  getAbacatePayProviderClient,
-  getApplicationUrl,
-  getAsaasProviderClient,
-} from "./provider";
+import { getApplicationUrl, getAsaasProviderClient } from "./provider";
 
 describe("Asaas provider boundary", () => {
   it("creates the server-only client from the complete Asaas configuration", () => {
@@ -44,34 +40,12 @@ describe("Asaas provider boundary", () => {
       "secret-that-must-not-leak"
     );
   });
-});
 
-describe("AbacatePay provider boundary", () => {
-  it("creates a provider client from the server-only configuration", () => {
+  it("builds absolute application URLs from the public origin", () => {
     dependencies.getServerEnv.mockReturnValue({
-      ABACATEPAY_API_BASE_URL: "https://api.example.test/v2",
-      ABACATEPAY_API_KEY: undefined,
-      ABACATE_PAY_API_KEY: "provider-key",
       NEXT_PUBLIC_APP_URL: "https://hub.example.test",
     });
 
-    expect(getAbacatePayProviderClient()).toMatchObject({
-      apiKey: "provider-key",
-      baseUrl: "https://api.example.test/v2",
-    });
     expect(getApplicationUrl("/app")).toBe("https://hub.example.test/app");
-  });
-
-  it("fails before the provider call when no API key is configured", () => {
-    dependencies.getServerEnv.mockReturnValue({
-      ABACATEPAY_API_BASE_URL: "https://api.example.test/v2",
-      ABACATEPAY_API_KEY: undefined,
-      ABACATE_PAY_API_KEY: undefined,
-      NEXT_PUBLIC_APP_URL: "https://hub.example.test",
-    });
-
-    expect(() => getAbacatePayProviderClient()).toThrow(
-      "Configure ABACATE_PAY_API_KEY"
-    );
   });
 });

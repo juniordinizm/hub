@@ -1,6 +1,7 @@
 import {
   ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS,
   type AsaasCheckout,
+  type AsaasCustomer,
   type AsaasFinancialTransaction,
   type AsaasFinancialTransactionPage,
   type AsaasGateway,
@@ -206,6 +207,28 @@ const parseCheckout = (value: unknown): AsaasCheckout => {
     id: value.id,
     link: value.link,
     status: value.status,
+  };
+};
+
+const parseCustomer = (
+  value: unknown,
+  requestedCustomerId: string
+): AsaasCustomer => {
+  if (
+    !(
+      isRecord(value) &&
+      isNonEmptyString(value.email) &&
+      value.id === requestedCustomerId &&
+      isNonEmptyString(value.name)
+    )
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  return {
+    email: value.email,
+    id: value.id,
+    name: value.name,
   };
 };
 
@@ -549,6 +572,17 @@ export class AsaasClient implements AsaasGateway {
       { method: "POST" },
       "mutation",
       parseCheckout
+    );
+  }
+
+  async getCustomer(customerId: string): Promise<AsaasCustomer> {
+    assertNonEmptyId(customerId, "Cliente");
+
+    return await this.request(
+      `/v3/customers/${encodeURIComponent(customerId)}`,
+      { method: "GET" },
+      "query",
+      (payload) => parseCustomer(payload, customerId)
     );
   }
 

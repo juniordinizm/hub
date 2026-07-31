@@ -146,27 +146,6 @@ const getResendProblems = (environment: Environment): string[] => {
   return problems;
 };
 
-const getAbacatePayProblems = (environment: Environment): string[] => {
-  const problems: string[] = [];
-  if (
-    environment.DEVELOPMENT_ABACATEPAY_DEV_MODE?.trim().toLowerCase() !== "true"
-  ) {
-    problems.push("DEVELOPMENT_ABACATEPAY_DEV_MODE must equal true");
-  }
-  if (
-    !(
-      hasConfiguredValue(environment, "ABACATE_PAY_API_KEY") ||
-      hasConfiguredValue(environment, "ABACATEPAY_API_KEY")
-    )
-  ) {
-    problems.push("ABACATE_PAY_API_KEY or ABACATEPAY_API_KEY is required");
-  }
-  if (!hasConfiguredValue(environment, "ABACATEPAY_WEBHOOK_SECRET")) {
-    problems.push("ABACATEPAY_WEBHOOK_SECRET is required");
-  }
-  return problems;
-};
-
 const getAsaasProblems = (environment: Environment): string[] => {
   const problems: string[] = [];
   for (const key of [
@@ -336,7 +315,6 @@ export const getDevelopmentEnvironmentProblems = (
     ...getCanonicalOriginProblems(environment),
     ...getR2Problems(environment),
     ...getResendProblems(environment),
-    ...getAbacatePayProblems(environment),
     ...getAsaasProblems(environment),
     ...getJmvstreamProblems(environment),
     ...getSentryProblems(environment),

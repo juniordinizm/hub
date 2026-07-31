@@ -7,7 +7,7 @@ const readServerSource = async (): Promise<string> =>
     "\n"
   );
 
-const PROVIDER_NAME_PATTERN = /abacatepay|asaas/i;
+const PROVIDER_NAME_PATTERN = /asaas/i;
 
 describe("enrollment server SQL contracts", () => {
   it("stores paid access in grants and keeps enrollments as a projection", async () => {

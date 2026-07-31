@@ -1,5 +1,11 @@
 export const ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS = 1000;
 
+export interface AsaasCustomer {
+  email: string;
+  id: string;
+  name: string;
+}
+
 export interface AsaasCheckout {
   id: string;
   link: string;
@@ -90,6 +96,7 @@ export interface RefundAsaasPayment {
 export interface AsaasGateway {
   cancelCheckout(checkoutId: string): Promise<AsaasCheckout>;
   createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout>;
+  getCustomer(customerId: string): Promise<AsaasCustomer>;
   getPayment(paymentId: string): Promise<AsaasPayment>;
   listFinancialTransactions(
     filters: ListAsaasFinancialTransactions

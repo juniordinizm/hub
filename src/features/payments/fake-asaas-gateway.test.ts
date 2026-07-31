@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AsaasGatewayError } from "./asaas-client";
 import { FakeAsaasGateway } from "./fake-asaas-gateway";
 
+const CUSTOMER_ID_OR_PII_RE = /cus_missing|aluna@example|12345678900/;
+
 const checkout = {
   id: "chk_123",
   link: "https://asaas.test/chk_123",
@@ -21,6 +23,38 @@ const payment = {
 };
 
 describe("FakeAsaasGateway", () => {
+  it("returns a defensive customer copy and reports a safe not found error", async () => {
+    const fake = new FakeAsaasGateway({});
+    fake.customers.set("cus_123", {
+      email: "aluna@example.com",
+      id: "cus_123",
+      name: "Aluna Teste",
+    });
+
+    const customer = await fake.getCustomer("cus_123");
+    customer.name = "Alterado fora do fake";
+
+    await expect(fake.getCustomer("cus_123")).resolves.toEqual({
+      email: "aluna@example.com",
+      id: "cus_123",
+      name: "Aluna Teste",
+    });
+    const missingCustomerId = "cus_missing-aluna@example.com-12345678900";
+    const missingCustomer = fake.getCustomer(missingCustomerId);
+    await expect(missingCustomer).rejects.toBeInstanceOf(AsaasGatewayError);
+    await expect(missingCustomer).rejects.toMatchObject({
+      kind: "not_found",
+      outcome: "rejected",
+      retryable: false,
+    });
+    await expect(missingCustomer).rejects.not.toThrow(CUSTOMER_ID_OR_PII_RE);
+    expect(fake.calls.getCustomer).toEqual([
+      "cus_123",
+      "cus_123",
+      missingCustomerId,
+    ]);
+  });
+
   it("implements the gateway contract and records every deterministic call", async () => {
     const fake = new FakeAsaasGateway({
       cancelCheckout: checkout,
@@ -77,6 +111,7 @@ describe("FakeAsaasGateway", () => {
     expect(fake.calls).toEqual({
       cancelCheckout: ["chk_123"],
       createCheckout: [createInput],
+      getCustomer: [],
       getPayment: ["pay_123"],
       listFinancialTransactions: [],
       listPayments: [{ externalReference: "order_123", limit: 20 }],

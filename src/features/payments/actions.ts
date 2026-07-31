@@ -1,10 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { canMutateStudentExperience } from "@/features/courses/preview";
 import { requeueFailedAsaasWebhook } from "@/features/payments/asaas-webhook-worker";
-import { createAsaasCheckoutIntent } from "@/features/payments/checkout";
+import {
+  createAsaasCheckoutIntent,
+  createCheckoutCallbacks,
+} from "@/features/payments/checkout";
 import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
+import { resolvePaymentReview } from "@/features/payments/payment-reviews";
 import {
   getApplicationUrl,
   getAsaasProviderClient,
@@ -17,7 +20,6 @@ import {
   issueRefundConfirmation,
   requestFullRefund,
 } from "@/features/payments/refunds";
-import { resolvePaymentReview } from "@/features/payments/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { getServerEnv } from "@/lib/env";
 import { requireSession } from "@/lib/session";
@@ -35,7 +37,7 @@ export const startCourseCheckoutAction = async (
   });
   const session = await requireSession();
 
-  if (!canMutateStudentExperience(session.role)) {
+  if (session.role !== "student") {
     throw new Error("Apenas alunos podem iniciar checkout.");
   }
 
@@ -46,6 +48,7 @@ export const startCourseCheckoutAction = async (
     throw new Error("Curso invalido.");
   }
 
+  const callbacks = createCheckoutCallbacks(checkoutAttemptId);
   const checkout = await createAsaasCheckoutIntent({
     attemptId: checkoutAttemptId,
     buyer: {
@@ -55,8 +58,7 @@ export const startCourseCheckoutAction = async (
       userId: session.user.id,
     },
     callbacks: {
-      cancelUrl: getApplicationUrl("/checkout/cancelado"),
-      expiredUrl: getApplicationUrl("/checkout/expirado"),
+      ...callbacks,
       successUrl: getApplicationUrl(
         `/app/checkout/sucesso?courseId=${encodeURIComponent(courseId)}`
       ),
@@ -115,7 +117,7 @@ export const requestFullRefundAction = async (
 export const reconcileAsaasPaymentAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requirePermission("viewFinancials");
+  const session = await requirePermission("manageFinancialOperations");
   const orderId = readString(formData, "orderId");
   if (!orderId) {
     throw new Error("Pedido invalido.");
@@ -129,7 +131,7 @@ export const reconcileAsaasPaymentAction = async (
 export const importAsaasStatementAction = async (
   formData: FormData
 ): Promise<{ imported: number }> => {
-  const session = await requirePermission("viewFinancials");
+  const session = await requirePermission("manageFinancialOperations");
   const startDate = readString(formData, "startDate");
   const finishDate = readString(formData, "finishDate");
   if (!(ISO_DATE_RE.test(startDate) && ISO_DATE_RE.test(finishDate))) {

@@ -1,5 +1,6 @@
 import "server-only";
 import type { PoolClient } from "pg";
+import { getPool } from "@/db";
 import {
   applyPaidWebhookAccess,
   applyPaymentRevocation,
@@ -9,6 +10,11 @@ import {
   createPaidAccessReleasedMessage,
 } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
+import type { AsaasGateway } from "./asaas";
+import {
+  type AsaasBuyerIdentityPreparation,
+  prepareAsaasBuyerIdentity,
+} from "./asaas-customer-enrichment";
 import {
   type AsaasFinancialCorrelation,
   type AsaasFinancialEventDecision,
@@ -25,6 +31,7 @@ import {
   LocalOrderIdentityError,
   resolveLocalOrderIdentity,
 } from "./order-identity";
+import { getAsaasProviderClient } from "./provider";
 
 interface CorrelationRow {
   id: string;
@@ -34,6 +41,7 @@ interface CorrelationRow {
 interface LockedOrderRow {
   accessDurationMonths: number | null;
   amountInCents: number;
+  buyerIdentityStatus: "pending" | "resolved" | "review_required";
   checkoutStatus: AsaasFinancialOrderSnapshot["checkoutStatus"];
   courseId: string;
   customerEmail: string | null;
@@ -43,6 +51,7 @@ interface LockedOrderRow {
   orderStatus: AsaasFinancialOrderSnapshot["orderStatus"];
   provider: string;
   providerCheckoutId: string | null;
+  providerCustomerId: string | null;
   providerPaymentId: string | null;
   providerPaymentStatus: string | null;
   providerRiskStatus: string | null;
@@ -53,7 +62,12 @@ interface ProcessorDependencies {
   applyPaidAccess: typeof applyPaidWebhookAccess;
   applyRevocation: typeof applyPaymentRevocation;
   enqueueMessage: typeof enqueueOutboxMessage;
+  gateway: Pick<AsaasGateway, "getCustomer">;
   now: () => Date;
+  prepareIdentity: (
+    event: Parameters<AsaasWebhookProcessor["prepare"]>[0],
+    gateway: Pick<AsaasGateway, "getCustomer">
+  ) => Promise<AsaasBuyerIdentityPreparation>;
   resolveIdentity: typeof resolveLocalOrderIdentity;
 }
 
@@ -61,7 +75,13 @@ const defaultDependencies: ProcessorDependencies = {
   applyPaidAccess: applyPaidWebhookAccess,
   applyRevocation: applyPaymentRevocation,
   enqueueMessage: enqueueOutboxMessage,
+  gateway: {
+    getCustomer: async (customerId) =>
+      await getAsaasProviderClient().getCustomer(customerId),
+  },
   now: () => new Date(),
+  prepareIdentity: async (event, gateway) =>
+    await prepareAsaasBuyerIdentity({ client: getPool(), event, gateway }),
   resolveIdentity: resolveLocalOrderIdentity,
 };
 
@@ -120,7 +140,11 @@ const getExactRefundEvidence = ({
     const dateCreated = getString(refund, "dateCreated");
     const status = getString(refund, "status");
     const valueInCents = parseAsaasDecimalToCents(getField(refund, "value"));
-    if (dateCreated && status && valueInCents === expectedAmountInCents) {
+    if (
+      dateCreated &&
+      status === "DONE" &&
+      valueInCents === expectedAmountInCents
+    ) {
       return {
         dateCreated,
         endToEndIdentifier: getNullableString(refund, "endToEndIdentifier"),
@@ -155,6 +179,11 @@ const checkoutStatuses = new Set([
   "pending",
   "uncertain",
 ]);
+const buyerIdentityStatuses = new Set([
+  "pending",
+  "resolved",
+  "review_required",
+]);
 
 const asLockedOrder = (row: unknown): LockedOrderRow | null => {
   const id = getString(row, "id");
@@ -164,6 +193,7 @@ const asLockedOrder = (row: unknown): LockedOrderRow | null => {
   const amountInCents = getNumber(row, "amount_in_cents");
   const orderStatus = getString(row, "status");
   const checkoutStatus = getString(row, "checkout_status");
+  const buyerIdentityStatus = getString(row, "buyer_identity_status");
   if (
     !(
       id &&
@@ -174,7 +204,9 @@ const asLockedOrder = (row: unknown): LockedOrderRow | null => {
       orderStatus &&
       orderStatuses.has(orderStatus) &&
       checkoutStatus &&
-      checkoutStatuses.has(checkoutStatus)
+      checkoutStatuses.has(checkoutStatus) &&
+      buyerIdentityStatus &&
+      buyerIdentityStatuses.has(buyerIdentityStatus)
     )
   ) {
     return null;
@@ -182,6 +214,8 @@ const asLockedOrder = (row: unknown): LockedOrderRow | null => {
   return {
     accessDurationMonths: getNumber(row, "access_duration_months"),
     amountInCents,
+    buyerIdentityStatus:
+      buyerIdentityStatus as LockedOrderRow["buyerIdentityStatus"],
     checkoutStatus:
       checkoutStatus as AsaasFinancialOrderSnapshot["checkoutStatus"],
     courseId,
@@ -192,6 +226,7 @@ const asLockedOrder = (row: unknown): LockedOrderRow | null => {
     orderStatus: orderStatus as AsaasFinancialOrderSnapshot["orderStatus"],
     provider,
     providerCheckoutId: getNullableString(row, "provider_checkout_id"),
+    providerCustomerId: getNullableString(row, "provider_customer_id"),
     providerPaymentId: getNullableString(row, "provider_payment_id"),
     providerPaymentStatus: getNullableString(row, "provider_payment_status"),
     providerRiskStatus: getNullableString(row, "provider_risk_status"),
@@ -339,8 +374,10 @@ const loadLockedOrder = async ({
        provider,
        external_id,
        status,
+       buyer_identity_status,
        checkout_status,
        provider_checkout_id,
+       provider_customer_id,
        provider_payment_id,
        provider_payment_status,
        provider_risk_status,
@@ -392,12 +429,16 @@ const insertReview = async ({
   eventId,
   orderId,
   reason,
+  type,
 }: {
   client: PoolClient;
   eventId: string;
   orderId: string;
-  reason: AsaasFinancialReviewReason;
+  reason: AsaasFinancialReviewReason | BuyerIdentityReviewReason;
+  type?: AsaasFinancialReviewReason | "buyer_identity";
 }): Promise<void> => {
+  const reviewType: AsaasFinancialReviewReason | "buyer_identity" =
+    type ?? (reason as AsaasFinancialReviewReason);
   await client.query(
     `insert into payment_reviews (
        order_id,
@@ -409,8 +450,56 @@ const insertReview = async ({
      on conflict (webhook_event_id)
        where webhook_event_id is not null
        do nothing`,
-    [orderId, eventId, reason, reason]
+    [orderId, eventId, reviewType, reason]
   );
+};
+
+type BuyerIdentityReviewReason =
+  | "buyer_identity_conflict"
+  | "buyer_identity_course_revoked"
+  | "buyer_identity_invalid"
+  | "buyer_identity_missing"
+  | "buyer_identity_platform_blocked"
+  | "buyer_identity_team_account";
+
+const localIdentityReviewReasons: Record<
+  LocalOrderIdentityError["code"],
+  BuyerIdentityReviewReason
+> = {
+  buyer_identity_course_revoked: "buyer_identity_course_revoked",
+  buyer_identity_platform_blocked: "buyer_identity_platform_blocked",
+  buyer_identity_team_account: "buyer_identity_team_account",
+  order_identity_conflict: "buyer_identity_conflict",
+  order_identity_incomplete: "buyer_identity_invalid",
+  order_user_not_found: "buyer_identity_invalid",
+};
+
+const openBuyerIdentityReview = async ({
+  client,
+  eventId,
+  orderId,
+  reason,
+}: {
+  client: PoolClient;
+  eventId: string;
+  orderId: string;
+  reason: BuyerIdentityReviewReason;
+}): Promise<void> => {
+  await client.query(
+    `update orders
+     set buyer_identity_status = 'review_required',
+         updated_at = now()
+     where id = $1
+       and buyer_identity_status in ('pending', 'resolved')`,
+    [orderId]
+  );
+  await insertReview({
+    client,
+    eventId,
+    orderId,
+    reason,
+    type: "buyer_identity",
+  });
 };
 
 const getIncomingCheckoutId = (
@@ -621,7 +710,131 @@ const validateGrantOrder = (
   };
 };
 
-type DecisionEffectOutcome = "applied" | "local_anomaly" | "none";
+type DecisionEffectOutcome =
+  | "applied"
+  | "identity_review"
+  | "local_anomaly"
+  | "none";
+
+const consumeResolvedPreparation = async ({
+  client,
+  order,
+  preparation,
+}: {
+  client: PoolClient;
+  order: LockedOrderRow;
+  preparation: Extract<AsaasBuyerIdentityPreparation, { kind: "resolved" }>;
+}): Promise<LockedOrderRow | null> => {
+  const persisted = await client.query(
+    `update orders
+     set provider_customer_id = $2,
+         customer_name = $3,
+         customer_email = $4,
+         updated_at = now()
+     where id = $1
+       and user_id is null
+       and buyer_identity_status = 'pending'
+       and provider_customer_id is null
+       and customer_name is null
+       and customer_email is null
+     returning id`,
+    [
+      order.id,
+      preparation.customerId,
+      preparation.identity.name,
+      preparation.identity.email,
+    ]
+  );
+  if (getString(persisted.rows[0], "id")) {
+    return {
+      ...order,
+      customerEmail: preparation.identity.email,
+      customerName: preparation.identity.name,
+      providerCustomerId: preparation.customerId,
+    };
+  }
+
+  const current = await loadLockedOrder({ client, orderId: order.id });
+  return current.buyerIdentityStatus === "pending" &&
+    current.userId === null &&
+    current.providerCustomerId === preparation.customerId &&
+    current.customerName === preparation.identity.name &&
+    current.customerEmail === preparation.identity.email
+    ? current
+    : null;
+};
+
+const prepareGrantIdentity = async ({
+  client,
+  eventId,
+  order,
+  preparation,
+}: {
+  client: PoolClient;
+  eventId: string;
+  order: LockedOrderRow;
+  preparation: AsaasBuyerIdentityPreparation;
+}): Promise<LockedOrderRow | null> => {
+  if (order.buyerIdentityStatus === "review_required") {
+    return null;
+  }
+  if (order.buyerIdentityStatus === "resolved") {
+    if (preparation.kind === "not_required" && order.userId) {
+      return order;
+    }
+    await openBuyerIdentityReview({
+      client,
+      eventId,
+      orderId: order.id,
+      reason: "buyer_identity_conflict",
+    });
+    return null;
+  }
+
+  if (preparation.kind === "not_required") {
+    await openBuyerIdentityReview({
+      client,
+      eventId,
+      orderId: order.id,
+      reason: "buyer_identity_missing",
+    });
+    return null;
+  }
+  if (preparation.orderId !== order.id) {
+    await openBuyerIdentityReview({
+      client,
+      eventId,
+      orderId: order.id,
+      reason: "buyer_identity_conflict",
+    });
+    return null;
+  }
+  if (preparation.kind === "review_required") {
+    await openBuyerIdentityReview({
+      client,
+      eventId,
+      orderId: order.id,
+      reason: preparation.reason,
+    });
+    return null;
+  }
+
+  const preparedOrder = await consumeResolvedPreparation({
+    client,
+    order,
+    preparation,
+  });
+  if (preparedOrder) {
+    return preparedOrder;
+  }
+  await openBuyerIdentityReview({
+    client,
+    eventId,
+    orderId: order.id,
+    reason: "buyer_identity_conflict",
+  });
+  return null;
+};
 
 const getRevocationReason = ({
   decision,
@@ -646,32 +859,53 @@ const applyDecisionEffect = async ({
   client,
   decision,
   dependencies,
+  eventId,
   order,
+  preparation,
 }: {
   client: PoolClient;
   decision: AsaasFinancialEventDecision;
   dependencies: ProcessorDependencies;
+  eventId: string;
   order: LockedOrderRow;
+  preparation: AsaasBuyerIdentityPreparation;
 }): Promise<DecisionEffectOutcome> => {
   if (decision.effect === "grant") {
     const grantOrder = validateGrantOrder(order);
     if (!grantOrder) {
       return "local_anomaly";
     }
+    const preparedOrder = await prepareGrantIdentity({
+      client,
+      eventId,
+      order,
+      preparation,
+    });
+    if (!preparedOrder) {
+      return "identity_review";
+    }
     let identity: Awaited<ReturnType<typeof resolveLocalOrderIdentity>>;
     try {
       identity = await dependencies.resolveIdentity({
         client,
         order: {
-          customerEmail: order.customerEmail,
-          customerName: order.customerName,
-          orderId: order.id,
-          userId: order.userId,
+          buyerIdentityStatus: preparedOrder.buyerIdentityStatus,
+          courseId: preparedOrder.courseId,
+          customerEmail: preparedOrder.customerEmail,
+          customerName: preparedOrder.customerName,
+          orderId: preparedOrder.id,
+          userId: preparedOrder.userId,
         },
       });
     } catch (error) {
       if (error instanceof LocalOrderIdentityError) {
-        return "local_anomaly";
+        await openBuyerIdentityReview({
+          client,
+          eventId,
+          orderId: order.id,
+          reason: localIdentityReviewReasons[error.code],
+        });
+        return "identity_review";
       }
       throw error;
     }
@@ -750,8 +984,8 @@ const confirmRefundRequest = async ({
   evidence: RefundEvidence | null;
   now: Date;
   orderId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<boolean> => {
+  const confirmed = await client.query(
     `update refund_requests
      set status = 'confirmed',
          confirmed_at = coalesce(confirmed_at, $2),
@@ -762,7 +996,9 @@ const confirmRefundRequest = async ({
          provider_refunded_amount_in_cents = coalesce($7, provider_refunded_amount_in_cents),
          error_message = null,
          updated_at = now()
-     where order_id = $1 and status <> 'confirmed'`,
+     where order_id = $1
+       and status in ('processing', 'uncertain', 'confirmed')
+     returning id`,
     [
       orderId,
       now,
@@ -772,6 +1008,28 @@ const confirmRefundRequest = async ({
       evidence?.receiptUrl ?? null,
       evidence?.valueInCents ?? null,
     ]
+  );
+  return getString(confirmed.rows[0], "id") !== null;
+};
+
+const closeRefundedBuyerIdentityReview = async ({
+  client,
+  now,
+  orderId,
+}: {
+  client: PoolClient;
+  now: Date;
+  orderId: string;
+}): Promise<void> => {
+  await client.query(
+    `update payment_reviews
+set status='rejected',
+ decision_reason='buyer_identity_refunded',
+ resolved_by_user_id=null,
+ resolved_at=coalesce(resolved_at,$2),
+ updated_at=now()
+where order_id=$1 and type='buyer_identity' and status='pending'`,
+    [orderId, now]
   );
 };
 
@@ -799,11 +1057,59 @@ const shouldConfirmRefundRequest = ({
   );
 };
 
+const confirmRefundAndCloseBuyerIdentityReview = async ({
+  client,
+  decision,
+  eventName,
+  getNow,
+  order,
+  payload,
+}: {
+  client: PoolClient;
+  decision: AsaasFinancialEventDecision;
+  eventName: string;
+  getNow: ProcessorDependencies["now"];
+  order: LockedOrderRow;
+  payload: unknown;
+}): Promise<void> => {
+  const evidence = getExactRefundEvidence({
+    expectedAmountInCents: order.amountInCents,
+    payload,
+  });
+  if (
+    !(
+      evidence &&
+      shouldConfirmRefundRequest({ decision, eventName, order, payload })
+    )
+  ) {
+    return;
+  }
+  const now = getNow();
+  const refundRequestConfirmed = await confirmRefundRequest({
+    client,
+    evidence,
+    now,
+    orderId: order.id,
+  });
+  if (!refundRequestConfirmed) {
+    return;
+  }
+  await closeRefundedBuyerIdentityReview({
+    client,
+    now,
+    orderId: order.id,
+  });
+};
+
 export const createAsaasWebhookProcessor = (
   overrides: Partial<ProcessorDependencies> = {}
 ): AsaasWebhookProcessor => {
   const dependencies = { ...defaultDependencies, ...overrides };
-  return async (event, context) => {
+  const process: AsaasWebhookProcessor["process"] = async (
+    event,
+    context,
+    preparation
+  ) => {
     const preliminaryDecision = decideAsaasFinancialEvent({
       payload: event.payload,
       snapshot: emptySnapshot,
@@ -920,24 +1226,14 @@ export const createAsaasWebhookProcessor = (
         reason: decision.reviewReason,
       });
     }
-    if (
-      shouldConfirmRefundRequest({
-        decision,
-        eventName: event.eventName,
-        order,
-        payload: event.payload,
-      })
-    ) {
-      await confirmRefundRequest({
-        client: context.client,
-        evidence: getExactRefundEvidence({
-          expectedAmountInCents: order.amountInCents,
-          payload: event.payload,
-        }),
-        now: dependencies.now(),
-        orderId,
-      });
-    }
+    await confirmRefundAndCloseBuyerIdentityReview({
+      client: context.client,
+      decision,
+      eventName: event.eventName,
+      getNow: dependencies.now,
+      order,
+      payload: event.payload,
+    });
     if (decision.reviewReason && decision.effect !== "revoke") {
       return { outcome: "processed" };
     }
@@ -945,7 +1241,9 @@ export const createAsaasWebhookProcessor = (
       client: context.client,
       decision,
       dependencies,
+      eventId: event.id,
       order,
+      preparation,
     });
     await reviewLocalEffectAnomaly({
       client: context.client,
@@ -954,6 +1252,11 @@ export const createAsaasWebhookProcessor = (
       outcome: effectOutcome,
     });
     return { outcome: "processed" };
+  };
+  return {
+    prepare: async (event) =>
+      await dependencies.prepareIdentity(event, dependencies.gateway),
+    process,
   };
 };
 

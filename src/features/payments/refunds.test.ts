@@ -49,6 +49,7 @@ const createRefundDatabase = ({
           {
             amount_in_cents: 12_990,
             external_id: `order_${ORDER_ID}`,
+            provider_checkout_id: "chk_123",
             provider_payment_id: "pay_123",
             status: "paid",
           },
@@ -185,6 +186,38 @@ describe("Asaas full refund requests", () => {
       "https://asaas.example/refund-receipt",
       12_990,
     ]);
+    expect(
+      queries.find(({ text }) => text.includes("from orders"))?.text
+    ).toContain("provider_checkout_id");
+  });
+
+  it("accepts a null external reference when the checkout session matches exactly", async () => {
+    createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      externalReference: null,
+    });
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+  });
+
+  it("marks a null external reference with a conflicting checkout session uncertain", async () => {
+    const { queries } = createRefundDatabase();
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      checkoutSession: "chk_other",
+      externalReference: null,
+    });
+
+    await expect(requestRefund()).rejects.toThrow(
+      "Resultado do reembolso pendente de conciliacao."
+    );
+    const uncertain = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("asaas_refund_invalid_result")
+    );
+    expect(uncertain?.text).toContain("status = 'uncertain'");
   });
 
   it("does not mutate Asaas when an active reservation already exists", async () => {
@@ -291,7 +324,7 @@ describe("Asaas full refund requests", () => {
     expect(uncertain?.text).toContain("status = 'uncertain'");
   });
 
-  it("marks a response for another external reference uncertain", async () => {
+  it("rejects a conflicting external reference even when checkout session matches", async () => {
     const { queries } = createRefundDatabase();
     dependencies.gateway.refundPayment.mockResolvedValue({
       ...validRefundPayment,

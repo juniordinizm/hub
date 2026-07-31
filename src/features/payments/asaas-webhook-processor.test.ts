@@ -14,12 +14,20 @@ const ORDER_ID = "11111111-1111-4111-8111-111111111111";
 const EVENT_ID = "22222222-2222-4222-8222-222222222222";
 const COURSE_ID = "33333333-3333-4333-8333-333333333333";
 const USER_ID = "user-1";
+const NOW = new Date("2026-07-30T15:00:00.000Z");
+const IDENTITY_PREPARATION_CAS_PATTERN =
+  /user_id is null[\s\S]*buyer_identity_status = 'pending'[\s\S]*provider_customer_id is null[\s\S]*customer_name is null[\s\S]*customer_email is null/i;
+const IDENTITY_REVIEW_PENDING_PATTERN =
+  /buyer_identity_status\s*=\s*'pending'/i;
+const IDENTITY_REVIEW_RESOLVED_CAS_PATTERN =
+  /buyer_identity_status\s+in\s*\(\s*'pending'\s*,\s*'resolved'\s*\)/i;
 
 const queryResult = (rows: unknown[]) => ({ rows });
 
 const createOrderRow = (overrides: Record<string, unknown> = {}) => ({
   access_duration_months: 12,
   amount_in_cents: 12_990,
+  buyer_identity_status: "resolved",
   checkout_status: "active",
   course_id: COURSE_ID,
   customer_email: null,
@@ -28,6 +36,7 @@ const createOrderRow = (overrides: Record<string, unknown> = {}) => ({
   id: ORDER_ID,
   provider: "asaas",
   provider_checkout_id: "chk_1",
+  provider_customer_id: null,
   provider_payment_id: null,
   provider_payment_status: null,
   provider_risk_status: null,
@@ -43,13 +52,17 @@ const createContext = ({
   orderRow = createOrderRow(),
   orderRows,
   pendingReviewRows = [],
+  persistIdentity = true,
   persistOrder = true,
+  refundRequestRows = [{ id: "refund-1" }],
 }: {
   correlationRows?: unknown[];
   orderRow?: unknown;
   orderRows?: unknown[];
   pendingReviewRows?: unknown[];
+  persistIdentity?: boolean;
   persistOrder?: boolean;
+  refundRequestRows?: unknown[];
 } = {}) => {
   const pendingReviews = [...pendingReviewRows];
   const lockedOrderRows = orderRows ?? (orderRow ? [orderRow] : []);
@@ -74,14 +87,25 @@ const createContext = ({
     ) {
       return Promise.resolve(queryResult(pendingReviews));
     }
+    if (
+      text.includes("update orders") &&
+      text.includes("provider_customer_id = $2")
+    ) {
+      return Promise.resolve(
+        queryResult(persistIdentity ? [{ id: ORDER_ID }] : [])
+      );
+    }
     if (text.includes("update orders")) {
       return Promise.resolve(
         queryResult(persistOrder ? [{ id: ORDER_ID }] : [])
       );
     }
+    if (text.includes("update refund_requests")) {
+      return Promise.resolve(queryResult(refundRequestRows));
+    }
     if (
       text.includes("update webhook_events") ||
-      text.includes("update refund_requests") ||
+      text.includes("update payment_reviews") ||
       text.includes("insert into audit_logs")
     ) {
       return Promise.resolve(queryResult([{ id: values?.[0] ?? ORDER_ID }]));
@@ -98,6 +122,79 @@ const createContext = ({
   const client = { query } as unknown as PoolClient;
   const context: AsaasWebhookProcessingContext = { client, lockOrder };
   return { context, lockOrder, pendingReviews, queries };
+};
+
+const createStatefulIdentityReviewContext = () => {
+  const order = createOrderRow({
+    buyer_identity_status: "resolved",
+    status: "pending",
+    user_id: USER_ID,
+  });
+  const reviewEventIds = new Set<string>();
+  const query = vi.fn((text: string, values?: unknown[]) => {
+    if (text.includes("with correlation_identifiers")) {
+      return Promise.resolve(
+        queryResult([
+          { id: ORDER_ID, match_kind: "payment_external_reference" },
+        ])
+      );
+    }
+    if (text.includes("from orders") && text.includes("where id = $1")) {
+      return Promise.resolve(queryResult([order]));
+    }
+    if (text.includes("update webhook_events")) {
+      return Promise.resolve(queryResult([{ id: EVENT_ID }]));
+    }
+    if (
+      text.includes("from payment_reviews") &&
+      text.includes("status = 'pending'")
+    ) {
+      return Promise.resolve(
+        queryResult(
+          reviewEventIds.size > 0 ? [{ id: "identity-review-1" }] : []
+        )
+      );
+    }
+    if (
+      text.includes("update orders") &&
+      text.includes("provider_checkout_id = coalesce")
+    ) {
+      if (values?.[3] === true && typeof values[4] === "string") {
+        order.status = values[4];
+      }
+      return Promise.resolve(queryResult([{ id: ORDER_ID }]));
+    }
+    if (
+      text.includes("update orders") &&
+      text.includes("buyer_identity_status = 'review_required'")
+    ) {
+      const acceptsResolved = IDENTITY_REVIEW_RESOLVED_CAS_PATTERN.test(text);
+      const acceptsPending =
+        acceptsResolved || IDENTITY_REVIEW_PENDING_PATTERN.test(text);
+      if (
+        (order.buyer_identity_status === "pending" && acceptsPending) ||
+        (order.buyer_identity_status === "resolved" && acceptsResolved)
+      ) {
+        order.buyer_identity_status = "review_required";
+      }
+      return Promise.resolve(queryResult([]));
+    }
+    if (text.includes("insert into payment_reviews")) {
+      const eventId = values?.[1];
+      if (typeof eventId === "string") {
+        reviewEventIds.add(eventId);
+      }
+      return Promise.resolve(queryResult([]));
+    }
+    return Promise.reject(
+      new Error(`Unexpected SQL in stateful identity review test: ${text}`)
+    );
+  });
+  const context: AsaasWebhookProcessingContext = {
+    client: { query } as unknown as PoolClient,
+    lockOrder: vi.fn(async () => undefined),
+  };
+  return { context, order, query, reviewEventIds };
 };
 
 const createPaymentEvent = (
@@ -124,7 +221,295 @@ const createPaymentEvent = (
   },
 });
 
+const createConfirmedRefundEvent = (
+  paymentOverrides: Record<string, unknown> = {},
+  id = EVENT_ID
+) =>
+  createPaymentEvent(
+    "PAYMENT_REFUNDED",
+    {
+      refunds: [
+        {
+          dateCreated: "2026-07-30 12:00:00",
+          status: "DONE",
+          value: 129.9,
+        },
+      ],
+      status: "REFUNDED",
+      ...paymentOverrides,
+    },
+    id
+  );
+
+const processEvent = async (
+  processor: ReturnType<typeof createAsaasWebhookProcessor>,
+  event: ReturnType<typeof createPaymentEvent>,
+  context: AsaasWebhookProcessingContext,
+  preparation: Parameters<
+    ReturnType<typeof createAsaasWebhookProcessor>["process"]
+  >[2] = { kind: "not_required" }
+) => await processor.process(event, context, preparation);
+
+const resolvedPreparation = (overrides: Record<string, unknown> = {}) => ({
+  customerId: "cus_1",
+  identity: { email: "buyer@example.test", name: "Buyer" },
+  kind: "resolved" as const,
+  orderId: ORDER_ID,
+  ...overrides,
+});
+
 describe("Asaas webhook processor", () => {
+  it("exposes separate preparation and transactional processing methods", async () => {
+    const prepareIdentity = vi.fn(async () => ({
+      kind: "not_required" as const,
+    }));
+    const gateway = { getCustomer: vi.fn() };
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      gateway: gateway as never,
+      prepareIdentity,
+      resolveIdentity: vi.fn(),
+    });
+    const event = createPaymentEvent("PAYMENT_RECEIVED");
+
+    await expect(processor.prepare(event)).resolves.toEqual({
+      kind: "not_required",
+    });
+
+    expect(prepareIdentity).toHaveBeenCalledWith(event, gateway);
+    expect(processor.process).toEqual(expect.any(Function));
+  });
+
+  it("persists resolved preparation once before resolving and granting a pending public order", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        buyer_identity_status: "pending",
+        user_id: null,
+      }),
+    });
+    const calls: string[] = [];
+    const resolveIdentity = vi.fn(({ order }) => {
+      calls.push("resolve");
+      expect(order).toEqual({
+        buyerIdentityStatus: "pending",
+        courseId: COURSE_ID,
+        customerEmail: "buyer@example.test",
+        customerName: "Buyer",
+        orderId: ORDER_ID,
+        userId: null,
+      });
+      return Promise.resolve({
+        activationRequired: true,
+        userId: "public-user",
+      });
+    });
+    const applyPaidAccess = vi.fn(() => {
+      calls.push("grant");
+      return Promise.resolve();
+    });
+    const enqueueMessage = vi.fn(async () => ({ id: null, inserted: false }));
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage,
+      resolveIdentity,
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      resolvedPreparation()
+    );
+
+    const identityUpdate = queries.find(({ text }) =>
+      text.includes("provider_customer_id = $2")
+    );
+    expect(identityUpdate?.text).toMatch(IDENTITY_PREPARATION_CAS_PATTERN);
+    expect(identityUpdate?.values).toEqual([
+      ORDER_ID,
+      "cus_1",
+      "Buyer",
+      "buyer@example.test",
+    ]);
+    expect(calls).toEqual(["resolve", "grant"]);
+    expect(enqueueMessage).toHaveBeenCalledOnce();
+  });
+
+  it("accepts an identical persisted preparation without overwriting it", async () => {
+    const pendingPublic = createOrderRow({
+      buyer_identity_status: "pending",
+      customer_email: "buyer@example.test",
+      customer_name: "Buyer",
+      provider_customer_id: "cus_1",
+      user_id: null,
+    });
+    const { context, queries } = createContext({
+      orderRows: [pendingPublic, pendingPublic],
+      persistIdentity: false,
+    });
+    const resolveIdentity = vi.fn(async () => ({
+      activationRequired: true,
+      userId: "public-user",
+    }));
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity,
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      resolvedPreparation()
+    );
+
+    expect(resolveIdentity).toHaveBeenCalledOnce();
+    expect(
+      queries.filter(({ text }) => text.includes("provider_customer_id = $2"))
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    ["customer id", { provider_customer_id: "cus_other" }],
+    ["email", { customer_email: "other@example.test" }],
+    ["name", { customer_name: "Other" }],
+  ])("reviews a divergent persisted preparation by %s", async (_label, mismatch) => {
+    const staleOrder = createOrderRow({
+      buyer_identity_status: "pending",
+      customer_email: "buyer@example.test",
+      customer_name: "Buyer",
+      provider_customer_id: "cus_1",
+      user_id: null,
+      ...mismatch,
+    });
+    const { context, queries } = createContext({
+      orderRows: [staleOrder, staleOrder],
+      persistIdentity: false,
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const enqueueMessage = vi.fn(async () => ({ id: null, inserted: false }));
+    const resolveIdentity = vi.fn();
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage,
+      resolveIdentity,
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      resolvedPreparation()
+    );
+
+    expect(resolveIdentity).not.toHaveBeenCalled();
+    expect(applyPaidAccess).not.toHaveBeenCalled();
+    expect(enqueueMessage).not.toHaveBeenCalled();
+    expect(
+      queries.find(({ text }) => text.includes("insert into payment_reviews"))
+        ?.values
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "buyer_identity",
+      "buyer_identity_conflict",
+    ]);
+  });
+
+  it.each([
+    [
+      "preparation for another order",
+      resolvedPreparation({ orderId: "other" }),
+      "buyer_identity_conflict",
+    ],
+    [
+      "review-required preparation",
+      {
+        customerId: null,
+        kind: "review_required" as const,
+        orderId: ORDER_ID,
+        reason: "buyer_identity_missing" as const,
+      },
+      "buyer_identity_missing",
+    ],
+    [
+      "missing grant preparation",
+      { kind: "not_required" as const },
+      "buyer_identity_missing",
+    ],
+  ])("fails closed for %s", async (_label, preparation, reason) => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        buyer_identity_status: "pending",
+        user_id: null,
+      }),
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const enqueueMessage = vi.fn(async () => ({ id: null, inserted: false }));
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage,
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      preparation
+    );
+
+    expect(applyPaidAccess).not.toHaveBeenCalled();
+    expect(enqueueMessage).not.toHaveBeenCalled();
+    expect(
+      queries.find(({ text }) => text.includes("insert into payment_reviews"))
+        ?.values
+    ).toEqual([ORDER_ID, EVENT_ID, "buyer_identity", reason]);
+    expect(
+      queries.some(
+        ({ text }) =>
+          text.includes("buyer_identity_status = 'review_required'") &&
+          text.includes("buyer_identity_status in ('pending', 'resolved')")
+      )
+    ).toBe(true);
+  });
+
+  it("never grants an order already in identity review", async () => {
+    const { context } = createContext({
+      orderRow: createOrderRow({
+        buyer_identity_status: "review_required",
+        user_id: null,
+      }),
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const enqueueMessage = vi.fn(async () => ({ id: null, inserted: false }));
+    const resolveIdentity = vi.fn();
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage,
+      resolveIdentity,
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      resolvedPreparation()
+    );
+
+    expect(resolveIdentity).not.toHaveBeenCalled();
+    expect(applyPaidAccess).not.toHaveBeenCalled();
+    expect(enqueueMessage).not.toHaveBeenCalled();
+  });
+
   it("locks the correlated order and grants PIX access with one outbox intent", async () => {
     const { context, lockOrder, queries } = createContext();
     const resolveIdentity = vi.fn(async () => ({
@@ -146,7 +531,7 @@ describe("Asaas webhook processor", () => {
     });
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "processed" });
 
     expect(lockOrder).toHaveBeenCalledExactlyOnceWith(ORDER_ID);
@@ -188,7 +573,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_RECEIVED", { value: 100 }),
       context
     );
@@ -220,11 +606,13 @@ describe("Asaas webhook processor", () => {
       })),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_RECEIVED", { value: 100 }),
       context
     );
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(
         "PAYMENT_RECEIVED",
         { value: 129.9 },
@@ -265,14 +653,16 @@ describe("Asaas webhook processor", () => {
       })),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_RECEIVED", {
         billingType: "CREDIT_CARD",
         status: "RECEIVED",
       }),
       context
     );
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(
         "PAYMENT_CONFIRMED",
         { billingType: "CREDIT_CARD", status: "CONFIRMED" },
@@ -311,7 +701,7 @@ describe("Asaas webhook processor", () => {
     });
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "ignored" });
 
     expect(lockOrder).not.toHaveBeenCalled();
@@ -345,7 +735,7 @@ describe("Asaas webhook processor", () => {
     });
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "processed" });
 
     expect(lockOrder).toHaveBeenCalledExactlyOnceWith(inconsistentOrderId);
@@ -368,7 +758,7 @@ describe("Asaas webhook processor", () => {
     const processor = createAsaasWebhookProcessor();
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "ignored" });
 
     expect(lockOrder).not.toHaveBeenCalled();
@@ -386,7 +776,11 @@ describe("Asaas webhook processor", () => {
     const processor = createAsaasWebhookProcessor();
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_FUTURE_EVENT"), context)
+      processEvent(
+        processor,
+        createPaymentEvent("PAYMENT_FUTURE_EVENT"),
+        context
+      )
     ).resolves.toEqual({ outcome: "ignored" });
 
     expect(lockOrder).not.toHaveBeenCalled();
@@ -410,7 +804,11 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(createPaymentEvent("PAYMENT_RECEIVED"), context);
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context
+    );
 
     expect(applyPaidAccess).not.toHaveBeenCalled();
     expect(
@@ -431,7 +829,11 @@ describe("Asaas webhook processor", () => {
       })),
     });
 
-    await processor(createPaymentEvent("PAYMENT_RECEIVED"), context);
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context
+    );
 
     const update = queries.find(({ text }) =>
       text.includes("update orders")
@@ -454,7 +856,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_CONFIRMED", {
         billingType: "CREDIT_CARD",
         status: "CONFIRMED",
@@ -483,7 +886,8 @@ describe("Asaas webhook processor", () => {
       })),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_APPROVED_BY_RISK_ANALYSIS", {
         billingType: "CREDIT_CARD",
         status: "APPROVED_BY_RISK_ANALYSIS",
@@ -497,8 +901,7 @@ describe("Asaas webhook processor", () => {
   it("queues account activation for a public identity without calling auth directly", async () => {
     const { context } = createContext({
       orderRow: createOrderRow({
-        customer_email: "buyer@example.com",
-        customer_name: "Buyer",
+        buyer_identity_status: "pending",
         user_id: null,
       }),
     });
@@ -517,12 +920,19 @@ describe("Asaas webhook processor", () => {
       resolveIdentity,
     });
 
-    await processor(createPaymentEvent("PAYMENT_RECEIVED"), context);
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context,
+      resolvedPreparation()
+    );
 
     expect(resolveIdentity).toHaveBeenCalledWith({
       client: context.client,
       order: {
-        customerEmail: "buyer@example.com",
+        buyerIdentityStatus: "pending",
+        courseId: COURSE_ID,
+        customerEmail: "buyer@example.test",
         customerName: "Buyer",
         orderId: ORDER_ID,
         userId: null,
@@ -555,7 +965,7 @@ describe("Asaas webhook processor", () => {
     });
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "processed" });
 
     expect(resolveIdentity).not.toHaveBeenCalled();
@@ -574,10 +984,16 @@ describe("Asaas webhook processor", () => {
   });
 
   it.each([
-    "order_identity_conflict",
-    "order_identity_incomplete",
-    "order_user_not_found",
-  ] satisfies LocalOrderIdentityErrorCode[])("persists paid evidence and reviews deterministic identity error %s", async (identityErrorCode) => {
+    ["buyer_identity_course_revoked", "buyer_identity_course_revoked"],
+    ["buyer_identity_platform_blocked", "buyer_identity_platform_blocked"],
+    ["buyer_identity_team_account", "buyer_identity_team_account"],
+    ["order_identity_conflict", "buyer_identity_conflict"],
+    ["order_identity_incomplete", "buyer_identity_invalid"],
+    ["order_user_not_found", "buyer_identity_invalid"],
+  ] satisfies [
+    LocalOrderIdentityErrorCode,
+    string,
+  ][])("persists paid evidence and reviews deterministic identity error %s", async (identityErrorCode, expectedReason) => {
     const { context, queries } = createContext();
     const applyPaidAccess = vi.fn(async () => undefined);
     const enqueueMessage = vi.fn(async () => ({
@@ -594,7 +1010,7 @@ describe("Asaas webhook processor", () => {
     });
 
     await expect(
-      processor(createPaymentEvent("PAYMENT_RECEIVED"), context)
+      processEvent(processor, createPaymentEvent("PAYMENT_RECEIVED"), context)
     ).resolves.toEqual({ outcome: "processed" });
 
     expect(applyPaidAccess).not.toHaveBeenCalled();
@@ -608,14 +1024,60 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "event_anomaly", "event_anomaly"]);
+    ).toEqual([ORDER_ID, EVENT_ID, "buyer_identity", expectedReason]);
+  });
+
+  it.each([
+    "buyer_identity_team_account",
+    "buyer_identity_platform_blocked",
+    "buyer_identity_course_revoked",
+  ] satisfies LocalOrderIdentityErrorCode[])("moves a resolved paid identity to review for %s and keeps retry effect-free", async (identityErrorCode) => {
+    const { context, order, query, reviewEventIds } =
+      createStatefulIdentityReviewContext();
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const enqueueMessage = vi.fn(async () => ({
+      id: null,
+      inserted: false,
+    }));
+    const resolveIdentity = vi.fn(() =>
+      Promise.reject(new LocalOrderIdentityError(identityErrorCode))
+    );
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage,
+      resolveIdentity,
+    });
+    const event = createPaymentEvent("PAYMENT_RECEIVED");
+
+    await processEvent(processor, event, context);
+    await processEvent(processor, event, context);
+
+    expect(order).toMatchObject({
+      buyer_identity_status: "review_required",
+      status: "paid",
+      user_id: USER_ID,
+    });
+    expect(resolveIdentity).toHaveBeenCalledOnce();
+    expect(applyPaidAccess).not.toHaveBeenCalled();
+    expect(enqueueMessage).not.toHaveBeenCalled();
+    expect(reviewEventIds).toEqual(new Set([EVENT_ID]));
+    const reviewInserts = query.mock.calls.filter(([text]) =>
+      String(text).includes("insert into payment_reviews")
+    );
+    expect(reviewInserts.length).toBeGreaterThan(0);
+    expect(
+      reviewInserts.every(([text]) =>
+        String(text).includes("on conflict (webhook_event_id)")
+      )
+    ).toBe(true);
   });
 
   it.each([
     ["PAYMENT_REFUNDED", "payment_refund", "refunded"],
     ["PAYMENT_CHARGEBACK_REQUESTED", "payment_dispute", "disputed"],
   ])("revokes access for %s and preserves the domain reason", async (eventName, expectedReason, expectedStatus) => {
-    const { context, queries } = createContext({
+    const { context } = createContext({
       orderRow: createOrderRow({ status: "paid" }),
     });
     const applyRevocation = vi.fn(async () => true);
@@ -629,7 +1091,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(eventName, { status: expectedStatus.toUpperCase() }),
       context
     );
@@ -637,11 +1100,197 @@ describe("Asaas webhook processor", () => {
     expect(applyRevocation).toHaveBeenCalledWith(
       expect.objectContaining({ reason: expectedReason, userId: USER_ID })
     );
-    if (eventName === "PAYMENT_REFUNDED") {
-      expect(
-        queries.some(({ text }) => text.includes("update refund_requests"))
-      ).toBe(true);
-    }
+  });
+
+  it("closes only the pending buyer identity review when an exact full refund request is confirmed", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({ status: "paid" }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      now: () => NOW,
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(processor, createConfirmedRefundEvent(), context);
+
+    const refundUpdateIndex = queries.findIndex(({ text }) =>
+      text.includes("update refund_requests")
+    );
+    const reviewUpdateIndex = queries.findIndex(({ text }) =>
+      text.includes("update payment_reviews")
+    );
+    expect(refundUpdateIndex).toBeGreaterThan(-1);
+    expect(reviewUpdateIndex).toBeGreaterThan(refundUpdateIndex);
+    const reviewUpdate = queries[reviewUpdateIndex];
+    expect(reviewUpdate?.values).toEqual([ORDER_ID, NOW]);
+    expect(reviewUpdate?.text).toContain("status='rejected'");
+    expect(reviewUpdate?.text).toContain(
+      "decision_reason='buyer_identity_refunded'"
+    );
+    expect(reviewUpdate?.text).toContain("resolved_by_user_id=null");
+    expect(reviewUpdate?.text).toContain(
+      "resolved_at=coalesce(resolved_at,$2)"
+    );
+    expect(reviewUpdate?.text).toContain("where order_id=$1");
+    expect(reviewUpdate?.text).toContain("type='buyer_identity'");
+    expect(reviewUpdate?.text).toContain("status='pending'");
+  });
+
+  it.each([
+    [
+      "partial refund",
+      createPaymentEvent("PAYMENT_PARTIALLY_REFUNDED", {
+        refunds: [
+          {
+            dateCreated: "2026-07-30 12:00:00",
+            status: "DONE",
+            value: 100,
+          },
+        ],
+        status: "PARTIALLY_REFUNDED",
+      }),
+    ],
+    [
+      "refund still in progress",
+      createPaymentEvent("PAYMENT_REFUND_IN_PROGRESS", {
+        refunds: [
+          {
+            dateCreated: "2026-07-30 12:00:00",
+            status: "DONE",
+            value: 129.9,
+          },
+        ],
+        status: "REFUND_IN_PROGRESS",
+      }),
+    ],
+    [
+      "missing exact financial evidence",
+      createPaymentEvent("PAYMENT_REFUNDED", { status: "REFUNDED" }),
+    ],
+    [
+      "divergent refund value",
+      createConfirmedRefundEvent({
+        refunds: [
+          {
+            dateCreated: "2026-07-30 12:00:00",
+            status: "DONE",
+            value: 100,
+          },
+        ],
+      }),
+    ],
+    [
+      "unconfirmed refund evidence",
+      createConfirmedRefundEvent({
+        refunds: [
+          {
+            dateCreated: "2026-07-30 12:00:00",
+            status: "CREATED",
+            value: 129.9,
+          },
+        ],
+      }),
+    ],
+  ])("does not close buyer identity review for %s", async (_case, event) => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({ status: "paid" }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      now: () => NOW,
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(processor, event, context);
+
+    expect(
+      queries.some(({ text }) => text.includes("update payment_reviews"))
+    ).toBe(false);
+  });
+
+  it("does not close a buyer identity review when the local refund request is only requested", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({ status: "paid" }),
+      refundRequestRows: [],
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      now: () => NOW,
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(processor, createConfirmedRefundEvent(), context);
+
+    const refundUpdate = queries.find(({ text }) =>
+      text.includes("update refund_requests")
+    );
+    expect(refundUpdate?.text).toContain(
+      "status in ('processing', 'uncertain', 'confirmed')"
+    );
+    expect(
+      queries.some(({ text }) => text.includes("update payment_reviews"))
+    ).toBe(false);
+  });
+
+  it("keeps buyer identity review resolution idempotent on a confirmed retry", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({ status: "refunded" }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => false),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      now: () => NOW,
+      resolveIdentity: vi.fn(),
+    });
+    const event = createConfirmedRefundEvent();
+
+    await processEvent(processor, event, context);
+    await processEvent(processor, event, context);
+
+    const reviewUpdates = queries.filter(({ text }) =>
+      text.includes("update payment_reviews")
+    );
+    expect(reviewUpdates).toHaveLength(2);
+    expect(
+      reviewUpdates.every(({ text }) =>
+        text.includes("resolved_at=coalesce(resolved_at,$2)")
+      )
+    ).toBe(true);
+    expect(reviewUpdates.every(({ values }) => values?.[1] === NOW)).toBe(true);
+  });
+
+  it("does not close any review when refund identifiers diverge", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({ status: "paid" }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      now: () => NOW,
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(
+      processor,
+      createConfirmedRefundEvent({ externalReference: "order_other" }),
+      context
+    );
+
+    expect(
+      queries.some(({ text }) => text.includes("update refund_requests"))
+    ).toBe(false);
+    expect(
+      queries.some(({ text }) => text.includes("update payment_reviews"))
+    ).toBe(false);
   });
 
   it.each([
@@ -662,7 +1311,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(eventName, {
         status: "ADVERSE",
         value: 100,
@@ -697,7 +1347,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(eventName, {
         status: "ADVERSE",
         value: undefined,
@@ -731,7 +1382,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity,
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_REFUNDED", {
         status: "REFUNDED",
         value: undefined,
@@ -768,10 +1420,7 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
-      createPaymentEvent("PAYMENT_REFUNDED", { status: "REFUNDED" }),
-      context
-    );
+    await processEvent(processor, createConfirmedRefundEvent(), context);
 
     expect(applyRevocation).toHaveBeenCalledWith(
       expect.objectContaining({ reason: "payment_dispute", userId: USER_ID })
@@ -796,7 +1445,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_REFUNDED", {
         refunds: [
           {
@@ -842,7 +1492,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent(eventName, { status: providerStatus }),
       context
     );
@@ -867,7 +1518,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_REFUNDED", { status: "REFUNDED" }),
       context
     );
@@ -886,7 +1538,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_REFUNDED", {
         status: "REFUNDED",
         value: 100,
@@ -915,7 +1568,8 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(
+    await processEvent(
+      processor,
       createPaymentEvent("PAYMENT_PARTIALLY_REFUNDED", {
         status: "PARTIALLY_REFUNDED",
       }),
@@ -941,7 +1595,11 @@ describe("Asaas webhook processor", () => {
       resolveIdentity: vi.fn(),
     });
 
-    await processor(createPaymentEvent("PAYMENT_RECEIVED"), context);
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_RECEIVED"),
+      context
+    );
 
     expect(applyPaidAccess).not.toHaveBeenCalled();
     expect(

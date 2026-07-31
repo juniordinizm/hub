@@ -13,13 +13,6 @@ const optionalNonEmptyString = z.preprocess((value) => {
 }, z.string().min(1).optional());
 
 const serverEnvSchema = z.object({
-  ABACATEPAY_API_BASE_URL: z
-    .string()
-    .url()
-    .default("https://api.abacatepay.com/v2"),
-  ABACATEPAY_API_KEY: optionalNonEmptyString,
-  ABACATEPAY_WEBHOOK_SECRET: optionalNonEmptyString,
-  ABACATE_PAY_API_KEY: optionalNonEmptyString,
   ASAAS_API_BASE_URL: z.string().url().optional(),
   ASAAS_API_KEY: optionalNonEmptyString,
   ASAAS_USER_AGENT: optionalNonEmptyString,
@@ -176,10 +169,6 @@ const validateServerEnvironment = (
 export const getServerEnv = () => {
   const rawEnvironment = {
     ...process.env,
-    ABACATEPAY_API_BASE_URL: process.env.ABACATEPAY_API_BASE_URL,
-    ABACATEPAY_API_KEY: process.env.ABACATEPAY_API_KEY,
-    ABACATEPAY_WEBHOOK_SECRET: process.env.ABACATEPAY_WEBHOOK_SECRET,
-    ABACATE_PAY_API_KEY: process.env.ABACATE_PAY_API_KEY,
     ASAAS_API_BASE_URL: process.env.ASAAS_API_BASE_URL,
     ASAAS_API_KEY: process.env.ASAAS_API_KEY,
     ASAAS_USER_AGENT: process.env.ASAAS_USER_AGENT,

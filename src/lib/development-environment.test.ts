@@ -2,9 +2,6 @@ import { describe, expect, it } from "vitest";
 import { getDevelopmentEnvironmentProblems } from "./development-environment";
 
 const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
-  ABACATE_PAY_API_KEY: "abc_dev_key",
-  ABACATEPAY_WEBHOOK_SECRET:
-    "development-webhook-secret-at-least-thirty-two-characters",
   ASAAS_API_BASE_URL: "https://api-sandbox.asaas.com",
   ASAAS_API_KEY: "asaas-development-key",
   ASAAS_USER_AGENT: "hub-development/1.0 dev@example.com",
@@ -18,7 +15,6 @@ const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
     "postgresql://owner:secret@ep-shared-development-pooler.sa-east-1.aws.neon.tech/neondb",
   DATABASE_URL_DIRECT:
     "postgresql://owner:secret@ep-shared-development.sa-east-1.aws.neon.tech/neondb",
-  DEVELOPMENT_ABACATEPAY_DEV_MODE: "true",
   DEVELOPMENT_DATABASE_HOST: "ep-shared-development.sa-east-1.aws.neon.tech",
   DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST: "dev@example.com",
   DEVELOPMENT_JMVSTREAM_PLAN_ID: "OD-30000",
@@ -159,17 +155,15 @@ describe("Development environment contract", () => {
     );
   });
 
-  it("requires explicit provider and job confirmations", () => {
+  it("requires explicit email and job configuration", () => {
     const problems = getDevelopmentEnvironmentProblems({
       ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
-      DEVELOPMENT_ABACATEPAY_DEV_MODE: "false",
       DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST: "",
       SCHEDULED_JOBS_ENABLED: "false",
     });
 
     expect(problems).toEqual(
       expect.arrayContaining([
-        "DEVELOPMENT_ABACATEPAY_DEV_MODE must equal true",
         "DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST is required",
         "SCHEDULED_JOBS_ENABLED must equal true",
       ])

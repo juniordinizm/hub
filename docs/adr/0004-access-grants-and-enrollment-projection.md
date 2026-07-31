@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: ba883f14af8d8587b5eb0aec75e3969fa937ffcd
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # ADR-0004 Concessão como fonte e Matrícula como projeção
@@ -35,8 +35,9 @@ integração e aos identificadores externos, não ao domínio de acesso.
 
 Decisão aceita. Schema, código e testes usam a origem neutra `paid_order`. Razões de
 revogação do módulo de Matrículas também são neutras: `payment_refund` e
-`payment_dispute`. O processor financeiro Asaas permanece pendente.
+`payment_dispute`. O processor financeiro Asaas aplica a Concessão e recompõe a
+Matrícula na mesma transação do evento financeiro.
 
-O bootstrap local já cria uma Concessão `manual` idempotente, identificada por
-`manual_reference`, e recompõe a Matrícula. Esse fato não elimina a migração financeira
-pendente.
+O bootstrap local cria uma Concessão `manual` idempotente, identificada por
+`manual_reference`, e recompõe a Matrícula. O corte de Production da migração financeira
+permanece pendente.

@@ -7,6 +7,8 @@ export interface OrderIdentityQueryClient {
 }
 
 export interface LockedOrderIdentity {
+  buyerIdentityStatus: "pending" | "resolved" | "review_required";
+  courseId: string;
   customerEmail: string | null;
   customerName: string | null;
   orderId: string;
@@ -19,6 +21,9 @@ export interface LocalOrderIdentityResult {
 }
 
 export type LocalOrderIdentityErrorCode =
+  | "buyer_identity_course_revoked"
+  | "buyer_identity_platform_blocked"
+  | "buyer_identity_team_account"
   | "order_identity_conflict"
   | "order_identity_incomplete"
   | "order_user_not_found";
@@ -31,6 +36,95 @@ export class LocalOrderIdentityError extends Error {
     this.code = code;
   }
 }
+
+const getRowField = (row: unknown, field: string): unknown => {
+  if (!row || typeof row !== "object" || !(field in row)) {
+    return;
+  }
+  return Reflect.get(row, field);
+};
+
+const getRowString = (row: unknown, field: string): string | null => {
+  const value = getRowField(row, field);
+  return typeof value === "string" && value ? value : null;
+};
+
+const findEligibleUserByEmail = async ({
+  client,
+  courseId,
+  email,
+}: {
+  client: OrderIdentityQueryClient;
+  courseId: string;
+  email: string;
+}): Promise<unknown> => {
+  const result = await client.query(
+    `select
+       u.id,
+       p.role,
+       p.platform_blocked_at,
+       exists(
+         select 1
+         from enrollments e
+         where e.user_id = u.id
+           and e.course_id = $2
+           and e.status = 'revoked'
+       ) as course_revoked
+     from users u
+     left join profiles p on p.user_id = u.id
+     where lower(u.email) = $1
+     limit 1`,
+    [email, courseId]
+  );
+  return result.rows[0];
+};
+
+const findEligibleUserById = async ({
+  client,
+  courseId,
+  userId,
+}: {
+  client: OrderIdentityQueryClient;
+  courseId: string;
+  userId: string;
+}): Promise<unknown> => {
+  const result = await client.query(
+    `select
+       u.id,
+       p.role,
+       p.platform_blocked_at,
+       exists(
+         select 1
+         from enrollments e
+         where e.user_id = u.id
+           and e.course_id = $2
+           and e.status = 'revoked'
+       ) as course_revoked
+     from users u
+     left join profiles p on p.user_id = u.id
+     where u.id = $1
+     limit 1`,
+    [userId, courseId]
+  );
+  return result.rows[0];
+};
+
+const requireEligibleStudent = (row: unknown): string => {
+  const userId = getRowString(row, "id");
+  if (!userId) {
+    throw new LocalOrderIdentityError("order_user_not_found");
+  }
+  if (getRowString(row, "role") !== "student") {
+    throw new LocalOrderIdentityError("buyer_identity_team_account");
+  }
+  if (getRowField(row, "platform_blocked_at") != null) {
+    throw new LocalOrderIdentityError("buyer_identity_platform_blocked");
+  }
+  if (getRowField(row, "course_revoked") === true) {
+    throw new LocalOrderIdentityError("buyer_identity_course_revoked");
+  }
+  return userId;
+};
 
 const hasCredentialAccount = async ({
   client,
@@ -49,12 +143,43 @@ const hasCredentialAccount = async ({
   return getRowString(result.rows[0], "id") !== null;
 };
 
-const getRowString = (row: unknown, field: string): string | null => {
-  if (!row || typeof row !== "object" || !(field in row)) {
-    return null;
+const linkPendingOrder = async ({
+  client,
+  orderId,
+  userId,
+}: {
+  client: OrderIdentityQueryClient;
+  orderId: string;
+  userId: string;
+}): Promise<void> => {
+  const linkedOrder = await client.query(
+    `update orders
+     set user_id = $2,
+         buyer_identity_status = 'resolved',
+         updated_at = now()
+     where id = $1
+       and user_id is null
+       and buyer_identity_status = 'pending'
+     returning user_id`,
+    [orderId, userId]
+  );
+  if (getRowString(linkedOrder.rows[0], "user_id") === userId) {
+    return;
   }
-  const value = Reflect.get(row, field);
-  return typeof value === "string" && value ? value : null;
+
+  const currentOrder = await client.query(
+    `select user_id, buyer_identity_status
+     from orders
+     where id = $1
+     limit 1`,
+    [orderId]
+  );
+  if (
+    getRowString(currentOrder.rows[0], "user_id") !== userId ||
+    getRowString(currentOrder.rows[0], "buyer_identity_status") !== "resolved"
+  ) {
+    throw new LocalOrderIdentityError("order_identity_conflict");
+  }
 };
 
 export const resolveLocalOrderIdentity = async ({
@@ -65,20 +190,15 @@ export const resolveLocalOrderIdentity = async ({
   order: LockedOrderIdentity;
 }): Promise<LocalOrderIdentityResult> => {
   if (order.userId) {
-    const user = await client.query(
-      "select id from users where id = $1 limit 1",
-      [order.userId]
-    );
-    if (!getRowString(user.rows[0], "id")) {
-      throw new LocalOrderIdentityError("order_user_not_found");
-    }
-
-    return {
-      activationRequired: !(await hasCredentialAccount({
-        client,
-        userId: order.userId,
-      })),
+    const row = await findEligibleUserById({
+      client,
+      courseId: order.courseId,
       userId: order.userId,
+    });
+    const userId = requireEligibleStudent(row);
+    return {
+      activationRequired: !(await hasCredentialAccount({ client, userId })),
+      userId,
     };
   }
 
@@ -87,47 +207,38 @@ export const resolveLocalOrderIdentity = async ({
   }
 
   const normalizedEmail = normalizeBuyerEmail(order.customerEmail);
-  const existingUser = await client.query(
-    "select id from users where lower(email) = $1 limit 1",
-    [normalizedEmail]
-  );
-  let userId = getRowString(existingUser.rows[0], "id");
+  let userRow = await findEligibleUserByEmail({
+    client,
+    courseId: order.courseId,
+    email: normalizedEmail,
+  });
 
-  if (!userId) {
-    await client.query(
+  if (!getRowString(userRow, "id")) {
+    const insertedUser = await client.query(
       `insert into users (id, name, email, email_verified)
        values ($1, $2, $3, false)
-       on conflict (lower(email)) do nothing`,
+       on conflict (lower(email)) do nothing
+       returning id`,
       [randomUUID(), order.customerName.trim(), normalizedEmail]
     );
-    const convergedUser = await client.query(
-      "select id from users where lower(email) = $1 limit 1",
-      [normalizedEmail]
-    );
-    userId = getRowString(convergedUser.rows[0], "id");
-    if (!userId) {
-      throw new LocalOrderIdentityError("order_user_not_found");
+    const insertedUserId = getRowString(insertedUser.rows[0], "id");
+    if (insertedUserId) {
+      await client.query(
+        `insert into profiles (user_id, role)
+         values ($1, 'student')
+         on conflict (user_id) do nothing`,
+        [insertedUserId]
+      );
     }
-
-    await client.query(
-      `insert into profiles (user_id, role)
-       values ($1, 'student')
-       on conflict (user_id) do nothing`,
-      [userId]
-    );
+    userRow = await findEligibleUserByEmail({
+      client,
+      courseId: order.courseId,
+      email: normalizedEmail,
+    });
   }
 
-  const linkedOrder = await client.query(
-    `update orders
-     set user_id = $2, updated_at = now()
-     where id = $1 and (user_id is null or user_id = $2)
-     returning user_id`,
-    [order.orderId, userId]
-  );
-  if (getRowString(linkedOrder.rows[0], "user_id") !== userId) {
-    throw new LocalOrderIdentityError("order_identity_conflict");
-  }
-
+  const userId = requireEligibleStudent(userRow);
+  await linkPendingOrder({ client, orderId: order.orderId, userId });
   return {
     activationRequired: !(await hasCredentialAccount({ client, userId })),
     userId,

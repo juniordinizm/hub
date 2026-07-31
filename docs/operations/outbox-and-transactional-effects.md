@@ -60,9 +60,8 @@ somente `account_activation_email_delivery_failed`, sem causa nem mensagem do pr
 o caminho público continua propagando seu erro original para o tratamento público.
 
 Pedido inelegível usa `aggregate_not_deliverable`, sem retry. Falha do Better Auth usa
-`account_activation_failed`, com retry e sem causa ou PII. O fluxo legado AbacatePay ainda
-solicita ativação fora da outbox; o processor Asaas enfileira esta intenção quando
-`activationRequired=true`.
+`account_activation_failed`, com retry e sem causa ou PII. O processor Asaas enfileira
+esta intenção quando `activationRequired=true`.
 
 ## Entrega, concorrência e idempotência
 
@@ -125,7 +124,7 @@ dias para `delivered` e 180 dias para `dead_letter`.
 ## Evidências
 
 - schema e migrations: `outboxMessages` em `src/db/schema.ts`, `0023_lyrical_lucky_pierre.sql` e `0024_light_stature.sql`;
-- transações: `completeLesson`, `processAbacatePayWebhook` e `processEnrollmentMaintenance`;
+- transações: `completeLesson`, `processAsaasWebhookEvent` e `processEnrollmentMaintenance`;
 - testes: `src/features/outbox/*.test.ts`, `outbox.integration.test.ts` e `certificate-issuance.integration.test.ts`;
 - idempotência de ativação: `src/lib/account-activation-idempotency.ts`,
   `src/lib/auth-password-reset.ts` e testes correspondentes;

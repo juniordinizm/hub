@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { getProductionEnvironmentProblems } from "./production-environment";
 
 const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
-  ABACATEPAY_API_KEY: "payment-key",
-  ABACATEPAY_WEBHOOK_SECRET: "webhook-secret-at-least-thirty-two-characters",
   ASAAS_API_BASE_URL: "https://api.asaas.com",
   ASAAS_API_KEY: "asaas-payment-key",
   ASAAS_USER_AGENT: "hub/1.0 support@example.com",
@@ -88,7 +86,6 @@ describe("production environment contract", () => {
     const problems = getProductionEnvironmentProblems({});
 
     expect(problems).toContain("DATABASE_URL");
-    expect(problems).toContain("ABACATEPAY_API_KEY or ABACATE_PAY_API_KEY");
     expect(problems).not.toContain("ASAAS_API_BASE_URL");
     expect(problems).not.toContain("ASAAS_API_KEY");
     expect(problems).not.toContain("ASAAS_USER_AGENT");
@@ -108,6 +105,46 @@ describe("production environment contract", () => {
     );
 
     expect(getProductionEnvironmentProblems(environment)).toEqual([]);
+  });
+
+  it.each([
+    "authenticated",
+    "public",
+  ])("requires the complete Asaas capability when checkout mode is %s", (checkoutMode) => {
+    const environment = Object.fromEntries(
+      Object.entries(COMPLETE_PRODUCTION_ENVIRONMENT).filter(
+        ([key]) => !key.startsWith("ASAAS_")
+      )
+    );
+    environment.PAYMENTS_CHECKOUT_MODE = checkoutMode;
+
+    expect(getProductionEnvironmentProblems(environment)).toEqual(
+      expect.arrayContaining([
+        "ASAAS_API_BASE_URL",
+        "ASAAS_API_KEY",
+        "ASAAS_USER_AGENT",
+        "ASAAS_WEBHOOK_ENABLED",
+        "ASAAS_WEBHOOK_TOKEN",
+      ])
+    );
+  });
+
+  it("requires the complete Asaas capability when its webhook is enabled", () => {
+    const environment = Object.fromEntries(
+      Object.entries(COMPLETE_PRODUCTION_ENVIRONMENT).filter(
+        ([key]) => !key.startsWith("ASAAS_")
+      )
+    );
+    environment.ASAAS_WEBHOOK_ENABLED = "true";
+
+    expect(getProductionEnvironmentProblems(environment)).toEqual(
+      expect.arrayContaining([
+        "ASAAS_API_BASE_URL",
+        "ASAAS_API_KEY",
+        "ASAAS_USER_AGENT",
+        "ASAAS_WEBHOOK_TOKEN",
+      ])
+    );
   });
 
   it("rejects a partially configured Asaas production capability", () => {

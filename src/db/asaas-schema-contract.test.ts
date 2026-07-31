@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
+  buyerIdentityStatusEnum,
   checkoutStatusEnum,
   courses,
   enrollmentGrantSourceTypeEnum,
@@ -68,6 +69,17 @@ describe("Asaas persistence contract", () => {
     expect(checkNames(enrollmentGrants)).toContain(
       "enrollment_grants_source_shape_check"
     );
+  });
+
+  it("persists explicit buyer identity resolution state", () => {
+    expect(buyerIdentityStatusEnum.enumValues).toEqual([
+      "pending",
+      "resolved",
+      "review_required",
+    ]);
+    expect(paymentReviewTypeEnum.enumValues).toContain("buyer_identity");
+    expect(columnNames(orders)).toContain("buyer_identity_status");
+    expect(orders.buyerIdentityStatus.notNull).toBe(true);
   });
 
   it("keeps the canonical order state separate from external lifecycles", () => {
@@ -212,6 +224,7 @@ describe("Asaas persistence contract", () => {
       "event_anomaly",
       "partial_refund",
       "uncertain_result",
+      "buyer_identity",
     ]);
     expect(indexNames(paymentReviews)).toContain(
       "payment_reviews_webhook_event_unique_idx"

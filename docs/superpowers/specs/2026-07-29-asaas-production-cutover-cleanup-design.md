@@ -162,6 +162,13 @@ O servidor verifica o modo antes de banco, rate limit ou provider. A interface p
 ocultar ou desabilitar ações, mas não é autoridade. Production exige valor explícito;
 Preview aceita somente `disabled`; Development usa `public`.
 
+A Release A também introduzirá `ABACATEPAY_WEBHOOK_ENABLED`. Production exige valor
+explícito; antes da limpeza ele deve ser `false`. Nesse estado, a rota responde `204`
+antes de ler o corpo, validar segredo, acessar banco ou processar evento. A resposta
+`2xx` encerra as retentativas do provider sem permitir que uma entrega tardia recrie
+dados depois do dry-run. A Release B remove definitivamente a rota e o código executável
+AbacatePay antes da migration `0044`.
+
 A Release B conterá a migração Asaas completa e introduzirá
 `ASAAS_WEBHOOK_ENABLED`:
 
@@ -230,17 +237,20 @@ depois de todas as validações e imediatamente antes da transação de limpeza.
 1. Integrar a Release A de contenção na `main` com CI verde.
 2. Configurar `PAYMENTS_CHECKOUT_MODE=disabled` em Production.
 3. Publicar a Release A pelo workflow Production, sem migrations novas.
-4. Confirmar health/readiness, bloqueio dos dois checkouts e login do Admin.
+4. Confirmar health/readiness, bloqueio dos dois checkouts, resposta `204` sem efeitos
+   do webhook AbacatePay e login do Admin.
 5. Integrar a Release B Asaas na `main` com CI verde, sem publicá-la ainda.
 6. Configurar `PRODUCTION_DATABASE_HOST`, `PRODUCTION_NEON_PROJECT_ID`,
    `PRODUCTION_NEON_BRANCH_ID` e o secret `NEON_API_KEY`.
 7. Executar o workflow de limpeza em modo `plan`.
 8. Revisar contagens e fingerprint.
-9. Executar o workflow em modo `execute` com as duas confirmações e o fingerprint.
+9. Executar o workflow em modo `execute` com as duas confirmações e o fingerprint,
+   somente depois de confirmar que o ingresso AbacatePay permanece desabilitado.
 10. Confirmar um Admin, zero linhas operacionais e journal ainda em `0043`.
 11. Configurar credencial, base URL, User-Agent e token de webhook Asaas Production,
     além de `ASAAS_WEBHOOK_ENABLED=false`.
-12. Executar o workflow Production para aplicar `0044` a `0051` e publicar a Release B.
+12. Confirmar que a Release B não contém rota nem código executável AbacatePay; executar
+    o workflow Production para aplicar `0044` a `0051` e publicar a Release B.
 13. Confirmar health/readiness e cadastrar o webhook Asaas não sequencial inicialmente
     interrompido.
 14. Ativar `ASAAS_WEBHOOK_ENABLED=true` e confirmar fila/worker.
@@ -248,7 +258,7 @@ depois de todas as validações e imediatamente antes da transação de limpeza.
     controlados.
 16. Conferir taxas, extrato, alertas, Pedido, Concessão e Matrícula.
 17. Alterar `PAYMENTS_CHECKOUT_MODE=public`.
-18. Revogar chave e webhook AbacatePay.
+18. Revogar chave e configuração remota do webhook AbacatePay já removido do Hub.
 19. Manter a branch de backup durante os 14 dias de estabilização.
 
 Variáveis alteradas só entram em vigor em um novo deployment. Cada lote operacional de

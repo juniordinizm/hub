@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import PDFDocument from "pdfkit";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
 import { deleteR2Objects, uploadPrivateR2Object } from "@/features/storage/r2";
@@ -29,13 +30,30 @@ export interface E2eFixture {
     pdfObjectKeys: string[];
     runPrefix: string;
   };
-  course: { id: string; lessonOneId: string; lessonTwoId: string };
+  course: {
+    id: string;
+    lessonOneId: string;
+    lessonTwoId: string;
+    slug: string;
+  };
+  paymentCustomers: { blockedId: string; teamId: string };
   runId: string;
+  studentForAuthenticatedPurchase: {
+    email: string;
+    id: string;
+    password: string;
+  };
+  studentForBlockedPurchase: {
+    email: string;
+    id: string;
+    password: string;
+  };
   studentForCompletion: {
     email: string;
     id: string;
     password: string;
   };
+  studentWithBlockedAccount: { email: string; id: string; password: string };
   studentWithExpiredAccess: { email: string; id: string; password: string };
   studentWithGrant: {
     email: string;
@@ -72,6 +90,7 @@ const requireE2eMode = (): void => {
   if (!process.env.DATABASE_URL) {
     throw new Error("seed-e2e requires DATABASE_URL.");
   }
+  assertSafeE2eDatabaseEnvironment(process.env);
 };
 
 const createUser = async ({
@@ -286,13 +305,17 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   requireIsolatedE2eR2Bucket(process.env);
 
   const suffix = crypto.randomUUID().replaceAll("-", "");
+  const courseSlug = `course-e2e-${suffix}`;
   const sensitiveSentinel = `E2E-INTERNAL-SENSITIVE-CPF-FICTICIO-${suffix}`;
   const pdfBody = await createMinimalCertificatePdf();
   const pdfSha256 = createHash("sha256").update(pdfBody).digest("hex");
   const studentEmail = `sg${suffix}@example.com`;
   const completionStudentEmail = `sc${suffix}@example.com`;
+  const authenticatedPurchaseStudentEmail = `sp${suffix}@example.com`;
+  const blockedPurchaseStudentEmail = `sbd${suffix}@example.com`;
   const noGrantEmail = `sn${suffix}@example.com`;
   const adminEmail = `ad${suffix}@example.com`;
+  const blockedStudentEmail = `sb${suffix}@example.com`;
   const [
     studentId,
     completionStudentId,
@@ -300,6 +323,9 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     ,
     expiredAccessStudentId,
     revokedAccessStudentId,
+    blockedStudentId,
+    authenticatedPurchaseStudentId,
+    blockedPurchaseStudentId,
   ] = await Promise.all([
     createUser({
       email: studentEmail,
@@ -327,12 +353,35 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       name: "Aluna com acesso revogado",
       role: "student",
     }),
+    createUser({
+      email: blockedStudentEmail,
+      name: "Aluna com Conta bloqueada",
+      role: "student",
+    }),
+    createUser({
+      email: authenticatedPurchaseStudentEmail,
+      name: "Aluna para compra autenticada",
+      role: "student",
+    }),
+    createUser({
+      email: blockedPurchaseStudentEmail,
+      name: "Aluna para bloqueio apos login",
+      role: "student",
+    }),
   ]);
   const pool = getPool();
   const client = await pool.connect();
   let uploadedPdfStorageKey: string | null = null;
   try {
     await client.query("begin");
+    await client.query(
+      `update profiles
+       set platform_blocked_at = now(),
+           platform_blocked_reason = 'e2e_fixture',
+           updated_at = now()
+       where user_id = $1`,
+      [blockedStudentId]
+    );
     await client.query(
       `
         insert into certificate_issuer_profiles (
@@ -352,10 +401,10 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         insert into courses (
           slug, title, price_in_cents, workload_hours, status, certificate_enabled
         )
-        values ($1, 'Curso E2E', 9900, 2, 'active', false)
+        values ($1, 'Curso E2E', 1000, 2, 'active', false)
         returning id
       `,
-      [`course-e2e-${suffix}`]
+      [courseSlug]
     );
     const courseId = courses[0]?.id;
     if (!courseId) {
@@ -442,7 +491,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
            now() - interval '1 day', now() - interval '1 day', null, null),
           ($4, $2, 'manual', $5, 'cancelled', now() - interval '31 days',
            now() - interval '1 day', now() - interval '1 day', now(),
-           'abacatepay_dispute')
+           'payment_dispute')
       `,
       [
         expiredAccessStudentId,
@@ -504,11 +553,30 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         pdfObjectKeys: [certificateRecords.ready.pdfStorageKey],
         runPrefix: `e2e/${suffix}/`,
       },
-      course: { id: courseId, lessonOneId, lessonTwoId },
+      course: { id: courseId, lessonOneId, lessonTwoId, slug: courseSlug },
+      paymentCustomers: {
+        blockedId: `cus_blocked_${suffix}`,
+        teamId: `cus_team_${suffix}`,
+      },
       runId: suffix,
+      studentForBlockedPurchase: {
+        email: blockedPurchaseStudentEmail,
+        id: blockedPurchaseStudentId,
+        password: E2E_PASSWORD,
+      },
       studentForCompletion: {
         email: completionStudentEmail,
         id: completionStudentId,
+        password: E2E_PASSWORD,
+      },
+      studentForAuthenticatedPurchase: {
+        email: authenticatedPurchaseStudentEmail,
+        id: authenticatedPurchaseStudentId,
+        password: E2E_PASSWORD,
+      },
+      studentWithBlockedAccount: {
+        email: blockedStudentEmail,
+        id: blockedStudentId,
         password: E2E_PASSWORD,
       },
       studentWithGrant: {

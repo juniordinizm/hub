@@ -90,13 +90,17 @@ describe("Asaas webhook PostgreSQL concurrency", () => {
       if (!claimed) {
         throw new Error("Expected one claimed Asaas event.");
       }
-      const processor = vi.fn(async (_event, { client }) => {
+      const process = vi.fn(async (_event, { client }) => {
         await client.query(
           "update webhook_events set event_name = 'PAYMENT_EFFECT_APPLIED' where id = $1",
           [eventId]
         );
         return { outcome: "processed" as const };
       });
+      const processor = {
+        prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+        process,
+      };
 
       await expect(
         processClaimedAsaasWebhookEvent({
@@ -115,7 +119,7 @@ describe("Asaas webhook PostgreSQL concurrency", () => {
         "select status, attempt_count, event_name from webhook_events where id = $1",
         [eventId]
       );
-      expect(processor).toHaveBeenCalledOnce();
+      expect(process).toHaveBeenCalledOnce();
       expect(persisted.rows[0]).toEqual({
         attempt_count: 1,
         event_name: "PAYMENT_EFFECT_APPLIED",
@@ -142,14 +146,17 @@ describe("Asaas webhook PostgreSQL concurrency", () => {
       processClaimedAsaasWebhookEvent({
         event: claimed,
         pool,
-        processor: async (_event, { client }) => {
-          await client.query(
-            "update webhook_events set event_name = 'MUTATED' where id = $1",
-            [eventId]
-          );
-          throw new AsaasWebhookProcessingError("integration_retry", {
-            retryable: true,
-          });
+        processor: {
+          prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+          process: async (_event, { client }) => {
+            await client.query(
+              "update webhook_events set event_name = 'MUTATED' where id = $1",
+              [eventId]
+            );
+            throw new AsaasWebhookProcessingError("integration_retry", {
+              retryable: true,
+            });
+          },
         },
         workerId: "integration-rollback-worker",
       })
@@ -189,7 +196,10 @@ describe("Asaas webhook PostgreSQL concurrency", () => {
       processClaimedAsaasWebhookEvent({
         event: claimed,
         pool,
-        processor: vi.fn(),
+        processor: {
+          prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+          process: vi.fn(),
+        },
         workerId: "integration-original-worker",
       })
     ).rejects.toThrow("Asaas webhook ownership lost.");

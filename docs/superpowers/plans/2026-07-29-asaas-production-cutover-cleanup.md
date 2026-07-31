@@ -23,6 +23,10 @@
 - Modify `src/features/payments/actions.ts`: bloquear a entrada autenticada antes de DB/provider.
 - Modify `src/app/api/checkouts/course/route.ts`: bloquear a entrada pública antes de body, rate limit, DB/provider.
 - Modify `src/features/payments/actions.test.ts` e `src/app/api/checkouts/course/route.test.ts`: provar ausência de efeitos.
+- Modify `src/lib/env.ts`, contratos de ambiente e `.env.example`: adicionar
+  `ABACATEPAY_WEBHOOK_ENABLED`, explícita em Production e falsa em Preview.
+- Modify `src/app/api/webhooks/abacatepay/route.ts` e criar teste: com a flag falsa,
+  responder `204` antes de body, segredo, banco ou processor.
 
 ### Release B: webhook Asaas e limpeza
 
@@ -1173,6 +1177,10 @@ O diff da Release A pode conter apenas os arquivos das Tasks 1 a 3 aplicáveis a
 AbacatePay de `main`, `.env.example`, testes e documentação correspondente. Não incluir
 migrations nem código Asaas.
 
+Também deve conter o kill switch `ABACATEPAY_WEBHOOK_ENABLED` e o bloqueio antecipado
+da rota legada. Antes da limpeza, Production usa `false`; a resposta `204` não lê corpo,
+não valida segredo e não acessa persistência. A autorização foi concedida em 2026-07-30.
+
 - [ ] **Step 3: CI, variável e deploy**
 
 Depois de merge aprovado:
@@ -1181,7 +1189,8 @@ Depois de merge aprovado:
 2. disparar `Deploy Vercel production`;
 3. confirmar readiness;
 4. provar que action autenticada e rota pública não criam Pedido nem chamam provider;
-5. confirmar login da Conta Admin.
+5. provar que a rota AbacatePay responde `204` sem processar nem persistir;
+6. confirmar login da Conta Admin.
 
 Qualquer falha interrompe o corte.
 
@@ -1226,7 +1235,8 @@ backup criada, um Admin preservado, tabelas operacionais vazias e journal `0043`
 - [ ] **Step 5: publicar Release B contida**
 
 Configurar Asaas Production e `ASAAS_WEBHOOK_ENABLED=false`; executar workflow
-Production para aplicar `0044` a `0051`, build, readiness e promoção.
+Production para aplicar `0044` a `0051`, build, readiness e promoção. A Release B deve
+remover a rota e o código executável AbacatePay antes da migration `0044`.
 
 - [ ] **Step 6: ativação controlada**
 
@@ -1237,7 +1247,8 @@ Production para aplicar `0044` a `0051`, build, readiness e promoção.
 5. executar PIX, cartão e reembolso supervisionados;
 6. conferir Pedido, Concessão, Matrícula, taxas, extrato e alertas;
 7. publicar `PAYMENTS_CHECKOUT_MODE=public`;
-8. revogar AbacatePay;
+8. revogar credenciais e configuração remota AbacatePay, cujo código executável já foi
+   removido;
 9. manter backup por 14 dias.
 
 Pagamento real, reembolso e revogação exigem confirmação específica no momento da

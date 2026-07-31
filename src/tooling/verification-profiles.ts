@@ -33,10 +33,18 @@ const VERIFICATION_PROFILES: Readonly<
 };
 
 const SYNTHETIC_BUILD_ORIGIN = "https://verification-build.invalid";
+const SYNTHETIC_E2E_DATABASE_URL =
+  "postgresql://verification:verification@e2e-verification.invalid/hub";
 
 export const getVerificationEnvironmentOverrides = (
   gate: VerificationGate
 ): Readonly<Record<string, string>> => {
+  if (gate === "knip") {
+    return {
+      DATABASE_URL: SYNTHETIC_E2E_DATABASE_URL,
+      E2E_DATABASE_URL: SYNTHETIC_E2E_DATABASE_URL,
+    };
+  }
   if (gate !== "build") {
     return {};
   }

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { CheckoutIntentError } from "@/features/payments/checkout";
+import {
+  type CheckoutApiResponse,
+  parseCheckoutRequest,
+} from "@/features/payments/checkout-api";
 import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
 import {
   createPublicCourseCheckout,
@@ -12,66 +16,21 @@ import {
   createCorrelationId,
 } from "@/lib/observability";
 import { observeOperation } from "@/lib/observe-operation";
+import { getCurrentSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-interface PublicCheckoutBody {
-  buyerEmail: string;
-  buyerName: string;
-  checkoutAttemptId: string;
-  courseId?: string;
-  courseSlug?: string;
-}
-
-const readBody = (value: unknown): PublicCheckoutBody | null => {
-  if (!(value && typeof value === "object" && !Array.isArray(value))) {
-    return null;
-  }
-
-  const body = value as Record<string, unknown>;
-  const courseId =
-    typeof body.courseId === "string" ? body.courseId.trim() : undefined;
-  const courseSlug =
-    typeof body.courseSlug === "string" ? body.courseSlug.trim() : undefined;
-  const buyerEmail =
-    typeof body.buyerEmail === "string" ? body.buyerEmail.trim() : "";
-  const buyerName =
-    typeof body.buyerName === "string" ? body.buyerName.trim() : "";
-  const checkoutAttemptId =
-    typeof body.checkoutAttemptId === "string"
-      ? body.checkoutAttemptId.trim()
-      : "";
-  const allowedKeys = new Set([
-    "buyerEmail",
-    "buyerName",
-    "checkoutAttemptId",
-    courseId ? "courseId" : "courseSlug",
-  ]);
-
-  if (
-    !(buyerEmail && buyerName && checkoutAttemptId) ||
-    Boolean(courseId) === Boolean(courseSlug) ||
-    Object.keys(body).some((key) => !allowedKeys.has(key))
-  ) {
-    return null;
-  }
-
-  return {
-    buyerEmail,
-    buyerName,
-    checkoutAttemptId,
-    ...(courseId ? { courseId } : {}),
-    ...(courseSlug ? { courseSlug } : {}),
-  };
-};
-
-const errorResponse = (
+const unavailableResponse = (
   message: string,
   status: number,
   retryAfterSeconds?: number
-): NextResponse =>
+): NextResponse<CheckoutApiResponse> =>
   NextResponse.json(
-    { error: message },
+    {
+      error: message,
+      retryAllowed: false,
+      status: "unavailable",
+    } satisfies CheckoutApiResponse,
     {
       ...(retryAfterSeconds === undefined
         ? {}
@@ -80,7 +39,9 @@ const errorResponse = (
     }
   );
 
-export const POST = async (request: Request): Promise<NextResponse> => {
+export const POST = async (
+  request: Request
+): Promise<NextResponse<CheckoutApiResponse>> => {
   let environment: ReturnType<typeof getServerEnv>;
   try {
     environment = getServerEnv();
@@ -89,13 +50,39 @@ export const POST = async (request: Request): Promise<NextResponse> => {
       mode: environment.PAYMENTS_CHECKOUT_MODE,
     });
   } catch {
-    return errorResponse("Servico de checkout indisponivel.", 503);
+    return unavailableResponse("Servico de checkout indisponivel.", 503);
   }
 
-  const body = readBody(await request.json().catch(() => null));
+  const body = parseCheckoutRequest(await request.json().catch(() => null));
   if (!body) {
-    return errorResponse("Dados de checkout invalidos.", 400);
+    return unavailableResponse("Dados de checkout invalidos.", 400);
   }
+
+  let session: Awaited<ReturnType<typeof getCurrentSession>>;
+  try {
+    session = await getCurrentSession();
+  } catch {
+    return unavailableResponse("Servico de checkout indisponivel.", 503);
+  }
+
+  if (session && session.role !== "student") {
+    return unavailableResponse("Apenas alunas podem iniciar checkout.", 403);
+  }
+  if (session?.platformBlockedAt) {
+    return unavailableResponse(
+      "Conta bloqueada. Entre em contato com o suporte.",
+      403
+    );
+  }
+
+  const authenticatedBuyer = session
+    ? {
+        email: session.user.email,
+        kind: "authenticated" as const,
+        name: session.user.name,
+        userId: session.user.id,
+      }
+    : undefined;
 
   try {
     const correlationId = createCorrelationId(
@@ -108,6 +95,7 @@ export const POST = async (request: Request): Promise<NextResponse> => {
       execute: () =>
         createPublicCourseCheckout({
           ...body,
+          ...(authenticatedBuyer ? { authenticatedBuyer } : {}),
           ipAddress: getClientIpAddress(
             request.headers,
             environment.CLIENT_IP_SOURCE
@@ -123,21 +111,33 @@ export const POST = async (request: Request): Promise<NextResponse> => {
         {
           orderId: checkout.orderId,
           redirectUrl: checkout.redirectUrl,
-          status: checkout.status,
-        },
+          retryAllowed: false,
+          status: "ready",
+        } satisfies CheckoutApiResponse,
         { status: 200 }
       );
     }
     if (checkout.status === "processing") {
       return NextResponse.json(
-        { orderId: checkout.orderId, status: checkout.status },
+        {
+          orderId: checkout.orderId,
+          retryAllowed: false,
+          status: "processing",
+        } satisfies CheckoutApiResponse,
         { status: 202 }
       );
     }
-    return errorResponse("Nao foi possivel iniciar o checkout.", 502);
+    return NextResponse.json(
+      {
+        orderId: checkout.orderId,
+        retryAllowed: true,
+        status: "failed",
+      } satisfies CheckoutApiResponse,
+      { status: 502 }
+    );
   } catch (error) {
     if (error instanceof PublicCheckoutRateLimitError) {
-      return errorResponse(
+      return unavailableResponse(
         "Muitas tentativas de checkout. Tente novamente em breve.",
         429,
         error.retryAfterSeconds
@@ -150,12 +150,12 @@ export const POST = async (request: Request): Promise<NextResponse> => {
         unavailable: 422,
         validation: 400,
       } as const;
-      return errorResponse(
+      return unavailableResponse(
         "Nao foi possivel iniciar o checkout.",
         statusByKind[error.kind]
       );
     }
 
-    return errorResponse("Servico de checkout indisponivel.", 503);
+    return unavailableResponse("Servico de checkout indisponivel.", 503);
   }
 };

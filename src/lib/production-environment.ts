@@ -1,5 +1,4 @@
 const REQUIRED_PRODUCTION_VARIABLES = [
-  "ABACATEPAY_WEBHOOK_SECRET",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -22,10 +21,6 @@ const REQUIRED_PRODUCTION_VARIABLES = [
 ] as const;
 
 const REQUIRED_PRODUCTION_ALTERNATIVES = [
-  {
-    keys: ["ABACATEPAY_API_KEY", "ABACATE_PAY_API_KEY"],
-    label: "ABACATEPAY_API_KEY or ABACATE_PAY_API_KEY",
-  },
   {
     keys: ["JMVSTREAM_AUTH_RESOURCE", "JMVSTREAM_API_TOKEN"],
     label: "JMVSTREAM_AUTH_RESOURCE or JMVSTREAM_API_TOKEN",
@@ -131,6 +126,13 @@ const getAsaasWebhookSwitchProblems = (
     ? ["ASAAS_WEBHOOK_ENABLED must equal true or false"]
     : [];
 
+const requiresAsaasCapability = (
+  environment: Readonly<Record<string, string | undefined>>
+): boolean =>
+  ["authenticated", "public"].includes(
+    environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? ""
+  ) || environment.ASAAS_WEBHOOK_ENABLED?.trim() === "true";
+
 export const getProductionEnvironmentProblems = (
   environment: Readonly<Record<string, string | undefined>>
 ): string[] => {
@@ -150,7 +152,8 @@ export const getProductionEnvironmentProblems = (
     hasValue(environment, key)
   );
   if (
-    configuredAsaasVariables.length > 0 &&
+    (configuredAsaasVariables.length > 0 ||
+      requiresAsaasCapability(environment)) &&
     configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
   ) {
     problems.push(

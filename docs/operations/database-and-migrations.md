@@ -55,9 +55,23 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0051_snapshot.json`. As migrations Asaas
-`0044` a `0051` foram geradas e ensaiadas somente em banco descartável; ainda não foram
-aplicadas às branches persistentes.
+journal é autoridade; nesta cadeia, `0052_snapshot.json`. As migrations Asaas e
+da compra pública `0044` a `0052` foram geradas e ensaiadas em banco descartável;
+Production permanece no topo `0043`.
+
+Em 2026-07-30, uma preparação E2E local chamou o migrador genérico enquanto
+`drizzle.config.ts` carregava `DATABASE_URL_DIRECT` de `.env.local` com prioridade sobre
+a URL E2E pretendida. O incidente originou o harness isolado descrito abaixo; a
+execução acidental não vale como prova E2E nem como autoridade sobre o estado posterior
+da branch.
+
+Ainda em 2026-07-30, a auditoria do alvo Development vigente
+(`br-cool-voice-acsxtxyv`) encontrou 44 entradas no journal, topo em `0043`, apesar de o
+aplicativo local já exigir `0052`. Depois de confirmar zero Pedidos, Webhooks e
+Concessões financeiras, e mediante autorização explícita, `0044` a `0052` foram
+promovidas com `bun run db:migrate:development`. A auditoria posterior confirmou 53
+entradas, `provider_checkout_id`, um único Admin preservado e uma segunda execução
+idempotente. Production permaneceu inalterada em `0043`.
 
 ## Conexões
 
@@ -265,11 +279,36 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
 - não use `db:reset`, `db:push` ou rollback SQL destrutivo;
 - para ensaio, use branch/banco isolado e siga [Observabilidade e recuperação](observability-and-recovery.md#ensaio-de-recuperação).
 
+## Banco da jornada pública E2E
+
+Os helpers financeiros Playwright aceitam exclusivamente `E2E_DATABASE_URL`. Ausência da
+variável falha com mensagem explícita; não existe fallback para `DATABASE_URL`, Development
+ou Production. A suíte deve receber uma branch descartável já migrada.
+
+A guarda central roda na configuração Playwright antes do `globalSetup` e também no setup,
+seed, teardown e global teardown. Todo processo que pode alterar o banco exige
+`DATABASE_URL` exatamente igual a `E2E_DATABASE_URL`, aceita somente protocolo PostgreSQL e
+recusa o compute Neon Production conhecido sem registrar URL ou credencial. Uma
+`DATABASE_URL` preexistente e divergente aborta a suíte antes do seed.
+
+Para migrar a branch descartável, use somente `bun run db:migrate:e2e`. O harness exige
+`DATABASE_URL` e `E2E_DATABASE_URL` iguais, recusa uma `DATABASE_URL_DIRECT` divergente e
+fixa as três variáveis na mesma URL antes de iniciar o Drizzle. Assim, `.env.local` não
+pode redirecionar o migrador:
+
+```powershell
+$env:E2E_DATABASE_URL = "<url-postgresql-descartavel>"
+$env:DATABASE_URL = $env:E2E_DATABASE_URL
+$env:DATABASE_URL_DIRECT = $env:E2E_DATABASE_URL
+bun run db:migrate:e2e
+```
+
 ## Evidências
 
 `drizzle.config.ts`, `src/db/index.ts`, `src/db/connection-url.ts`,
 `src/db/migration-target.ts`, `src/db/schema.ts`,
 `src/db/migrations/meta/_journal.json`, `scripts/check-migrations.ts`,
 `scripts/inspect-migration-state.ts`, `scripts/migrate-development.ts`,
+`scripts/migrate-e2e.ts`,
 `scripts/reset-local-database.ts`, `scripts/seed-initial-data.ts` e
 `scripts/bootstrap-student.ts`.

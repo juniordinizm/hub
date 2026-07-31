@@ -59,7 +59,7 @@ describe("course presentation helpers", () => {
         expiresAt: new Date("2027-06-01T12:00:00.000Z"),
         now: new Date("2026-06-17T12:00:00.000Z"),
         progressPercent: 40,
-        revokedReason: "abacatepay_dispute",
+        revokedReason: "payment_dispute",
       })
     ).toEqual({
       tone: "revoked",

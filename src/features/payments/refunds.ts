@@ -126,6 +126,7 @@ interface RefundRequestInput {
 interface ReservedRefund {
   amountInCents: number;
   externalReference: string;
+  providerCheckoutId: string | null;
   providerPaymentId: string;
   refundRequestId: string;
 }
@@ -162,11 +163,17 @@ const reserveRefund = async ({
     const order = await client.query<{
       amount_in_cents: number;
       external_id: string;
+      provider_checkout_id: string | null;
       provider_payment_id: string | null;
       status: "cancelled" | "disputed" | "paid" | "pending" | "refunded";
     }>(
       `
-        select amount_in_cents, external_id, provider_payment_id, status
+        select
+          amount_in_cents,
+          external_id,
+          provider_checkout_id,
+          provider_payment_id,
+          status
         from orders
         where id = $1
           and provider = 'asaas'
@@ -218,6 +225,7 @@ const reserveRefund = async ({
     return {
       amountInCents: selectedOrder.amount_in_cents,
       externalReference: selectedOrder.external_id,
+      providerCheckoutId: selectedOrder.provider_checkout_id,
       providerPaymentId: selectedOrder.provider_payment_id,
       refundRequestId: reservation.rows[0].id,
     };
@@ -336,10 +344,7 @@ export const requestFullRefund = async ({
       response.id === reserved.providerPaymentId
         ? findExactRefundEvidence(response, reserved.amountInCents)
         : undefined;
-    if (
-      !evidence ||
-      response.externalReference !== reserved.externalReference
-    ) {
+    if (!(evidence && hasExactRefundCorrelation(response, reserved))) {
       throw new Error("asaas_refund_invalid_result");
     }
     const persisted = await pool.query<{ id: string }>(
@@ -381,6 +386,26 @@ export const requestFullRefund = async ({
       refundRequestId: reserved.refundRequestId,
     });
   }
+};
+
+const hasExactRefundCorrelation = (
+  payment: AsaasPayment,
+  reserved: ReservedRefund
+): boolean => {
+  const externalReferenceMatches =
+    payment.externalReference === reserved.externalReference;
+  const checkoutSessionMatches =
+    payment.checkoutSession === reserved.providerCheckoutId &&
+    payment.checkoutSession !== null;
+  const hasConflictingExternalReference =
+    payment.externalReference !== null && !externalReferenceMatches;
+  const hasConflictingCheckoutSession =
+    payment.checkoutSession !== null && !checkoutSessionMatches;
+
+  return (
+    !(hasConflictingExternalReference || hasConflictingCheckoutSession) &&
+    (externalReferenceMatches || checkoutSessionMatches)
+  );
 };
 
 const findExactRefundEvidence = (

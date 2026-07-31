@@ -87,15 +87,19 @@ describe("Asaas webhook worker persistence", () => {
       .mockResolvedValueOnce({ rows: [] });
     const release = vi.fn();
     const connect = vi.fn().mockResolvedValue({ query, release });
-    const processor = vi.fn(async (_event, context) => {
+    const process = vi.fn(async (_event, context) => {
       await context.lockOrder("order-1");
       return { outcome: "processed" as const };
     });
+    const processor = {
+      prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+      process,
+    };
 
     await expect(
       processClaimedAsaasWebhookEvent({
         event: claimedEvent,
-        pool: { connect } as never,
+        pool: { connect, query: vi.fn() } as never,
         processor,
         workerId: "worker-a",
       })
@@ -116,6 +120,96 @@ describe("Asaas webhook worker persistence", () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
+  it("prepares before connecting and passes the preparation into transactional processing", async () => {
+    const calls: string[] = [];
+    const preparation = { kind: "not_required" as const };
+    const prepare = vi.fn(() => {
+      calls.push("prepare");
+      calls.push("provider:getCustomer");
+      return Promise.resolve(preparation);
+    });
+    const process = vi.fn((_event, _context, receivedPreparation) => {
+      calls.push("processor.process");
+      expect(receivedPreparation).toBe(preparation);
+      return Promise.resolve({ outcome: "processed" as const });
+    });
+    const query = vi.fn((text: string) => {
+      if (text === "begin") {
+        calls.push("begin");
+        return Promise.resolve({ rows: [] });
+      }
+      if (text === "commit") {
+        calls.push("commit");
+        return Promise.resolve({ rows: [] });
+      }
+      if (text.includes("from webhook_events")) {
+        return Promise.resolve({ rows: [claimedEvent] });
+      }
+      return Promise.resolve({ rows: [{ id: "event-1" }] });
+    });
+    const connect = vi.fn(() => {
+      calls.push("pool:connect");
+      return Promise.resolve({ query, release: vi.fn() });
+    });
+
+    await expect(
+      processClaimedAsaasWebhookEvent({
+        event: claimedEvent,
+        pool: { connect, query: vi.fn() } as never,
+        processor: { prepare, process },
+        workerId: "worker-a",
+      })
+    ).resolves.toBe("processed");
+
+    expect(calls).toEqual([
+      "prepare",
+      "provider:getCustomer",
+      "pool:connect",
+      "begin",
+      "processor.process",
+      "commit",
+    ]);
+    expect(process).toHaveBeenCalledWith(
+      claimedEvent,
+      expect.objectContaining({ client: expect.any(Object) }),
+      preparation
+    );
+  });
+
+  it("marks a retryable preparation failure through the pool without opening a transaction", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ id: "event-1" }] });
+    const connect = vi.fn();
+    const processor = {
+      prepare: vi.fn().mockRejectedValue(
+        new AsaasWebhookProcessingError("asaas_customer_timeout", {
+          retryable: true,
+        })
+      ),
+      process: vi.fn(),
+    };
+
+    await expect(
+      processClaimedAsaasWebhookEvent({
+        event: claimedEvent,
+        pool: { connect, query } as never,
+        processor,
+        workerId: "worker-a",
+      })
+    ).resolves.toBe("retrying");
+
+    expect(connect).not.toHaveBeenCalled();
+    expect(processor.process).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledOnce();
+    expect(String(query.mock.calls[0]?.[0])).toContain("status = 'retryable'");
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      "event-1",
+      "worker-a",
+      60_000,
+      "asaas_customer_timeout",
+    ]);
+    expect(query.mock.calls.flat()).not.toContain("begin");
+  });
+
   it("marks a retry with exponential backoff and only a safe error code", async () => {
     const query = vi
       .fn()
@@ -124,16 +218,22 @@ describe("Asaas webhook worker persistence", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "event-1" }] });
     const client = { query, release: vi.fn() };
-    const processor = vi.fn().mockRejectedValue(
-      new AsaasWebhookProcessingError("order_not_ready", {
-        retryable: true,
-      })
-    );
+    const processor = {
+      prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+      process: vi.fn().mockRejectedValue(
+        new AsaasWebhookProcessingError("order_not_ready", {
+          retryable: true,
+        })
+      ),
+    };
 
     await expect(
       processClaimedAsaasWebhookEvent({
         event: claimedEvent,
-        pool: { connect: vi.fn().mockResolvedValue(client) } as never,
+        pool: {
+          connect: vi.fn().mockResolvedValue(client),
+          query: vi.fn(),
+        } as never,
         processor,
         workerId: "worker-a",
       })
@@ -163,8 +263,12 @@ describe("Asaas webhook worker persistence", () => {
         event: fifthAttempt,
         pool: {
           connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+          query: vi.fn(),
         } as never,
-        processor: vi.fn().mockRejectedValue(new Error("contains PII")),
+        processor: {
+          prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+          process: vi.fn().mockRejectedValue(new Error("contains PII")),
+        },
         workerId: "worker-a",
       })
     ).resolves.toBe("failed");
@@ -214,7 +318,10 @@ describe("Asaas webhook worker persistence", () => {
 
 describe("Asaas webhook runner", () => {
   it("checks deadline and lease between events and respects its batch bound", async () => {
-    const processor = vi.fn();
+    const processor = {
+      prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+      process: vi.fn(),
+    };
     const shouldContinue = vi
       .fn()
       .mockResolvedValueOnce(true)

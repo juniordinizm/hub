@@ -13,5 +13,15 @@ describe("Playwright environment contract", () => {
       "Object.assign(process.env, e2eApplicationEnvironment)"
     );
     expect(source).toContain("...e2eApplicationEnvironment,");
+
+    const databaseGuardIndex = source.indexOf(
+      "assertSafeE2eDatabaseEnvironment({"
+    );
+    const globalSetupIndex = source.indexOf(
+      'globalSetup: "./tests/e2e/global-setup.ts"'
+    );
+
+    expect(databaseGuardIndex).toBeGreaterThan(-1);
+    expect(globalSetupIndex).toBeGreaterThan(databaseGuardIndex);
   });
 });

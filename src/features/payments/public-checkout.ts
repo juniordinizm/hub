@@ -4,12 +4,11 @@ import { getPool } from "@/db";
 import type { AsaasGateway } from "@/features/payments/asaas";
 import {
   type CheckoutIntentResult,
+  type CreateAsaasCheckoutIntentInput,
   createAsaasCheckoutIntent,
+  createCheckoutCallbacks,
 } from "@/features/payments/checkout";
-import {
-  getApplicationUrl,
-  getAsaasProviderClient,
-} from "@/features/payments/provider";
+import { getAsaasProviderClient } from "@/features/payments/provider";
 import { getServerEnv } from "@/lib/env";
 
 const PUBLIC_CHECKOUT_WINDOW_SECONDS = 10 * 60;
@@ -114,16 +113,17 @@ export const authorizePublicCheckoutIntent = async ({
 };
 
 export const createPublicCourseCheckout = async ({
-  buyerEmail,
-  buyerName,
+  authenticatedBuyer,
   checkoutAttemptId,
   courseId,
   courseSlug,
   gateway = getAsaasProviderClient(),
   ipAddress,
 }: {
-  buyerEmail: string;
-  buyerName: string;
+  authenticatedBuyer?: Extract<
+    CreateAsaasCheckoutIntentInput["buyer"],
+    { kind: "authenticated" }
+  >;
   checkoutAttemptId: string;
   courseId?: string;
   courseSlug?: string;
@@ -140,16 +140,8 @@ export const createPublicCourseCheckout = async ({
         ipAddress,
         secret,
       }),
-    buyer: {
-      email: buyerEmail,
-      kind: "public",
-      name: buyerName,
-    },
-    callbacks: {
-      cancelUrl: getApplicationUrl("/checkout/cancelado"),
-      expiredUrl: getApplicationUrl("/checkout/expirado"),
-      successUrl: getApplicationUrl("/checkout/sucesso"),
-    },
+    buyer: authenticatedBuyer ?? { kind: "provider_pending" },
+    callbacks: createCheckoutCallbacks(checkoutAttemptId),
     ...(courseId ? { courseId } : {}),
     ...(courseSlug ? { courseSlug } : {}),
     gateway,

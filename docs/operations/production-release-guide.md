@@ -351,7 +351,7 @@ O push novo atualiza o mesmo Pull Request e inicia outra CI.
 O Preview comprova build, runtime e readiness em infraestrutura Vercel. Ele é
 protegido e limitado:
 
-- não possui R2, Resend, AbacatePay nem JMVStream;
+- não possui credenciais R2, Resend, Asaas nem JMVStream;
 - não envia e-mail;
 - não executa jobs;
 - não representa dados reais;

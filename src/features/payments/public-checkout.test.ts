@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   createAsaasCheckoutIntent: vi.fn(),
+  createCheckoutCallbacks: vi.fn((attemptId: string) => ({
+    cancelUrl: `https://hub.example/checkout/cancelado?attemptId=${attemptId}`,
+    expiredUrl: `https://hub.example/checkout/expirado?attemptId=${attemptId}`,
+    successUrl: "https://hub.example/checkout/sucesso",
+  })),
   getApplicationUrl: vi.fn((path: string) => `https://hub.example${path}`),
   query: vi.fn(),
 }));
@@ -10,6 +15,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: () => ({ query: dependencies.query }) }));
 vi.mock("@/features/payments/checkout", () => ({
   createAsaasCheckoutIntent: dependencies.createAsaasCheckoutIntent,
+  createCheckoutCallbacks: dependencies.createCheckoutCallbacks,
 }));
 vi.mock("@/features/payments/provider", () => ({
   getApplicationUrl: dependencies.getApplicationUrl,
@@ -32,7 +38,7 @@ describe("public checkout boundary", () => {
     vi.clearAllMocks();
   });
 
-  it("adapts local buyer identity and public callbacks to the shared core", async () => {
+  it("starts an anonymous checkout without local buyer PII", async () => {
     dependencies.createAsaasCheckoutIntent.mockResolvedValue({
       orderId: "order-id",
       redirectUrl: "https://pay.example/checkout",
@@ -40,8 +46,6 @@ describe("public checkout boundary", () => {
     });
 
     await createPublicCourseCheckout({
-      buyerEmail: "buyer@example.com",
-      buyerName: "Buyer Name",
       checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
       courseSlug: "canonical-course",
       ipAddress: "203.0.113.10",
@@ -50,18 +54,44 @@ describe("public checkout boundary", () => {
     expect(dependencies.createAsaasCheckoutIntent).toHaveBeenCalledWith(
       expect.objectContaining({
         attemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
-        buyer: {
-          email: "buyer@example.com",
-          kind: "public",
-          name: "Buyer Name",
-        },
+        buyer: { kind: "provider_pending" },
         callbacks: {
-          cancelUrl: "https://hub.example/checkout/cancelado",
-          expiredUrl: "https://hub.example/checkout/expirado",
+          cancelUrl:
+            "https://hub.example/checkout/cancelado?attemptId=7fb3447e-2702-48f8-abe2-6c47b091bdcb",
+          expiredUrl:
+            "https://hub.example/checkout/expirado?attemptId=7fb3447e-2702-48f8-abe2-6c47b091bdcb",
           successUrl: "https://hub.example/checkout/sucesso",
         },
         courseSlug: "canonical-course",
       })
+    );
+    expect(dependencies.createCheckoutCallbacks).toHaveBeenCalledWith(
+      "7fb3447e-2702-48f8-abe2-6c47b091bdcb"
+    );
+  });
+
+  it("preserves an authenticated buyer when the public handoff has a session", async () => {
+    dependencies.createAsaasCheckoutIntent.mockResolvedValue({
+      orderId: "order-id",
+      redirectUrl: "https://pay.example/checkout",
+      status: "ready",
+    });
+    const authenticatedBuyer = {
+      email: "student@example.com",
+      kind: "authenticated" as const,
+      name: "Student Name",
+      userId: "student-id",
+    };
+
+    await createPublicCourseCheckout({
+      authenticatedBuyer,
+      checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
+      courseId: "4a45d650-fc63-44c9-b2d1-6c73d52de84c",
+      ipAddress: "203.0.113.10",
+    });
+
+    expect(dependencies.createAsaasCheckoutIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ buyer: authenticatedBuyer })
     );
   });
 

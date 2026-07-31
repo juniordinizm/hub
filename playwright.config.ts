@@ -1,7 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
+import { assertSafeE2eDatabaseEnvironment } from "./src/db/e2e-database-guard";
 
 const bunCommand = process.platform === "win32" ? "bun.cmd" : "bun";
 const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
+if (!e2eDatabaseUrl) {
+  throw new Error(
+    "E2E_DATABASE_URL is required for the disposable E2E database."
+  );
+}
+assertSafeE2eDatabaseEnvironment({
+  ...process.env,
+  DATABASE_URL: process.env.DATABASE_URL?.trim() || e2eDatabaseUrl,
+  E2E_DATABASE_URL: e2eDatabaseUrl,
+});
 const e2eObjectStorageEnvironment = {
   E2E_R2_BUCKET_NAME: "hub-e2e",
   R2_ACCESS_KEY_ID: "S3RVER",
@@ -12,16 +23,25 @@ const e2eObjectStorageEnvironment = {
   R2_SECRET_ACCESS_KEY: "S3RVER",
 } as const;
 const e2eApplicationEnvironment = {
+  ASAAS_API_BASE_URL: "http://127.0.0.1:4570",
+  ASAAS_API_KEY: "e2e-asaas-access-token",
+  ASAAS_USER_AGENT: "hub-e2e/1.0",
+  ASAAS_WEBHOOK_ENABLED: "true",
+  ASAAS_WEBHOOK_TOKEN: "e2e-webhook-token-with-at-least-32-characters",
   AUTH_PUBLIC_SIGNUP_ENABLED: "true",
   BETTER_AUTH_TRUSTED_ORIGINS: "http://127.0.0.1:3100",
   BETTER_AUTH_URL: "http://127.0.0.1:3100",
   CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
   CI: "true",
-  ...(e2eDatabaseUrl ? { DATABASE_URL: e2eDatabaseUrl } : {}),
+  DATABASE_URL: e2eDatabaseUrl,
   DATABASE_URL_DIRECT: "",
   E2E_TEST_MODE: "true",
+  CRON_SECRET: "e2e-cron-secret",
   INTERNAL_BOOTSTRAP_SECRET: "",
   NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+  NEXT_PUBLIC_E2E_TEST_MODE: "true",
+  PAYMENTS_CHECKOUT_MODE: "public",
+  SCHEDULED_JOBS_ENABLED: "true",
 } as const;
 
 for (const [key, value] of Object.entries(e2eObjectStorageEnvironment)) {
@@ -53,6 +73,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: [
+    {
+      command: `${bunCommand} scripts/e2e-asaas.ts`,
+      name: "E2E Asaas",
+      reuseExistingServer: false,
+      timeout: 30_000,
+      url: "http://127.0.0.1:4570/checkout/health",
+    },
     {
       command: `${bunCommand} scripts/e2e-object-storage.ts`,
       name: "E2E object storage",

@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPool } from "@/db";
 import { AsaasGatewayError } from "./asaas-client";
-import { CheckoutIntentError, createAsaasCheckoutIntent } from "./checkout";
+import {
+  CheckoutIntentError,
+  createAsaasCheckoutIntent,
+  createCheckoutCallbacks,
+} from "./checkout";
 import { FakeAsaasGateway } from "./fake-asaas-gateway";
 
 vi.mock("@/db", () => ({
   getPool: vi.fn(),
+}));
+vi.mock("@/features/payments/provider", () => ({
+  getApplicationUrl: (path: string) => `https://hub.example${path}`,
 }));
 vi.mock("server-only", () => ({}));
 
@@ -24,6 +31,7 @@ const course = {
   access_duration_months: 12,
   description:
     "Descrição extensa do curso que deve ser preservada como snapshot comercial.",
+  has_published_publication: true,
   id: COURSE_ID,
   price_in_cents: 10_000,
   slug: "formacao-neuro",
@@ -34,6 +42,7 @@ const course = {
 const insertedOrder = {
   access_duration_months: 12,
   amount_in_cents: 10_000,
+  buyer_identity_status: "resolved",
   checkout_item_description:
     "Descrição extensa do curso que deve ser preservada como snapshot comercial.",
   checkout_item_name: "Formação prática em neuroeduca",
@@ -96,9 +105,32 @@ const authenticatedInput = (gateway: FakeAsaasGateway) => ({
   now: () => NOW,
 });
 
+const providerPendingInput = (gateway: FakeAsaasGateway) => ({
+  attemptId: ATTEMPT_ID,
+  buyer: { kind: "provider_pending" as const },
+  callbacks,
+  courseId: COURSE_ID,
+  gateway,
+  now: () => NOW,
+});
+
 describe("createAsaasCheckoutIntent", () => {
   beforeEach(() => {
     vi.mocked(getPool).mockReset();
+  });
+
+  it("rejects an invalid attempt while creating checkout callbacks", () => {
+    expect(() => createCheckoutCallbacks("not-a-uuid")).toThrow(
+      "Tentativa de checkout inválida."
+    );
+  });
+
+  it("creates attempt-aware public callbacks", () => {
+    expect(createCheckoutCallbacks(ATTEMPT_ID)).toEqual({
+      cancelUrl: `https://hub.example/checkout/cancelado?attemptId=${ATTEMPT_ID}`,
+      expiredUrl: `https://hub.example/checkout/expirado?attemptId=${ATTEMPT_ID}`,
+      successUrl: "https://hub.example/checkout/sucesso",
+    });
   });
 
   it.each([
@@ -146,10 +178,10 @@ describe("createAsaasCheckoutIntent", () => {
   it("authorizes only a new intent after resolving the canonical course", async () => {
     const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -180,10 +212,10 @@ describe("createAsaasCheckoutIntent", () => {
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -243,18 +275,18 @@ describe("createAsaasCheckoutIntent", () => {
         const existing = persistedOrders.get(attemptId);
         return { rows: existing ? [existing] : [] };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
         const order = {
           ...insertedOrder,
           checkout_status: "pending" as const,
-          customer_email: String(values?.[6]),
-          customer_name: String(values?.[7]),
+          customer_email: String(values?.[7]),
+          customer_name: String(values?.[8]),
           id: attemptId,
         };
         persistedOrders.set(attemptId, order);
@@ -310,10 +342,10 @@ describe("createAsaasCheckoutIntent", () => {
       if (sql.startsWith("select id, course_id")) {
         return { rows: persistedOrder ? [persistedOrder] : [] };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -382,13 +414,13 @@ describe("createAsaasCheckoutIntent", () => {
       checkout_item_name: "Nome devolvido pelo Pedido",
     };
     const pool = createPool((sql, values) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -399,6 +431,7 @@ describe("createAsaasCheckoutIntent", () => {
           ATTEMPT_ID,
           COURSE_ID,
           "user-1",
+          "resolved",
           `order_${ATTEMPT_ID}`,
           10_000,
           12,
@@ -460,7 +493,7 @@ describe("createAsaasCheckoutIntent", () => {
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [{ ...course, price_in_cents: priceInCents }] };
       }
       throw new Error("Não deveria persistir.");
@@ -475,17 +508,18 @@ describe("createAsaasCheckoutIntent", () => {
     expect(pool.query).toHaveBeenCalledTimes(2);
   });
 
-  it("uses immutable local authenticated identity and rejects active access", async () => {
+  it("rejects an active enrollment before persistence or provider access", async () => {
     const pool = createPool((sql, values) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         expect(values).toEqual(["user-1", COURSE_ID]);
-        return { rows: [{ id: "enrollment-1" }] };
+        expect(sql).toContain("status in ('active', 'revoked')");
+        return { rows: [{ status: "active" }] };
       }
       throw new Error("Não deveria persistir.");
     });
@@ -496,12 +530,69 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Acesso ao curso já está ativo.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
-  it("persists a public buyer locally without creating or updating an account", async () => {
+  it("rejects a revoked enrollment before persistence or provider access", async () => {
+    const pool = createPool((sql, values) => {
+      if (sql.startsWith("select c.id")) {
+        return { rows: [course] };
+      }
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.includes("from enrollments")) {
+        expect(values).toEqual(["user-1", COURSE_ID]);
+        expect(sql).toContain("status in ('active', 'revoked')");
+        return { rows: [{ status: "revoked" }] };
+      }
+      throw new Error("Não deveria persistir.");
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+    const gateway = createGateway();
+
+    await expect(
+      createAsaasCheckoutIntent(authenticatedInput(gateway))
+    ).rejects.toThrow("Acesso ao curso está revogado.");
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
+  });
+
+  it("rejects a course without a published publication before persistence or provider access", async () => {
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return {
+          rows: [{ ...course, has_published_publication: false }],
+        };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      throw new Error("Não deveria persistir.");
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+    const gateway = createGateway();
+
+    await expect(
+      createAsaasCheckoutIntent(authenticatedInput(gateway))
+    ).rejects.toThrow("Curso indisponível para checkout pago.");
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists a provider-pending buyer without PII or account mutation", async () => {
     const pool = createPool((sql, values) => {
       expect(sql).not.toMatch(USER_MUTATION_PATTERN);
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
@@ -509,13 +600,17 @@ describe("createAsaasCheckoutIntent", () => {
       }
       if (sql.startsWith("insert into orders")) {
         expect(values?.[2]).toBeNull();
-        expect(values?.[6]).toBe("public@example.com");
+        expect(sql).toContain("buyer_identity_status");
+        expect(values).toContain("pending");
+        expect(values).not.toContain("public@example.com");
+        expect(values).not.toContain("Compradora Pública");
         return {
           rows: [
             {
               ...insertedOrder,
-              customer_email: "public@example.com",
-              customer_name: "Compradora Pública",
+              buyer_identity_status: "pending",
+              customer_email: null,
+              customer_name: null,
               user_id: null,
             },
           ],
@@ -530,23 +625,19 @@ describe("createAsaasCheckoutIntent", () => {
     const gateway = createGateway();
 
     await createAsaasCheckoutIntent({
-      ...authenticatedInput(gateway),
-      buyer: {
-        email: " Public@Example.com ",
-        kind: "public",
-        name: " Compradora Pública ",
-      },
+      ...providerPendingInput(gateway),
     });
 
+    expect(gateway.calls.createCheckout[0]).not.toHaveProperty("customer");
     expect(gateway.calls.createCheckout[0]).not.toHaveProperty("customerData");
   });
 
   it("returns an existing ready checkout without a second provider call", async () => {
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -588,7 +679,7 @@ describe("createAsaasCheckoutIntent", () => {
 
   it("resolves a ready duplicate before checking newly-active access", async () => {
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
@@ -618,7 +709,7 @@ describe("createAsaasCheckoutIntent", () => {
       status: "ready",
     });
     expect(pool.query).not.toHaveBeenCalledWith(
-      expect.stringContaining("select id from enrollments"),
+      expect.stringContaining("from enrollments"),
       expect.anything()
     );
   });
@@ -649,10 +740,10 @@ describe("createAsaasCheckoutIntent", () => {
                 ],
         };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -701,10 +792,10 @@ describe("createAsaasCheckoutIntent", () => {
               : [{ ...insertedOrder, checkout_status: checkoutStatus }],
         };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -767,7 +858,7 @@ describe("createAsaasCheckoutIntent", () => {
           ],
         };
       }
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: currentCourse ? [currentCourse] : [] };
       }
       throw new Error(`SQL inesperado: ${sql}`);
@@ -822,7 +913,7 @@ describe("createAsaasCheckoutIntent", () => {
     "uncertain",
   ] as const)("treats duplicate %s as reconciliation without a second mutation", async (checkoutStatus) => {
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
@@ -847,7 +938,7 @@ describe("createAsaasCheckoutIntent", () => {
   it("resolves a concurrent insert conflict without a second provider mutation", async () => {
     let attemptReads = 0;
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
@@ -859,7 +950,7 @@ describe("createAsaasCheckoutIntent", () => {
               : [{ ...insertedOrder, checkout_status: "creating" }],
         };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -882,7 +973,7 @@ describe("createAsaasCheckoutIntent", () => {
 
   it("rejects an attempt collision without revealing the existing order", async () => {
     const pool = createPool((sql) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
@@ -913,13 +1004,13 @@ describe("createAsaasCheckoutIntent", () => {
       })
     );
     const pool = createPool((sql, values) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -953,13 +1044,13 @@ describe("createAsaasCheckoutIntent", () => {
   it("marks reconciliation when persistence fails after provider success", async () => {
     let updates = 0;
     const pool = createPool((sql, values) => {
-      if (sql.startsWith("select id, title")) {
+      if (sql.startsWith("select c.id")) {
         return { rows: [course] };
       }
       if (sql.startsWith("select id, course_id")) {
         return { rows: [] };
       }
-      if (sql.startsWith("select id from enrollments")) {
+      if (sql.includes("from enrollments")) {
         return { rows: [] };
       }
       if (sql.startsWith("insert into orders")) {
@@ -1022,7 +1113,12 @@ describe("createAsaasCheckoutIntent", () => {
     await expect(
       createAsaasCheckoutIntent({
         ...authenticatedInput(gateway),
-        buyer: { email: " ", kind: "public", name: "Nome" },
+        buyer: {
+          email: " ",
+          kind: "authenticated",
+          name: "Nome",
+          userId: "user-1",
+        },
       })
     ).rejects.toThrow("Identidade local inválida.");
     await expect(

@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "@/db";
+import type { AsaasBuyerIdentityPreparation } from "./asaas-customer-enrichment";
 
 const DEFAULT_BATCH_LIMIT = 20;
 const MAXIMUM_BATCH_LIMIT = 50;
@@ -29,10 +30,16 @@ export interface AsaasWebhookProcessingContext {
   lockOrder: (orderId: string) => Promise<void>;
 }
 
-export type AsaasWebhookProcessor = (
-  event: ClaimedAsaasWebhookEvent,
-  context: AsaasWebhookProcessingContext
-) => Promise<AsaasWebhookProcessorOutcome>;
+export interface AsaasWebhookProcessor {
+  prepare(
+    event: ClaimedAsaasWebhookEvent
+  ): Promise<AsaasBuyerIdentityPreparation>;
+  process(
+    event: ClaimedAsaasWebhookEvent,
+    context: AsaasWebhookProcessingContext,
+    preparation: AsaasBuyerIdentityPreparation
+  ): Promise<AsaasWebhookProcessorOutcome>;
+}
 
 export class AsaasWebhookProcessingError extends Error {
   readonly code: string;
@@ -163,7 +170,7 @@ const markProcessingFailure = async ({
   event,
   workerId,
 }: {
-  client: PoolClient;
+  client: WebhookQueryClient;
   error: AsaasWebhookProcessingError;
   event: ClaimedAsaasWebhookEvent;
   workerId: string;
@@ -211,10 +218,22 @@ export const processClaimedAsaasWebhookEvent = async ({
   workerId,
 }: {
   event: ClaimedAsaasWebhookEvent;
-  pool: Pick<Pool, "connect">;
+  pool: Pick<Pool, "connect" | "query">;
   processor: AsaasWebhookProcessor;
   workerId: string;
 }): Promise<"failed" | "ignored" | "processed" | "retrying"> => {
+  let preparation: AsaasBuyerIdentityPreparation;
+  try {
+    preparation = await processor.prepare(event);
+  } catch (error) {
+    return await markProcessingFailure({
+      client: pool,
+      error: getProcessingError(error),
+      event,
+      workerId,
+    });
+  }
+
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -238,20 +257,24 @@ export const processClaimedAsaasWebhookEvent = async ({
       throw new Error("Asaas webhook ownership lost.");
     }
 
-    const outcome = await processor(currentEvent, {
-      client,
-      lockOrder: async (orderId) => {
-        const lockedOrder = await client.query<{ id: string }>(
-          "select id from orders where id = $1 for update",
-          [orderId]
-        );
-        if (!lockedOrder.rows[0]) {
-          throw new AsaasWebhookProcessingError("order_not_found", {
-            retryable: false,
-          });
-        }
+    const outcome = await processor.process(
+      currentEvent,
+      {
+        client,
+        lockOrder: async (orderId) => {
+          const lockedOrder = await client.query<{ id: string }>(
+            "select id from orders where id = $1 for update",
+            [orderId]
+          );
+          if (!lockedOrder.rows[0]) {
+            throw new AsaasWebhookProcessingError("order_not_found", {
+              retryable: false,
+            });
+          }
+        },
       },
-    });
+      preparation
+    );
     const completed = await client.query<{ id: string }>(
       `
         update webhook_events

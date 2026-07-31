@@ -179,18 +179,35 @@ export interface AdminModule {
   title: string;
 }
 
+const paymentReviewTypes = [
+  "amount_mismatch",
+  "terminal_conflict",
+  "event_anomaly",
+  "partial_refund",
+  "uncertain_result",
+  "buyer_identity",
+] as const;
+
+type PaymentReviewType = (typeof paymentReviewTypes)[number];
+
+const isPaymentReviewType = (value: unknown): value is PaymentReviewType =>
+  typeof value === "string" &&
+  paymentReviewTypes.some((reviewType) => reviewType === value);
+
+const parsePaymentReviewType = (value: unknown): PaymentReviewType => {
+  if (isPaymentReviewType(value)) {
+    return value;
+  }
+  throw new Error("Revisao financeira invalida.");
+};
+
 export interface AdminPaymentReview {
   id: string;
   orderId: string;
   providerCheckoutId: string | null;
   reason: string;
   status: "approved" | "pending" | "rejected";
-  type:
-    | "amount_mismatch"
-    | "event_anomaly"
-    | "partial_refund"
-    | "terminal_conflict"
-    | "uncertain_result";
+  type: PaymentReviewType;
 }
 
 export interface AdminOrder {
@@ -691,12 +708,7 @@ const readPaymentReviews = async (): Promise<AdminPaymentReview[]> => {
     provider_checkout_id: string | null;
     reason: string;
     status: "approved" | "pending" | "rejected";
-    type:
-      | "amount_mismatch"
-      | "event_anomaly"
-      | "partial_refund"
-      | "terminal_conflict"
-      | "uncertain_result";
+    type: unknown;
   }>(`
     select pr.id, pr.order_id, pr.type, pr.status, pr.reason, o.provider_checkout_id
     from payment_reviews pr
@@ -711,7 +723,7 @@ const readPaymentReviews = async (): Promise<AdminPaymentReview[]> => {
     providerCheckoutId: row.provider_checkout_id,
     reason: row.reason,
     status: row.status,
-    type: row.type,
+    type: parsePaymentReviewType(row.type),
   }));
 };
 
@@ -1012,16 +1024,24 @@ export const getAdminCourseDetailData = async (
 
 export const getAdminCoursePublicationState = async (
   courseId: string
-): Promise<{ hasDraft: boolean }> => {
+): Promise<{ hasDraft: boolean; hasPublished: boolean }> => {
   await requireAdminReadAccess();
-  const result = await getPool().query<{ id: string }>(
-    `select id from course_publications
-     where course_id = $1 and status = 'draft'
-     limit 1`,
+  const result = await getPool().query<{
+    has_draft: boolean;
+    has_published: boolean;
+  }>(
+    `select coalesce(bool_or(status = 'draft'), false) as has_draft,
+            coalesce(bool_or(status = 'published'), false) as has_published
+     from course_publications
+     where course_id = $1 and status in ('draft', 'published')`,
     [courseId]
   );
+  const state = result.rows[0];
 
-  return { hasDraft: Boolean(result.rows[0]) };
+  return {
+    hasDraft: state?.has_draft ?? false,
+    hasPublished: state?.has_published ?? false,
+  };
 };
 
 export const getAdminLessonEditorData = async ({

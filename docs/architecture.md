@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 ---
 
 # Arquitetura
@@ -53,12 +53,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 39 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 50 entradas alinhadas, com topo `0049_payment_review_webhook_idempotency`;
+O schema possui 40 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 52 entradas alinhadas, com topo `0051_asaas_financial_statement`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0049` foram geradas e ainda não foram aplicadas. Na Vercel, cada instância limita o pool
+`0051` foram geradas e ainda não foram aplicadas em Production. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -86,8 +86,8 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
 Asaas a cada minuto sob autenticação compartilhada, kill switch, lease e deadline. Isso
-não comprova deploy ou homologação. O fluxo legado AbacatePay permanece somente para
-webhook e reembolso durante a migração.
+não comprova deploy de Production. A migration `0044` remove a persistência específica
+do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ### Aprendizagem
 
@@ -177,7 +177,10 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `courses/server.ts`: catálogo, acesso da aluna, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
-- `payments/provider.ts` concentra credencial/configuração do AbacatePay e URLs da aplicação; `payments/server.ts` coordena checkout autenticado, webhook, revisão e retry; `public-checkout.ts` aplica rate limit para a entrada pública. Provider e transição financeira não devem ser misturados em uma API genérica.
+- `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
+  compartilhada, `asaas-webhook-processor.ts` aplica
+  a decisão financeira e `public-checkout.ts` autoriza a entrada pública. Provider e
+  transição financeira não devem ser misturados em uma API genérica.
 - `jmvstream/server.ts` é a façade de leitura operacional e dos casos de uso ainda consumidos; `auth.ts` resolve token, `client.ts` é o contrato HTTP e `upload.ts` executa multipart no navegador. `asset-persistence.ts`, `course-folders.ts`, `upload-session.ts`, `upload-completion.ts`, `player-sync.ts`, `asset-deletion.ts` e `manual-video-sync.ts` separam persistência e lifecycle. `provider-mapper.ts` traduz o estado remoto em operação de galeria. O upload multipart direto é invariante.
 - resources de aula: autoria e player tinham regras duplicadas de extensão, tipo e tamanho. `src/features/courses/resource-presentation.ts` concentra apenas essa apresentação pura, sem importar React ou providers.
 - actions administrativas de matrícula e certificados: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.
@@ -203,8 +206,12 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 #### Acesso e comércio
 
 - **Símbolos:** `resolveCourseAccess` e `resolveLessonAccess`; concessões, projeção e ajustes de expiração; checkout autenticado/público, webhook, revisão e retry de pagamento.
-- **Consumidores:** cursos, actions administrativas, handlers de checkout e webhook AbacatePay.
-- **Invariante, transação e efeitos:** Concessão é fonte e Matrícula é projeção. O webhook deduplicado só aplica transição financeira válida; conflitos entram em revisão. O adapter AbacatePay concentra HTTP/configuração, e o rate limit pertence exclusivamente ao checkout público.
+- **Consumidores:** cursos, actions administrativas, handlers de checkout e webhook
+  Asaas.
+- **Invariante, transação e efeitos:** Concessão é fonte e Matrícula é projeção. A inbox
+  deduplicada só aplica transição financeira válida; conflitos entram em revisão. O
+  adapter Asaas concentra HTTP/configuração, e o rate limit pertence exclusivamente ao
+  checkout público.
 
 #### JMVStream e resources
 

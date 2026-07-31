@@ -30,6 +30,7 @@ import {
   getAdminOverview,
 } from "@/features/admin/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { canPerform } from "@/lib/auth-policy";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
@@ -102,9 +103,13 @@ const getOrderQuery = (
   };
 };
 
-function FinancialOrderCard({
+export function FinancialOrderCard({
+  canManageFinancialOperations,
+  hasPendingBuyerIdentityReview,
   order,
 }: {
+  canManageFinancialOperations: boolean;
+  hasPendingBuyerIdentityReview: boolean;
   order: AdminOrder;
 }): React.JSX.Element {
   return (
@@ -149,11 +154,38 @@ function FinancialOrderCard({
           ? ` · reembolso ${order.refundRequestStatus}`
           : ""}
       </p>
-      {order.status === "paid" ? <RefundOperation orderId={order.id} /> : null}
-      {order.providerPaymentId ? (
+      {order.status === "paid" && !hasPendingBuyerIdentityReview ? (
+        <RefundOperation orderId={order.id} />
+      ) : null}
+      {canManageFinancialOperations && order.providerPaymentId ? (
         <ReconcilePaymentOperation orderId={order.id} />
       ) : null}
     </div>
+  );
+}
+
+export function FinancialStatementImportCard({
+  canManageFinancialOperations,
+}: {
+  canManageFinancialOperations: boolean;
+}): React.JSX.Element | null {
+  if (!canManageFinancialOperations) {
+    return null;
+  }
+
+  return (
+    <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+      <CardHeader>
+        <CardTitle className="text-base">Importação do extrato Asaas</CardTitle>
+        <CardDescription>
+          Importe um período fechado. O extrato é paginado e cada movimentação é
+          deduplicada pelo identificador do Asaas.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ImportStatementOperation />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -173,8 +205,20 @@ export default async function AdminFinancePage({
   ]);
   const financialHealth = summarizeAdminFinancialHealth(data.orders);
   const financialSignal = getAdminFinancialSignal(financialHealth);
+  const canManageFinancialOperations = canPerform(
+    session.role,
+    "manageFinancialOperations"
+  );
   const recentOrders = data.orders;
   const recentCertificates = data.certificates.slice(0, 6);
+  const pendingBuyerIdentityReviewOrderIds = new Set(
+    data.paymentReviews
+      .filter(
+        (review) =>
+          review.status === "pending" && review.type === "buyer_identity"
+      )
+      .map((review) => review.orderId)
+  );
   const failedWebhooks = overview.recentWebhooks.filter(
     (event) => event.status === "failed"
   );
@@ -337,7 +381,14 @@ export default async function AdminFinancePage({
               </form>
               {recentOrders.length ? (
                 recentOrders.map((order) => (
-                  <FinancialOrderCard key={order.id} order={order} />
+                  <FinancialOrderCard
+                    canManageFinancialOperations={canManageFinancialOperations}
+                    hasPendingBuyerIdentityReview={pendingBuyerIdentityReviewOrderIds.has(
+                      order.id
+                    )}
+                    key={order.id}
+                    order={order}
+                  />
                 ))
               ) : (
                 <div className="flex items-center justify-center rounded-lg border border-dashed p-6 text-center">
@@ -381,20 +432,9 @@ export default async function AdminFinancePage({
           </Card>
         </section>
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
-          <CardHeader>
-            <CardTitle className="text-base">
-              Conciliação do extrato Asaas
-            </CardTitle>
-            <CardDescription>
-              Importe um período fechado. O extrato é paginado e cada
-              movimentação é deduplicada pelo identificador do Asaas.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ImportStatementOperation />
-          </CardContent>
-        </Card>
+        <FinancialStatementImportCard
+          canManageFinancialOperations={canManageFinancialOperations}
+        />
 
         <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
           <CardHeader className="pb-4">
