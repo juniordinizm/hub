@@ -1,0 +1,54 @@
+name: Run Staging jobs
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "0 10 * * *"
+    - cron: "0 4 * * *"
+
+concurrency:
+  group: staging-jobs-${{ github.event.schedule || 'manual' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    environment:
+      name: vercel-staging
+    env:
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      STAGING_ORIGIN: https://preview.neurocapacitar.com.br
+    steps:
+      - name: Invoke authenticated Staging workers
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CRON_SECRET:-}" ]]; then
+            echo "CRON_SECRET is required by vercel-staging." >&2
+            exit 1
+          fi
+          call_job() {
+            local path="$1"
+            curl --fail --silent --show-error \
+              --output /dev/null \
+              --header "Authorization: Bearer ${CRON_SECRET}" \
+              "${STAGING_ORIGIN}${path}"
+          }
+          failed=0
+          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "*/5 * * * *" ]]; then
+            call_job "/api/cron/asaas-webhooks" || failed=1
+            call_job "/api/cron/outbox" || failed=1
+            call_job "/api/cron/jmvstream" || failed=1
+          fi
+          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "0 10 * * *" ]]; then
+            call_job "/api/cron/enrollments" || failed=1
+          fi
+          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "0 4 * * *" ]]; then
+            call_job "/api/cron/maintenance" || failed=1
+          fi
+          exit "${failed}"

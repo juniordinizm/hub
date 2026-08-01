@@ -116,6 +116,63 @@ describe("server environment", () => {
     );
   });
 
+  it("accepts the complete Staging runtime instead of treating it as Preview", () => {
+    process.env = {
+      APPLICATION_MAINTENANCE_MODE: "off",
+      ASAAS_API_BASE_URL: "https://api-sandbox.asaas.com",
+      ASAAS_API_KEY: "$aact_hmlg_fixture",
+      ASAAS_USER_AGENT: "hub/1.0 pagamentos@example.com",
+      ASAAS_WEBHOOK_ENABLED: "true",
+      ASAAS_WEBHOOK_TOKEN:
+        "staging-webhook-token-at-least-thirty-two-characters",
+      AUTH_PUBLIC_SIGNUP_ENABLED: "true",
+      BETTER_AUTH_SECRET: "staging-auth-secret-at-least-thirty-two-characters",
+      BETTER_AUTH_URL: "https://preview.neurocapacitar.com.br",
+      CERTIFICATE_PUBLIC_BASE_URL: "https://preview.neurocapacitar.com.br",
+      CLIENT_IP_SOURCE: "x-forwarded-for",
+      CRON_SECRET: "staging-cron-secret-at-least-thirty-two-characters",
+      DATABASE_URL:
+        "postgresql://user:secret@ep-staging-pooler.sa-east-1.aws.neon.tech/neondb",
+      HEALTHCHECK_SECRET:
+        "staging-health-secret-at-least-thirty-two-characters",
+      JMVSTREAM_AUTH_RESOURCE: "fixture-resource",
+      JMVSTREAM_PLAN_ID: "OD-20912",
+      NEXT_PUBLIC_APP_URL: "https://preview.neurocapacitar.com.br",
+      NEXT_PUBLIC_SENTRY_DSN:
+        "https://public@example.ingest.sentry.io/4511999999999999",
+      NODE_ENV: "production",
+      PAYMENTS_CHECKOUT_MODE: "public",
+      R2_ACCESS_KEY_ID: "development-r2-key",
+      R2_ACCOUNT_ID: "fixture-account",
+      R2_BUCKET_NAME: "hub-development-private",
+      R2_OBJECT_PREFIX: "staging",
+      R2_PUBLIC_BASE_URL: "https://pub-development.r2.dev",
+      R2_PUBLIC_BUCKET_NAME: "hub-development-public",
+      R2_SECRET_ACCESS_KEY: "development-r2-secret",
+      RESEND_API_KEY: "re_shared",
+      RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
+      SCHEDULED_JOBS_ENABLED: "true",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
+      STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
+      STAGING_JMVSTREAM_USES_PRODUCTION: "true",
+      STAGING_R2_USES_DEVELOPMENT: "true",
+      STAGING_RESEND_USES_PRODUCTION: "true",
+      STAGING_SENTRY_PROJECT_ID: "4511999999999999",
+      SUPPORT_EMAIL: "suporte@neurocapacitar.com.br",
+      VERCEL_ENV: "preview",
+      VERCEL_TARGET_ENV: "staging",
+    };
+
+    const env = getServerEnv();
+
+    expect(env.VERCEL_TARGET_ENV).toBe("staging");
+    expect(env.NEXT_PUBLIC_APP_URL).toBe(
+      "https://preview.neurocapacitar.com.br"
+    );
+    expect(env.PAYMENTS_CHECKOUT_MODE).toBe("public");
+    expect(env.ASAAS_WEBHOOK_ENABLED).toBe(true);
+  });
+
   it("keeps public sign-up disabled by default", () => {
     setEnv("NODE_ENV", "development");
     setEnv("AUTH_PUBLIC_SIGNUP_ENABLED", undefined);

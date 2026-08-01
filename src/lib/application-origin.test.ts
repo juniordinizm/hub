@@ -31,4 +31,19 @@ describe("canonical application origin", () => {
     expect(environment.BETTER_AUTH_URL).toBeUndefined();
     expect(environment.CERTIFICATE_PUBLIC_BASE_URL).toBeUndefined();
   });
+
+  it("preserves the explicit Staging origin instead of a transient deployment", () => {
+    const environment = resolveCanonicalApplicationEnvironment({
+      BETTER_AUTH_URL: "https://preview.neurocapacitar.com.br",
+      CERTIFICATE_PUBLIC_BASE_URL: "https://preview.neurocapacitar.com.br",
+      NEXT_PUBLIC_APP_URL: "https://preview.neurocapacitar.com.br",
+      VERCEL_BRANCH_URL: "transient.vercel.app",
+      VERCEL_ENV: "preview",
+      VERCEL_TARGET_ENV: "staging",
+    });
+
+    expect(environment.NEXT_PUBLIC_APP_URL).toBe(
+      "https://preview.neurocapacitar.com.br"
+    );
+  });
 });

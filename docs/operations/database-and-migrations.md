@@ -1,18 +1,18 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 9419c09b9c7f4a4f3f977e896f51374548080dd8
 ---
 
 # Banco e migrations
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. Em 2026-07-26, a cadeia
-`0000` a `0043` estava aplicada à branch `production`
+O repositório usa cadeia Drizzle forward-only. Em 2026-07-31, a cadeia
+`0000` a `0052` está aplicada à branch `production`
 (`br-dark-boat-ac5ju6m4`) do projeto Neon definitivo
-`damp-snow-22911188`. A auditoria posterior confirmou 44 entradas no journal,
-topo em `0043`, hashes idênticos ao repositório e paridade dos objetos críticos
+`damp-snow-22911188`. A auditoria do corte confirmou 53 entradas no journal,
+topo em `0052`, hashes idênticos ao repositório e paridade dos objetos críticos
 descritos neste runbook.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
@@ -30,9 +30,18 @@ Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta confe
 O procedimento normal não chama esse comando diretamente. Quando o pipeline
 estiver liberado, o workflow `Migrate Neon development` atualiza Development
 depois do merge e `Deploy Vercel production` atualiza Production antes do
-deployment. Existe hoje um ciclo conhecido entre migration nova, readiness do
-Preview persistente e exigência de CI verde da `main`; não use execução manual
-para contorná-lo. Veja o [tutorial de release](production-release-guide.md).
+deployment. O Preview de PR cria sua própria branch Neon efêmera, aplica a cadeia
+validada e injeta a URL pooled somente naquele deployment; não migre a branch
+persistente `vercel-preview`. Veja o [tutorial de release](production-release-guide.md).
+
+Staging usa `db:migrate:staging`, `db:seed:staging-admin` e
+`db:reset:staging`. Os três exigem URL direta, hostname, branch ID e a
+confirmação literal `STAGING_OPERATION_CONFIRMATION=staging`; todos recusam o
+compute Production conhecido antes de abrir conexão. O reset possui modo
+`plan`, que lê contagens dentro de transação e faz rollback, e modo `execute`,
+que exige `RESET_STAGING_DATA`, preserva `__drizzle_migrations`, recria somente
+o Admin e limpa apenas o namespace físico `staging/` nos dois buckets
+Development compartilhados. Não remove vídeos JMVStream.
 
 ## Autoridades
 
@@ -56,8 +65,8 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
 journal é autoridade; nesta cadeia, `0052_snapshot.json`. As migrations Asaas e
-da compra pública `0044` a `0052` foram geradas e ensaiadas em banco descartável;
-Production permanece no topo `0043`.
+da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
+promovidas para Production em 2026-07-31.
 
 Em 2026-07-30, uma preparação E2E local chamou o migrador genérico enquanto
 `drizzle.config.ts` carregava `DATABASE_URL_DIRECT` de `.env.local` com prioridade sobre
@@ -71,7 +80,17 @@ aplicativo local já exigir `0052`. Depois de confirmar zero Pedidos, Webhooks e
 Concessões financeiras, e mediante autorização explícita, `0044` a `0052` foram
 promovidas com `bun run db:migrate:development`. A auditoria posterior confirmou 53
 entradas, `provider_checkout_id`, um único Admin preservado e uma segunda execução
-idempotente. Production permaneceu inalterada em `0043`.
+idempotente. Production permaneceu inalterada em `0043` naquele ensaio.
+
+No corte de 2026-07-31, dois planos consecutivos confirmaram o mesmo fingerprint
+e as mesmas contagens no alvo Production. O workflow criou a branch de backup
+`asaas-cutover-backup-20260731T045620Z` (`br-withered-tree-acj50vrb`) sem
+expiração automática, removeu os dados descartáveis e preservou exclusivamente
+um usuário, perfil, conta e sessão da pessoa Admin. O plano posterior confirmou
+zero registros em todas as tabelas operacionais. Em seguida, o run
+`30605515827` aplicou `0044` a `0052`, auditou o journal e promoveu a Release B.
+A branch de backup deve permanecer durante a estabilização e não pode ser
+removida sem aceite explícito.
 
 ## Conexões
 

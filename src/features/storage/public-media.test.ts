@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { buildPublicMediaUrl } from "./public-media";
 
 describe("public media URLs", () => {
+  it("validates the logical key while exposing its physical namespace", () => {
+    expect(
+      buildPublicMediaUrl({
+        baseUrl: "https://media.protear.com",
+        key: "courses/course-1/cover.webp",
+        physicalKey: "staging/courses/course-1/cover.webp",
+      })
+    ).toBe("https://media.protear.com/staging/courses/course-1/cover.webp");
+  });
+
   it("joins a configured public origin with a versioned object key", () => {
     expect(
       buildPublicMediaUrl({

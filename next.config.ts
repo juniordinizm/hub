@@ -3,8 +3,10 @@ import type { NextConfig } from "next";
 import { resolveR2ClientEndpoint } from "./src/features/storage/r2-endpoint";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 import { buildContentSecurityPolicy } from "./src/lib/content-security-policy";
+import { getStagingPresentation } from "./src/lib/staging-presentation";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
+const stagingPresentation = getStagingPresentation(process.env);
 const publicMediaOrigin = process.env.R2_PUBLIC_BASE_URL
   ? new URL(process.env.R2_PUBLIC_BASE_URL)
   : null;
@@ -57,6 +59,7 @@ const securityHeaders = [
     key: "X-Frame-Options",
     value: "DENY",
   },
+  ...stagingPresentation.headers,
 ];
 
 const nextConfig: NextConfig = {

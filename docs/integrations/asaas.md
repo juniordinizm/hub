@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 9419c09b9c7f4a4f3f977e896f51374548080dd8
 ---
 
 # Asaas
@@ -14,13 +14,24 @@ migrations `0044_asaas_commerce_persistence` a
 `0051_asaas_financial_statement` foram geradas e passaram em branch Neon descartável,
 antes da promoção autorizada de `0044` a `0052` para Development em 2026-07-31. A
 auditoria desse alvo confirmou 53 entradas no journal, o único Admin preservado e
-idempotência; Production permanece em `0043`. O adapter está conectado às entradas
+idempotência. No mesmo dia, a Release B foi promovida para Production após limpeza
+controlada dos dados descartáveis; o journal chegou a `0052`, a Conta Admin foi
+preservada e todas as tabelas operacionais ficaram vazias. O adapter está conectado às entradas
 autenticada e pública de checkout, e a inbox durável
 recebe e deduplica webhooks antes do processor financeiro transacional. O worker é
 chamado a cada minuto pela rota cron protegida, com lease de seis minutos e prazo interno
 de 270 segundos. Checkout, pagamento PIX/cartão, cancelamento, expiração, reembolso,
 conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. Conta e
-credenciais de produção não foram validadas.
+`ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` e `ASAAS_API_KEY` já estão configurados em
+Production. A primeira auditoria controlada recebeu `invalid_environment`: a variável
+continha uma chave Sandbox, sem espaços extras, em vez de uma chave Production. Nenhuma
+mutação foi enviada ao Asaas, a chave foi devolvida ao modo Sensitive e precisa ser
+removida de Production. Produto adiou a credencial real: o próximo ensaio permanece no
+Sandbox por Development/ngrok; `ASAAS_WEBHOOK_TOKEN` de Production ainda não foi
+configurado.
+Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
+`ASAAS_WEBHOOK_ENABLED=false`; o smoke do estado fechado retornou `503` nas duas
+entradas e `404` na rota legada removida.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
 O schema mantém `orders.status` como estado canônico

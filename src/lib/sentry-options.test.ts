@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getSentryOptions } from "./sentry-options";
 
 describe("Sentry options", () => {
+  it("classifies Staging events explicitly", () => {
+    expect(
+      getSentryOptions("https://public@example.ingest.sentry.io/1", "staging")
+    ).toMatchObject({ environment: "staging" });
+  });
+
   it("mantém a captura desativada sem DSN", () => {
     expect(getSentryOptions(undefined).enabled).toBe(false);
   });

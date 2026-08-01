@@ -25,6 +25,12 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
 Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
 
+O runtime é classificado separadamente de `VERCEL_ENV`: o Custom Environment
+Staging usa `VERCEL_TARGET_ENV=staging`. Em manutenção integral, o Proxy é a
+fronteira fail-closed para tráfego público e mutações, preservando apenas
+health, readiness e crons autenticados. A topologia completa está no
+[runbook de ambientes](operations/environment-and-local-development.md).
+
 ### Camadas
 
 - **Apresentação:** `src/app`, `src/components` e funções de apresentação em cada feature.

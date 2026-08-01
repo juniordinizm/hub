@@ -1,4 +1,6 @@
 const REQUIRED_PRODUCTION_VARIABLES = [
+  "APPLICATION_MAINTENANCE_MODE",
+  "AUTH_PUBLIC_SIGNUP_ENABLED",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "CERTIFICATE_PUBLIC_BASE_URL",
@@ -56,6 +58,7 @@ const PAYMENTS_CHECKOUT_MODES = new Set([
   "disabled",
   "public",
 ]);
+const MAINTENANCE_MODES = new Set(["full", "off"]);
 
 const hasValue = (
   environment: Readonly<Record<string, string | undefined>>,
@@ -133,6 +136,31 @@ const requiresAsaasCapability = (
     environment.PAYMENTS_CHECKOUT_MODE?.trim() ?? ""
   ) || environment.ASAAS_WEBHOOK_ENABLED?.trim() === "true";
 
+const getMaintenanceProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] => {
+  const mode = environment.APPLICATION_MAINTENANCE_MODE?.trim();
+  if (mode && !MAINTENANCE_MODES.has(mode)) {
+    return ["APPLICATION_MAINTENANCE_MODE is invalid"];
+  }
+  if (mode !== "full") {
+    return [];
+  }
+
+  const disabledValues = {
+    ASAAS_WEBHOOK_ENABLED: "false",
+    AUTH_PUBLIC_SIGNUP_ENABLED: "false",
+    PAYMENTS_CHECKOUT_MODE: "disabled",
+    SCHEDULED_JOBS_ENABLED: "false",
+  } as const;
+
+  return Object.entries(disabledValues).flatMap(([key, expectedValue]) =>
+    environment[key]?.trim() === expectedValue
+      ? []
+      : [`${key} must be disabled during full maintenance`]
+  );
+};
+
 export const getProductionEnvironmentProblems = (
   environment: Readonly<Record<string, string | undefined>>
 ): string[] => {
@@ -147,18 +175,23 @@ export const getProductionEnvironmentProblems = (
   }
 
   problems.push(...getCheckoutModeProblems(environment));
+  problems.push(...getMaintenanceProblems(environment));
 
-  const configuredAsaasVariables = ASAAS_PRODUCTION_VARIABLES.filter((key) =>
-    hasValue(environment, key)
-  );
-  if (
-    (configuredAsaasVariables.length > 0 ||
-      requiresAsaasCapability(environment)) &&
-    configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
-  ) {
-    problems.push(
-      ...ASAAS_PRODUCTION_VARIABLES.filter((key) => !hasValue(environment, key))
+  if (environment.APPLICATION_MAINTENANCE_MODE?.trim() !== "full") {
+    const configuredAsaasVariables = ASAAS_PRODUCTION_VARIABLES.filter((key) =>
+      hasValue(environment, key)
     );
+    if (
+      (configuredAsaasVariables.length > 0 ||
+        requiresAsaasCapability(environment)) &&
+      configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
+    ) {
+      problems.push(
+        ...ASAAS_PRODUCTION_VARIABLES.filter(
+          (key) => !hasValue(environment, key)
+        )
+      );
+    }
   }
 
   problems.push(...getAsaasWebhookSwitchProblems(environment));

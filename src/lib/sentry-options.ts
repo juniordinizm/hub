@@ -25,10 +25,14 @@ const sanitizeSentryEvent = (event: ErrorEvent): ErrorEvent => {
   };
 };
 
-export const getSentryOptions = (dsn: string | undefined) => ({
+export const getSentryOptions = (
+  dsn: string | undefined,
+  environment?: string
+) => ({
   beforeSend: sanitizeSentryEvent,
   dsn,
   enabled: Boolean(dsn),
+  ...(environment ? { environment } : {}),
   sendDefaultPii: false,
   tracesSampleRate: SENTRY_TRACE_SAMPLE_RATE,
 });

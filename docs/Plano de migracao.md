@@ -1199,27 +1199,22 @@ adapter foram aprovadas.
   ativos; webhook aponta somente para a rota durável e não usa fila sequencial; smoke
   completo; métricas verdes; zero novo evento AbacatePay e fila Asaas ativa.
 - **Responsável sugerido:** Tech Lead/Plataforma, com Backend e Financeiro presentes.
-- **Status:** Corte autorizado e em execução controlada. Release A publicada e
-  contenção comprovada; Release B ainda não integrada. Em 2026-07-29, a inspeção
-  somente leitura inicial confirmou:
-  - Production permanece no deployment Vercel `READY` do commit `1414bf5`;
-    `origin/main` está em `d64fc66`, com CI verde. Em 2026-07-30, a implementação Asaas
-    foi reunida no commit local `384db5a`, ainda sem push, Pull Request ou CI remota; o
-    commit combina Release A e Release B e precisa ser separado antes do caminho de
-    corte especificado;
-  - o GitHub Environment `vercel-production` possui os secrets e IDs exigidos pelo
-    workflow de deploy, mas a Vercel Production ainda não possui `ASAAS_API_KEY`,
-    `ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` nem `ASAAS_WEBHOOK_TOKEN`; as variáveis
-    AbacatePay continuam configuradas;
-  - a branch Neon Production está no topo `0043`, com 44 entradas no journal. Ela
-    contém cinco Pedidos AbacatePay de R$ 250, sendo dois `paid` e três `pending`, dois
-    webhooks AbacatePay e duas Concessões `abacatepay_order`. Esses agregados coincidem
-    com o ensaio descartável, mas não provam tecnicamente que os registros são testes;
-    a exclusão exige confirmação explícita da responsável pelo negócio;
-  - não havia erro de runtime Vercel agrupado nem log `error`/`fatal` no deployment
-    Production nas 24 horas inspecionadas.
-
-  Nenhuma variável, migration, dado, deployment ou workflow de Production foi alterado.
+- **Status:** Corte autorizado e em execução controlada. Releases A e B publicadas,
+  contenção comprovada, dados de teste removidos e Production migrada até `0052`.
+  A branch de backup `br-withered-tree-acj50vrb` permanece sem expiração automática.
+  O login Admin e o smoke fechado foram aprovados. A Vercel Production já possui
+  `ASAAS_API_BASE_URL=https://api.asaas.com`, o User-Agent canônico e
+  `ASAAS_API_KEY`. A auditoria controlada de 2026-07-31 recusou a chave antes de
+  qualquer mutação: a API retornou `invalid_environment`, e o diagnóstico sem segredo
+  confirmou prefixo Sandbox `$aact_hmlg_` em vez do prefixo Production
+  `$aact_prod_`. A chave foi devolvida ao modo Sensitive; `ASAAS_WEBHOOK_TOKEN` ainda
+  não existe. Produto esclareceu em seguida que não deseja ativar credenciais reais
+  ainda: o próximo teste deve continuar no Sandbox por Development/ngrok, sem
+  enfraquecer a separação de ambientes. A remoção da chave Sandbox colocada
+  indevidamente na Vercel Production aguarda confirmação explícita. Por isso,
+  `PAYMENTS_CHECKOUT_MODE=disabled` e
+  `ASAAS_WEBHOOK_ENABLED=false` continuam protegendo o runtime. As variáveis
+  AbacatePay permanecem configuradas remotamente até o smoke financeiro Asaas.
   Em 2026-07-29, a responsável confirmou explicitamente que todos os dados de todas as
   branches são testes descartáveis, incluindo pagamentos, Cursos, Contas de Aluna e
   demais registros da aplicação. A limpeza pode, portanto, remover todo o conteúdo
@@ -1289,8 +1284,8 @@ adapter foram aprovadas.
   terminador e o run `30602278594` concluiu migration/auditoria `0043`, build,
   readiness e promoção. O smoke público retornou `200` na raiz, `503` no checkout
   público e `204` no webhook AbacatePay; Pedidos, Webhooks e Concessões pagas
-  permaneceram em `5/2/2`. O login Admin ainda precisa de confirmação humana antes da
-  limpeza destrutiva.
+  permaneceram em `5/2/2`. O login Admin em Production foi confirmado pela pessoa
+  operadora antes da limpeza destrutiva.
 
   A Release B foi consolidada sobre `main`, versionada nos commits `3ec3842` e
   `641faca`, publicada no PR
@@ -1312,7 +1307,24 @@ adapter foram aprovadas.
   O bloqueio operacional já documentado foi então removido no pipeline: Preview
   também cria uma branch Neon efêmera própria, prepara/migra, substitui
   `DATABASE_URL` somente naquele deployment, executa o smoke e apaga a branch em
-  passo `always()`. Essa correção aguarda o próximo run remoto.
+  passo `always()`. O run remoto `30604260973` aprovou quality gates, 20 testes
+  PostgreSQL, 24 jornadas Chromium, build/Knip e readiness do Preview efêmero, cuja
+  branch foi removida. O PR #19 foi integrado por squash no commit `9419c09`; a CI
+  posterior da `main`, run `30604804209`, também passou.
+
+  O corte destrutivo de Production foi executado somente depois dessa integração e da
+  confirmação do login Admin. Os runs de plano `30605249518` e `30605392255`
+  produziram o mesmo fingerprint e as mesmas contagens. O run `30605427898` criou a
+  branch Neon de backup `asaas-cutover-backup-20260731T045620Z`
+  (`br-withered-tree-acj50vrb`) sem expiração automática e removeu os dados de teste,
+  preservando exclusivamente a Conta Admin e sua identidade. O plano posterior
+  `30605478950` confirmou um usuário, perfil, conta e sessão, com todas as tabelas
+  operacionais zeradas. O run `30605515827` aplicou `0044` a `0052`, auditou o
+  journal, construiu o candidato, passou readiness e promoveu a Release B. O smoke
+  fechado confirmou login público redirecionado com destino final `200`, checkout
+  Asaas `503`, webhook Asaas `503` e rota AbacatePay removida com `404`.
+  `PAYMENTS_CHECKOUT_MODE=disabled` e `ASAAS_WEBHOOK_ENABLED=false` permanecem ativos
+  até a configuração das credenciais de Production e o smoke financeiro controlado.
 
 **Rollback:**
 
@@ -1613,15 +1625,31 @@ bun run verify
   passou e o deployment Production `0e043fa` foi promovido. Smoke confirmou raiz
   `200`, checkout público `503`, webhook legado `204` e zero alteração nas contagens
   financeiras.
-- [ ] **Pendente de execução:** remover dados de teste; `plan` real já validado em
-  clone descartável e `execute` ainda não foi acionado.
-- [ ] **Em validação remota:** integrar e publicar a Release B pelo PR
-  [#19](https://github.com/juniordinizm/hub/pull/19); implementação e gate local
-  completos, com correção do preparo das branches efêmeras aguardando CI verde.
+- [x] **Concluído em Production:** remover os dados de teste após dois planos
+  idênticos, criar a branch Neon de backup `br-withered-tree-acj50vrb` sem expiração
+  automática e preservar exclusivamente a Conta Admin e sua identidade. A auditoria
+  posterior confirmou todas as tabelas operacionais zeradas.
+- [x] **Release B publicada fechada:** o PR
+  [#19](https://github.com/juniordinizm/hub/pull/19) foi integrado no commit
+  `9419c09`, a CI do PR e da `main` passou, `0044` a `0052` foram aplicadas e o
+  deployment foi promovido pelo run `30605515827`. Checkout e webhook permanecem
+  desabilitados até credenciais Asaas de Production e smoke financeiro controlado.
 - [x] **Concluído em código na Release B:** rota, cliente, parser, processor, retry,
   configuração operacional e documentação canônica AbacatePay removidos. Typecheck,
   Ultracite, 1.062 testes, docs:check e allowlist estática passaram em 2026-07-30;
   credenciais/configuração remota só serão revogadas após o smoke Asaas.
 - [ ] **Não iniciado:** monitorar por pelo menos 14 dias.
 - [ ] **Não iniciado:** remover resíduos e ratificar documentação.
+
+## Homologação persistente após o corte
+
+- [x] **Concluído em código:** classificar Staging por `VERCEL_TARGET_ENV`,
+  validar providers fail-closed, isolar objetos R2 sob `staging/`, bloquear
+  Production em manutenção integral e marcar Staging como não indexável.
+- [x] **Concluído em código:** comandos guardados de migration, seed Admin e
+  reset manual, além dos workflows de deploy, scheduler e reset de Staging.
+- [x] **Concluído em código:** deploy Production exige SHA explícito,
+  confirmação literal, backup Neon antes da migration e smoke da manutenção.
+- [ ] **Em execução:** provisionar Neon/Vercel/DNS, configurar Asaas Sandbox,
+  publicar e homologar `preview.neurocapacitar.com.br`.
 
