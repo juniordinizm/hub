@@ -126,5 +126,11 @@ describe("CI workflow", () => {
     expect(stagingWorkflow).toContain("branches: [staging]");
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
+    expect(stagingWorkflow).not.toContain(
+      `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
+    );
+    expect(stagingWorkflow).toContain(
+      "https://preview.neurocapacitar.com.br/api/health/ready"
+    );
   });
 });

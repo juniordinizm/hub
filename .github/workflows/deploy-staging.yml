@@ -83,23 +83,14 @@ jobs:
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
       - name: Deploy exact SHA to the Staging target
-        id: deploy
         env:
           DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.sha }}
         run: |
-          deployment_url="$(
-            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
-              --target=staging \
-              --meta "githubCommitRef=staging" \
-              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
-              --token="$VERCEL_TOKEN"
-          )"
-          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
-      - name: Smoke deployment readiness
-        run: |
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
-            "${{ steps.deploy.outputs.url }}/api/health/ready" > /dev/null
+          bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
+            --target=staging \
+            --meta "githubCommitRef=staging" \
+            --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+            --token="$VERCEL_TOKEN"
       - name: Smoke stable Staging domain
         run: |
           set -euo pipefail

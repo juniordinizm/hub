@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -128,7 +130,7 @@ const resetDatabase = async (
 
 const seedAdmin = async (): Promise<void> => {
   await execFileAsync(
-    "bun",
+    process.execPath,
     ["--conditions=react-server", "scripts/seed-staging-admin.ts"],
     {
       env: process.env,
@@ -232,6 +234,3 @@ try {
 } finally {
   await pool.end();
 }
-
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";

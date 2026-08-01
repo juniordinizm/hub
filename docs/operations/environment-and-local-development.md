@@ -49,7 +49,9 @@ providers caso volte a ser usado.
 Staging envia `noindex` por metadata e `X-Robots-Tag`, não publica sitemap e
 exibe uma faixa visual. Isso reduz indexação acidental, mas a URL continua
 pública para participantes convidados. A limpeza de dados é somente manual;
-não há retenção ou reset automático.
+não há retenção ou reset automático. A Vercel Authentication protege as URLs
+`*.vercel.app`, mas exclui domínios personalizados; por isso, os smokes e os
+testes manuais usam exclusivamente `https://preview.neurocapacitar.com.br`.
 
 ## Matriz de variáveis
 
