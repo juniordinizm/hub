@@ -14,8 +14,10 @@ export interface CiMigrationPreparationClient {
 
 const LEGACY_JOURNAL_COUNT = 44;
 const LEGACY_JOURNAL_TOP = "1785037403006";
-const CURRENT_JOURNAL_COUNT = 53;
-const CURRENT_JOURNAL_TOP = "1785424607559";
+const CURRENT_JOURNALS = [
+  { count: 53, top: "1785424607559" },
+  { count: 54, top: "1785632318824" },
+] as const;
 const NEON_BRANCH_ID_PATTERN = /^br-[a-z0-9-]+$/;
 const NEON_HOST_SUFFIX = ".neon.tech";
 const PREPARATION_ADVISORY_LOCK_ID = "7032029002";
@@ -84,9 +86,10 @@ export const prepareCiMigrationDatabase = async (
     const isLegacyJournal =
       state?.migration_count === LEGACY_JOURNAL_COUNT &&
       state.migration_top === LEGACY_JOURNAL_TOP;
-    const isCurrentJournal =
-      state?.migration_count === CURRENT_JOURNAL_COUNT &&
-      state.migration_top === CURRENT_JOURNAL_TOP;
+    const isCurrentJournal = CURRENT_JOURNALS.some(
+      ({ count, top }) =>
+        state?.migration_count === count && state.migration_top === top
+    );
     if (isCurrentJournal) {
       await client.query("commit");
       transactionOpen = false;
@@ -94,7 +97,7 @@ export const prepareCiMigrationDatabase = async (
     }
     if (!isLegacyJournal) {
       throw new Error(
-        "CI migration preparation requires journal 0043 or 0052."
+        "CI migration preparation requires journal 0043, 0052, or 0053."
       );
     }
 

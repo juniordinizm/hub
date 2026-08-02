@@ -45,6 +45,15 @@ confirmou a solicitação, encerrou a Revisão de identidade bloqueada e preserv
 Conta, Concessão e Matrícula para a compra inelegível. O Curso descartável foi restaurado
 para R$ 19,90, Pix + cartão e máximo de 3x ao final.
 
+Ainda em 2026-08-02, a PR `#20` promoveu Staging para `main` no commit
+`cde26cf411b316446ab0493238e5ed66f22a35fe`; a CI `30735381462` aprovou esse
+SHA. O workflow protegido `30735668308` criou backup Neon com expiração em
+2026-08-16, aplicou e auditou as migrations de Production, publicou primeiro sem
+promoção e validou readiness. Em seguida promoveu o deployment
+`dpl_HquonccfkfWzyjJ7DDNkWX25U8Qb` e confirmou `503` em `/`, `/entrar` e `/admin`,
+além de saúde e readiness válidos. Production permaneceu integralmente em manutenção;
+nenhum checkout ou webhook de Production foi habilitado.
+
 ### Ambientes
 
 - `vercel-staging`: ambiente protegido no GitHub. Contém secrets operacionais

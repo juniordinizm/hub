@@ -8,18 +8,19 @@ last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. Em 2026-07-31, a cadeia
-`0000` a `0052` está aplicada à branch `production`
+O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
+`0000` a `0053` está aplicada à branch `production`
 (`br-dark-boat-ac5ju6m4`) do projeto Neon definitivo
-`damp-snow-22911188`. A auditoria do corte confirmou 53 entradas no journal,
-topo em `0052`, hashes idênticos ao repositório e paridade dos objetos críticos
-descritos neste runbook.
+`damp-snow-22911188`. O workflow protegido `30735668308` confirmou 54 entradas
+no journal, topo em `0053`, hashes idênticos ao repositório e paridade dos objetos
+críticos descritos neste runbook.
 
 Em 2026-08-01, a cadeia `0000` a `0053` foi aplicada à branch descartável de
 Staging `br-rapid-rain-acnqzhiv`. Duas execuções consecutivas do migrador
 guardado confirmaram idempotência, 54 entradas no journal, as quatro novas
 colunas de snapshot do Pedido e a oferta padrão Pix + cartão em até 3x no Curso
-existente. Production permaneceu em `0052` durante essa homologação.
+existente. Production permaneceu em `0052` durante essa homologação e recebeu
+`0053` somente na promoção protegida posterior.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
@@ -339,8 +340,9 @@ bun run db:migrate:e2e
 O comando `bun run db:prepare:ci-migration` não é de uso manual. A CI o executa somente
 nas branches criadas pela própria job enquanto a branch-pai está em `0043`. Ele valida
 ambiente CI, branch Neon, URLs, compute não Production e journal antes de truncar
-`orders` com dependências somente no clone efêmero. O journal diferente de `0043`
-ou `0052` interrompe o comando; em `0052`, ele não altera dados. Assim, a exceção de
+`orders` com dependências somente no clone efêmero. O journal diferente de `0043`,
+`0052` ou `0053` interrompe o comando; em `0052` ou `0053`, ele não altera dados.
+Assim, a exceção de
 corte não se transforma em limpeza recorrente nem bloqueia a CI depois da promoção.
 
 ## Evidências

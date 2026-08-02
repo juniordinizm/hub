@@ -1650,6 +1650,7 @@ bun run verify
   reset manual, além dos workflows de deploy, scheduler e reset de Staging.
 - [x] **Concluído em código:** deploy Production exige SHA explícito,
   confirmação literal, backup Neon antes da migration e smoke da manutenção.
-- [ ] **Em execução:** provisionar Neon/Vercel/DNS, configurar Asaas Sandbox,
-  publicar e homologar `preview.neurocapacitar.com.br`.
+- [x] **Concluído:** provisionar Neon/Vercel/DNS, configurar Asaas Sandbox,
+  publicar e homologar `preview.neurocapacitar.com.br`, incluindo Pix, cartão em
+  1x e cartão em 3x, expiração, vínculo público, bloqueio por revogação e reembolso.
 

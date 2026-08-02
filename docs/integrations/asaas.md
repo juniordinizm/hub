@@ -34,6 +34,12 @@ Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
 entradas e `404` na rota legada removida.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
+O release de manutenção de 2026-08-02 promoveu o código e a migration
+`0053_course_payment_offers` para Production pelo workflow protegido
+`30735668308`. O deployment permaneceu com checkout e webhook desabilitados e todas as
+superfícies de produto em manutenção; isso atualiza o runtime/schema, mas não constitui o
+corte comercial para a conta Asaas de Production.
+
 Staging usa a conta Sandbox e
 `https://preview.neurocapacitar.com.br/api/webhooks/asaas`. O webhook está
 ativo, não interrompido, com envio sequencial, token próprio e os 18 eventos
