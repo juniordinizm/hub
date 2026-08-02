@@ -15,11 +15,11 @@ import {
   type RefundAsaasInstallment,
   type RefundAsaasPayment,
 } from "./asaas";
+import { buildAsaasCheckoutPaymentOptions } from "./asaas-checkout-options";
 import {
   parseAsaasDecimalToCents,
   parseSignedAsaasDecimalToCents,
 } from "./asaas-money";
-import { buildAsaasCheckoutPaymentOptions } from "./course-payment-offer";
 
 export const DEFAULT_ASAAS_TIMEOUT_MS = 10_000;
 

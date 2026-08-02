@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 9419c09b9c7f4a4f3f977e896f51374548080dd8
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Asaas
@@ -39,7 +39,13 @@ Staging usa a conta Sandbox e
 ativo, não interrompido, com envio sequencial, token próprio e os 18 eventos
 tratados pelo domínio financeiro. Em 2026-08-01, readiness retornou `200`; a
 rota recusou requisição sem token com `401` e aceitou o token antes de rejeitar
-um payload sintaticamente inválido com `400`.
+um payload sintaticamente inválido com `400`. Em 2026-08-01, a migration
+`0053_course_payment_offers` foi aplicada duas vezes no compute guardado de
+Staging: o journal permaneceu idempotente com 54 entradas e o Curso existente
+recebeu a oferta padrão Pix + cartão em até 3x. O deployment
+`dpl_9UYQJxnrWMZXqWBdQaZai4imkLkU` publicou o SHA exato da implementação no
+Custom Environment `staging`; readiness retornou `200` e a Vercel não registrou
+erros de runtime durante a homologação.
 
 O schema mantém `orders.status` como estado canônico
 `pending | paid | refunded | disputed | cancelled`. O ciclo externo fica separado:
@@ -92,7 +98,14 @@ campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
 - o Checkout não documenta campo para juros comerciais ou repasse de taxa;
 - `interest` nas APIs de cobrança significa juros por atraso;
 - cada parcela possui um ID de pagamento próprio;
-- Pix + cartão parcelado no mesmo Checkout ainda exige prova específica no Sandbox.
+- Pix + cartão parcelado no mesmo Checkout foi comprovado no Sandbox.
+
+Na prova de 2026-08-01, o Admin alterou e persistiu o teto de 3x para 5x e o
+restaurou para 3x. O link público da configuração redirecionou diretamente ao
+Checkout Sandbox, que exibiu Pix e cartão. A resposta oficial ao cancelamento
+confirmou `billingTypes=PIX,CREDIT_CARD`, `chargeTypes=DETACHED,INSTALLMENT` e
+`maxInstallmentCount=3`. O webhook e o worker encerraram o Pedido como
+`cancelled/CANCELED` sem efeito financeiro.
 
 O Hub guarda o ID comum em `provider_installment_id`, valida o agregado oficial fora da
 transação local, preserva a primeira cobrança em `provider_payment_id`, concilia todas as
@@ -225,8 +238,8 @@ tentativa somente no clique. A navegação aceita somente HTTPS, sem credenciais
 hosts exatos `sandbox.asaas.com`, `www.asaas.com` ou `asaas.com`; qualquer outro destino
 falha fechado. O runtime E2E permite adicionalmente apenas
 `http://127.0.0.1:4570`, condicionado a `NEXT_PUBLIC_E2E_TEST_MODE=true`; essa origem não é
-aceita no build normal. A jornada está implementada em código e ainda não foi homologada
-novamente no Sandbox.
+aceita no build normal. Em 2026-08-01, a jornada foi homologada novamente no
+Sandbox pelo domínio estável de Staging, sem página ou formulário intermediário.
 A configuração administrativa do Curso mostra esse link absoluto somente quando checkout
 público, Curso ativo, publicação `published` e preço mínimo estão válidos. O botão usa a
 Clipboard API e, quando indisponível, seleciona o campo read-only para cópia manual.

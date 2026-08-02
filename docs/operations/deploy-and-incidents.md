@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Deploy e incidentes
@@ -25,6 +25,16 @@ recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
 um deployment Production sem promovê-lo, testa readiness e o promove. Deploys
 Git automáticos da Vercel devem permanecer desligados.
+
+O bootstrap de 2026-08-01 ocorreu antes de esses workflows existirem na branch
+padrão. A CI `30726910261` aprovou o SHA
+`4eab1a331f2d6989e5958aa0d6b55a66438f1396`; em seguida, o mesmo checkout local
+executou o migrador guardado e `vercel deploy --target=staging` sobre esse SHA.
+O deployment `dpl_9UYQJxnrWMZXqWBdQaZai4imkLkU` ficou `READY`, recebeu os aliases
+de Staging e passou em readiness, `noindex,nofollow` e ausência de sitemap. Essa
+exceção de bootstrap usou apenas dados explicitamente descartáveis de Staging.
+Depois que o workflow chegar à `main`, releases seguintes devem usar
+exclusivamente o caminho automatizado.
 
 ### Ambientes
 
@@ -87,8 +97,10 @@ irreversível sem plano de recuperação.
 O workflow `Run Staging jobs` chama os workers frequentes a cada cinco minutos
 e os jobs diários em horários próprios. Essa latência de até cinco minutos é
 aceita em homologação. Schedules do GitHub só executam a versão presente na
-branch padrão; antes de o workflow chegar à `main`, o bootstrap deve ser feito
-por `workflow_dispatch` selecionando a branch `staging`.
+branch padrão. O GitHub também não registra `workflow_dispatch` de um arquivo
+ausente na branch padrão; portanto não existe despacho manual pela UI antes do
+primeiro merge. O único bootstrap permitido é o procedimento exato documentado
+acima, com CI verde e SHA imutável.
 
 ## Configuração obrigatória
 

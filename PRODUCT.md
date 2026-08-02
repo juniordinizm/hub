@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Produto PROTEA-R Hub
@@ -39,8 +39,9 @@ A jornada pública aprovada está implementada em código: usa o link estável
 `/comprar/[slug]`, copiável pela administração e consumido pela landing page externa; o
 handoff cria o Checkout sem formulário local e mantém `/` protegida. O worker enriquece a
 identidade fora da transação e trata Conta de equipe, bloqueio e revogação sem liberar
-acesso. A execução E2E em PostgreSQL descartável, a homologação Sandbox pós-mudança e o
-corte de Production permanecem pendentes.
+acesso. A execução E2E em PostgreSQL descartável e o handoff público no Sandbox foram
+homologados; a conclusão financeira manual de uma compra parcelada e o corte de
+Production permanecem pendentes.
 
 ### Aprendizagem
 
@@ -70,8 +71,10 @@ corte de Production permanecem pendentes.
 - comentários com uma camada de resposta e moderação;
 - núcleo Asaas anterior da compra autenticada, inbox/worker, conciliação e reembolso
   integral implementados e homologados em Sandbox, ainda sem corte de Production;
-- API, jornada pública e revisão de identidade implementadas em código, pendentes de
-  prova E2E em PostgreSQL descartável e homologação Sandbox pós-mudança;
+- API, jornada pública e revisão de identidade implementadas, cobertas por E2E em
+  PostgreSQL descartável e homologadas no handoff Sandbox;
+- oferta comercial por Curso com Pix, cartão ou ambos e teto de parcelamento,
+  homologada no Checkout Sandbox até a exibição das opções em 3x;
 - Certificados públicos, PDF, revogação e reemissão;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.
@@ -80,7 +83,7 @@ corte de Production permanecem pendentes.
 
 - marketplace, múltiplas especialistas, multi-tenancy ou organizações de clientes;
 - assinaturas recorrentes e coortes de conteúdo;
-- parcelamento sem um contrato próprio de múltiplas cobranças por Pedido;
+- assinaturas recorrentes ou parcelamento fora do agregado nativo do Asaas;
 - aplicativo móvel nativo;
 - pipeline próprio de vídeo no lugar de JMVStream;
 - ferramenta de CRM/reengajamento baseada em analytics;
@@ -97,8 +100,9 @@ decisão arquitetural retroativamente inventada.
 O [registro de decisões](docs/decisions.md) separa comportamento implementado, decisão aprovada, implementação aguardando ratificação e pendência real.
 
 Pendências principais: base legal e texto final de transparência para analytics padrão
-antes da produção; prova E2E PostgreSQL e homologação Sandbox da jornada pública; modelo
-financeiro do parcelamento e repasse de juros; reversão de ajustes encadeados;
+antes da produção; prova financeira manual de uma compra parcelada Sandbox; política
+comercial para eventual subsídio de juros, não configurável no Checkout hospedado;
+reversão de ajustes encadeados;
 critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão
 tratados como caso excepcional quando houver política jurídica formal e demanda real.
 

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Arquitetura
@@ -60,11 +60,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
 O schema possui 40 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 52 entradas alinhadas, com topo `0051_asaas_financial_statement`;
+possuem 54 entradas alinhadas, com topo `0053_course_payment_offers`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0051` foram geradas e ainda não foram aplicadas em Production. Na Vercel, cada instância limita o pool
+`0052` estão aplicadas em Production, enquanto `0053` foi aplicada somente em
+Staging durante a homologação. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 

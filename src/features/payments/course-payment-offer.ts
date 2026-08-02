@@ -13,14 +13,6 @@ export const DEFAULT_COURSE_PAYMENT_OFFER: CoursePaymentOffer = {
   maxInstallmentCount: 3,
 };
 
-export interface AsaasCheckoutPaymentOptions {
-  billingTypes: Array<"CREDIT_CARD" | "PIX">;
-  chargeTypes: Array<"DETACHED" | "INSTALLMENT">;
-  installment?: {
-    maxInstallmentCount: number;
-  };
-}
-
 export const parseCoursePaymentOffer = (
   offer: CoursePaymentOffer
 ): CoursePaymentOffer => {
@@ -37,25 +29,4 @@ export const parseCoursePaymentOffer = (
   return offer.allowCreditCard
     ? offer
     : { ...offer, maxInstallmentCount: MIN_INSTALLMENT_COUNT };
-};
-
-export const buildAsaasCheckoutPaymentOptions = (
-  offer: CoursePaymentOffer
-): AsaasCheckoutPaymentOptions => {
-  const parsed = parseCoursePaymentOffer(offer);
-  const billingTypes: AsaasCheckoutPaymentOptions["billingTypes"] = [];
-  if (parsed.allowPix) {
-    billingTypes.push("PIX");
-  }
-  if (parsed.allowCreditCard) {
-    billingTypes.push("CREDIT_CARD");
-  }
-  if (parsed.maxInstallmentCount === 1) {
-    return { billingTypes, chargeTypes: ["DETACHED"] };
-  }
-  return {
-    billingTypes,
-    chargeTypes: ["DETACHED", "INSTALLMENT"],
-    installment: { maxInstallmentCount: parsed.maxInstallmentCount },
-  };
 };
