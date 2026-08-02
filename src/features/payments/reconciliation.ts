@@ -19,6 +19,7 @@ const MAX_STATEMENT_PAGES = 100;
 
 interface ReconciliationOrder {
   amountInCents: number;
+  buyerIdentityStatus: "pending" | "resolved" | "review_required";
   courseId: string;
   externalId: string;
   id: string;
@@ -43,6 +44,11 @@ const terminalOrderStatuses = new Set<PersistedOrderStatus>([
   "refunded",
 ]);
 const settledPaymentStatuses = new Set(["CONFIRMED", "RECEIVED", "REFUNDED"]);
+const buyerIdentityStatuses = new Set([
+  "pending",
+  "resolved",
+  "review_required",
+]);
 
 const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
   if (!(row && typeof row === "object")) {
@@ -55,10 +61,16 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
     typeof value.provider_checkout_id === "string" &&
     typeof value.provider_payment_id === "string" &&
     typeof value.amount_in_cents === "number" &&
+    typeof value.buyer_identity_status === "string" &&
+    buyerIdentityStatuses.has(value.buyer_identity_status) &&
     typeof value.status === "string" &&
     persistedOrderStatuses.has(value.status as PersistedOrderStatus)
     ? {
         amountInCents: value.amount_in_cents,
+        buyerIdentityStatus: value.buyer_identity_status as
+          | "pending"
+          | "resolved"
+          | "review_required",
         courseId: value.course_id,
         externalId: value.external_id,
         id: value.id,
@@ -139,7 +151,11 @@ const decideReconciliation = ({
       payment.refunds.length > 0
         ? "O Asaas retornou reembolso sem evidencia do valor integral do Pedido."
         : "O Asaas retornou status REFUNDED sem evidencia de reembolso integral.";
-  } else if (isRefunded && !order.userId) {
+  } else if (
+    isRefunded &&
+    !order.userId &&
+    order.buyerIdentityStatus !== "review_required"
+  ) {
     reviewType = "event_anomaly";
     reviewReason =
       "O Pedido reembolsado nao possui Conta correlacionada para verificar a Concessao.";
@@ -296,7 +312,8 @@ export const reconcileAsaasPayment = async ({
 }): Promise<void> => {
   const pool = getPool();
   const initial = await pool.query(
-    `select id, course_id, user_id, external_id, provider_checkout_id,
+    `select id, course_id, user_id, external_id, buyer_identity_status,
+            provider_checkout_id,
             provider_payment_id, provider_installment_id,
             provider_payment_status, amount_in_cents, status
      from orders
@@ -334,7 +351,8 @@ export const reconcileAsaasPayment = async ({
   try {
     await client.query("begin");
     const locked = await client.query(
-      `select id, course_id, user_id, external_id, provider_checkout_id,
+      `select id, course_id, user_id, external_id, buyer_identity_status,
+              provider_checkout_id,
               provider_payment_id, provider_installment_id,
               provider_payment_status, amount_in_cents, status
        from orders

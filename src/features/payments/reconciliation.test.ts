@@ -22,6 +22,7 @@ import {
 
 const orderRow = {
   amount_in_cents: 12_990,
+  buyer_identity_status: "resolved",
   course_id: "course-1",
   external_id: "order_order-1",
   id: "order-1",
@@ -135,8 +136,10 @@ describe("Asaas reconciliation", () => {
   it("reconciles every payment under the exact installment aggregate", async () => {
     const installmentOrder = {
       ...orderRow,
+      buyer_identity_status: "review_required",
       provider_installment_id: "ins-1",
       provider_payment_status: "CONFIRMED",
+      user_id: null,
     };
     const transactionQueries: Array<{
       text: string;
@@ -239,6 +242,11 @@ describe("Asaas reconciliation", () => {
         text.includes("update payment_reviews")
       )?.values
     ).toEqual(["order-1", expect.any(Date)]);
+    expect(
+      transactionQueries.some(({ text }) =>
+        text.includes("insert into payment_reviews")
+      )
+    ).toBe(false);
   });
 
   it.each([
