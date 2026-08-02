@@ -20,7 +20,9 @@ release.
 O workflow `CI` valida o código em Pull Requests e pushes para `staging` ou
 `main`, sem criar deployments. Uma CI verde do SHA atual de `staging` dispara
 `Deploy Vercel staging`, que cria backup Neon de sete dias, migra e publica no
-Custom Environment `staging`. O workflow manual `Deploy Vercel production`
+Custom Environment `staging`. O backup declara `parent_branch` com o ID de Staging;
+usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. O
+workflow manual `Deploy Vercel production`
 recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
 um deployment Production sem promovê-lo, testa readiness e o promove. Deploys
@@ -53,6 +55,12 @@ promoção e validou readiness. Em seguida promoveu o deployment
 `dpl_HquonccfkfWzyjJ7DDNkWX25U8Qb` e confirmou `503` em `/`, `/entrar` e `/admin`,
 além de saúde e readiness válidos. Production permaneceu integralmente em manutenção;
 nenhum checkout ou webhook de Production foi habilitado.
+
+O primeiro disparo automático após essa promoção revelou duas falhas de configuração:
+o secret `VERCEL_TOKEN` do Environment `vercel-staging` continha BOM e o backup usava
+o input inválido `parent`. O token foi substituído sem BOM; os três backups efêmeros
+criados pelas retentativas foram removidos, e o contrato versionado passou a exigir
+`parent_branch` e a proibir `parent` por teste automatizado.
 
 ### Ambientes
 

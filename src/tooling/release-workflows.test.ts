@@ -126,6 +126,10 @@ describe("CI workflow", () => {
     expect(stagingWorkflow).toContain("branches: [staging]");
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
+    expect(stagingWorkflow).toContain(
+      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
+    );
+    expect(stagingWorkflow).not.toContain("\n          parent:");
     expect(stagingWorkflow).not.toContain(
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
     );

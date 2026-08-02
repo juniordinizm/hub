@@ -78,7 +78,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: staging-release-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
-          parent: ${{ vars.STAGING_NEON_BRANCH_ID }}
+          parent_branch: ${{ vars.STAGING_NEON_BRANCH_ID }}
           project_id: ${{ vars.STAGING_NEON_PROJECT_ID }}
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
