@@ -36,6 +36,15 @@ exceção de bootstrap usou apenas dados explicitamente descartáveis de Staging
 Depois que o workflow chegar à `main`, releases seguintes devem usar
 exclusivamente o caminho automatizado.
 
+Na homologação final de 2026-08-02, a CI `30734378547` aprovou o SHA
+`11704416ab64f9d6b3a1a8d6cf946c5d7fe2cef2`. O deployment manual de bootstrap
+`dpl_4v6TvdoNchJJewiFsaFoyiZCQf5G` publicou esse SHA no target `staging`, ficou
+`READY` e recebeu os aliases `preview.neurocapacitar.com.br` e
+`hub-env-staging-neuro-capacitar.vercel.app`. A conciliação do reembolso parcelado
+confirmou a solicitação, encerrou a Revisão de identidade bloqueada e preservou zero
+Conta, Concessão e Matrícula para a compra inelegível. O Curso descartável foi restaurado
+para R$ 19,90, Pix + cartão e máximo de 3x ao final.
+
 ### Ambientes
 
 - `vercel-staging`: ambiente protegido no GitHub. Contém secrets operacionais

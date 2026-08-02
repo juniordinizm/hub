@@ -119,7 +119,9 @@ cobrança, em vez de uma evidência isolada de R$ 99,00. Resposta da mutação, 
 conciliação agora somam somente evidências positivas, não canceladas e cujo total exato
 corresponde ao snapshot do Pedido. Evidência agregada integral confirma a solicitação e
 encerra a Revisão de identidade; valor parcial, cancelado ou divergente continua falhando
-fechado.
+fechado. Na conciliação, um Pedido público em `buyer_identity_status=review_required`
+sem `user_id` é o estado esperado desse bloqueio e não cria uma Revisão financeira
+`event_anomaly`; ausência de Conta fora desse estado continua sendo anomalia.
 
 O Hub guarda o ID comum em `provider_installment_id`, valida o agregado oficial fora da
 transação local, preserva a primeira cobrança em `provider_payment_id`, concilia todas as
