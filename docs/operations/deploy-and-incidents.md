@@ -62,6 +62,14 @@ o input inválido `parent`. O token foi substituído sem BOM; os três backups e
 criados pelas retentativas foram removidos, e o contrato versionado passou a exigir
 `parent_branch` e a proibir `parent` por teste automatizado.
 
+O run corrigido `30738007829`, tentativa 2, criou o backup a partir da branch Staging,
+reaplicou as migrations de forma idempotente e publicou o deployment
+`dpl_BWy4dBVMfCkPfBimAEuFkWBvYS1z`. O `HEALTHCHECK_SECRET`, também contaminado no
+provisionamento inicial, foi rotacionado com o mesmo valor limpo no Custom Environment
+Vercel e no GitHub Environment. O smoke confirmou raiz não indexável, sitemap ausente e
+readiness autenticada. O backup da tentativa bem-sucedida permanece com expiração de
+sete dias; o backup da tentativa cujo smoke falhou foi removido.
+
 ### Ambientes
 
 - `vercel-staging`: ambiente protegido no GitHub. Contém secrets operacionais
