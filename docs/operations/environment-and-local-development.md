@@ -21,6 +21,41 @@ técnico completo.
 A topologia, o onboarding de outra estação e as restrições de cada provider
 estão no [guia de Development compartilhado](shared-development-and-release-guide.md).
 
+## Topologia de ambientes
+
+O projeto possui cinco perfis:
+
+- Development local: integração manual contra recursos de teste;
+- E2E: execução efêmera e isolada na CI;
+- Preview: candidato técnico descartável, fail-closed e sem providers;
+- Staging: homologação persistente em
+  `https://preview.neurocapacitar.com.br`, com cadastro público e dados
+  descartáveis;
+- Production: ambiente definitivo, atualmente em manutenção integral.
+
+Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
+`VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
+Sentry de Development. Compartilha os buckets R2 de Development sob o namespace
+físico `staging/`, o plano JMVStream de Production e a estrutura Resend já
+aprovada. Essas exceções exigem confirmações explícitas e não oferecem
+isolamento completo nos três providers compartilhados.
+
+Production em `APPLICATION_MAINTENANCE_MODE=full` exige cadastro, checkout,
+webhook Asaas e jobs desligados. O Proxy responde `503` para páginas, APIs,
+Server Actions e login, liberando somente health, readiness e crons
+autenticados. Preview permanece como perfil dormente e recusa credenciais de
+providers caso volte a ser usado.
+
+Staging envia `noindex` por metadata e `X-Robots-Tag`, não publica sitemap e
+exibe uma faixa visual. Isso reduz indexação acidental, mas a URL continua
+pública para participantes convidados. A limpeza de dados é somente manual;
+não há retenção ou reset automático. Vercel Authentication está desligada no
+projeto porque Standard Protection também protege domínios de Custom
+Environments e a exceção por domínio exige Advanced Deployment Protection.
+Deploy automático de Preview permanece desligado; os 30 deployments Preview
+históricos foram removidos. Smokes e testes manuais usam exclusivamente
+`https://preview.neurocapacitar.com.br`.
+
 ## Matriz de variáveis
 
 “Obrigatória” significa exigida quando a capacidade indicada é usada, salvo exigência adicional de produção.
@@ -29,6 +64,11 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 |---|---|---|---|
 | `DATABASE_URL` | runtime com banco | `getPool` | sim |
 | `DATABASE_URL_DIRECT` | somente job de migration/auditoria; proibida no web runtime de produção | `drizzle.config.ts`, `migrate-production.ts` | sim |
+| `STAGING_DATABASE_HOST` | confirmação do compute Neon de Staging | preflight e comandos guardados | identificador protegido |
+| `STAGING_NEON_BRANCH_ID` | confirmação da branch Neon de Staging | migration, seed e reset | identificador protegido |
+| `STAGING_OPERATION_CONFIRMATION` | literal `staging` | comandos de Staging | não |
+| `STAGING_ADMIN_EMAIL` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | dado interno |
+| `STAGING_ADMIN_PASSWORD` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | sim |
 | `DEVELOPMENT_DATABASE_HOST` | preflight e seed Development | confirmação do endpoint Neon | identificador protegido |
 | `SHARED_DEVELOPMENT_SEED_CONFIRMATION` | seed Development | confirmação literal `development` | não |
 | `DEVELOPMENT_ADMIN_EMAIL` | seed Development | Conta Admin fictícia | dado interno |
@@ -50,6 +90,7 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |
 | `NEXT_ALLOWED_DEV_ORIGINS` | dev atrás de proxy | `next.config.ts` | não |
 | `NEXT_PUBLIC_APP_URL` | explícita em Production; derivada do hostname Vercel em Preview | links/redirects | público |
+| `NEXT_PUBLIC_VERCEL_TARGET_ENV` | gerenciada pela Vercel; nunca manual em Development | classificação Sentry no navegador | público |
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
 | `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
@@ -68,6 +109,7 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
+| `STAGING_SENTRY_PROJECT_ID` | confirmação do projeto Development compartilhado | preflight Staging | identificador protegido |
 | `DEVELOPMENT_SENTRY_PROJECT_ID` | preflight Development | confirmação do projeto Sentry | identificador protegido |
 | `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | secret de build estável entre releases sobrepostas | `next build` | sim |
@@ -77,6 +119,7 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `JMVSTREAM_PLAN_ID` | operações de vídeo | cliente JMVStream | identificador protegido |
 | `DEVELOPMENT_JMVSTREAM_PLAN_ID` | preflight Development | confirmação de plano isolado, quando usado | identificador protegido |
 | `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION` | preflight Development | confirmação explícita do plano Production compartilhado | `true` somente quando aprovado |
+| `STAGING_JMVSTREAM_USES_PRODUCTION` | preflight Staging | confirmação explícita do plano Production compartilhado | `true` |
 | `JMVSTREAM_AUTH_RESOURCE` | autenticação preferida | `/v2/authenticate` | identificador protegido |
 | `R2_ACCOUNT_ID` | mídia R2 | cliente S3 | identificador protegido |
 | `R2_BUCKET_NAME` | mídia privada | cliente S3 | não |
@@ -84,6 +127,9 @@ estão no [guia de Development compartilhado](shared-development-and-release-gui
 | `R2_SECRET_ACCESS_KEY` | mídia R2 | cliente S3 | sim |
 | `R2_PUBLIC_BUCKET_NAME` | publicação pública | Copy/Delete | não |
 | `R2_PUBLIC_BASE_URL` | leitura pública | URLs/Next Image | público |
+| `R2_OBJECT_PREFIX` | namespace físico; `staging` em Staging | fronteira S3 | não |
+| `STAGING_R2_USES_DEVELOPMENT` | confirmação dos buckets Development compartilhados | preflight Staging | `true` |
+| `STAGING_RESEND_USES_PRODUCTION` | confirmação da estrutura Resend compartilhada | preflight Staging | `true` |
 
 As cinco rotas cron, inclusive `/api/cron/asaas-webhooks`, compartilham
 `CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`. O worker Asaas está agendado a cada minuto em

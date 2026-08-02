@@ -141,7 +141,7 @@ e [Asaas](integrations/asaas.md).
 ## DEC-DISC-011
 
 **Tema:** oferta de pagamento configurável por Curso.
-**Estado:** intenção de produto aprovada; implementação e viabilidade de juros pendentes.
+**Estado:** implementado no limite do contrato oficial; juros comerciais indisponíveis.
 
 Cada Curso pago deve possuir configuração própria de preço e oferta:
 
@@ -150,21 +150,21 @@ Cada Curso pago deve possuir configuração própria de preço e oferta:
 - quantidade máxima de parcelas definida pelo Admin;
 - política desejada de parcelamento com ou sem acréscimo para a Compradora.
 
-O padrão inicial desejado é Pix + cartão e cartão em até 3x com juros. Preço e oferta
+O padrão inicial é Pix + cartão e cartão em até 3x. Preço e oferta
 efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso não altere
 o contrato vendido.
 
 O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
 `installment.maxInstallmentCount`, mas não documenta juros comerciais por checkout. O
-campo `interest` das APIs de cobrança significa juros por atraso. Além disso, cada
-parcela Asaas possui seu próprio ID de pagamento; o modelo atual do Hub suporta somente
-um pagamento por Pedido. Portanto:
+campo `interest` das APIs de cobrança significa juros por atraso. Portanto, o Admin
+configura métodos e teto de parcelas, mas não uma política de juros que o provider não
+consegue cumprir.
 
-- métodos e limite de parcelas são viáveis, mas ainda não implementados;
-- não ativar `INSTALLMENT` no adapter atual;
-- “com juros” permanece bloqueado até validação oficial ou aprovação de outro fluxo;
-- parcelamento exige modelagem de múltiplos pagamentos, conciliação e reembolso integral
-  do parcelamento antes do rollout.
+Cada parcela possui ID de pagamento próprio. O Hub correlaciona o
+`provider_installment_id`, valida o bruto do agregado antes de conceder acesso, aceita os
+IDs individuais sob esse agregado, concilia a lista completa e estorna o parcelamento
+integral pelo endpoint específico. A migration
+`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido.
 
 Ver a
 [pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).

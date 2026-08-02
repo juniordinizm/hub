@@ -37,9 +37,12 @@ const createOrderRow = (overrides: Record<string, unknown> = {}) => ({
   provider: "asaas",
   provider_checkout_id: "chk_1",
   provider_customer_id: null,
+  provider_installment_id: null,
   provider_payment_id: null,
   provider_payment_status: null,
   provider_risk_status: null,
+  payment_allow_credit_card: true,
+  payment_max_installment_count: 3,
   status: "pending",
   user_id: USER_ID,
   ...overrides,
@@ -159,8 +162,8 @@ const createStatefulIdentityReviewContext = () => {
       text.includes("update orders") &&
       text.includes("provider_checkout_id = coalesce")
     ) {
-      if (values?.[3] === true && typeof values[4] === "string") {
-        order.status = values[4];
+      if (values?.[4] === true && typeof values[5] === "string") {
+        order.status = values[5];
       }
       return Promise.resolve(queryResult([{ id: ORDER_ID }]));
     }
@@ -259,6 +262,91 @@ const resolvedPreparation = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("Asaas webhook processor", () => {
+  it("grants once from a card installment after validating the aggregate total", async () => {
+    const { context } = createContext({
+      orderRow: createOrderRow({ amount_in_cents: 30_000 }),
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity: vi.fn(async () => ({
+        activationRequired: false,
+        userId: USER_ID,
+      })),
+    });
+    const event = createPaymentEvent("PAYMENT_CONFIRMED", {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      netValue: 95,
+      status: "CONFIRMED",
+      value: 100,
+    });
+
+    await processEvent(processor, event, context, {
+      installment: {
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_1",
+        id: "ins_1",
+        installmentCount: 3,
+        netValueInCents: 28_500,
+        paymentValueInCents: 10_000,
+        refunds: [],
+        valueInCents: 30_000,
+      },
+      kind: "not_required",
+    });
+
+    expect(applyPaidAccess).toHaveBeenCalledOnce();
+  });
+
+  it("reviews an installment above the order snapshot limit without granting access", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        amount_in_cents: 30_000,
+        payment_max_installment_count: 2,
+      }),
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity: vi.fn(async () => ({
+        activationRequired: false,
+        userId: USER_ID,
+      })),
+    });
+    const event = createPaymentEvent("PAYMENT_CONFIRMED", {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      netValue: 95,
+      status: "CONFIRMED",
+      value: 100,
+    });
+
+    await processEvent(processor, event, context, {
+      installment: {
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_1",
+        id: "ins_1",
+        installmentCount: 3,
+        netValueInCents: 28_500,
+        paymentValueInCents: 10_000,
+        refunds: [],
+        valueInCents: 30_000,
+      },
+      kind: "not_required",
+    });
+
+    expect(applyPaidAccess).not.toHaveBeenCalled();
+    expect(
+      queries.find(({ text }) => text.includes("insert into payment_reviews"))
+        ?.values
+    ).toEqual([ORDER_ID, EVENT_ID, "event_anomaly", "event_anomaly"]);
+  });
+
   it("exposes separate preparation and transactional processing methods", async () => {
     const prepareIdentity = vi.fn(async () => ({
       kind: "not_required" as const,
@@ -280,6 +368,42 @@ describe("Asaas webhook processor", () => {
 
     expect(prepareIdentity).toHaveBeenCalledWith(event, gateway);
     expect(processor.process).toEqual(expect.any(Function));
+  });
+
+  it("loads installment evidence during preparation before transactional processing", async () => {
+    const installment = {
+      billingType: "CREDIT_CARD",
+      checkoutSession: "chk_1",
+      id: "ins_1",
+      installmentCount: 3,
+      netValueInCents: 28_500,
+      paymentValueInCents: 10_000,
+      refunds: [],
+      valueInCents: 30_000,
+    };
+    const getInstallment = vi.fn(async () => installment);
+    const prepareIdentity = vi.fn(async () => ({
+      kind: "not_required" as const,
+    }));
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      getInstallment,
+      prepareIdentity,
+      resolveIdentity: vi.fn(),
+    });
+    const event = createPaymentEvent("PAYMENT_CONFIRMED", {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+    });
+
+    await expect(processor.prepare(event)).resolves.toEqual({
+      installment,
+      kind: "not_required",
+    });
+
+    expect(getInstallment).toHaveBeenCalledWith("ins_1");
   });
 
   it("persists resolved preparation once before resolving and granting a pending public order", async () => {
@@ -1472,6 +1596,74 @@ describe("Asaas webhook processor", () => {
       "2026-07-29 10:19:06",
       "E123",
       "https://asaas.example/refund-receipt",
+      12_990,
+    ]);
+  });
+
+  it("confirms an installment refund from per-charge evidence", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        provider_installment_id: "ins_1",
+        status: "paid",
+      }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_REFUNDED", {
+        billingType: "CREDIT_CARD",
+        installment: "ins_1",
+        status: "REFUNDED",
+        value: 43.3,
+      }),
+      context,
+      {
+        installment: {
+          billingType: "CREDIT_CARD",
+          checkoutSession: "chk_1",
+          id: "ins_1",
+          installmentCount: 3,
+          netValueInCents: 12_500,
+          paymentValueInCents: 4330,
+          refunds: [
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+          ],
+          valueInCents: 12_990,
+        },
+        kind: "not_required",
+      }
+    );
+
+    const refundUpdate = queries.find(({ text }) =>
+      text.includes("update refund_requests")
+    );
+    expect(refundUpdate?.values).toEqual([
+      ORDER_ID,
+      expect.any(Date),
+      "DONE",
+      "2026-08-02 01:45:03",
+      null,
+      null,
       12_990,
     ]);
   });

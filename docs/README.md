@@ -70,6 +70,9 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 - [Compra pública por link estável de Curso](superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md)
 - [Plano de implementação da compra pública](superpowers/plans/2026-07-30-public-course-purchase-handoff.md)
+- [Staging persistente e manutenção integral de Production](superpowers/specs/2026-07-31-staging-environment-and-production-maintenance-design.md)
+- [Plano do runtime Staging e manutenção](superpowers/plans/2026-08-01-staging-runtime-and-maintenance.md)
+- [Plano de provisionamento e release do Staging](superpowers/plans/2026-08-01-staging-provisioning-and-release.md)
 
 ## Contrato de manutenção
 

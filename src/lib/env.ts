@@ -2,6 +2,8 @@ import { z } from "zod";
 import { resolveCanonicalApplicationEnvironment } from "@/lib/application-origin";
 import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
+import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
+import { getStagingEnvironmentProblems } from "@/lib/staging-environment";
 
 const optionalNonEmptyString = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -13,6 +15,7 @@ const optionalNonEmptyString = z.preprocess((value) => {
 }, z.string().min(1).optional());
 
 const serverEnvSchema = z.object({
+  APPLICATION_MAINTENANCE_MODE: z.enum(["full", "off"]).default("off"),
   ASAAS_API_BASE_URL: z.string().url().optional(),
   ASAAS_API_KEY: optionalNonEmptyString,
   ASAAS_USER_AGENT: optionalNonEmptyString,
@@ -57,6 +60,7 @@ const serverEnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   PAYMENTS_CHECKOUT_MODE: z.enum(["disabled", "authenticated", "public"]),
+  R2_OBJECT_PREFIX: optionalNonEmptyString,
   RESEND_API_KEY: optionalNonEmptyString,
   RESEND_FROM_EMAIL: z
     .string()
@@ -68,9 +72,15 @@ const serverEnvSchema = z.object({
     .default("false")
     .transform((value) => value === "true"),
   SUPPORT_EMAIL: optionalNonEmptyString,
+  STAGING_DATABASE_HOST: optionalNonEmptyString,
+  STAGING_JMVSTREAM_USES_PRODUCTION: optionalNonEmptyString,
+  STAGING_R2_USES_DEVELOPMENT: optionalNonEmptyString,
+  STAGING_RESEND_USES_PRODUCTION: optionalNonEmptyString,
+  STAGING_SENTRY_PROJECT_ID: optionalNonEmptyString,
   VERCEL: optionalNonEmptyString,
   VERCEL_BRANCH_URL: optionalNonEmptyString,
   VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
+  VERCEL_TARGET_ENV: optionalNonEmptyString,
   VERCEL_URL: optionalNonEmptyString,
 });
 
@@ -137,7 +147,21 @@ const validateServerEnvironment = (
     throw new Error("E2E_TEST_MODE requires loopback application URLs.");
   }
 
-  if (env.NODE_ENV === "production" && env.VERCEL_ENV === "preview") {
+  const runtimeEnvironment = resolveRuntimeEnvironment(rawEnvironment);
+
+  if (runtimeEnvironment === "staging") {
+    const stagingProblems = getStagingEnvironmentProblems(rawEnvironment);
+
+    if (stagingProblems.length > 0) {
+      throw new Error(
+        `Staging environment is invalid: ${stagingProblems.join(", ")}.`
+      );
+    }
+
+    return;
+  }
+
+  if (runtimeEnvironment === "preview") {
     const previewProblems = getPreviewEnvironmentProblems(rawEnvironment);
 
     if (previewProblems.length > 0) {
@@ -169,6 +193,7 @@ const validateServerEnvironment = (
 export const getServerEnv = () => {
   const rawEnvironment = {
     ...process.env,
+    APPLICATION_MAINTENANCE_MODE: process.env.APPLICATION_MAINTENANCE_MODE,
     ASAAS_API_BASE_URL: process.env.ASAAS_API_BASE_URL,
     ASAAS_API_KEY: process.env.ASAAS_API_KEY,
     ASAAS_USER_AGENT: process.env.ASAAS_USER_AGENT,
@@ -199,26 +224,35 @@ export const getServerEnv = () => {
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
     NODE_ENV: process.env.NODE_ENV,
     PAYMENTS_CHECKOUT_MODE: process.env.PAYMENTS_CHECKOUT_MODE,
+    R2_OBJECT_PREFIX: process.env.R2_OBJECT_PREFIX,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
+    STAGING_DATABASE_HOST: process.env.STAGING_DATABASE_HOST,
+    STAGING_JMVSTREAM_USES_PRODUCTION:
+      process.env.STAGING_JMVSTREAM_USES_PRODUCTION,
+    STAGING_R2_USES_DEVELOPMENT: process.env.STAGING_R2_USES_DEVELOPMENT,
+    STAGING_RESEND_USES_PRODUCTION: process.env.STAGING_RESEND_USES_PRODUCTION,
+    STAGING_SENTRY_PROJECT_ID: process.env.STAGING_SENTRY_PROJECT_ID,
     VERCEL: process.env.VERCEL,
     VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
     VERCEL_ENV: process.env.VERCEL_ENV,
+    VERCEL_TARGET_ENV: process.env.VERCEL_TARGET_ENV,
     VERCEL_URL: process.env.VERCEL_URL,
   };
   const sourceEnvironment =
     resolveCanonicalApplicationEnvironment(rawEnvironment);
+  const runtimeEnvironment = resolveRuntimeEnvironment(rawEnvironment);
   const environmentWithRuntimeDefaults = {
     ...sourceEnvironment,
     ASAAS_WEBHOOK_ENABLED:
       sourceEnvironment.ASAAS_WEBHOOK_ENABLED ??
-      (sourceEnvironment.NODE_ENV === "production" ? "false" : "true"),
+      (runtimeEnvironment === "development" ? "true" : "false"),
     PAYMENTS_CHECKOUT_MODE:
       sourceEnvironment.PAYMENTS_CHECKOUT_MODE ??
-      (sourceEnvironment.VERCEL_ENV === "preview" ? "disabled" : "public"),
+      (runtimeEnvironment === "preview" ? "disabled" : "public"),
   };
   const env = serverEnvSchema.parse(environmentWithRuntimeDefaults);
 

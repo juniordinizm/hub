@@ -17,6 +17,10 @@ import {
   ensureJmvstreamCourseFolder,
   resolveJmvstreamPlayerThumbnailUrl,
 } from "@/features/jmvstream/server";
+import {
+  DEFAULT_COURSE_PAYMENT_OFFER,
+  parseCoursePaymentOffer,
+} from "@/features/payments/course-payment-offer";
 import { parseCoursePriceToCents } from "@/features/payments/course-price";
 import {
   type CourseCoverImage,
@@ -60,6 +64,9 @@ interface AuthoringFormInput {
 interface CourseFormValues {
   accessDurationMonths: number;
   description: string | null;
+  paymentAllowCreditCard: boolean;
+  paymentAllowPix: boolean;
+  paymentMaxInstallmentCount: number;
   priceInCents: number;
   status: ContentStatus;
   subtitle: string | null;
@@ -153,14 +160,31 @@ const readContentStatus = (formData: FormData): ContentStatus => {
   return CREATED_CONTENT_STATUS;
 };
 
-const readCourseFormValues = (formData: FormData): CourseFormValues => ({
-  accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
-  description: readString(formData, "description") || null,
-  priceInCents: parseCoursePriceToCents(readString(formData, "price")),
-  status: readContentStatus(formData),
-  subtitle: readString(formData, "subtitle") || null,
-  title: readString(formData, "title"),
-});
+const readCourseFormValues = (formData: FormData): CourseFormValues => {
+  const paymentOffer = formData.has("paymentOfferPresent")
+    ? parseCoursePaymentOffer({
+        allowCreditCard: formData.has("paymentAllowCreditCard"),
+        allowPix: formData.has("paymentAllowPix"),
+        maxInstallmentCount: readNumber(
+          formData,
+          "paymentMaxInstallmentCount",
+          1
+        ),
+      })
+    : DEFAULT_COURSE_PAYMENT_OFFER;
+
+  return {
+    accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
+    description: readString(formData, "description") || null,
+    paymentAllowCreditCard: paymentOffer.allowCreditCard,
+    paymentAllowPix: paymentOffer.allowPix,
+    paymentMaxInstallmentCount: paymentOffer.maxInstallmentCount,
+    priceInCents: parseCoursePriceToCents(readString(formData, "price")),
+    status: readContentStatus(formData),
+    subtitle: readString(formData, "subtitle") || null,
+    title: readString(formData, "title"),
+  };
+};
 
 const audit = async ({
   action,
@@ -928,18 +952,24 @@ const updateExistingCourse = async ({
             subtitle = $2,
             description = $3,
             price_in_cents = $4,
-            thumbnail_url = $5,
-            cover_image_json = $6::jsonb,
-            access_duration_months = $7,
-            status = $8,
+            payment_allow_pix = $5,
+            payment_allow_credit_card = $6,
+            payment_max_installment_count = $7,
+            thumbnail_url = $8,
+            cover_image_json = $9::jsonb,
+            access_duration_months = $10,
+            status = $11,
             updated_at = now()
-        where id = $9
+        where id = $12
       `,
       [
         values.title,
         values.subtitle,
         values.description,
         values.priceInCents,
+        values.paymentAllowPix,
+        values.paymentAllowCreditCard,
+        values.paymentMaxInstallmentCount,
         thumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,
@@ -1007,12 +1037,15 @@ const createNewCourse = async ({
           subtitle,
           description,
           price_in_cents,
+          payment_allow_pix,
+          payment_allow_credit_card,
+          payment_max_installment_count,
           thumbnail_url,
           cover_image_json,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
         returning id
       `,
       [
@@ -1022,6 +1055,9 @@ const createNewCourse = async ({
         values.subtitle,
         values.description,
         values.priceInCents,
+        values.paymentAllowPix,
+        values.paymentAllowCreditCard,
+        values.paymentMaxInstallmentCount,
         insertedThumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,

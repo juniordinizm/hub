@@ -41,6 +41,11 @@ const validCheckout = {
     name: "Curso Teste",
     valueInCents: 12_990,
   },
+  paymentOptions: {
+    allowCreditCard: true,
+    allowPix: true,
+    maxInstallmentCount: 1,
+  },
 } as const;
 
 describe("AsaasClient", () => {
@@ -104,6 +109,27 @@ describe("AsaasClient", () => {
     expect(body.items[0]?.value).toBe(10);
     expect(body).not.toHaveProperty("customerData");
     expect(body).not.toHaveProperty("cpfCnpj");
+  });
+
+  it("creates a mixed Pix and card checkout with an installment ceiling", async () => {
+    const fetcher = vi.fn().mockResolvedValue(Response.json(checkoutResponse));
+
+    await createClient(fetcher).createCheckout({
+      ...validCheckout,
+      paymentOptions: {
+        allowCreditCard: true,
+        allowPix: true,
+        maxInstallmentCount: 3,
+      },
+    });
+
+    expect(
+      JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)
+    ).toMatchObject({
+      billingTypes: ["PIX", "CREDIT_CARD"],
+      chargeTypes: ["DETACHED", "INSTALLMENT"],
+      installment: { maxInstallmentCount: 3 },
+    });
   });
 
   it.each([
@@ -397,6 +423,37 @@ describe("AsaasClient", () => {
     expect(request?.headers).not.toHaveProperty("Content-Type");
   });
 
+  it("gets and normalizes an installment aggregate", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_123",
+        id: "ins_123",
+        installmentCount: 3,
+        netValue: 285,
+        paymentValue: 100,
+        refunds: [],
+        value: 300,
+      })
+    );
+
+    await expect(
+      createClient(fetcher).getInstallment("ins/123")
+    ).resolves.toEqual({
+      billingType: "CREDIT_CARD",
+      checkoutSession: "chk_123",
+      id: "ins_123",
+      installmentCount: 3,
+      netValueInCents: 28_500,
+      paymentValueInCents: 10_000,
+      refunds: [],
+      valueInCents: 30_000,
+    });
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      "https://api-sandbox.asaas.com/v3/installments/ins%2F123"
+    );
+  });
+
   it("lists payments with explicit repair filters and pagination", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       Response.json({
@@ -482,6 +539,39 @@ describe("AsaasClient", () => {
     expect(
       JSON.parse(fetcher.mock.calls[0]?.[1]?.body as string)
     ).not.toHaveProperty("value");
+  });
+
+  it("refunds the complete installment through its aggregate endpoint", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_123",
+        id: "ins_123",
+        installmentCount: 3,
+        netValue: 285,
+        paymentValue: 100,
+        refunds: [
+          {
+            dateCreated: "2026-08-01",
+            status: "DONE",
+            value: 300,
+          },
+        ],
+        value: 300,
+      })
+    );
+
+    await expect(
+      createClient(fetcher).refundInstallment({ installmentId: "ins/123" })
+    ).resolves.toMatchObject({
+      id: "ins_123",
+      refunds: [{ status: "DONE", valueInCents: 30_000 }],
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://api-sandbox.asaas.com/v3/installments/ins%2F123/refund",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty("body");
   });
 
   it.each([

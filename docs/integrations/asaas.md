@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Asaas
@@ -14,14 +14,38 @@ migrations `0044_asaas_commerce_persistence` a
 `0051_asaas_financial_statement` foram geradas e passaram em branch Neon descartável,
 antes da promoção autorizada de `0044` a `0052` para Development em 2026-07-31. A
 auditoria desse alvo confirmou 53 entradas no journal, o único Admin preservado e
-idempotência; Production permanece em `0043`. O adapter está conectado às entradas
+idempotência. No mesmo dia, a Release B foi promovida para Production após limpeza
+controlada dos dados descartáveis; o journal chegou a `0052`, a Conta Admin foi
+preservada e todas as tabelas operacionais ficaram vazias. O adapter está conectado às entradas
 autenticada e pública de checkout, e a inbox durável
 recebe e deduplica webhooks antes do processor financeiro transacional. O worker é
 chamado a cada minuto pela rota cron protegida, com lease de seis minutos e prazo interno
 de 270 segundos. Checkout, pagamento PIX/cartão, cancelamento, expiração, reembolso,
 conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. Conta e
-credenciais de produção não foram validadas.
+`ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` e `ASAAS_API_KEY` já estão configurados em
+Production. A primeira auditoria controlada recebeu `invalid_environment`: a variável
+continha uma chave Sandbox, sem espaços extras, em vez de uma chave Production. Nenhuma
+mutação foi enviada ao Asaas, a chave foi devolvida ao modo Sensitive e precisa ser
+removida de Production. Produto adiou a credencial real: o próximo ensaio permanece no
+Sandbox por Development/ngrok; `ASAAS_WEBHOOK_TOKEN` de Production ainda não foi
+configurado.
+Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
+`ASAAS_WEBHOOK_ENABLED=false`; o smoke do estado fechado retornou `503` nas duas
+entradas e `404` na rota legada removida.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
+
+Staging usa a conta Sandbox e
+`https://preview.neurocapacitar.com.br/api/webhooks/asaas`. O webhook está
+ativo, não interrompido, com envio sequencial, token próprio e os 18 eventos
+tratados pelo domínio financeiro. Em 2026-08-01, readiness retornou `200`; a
+rota recusou requisição sem token com `401` e aceitou o token antes de rejeitar
+um payload sintaticamente inválido com `400`. Em 2026-08-01, a migration
+`0053_course_payment_offers` foi aplicada duas vezes no compute guardado de
+Staging: o journal permaneceu idempotente com 54 entradas e o Curso existente
+recebeu a oferta padrão Pix + cartão em até 3x. O deployment
+`dpl_9UYQJxnrWMZXqWBdQaZai4imkLkU` publicou o SHA exato da implementação no
+Custom Environment `staging`; readiness retornou `200` e a Vercel não registrou
+erros de runtime durante a homologação.
 
 O schema mantém `orders.status` como estado canônico
 `pending | paid | refunded | disputed | cancelled`. O ciclo externo fica separado:
@@ -31,8 +55,8 @@ O schema mantém `orders.status` como estado canônico
 - estados brutos de checkout, pagamento, risco, liquidação, reembolso e disputa não
   substituem o estado canônico;
 - reembolso externo pertence a `refund_requests`; o Asaas não devolve ID próprio de
-  estorno, portanto a correlação usa o `provider_payment_id` do Pedido e o
-  `refund_requests.id` local;
+  estorno, portanto a correlação usa `provider_payment_id` para pagamento único,
+  `provider_installment_id` para parcelamento e `refund_requests.id` local;
 - `provider` é obrigatório e não possui default implícito;
 - a inbox associa opcionalmente o Pedido e mantém estado, tentativas, lock e próxima
   execução.
@@ -45,8 +69,9 @@ pressupõem a limpeza dos Pedidos de teste legados antes do DDL.
 
 ## Escopo do checkout
 
-O Hub cria checkout hospedado `DETACHED`, com pagamento único por `PIX` e
-`CREDIT_CARD`. Cada checkout tem item inline; Curso não possui produto remoto no Asaas.
+O Hub cria Checkout hospedado com Pix, cartão ou ambos, conforme a oferta do Curso.
+Cartão pode ser à vista (`DETACHED`) ou admitir `INSTALLMENT` até o teto configurado.
+Cada Checkout tem item inline; Curso não possui produto remoto no Asaas.
 
 - `externalReference` carrega somente uma referência local opaca, sem nome, e-mail ou
   outro dado pessoal;
@@ -65,21 +90,43 @@ O Hub cria checkout hospedado `DETACHED`, com pagamento único por `PIX` e
 
 ### Configuração comercial por Curso
 
-O estado atual é fixo: todos os Cursos pagos oferecem Pix + cartão à vista. O Admin ainda
-não configura métodos nem parcelamento por Curso.
-
-O contrato oficial permite variar `billingTypes`, incluir `INSTALLMENT` e enviar
-`installment.maxInstallmentCount`. O padrão desejado pelo produto é Pix + cartão e até 3x
-com juros. Entretanto:
+O Admin configura `payment_allow_pix`, `payment_allow_credit_card` e
+`payment_max_installment_count` por Curso. Novos Cursos usam Pix + cartão e até 3x; cada
+Pedido captura os três snapshots antes da chamada externa. O adapter transforma esses
+campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
 
 - o Checkout não documenta campo para juros comerciais ou repasse de taxa;
 - `interest` nas APIs de cobrança significa juros por atraso;
-- cada parcela possui um ID de pagamento próprio, incompatível com o agregado atual de
-  um pagamento por Pedido;
-- Pix + cartão parcelado no mesmo Checkout ainda exige prova específica no Sandbox.
+- cada parcela possui um ID de pagamento próprio;
+- Pix + cartão parcelado no mesmo Checkout foi comprovado no Sandbox.
 
-Não ativar `INSTALLMENT` apenas alterando o payload. Primeiro implementar o contrato
-descrito em [DEC-DISC-011](../decisions.md#dec-disc-011) e validar os casos da
+Na prova de 2026-08-01, o Admin alterou e persistiu o teto de 3x para 5x e o
+restaurou para 3x. O link público da configuração redirecionou diretamente ao
+Checkout Sandbox, que exibiu Pix e cartão. A resposta oficial ao cancelamento
+confirmou `billingTypes=PIX,CREDIT_CARD`, `chargeTypes=DETACHED,INSTALLMENT` e
+`maxInstallmentCount=3`. O webhook e o worker encerraram o Pedido como
+`cancelled/CANCELED` sem efeito financeiro.
+
+Em 2026-08-02, uma compra pública de R$ 99,00 foi paga em 3x no Checkout Sandbox de
+Staging. O Asaas criou um agregado de parcelamento e três IDs de pagamento, enquanto o
+Hub persistiu R$ 99,00 bruto, R$ 95,07 líquido e R$ 3,93 de taxa. O e-mail pertencia a
+um acesso anteriormente revogado no Curso: o Pedido foi pago, mas permaneceu sem Conta,
+Concessão ou Matrícula e abriu Revisão `buyer_identity_course_revoked`, conforme a regra
+de bloqueio aprovada.
+
+O estorno integral do parcelamento devolveu três evidências de R$ 33,00, uma por
+cobrança, em vez de uma evidência isolada de R$ 99,00. Resposta da mutação, webhook e
+conciliação agora somam somente evidências positivas, não canceladas e cujo total exato
+corresponde ao snapshot do Pedido. Evidência agregada integral confirma a solicitação e
+encerra a Revisão de identidade; valor parcial, cancelado ou divergente continua falhando
+fechado. Na conciliação, um Pedido público em `buyer_identity_status=review_required`
+sem `user_id` é o estado esperado desse bloqueio e não cria uma Revisão financeira
+`event_anomaly`; ausência de Conta fora desse estado continua sendo anomalia.
+
+O Hub guarda o ID comum em `provider_installment_id`, valida o agregado oficial fora da
+transação local, preserva a primeira cobrança em `provider_payment_id`, concilia todas as
+cobranças e usa o endpoint de estorno do parcelamento. O contrato está descrito em
+[DEC-DISC-011](../decisions.md#dec-disc-011) e nos casos da
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
 
 `src/features/payments/checkout.ts` usa o UUID estável fornecido pela entrada como ID do
@@ -207,8 +254,8 @@ tentativa somente no clique. A navegação aceita somente HTTPS, sem credenciais
 hosts exatos `sandbox.asaas.com`, `www.asaas.com` ou `asaas.com`; qualquer outro destino
 falha fechado. O runtime E2E permite adicionalmente apenas
 `http://127.0.0.1:4570`, condicionado a `NEXT_PUBLIC_E2E_TEST_MODE=true`; essa origem não é
-aceita no build normal. A jornada está implementada em código e ainda não foi homologada
-novamente no Sandbox.
+aceita no build normal. Em 2026-08-01, a jornada foi homologada novamente no
+Sandbox pelo domínio estável de Staging, sem página ou formulário intermediário.
 A configuração administrativa do Curso mostra esse link absoluto somente quando checkout
 público, Curso ativo, publicação `published` e preço mínimo estão válidos. O botão usa a
 Clipboard API e, quando indisponível, seleciona o campo read-only para cópia manual.

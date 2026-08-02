@@ -14,6 +14,7 @@ import type { CourseCoverImage } from "@/features/storage/course-cover";
 import type { CourseCoverFile } from "@/features/storage/course-cover-upload";
 import { buildPublicMediaUrl } from "@/features/storage/public-media";
 import { resolveR2ClientEndpoint } from "@/features/storage/r2-endpoint";
+import { createR2ObjectNamespace } from "@/features/storage/r2-object-namespace";
 import {
   buildLessonResourceObjectKey,
   buildLessonResourcePreviewObjectKey,
@@ -36,6 +37,7 @@ interface R2Config {
   accessKeyId: string;
   accountId: string;
   bucketName: string;
+  namespace: ReturnType<typeof createR2ObjectNamespace>;
   secretAccessKey: string;
 }
 
@@ -74,6 +76,7 @@ const getR2Config = (): R2Config => ({
   accessKeyId: readRequiredEnv("R2_ACCESS_KEY_ID"),
   accountId: readRequiredEnv("R2_ACCOUNT_ID"),
   bucketName: readRequiredEnv("R2_BUCKET_NAME"),
+  namespace: createR2ObjectNamespace(process.env.R2_OBJECT_PREFIX),
   secretAccessKey: readRequiredEnv("R2_SECRET_ACCESS_KEY"),
 });
 
@@ -167,7 +170,7 @@ export const createLessonResourceUploadUrl = async ({
     new PutObjectCommand({
       Bucket: config.bucketName,
       ContentType: contentType,
-      Key: key,
+      Key: config.namespace.toPhysicalKey(key),
     }),
     {
       expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
@@ -181,7 +184,7 @@ export const createLessonResourceUploadUrl = async ({
           new PutObjectCommand({
             Bucket: config.bucketName,
             ContentType: preview.contentType,
-            Key: previewKey,
+            Key: config.namespace.toPhysicalKey(previewKey),
           }),
           {
             expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
@@ -230,7 +233,7 @@ export const createStagedAdminImageUploadUrl = async ({
     new PutObjectCommand({
       Bucket: config.bucketName,
       ContentType: reference.contentType,
-      Key: reference.key,
+      Key: config.namespace.toPhysicalKey(reference.key),
     }),
     {
       expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
@@ -266,7 +269,7 @@ export const readStagedAdminImageFile = async ({
   const object = await client.send(
     new GetObjectCommand({
       Bucket: config.bucketName,
-      Key: reference.key,
+      Key: config.namespace.toPhysicalKey(reference.key),
     })
   );
   if (!object.Body) {
@@ -286,7 +289,7 @@ export const verifyStagedAdminImageObject = async (
   const objectHead = await getR2Client(config).send(
     new HeadObjectCommand({
       Bucket: config.bucketName,
-      Key: reference.key,
+      Key: config.namespace.toPhysicalKey(reference.key),
     })
   );
   if (
@@ -308,14 +311,17 @@ export const createLessonResourceDownloadUrl = async ({
   const client = getR2Client(config);
 
   await client.send(
-    new HeadObjectCommand({ Bucket: config.bucketName, Key: key })
+    new HeadObjectCommand({
+      Bucket: config.bucketName,
+      Key: config.namespace.toPhysicalKey(key),
+    })
   );
 
   return await getSignedUrl(
     client,
     new GetObjectCommand({
       Bucket: config.bucketName,
-      Key: key,
+      Key: config.namespace.toPhysicalKey(key),
       ResponseContentDisposition: `attachment; filename="${fileName.replaceAll('"', "")}"`,
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
@@ -346,7 +352,7 @@ export const uploadCourseCoverFile = async ({
         Body: object.body,
         Bucket: config.bucketName,
         ContentType: object.contentType,
-        Key: object.key,
+        Key: config.namespace.toPhysicalKey(object.key),
       })
     );
   }
@@ -365,7 +371,7 @@ export const createR2ObjectReadUrl = async ({
     getR2Client(config),
     new GetObjectCommand({
       Bucket: config.bucketName,
-      Key: key,
+      Key: config.namespace.toPhysicalKey(key),
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
   );
@@ -386,7 +392,7 @@ export const uploadPrivateR2Object = async ({
       Body: body,
       Bucket: config.bucketName,
       ContentType: contentType,
-      Key: key,
+      Key: config.namespace.toPhysicalKey(key),
     })
   );
 };
@@ -420,7 +426,7 @@ export const uploadPrivateR2ObjectIfAbsent = async ({
         Bucket: config.bucketName,
         ContentType: contentType,
         IfNoneMatch: "*",
-        Key: key,
+        Key: config.namespace.toPhysicalKey(key),
       })
     );
     return "created";
@@ -432,20 +438,24 @@ export const uploadPrivateR2ObjectIfAbsent = async ({
   }
 };
 
-export const getPublicMediaUrl = (key: string): string =>
-  buildPublicMediaUrl({
+export const getPublicMediaUrl = (key: string): string => {
+  const config = getR2Config();
+  return buildPublicMediaUrl({
     baseUrl: readRequiredEnv("R2_PUBLIC_BASE_URL"),
     key,
+    physicalKey: config.namespace.toPhysicalKey(key),
   });
+};
 
 export const publishR2Object = async (key: string): Promise<void> => {
   const config = getPublicR2Config();
+  const physicalKey = config.namespace.toPhysicalKey(key);
 
   await getR2Client(config).send(
     new CopyObjectCommand({
       Bucket: config.publicBucketName,
-      CopySource: `/${config.bucketName}/${encodeURIComponent(key)}`,
-      Key: key,
+      CopySource: `/${config.bucketName}/${encodeURIComponent(physicalKey)}`,
+      Key: physicalKey,
     })
   );
 };
@@ -461,7 +471,10 @@ export const confirmLessonResourceUpload = async ({
 }): Promise<void> => {
   const config = getR2Config();
   const object = await getR2Client(config).send(
-    new HeadObjectCommand({ Bucket: config.bucketName, Key: key })
+    new HeadObjectCommand({
+      Bucket: config.bucketName,
+      Key: config.namespace.toPhysicalKey(key),
+    })
   );
 
   if (
@@ -497,21 +510,16 @@ export const deleteR2Objects = async (keys: string[]): Promise<void> => {
       new DeleteObjectsCommand({
         Bucket: config.bucketName,
         Delete: {
-          Objects: keyBatch.map((key) => ({ Key: key })),
+          Objects: keyBatch.map((key) => ({
+            Key: config.namespace.toPhysicalKey(key),
+          })),
           Quiet: true,
         },
       })
     );
 
     if (result.Errors?.length) {
-      const failedKeys = result.Errors.map((error) => error.Key)
-        .filter(Boolean)
-        .join(", ");
-      throw new Error(
-        failedKeys
-          ? `Nao foi possivel apagar arquivos do R2: ${failedKeys}`
-          : "Nao foi possivel apagar arquivos do R2."
-      );
+      throw new Error("Nao foi possivel apagar arquivos do R2.");
     }
   }
 };
@@ -531,7 +539,9 @@ export const deletePublicR2Objects = async (keys: string[]): Promise<void> => {
       new DeleteObjectsCommand({
         Bucket: config.publicBucketName,
         Delete: {
-          Objects: keyBatch.map((key) => ({ Key: key })),
+          Objects: keyBatch.map((key) => ({
+            Key: config.namespace.toPhysicalKey(key),
+          })),
           Quiet: true,
         },
       })
@@ -559,7 +569,9 @@ export const deleteExpiredStagedAdminImages = async ({
       new ListObjectsV2Command({
         Bucket: config.bucketName,
         ContinuationToken: continuationToken,
-        Prefix: `${STAGED_ADMIN_IMAGE_PREFIX}/`,
+        Prefix: config.namespace.toPhysicalPrefix(
+          `${STAGED_ADMIN_IMAGE_PREFIX}/`
+        ),
       })
     );
     const expiredKeys = (page.Contents ?? [])
@@ -569,7 +581,7 @@ export const deleteExpiredStagedAdminImages = async ({
           object.LastModified &&
           object.LastModified.getTime() < olderThan.getTime()
       )
-      .map((object) => object.Key as string);
+      .map((object) => config.namespace.toLogicalKey(object.Key as string));
 
     if (expiredKeys.length > 0) {
       if (!(await shouldContinue())) {
@@ -610,7 +622,7 @@ export const uploadDashboardBannerFile = async ({
       Body: Buffer.from(buffer),
       Bucket: config.bucketName,
       ContentType: file.type,
-      Key: key,
+      Key: config.namespace.toPhysicalKey(key),
     })
   );
 

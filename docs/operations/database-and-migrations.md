@@ -1,19 +1,25 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Banco e migrations
 
 ## Estado atual
 
-O repositório usa cadeia Drizzle forward-only. Em 2026-07-26, a cadeia
-`0000` a `0043` estava aplicada à branch `production`
+O repositório usa cadeia Drizzle forward-only. Em 2026-07-31, a cadeia
+`0000` a `0052` está aplicada à branch `production`
 (`br-dark-boat-ac5ju6m4`) do projeto Neon definitivo
-`damp-snow-22911188`. A auditoria posterior confirmou 44 entradas no journal,
-topo em `0043`, hashes idênticos ao repositório e paridade dos objetos críticos
+`damp-snow-22911188`. A auditoria do corte confirmou 53 entradas no journal,
+topo em `0052`, hashes idênticos ao repositório e paridade dos objetos críticos
 descritos neste runbook.
+
+Em 2026-08-01, a cadeia `0000` a `0053` foi aplicada à branch descartável de
+Staging `br-rapid-rain-acnqzhiv`. Duas execuções consecutivas do migrador
+guardado confirmaram idempotência, 54 entradas no journal, as quatro novas
+colunas de snapshot do Pedido e a oferta padrão Pix + cartão em até 3x no Curso
+existente. Production permaneceu em `0052` durante essa homologação.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
@@ -30,9 +36,18 @@ Não execute `bun run db:migrate` em ambiente compartilhado sem URL direta confe
 O procedimento normal não chama esse comando diretamente. Quando o pipeline
 estiver liberado, o workflow `Migrate Neon development` atualiza Development
 depois do merge e `Deploy Vercel production` atualiza Production antes do
-deployment. Existe hoje um ciclo conhecido entre migration nova, readiness do
-Preview persistente e exigência de CI verde da `main`; não use execução manual
-para contorná-lo. Veja o [tutorial de release](production-release-guide.md).
+deployment. O Preview de PR cria sua própria branch Neon efêmera, aplica a cadeia
+validada e injeta a URL pooled somente naquele deployment; não migre a branch
+persistente `vercel-preview`. Veja o [tutorial de release](production-release-guide.md).
+
+Staging usa `db:migrate:staging`, `db:seed:staging-admin` e
+`db:reset:staging`. Os três exigem URL direta, hostname, branch ID e a
+confirmação literal `STAGING_OPERATION_CONFIRMATION=staging`; todos recusam o
+compute Production conhecido antes de abrir conexão. O reset possui modo
+`plan`, que lê contagens dentro de transação e faz rollback, e modo `execute`,
+que exige `RESET_STAGING_DATA`, preserva `__drizzle_migrations`, recria somente
+o Admin e limpa apenas o namespace físico `staging/` nos dois buckets
+Development compartilhados. Não remove vídeos JMVStream.
 
 ## Autoridades
 
@@ -55,9 +70,9 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0052_snapshot.json`. As migrations Asaas e
-da compra pública `0044` a `0052` foram geradas e ensaiadas em banco descartável;
-Production permanece no topo `0043`.
+journal é autoridade; nesta cadeia, `0053_snapshot.json`. As migrations Asaas e
+da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
+promovidas para Production em 2026-07-31.
 
 Em 2026-07-30, uma preparação E2E local chamou o migrador genérico enquanto
 `drizzle.config.ts` carregava `DATABASE_URL_DIRECT` de `.env.local` com prioridade sobre
@@ -71,7 +86,17 @@ aplicativo local já exigir `0052`. Depois de confirmar zero Pedidos, Webhooks e
 Concessões financeiras, e mediante autorização explícita, `0044` a `0052` foram
 promovidas com `bun run db:migrate:development`. A auditoria posterior confirmou 53
 entradas, `provider_checkout_id`, um único Admin preservado e uma segunda execução
-idempotente. Production permaneceu inalterada em `0043`.
+idempotente. Production permaneceu inalterada em `0043` naquele ensaio.
+
+No corte de 2026-07-31, dois planos consecutivos confirmaram o mesmo fingerprint
+e as mesmas contagens no alvo Production. O workflow criou a branch de backup
+`asaas-cutover-backup-20260731T045620Z` (`br-withered-tree-acj50vrb`) sem
+expiração automática, removeu os dados descartáveis e preservou exclusivamente
+um usuário, perfil, conta e sessão da pessoa Admin. O plano posterior confirmou
+zero registros em todas as tabelas operacionais. Em seguida, o run
+`30605515827` aplicou `0044` a `0052`, auditou o journal e promoveu a Release B.
+A branch de backup deve permanecer durante a estabilização e não pode ser
+removida sem aceite explícito.
 
 ## Conexões
 
@@ -266,6 +291,10 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   `0051`, a auditoria confirmou todas as entradas e os 20 testes PostgreSQL passaram.
   Essa limpeza é uma pré-condição explícita do corte direto, não um backfill nem uma
   autorização para alterar a branch persistente antes da Etapa 10.
+- `0053`: adiciona a oferta comercial por Curso e seus snapshots por Pedido,
+  incluindo métodos aceitos, teto de parcelamento e correlação pelo agregado de
+  parcelas. Foi exercitada pela CI em branches Neon isoladas e promovida somente
+  para Staging em 2026-08-01.
 - Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
   ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
   `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito

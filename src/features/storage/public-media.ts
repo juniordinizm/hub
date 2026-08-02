@@ -7,16 +7,18 @@ const isPublicMediaKey = (key: string): boolean =>
 export const buildPublicMediaUrl = ({
   baseUrl,
   key,
+  physicalKey = key,
 }: {
   baseUrl: string;
   key: string;
+  physicalKey?: string;
 }): string => {
   if (!isPublicMediaKey(key)) {
     throw new Error("Chave de mídia pública inválida.");
   }
 
   return new URL(
-    key,
+    physicalKey,
     `${baseUrl.replace(TRAILING_SLASH_PATTERN, "")}/`
   ).toString();
 };

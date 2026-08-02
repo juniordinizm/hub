@@ -5,14 +5,17 @@ import {
   type AsaasFinancialTransaction,
   type AsaasFinancialTransactionPage,
   type AsaasGateway,
+  type AsaasInstallment,
   type AsaasPayment,
   type AsaasPaymentPage,
   type AsaasRefundEvidence,
   type CreateAsaasCheckout,
   type ListAsaasFinancialTransactions,
   type ListAsaasPayments,
+  type RefundAsaasInstallment,
   type RefundAsaasPayment,
 } from "./asaas";
+import { buildAsaasCheckoutPaymentOptions } from "./asaas-checkout-options";
 import {
   parseAsaasDecimalToCents,
   parseSignedAsaasDecimalToCents,
@@ -274,6 +277,7 @@ const parsePayment = (value: unknown): AsaasPayment => {
   }
 
   const transactionReceiptUrl = getOptionalString(value.transactionReceiptUrl);
+  const installmentId = getOptionalString(value.installment);
 
   return {
     billingType: value.billingType,
@@ -281,10 +285,39 @@ const parsePayment = (value: unknown): AsaasPayment => {
     customer: value.customer,
     externalReference: getNullableString(value.externalReference),
     id: value.id,
+    ...(installmentId ? { installmentId } : {}),
     netValueInCents: providerDecimalToCents(value.netValue),
     refunds: rawRefunds.map(parseRefund),
     status: value.status,
     ...(transactionReceiptUrl ? { transactionReceiptUrl } : {}),
+    valueInCents: providerDecimalToCents(value.value),
+  };
+};
+
+const parseInstallment = (value: unknown): AsaasInstallment => {
+  if (
+    !(
+      isRecord(value) &&
+      isNonEmptyString(value.id) &&
+      isNonEmptyString(value.billingType) &&
+      Number.isSafeInteger(value.installmentCount) &&
+      (value.installmentCount as number) >= 2
+    )
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  const rawRefunds = value.refunds ?? [];
+  if (!Array.isArray(rawRefunds)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return {
+    billingType: value.billingType,
+    checkoutSession: getNullableString(value.checkoutSession),
+    id: value.id,
+    installmentCount: value.installmentCount as number,
+    netValueInCents: providerDecimalToCents(value.netValue),
+    paymentValueInCents: providerDecimalToCents(value.paymentValue),
+    refunds: rawRefunds.map(parseRefund),
     valueInCents: providerDecimalToCents(value.value),
   };
 };
@@ -540,9 +573,13 @@ export class AsaasClient implements AsaasGateway {
   async createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout> {
     validateCheckout(input);
 
+    const paymentOptions = buildAsaasCheckoutPaymentOptions({
+      allowCreditCard: input.paymentOptions.allowCreditCard,
+      allowPix: input.paymentOptions.allowPix,
+      maxInstallmentCount: input.paymentOptions.maxInstallmentCount,
+    });
     const body = {
-      billingTypes: ["PIX", "CREDIT_CARD"],
-      chargeTypes: ["DETACHED"],
+      ...paymentOptions,
       callback: input.callback,
       externalReference: input.externalReference,
       items: [
@@ -594,6 +631,28 @@ export class AsaasClient implements AsaasGateway {
       { method: "GET" },
       "query",
       parsePayment
+    );
+  }
+
+  async getInstallment(installmentId: string): Promise<AsaasInstallment> {
+    assertNonEmptyId(installmentId, "ID do parcelamento");
+    return await this.request(
+      `/v3/installments/${encodeURIComponent(installmentId)}`,
+      { method: "GET" },
+      "query",
+      parseInstallment
+    );
+  }
+
+  async listInstallmentPayments(
+    installmentId: string
+  ): Promise<AsaasPaymentPage> {
+    assertNonEmptyId(installmentId, "ID do parcelamento");
+    return await this.request(
+      `/v3/installments/${encodeURIComponent(installmentId)}/payments`,
+      { method: "GET" },
+      "query",
+      parsePaymentPage
     );
   }
 
@@ -688,6 +747,18 @@ export class AsaasClient implements AsaasGateway {
       },
       "mutation",
       parsePayment
+    );
+  }
+
+  async refundInstallment(
+    input: RefundAsaasInstallment
+  ): Promise<AsaasInstallment> {
+    assertNonEmptyId(input.installmentId, "ID do parcelamento");
+    return await this.request(
+      `/v3/installments/${encodeURIComponent(input.installmentId)}/refund`,
+      { method: "POST" },
+      "mutation",
+      parseInstallment
     );
   }
 

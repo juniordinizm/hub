@@ -115,6 +115,9 @@ export interface AdminCourse {
   coverImage: unknown;
   description: string | null;
   id: string;
+  paymentAllowCreditCard: boolean;
+  paymentAllowPix: boolean;
+  paymentMaxInstallmentCount: number;
   priceInCents: number;
   slug: string;
   status: string;
@@ -277,6 +280,9 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     certificate_enabled: boolean;
     description: string | null;
     id: string;
+    payment_allow_credit_card: boolean;
+    payment_allow_pix: boolean;
+    payment_max_installment_count: number;
     price_in_cents: number;
     slug: string;
     status: string;
@@ -287,8 +293,8 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     workload_hours: number;
   }>(
     courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
+      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
+      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
     courseId ? [courseId] : undefined
   );
 
@@ -297,6 +303,9 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     certificateEnabled: row.certificate_enabled,
     description: row.description,
     id: row.id,
+    paymentAllowCreditCard: row.payment_allow_credit_card,
+    paymentAllowPix: row.payment_allow_pix,
+    paymentMaxInstallmentCount: row.payment_max_installment_count,
     priceInCents: row.price_in_cents,
     slug: row.slug,
     status: row.status,

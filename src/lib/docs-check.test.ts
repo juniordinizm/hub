@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -124,5 +124,74 @@ Consulte docs/old-plan.md.
         expect.stringContaining("RESEND_API_KEY"),
       ])
     );
+  });
+});
+
+describe("release workflow contracts", () => {
+  const readWorkflow = (name: string): string =>
+    readFileSync(join(process.cwd(), ".github", "workflows", name), "utf8");
+
+  it("keeps CI provider-free and validates both persistent branches", () => {
+    const source = readWorkflow("ci.yml");
+    expect(source).toContain("branches: [main, staging]");
+    expect(source).not.toContain("vercel-preview:");
+    expect(source).not.toContain("vercel deploy");
+    expect(source).not.toContain("Preview Neon");
+    expect(source).toContain("integration-db:");
+    expect(source).toContain("e2e:");
+    expect(source).toContain("build-and-knip:");
+  });
+
+  it("deploys the exact successful Staging SHA after backup and migration", () => {
+    const source = readWorkflow("deploy-staging.yml");
+    expect(source).toContain("workflow_run:");
+    expect(source).toContain("branches: [staging]");
+    expect(source).toContain("github.event.workflow_run.head_sha");
+    expect(source).toContain("name: vercel-staging");
+    expect(source).toContain("origin/staging");
+    expect(source.indexOf("Create Staging Neon backup")).toBeLessThan(
+      source.indexOf("db:migrate:staging")
+    );
+    expect(source).toContain("--target=staging");
+    expect(source).toContain("preview.neurocapacitar.com.br");
+    expect(source).toContain("x-robots-tag:.*noindex");
+    expect(source).toContain("sitemap.xml");
+  });
+
+  it("schedules only authenticated stable-domain Staging jobs", () => {
+    const source = readWorkflow("run-staging-jobs.yml");
+    expect(source).toContain('cron: "*/5 * * * *"');
+    expect(source).toContain('cron: "0 10 * * *"');
+    expect(source).toContain('cron: "0 4 * * *"');
+    expect(source).toContain("https://preview.neurocapacitar.com.br");
+    expect(source).toContain(
+      ["Authorization: Bearer ", "{CRON_SECRET}"].join("$")
+    );
+    expect(source).toContain("cancel-in-progress: false");
+    expect(source).toContain("--output /dev/null");
+  });
+
+  it("requires explicit Production SHA, maintenance confirmation, and backup", () => {
+    const source = readWorkflow("deploy-vercel.yml");
+    expect(source).toContain("release_sha:");
+    expect(source).toContain("DEPLOY_PRODUCTION_MAINTENANCE");
+    expect(source).toContain("git merge-base --is-ancestor");
+    expect(
+      source.indexOf("Create confirmed Production Neon backup")
+    ).toBeLessThan(source.indexOf("db:migrate:production"));
+    expect(source).toContain("https://app.neurocapacitar.com.br");
+    expect(source).toContain(['[[ "', '{status}" == "503" ]]'].join("$"));
+  });
+
+  it("keeps Staging reset manual, backed up, and explicitly confirmed", () => {
+    const source = readWorkflow("reset-staging.yml");
+    expect(source).toContain("options: [plan, execute]");
+    expect(source).toContain("RESET_STAGING_DATA");
+    expect(source).toContain("name: vercel-staging");
+    expect(source.indexOf("Create Staging backup before execute")).toBeLessThan(
+      source.indexOf("Execute guarded reset")
+    );
+    expect(source).toContain("db:reset:staging");
+    expect(source).toContain("Verify post-reset Admin invariant");
   });
 });

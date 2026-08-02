@@ -4,6 +4,7 @@ export interface CanonicalApplicationEnvironment {
   NEXT_PUBLIC_APP_URL?: string | undefined;
   VERCEL_BRANCH_URL?: string | undefined;
   VERCEL_ENV?: string | undefined;
+  VERCEL_TARGET_ENV?: string | undefined;
   VERCEL_URL?: string | undefined;
 }
 
@@ -15,7 +16,10 @@ const getTrimmedValue = (value: string | undefined): string | undefined => {
 const getVercelPreviewOrigin = (
   environment: CanonicalApplicationEnvironment
 ): string | undefined => {
-  if (environment.VERCEL_ENV !== "preview") {
+  if (
+    environment.VERCEL_ENV !== "preview" ||
+    environment.VERCEL_TARGET_ENV === "staging"
+  ) {
     return;
   }
 

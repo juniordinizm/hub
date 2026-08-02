@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # Deploy e incidentes
@@ -17,28 +17,47 @@ Não existe imagem Docker, publicação GHCR ou runner de cron externo no caminh
 de produção. A VPS anterior permanece fora do fluxo e não é autoridade de
 release.
 
-O workflow `CI` valida o código e, em Pull Requests ou despachos manuais, cria
-um deployment Preview por build remoto na Vercel. A execução causada pelo merge
-na `main` repete os gates, mas não cria outro Preview. O workflow manual
-`Deploy Vercel production` exige confirmação explícita, deriva o SHA do checkout
-da `main`, verifica que ele é o `origin/main` atual e consulta a API do GitHub
-para provar uma CI verde desse SHA. Só então aplica
-migrations com conexão direta, cria um deployment Production sem promovê-lo,
-testa sua readiness e o promove. Deploys Git automáticos da Vercel devem
-permanecer desligados para não criar uma segunda promoção concorrente.
+O workflow `CI` valida o código em Pull Requests e pushes para `staging` ou
+`main`, sem criar deployments. Uma CI verde do SHA atual de `staging` dispara
+`Deploy Vercel staging`, que cria backup Neon de sete dias, migra e publica no
+Custom Environment `staging`. O workflow manual `Deploy Vercel production`
+recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
+verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
+um deployment Production sem promovê-lo, testa readiness e o promove. Deploys
+Git automáticos da Vercel devem permanecer desligados.
+
+O bootstrap de 2026-08-01 ocorreu antes de esses workflows existirem na branch
+padrão. A CI `30726910261` aprovou o SHA
+`4eab1a331f2d6989e5958aa0d6b55a66438f1396`; em seguida, o mesmo checkout local
+executou o migrador guardado e `vercel deploy --target=staging` sobre esse SHA.
+O deployment `dpl_9UYQJxnrWMZXqWBdQaZai4imkLkU` ficou `READY`, recebeu os aliases
+de Staging e passou em readiness, `noindex,nofollow` e ausência de sitemap. Essa
+exceção de bootstrap usou apenas dados explicitamente descartáveis de Staging.
+Depois que o workflow chegar à `main`, releases seguintes devem usar
+exclusivamente o caminho automatizado.
+
+Na homologação final de 2026-08-02, a CI `30734378547` aprovou o SHA
+`11704416ab64f9d6b3a1a8d6cf946c5d7fe2cef2`. O deployment manual de bootstrap
+`dpl_4v6TvdoNchJJewiFsaFoyiZCQf5G` publicou esse SHA no target `staging`, ficou
+`READY` e recebeu os aliases `preview.neurocapacitar.com.br` e
+`hub-env-staging-neuro-capacitar.vercel.app`. A conciliação do reembolso parcelado
+confirmou a solicitação, encerrou a Revisão de identidade bloqueada e preservou zero
+Conta, Concessão e Matrícula para a compra inelegível. O Curso descartável foi restaurado
+para R$ 19,90, Pix + cartão e máximo de 3x ao final.
 
 ### Ambientes
 
-- `vercel-preview`: smoke descartável de build/runtime. Usa somente Neon
-  sanitizado, autenticação e readiness próprios;
-  `SCHEDULED_JOBS_ENABLED=false`.
+- `vercel-staging`: ambiente protegido no GitHub. Contém secrets operacionais
+  para backup, migration, deploy e seed/reset do Staging persistente.
 - `vercel-production`: ambiente protegido no GitHub. Contém token de deploy,
   segredo de readiness e URL direta de migration.
 - `neon-development`: ambiente protegido no GitHub. Contém somente a URL direta
   da branch Development e o hostname esperado desse compute.
-- Vercel Preview: contém apenas o núcleo permitido pelo perfil limitado e
-  nenhuma credencial de provider.
-- Vercel Production: contém todas as variáveis de runtime definitivas.
+- Vercel Staging: Custom Environment associado à branch `staging` e ao domínio
+  `preview.neurocapacitar.com.br`.
+- Vercel Preview: perfil dormente, fail-closed e sem providers.
+- Vercel Production: perfil definitivo; em manutenção integral até promoção
+  deliberada.
 
 `DATABASE_URL_DIRECT` não pertence ao runtime Vercel. Ela existe apenas como
 secret do GitHub Environment `vercel-production`. `DATABASE_URL` pooled pertence
@@ -63,25 +82,34 @@ O caminho versionado é:
 1. CI: documentação, migrations, typecheck, estilo, testes e audit.
 2. CI: integração PostgreSQL e jornadas Chromium em branches Neon efêmeras.
 3. CI: build e Knip.
-4. CI de Pull Request ou despacho manual: `vercel deploy` remoto e smoke
-   autenticado de Preview; a CI de push na `main` omite esta etapa.
-5. Produção: despacho manual com confirmação de Production.
-6. Produção: derivação do SHA e prova de que ele é o `main` atual com CI verde.
-7. Produção: `db:migrate:production` e auditoria do journal.
+4. Staging: CI verde do SHA atual cria backup, migra, publica com
+   `--target=staging` e testa URL do deployment e domínio estável.
+5. Produção: despacho manual com SHA completo e confirmações de manutenção.
+6. Produção: prova de pertencimento a `main` e CI verde do mesmo SHA.
+7. Produção: backup Neon confirmado, `db:migrate:production` e auditoria.
 8. Produção: `vercel deploy --prod --skip-domain`.
-9. Produção: smoke autenticado de `/api/health/ready` no deployment isolado.
-10. Produção: `vercel promote` apenas depois do smoke aprovado.
+9. Produção: smoke autenticado de readiness no deployment isolado.
+10. Produção: promoção e smoke de manutenção (`503` nas superfícies públicas).
 
 O grupo de concorrência de produção não cancela uma execução em andamento. Isso
 evita interromper uma migration para iniciar outra. Como o repositório é privado
 e required reviewers de Environments não estão disponíveis nos planos
 GitHub Free/Pro/Team, a autorização humana é o próprio `workflow_dispatch`:
-marque `confirm_production`. O workflow recusa execução fora da `main`, SHA
-atual sem CI verde ou checkout que tenha ficado desatualizado.
+marque `confirm_production` e digite `DEPLOY_PRODUCTION_MAINTENANCE`. O workflow
+recusa SHA que não pertença a `main`, não possua CI verde ou não corresponda ao
+checkout.
 
 Não avance quando houver migration não validada, Preview usando dados
 definitivos, variável ausente, falha de CI, webhook não conferido ou alteração
 irreversível sem plano de recuperação.
+
+O workflow `Run Staging jobs` chama os workers frequentes a cada cinco minutos
+e os jobs diários em horários próprios. Essa latência de até cinco minutos é
+aceita em homologação. Schedules do GitHub só executam a versão presente na
+branch padrão. O GitHub também não registra `workflow_dispatch` de um arquivo
+ausente na branch padrão; portanto não existe despacho manual pela UI antes do
+primeiro merge. O único bootstrap permitido é o procedimento exato documentado
+acima, com CI verde e SHA imutável.
 
 ## Configuração obrigatória
 
@@ -127,6 +155,14 @@ escreve nem cria backup; `execute` exige fingerprint, duas confirmações e cria
 branch Neon de backup sem expiração automática antes da transação. O backup permanece
 durante a estabilização e só pode ser removido após aceite explícito. O workflow não
 executa migration, deploy ou exclusão da branch de backup.
+
+O corte de 2026-07-31 concluiu essa fase fechada. A limpeza preservou somente a
+Conta Admin e sua identidade, manteve o backup `br-withered-tree-acj50vrb` e
+zerou todas as tabelas operacionais. O deploy `30605515827` aplicou `0044` a
+`0052` e promoveu a Release B. O smoke retornou destino final `200` no acesso
+público, `503` no checkout, `503` no webhook Asaas e `404` na rota legada,
+confirmando o estado fechado esperado. Não habilite checkout, webhook ou worker
+antes de configurar e validar as credenciais Asaas de Production.
 
 Nunca registrar respostas completas da API Neon, URLs de conexão, tokens, IDs de Conta
 ou PII. Somente presença de configuração, contagens, fingerprint, status e ID da branch

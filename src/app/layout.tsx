@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Lexend_Deca } from "next/font/google";
+import { StagingBanner } from "@/components/environment/staging-banner";
 import { getPublicAppUrl } from "@/lib/public-app-config";
+import { getStagingPresentation } from "@/lib/staging-presentation";
 import "./globals.css";
 
 const lexendDeca = Lexend_Deca({
@@ -14,6 +16,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 const publicAppUrl = getPublicAppUrl(process.env);
+const stagingPresentation = getStagingPresentation(process.env);
 
 export const metadata: Metadata = {
   title: {
@@ -23,6 +26,7 @@ export const metadata: Metadata = {
   description: "Plataforma de cursos PROTEA-R para alunos e equipe.",
   applicationName: "PROTEA-R Hub",
   metadataBase: new URL(publicAppUrl),
+  ...(stagingPresentation.robots ? { robots: stagingPresentation.robots } : {}),
 };
 
 import { Toaster } from "@/components/ui/sonner";
@@ -38,6 +42,7 @@ export default function RootLayout({
       lang="pt-BR"
     >
       <body className="flex min-h-full flex-col">
+        {stagingPresentation.isStaging ? <StagingBanner /> : null}
         {children}
         <Toaster position="top-right" />
       </body>

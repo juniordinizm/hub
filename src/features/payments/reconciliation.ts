@@ -9,6 +9,8 @@ import type {
 } from "@/features/payments/asaas";
 import { getAsaasProviderPaymentTransition } from "@/features/payments/asaas-financial-events";
 import { runCoordinatedAsaasQuery } from "@/features/payments/asaas-query-policy";
+import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
+import { closeRefundedBuyerIdentityReview } from "@/features/payments/buyer-identity-review";
 import type { PersistedOrderStatus } from "@/features/payments/financial-policy";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 
@@ -17,10 +19,12 @@ const MAX_STATEMENT_PAGES = 100;
 
 interface ReconciliationOrder {
   amountInCents: number;
+  buyerIdentityStatus: "pending" | "resolved" | "review_required";
   courseId: string;
   externalId: string;
   id: string;
   providerCheckoutId: string;
+  providerInstallmentId: string | null;
   providerPaymentId: string;
   providerPaymentStatus: string | null;
   status: PersistedOrderStatus;
@@ -40,6 +44,11 @@ const terminalOrderStatuses = new Set<PersistedOrderStatus>([
   "refunded",
 ]);
 const settledPaymentStatuses = new Set(["CONFIRMED", "RECEIVED", "REFUNDED"]);
+const buyerIdentityStatuses = new Set([
+  "pending",
+  "resolved",
+  "review_required",
+]);
 
 const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
   if (!(row && typeof row === "object")) {
@@ -52,14 +61,24 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
     typeof value.provider_checkout_id === "string" &&
     typeof value.provider_payment_id === "string" &&
     typeof value.amount_in_cents === "number" &&
+    typeof value.buyer_identity_status === "string" &&
+    buyerIdentityStatuses.has(value.buyer_identity_status) &&
     typeof value.status === "string" &&
     persistedOrderStatuses.has(value.status as PersistedOrderStatus)
     ? {
         amountInCents: value.amount_in_cents,
+        buyerIdentityStatus: value.buyer_identity_status as
+          | "pending"
+          | "resolved"
+          | "review_required",
         courseId: value.course_id,
         externalId: value.external_id,
         id: value.id,
         providerCheckoutId: value.provider_checkout_id,
+        providerInstallmentId:
+          typeof value.provider_installment_id === "string"
+            ? value.provider_installment_id
+            : null,
         providerPaymentStatus:
           typeof value.provider_payment_status === "string"
             ? value.provider_payment_status
@@ -75,9 +94,7 @@ const findFullRefund = (
   payment: AsaasPayment,
   expectedAmountInCents: number
 ): AsaasRefundEvidence | null =>
-  payment.refunds.find(
-    (refund) => refund.valueInCents === expectedAmountInCents
-  ) ?? null;
+  findExactAsaasRefundEvidence(payment.refunds, expectedAmountInCents);
 
 type ReconciliationReviewType =
   | "amount_mismatch"
@@ -134,7 +151,11 @@ const decideReconciliation = ({
       payment.refunds.length > 0
         ? "O Asaas retornou reembolso sem evidencia do valor integral do Pedido."
         : "O Asaas retornou status REFUNDED sem evidencia de reembolso integral.";
-  } else if (isRefunded && !order.userId) {
+  } else if (
+    isRefunded &&
+    !order.userId &&
+    order.buyerIdentityStatus !== "review_required"
+  ) {
     reviewType = "event_anomaly";
     reviewReason =
       "O Pedido reembolsado nao possui Conta correlacionada para verificar a Concessao.";
@@ -206,6 +227,80 @@ const auditReconciliation = async ({
   );
 };
 
+const resolveInstallmentPaymentStatus = (
+  payments: readonly AsaasPayment[],
+  hasFullRefund: boolean
+): string => {
+  if (hasFullRefund) {
+    return "REFUNDED";
+  }
+  if (payments.every((payment) => payment.status === "RECEIVED")) {
+    return "RECEIVED";
+  }
+  if (
+    payments.every(
+      (payment) =>
+        payment.status === "CONFIRMED" || payment.status === "RECEIVED"
+    )
+  ) {
+    return "CONFIRMED";
+  }
+  return payments[0]?.status ?? "PENDING";
+};
+
+const getReconciliationPayment = async ({
+  gateway,
+  order,
+}: {
+  gateway: AsaasGateway;
+  order: ReconciliationOrder;
+}): Promise<AsaasPayment> => {
+  if (!order.providerInstallmentId) {
+    return await runCoordinatedAsaasQuery({
+      operation: () => gateway.getPayment(order.providerPaymentId),
+    });
+  }
+
+  const installment = await runCoordinatedAsaasQuery({
+    operation: () => gateway.getInstallment(order.providerInstallmentId ?? ""),
+  });
+  const page = await runCoordinatedAsaasQuery({
+    operation: () =>
+      gateway.listInstallmentPayments(order.providerInstallmentId ?? ""),
+  });
+  const payments = page.data;
+  const hasExactPayments =
+    installment.id === order.providerInstallmentId &&
+    installment.checkoutSession === order.providerCheckoutId &&
+    installment.valueInCents === order.amountInCents &&
+    installment.installmentCount === page.totalCount &&
+    payments.length === page.totalCount &&
+    payments.some((payment) => payment.id === order.providerPaymentId) &&
+    payments.every(
+      (payment) =>
+        payment.installmentId === installment.id &&
+        payment.checkoutSession === order.providerCheckoutId
+    );
+  if (!hasExactPayments) {
+    throw new Error("A consulta Asaas nao corresponde ao Pedido informado.");
+  }
+  const hasFullRefund =
+    findExactAsaasRefundEvidence(installment.refunds, order.amountInCents) !==
+    null;
+  return {
+    billingType: installment.billingType,
+    checkoutSession: installment.checkoutSession,
+    customer: payments[0]?.customer ?? "",
+    externalReference: null,
+    id: order.providerPaymentId,
+    installmentId: installment.id,
+    netValueInCents: installment.netValueInCents,
+    refunds: installment.refunds,
+    status: resolveInstallmentPaymentStatus(payments, hasFullRefund),
+    valueInCents: installment.valueInCents,
+  };
+};
+
 export const reconcileAsaasPayment = async ({
   actorUserId,
   gateway = getAsaasProviderClient(),
@@ -217,8 +312,9 @@ export const reconcileAsaasPayment = async ({
 }): Promise<void> => {
   const pool = getPool();
   const initial = await pool.query(
-    `select id, course_id, user_id, external_id, provider_checkout_id,
-            provider_payment_id,
+    `select id, course_id, user_id, external_id, buyer_identity_status,
+            provider_checkout_id,
+            provider_payment_id, provider_installment_id,
             provider_payment_status, amount_in_cents, status
      from orders
      where id = $1 and provider = 'asaas'`,
@@ -229,9 +325,7 @@ export const reconcileAsaasPayment = async ({
     throw new Error("Pedido Asaas sem pagamento correlacionado.");
   }
 
-  const payment = await runCoordinatedAsaasQuery({
-    operation: () => gateway.getPayment(order.providerPaymentId),
-  });
+  const payment = await getReconciliationPayment({ gateway, order });
   const paymentIdMatches = payment.id === order.providerPaymentId;
   const externalReferenceMatches =
     payment.externalReference === null ||
@@ -257,8 +351,9 @@ export const reconcileAsaasPayment = async ({
   try {
     await client.query("begin");
     const locked = await client.query(
-      `select id, course_id, user_id, external_id, provider_checkout_id,
-              provider_payment_id,
+      `select id, course_id, user_id, external_id, buyer_identity_status,
+              provider_checkout_id,
+              provider_payment_id, provider_installment_id,
               provider_payment_status, amount_in_cents, status
        from orders
        where id = $1 and provider = 'asaas'
@@ -269,6 +364,7 @@ export const reconcileAsaasPayment = async ({
     if (
       !current ||
       current.providerPaymentId !== payment.id ||
+      current.providerInstallmentId !== order.providerInstallmentId ||
       current.providerCheckoutId !== order.providerCheckoutId ||
       current.externalId !== order.externalId
     ) {
@@ -363,6 +459,7 @@ export const reconcileAsaasPayment = async ({
           now,
         ]
       );
+      await closeRefundedBuyerIdentityReview({ client, now, orderId });
     }
     await auditReconciliation({
       action: "asaas.payment_reconciled",

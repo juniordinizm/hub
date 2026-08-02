@@ -5,10 +5,12 @@ import type { Pool, PoolClient } from "pg";
 import { getPool } from "@/db";
 import type {
   AsaasGateway,
+  AsaasInstallment,
   AsaasPayment,
   AsaasRefundEvidence,
 } from "@/features/payments/asaas";
 import { AsaasGatewayError } from "@/features/payments/asaas-client";
+import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 import { getServerEnv } from "@/lib/env";
 
@@ -127,7 +129,8 @@ interface ReservedRefund {
   amountInCents: number;
   externalReference: string;
   providerCheckoutId: string | null;
-  providerPaymentId: string;
+  providerInstallmentId: string | null;
+  providerPaymentId: string | null;
   refundRequestId: string;
 }
 
@@ -164,6 +167,7 @@ const reserveRefund = async ({
       amount_in_cents: number;
       external_id: string;
       provider_checkout_id: string | null;
+      provider_installment_id: string | null;
       provider_payment_id: string | null;
       status: "cancelled" | "disputed" | "paid" | "pending" | "refunded";
     }>(
@@ -172,6 +176,7 @@ const reserveRefund = async ({
           amount_in_cents,
           external_id,
           provider_checkout_id,
+          provider_installment_id,
           provider_payment_id,
           status
         from orders
@@ -212,7 +217,12 @@ const reserveRefund = async ({
       throw new Error("Ja existe uma solicitacao de estorno para este pedido.");
     }
 
-    if (!selectedOrder.provider_payment_id) {
+    if (
+      !(
+        selectedOrder.provider_payment_id ||
+        selectedOrder.provider_installment_id
+      )
+    ) {
       throw new Error("Pedido sem pagamento Asaas para reembolso.");
     }
     await auditRefund({
@@ -226,6 +236,7 @@ const reserveRefund = async ({
       amountInCents: selectedOrder.amount_in_cents,
       externalReference: selectedOrder.external_id,
       providerCheckoutId: selectedOrder.provider_checkout_id,
+      providerInstallmentId: selectedOrder.provider_installment_id ?? null,
       providerPaymentId: selectedOrder.provider_payment_id,
       refundRequestId: reservation.rows[0].id,
     };
@@ -336,14 +347,15 @@ export const requestFullRefund = async ({
     reason: normalizedReason,
   });
   try {
-    const response = await gateway.refundPayment({
-      description: normalizedReason,
-      paymentId: reserved.providerPaymentId,
-    });
-    const evidence =
-      response.id === reserved.providerPaymentId
-        ? findExactRefundEvidence(response, reserved.amountInCents)
-        : undefined;
+    const response = reserved.providerInstallmentId
+      ? await gateway.refundInstallment({
+          installmentId: reserved.providerInstallmentId,
+        })
+      : await gateway.refundPayment({
+          description: normalizedReason,
+          paymentId: reserved.providerPaymentId ?? "",
+        });
+    const evidence = findExactRefundEvidence(response, reserved.amountInCents);
     if (!(evidence && hasExactRefundCorrelation(response, reserved))) {
       throw new Error("asaas_refund_invalid_result");
     }
@@ -389,9 +401,16 @@ export const requestFullRefund = async ({
 };
 
 const hasExactRefundCorrelation = (
-  payment: AsaasPayment,
+  payment: AsaasInstallment | AsaasPayment,
   reserved: ReservedRefund
 ): boolean => {
+  if ("installmentCount" in payment) {
+    return (
+      payment.id === reserved.providerInstallmentId &&
+      payment.checkoutSession === reserved.providerCheckoutId &&
+      payment.checkoutSession !== null
+    );
+  }
   const externalReferenceMatches =
     payment.externalReference === reserved.externalReference;
   const checkoutSessionMatches =
@@ -403,15 +422,15 @@ const hasExactRefundCorrelation = (
     payment.checkoutSession !== null && !checkoutSessionMatches;
 
   return (
+    payment.id === reserved.providerPaymentId &&
     !(hasConflictingExternalReference || hasConflictingCheckoutSession) &&
     (externalReferenceMatches || checkoutSessionMatches)
   );
 };
 
 const findExactRefundEvidence = (
-  payment: AsaasPayment,
+  payment: AsaasInstallment | AsaasPayment,
   expectedAmountInCents: number
 ): AsaasRefundEvidence | undefined =>
-  payment.refunds.find(
-    (refund) => refund.valueInCents === expectedAmountInCents
-  );
+  findExactAsaasRefundEvidence(payment.refunds, expectedAmountInCents) ??
+  undefined;

@@ -12,40 +12,38 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("PostgreSQL integration");
     expect(source).toContain("Browser journeys");
     expect(source).toContain("Build and dependency audit");
-    expect(source).toContain("Vercel preview candidate");
+    expect(source).toContain("branches: [main, staging]");
+    expect(source).not.toContain("Vercel preview candidate");
     expect(source).not.toContain("ARM64 production image");
     expect(source).not.toContain("docker/build-push-action");
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
   });
 
-  it("builds remotely and smokes an isolated preview only after every CI gate", async () => {
-    const source = await readFile(".github/workflows/ci.yml", "utf8");
-    const previewJob = source.slice(source.indexOf("  vercel-preview:"));
-    const deploymentSteps = previewJob.slice(
-      previewJob.indexOf("- name: Build and deploy isolated Preview")
+  it("deploys Staging separately only after a successful CI run", async () => {
+    const ciSource = await readFile(".github/workflows/ci.yml", "utf8");
+    const source = await readFile(
+      ".github/workflows/deploy-staging.yml",
+      "utf8"
     );
 
-    expect(source).toContain("needs: build-and-knip");
+    expect(ciSource).not.toContain("vercel deploy");
+    expect(source).toContain("workflow_run:");
+    expect(source).toContain("github.event.workflow_run.conclusion");
     expect(source).toContain(
       'vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes'
     );
-    expect(source).toContain("curl --fail-with-body --silent --show-error");
-    expect(source).toContain("x-vercel-protection-bypass");
+    expect(source).toContain("--target=staging");
+    expect(source).toContain("db:migrate:staging");
+    expect(source).toContain("Create Staging Neon backup");
+    expect(source).toContain("preview.neurocapacitar.com.br");
     expect(source).not.toContain("vercel@57.0.0 curl");
     expect(source).not.toContain("vercel@57.0.0 pull");
-    expect(previewJob).toContain("name: vercel-preview");
-    expect(previewJob).toContain("timeout-minutes: 20");
-    expect(previewJob).toContain("github.event_name != 'push'");
-    expect(previewJob).toContain("githubCommitRef=");
-    expect(previewJob).toContain("githubCommitSha=");
-    expect(previewJob).toContain("VERCEL_SCOPE: neuro-capacitar");
-    expect(previewJob).toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
-    expect(previewJob.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(1);
-    expect(previewJob).toContain("HEALTHCHECK_SECRET");
-    expect(previewJob).toContain("DATABASE_URL_DIRECT");
-    expect(deploymentSteps).not.toContain("DATABASE_URL_DIRECT");
-    expect(previewJob).not.toContain("R2_SECRET_ACCESS_KEY");
-    expect(previewJob).not.toContain("RESEND_API_KEY");
+    expect(source).toContain("name: vercel-staging");
+    expect(source).toContain("githubCommitRef=");
+    expect(source).toContain("githubCommitSha=");
+    expect(source).toContain("VERCEL_SCOPE: neuro-capacitar");
+    expect(source).toContain("HEALTHCHECK_SECRET");
+    expect(source).toContain("DATABASE_URL_DIRECT");
   });
 
   it("derives an approved main SHA before production migration and promotion", async () => {
@@ -55,14 +53,15 @@ describe("Vercel deployment contract", () => {
     );
 
     expect(source).toContain("workflow_dispatch:");
-    expect(source).not.toContain("      release_sha:");
+    expect(source).toContain("      release_sha:");
+    expect(source).toContain("      confirmation:");
     expect(source).toContain("confirm_production:");
     expect(source).toContain("actions: read");
     expect(source).toContain("Verify approved main SHA and green CI");
-    expect(source).toContain("ref: main");
-    expect(source).toContain('release_sha="$(git rev-parse HEAD)"');
+    expect(source).toContain(["ref: ", "{{ inputs.release_sha }}"].join("$"));
+    expect(source).toContain(['release_sha="', '{RELEASE_SHA}"'].join("$"));
     expect(source).toContain("steps.release.outputs.sha");
-    expect(source).toContain('GITHUB_REF}" != "refs/heads/main"');
+    expect(source).toContain("git merge-base --is-ancestor");
     expect(source).toContain("origin/main");
     expect(source).toContain("actions/workflows/ci.yml/runs");
     expect(source).not.toMatch(WORKFLOW_RUN_TRIGGER_PATTERN);

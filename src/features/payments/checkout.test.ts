@@ -33,6 +33,9 @@ const course = {
     "Descrição extensa do curso que deve ser preservada como snapshot comercial.",
   has_published_publication: true,
   id: COURSE_ID,
+  payment_allow_credit_card: true,
+  payment_allow_pix: true,
+  payment_max_installment_count: 3,
   price_in_cents: 10_000,
   slug: "formacao-neuro",
   status: "active",
@@ -53,6 +56,9 @@ const insertedOrder = {
   customer_email: "aluna@example.com",
   customer_name: "Aluna Exemplo",
   id: ATTEMPT_ID,
+  payment_allow_credit_card: true,
+  payment_allow_pix: true,
+  payment_max_installment_count: 3,
   provider: "asaas",
   provider_checkout_status: null,
   user_id: "user-1",
@@ -440,6 +446,9 @@ describe("createAsaasCheckoutIntent", () => {
           "formacao-neuro",
           "Formação prática em neuroeduca",
           course.description,
+          true,
+          true,
+          3,
         ]);
         return { rows: [persistedSnapshot] };
       }
@@ -467,6 +476,11 @@ describe("createAsaasCheckoutIntent", () => {
         description: "Descrição devolvida pelo Pedido persistido",
         name: "Nome devolvido pelo Pedido",
         valueInCents: 12_345,
+      },
+      paymentOptions: {
+        allowCreditCard: true,
+        allowPix: true,
+        maxInstallmentCount: 3,
       },
     });
     expect(result).toEqual({

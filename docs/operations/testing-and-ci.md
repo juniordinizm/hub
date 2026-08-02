@@ -24,7 +24,7 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 9. build;
 10. Knip;
 11. auditoria das dependências de produção;
-12. build remoto, deploy e smoke autenticado de um candidato Vercel Preview;
+12. liberação do workflow de Staging para o SHA verde da branch persistente;
 13. habilitação dos workflows manuais de migration Development e deploy
     Production para o SHA verde da `main`.
 
@@ -35,14 +35,11 @@ contribuidores externos. As duas jobs partem de `quality` e executam em paralelo
 própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
 `vercel-preview` só inicia depois de todos esses gates, com uma terceira branch Neon.
 
-O deployment Preview é deliberadamente um smoke de infraestrutura: usa a
-branch Neon efêmera criada pela própria job, prepara dados legados, aplica as
-migrations, injeta sua URL pooled apenas naquele deployment, valida build/runtime
-e executa somente readiness
-autenticada. Não recebe R2, Resend, Asaas ou JMVStream e não substitui as
-jornadas funcionais do Playwright. A validação do ambiente bloqueia o
-deployment se credenciais desses providers ou jobs habilitados aparecerem em
-Preview. O contrato exige `VERCEL_BRANCH_URL` ou `VERCEL_URL`: o primeiro é
+O perfil Preview permanece dormente e fail-closed: não recebe R2, Resend, Asaas
+ou JMVStream e não substitui as jornadas funcionais do Playwright. Staging é o
+ambiente persistente de homologação manual, publicado somente após a CI verde
+da branch `staging`. O contrato Preview exige `VERCEL_BRANCH_URL` ou
+`VERCEL_URL`: o primeiro é
 preferido quando existe alias de branch; o segundo é o hostname disponível nos
 deployments criados pela CLI. Ambos continuam protegidos, e somente a CI recebe
 o bypass de automação. A branch é apagada em passo `always()` depois do smoke;

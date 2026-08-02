@@ -47,6 +47,7 @@ export interface AsaasFinancialCorrelation {
   paymentCheckoutSession: string | null;
   paymentExternalReference: string | null;
   paymentId: string | null;
+  paymentInstallmentId?: string;
 }
 
 export interface AsaasFinancialEventDecision {
@@ -138,6 +139,7 @@ const getFinancialCorrelation = (
   const checkout = isRecord(payload.checkout) ? payload.checkout : null;
   const paymentExternalReference = getString(payment, "externalReference");
   const checkoutExternalReference = getString(checkout, "externalReference");
+  const paymentInstallmentId = getString(payment, "installment");
   const paymentOrderId = LOCAL_ORDER_REFERENCE_PATTERN.exec(
     paymentExternalReference ?? ""
   )?.[1];
@@ -159,6 +161,7 @@ const getFinancialCorrelation = (
     paymentCheckoutSession: getString(payment, "checkoutSession"),
     paymentExternalReference,
     paymentId: getString(payment, "id"),
+    ...(paymentInstallmentId ? { paymentInstallmentId } : {}),
   };
 };
 

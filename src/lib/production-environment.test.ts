@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 import { getProductionEnvironmentProblems } from "./production-environment";
 
 const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
-  ASAAS_API_BASE_URL: "https://api.asaas.com",
-  ASAAS_API_KEY: "asaas-payment-key",
-  ASAAS_USER_AGENT: "hub/1.0 support@example.com",
+  APPLICATION_MAINTENANCE_MODE: "full",
   ASAAS_WEBHOOK_ENABLED: "false",
-  ASAAS_WEBHOOK_TOKEN:
-    "asaas-production-webhook-token-at-least-thirty-two-characters",
+  AUTH_PUBLIC_SIGNUP_ENABLED: "false",
   BETTER_AUTH_SECRET: "auth-secret-at-least-thirty-two-characters",
   BETTER_AUTH_URL: "https://app.example.com",
   CERTIFICATE_PUBLIC_BASE_URL: "https://app.example.com",
@@ -26,9 +23,18 @@ const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   R2_SECRET_ACCESS_KEY: "r2-secret",
   RESEND_API_KEY: "resend-key",
   RESEND_FROM_EMAIL: "PROTEA-R <noreply@example.com>",
-  SCHEDULED_JOBS_ENABLED: "true",
+  SCHEDULED_JOBS_ENABLED: "false",
   SUPPORT_EMAIL: "support@example.com",
 };
+
+const ACTIVE_ASAAS_CAPABILITY = {
+  ASAAS_API_BASE_URL: "https://api.asaas.com",
+  ASAAS_API_KEY: "asaas-payment-key",
+  ASAAS_USER_AGENT: "hub/1.0 support@example.com",
+  ASAAS_WEBHOOK_ENABLED: "true",
+  ASAAS_WEBHOOK_TOKEN:
+    "asaas-production-webhook-token-at-least-thirty-two-characters",
+} as const;
 
 describe("production environment contract", () => {
   it("accepts a complete production runtime without build-only secrets", () => {
@@ -46,6 +52,31 @@ describe("production environment contract", () => {
     expect(getProductionEnvironmentProblems(environment)).toContain(
       "PAYMENTS_CHECKOUT_MODE"
     );
+  });
+
+  it("requires an explicit maintenance mode in Production", () => {
+    const environment: Record<string, string | undefined> = {
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      APPLICATION_MAINTENANCE_MODE: undefined,
+    };
+
+    expect(getProductionEnvironmentProblems(environment)).toContain(
+      "APPLICATION_MAINTENANCE_MODE"
+    );
+  });
+
+  it.each([
+    ["AUTH_PUBLIC_SIGNUP_ENABLED", "true"],
+    ["PAYMENTS_CHECKOUT_MODE", "public"],
+    ["ASAAS_WEBHOOK_ENABLED", "true"],
+    ["SCHEDULED_JOBS_ENABLED", "true"],
+  ])("rejects %s=%s during full Production maintenance", (key, value) => {
+    expect(
+      getProductionEnvironmentProblems({
+        ...COMPLETE_PRODUCTION_ENVIRONMENT,
+        [key]: value,
+      })
+    ).toContain(`${key} must be disabled during full maintenance`);
   });
 
   it("rejects an invalid checkout mode without exposing its value", () => {
@@ -100,7 +131,7 @@ describe("production environment contract", () => {
   it("allows the disabled pre-cutover deploy without Asaas credentials", () => {
     const environment = Object.fromEntries(
       Object.entries(COMPLETE_PRODUCTION_ENVIRONMENT).filter(
-        ([key]) => !key.startsWith("ASAAS_")
+        ([key]) => !key.startsWith("ASAAS_") || key === "ASAAS_WEBHOOK_ENABLED"
       )
     );
 
@@ -117,6 +148,7 @@ describe("production environment contract", () => {
       )
     );
     environment.PAYMENTS_CHECKOUT_MODE = checkoutMode;
+    environment.APPLICATION_MAINTENANCE_MODE = "off";
 
     expect(getProductionEnvironmentProblems(environment)).toEqual(
       expect.arrayContaining([
@@ -136,6 +168,7 @@ describe("production environment contract", () => {
       )
     );
     environment.ASAAS_WEBHOOK_ENABLED = "true";
+    environment.APPLICATION_MAINTENANCE_MODE = "off";
 
     expect(getProductionEnvironmentProblems(environment)).toEqual(
       expect.arrayContaining([
@@ -154,6 +187,7 @@ describe("production environment contract", () => {
       )
     );
     environment.ASAAS_API_KEY = "configured-before-the-other-values";
+    environment.APPLICATION_MAINTENANCE_MODE = "off";
 
     expect(getProductionEnvironmentProblems(environment)).toEqual(
       expect.arrayContaining([
@@ -167,6 +201,8 @@ describe("production environment contract", () => {
   it("requires an explicit webhook switch with Asaas Production", () => {
     const environment: Record<string, string | undefined> = {
       ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      ...ACTIVE_ASAAS_CAPABILITY,
+      APPLICATION_MAINTENANCE_MODE: "off",
       ASAAS_WEBHOOK_ENABLED: undefined,
     };
 

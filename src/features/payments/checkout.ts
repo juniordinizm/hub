@@ -102,6 +102,9 @@ interface CheckoutCourse {
   description: string | null;
   has_published_publication: boolean;
   id: string;
+  payment_allow_credit_card: boolean;
+  payment_allow_pix: boolean;
+  payment_max_installment_count: number;
   price_in_cents: number;
   slug: string;
   status: string;
@@ -128,6 +131,9 @@ interface CheckoutOrder {
   customer_email: string | null;
   customer_name: string | null;
   id: string;
+  payment_allow_credit_card: boolean;
+  payment_allow_pix: boolean;
+  payment_max_installment_count: number;
   provider: string;
   provider_checkout_status: string | null;
   user_id: string | null;
@@ -379,7 +385,8 @@ const readCheckoutOrder = async ({
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
-        checkout_item_description
+        checkout_item_description, payment_allow_pix, payment_allow_credit_card,
+        payment_max_installment_count
       from orders
       where id = $1
       limit 1
@@ -542,7 +549,8 @@ export const createAsaasCheckoutIntent = async (
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
-        checkout_item_description
+        checkout_item_description, payment_allow_pix, payment_allow_credit_card,
+        payment_max_installment_count
       from orders
       where id = $1
       limit 1
@@ -561,6 +569,8 @@ export const createAsaasCheckoutIntent = async (
   const courseResult = await pool.query<CheckoutCourse>(
     `
       select c.id, c.title, c.slug, c.description, c.price_in_cents,
+             c.payment_allow_pix, c.payment_allow_credit_card,
+             c.payment_max_installment_count,
              c.access_duration_months, c.status,
              exists (
                select 1 from course_publications cp
@@ -613,18 +623,22 @@ export const createAsaasCheckoutIntent = async (
         checkout_course_slug,
         checkout_item_name,
         checkout_item_description,
+        payment_allow_pix,
+        payment_allow_credit_card,
+        payment_max_installment_count,
         checkout_attempt_count
       )
       values (
         $1, $2, $3, $4, 'asaas', null, null, null, $5, 'pending', 'pending',
-        null, $6, $7, $8, $9, $10, $11, $12, 0
+        null, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0
       )
       on conflict (id) do nothing
       returning
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
-        checkout_item_description
+        checkout_item_description, payment_allow_pix, payment_allow_credit_card,
+        payment_max_installment_count
     `,
     [
       input.attemptId,
@@ -639,6 +653,9 @@ export const createAsaasCheckoutIntent = async (
       normalizeCourseSlug(course.slug),
       item.name,
       item.description,
+      course.payment_allow_pix,
+      course.payment_allow_credit_card,
+      course.payment_max_installment_count,
     ]
   );
   const createdOrder = inserted.rows[0];
@@ -650,7 +667,8 @@ export const createAsaasCheckoutIntent = async (
           id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
           provider_checkout_status, amount_in_cents, access_duration_months,
           customer_email, customer_name, checkout_course_slug, checkout_item_name,
-          checkout_item_description
+          checkout_item_description, payment_allow_pix, payment_allow_credit_card,
+          payment_max_installment_count
         from orders
         where id = $1
         limit 1
@@ -697,6 +715,11 @@ export const createAsaasCheckoutIntent = async (
         description: createdOrder.checkout_item_description,
         name: createdOrder.checkout_item_name,
         valueInCents: createdOrder.amount_in_cents,
+      },
+      paymentOptions: {
+        allowCreditCard: createdOrder.payment_allow_credit_card,
+        allowPix: createdOrder.payment_allow_pix,
+        maxInstallmentCount: createdOrder.payment_max_installment_count,
       },
     });
 

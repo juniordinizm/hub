@@ -25,6 +25,11 @@ export interface CreateAsaasCheckout {
     name: string;
     valueInCents: number;
   };
+  paymentOptions: {
+    allowCreditCard: boolean;
+    allowPix: boolean;
+    maxInstallmentCount: number;
+  };
 }
 
 export interface AsaasRefundEvidence {
@@ -41,10 +46,22 @@ export interface AsaasPayment {
   customer: string;
   externalReference: string | null;
   id: string;
+  installmentId?: string;
   netValueInCents: number;
   refunds: AsaasRefundEvidence[];
   status: string;
   transactionReceiptUrl?: string;
+  valueInCents: number;
+}
+
+export interface AsaasInstallment {
+  billingType: string;
+  checkoutSession: string | null;
+  id: string;
+  installmentCount: number;
+  netValueInCents: number;
+  paymentValueInCents: number;
+  refunds: AsaasRefundEvidence[];
   valueInCents: number;
 }
 
@@ -93,14 +110,21 @@ export interface RefundAsaasPayment {
   paymentId: string;
 }
 
+export interface RefundAsaasInstallment {
+  installmentId: string;
+}
+
 export interface AsaasGateway {
   cancelCheckout(checkoutId: string): Promise<AsaasCheckout>;
   createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout>;
   getCustomer(customerId: string): Promise<AsaasCustomer>;
+  getInstallment(installmentId: string): Promise<AsaasInstallment>;
   getPayment(paymentId: string): Promise<AsaasPayment>;
   listFinancialTransactions(
     filters: ListAsaasFinancialTransactions
   ): Promise<AsaasFinancialTransactionPage>;
+  listInstallmentPayments(installmentId: string): Promise<AsaasPaymentPage>;
   listPayments(filters: ListAsaasPayments): Promise<AsaasPaymentPage>;
+  refundInstallment(input: RefundAsaasInstallment): Promise<AsaasInstallment>;
   refundPayment(input: RefundAsaasPayment): Promise<AsaasPayment>;
 }

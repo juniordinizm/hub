@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 ---
 
 # PROTEA-R Hub
@@ -17,12 +17,12 @@ Pré-requisitos:
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
 O histórico local de migrations está reconciliado até
-`0051_asaas_financial_statement`, incluindo outbox transacional,
+`0053_course_payment_offers`, incluindo outbox transacional,
 publicações de Curso, artefatos imutáveis de Certificado, perfil automático
 para cadastro público, leases dos jobs serverless e consumo único de uploads
-administrativos. As migrations Asaas `0044` a `0051` foram validadas apenas em
-PostgreSQL descartável; Production permanece auditada em `0043` e não recebeu o
-corte. Para um banco local
+administrativos. As migrations Asaas `0044` a `0052` estão aplicadas em
+Production; `0053` foi validada em PostgreSQL descartável e aplicada em Staging,
+enquanto Production permanece em manutenção até a promoção aprovada. Para um banco local
 descartável,
 use os comandos de reset, seed e smoke somente conforme o
 [runbook de banco](docs/operations/database-and-migrations.md): eles recusam
