@@ -25,7 +25,9 @@ usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. O
 workflows de Staging e Production consultam a branch criada pela API Neon e interrompem
 a release antes da migration quando o `parent_id` diverge do ambiente esperado. O
 gatilho automático aceita somente uma CI verde originada por `push` em `staging`;
-uma CI de Pull Request com head `staging` não pode criar backup ou deployment. O
+uma CI de Pull Request com head `staging` não pode criar backup ou deployment. No
+disparo manual, o checkout e o gate resolvem o SHA atual de `staging`, sem comparar
+contra o SHA de `main` que hospeda a definição do workflow. O
 workflow manual `Deploy Vercel production`
 recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria

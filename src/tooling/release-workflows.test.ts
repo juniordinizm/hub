@@ -127,6 +127,17 @@ describe("CI workflow", () => {
     expect(stagingWorkflow).toContain(
       "github.event.workflow_run.event == 'push'"
     );
+    expect(stagingWorkflow).toContain(
+      `ref: ${githubExpression(
+        "github.event.workflow_run.head_sha || 'staging'"
+      )}`
+    );
+    expect(stagingWorkflow).toContain(
+      `CI_HEAD_SHA: ${githubExpression("github.event.workflow_run.head_sha")}`
+    );
+    expect(stagingWorkflow).toContain(
+      `[[ -n "${shellVariable("CI_HEAD_SHA")}" &&`
+    );
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
     expect(stagingWorkflow).toContain(
