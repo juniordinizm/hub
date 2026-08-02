@@ -117,8 +117,27 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: production-release-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
-          parent: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          parent_branch: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           project_id: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+      - name: Verify Production Neon backup ancestry
+        env:
+          BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          actual_parent="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Accept: application/json" \
+              "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches/${BACKUP_BRANCH_ID}" \
+              | jq -er '.branch.parent_id'
+          )"
+          [[ "${actual_parent}" == "${PRODUCTION_NEON_BRANCH_ID}" ]] || {
+            echo "Production backup does not descend from the configured Production branch." >&2
+            exit 1
+          }
       - name: Apply production migrations
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
