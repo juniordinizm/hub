@@ -10,6 +10,7 @@ import type {
 import { getAsaasProviderPaymentTransition } from "@/features/payments/asaas-financial-events";
 import { runCoordinatedAsaasQuery } from "@/features/payments/asaas-query-policy";
 import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
+import { closeRefundedBuyerIdentityReview } from "@/features/payments/buyer-identity-review";
 import type { PersistedOrderStatus } from "@/features/payments/financial-policy";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 
@@ -440,6 +441,7 @@ export const reconcileAsaasPayment = async ({
           now,
         ]
       );
+      await closeRefundedBuyerIdentityReview({ client, now, orderId });
     }
     await auditReconciliation({
       action: "asaas.payment_reconciled",

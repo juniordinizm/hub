@@ -234,6 +234,11 @@ describe("Asaas reconciliation", () => {
       12_990,
       expect.any(Date),
     ]);
+    expect(
+      transactionQueries.find(({ text }) =>
+        text.includes("update payment_reviews")
+      )?.values
+    ).toEqual(["order-1", expect.any(Date)]);
   });
 
   it.each([
