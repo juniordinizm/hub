@@ -124,6 +124,9 @@ describe("CI workflow", () => {
     expect(workflow).not.toContain("vercel deploy");
     expect(stagingWorkflow).toContain("workflow_run:");
     expect(stagingWorkflow).toContain("branches: [staging]");
+    expect(stagingWorkflow).toContain(
+      "github.event.workflow_run.event == 'push'"
+    );
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
     expect(stagingWorkflow).toContain(

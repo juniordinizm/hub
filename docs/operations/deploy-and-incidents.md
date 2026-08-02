@@ -24,6 +24,8 @@ Custom Environment `staging`. O backup declara `parent_branch` com o ID de Stagi
 usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. Os
 workflows de Staging e Production consultam a branch criada pela API Neon e interrompem
 a release antes da migration quando o `parent_id` diverge do ambiente esperado. O
+gatilho automático aceita somente uma CI verde originada por `push` em `staging`;
+uma CI de Pull Request com head `staging` não pode criar backup ou deployment. O
 workflow manual `Deploy Vercel production`
 recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
@@ -72,6 +74,11 @@ provisionamento inicial, foi rotacionado com o mesmo valor limpo no Custom Envir
 Vercel e no GitHub Environment. O smoke confirmou raiz não indexável, sitemap ausente e
 readiness autenticada. Os backups dessa rodada foram posteriormente removidos por terem
 ancestralidade incorreta; a proteção adicional impede a repetição silenciosa.
+
+A auditoria seguinte identificou que uma CI de Pull Request com head `staging` também
+satisfazia o filtro `workflow_run.branches` e disparava um segundo deployment do mesmo
+SHA. O job passou a exigir `workflow_run.event == 'push'`; o backup redundante dessa
+execução foi removido e o teste de contrato impede regressão.
 
 ### Ambientes
 
