@@ -40,19 +40,19 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || 'staging' }}
       - name: Verify exact current Staging SHA
         id: release
         env:
-          CI_HEAD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          CI_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin staging
           release_sha="$(git rev-parse HEAD)"
           staging_sha="$(git rev-parse origin/staging)"
           if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]] ||
-             [[ "${release_sha}" != "${CI_HEAD_SHA}" ]] ||
-             [[ "${release_sha}" != "${staging_sha}" ]]; then
+             [[ "${release_sha}" != "${staging_sha}" ]] ||
+             [[ -n "${CI_HEAD_SHA}" && "${release_sha}" != "${CI_HEAD_SHA}" ]]; then
             echo "Deployment SHA must equal the current origin/staging SHA." >&2
             exit 1
           fi
