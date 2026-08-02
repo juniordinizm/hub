@@ -138,14 +138,19 @@ describe("Asaas reconciliation", () => {
       provider_installment_id: "ins-1",
       provider_payment_status: "CONFIRMED",
     };
+    const transactionQueries: Array<{
+      text: string;
+      values?: unknown[];
+    }> = [];
     const client = {
-      query: vi.fn((text: string) =>
-        Promise.resolve(
+      query: vi.fn((text: string, values?: unknown[]) => {
+        transactionQueries.push(values ? { text, values } : { text });
+        return Promise.resolve(
           text.includes("from orders")
             ? { rows: [installmentOrder] }
             : { rows: [] }
-        )
-      ),
+        );
+      }),
       release: vi.fn(),
     };
     dependencies.getPool.mockReturnValue({
@@ -160,9 +165,26 @@ describe("Asaas reconciliation", () => {
       installmentId: "ins-1",
       netValueInCents: 4200,
       refunds: [],
-      status: "CONFIRMED",
+      status: "REFUNDED",
       valueInCents: 4330,
     };
+    const installmentRefunds = [
+      {
+        dateCreated: "2026-08-02 01:45:03",
+        status: "DONE",
+        valueInCents: 4330,
+      },
+      {
+        dateCreated: "2026-08-02 01:45:03",
+        status: "DONE",
+        valueInCents: 4330,
+      },
+      {
+        dateCreated: "2026-08-02 01:45:03",
+        status: "DONE",
+        valueInCents: 4330,
+      },
+    ];
     const gateway = new FakeAsaasGateway({
       getInstallment: {
         billingType: "CREDIT_CARD",
@@ -171,7 +193,7 @@ describe("Asaas reconciliation", () => {
         installmentCount: 3,
         netValueInCents: 12_500,
         paymentValueInCents: 4330,
-        refunds: [],
+        refunds: installmentRefunds,
         valueInCents: 12_990,
       },
       listInstallmentPayments: {
@@ -199,6 +221,19 @@ describe("Asaas reconciliation", () => {
     expect(gateway.calls.getInstallment).toEqual(["ins-1"]);
     expect(gateway.calls.listInstallmentPayments).toEqual(["ins-1"]);
     expect(gateway.calls.getPayment).toEqual([]);
+    expect(
+      transactionQueries.find(({ text }) =>
+        text.includes("update refund_requests")
+      )?.values
+    ).toEqual([
+      "order-1",
+      "DONE",
+      "2026-08-02 01:45:03",
+      null,
+      null,
+      12_990,
+      expect.any(Date),
+    ]);
   });
 
   it.each([

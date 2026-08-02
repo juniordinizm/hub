@@ -216,6 +216,57 @@ describe("Asaas full refund requests", () => {
     expect(dependencies.gateway.refundPayment).not.toHaveBeenCalled();
   });
 
+  it("aggregates the per-charge refund evidence returned for an installment", async () => {
+    const { queries } = createRefundDatabase({
+      providerInstallmentId: "ins_123",
+    });
+    dependencies.gateway.refundInstallment.mockResolvedValue({
+      billingType: "CREDIT_CARD",
+      checkoutSession: "chk_123",
+      id: "ins_123",
+      installmentCount: 3,
+      netValueInCents: 12_000,
+      paymentValueInCents: 4330,
+      refunds: [
+        {
+          dateCreated: "2026-08-02 01:45:03",
+          status: "DONE",
+          transactionReceiptUrl: "https://asaas.example/refund-1",
+          valueInCents: 4330,
+        },
+        {
+          dateCreated: "2026-08-02 01:45:03",
+          status: "DONE",
+          transactionReceiptUrl: "https://asaas.example/refund-2",
+          valueInCents: 4330,
+        },
+        {
+          dateCreated: "2026-08-02 01:45:03",
+          status: "DONE",
+          transactionReceiptUrl: "https://asaas.example/refund-3",
+          valueInCents: 4330,
+        },
+      ],
+      valueInCents: 12_990,
+    });
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    const evidence = queries.find(
+      ({ text, values }) =>
+        text.includes("update refund_requests") &&
+        values?.includes("2026-08-02 01:45:03")
+    );
+    expect(evidence?.values).toEqual([
+      REFUND_ID,
+      "DONE",
+      "2026-08-02 01:45:03",
+      null,
+      null,
+      12_990,
+    ]);
+  });
+
   it("accepts a null external reference when the checkout session matches exactly", async () => {
     createRefundDatabase();
     dependencies.gateway.refundPayment.mockResolvedValue({

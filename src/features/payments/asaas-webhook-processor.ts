@@ -10,7 +10,7 @@ import {
   createPaidAccessReleasedMessage,
 } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
-import type { AsaasGateway } from "./asaas";
+import type { AsaasGateway, AsaasRefundEvidence } from "./asaas";
 import {
   type AsaasBuyerIdentityPreparation,
   prepareAsaasBuyerIdentity,
@@ -27,6 +27,7 @@ import {
   materializeAsaasInstallmentPayload,
 } from "./asaas-installment-events";
 import { parseAsaasDecimalToCents } from "./asaas-money";
+import { findExactAsaasRefundEvidence } from "./asaas-refund-evidence";
 import {
   AsaasWebhookProcessingError,
   type AsaasWebhookProcessor,
@@ -146,25 +147,41 @@ const getExactRefundEvidence = ({
   if (!Array.isArray(refunds)) {
     return null;
   }
+  const parsedRefunds: AsaasRefundEvidence[] = [];
   for (const refund of refunds) {
     const dateCreated = getString(refund, "dateCreated");
     const status = getString(refund, "status");
     const valueInCents = parseAsaasDecimalToCents(getField(refund, "value"));
-    if (
-      dateCreated &&
-      status === "DONE" &&
-      valueInCents === expectedAmountInCents
-    ) {
-      return {
-        dateCreated,
-        endToEndIdentifier: getNullableString(refund, "endToEndIdentifier"),
-        receiptUrl: getNullableString(refund, "transactionReceiptUrl"),
-        status,
-        valueInCents,
-      };
+    if (!(dateCreated && status && valueInCents !== null)) {
+      return null;
     }
+    const endToEndIdentifier = getNullableString(refund, "endToEndIdentifier");
+    const transactionReceiptUrl = getNullableString(
+      refund,
+      "transactionReceiptUrl"
+    );
+    parsedRefunds.push({
+      dateCreated,
+      ...(endToEndIdentifier ? { endToEndIdentifier } : {}),
+      status,
+      ...(transactionReceiptUrl ? { transactionReceiptUrl } : {}),
+      valueInCents,
+    });
   }
-  return null;
+  const evidence = findExactAsaasRefundEvidence(
+    parsedRefunds,
+    expectedAmountInCents
+  );
+  if (evidence?.status !== "DONE") {
+    return null;
+  }
+  return {
+    dateCreated: evidence.dateCreated,
+    endToEndIdentifier: evidence.endToEndIdentifier ?? null,
+    receiptUrl: evidence.transactionReceiptUrl ?? null,
+    status: evidence.status,
+    valueInCents: evidence.valueInCents,
+  };
 };
 
 const asCorrelationRow = (row: unknown): CorrelationRow | null => {

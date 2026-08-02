@@ -9,6 +9,7 @@ import type {
 } from "@/features/payments/asaas";
 import { getAsaasProviderPaymentTransition } from "@/features/payments/asaas-financial-events";
 import { runCoordinatedAsaasQuery } from "@/features/payments/asaas-query-policy";
+import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
 import type { PersistedOrderStatus } from "@/features/payments/financial-policy";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 
@@ -80,9 +81,7 @@ const findFullRefund = (
   payment: AsaasPayment,
   expectedAmountInCents: number
 ): AsaasRefundEvidence | null =>
-  payment.refunds.find(
-    (refund) => refund.valueInCents === expectedAmountInCents
-  ) ?? null;
+  findExactAsaasRefundEvidence(payment.refunds, expectedAmountInCents);
 
 type ReconciliationReviewType =
   | "amount_mismatch"
@@ -268,9 +267,9 @@ const getReconciliationPayment = async ({
   if (!hasExactPayments) {
     throw new Error("A consulta Asaas nao corresponde ao Pedido informado.");
   }
-  const hasFullRefund = installment.refunds.some(
-    (refund) => refund.valueInCents === order.amountInCents
-  );
+  const hasFullRefund =
+    findExactAsaasRefundEvidence(installment.refunds, order.amountInCents) !==
+    null;
   return {
     billingType: installment.billingType,
     checkoutSession: installment.checkoutSession,

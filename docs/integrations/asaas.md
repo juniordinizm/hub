@@ -107,6 +107,20 @@ confirmou `billingTypes=PIX,CREDIT_CARD`, `chargeTypes=DETACHED,INSTALLMENT` e
 `maxInstallmentCount=3`. O webhook e o worker encerraram o Pedido como
 `cancelled/CANCELED` sem efeito financeiro.
 
+Em 2026-08-02, uma compra pública de R$ 99,00 foi paga em 3x no Checkout Sandbox de
+Staging. O Asaas criou um agregado de parcelamento e três IDs de pagamento, enquanto o
+Hub persistiu R$ 99,00 bruto, R$ 95,07 líquido e R$ 3,93 de taxa. O e-mail pertencia a
+um acesso anteriormente revogado no Curso: o Pedido foi pago, mas permaneceu sem Conta,
+Concessão ou Matrícula e abriu Revisão `buyer_identity_course_revoked`, conforme a regra
+de bloqueio aprovada.
+
+O estorno integral do parcelamento devolveu três evidências de R$ 33,00, uma por
+cobrança, em vez de uma evidência isolada de R$ 99,00. Resposta da mutação, webhook e
+conciliação agora somam somente evidências positivas, não canceladas e cujo total exato
+corresponde ao snapshot do Pedido. Evidência agregada integral confirma a solicitação e
+encerra a Revisão de identidade; valor parcial, cancelado ou divergente continua falhando
+fechado.
+
 O Hub guarda o ID comum em `provider_installment_id`, valida o agregado oficial fora da
 transação local, preserva a primeira cobrança em `provider_payment_id`, concilia todas as
 cobranças e usa o endpoint de estorno do parcelamento. O contrato está descrito em

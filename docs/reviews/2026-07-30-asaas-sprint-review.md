@@ -23,6 +23,22 @@ autoritativo e Revisão sem acesso para Conta de equipe. Esses itens foram imple
 código depois desta fotografia; E2E PostgreSQL, Sandbox pós-mudança e corte continuam
 pendentes e não alteram os achados históricos abaixo.
 
+## Atualização de encerramento em 2026-08-02
+
+Os bloqueios funcionais descritos nesta fotografia foram implementados e homologados no
+ambiente Staging persistente. Compra pública, Pix, cartão à vista, cartão em 3x,
+identidade posterior ao pagamento, ativação, login, acesso, expiração, cancelamento,
+conciliação e reembolso integral possuem evidência Sandbox. O teste parcelado também
+provou que um e-mail com acesso revogado não recebe Conta, Concessão ou Matrícula e exige
+reembolso pelo Suporte.
+
+O reembolso real do agregado revelou uma divergência final: o Asaas devolve uma
+evidência por cobrança do parcelamento. A resposta da mutação, o webhook e a conciliação
+passaram a agregar essas evidências somente quando a soma corresponde exatamente ao valor
+do Pedido; regressões cobrem os três caminhos. Assim, o objetivo funcional do sprint está
+concluído em Staging. A promoção controlada para Production permanece uma etapa de
+release, com Production ainda integralmente em manutenção.
+
 ## Veredito
 
 **Núcleo técnico Asaas: aprovado com ressalvas. Migração completa: não aprovada.

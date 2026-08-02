@@ -40,8 +40,9 @@ A jornada pública aprovada está implementada em código: usa o link estável
 handoff cria o Checkout sem formulário local e mantém `/` protegida. O worker enriquece a
 identidade fora da transação e trata Conta de equipe, bloqueio e revogação sem liberar
 acesso. A execução E2E em PostgreSQL descartável e o handoff público no Sandbox foram
-homologados; a conclusão financeira manual de uma compra parcelada e o corte de
-Production permanecem pendentes.
+homologados. Uma compra pública em 3x, o bloqueio de identidade revogada e o reembolso
+integral do parcelamento foram homologados manualmente no Sandbox de Staging; somente o
+corte controlado de Production permanece pendente.
 
 ### Aprendizagem
 
@@ -74,7 +75,7 @@ Production permanecem pendentes.
 - API, jornada pública e revisão de identidade implementadas, cobertas por E2E em
   PostgreSQL descartável e homologadas no handoff Sandbox;
 - oferta comercial por Curso com Pix, cartão ou ambos e teto de parcelamento,
-  homologada no Checkout Sandbox até a exibição das opções em 3x;
+  homologada no Checkout Sandbox com pagamento e reembolso reais em 3x;
 - Certificados públicos, PDF, revogação e reemissão;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.
@@ -100,8 +101,8 @@ decisão arquitetural retroativamente inventada.
 O [registro de decisões](docs/decisions.md) separa comportamento implementado, decisão aprovada, implementação aguardando ratificação e pendência real.
 
 Pendências principais: base legal e texto final de transparência para analytics padrão
-antes da produção; prova financeira manual de uma compra parcelada Sandbox; política
-comercial para eventual subsídio de juros, não configurável no Checkout hospedado;
+antes da produção; política comercial para eventual subsídio de juros, não configurável
+no Checkout hospedado;
 reversão de ajustes encadeados;
 critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão
 tratados como caso excepcional quando houver política jurídica formal e demanda real.

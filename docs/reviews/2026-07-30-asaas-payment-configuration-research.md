@@ -68,6 +68,14 @@ O OpenAPI atual define `installment.maxInstallmentCount` como inteiro entre 1 e 
 
 O Asaas informa que a quantidade exibida também pode variar segundo valor da compra e configurações aplicáveis. Na documentação geral de cobranças por cartão, Visa e Mastercard admitem até 21x; as demais bandeiras continuam limitadas a 12x. O padrão de até 3x está dentro de todos esses limites conhecidos.
 
+A documentação atual também descreve uma configuração de conta chamada valor mínimo da
+parcela. Ela limita automaticamente a quantidade disponível conforme o total da compra,
+mas não publica um valor padrão universal. No Sandbox do projeto, 3x de R$ 6,63 foi
+exibido e recusado no pagamento, enquanto 3x de R$ 33,00 foi confirmado. Esse ensaio não
+prova um limiar numérico geral; portanto o Hub não deve inventar um mínimo em código. A
+conta Asaas deve ser configurada e o limite efetivo monitorado, mantendo
+`maxInstallmentCount` como teto da oferta por Curso.
+
 Fontes: [Asaas Checkout](https://docs.asaas.com/docs/checkout-asaas), [Checkout para cartão de crédito](https://docs.asaas.com/docs/checkout-para-cart%C3%A3o-de-cr%C3%A9dito) e [cobranças via cartão de crédito](https://docs.asaas.com/docs/cobrancas-via-cartao-de-credito).
 
 ### Limites relacionados

@@ -10,6 +10,7 @@ import type {
   AsaasRefundEvidence,
 } from "@/features/payments/asaas";
 import { AsaasGatewayError } from "@/features/payments/asaas-client";
+import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 import { getServerEnv } from "@/lib/env";
 
@@ -431,6 +432,5 @@ const findExactRefundEvidence = (
   payment: AsaasInstallment | AsaasPayment,
   expectedAmountInCents: number
 ): AsaasRefundEvidence | undefined =>
-  payment.refunds.find(
-    (refund) => refund.valueInCents === expectedAmountInCents
-  );
+  findExactAsaasRefundEvidence(payment.refunds, expectedAmountInCents) ??
+  undefined;

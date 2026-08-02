@@ -1600,6 +1600,74 @@ describe("Asaas webhook processor", () => {
     ]);
   });
 
+  it("confirms an installment refund from per-charge evidence", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        provider_installment_id: "ins_1",
+        status: "paid",
+      }),
+    });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity: vi.fn(),
+    });
+
+    await processEvent(
+      processor,
+      createPaymentEvent("PAYMENT_REFUNDED", {
+        billingType: "CREDIT_CARD",
+        installment: "ins_1",
+        status: "REFUNDED",
+        value: 43.3,
+      }),
+      context,
+      {
+        installment: {
+          billingType: "CREDIT_CARD",
+          checkoutSession: "chk_1",
+          id: "ins_1",
+          installmentCount: 3,
+          netValueInCents: 12_500,
+          paymentValueInCents: 4330,
+          refunds: [
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+            {
+              dateCreated: "2026-08-02 01:45:03",
+              status: "DONE",
+              valueInCents: 4330,
+            },
+          ],
+          valueInCents: 12_990,
+        },
+        kind: "not_required",
+      }
+    );
+
+    const refundUpdate = queries.find(({ text }) =>
+      text.includes("update refund_requests")
+    );
+    expect(refundUpdate?.values).toEqual([
+      ORDER_ID,
+      expect.any(Date),
+      "DONE",
+      "2026-08-02 01:45:03",
+      null,
+      null,
+      12_990,
+    ]);
+  });
+
   it.each([
     ["disputed", "PAYMENT_REFUNDED", "REFUNDED", "payment_dispute"],
     ["refunded", "PAYMENT_CHARGEBACK_DISPUTE", "DISPUTE", "payment_refund"],
