@@ -64,8 +64,7 @@ possuem 54 entradas alinhadas, com topo `0053_course_payment_offers`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0052` estão aplicadas em Production, enquanto `0053` foi aplicada somente em
-Staging durante a homologação. Na Vercel, cada instância limita o pool
+`0053` estão aplicadas em Production e Staging. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
