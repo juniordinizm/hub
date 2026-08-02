@@ -25,6 +25,7 @@ const EXPECTED_JOURNAL: MigrationJournalRow[] = Array.from(
 );
 const SCHEMA = `cleanup_test_${randomBytes(8).toString("hex")}`;
 const SAFE_SCHEMA_PATTERN = /^cleanup_test_[a-f0-9]+$/;
+const REMOTE_CLEANUP_EXECUTION_TIMEOUT_MS = 60_000;
 const pool = new Pool({
   application_name: "protea-r-cleanup-integration",
   connectionString: withVerifiedSslMode(databaseUrl),
@@ -185,36 +186,40 @@ describe("production cleanup PostgreSQL transaction", () => {
     expect(await readCount(pool, "orders")).toBe(before.rows[0]?.count);
   });
 
-  it("removes operational data and preserves only Admin identity", async () => {
-    const planned = await plan();
-    const client = await pool.connect();
-    try {
-      await expect(
-        runProductionCleanup({
-          client,
-          dependencies,
-          input: {
-            ...executorInput,
-            expectedFingerprint: planned.fingerprint,
-            mode: "execute",
-          },
-        })
-      ).resolves.toMatchObject({ status: "cleaned" });
-    } finally {
-      client.release();
-    }
+  it(
+    "removes operational data and preserves only Admin identity",
+    async () => {
+      const planned = await plan();
+      const client = await pool.connect();
+      try {
+        await expect(
+          runProductionCleanup({
+            client,
+            dependencies,
+            input: {
+              ...executorInput,
+              expectedFingerprint: planned.fingerprint,
+              mode: "execute",
+            },
+          })
+        ).resolves.toMatchObject({ status: "cleaned" });
+      } finally {
+        client.release();
+      }
 
-    for (const table of TRUNCATED_OPERATIONAL_TABLES) {
-      expect(await readCount(pool, table)).toBe(0);
-    }
-    for (const table of ["users", "profiles", "accounts", "sessions"]) {
-      expect(await readCount(pool, table)).toBe(1);
-    }
-    const identity = await pool.query<{ id: string }>(
-      `select id from ${qualified("users")}`
-    );
-    expect(identity.rows).toEqual([{ id: "admin-id" }]);
-  });
+      for (const table of TRUNCATED_OPERATIONAL_TABLES) {
+        expect(await readCount(pool, table)).toBe(0);
+      }
+      for (const table of ["users", "profiles", "accounts", "sessions"]) {
+        expect(await readCount(pool, table)).toBe(1);
+      }
+      const identity = await pool.query<{ id: string }>(
+        `select id from ${qualified("users")}`
+      );
+      expect(identity.rows).toEqual([{ id: "admin-id" }]);
+    },
+    REMOTE_CLEANUP_EXECUTION_TIMEOUT_MS
+  );
 
   it("rejects drift without changing data", async () => {
     const planned = await plan();
@@ -313,40 +318,44 @@ describe("production cleanup PostgreSQL transaction", () => {
     expect(await readCount(pool, "users")).toBe(2);
   });
 
-  it("requires a new plan before a second execution", async () => {
-    const planned = await plan();
-    const first = await pool.connect();
-    try {
-      await runProductionCleanup({
-        client: first,
-        dependencies,
-        input: {
-          ...executorInput,
-          expectedFingerprint: planned.fingerprint,
-          mode: "execute",
-        },
-      });
-    } finally {
-      first.release();
-    }
-
-    const second = await pool.connect();
-    try {
-      await expect(
-        runProductionCleanup({
-          client: second,
+  it(
+    "requires a new plan before a second execution",
+    async () => {
+      const planned = await plan();
+      const first = await pool.connect();
+      try {
+        await runProductionCleanup({
+          client: first,
           dependencies,
           input: {
             ...executorInput,
             expectedFingerprint: planned.fingerprint,
             mode: "execute",
           },
-        })
-      ).rejects.toThrow(
-        "Cleanup fingerprint does not match the locked snapshot."
-      );
-    } finally {
-      second.release();
-    }
-  });
+        });
+      } finally {
+        first.release();
+      }
+
+      const second = await pool.connect();
+      try {
+        await expect(
+          runProductionCleanup({
+            client: second,
+            dependencies,
+            input: {
+              ...executorInput,
+              expectedFingerprint: planned.fingerprint,
+              mode: "execute",
+            },
+          })
+        ).rejects.toThrow(
+          "Cleanup fingerprint does not match the locked snapshot."
+        );
+      } finally {
+        second.release();
+      }
+    },
+    REMOTE_CLEANUP_EXECUTION_TIMEOUT_MS
+  );
 });
