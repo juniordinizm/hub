@@ -80,6 +80,22 @@ jobs:
           expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
           parent_branch: ${{ vars.STAGING_NEON_BRANCH_ID }}
           project_id: ${{ vars.STAGING_NEON_PROJECT_ID }}
+      - name: Verify Staging Neon backup ancestry
+        env:
+          BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}
+        run: |
+          set -euo pipefail
+          actual_parent="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Accept: application/json" \
+              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches/${BACKUP_BRANCH_ID}" \
+              | jq -er '.branch.parent_id'
+          )"
+          [[ "${actual_parent}" == "${STAGING_NEON_BRANCH_ID}" ]] || {
+            echo "Staging backup does not descend from the configured Staging branch." >&2
+            exit 1
+          }
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
       - name: Deploy exact SHA to the Staging target

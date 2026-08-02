@@ -21,7 +21,9 @@ O workflow `CI` valida o código em Pull Requests e pushes para `staging` ou
 `main`, sem criar deployments. Uma CI verde do SHA atual de `staging` dispara
 `Deploy Vercel staging`, que cria backup Neon de sete dias, migra e publica no
 Custom Environment `staging`. O backup declara `parent_branch` com o ID de Staging;
-usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. O
+usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. Os
+workflows de Staging e Production consultam a branch criada pela API Neon e interrompem
+a release antes da migration quando o `parent_id` diverge do ambiente esperado. O
 workflow manual `Deploy Vercel production`
 recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
@@ -58,17 +60,18 @@ nenhum checkout ou webhook de Production foi habilitado.
 
 O primeiro disparo automático após essa promoção revelou duas falhas de configuração:
 o secret `VERCEL_TOKEN` do Environment `vercel-staging` continha BOM e o backup usava
-o input inválido `parent`. O token foi substituído sem BOM; os três backups efêmeros
-criados pelas retentativas foram removidos, e o contrato versionado passou a exigir
-`parent_branch` e a proibir `parent` por teste automatizado.
+o input inválido `parent`. O token foi substituído sem BOM. Como `workflow_run` avalia
+o arquivo da branch padrão, três retentativas ainda criaram backups descendentes de
+Production antes da correção chegar a `main`; os três foram removidos. O contrato
+versionado passou a exigir `parent_branch`, proibir `parent` por teste automatizado e
+confirmar a ancestralidade pela API antes de qualquer migration.
 
-O run corrigido `30738007829`, tentativa 2, criou o backup a partir da branch Staging,
-reaplicou as migrations de forma idempotente e publicou o deployment
+O run `30738007829`, tentativa 2, reaplicou as migrations de forma idempotente e publicou o deployment
 `dpl_BWy4dBVMfCkPfBimAEuFkWBvYS1z`. O `HEALTHCHECK_SECRET`, também contaminado no
 provisionamento inicial, foi rotacionado com o mesmo valor limpo no Custom Environment
 Vercel e no GitHub Environment. O smoke confirmou raiz não indexável, sitemap ausente e
-readiness autenticada. O backup da tentativa bem-sucedida permanece com expiração de
-sete dias; o backup da tentativa cujo smoke falhou foi removido.
+readiness autenticada. Os backups dessa rodada foram posteriormente removidos por terem
+ancestralidade incorreta; a proteção adicional impede a repetição silenciosa.
 
 ### Ambientes
 

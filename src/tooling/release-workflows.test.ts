@@ -138,3 +138,35 @@ describe("CI workflow", () => {
     );
   });
 });
+
+describe("Release backup ancestry", () => {
+  it("fails closed when a Staging backup does not descend from Staging", () => {
+    const workflow = readWorkflow("deploy-staging.yml");
+
+    expect(workflow).toContain("name: Verify Staging Neon backup ancestry");
+    expect(workflow).toContain("BACKUP_BRANCH_ID:");
+    expect(workflow).toContain(".branch.parent_id");
+    expect(workflow).toContain(
+      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
+        "STAGING_NEON_BRANCH_ID"
+      )}" ]]`
+    );
+  });
+
+  it("creates and verifies a Production backup from Production", () => {
+    const workflow = readWorkflow("deploy-vercel.yml");
+
+    expect(workflow).toContain(
+      `parent_branch: ${githubExpression("vars.PRODUCTION_NEON_BRANCH_ID")}`
+    );
+    expect(workflow).not.toContain("\n          parent:");
+    expect(workflow).toContain("name: Verify Production Neon backup ancestry");
+    expect(workflow).toContain("BACKUP_BRANCH_ID:");
+    expect(workflow).toContain(".branch.parent_id");
+    expect(workflow).toContain(
+      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
+        "PRODUCTION_NEON_BRANCH_ID"
+      )}" ]]`
+    );
+  });
+});
