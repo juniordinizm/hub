@@ -219,6 +219,9 @@ describe("admin authoring", () => {
       "Subtitulo",
       "Descricao",
       12_990,
+      true,
+      true,
+      3,
       null,
       null,
       6,
@@ -302,12 +305,15 @@ describe("admin authoring", () => {
       String(sql).includes("update courses")
     );
     expect(updateCourseCall?.[0]).toContain("price_in_cents = $4");
-    expect(updateCourseCall?.[0]).toContain("where id = $9");
+    expect(updateCourseCall?.[0]).toContain("where id = $12");
     expect(updateCourseCall?.[1]).toEqual([
       "Curso existente",
       null,
       null,
       1000,
+      true,
+      true,
+      3,
       null,
       null,
       12,

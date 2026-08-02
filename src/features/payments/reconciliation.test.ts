@@ -26,6 +26,7 @@ const orderRow = {
   external_id: "order_order-1",
   id: "order-1",
   provider_checkout_id: "chk-1",
+  provider_installment_id: null,
   provider_payment_id: "pay-1",
   provider_payment_status: "RECEIVED",
   status: "paid",
@@ -129,6 +130,75 @@ describe("Asaas reconciliation", () => {
         orderId: "order-1",
       })
     ).resolves.toBeUndefined();
+  });
+
+  it("reconciles every payment under the exact installment aggregate", async () => {
+    const installmentOrder = {
+      ...orderRow,
+      provider_installment_id: "ins-1",
+      provider_payment_status: "CONFIRMED",
+    };
+    const client = {
+      query: vi.fn((text: string) =>
+        Promise.resolve(
+          text.includes("from orders")
+            ? { rows: [installmentOrder] }
+            : { rows: [] }
+        )
+      ),
+      release: vi.fn(),
+    };
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [installmentOrder] }),
+    });
+    const installmentPayment = {
+      ...payment,
+      billingType: "CREDIT_CARD",
+      checkoutSession: "chk-1",
+      externalReference: null,
+      installmentId: "ins-1",
+      netValueInCents: 4200,
+      refunds: [],
+      status: "CONFIRMED",
+      valueInCents: 4330,
+    };
+    const gateway = new FakeAsaasGateway({
+      getInstallment: {
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk-1",
+        id: "ins-1",
+        installmentCount: 3,
+        netValueInCents: 12_500,
+        paymentValueInCents: 4330,
+        refunds: [],
+        valueInCents: 12_990,
+      },
+      listInstallmentPayments: {
+        data: [
+          installmentPayment,
+          { ...installmentPayment, id: "pay-2" },
+          { ...installmentPayment, id: "pay-3" },
+        ],
+        hasMore: false,
+        limit: 100,
+        object: "list",
+        offset: 0,
+        totalCount: 3,
+      },
+    });
+
+    await expect(
+      reconcileAsaasPayment({
+        actorUserId: "admin-1",
+        gateway,
+        orderId: "order-1",
+      })
+    ).resolves.toBeUndefined();
+
+    expect(gateway.calls.getInstallment).toEqual(["ins-1"]);
+    expect(gateway.calls.listInstallmentPayments).toEqual(["ins-1"]);
+    expect(gateway.calls.getPayment).toEqual([]);
   });
 
   it.each([

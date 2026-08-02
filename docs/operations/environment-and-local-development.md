@@ -49,9 +49,12 @@ providers caso volte a ser usado.
 Staging envia `noindex` por metadata e `X-Robots-Tag`, não publica sitemap e
 exibe uma faixa visual. Isso reduz indexação acidental, mas a URL continua
 pública para participantes convidados. A limpeza de dados é somente manual;
-não há retenção ou reset automático. A Vercel Authentication protege as URLs
-`*.vercel.app`, mas exclui domínios personalizados; por isso, os smokes e os
-testes manuais usam exclusivamente `https://preview.neurocapacitar.com.br`.
+não há retenção ou reset automático. Vercel Authentication está desligada no
+projeto porque Standard Protection também protege domínios de Custom
+Environments e a exceção por domínio exige Advanced Deployment Protection.
+Deploy automático de Preview permanece desligado; os 30 deployments Preview
+históricos foram removidos. Smokes e testes manuais usam exclusivamente
+`https://preview.neurocapacitar.com.br`.
 
 ## Matriz de variáveis
 

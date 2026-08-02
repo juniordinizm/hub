@@ -266,6 +266,13 @@ export const courses = pgTable(
     description: text("description"),
     workloadHours: integer("workload_hours").default(0).notNull(),
     priceInCents: integer("price_in_cents").default(0).notNull(),
+    paymentAllowPix: boolean("payment_allow_pix").default(true).notNull(),
+    paymentAllowCreditCard: boolean("payment_allow_credit_card")
+      .default(true)
+      .notNull(),
+    paymentMaxInstallmentCount: integer("payment_max_installment_count")
+      .default(3)
+      .notNull(),
     thumbnailUrl: text("thumbnail_url"),
     coverImageJson: jsonb("cover_image_json"),
     accessDurationMonths: integer("access_duration_months")
@@ -287,6 +294,18 @@ export const courses = pgTable(
     check(
       "courses_price_in_cents_zero_or_minimum",
       sql`${table.priceInCents} = 0 or ${table.priceInCents} >= 1000`
+    ),
+    check(
+      "courses_payment_method_required",
+      sql`${table.paymentAllowPix} or ${table.paymentAllowCreditCard}`
+    ),
+    check(
+      "courses_payment_installment_count_valid",
+      sql`${table.paymentMaxInstallmentCount} between 1 and 21`
+    ),
+    check(
+      "courses_payment_installment_requires_card",
+      sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
     ),
   ]
 );
@@ -845,6 +864,7 @@ export const orders = pgTable(
     provider: text("provider").notNull(),
     providerCheckoutId: text("provider_checkout_id"),
     providerPaymentId: text("provider_payment_id"),
+    providerInstallmentId: text("provider_installment_id"),
     providerCustomerId: text("provider_customer_id"),
     externalId: text("external_id").notNull(),
     status: orderStatusEnum("status").default("pending").notNull(),
@@ -865,6 +885,13 @@ export const orders = pgTable(
     providerRefundStatus: text("provider_refund_status"),
     providerDisputeStatus: text("provider_dispute_status"),
     amountInCents: integer("amount_in_cents").default(0).notNull(),
+    paymentAllowPix: boolean("payment_allow_pix").default(true).notNull(),
+    paymentAllowCreditCard: boolean("payment_allow_credit_card")
+      .default(true)
+      .notNull(),
+    paymentMaxInstallmentCount: integer("payment_max_installment_count")
+      .default(1)
+      .notNull(),
     accessDurationMonths: integer("access_duration_months"),
     paidAmountInCents: integer("paid_amount_in_cents"),
     netAmountInCents: integer("net_amount_in_cents"),
@@ -887,6 +914,9 @@ export const orders = pgTable(
     uniqueIndex("orders_provider_payment_unique_idx")
       .on(table.provider, table.providerPaymentId)
       .where(sql`${table.providerPaymentId} is not null`),
+    uniqueIndex("orders_provider_installment_unique_idx")
+      .on(table.provider, table.providerInstallmentId)
+      .where(sql`${table.providerInstallmentId} is not null`),
     index("orders_checkout_retry_idx").on(
       table.checkoutStatus,
       table.checkoutNextAttemptAt
@@ -896,6 +926,18 @@ export const orders = pgTable(
     check(
       "orders_access_duration_positive",
       sql`${table.accessDurationMonths} is null or ${table.accessDurationMonths} > 0`
+    ),
+    check(
+      "orders_payment_method_required",
+      sql`${table.paymentAllowPix} or ${table.paymentAllowCreditCard}`
+    ),
+    check(
+      "orders_payment_installment_count_valid",
+      sql`${table.paymentMaxInstallmentCount} between 1 and 21`
+    ),
+    check(
+      "orders_payment_installment_requires_card",
+      sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
     ),
   ]
 );

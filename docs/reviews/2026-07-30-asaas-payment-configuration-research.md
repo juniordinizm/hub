@@ -6,6 +6,12 @@ last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
 
 # Contrato do Asaas Checkout para configuração de pagamento por Curso
 
+> Atualização de 1º de agosto de 2026: métodos, teto de parcelas, snapshot, correlação do
+> agregado, conciliação e estorno integral foram implementados na migration `0053` e no
+> módulo de pagamentos. As seções que descrevem esses itens como recomendação ou gate
+> preservam a conclusão da pesquisa antes da implementação. A indisponibilidade de juros
+> comerciais no Checkout hospedado continua vigente.
+
 ## Escopo e método
 
 Pesquisa concluída em 30 de julho de 2026 contra a documentação e o OpenAPI oficiais do Asaas v3. A consulta usou o índice oficial fornecido ao Context7 e confirmou os campos no schema `CheckoutSessionSaveRequestDTO` publicado pelo Asaas. Nenhuma conclusão abaixo depende de SDK ou artigo de terceiros.

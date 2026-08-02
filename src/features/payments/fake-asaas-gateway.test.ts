@@ -93,6 +93,11 @@ describe("FakeAsaasGateway", () => {
         name: "Curso",
         valueInCents: 1000,
       },
+      paymentOptions: {
+        allowCreditCard: true,
+        allowPix: true,
+        maxInstallmentCount: 1,
+      },
     };
 
     await expect(fake.createCheckout(createInput)).resolves.toEqual(checkout);
@@ -112,9 +117,12 @@ describe("FakeAsaasGateway", () => {
       cancelCheckout: ["chk_123"],
       createCheckout: [createInput],
       getCustomer: [],
+      getInstallment: [],
       getPayment: ["pay_123"],
       listFinancialTransactions: [],
+      listInstallmentPayments: [],
       listPayments: [{ externalReference: "order_123", limit: 20 }],
+      refundInstallment: [],
       refundPayment: [
         {
           description: "Solicitacao aprovada",

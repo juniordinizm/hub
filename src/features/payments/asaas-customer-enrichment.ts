@@ -1,6 +1,6 @@
 import "server-only";
 import type { Pool } from "pg";
-import type { AsaasGateway } from "./asaas";
+import type { AsaasGateway, AsaasInstallment } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 import {
   type AsaasFinancialCorrelation,
@@ -17,7 +17,7 @@ import { type BuyerIdentity, parseBuyerIdentity } from "./buyer-identity";
 type AsaasCustomerGateway = Pick<AsaasGateway, "getCustomer">;
 type AsaasCustomerQueryClient = Pick<Pool, "query">;
 
-export type AsaasBuyerIdentityPreparation =
+export type AsaasBuyerIdentityPreparation = (
   | { kind: "not_required" }
   | {
       customerId: string;
@@ -33,7 +33,8 @@ export type AsaasBuyerIdentityPreparation =
         | "buyer_identity_conflict"
         | "buyer_identity_invalid"
         | "buyer_identity_missing";
-    };
+    }
+) & { installment?: AsaasInstallment };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);

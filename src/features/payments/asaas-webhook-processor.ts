@@ -22,6 +22,10 @@ import {
   type AsaasFinancialReviewReason,
   decideAsaasFinancialEvent,
 } from "./asaas-financial-events";
+import {
+  getAsaasPaymentInstallmentId,
+  materializeAsaasInstallmentPayload,
+} from "./asaas-installment-events";
 import { parseAsaasDecimalToCents } from "./asaas-money";
 import {
   AsaasWebhookProcessingError,
@@ -49,9 +53,12 @@ interface LockedOrderRow {
   externalId: string;
   id: string;
   orderStatus: AsaasFinancialOrderSnapshot["orderStatus"];
+  paymentAllowCreditCard: boolean;
+  paymentMaxInstallmentCount: number;
   provider: string;
   providerCheckoutId: string | null;
   providerCustomerId: string | null;
+  providerInstallmentId: string | null;
   providerPaymentId: string | null;
   providerPaymentStatus: string | null;
   providerRiskStatus: string | null;
@@ -63,6 +70,7 @@ interface ProcessorDependencies {
   applyRevocation: typeof applyPaymentRevocation;
   enqueueMessage: typeof enqueueOutboxMessage;
   gateway: Pick<AsaasGateway, "getCustomer">;
+  getInstallment: AsaasGateway["getInstallment"];
   now: () => Date;
   prepareIdentity: (
     event: Parameters<AsaasWebhookProcessor["prepare"]>[0],
@@ -79,6 +87,8 @@ const defaultDependencies: ProcessorDependencies = {
     getCustomer: async (customerId) =>
       await getAsaasProviderClient().getCustomer(customerId),
   },
+  getInstallment: async (installmentId) =>
+    await getAsaasProviderClient().getInstallment(installmentId),
   now: () => new Date(),
   prepareIdentity: async (event, gateway) =>
     await prepareAsaasBuyerIdentity({ client: getPool(), event, gateway }),
@@ -224,9 +234,13 @@ const asLockedOrder = (row: unknown): LockedOrderRow | null => {
     externalId,
     id,
     orderStatus: orderStatus as AsaasFinancialOrderSnapshot["orderStatus"],
+    paymentAllowCreditCard: getField(row, "payment_allow_credit_card") === true,
+    paymentMaxInstallmentCount:
+      getNumber(row, "payment_max_installment_count") ?? 1,
     provider,
     providerCheckoutId: getNullableString(row, "provider_checkout_id"),
     providerCustomerId: getNullableString(row, "provider_customer_id"),
+    providerInstallmentId: getNullableString(row, "provider_installment_id"),
     providerPaymentId: getNullableString(row, "provider_payment_id"),
     providerPaymentStatus: getNullableString(row, "provider_payment_status"),
     providerRiskStatus: getNullableString(row, "provider_risk_status"),
@@ -303,6 +317,10 @@ const findCorrelationRows = async ({
        select id, 'provider_payment_id'
        from orders
        where provider = 'asaas' and provider_payment_id = $6
+       union all
+       select id, 'provider_installment_id'
+       from orders
+       where provider = 'asaas' and provider_installment_id = $7
      )
      select id, match_kind
      from correlation_identifiers`,
@@ -313,6 +331,7 @@ const findCorrelationRows = async ({
       correlation.checkoutId,
       correlation.paymentCheckoutSession,
       correlation.paymentId,
+      correlation.paymentInstallmentId ?? null,
     ]
   );
   return result.rows
@@ -334,6 +353,30 @@ const hasIdentifierConflict = ({
     correlation.checkoutId &&
     correlation.paymentCheckoutSession &&
     correlation.checkoutId !== correlation.paymentCheckoutSession
+  ) {
+    return true;
+  }
+  const incomingCheckoutId =
+    correlation.checkoutId ?? correlation.paymentCheckoutSession;
+  if (
+    incomingCheckoutId &&
+    order.providerCheckoutId &&
+    incomingCheckoutId !== order.providerCheckoutId
+  ) {
+    return true;
+  }
+  if (
+    correlation.paymentId &&
+    order.providerPaymentId &&
+    !correlation.paymentInstallmentId &&
+    correlation.paymentId !== order.providerPaymentId
+  ) {
+    return true;
+  }
+  if (
+    correlation.paymentInstallmentId &&
+    order.providerInstallmentId &&
+    correlation.paymentInstallmentId !== order.providerInstallmentId
   ) {
     return true;
   }
@@ -361,6 +404,22 @@ const hasIdentifierConflict = ({
   return false;
 };
 
+const hasInvalidInstallmentOffer = ({
+  order,
+  preparation,
+}: {
+  order: LockedOrderRow;
+  preparation: AsaasBuyerIdentityPreparation;
+}): boolean => {
+  const installment = preparation.installment;
+  return Boolean(
+    installment &&
+      (!order.paymentAllowCreditCard ||
+        order.paymentMaxInstallmentCount < 2 ||
+        installment.installmentCount > order.paymentMaxInstallmentCount)
+  );
+};
+
 const loadLockedOrder = async ({
   client,
   orderId,
@@ -378,10 +437,13 @@ const loadLockedOrder = async ({
        checkout_status,
        provider_checkout_id,
        provider_customer_id,
+       provider_installment_id,
        provider_payment_id,
        provider_payment_status,
        provider_risk_status,
        amount_in_cents,
+       payment_allow_credit_card,
+       payment_max_installment_count,
        access_duration_months,
        course_id,
        user_id,
@@ -525,58 +587,59 @@ const persistDecision = async ({
     `update orders
      set provider_checkout_id = coalesce(provider_checkout_id, $2::text),
          provider_payment_id = coalesce(provider_payment_id, $3::text),
-         status = case when $4::boolean then $5::order_status else status end,
+         provider_installment_id = coalesce(provider_installment_id, $4::text),
+         status = case when $5::boolean then $6::order_status else status end,
          checkout_status = case
-           when $6::boolean then $7::checkout_status
+           when $7::boolean then $8::checkout_status
            else checkout_status
          end,
          paid_amount_in_cents = case
-           when $8::boolean then $9
+           when $9::boolean then $10
            else paid_amount_in_cents
          end,
          payment_method = case
-           when $10::boolean then $11
+           when $11::boolean then $12
            else payment_method
          end,
          provider_checkout_status = case
-           when $12::boolean then $13
+           when $13::boolean then $14
            else provider_checkout_status
          end,
          provider_payment_status = case
-           when $14::boolean then $15
+           when $15::boolean then $16
            else provider_payment_status
          end,
          provider_risk_status = case
-           when $16::boolean then $17
+           when $17::boolean then $18
            else provider_risk_status
          end,
          provider_settlement_status = case
-           when $18::boolean then $19
+           when $19::boolean then $20
            else provider_settlement_status
          end,
          provider_refund_status = case
-           when $20::boolean then $21
+           when $21::boolean then $22
            else provider_refund_status
          end,
          provider_dispute_status = case
-           when $22::boolean then $23
+           when $23::boolean then $24
            else provider_dispute_status
          end,
          net_amount_in_cents = case
-           when $24::boolean then $25
+           when $25::boolean then $26
            else net_amount_in_cents
          end,
          fee_amount_in_cents = case
-           when $26::boolean then $27
+           when $27::boolean then $28
            else fee_amount_in_cents
          end,
          paid_at = case
-           when $4::boolean and $5::order_status = 'paid'
+           when $5::boolean and $6::order_status = 'paid'
              then coalesce(paid_at, now())
            else paid_at
          end,
          refunded_at = case
-           when $4::boolean and $5::order_status = 'refunded'
+           when $5::boolean and $6::order_status = 'refunded'
              then coalesce(refunded_at, now())
            else refunded_at
          end,
@@ -592,12 +655,22 @@ const persistDecision = async ({
          provider_payment_id is null
          or $3::text is null
          or provider_payment_id = $3::text
+         or (
+           provider_installment_id is not null
+           and provider_installment_id = $4::text
+         )
+       )
+       and (
+         provider_installment_id is null
+         or $4::text is null
+         or provider_installment_id = $4::text
        )
      returning id`,
     [
       orderId,
       getIncomingCheckoutId(correlation),
       correlation.paymentId,
+      correlation.paymentInstallmentId ?? null,
       orderStatus !== null,
       orderStatus,
       checkoutStatus !== null,
@@ -1110,8 +1183,14 @@ export const createAsaasWebhookProcessor = (
     context,
     preparation
   ) => {
+    const financialPayload = preparation.installment
+      ? materializeAsaasInstallmentPayload({
+          installment: preparation.installment,
+          payload: event.payload,
+        })
+      : event.payload;
     const preliminaryDecision = decideAsaasFinancialEvent({
-      payload: event.payload,
+      payload: financialPayload,
       snapshot: emptySnapshot,
     });
     if (preliminaryDecision.action === "ignore") {
@@ -1167,7 +1246,8 @@ export const createAsaasWebhookProcessor = (
       hasIdentifierConflict({
         correlation: preliminaryDecision.correlation,
         order,
-      })
+      }) ||
+      hasInvalidInstallmentOffer({ order, preparation })
     ) {
       await insertReview({
         client: context.client,
@@ -1184,7 +1264,7 @@ export const createAsaasWebhookProcessor = (
     }
 
     const matrixDecision = decideAsaasFinancialEvent({
-      payload: event.payload,
+      payload: financialPayload,
       snapshot: {
         amountInCents: order.amountInCents,
         checkoutStatus: order.checkoutStatus,
@@ -1232,7 +1312,7 @@ export const createAsaasWebhookProcessor = (
       eventName: event.eventName,
       getNow: dependencies.now,
       order,
-      payload: event.payload,
+      payload: financialPayload,
     });
     if (decision.reviewReason && decision.effect !== "revoke") {
       return { outcome: "processed" };
@@ -1254,8 +1334,16 @@ export const createAsaasWebhookProcessor = (
     return { outcome: "processed" };
   };
   return {
-    prepare: async (event) =>
-      await dependencies.prepareIdentity(event, dependencies.gateway),
+    prepare: async (event) => {
+      const installmentId = getAsaasPaymentInstallmentId(event.payload);
+      const [identity, installment] = await Promise.all([
+        dependencies.prepareIdentity(event, dependencies.gateway),
+        installmentId
+          ? dependencies.getInstallment(installmentId)
+          : Promise.resolve(undefined),
+      ]);
+      return installment ? { ...identity, installment } : identity;
+    },
     process,
   };
 };

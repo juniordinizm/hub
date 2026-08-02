@@ -3,11 +3,13 @@ import type {
   AsaasCustomer,
   AsaasFinancialTransactionPage,
   AsaasGateway,
+  AsaasInstallment,
   AsaasPayment,
   AsaasPaymentPage,
   CreateAsaasCheckout,
   ListAsaasFinancialTransactions,
   ListAsaasPayments,
+  RefundAsaasInstallment,
   RefundAsaasPayment,
 } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
@@ -17,9 +19,12 @@ type FakeOutcome<T> = Error | T;
 interface FakeAsaasGatewayConfig {
   cancelCheckout?: FakeOutcome<AsaasCheckout>;
   createCheckout?: FakeOutcome<AsaasCheckout>;
+  getInstallment?: FakeOutcome<AsaasInstallment>;
   getPayment?: FakeOutcome<AsaasPayment>;
   listFinancialTransactions?: FakeOutcome<AsaasFinancialTransactionPage>;
+  listInstallmentPayments?: FakeOutcome<AsaasPaymentPage>;
   listPayments?: FakeOutcome<AsaasPaymentPage>;
+  refundInstallment?: FakeOutcome<AsaasInstallment>;
   refundPayment?: FakeOutcome<AsaasPayment>;
 }
 
@@ -27,9 +32,12 @@ interface FakeAsaasGatewayCalls {
   cancelCheckout: string[];
   createCheckout: CreateAsaasCheckout[];
   getCustomer: string[];
+  getInstallment: string[];
   getPayment: string[];
   listFinancialTransactions: ListAsaasFinancialTransactions[];
+  listInstallmentPayments: string[];
   listPayments: ListAsaasPayments[];
+  refundInstallment: RefundAsaasInstallment[];
   refundPayment: RefundAsaasPayment[];
 }
 
@@ -54,9 +62,12 @@ export class FakeAsaasGateway implements AsaasGateway {
     createCheckout: [],
     getCustomer: [],
     getPayment: [],
+    getInstallment: [],
     listFinancialTransactions: [],
+    listInstallmentPayments: [],
     listPayments: [],
     refundPayment: [],
+    refundInstallment: [],
   };
 
   readonly customers = new Map<string, AsaasCustomer>();
@@ -97,6 +108,11 @@ export class FakeAsaasGateway implements AsaasGateway {
     return await resolveOutcome("getPayment", this.config.getPayment);
   }
 
+  async getInstallment(installmentId: string): Promise<AsaasInstallment> {
+    this.calls.getInstallment.push(installmentId);
+    return await resolveOutcome("getInstallment", this.config.getInstallment);
+  }
+
   async listFinancialTransactions(
     filters: ListAsaasFinancialTransactions
   ): Promise<AsaasFinancialTransactionPage> {
@@ -115,5 +131,25 @@ export class FakeAsaasGateway implements AsaasGateway {
   async refundPayment(input: RefundAsaasPayment): Promise<AsaasPayment> {
     this.calls.refundPayment.push(input);
     return await resolveOutcome("refundPayment", this.config.refundPayment);
+  }
+
+  async listInstallmentPayments(
+    installmentId: string
+  ): Promise<AsaasPaymentPage> {
+    this.calls.listInstallmentPayments.push(installmentId);
+    return await resolveOutcome(
+      "listInstallmentPayments",
+      this.config.listInstallmentPayments
+    );
+  }
+
+  async refundInstallment(
+    input: RefundAsaasInstallment
+  ): Promise<AsaasInstallment> {
+    this.calls.refundInstallment.push(input);
+    return await resolveOutcome(
+      "refundInstallment",
+      this.config.refundInstallment
+    );
   }
 }

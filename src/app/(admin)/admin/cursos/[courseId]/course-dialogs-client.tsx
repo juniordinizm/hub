@@ -6,6 +6,7 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,6 +25,9 @@ export interface CourseData {
   coverImage?: unknown;
   description: string | null;
   id: string;
+  paymentAllowCreditCard: boolean;
+  paymentAllowPix: boolean;
+  paymentMaxInstallmentCount: number;
   priceInCents: number;
   slug: string;
   status: string;
@@ -122,6 +126,56 @@ export function CourseSettingsForm({
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+
+          <div className="rounded-lg border p-4">
+            <input name="paymentOfferPresent" type="hidden" value="on" />
+            <div>
+              <h3 className="font-medium">Oferta de pagamento</h3>
+              <p className="mt-1 text-muted-foreground text-sm">
+                O Checkout Asaas aplica estas opcoes somente às novas compras.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <Field orientation="horizontal">
+                <Checkbox
+                  defaultChecked={course.paymentAllowPix}
+                  id="course-payment-pix"
+                  name="paymentAllowPix"
+                />
+                <FieldLabel htmlFor="course-payment-pix">
+                  Aceitar Pix
+                </FieldLabel>
+              </Field>
+              <Field orientation="horizontal">
+                <Checkbox
+                  defaultChecked={course.paymentAllowCreditCard}
+                  id="course-payment-card"
+                  name="paymentAllowCreditCard"
+                />
+                <FieldLabel htmlFor="course-payment-card">
+                  Aceitar cartao
+                </FieldLabel>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="course-payment-installments">
+                  Maximo de parcelas
+                </FieldLabel>
+                <Input
+                  defaultValue={course.paymentMaxInstallmentCount}
+                  id="course-payment-installments"
+                  max={21}
+                  min={1}
+                  name="paymentMaxInstallmentCount"
+                  required
+                  type="number"
+                />
+              </Field>
+            </div>
+            <p className="mt-3 text-muted-foreground text-xs">
+              O Checkout hospedado não oferece configuracao de juros comerciais.
+              Taxas e recebimento seguem o contrato da conta Asaas.
+            </p>
           </div>
         </FieldGroup>
 

@@ -186,16 +186,23 @@ a autorização do servidor continue sendo a barreira efetiva.
 de cartão. Admin poderá oferecer Pix, cartão ou ambos; cartão à vista ou parcelado; e
 limite máximo próprio. A oferta efetiva precisa ser copiada para o Pedido.
 
-**Estado atual:** somente o preço é configurável por Curso. O adapter envia sempre Pix +
-cartão, somente `DETACHED`, sem parcelamento. O Asaas documenta métodos e teto de parcelas
-por Checkout, mas não documenta juros comerciais por parcela.
+**Implementação atual:** preço, Pix, cartão e o teto de 1 a 21 parcelas são configuráveis
+por Curso. O padrão de novos Cursos é Pix + cartão em até 3x. A oferta é copiada para o
+Pedido e convertida em `billingTypes`, `chargeTypes` e
+`installment.maxInstallmentCount` somente na borda Asaas.
 
-**Gate de implementação:** não basta adicionar `INSTALLMENT` ao payload. Cada parcela
-Asaas possui ID de pagamento próprio, enquanto o Hub guarda um único
-`provider_payment_id`, compara cada evento ao valor total e reembolsa um pagamento. Antes
-do rollout, modelar o agregado do parcelamento, snapshots, correlação, concessão,
-conciliação e estorno do parcelamento completo. O padrão desejado de até 3x com juros
-permanece pendente de viabilidade oficial; não reutilizar juros por atraso.
+Para cartão parcelado, `provider_installment_id` identifica o agregado e
+`provider_payment_id` preserva a primeira cobrança observada. Antes da transação local, o
+processor consulta `GET /v3/installments/{id}` e usa o bruto e o líquido do agregado na
+decisão derivada; o payload original permanece na inbox. ID, Checkout, quantidade e valor
+total devem coincidir com o snapshot. Eventos das demais parcelas são aceitos somente
+quando mantêm o mesmo agregado. Conciliação lista todas as cobranças, e reembolso integral
+usa `POST /v3/installments/{id}/refund`.
+
+**Limitação do fornecedor:** o Checkout hospedado não documenta juros comerciais,
+repasse de taxa ou preço variável conforme a quantidade escolhida. O Hub não apresenta
+uma opção fictícia “com/sem juros”; taxas e recebíveis seguem o contrato da conta Asaas.
+Não reutilizar juros por atraso.
 
 Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).

@@ -34,6 +34,13 @@ Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
 entradas e `404` na rota legada removida.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
+Staging usa a conta Sandbox e
+`https://preview.neurocapacitar.com.br/api/webhooks/asaas`. O webhook está
+ativo, não interrompido, com envio sequencial, token próprio e os 18 eventos
+tratados pelo domínio financeiro. Em 2026-08-01, readiness retornou `200`; a
+rota recusou requisição sem token com `401` e aceitou o token antes de rejeitar
+um payload sintaticamente inválido com `400`.
+
 O schema mantém `orders.status` como estado canônico
 `pending | paid | refunded | disputed | cancelled`. O ciclo externo fica separado:
 
@@ -42,8 +49,8 @@ O schema mantém `orders.status` como estado canônico
 - estados brutos de checkout, pagamento, risco, liquidação, reembolso e disputa não
   substituem o estado canônico;
 - reembolso externo pertence a `refund_requests`; o Asaas não devolve ID próprio de
-  estorno, portanto a correlação usa o `provider_payment_id` do Pedido e o
-  `refund_requests.id` local;
+  estorno, portanto a correlação usa `provider_payment_id` para pagamento único,
+  `provider_installment_id` para parcelamento e `refund_requests.id` local;
 - `provider` é obrigatório e não possui default implícito;
 - a inbox associa opcionalmente o Pedido e mantém estado, tentativas, lock e próxima
   execução.
@@ -56,8 +63,9 @@ pressupõem a limpeza dos Pedidos de teste legados antes do DDL.
 
 ## Escopo do checkout
 
-O Hub cria checkout hospedado `DETACHED`, com pagamento único por `PIX` e
-`CREDIT_CARD`. Cada checkout tem item inline; Curso não possui produto remoto no Asaas.
+O Hub cria Checkout hospedado com Pix, cartão ou ambos, conforme a oferta do Curso.
+Cartão pode ser à vista (`DETACHED`) ou admitir `INSTALLMENT` até o teto configurado.
+Cada Checkout tem item inline; Curso não possui produto remoto no Asaas.
 
 - `externalReference` carrega somente uma referência local opaca, sem nome, e-mail ou
   outro dado pessoal;
@@ -76,21 +84,20 @@ O Hub cria checkout hospedado `DETACHED`, com pagamento único por `PIX` e
 
 ### Configuração comercial por Curso
 
-O estado atual é fixo: todos os Cursos pagos oferecem Pix + cartão à vista. O Admin ainda
-não configura métodos nem parcelamento por Curso.
-
-O contrato oficial permite variar `billingTypes`, incluir `INSTALLMENT` e enviar
-`installment.maxInstallmentCount`. O padrão desejado pelo produto é Pix + cartão e até 3x
-com juros. Entretanto:
+O Admin configura `payment_allow_pix`, `payment_allow_credit_card` e
+`payment_max_installment_count` por Curso. Novos Cursos usam Pix + cartão e até 3x; cada
+Pedido captura os três snapshots antes da chamada externa. O adapter transforma esses
+campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
 
 - o Checkout não documenta campo para juros comerciais ou repasse de taxa;
 - `interest` nas APIs de cobrança significa juros por atraso;
-- cada parcela possui um ID de pagamento próprio, incompatível com o agregado atual de
-  um pagamento por Pedido;
+- cada parcela possui um ID de pagamento próprio;
 - Pix + cartão parcelado no mesmo Checkout ainda exige prova específica no Sandbox.
 
-Não ativar `INSTALLMENT` apenas alterando o payload. Primeiro implementar o contrato
-descrito em [DEC-DISC-011](../decisions.md#dec-disc-011) e validar os casos da
+O Hub guarda o ID comum em `provider_installment_id`, valida o agregado oficial fora da
+transação local, preserva a primeira cobrança em `provider_payment_id`, concilia todas as
+cobranças e usa o endpoint de estorno do parcelamento. O contrato está descrito em
+[DEC-DISC-011](../decisions.md#dec-disc-011) e nos casos da
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
 
 `src/features/payments/checkout.ts` usa o UUID estável fornecido pela entrada como ID do

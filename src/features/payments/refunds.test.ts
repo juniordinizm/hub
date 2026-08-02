@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   gateway: {
+    refundInstallment: vi.fn(),
     refundPayment: vi.fn(),
   },
   getAsaasProviderClient: vi.fn(),
@@ -32,9 +33,11 @@ interface QueryRecord {
 
 const createRefundDatabase = ({
   confirmedBeforePostMutation = false,
+  providerInstallmentId = null,
   reservationExists = true,
 }: {
   confirmedBeforePostMutation?: boolean;
+  providerInstallmentId?: string | null;
   reservationExists?: boolean;
 } = {}) => {
   const queries: QueryRecord[] = [];
@@ -50,6 +53,7 @@ const createRefundDatabase = ({
             amount_in_cents: 12_990,
             external_id: `order_${ORDER_ID}`,
             provider_checkout_id: "chk_123",
+            provider_installment_id: providerInstallmentId,
             provider_payment_id: "pay_123",
             status: "paid",
           },
@@ -189,6 +193,27 @@ describe("Asaas full refund requests", () => {
     expect(
       queries.find(({ text }) => text.includes("from orders"))?.text
     ).toContain("provider_checkout_id");
+  });
+
+  it("refunds a card installment through the aggregate endpoint", async () => {
+    createRefundDatabase({ providerInstallmentId: "ins_123" });
+    dependencies.gateway.refundInstallment.mockResolvedValue({
+      billingType: "CREDIT_CARD",
+      checkoutSession: "chk_123",
+      id: "ins_123",
+      installmentCount: 3,
+      netValueInCents: 12_000,
+      paymentValueInCents: 4330,
+      refunds: validRefundPayment.refunds,
+      valueInCents: 12_990,
+    });
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    expect(dependencies.gateway.refundInstallment).toHaveBeenCalledWith({
+      installmentId: "ins_123",
+    });
+    expect(dependencies.gateway.refundPayment).not.toHaveBeenCalled();
   });
 
   it("accepts a null external reference when the checkout session matches exactly", async () => {
