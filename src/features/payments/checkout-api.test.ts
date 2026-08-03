@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseCheckoutRequest } from "./checkout-api";
+import {
+  parseCheckoutRequest,
+  parseCheckoutStatusRequest,
+} from "./checkout-api";
 
 const ATTEMPT_ID = "7fb3447e-2702-48f8-abe2-6c47b091bdcb";
 const COURSE_ID = "4a45d650-fc63-44c9-b2d1-6c73d52de84c";
@@ -83,5 +86,37 @@ describe("parseCheckoutRequest", () => {
     { checkoutAttemptId: ATTEMPT_ID, courseSlug: "---" },
   ])("rejects coercible or invalid field values", (value) => {
     expect(parseCheckoutRequest(value)).toBeNull();
+  });
+});
+
+describe("parseCheckoutStatusRequest", () => {
+  it("normalizes the opaque attempt and course slug pair", () => {
+    expect(
+      parseCheckoutStatusRequest(
+        new URLSearchParams({
+          checkoutAttemptId: ` ${ATTEMPT_ID} `,
+          courseSlug: " Curso ",
+        })
+      )
+    ).toEqual({ checkoutAttemptId: ATTEMPT_ID, courseSlug: "curso" });
+  });
+
+  it.each([
+    new URLSearchParams({ checkoutAttemptId: ATTEMPT_ID }),
+    new URLSearchParams({ checkoutAttemptId: "invalid", courseSlug: "curso" }),
+    new URLSearchParams({
+      checkoutAttemptId: ATTEMPT_ID,
+      courseSlug: "curso/invalido",
+    }),
+    new URLSearchParams({
+      checkoutAttemptId: ATTEMPT_ID,
+      courseSlug: "curso",
+      orderId: "enumeration-attempt",
+    }),
+    new URLSearchParams(
+      `checkoutAttemptId=${ATTEMPT_ID}&checkoutAttemptId=${ATTEMPT_ID}&courseSlug=curso`
+    ),
+  ])("rejects ambiguous or invalid query parameters", (query) => {
+    expect(parseCheckoutStatusRequest(query)).toBeNull();
   });
 });

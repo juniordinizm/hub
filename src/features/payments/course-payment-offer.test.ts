@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_COURSE_PAYMENT_OFFER,
+  getEffectiveMaxInstallmentCount,
+  MINIMUM_COURSE_INSTALLMENT_AMOUNT_IN_CENTS,
   parseCoursePaymentOffer,
 } from "./course-payment-offer";
 
@@ -45,5 +47,34 @@ describe("course payment offer", () => {
         maxInstallmentCount: limit,
       })
     ).toThrow("Quantidade de parcelas deve estar entre 1 e 21.");
+  });
+
+  it("uses the approved ten-real minimum per installment", () => {
+    expect(MINIMUM_COURSE_INSTALLMENT_AMOUNT_IN_CENTS).toBe(1000);
+    expect(
+      getEffectiveMaxInstallmentCount({
+        configuredMaxInstallmentCount: 3,
+        priceInCents: 3000,
+      })
+    ).toBe(3);
+  });
+
+  it("reduces the effective limit without changing the configured default", () => {
+    expect(
+      getEffectiveMaxInstallmentCount({
+        configuredMaxInstallmentCount: 3,
+        priceInCents: 1990,
+      })
+    ).toBe(1);
+    expect(DEFAULT_COURSE_PAYMENT_OFFER.maxInstallmentCount).toBe(3);
+  });
+
+  it("never exceeds the configured or provider maximum", () => {
+    expect(
+      getEffectiveMaxInstallmentCount({
+        configuredMaxInstallmentCount: 21,
+        priceInCents: 10_000,
+      })
+    ).toBe(10);
   });
 });

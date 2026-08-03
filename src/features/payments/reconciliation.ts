@@ -2,22 +2,37 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { applyPaymentRevocation } from "@/features/enrollments/server";
+import {
+  applyConfirmedPaymentAccess,
+  type PersistedOrderStatus,
+  persistConfirmedPaymentStatus,
+} from "@/features/payments/apply-authoritative-financial-evidence";
 import type {
+  AsaasFinancialTransaction,
   AsaasGateway,
   AsaasPayment,
   AsaasRefundEvidence,
 } from "@/features/payments/asaas";
-import { getAsaasProviderPaymentTransition } from "@/features/payments/asaas-financial-events";
+import type { AsaasBuyerIdentityPreparation } from "@/features/payments/asaas-customer-enrichment";
+import { decideQueriedAsaasPayment } from "@/features/payments/asaas-financial-events";
 import { runCoordinatedAsaasQuery } from "@/features/payments/asaas-query-policy";
 import { findExactAsaasRefundEvidence } from "@/features/payments/asaas-refund-evidence";
+import { parseBuyerIdentity } from "@/features/payments/buyer-identity";
 import { closeRefundedBuyerIdentityReview } from "@/features/payments/buyer-identity-review";
-import type { PersistedOrderStatus } from "@/features/payments/financial-policy";
 import { getAsaasProviderClient } from "@/features/payments/provider";
 
 const STATEMENT_PAGE_SIZE = 100;
 const MAX_STATEMENT_PAGES = 100;
 
+export interface FinancialStatementImportResult {
+  completed: true;
+  inserted: number;
+  resumedFromOffset: number;
+  updated: number;
+}
+
 interface ReconciliationOrder {
+  accessDurationMonths: number | null;
   amountInCents: number;
   buyerIdentityStatus: "pending" | "resolved" | "review_required";
   courseId: string;
@@ -27,6 +42,7 @@ interface ReconciliationOrder {
   providerInstallmentId: string | null;
   providerPaymentId: string;
   providerPaymentStatus: string | null;
+  providerRiskStatus: string | null;
   status: PersistedOrderStatus;
   userId: string | null;
 }
@@ -36,11 +52,6 @@ const persistedOrderStatuses = new Set<PersistedOrderStatus>([
   "disputed",
   "paid",
   "pending",
-  "refunded",
-]);
-const terminalOrderStatuses = new Set<PersistedOrderStatus>([
-  "cancelled",
-  "disputed",
   "refunded",
 ]);
 const settledPaymentStatuses = new Set(["CONFIRMED", "RECEIVED", "REFUNDED"]);
@@ -66,6 +77,10 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
     typeof value.status === "string" &&
     persistedOrderStatuses.has(value.status as PersistedOrderStatus)
     ? {
+        accessDurationMonths:
+          typeof value.access_duration_months === "number"
+            ? value.access_duration_months
+            : null,
         amountInCents: value.amount_in_cents,
         buyerIdentityStatus: value.buyer_identity_status as
           | "pending"
@@ -84,6 +99,10 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
             ? value.provider_payment_status
             : null,
         providerPaymentId: value.provider_payment_id,
+        providerRiskStatus:
+          typeof value.provider_risk_status === "string"
+            ? value.provider_risk_status
+            : null,
         status: value.status as PersistedOrderStatus,
         userId: typeof value.user_id === "string" ? value.user_id : null,
       }
@@ -98,6 +117,7 @@ const findFullRefund = (
 
 type ReconciliationReviewType =
   | "amount_mismatch"
+  | "buyer_identity"
   | "event_anomaly"
   | "partial_refund"
   | "terminal_conflict";
@@ -108,11 +128,33 @@ interface ReconciliationDecision {
   refund: AsaasRefundEvidence | null;
   reviewReason: string | null;
   reviewType: ReconciliationReviewType | null;
+  shouldGrantAccess: boolean;
   shouldTransitionToRefunded: boolean;
   shouldUpdateProviderPaymentStatus: boolean;
 }
 
-const decideReconciliation = ({
+const getReconciliationReviewReason = ({
+  order,
+  payment,
+  reviewType,
+}: {
+  order: ReconciliationOrder;
+  payment: AsaasPayment;
+  reviewType: ReconciliationReviewType | null;
+}): string | null => {
+  if (reviewType === "amount_mismatch") {
+    return `Valor conciliado (${payment.valueInCents}) diverge do snapshot do Pedido (${order.amountInCents}).`;
+  }
+  if (reviewType === "terminal_conflict") {
+    return `O Pedido ja esta terminal em ${order.status}; a conciliacao retornou ${payment.status.toLowerCase()}.`;
+  }
+  if (reviewType === "event_anomaly") {
+    return "A conciliacao retornou estado regressivo para a evidencia de pagamento preservada.";
+  }
+  return reviewType ? `A conciliacao exige revisao ${reviewType}.` : null;
+};
+
+const adaptQueriedPaymentDecision = ({
   order,
   payment,
 }: {
@@ -124,27 +166,34 @@ const decideReconciliation = ({
     payment.netValueInCents >= 0 &&
     payment.netValueInCents <= payment.valueInCents;
   const refund = findFullRefund(payment, order.amountInCents);
-  const isRefunded = payment.status === "REFUNDED";
-  const hasTerminalConflict =
-    isRefunded &&
-    terminalOrderStatuses.has(order.status) &&
-    order.status !== "refunded";
-  const providerTransition = getAsaasProviderPaymentTransition({
-    currentStatus: order.providerPaymentStatus,
-    incomingStatus: payment.status,
-    isAdverseEvent: isRefunded,
-    orderStatus: order.status,
+  const matrixDecision = decideQueriedAsaasPayment({
+    evidence: {
+      billingType: payment.billingType,
+      checkoutSession: payment.checkoutSession,
+      externalReference: payment.externalReference,
+      installmentId: payment.installmentId ?? null,
+      netValueInCents: payment.netValueInCents,
+      paymentId: payment.id,
+      status: payment.status,
+      valueInCents: payment.valueInCents,
+    },
+    snapshot: {
+      amountInCents: order.amountInCents,
+      checkoutStatus: "active",
+      orderStatus: order.status,
+      providerPaymentStatus: order.providerPaymentStatus,
+      providerRiskStatus: order.providerRiskStatus,
+    },
   });
 
-  let reviewType: ReconciliationReviewType | null = null;
-  let reviewReason: string | null = null;
-  if (!amountMatches) {
-    reviewType = "amount_mismatch";
-    reviewReason = `Valor conciliado (${payment.valueInCents}) diverge do snapshot do Pedido (${order.amountInCents}).`;
-  } else if (hasTerminalConflict) {
-    reviewType = "terminal_conflict";
-    reviewReason = `O Pedido ja esta terminal em ${order.status}; a conciliacao retornou refunded.`;
-  } else if (isRefunded && !refund) {
+  let reviewType = matrixDecision.reviewReason;
+  let reviewReason = getReconciliationReviewReason({
+    order,
+    payment,
+    reviewType,
+  });
+  const isRefunded = payment.status === "REFUNDED";
+  if (isRefunded && amountMatches && !refund) {
     reviewType =
       payment.refunds.length > 0 ? "partial_refund" : "event_anomaly";
     reviewReason =
@@ -159,30 +208,31 @@ const decideReconciliation = ({
     reviewType = "event_anomaly";
     reviewReason =
       "O Pedido reembolsado nao possui Conta correlacionada para verificar a Concessao.";
-  } else if (!hasValidNet) {
+  } else if (amountMatches && !hasValidNet) {
     reviewType = "event_anomaly";
     reviewReason =
       "O valor liquido conciliado e invalido para o valor bruto do Pedido.";
-  } else if (providerTransition.isRegression) {
-    reviewType = "event_anomaly";
-    reviewReason =
-      "A conciliacao retornou estado regressivo para a evidencia de pagamento preservada.";
   }
 
   const canRevokeForRefund = isRefunded && amountMatches && refund !== null;
+  const hasBlockingAnomaly = reviewType === "event_anomaly";
   return {
     canPersistMoney:
       amountMatches &&
       hasValidNet &&
-      !providerTransition.isRegression &&
+      !hasBlockingAnomaly &&
       settledPaymentStatuses.has(payment.status),
     canRevokeForRefund,
     refund,
     reviewReason,
     reviewType,
+    shouldGrantAccess: matrixDecision.effect === "grant" && reviewType === null,
     shouldTransitionToRefunded:
-      canRevokeForRefund && !hasTerminalConflict && order.status !== "refunded",
-    shouldUpdateProviderPaymentStatus: providerTransition.shouldUpdate,
+      canRevokeForRefund &&
+      matrixDecision.updates.orderStatus === "refunded" &&
+      order.status !== "refunded",
+    shouldUpdateProviderPaymentStatus:
+      matrixDecision.updates.providerPaymentStatus !== undefined,
   };
 };
 
@@ -301,6 +351,140 @@ const getReconciliationPayment = async ({
   };
 };
 
+const prepareReconciliationBuyerIdentity = async ({
+  gateway,
+  order,
+  payment,
+  shouldGrantAccess,
+}: {
+  gateway: AsaasGateway;
+  order: ReconciliationOrder;
+  payment: AsaasPayment;
+  shouldGrantAccess: boolean;
+}): Promise<AsaasBuyerIdentityPreparation> => {
+  if (order.buyerIdentityStatus !== "pending" || !shouldGrantAccess) {
+    return { kind: "not_required" };
+  }
+
+  const customer = await runCoordinatedAsaasQuery({
+    operation: () => gateway.getCustomer(payment.customer),
+  });
+  if (customer.id !== payment.customer) {
+    return {
+      customerId: customer.id,
+      kind: "review_required",
+      orderId: order.id,
+      reason: "buyer_identity_conflict",
+    };
+  }
+  const identity = parseBuyerIdentity(customer);
+  if (!identity) {
+    return {
+      customerId: customer.id,
+      kind: "review_required",
+      orderId: order.id,
+      reason: "buyer_identity_invalid",
+    };
+  }
+  return {
+    customerId: customer.id,
+    identity,
+    kind: "resolved",
+    orderId: order.id,
+  };
+};
+
+const openReconciliationBuyerIdentityReview = async ({
+  client,
+  orderId,
+  reason,
+}: {
+  client: PoolClient;
+  orderId: string;
+  reason: string;
+}): Promise<void> => {
+  await client.query(
+    `update orders
+     set buyer_identity_status = 'review_required', updated_at = now()
+     where id = $1 and buyer_identity_status in ('pending', 'resolved')`,
+    [orderId]
+  );
+  await insertReconciliationReview({
+    client,
+    orderId,
+    reason,
+    type: "buyer_identity",
+  });
+};
+
+const applyReconciledConfirmedPayment = async ({
+  client,
+  order,
+  preparation,
+}: {
+  client: PoolClient;
+  order: ReconciliationOrder;
+  preparation: AsaasBuyerIdentityPreparation;
+}): Promise<void> => {
+  if (preparation.kind === "review_required") {
+    await persistConfirmedPaymentStatus({
+      client,
+      now: new Date(),
+      orderId: order.id,
+    });
+    await openReconciliationBuyerIdentityReview({
+      client,
+      orderId: order.id,
+      reason: preparation.reason,
+    });
+    return;
+  }
+
+  await applyConfirmedPaymentAccess({
+    client,
+    onIdentityReview: async (reason) => {
+      await openReconciliationBuyerIdentityReview({
+        client,
+        orderId: order.id,
+        reason,
+      });
+    },
+    order: {
+      accessDurationMonths: order.accessDurationMonths,
+      buyerIdentityStatus: order.buyerIdentityStatus,
+      courseId: order.courseId,
+      id: order.id,
+      status: order.status,
+      userId: order.userId,
+    },
+    preparation,
+  });
+};
+
+const hasExactPaymentCorrelation = ({
+  order,
+  payment,
+}: {
+  order: ReconciliationOrder;
+  payment: AsaasPayment;
+}): boolean => {
+  const externalReferenceMatches =
+    payment.externalReference === null ||
+    payment.externalReference === order.externalId;
+  const checkoutSessionMatches =
+    payment.checkoutSession === null ||
+    payment.checkoutSession === order.providerCheckoutId;
+  const hasExactOrderReference =
+    payment.externalReference === order.externalId ||
+    payment.checkoutSession === order.providerCheckoutId;
+  return (
+    payment.id === order.providerPaymentId &&
+    externalReferenceMatches &&
+    checkoutSessionMatches &&
+    hasExactOrderReference
+  );
+};
+
 export const reconcileAsaasPayment = async ({
   actorUserId,
   gateway = getAsaasProviderClient(),
@@ -313,9 +497,10 @@ export const reconcileAsaasPayment = async ({
   const pool = getPool();
   const initial = await pool.query(
     `select id, course_id, user_id, external_id, buyer_identity_status,
+            access_duration_months,
             provider_checkout_id,
             provider_payment_id, provider_installment_id,
-            provider_payment_status, amount_in_cents, status
+            provider_payment_status, provider_risk_status, amount_in_cents, status
      from orders
      where id = $1 and provider = 'asaas'`,
     [orderId]
@@ -326,35 +511,26 @@ export const reconcileAsaasPayment = async ({
   }
 
   const payment = await getReconciliationPayment({ gateway, order });
-  const paymentIdMatches = payment.id === order.providerPaymentId;
-  const externalReferenceMatches =
-    payment.externalReference === null ||
-    payment.externalReference === order.externalId;
-  const checkoutSessionMatches =
-    payment.checkoutSession === null ||
-    payment.checkoutSession === order.providerCheckoutId;
-  const hasExactOrderReference =
-    payment.externalReference === order.externalId ||
-    payment.checkoutSession === order.providerCheckoutId;
-  if (
-    !(
-      paymentIdMatches &&
-      externalReferenceMatches &&
-      checkoutSessionMatches &&
-      hasExactOrderReference
-    )
-  ) {
+  if (!hasExactPaymentCorrelation({ order, payment })) {
     throw new Error("A consulta Asaas nao corresponde ao Pedido informado.");
   }
+  const preliminaryDecision = adaptQueriedPaymentDecision({ order, payment });
+  const buyerIdentityPreparation = await prepareReconciliationBuyerIdentity({
+    gateway,
+    order,
+    payment,
+    shouldGrantAccess: preliminaryDecision.shouldGrantAccess,
+  });
 
   const client = await pool.connect();
   try {
     await client.query("begin");
     const locked = await client.query(
       `select id, course_id, user_id, external_id, buyer_identity_status,
+              access_duration_months,
               provider_checkout_id,
               provider_payment_id, provider_installment_id,
-              provider_payment_status, amount_in_cents, status
+              provider_payment_status, provider_risk_status, amount_in_cents, status
        from orders
        where id = $1 and provider = 'asaas'
        for update`,
@@ -371,7 +547,10 @@ export const reconcileAsaasPayment = async ({
       throw new Error("O Pedido mudou durante a conciliacao.");
     }
 
-    const decision = decideReconciliation({ order: current, payment });
+    const decision = adaptQueriedPaymentDecision({
+      order: current,
+      payment,
+    });
     const feeInCents = payment.valueInCents - payment.netValueInCents;
     await client.query(
       `update orders
@@ -407,6 +586,14 @@ export const reconcileAsaasPayment = async ({
         orderId,
         reason: decision.reviewReason,
         type: decision.reviewType,
+      });
+    }
+
+    if (decision.shouldGrantAccess) {
+      await applyReconciledConfirmedPayment({
+        client,
+        order: current,
+        preparation: buyerIdentityPreparation,
       });
     }
 
@@ -476,6 +663,187 @@ export const reconcileAsaasPayment = async ({
   }
 };
 
+const startStatementImport = async ({
+  actorUserId,
+  finishDate,
+  startDate,
+}: {
+  actorUserId: string;
+  finishDate: string;
+  startDate: string;
+}): Promise<{ cursorKey: string; offset: number }> => {
+  const cursorKey = `${startDate}:${finishDate}`;
+  const { rows } = await getPool().query<{ next_offset: number }>(
+    `
+      insert into asaas_statement_import_cursors (
+        range_key,
+        start_date,
+        finish_date,
+        next_offset,
+        status,
+        started_by_user_id,
+        completed_at
+      )
+      values ($1, $2, $3, 0, 'running', $4, null)
+      on conflict (range_key) do update set
+        next_offset = case
+          when asaas_statement_import_cursors.status = 'completed' then 0
+          else asaas_statement_import_cursors.next_offset
+        end,
+        status = 'running',
+        started_by_user_id = excluded.started_by_user_id,
+        completed_at = null,
+        updated_at = now()
+      returning next_offset
+    `,
+    [cursorKey, startDate, finishDate, actorUserId]
+  );
+  return { cursorKey, offset: rows[0]?.next_offset ?? 0 };
+};
+
+interface StatementPagePersistenceResult {
+  inserted: number;
+  updated: number;
+}
+
+const persistStatementPage = async ({
+  actorUserId,
+  completed,
+  cursorKey,
+  expectedOffset,
+  nextOffset,
+  previousInserted,
+  previousUpdated,
+  resumedFromOffset,
+  transactions,
+}: {
+  actorUserId: string;
+  completed: boolean;
+  cursorKey: string;
+  expectedOffset: number;
+  nextOffset: number;
+  previousInserted: number;
+  previousUpdated: number;
+  resumedFromOffset: number;
+  transactions: AsaasFinancialTransaction[];
+}): Promise<StatementPagePersistenceResult> => {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const cursor = await client.query<{ next_offset: number }>(
+      `select next_offset
+       from asaas_statement_import_cursors
+       where range_key = $1 and status = 'running'
+       for update`,
+      [cursorKey]
+    );
+    if (cursor.rows[0]?.next_offset !== expectedOffset) {
+      throw new Error("A importacao do extrato avancou em outra execucao.");
+    }
+
+    const serializedTransactions = transactions.map((transaction) => ({
+      providerTransactionId: transaction.id,
+      transactionDate: transaction.date,
+      transactionType: transaction.type,
+      valueInCents: transaction.valueInCents,
+    }));
+    const counts = await client.query<{ inserted: string; updated: string }>(
+      `
+        with incoming as (
+          select *
+          from jsonb_to_recordset($1::jsonb) as transaction (
+            "providerTransactionId" text,
+            "transactionDate" text,
+            "transactionType" text,
+            "valueInCents" integer
+          )
+        ), existing as (
+          select transaction.provider_transaction_id
+          from asaas_financial_transactions transaction
+          join incoming on incoming."providerTransactionId" = transaction.provider_transaction_id
+        ), upserted as (
+          insert into asaas_financial_transactions (
+            provider_transaction_id,
+            transaction_date,
+            transaction_type,
+            value_in_cents
+          )
+          select
+            "providerTransactionId",
+            "transactionDate",
+            "transactionType",
+            "valueInCents"
+          from incoming
+          on conflict (provider_transaction_id) do update set
+            transaction_date = excluded.transaction_date,
+            transaction_type = excluded.transaction_type,
+            value_in_cents = excluded.value_in_cents,
+            updated_at = now()
+          returning provider_transaction_id
+        )
+        select
+          count(*) filter (where existing.provider_transaction_id is null)::text as inserted,
+          count(*) filter (where existing.provider_transaction_id is not null)::text as updated
+        from incoming
+        left join existing
+          on existing.provider_transaction_id = incoming."providerTransactionId"
+        where (select count(*) from upserted) >= 0
+      `,
+      [JSON.stringify(serializedTransactions)]
+    );
+    await client.query(
+      `update asaas_statement_import_cursors
+       set next_offset = $2,
+           status = $3,
+           completed_at = case when $3 = 'completed' then now() else null end,
+           updated_at = now()
+       where range_key = $1`,
+      [cursorKey, nextOffset, completed ? "completed" : "running"]
+    );
+    const pageInserted = Number(counts.rows[0]?.inserted ?? 0);
+    const pageUpdated = Number(counts.rows[0]?.updated ?? 0);
+    if (completed) {
+      await client.query(
+        `insert into audit_logs (
+           actor_user_id,
+           action,
+           target_type,
+           target_id,
+           metadata
+         )
+         values (
+           $1,
+           'asaas.statement_imported',
+           'asaas_statement',
+           $2,
+           jsonb_build_object(
+             'inserted', $3,
+             'updated', $4,
+             'resumedFromOffset', $5
+           )
+         )`,
+        [
+          actorUserId,
+          cursorKey,
+          previousInserted + pageInserted,
+          previousUpdated + pageUpdated,
+          resumedFromOffset,
+        ]
+      );
+    }
+    await client.query("commit");
+    return {
+      inserted: pageInserted,
+      updated: pageUpdated,
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const importAsaasFinancialStatement = async ({
   actorUserId,
   finishDate,
@@ -486,10 +854,16 @@ export const importAsaasFinancialStatement = async ({
   finishDate: string;
   gateway?: AsaasGateway;
   startDate: string;
-}): Promise<{ imported: number }> => {
-  const pool = getPool();
-  let imported = 0;
-  let offset = 0;
+}): Promise<FinancialStatementImportResult> => {
+  const cursor = await startStatementImport({
+    actorUserId,
+    finishDate,
+    startDate,
+  });
+  const resumedFromOffset = cursor.offset;
+  let inserted = 0;
+  let offset = cursor.offset;
+  let updated = 0;
   for (let pageNumber = 0; pageNumber < MAX_STATEMENT_PAGES; pageNumber += 1) {
     const page = await runCoordinatedAsaasQuery({
       operation: () =>
@@ -501,39 +875,24 @@ export const importAsaasFinancialStatement = async ({
           startDate,
         }),
     });
-    for (const transaction of page.data) {
-      const result = await pool.query(
-        `insert into asaas_financial_transactions (
-           provider_transaction_id,
-           transaction_date,
-           transaction_type,
-           value_in_cents
-         )
-         values ($1, $2, $3, $4)
-         on conflict (provider_transaction_id) do update set
-           transaction_date = excluded.transaction_date,
-           transaction_type = excluded.transaction_type,
-           value_in_cents = excluded.value_in_cents,
-           updated_at = now()
-         returning id`,
-        [
-          transaction.id,
-          transaction.date,
-          transaction.type,
-          transaction.valueInCents,
-        ]
-      );
-      imported += result.rows.length;
-    }
+    const nextOffset = offset + page.limit;
+    const persisted = await persistStatementPage({
+      actorUserId,
+      completed: !page.hasMore,
+      cursorKey: cursor.cursorKey,
+      expectedOffset: offset,
+      nextOffset,
+      previousInserted: inserted,
+      previousUpdated: updated,
+      resumedFromOffset,
+      transactions: page.data,
+    });
+    inserted += persisted.inserted;
+    updated += persisted.updated;
     if (!page.hasMore) {
-      await pool.query(
-        `insert into audit_logs (actor_user_id, action, target_type, target_id)
-         values ($1, 'asaas.statement_imported', 'asaas_statement', $2)`,
-        [actorUserId, `${startDate}:${finishDate}`]
-      );
-      return { imported };
+      return { completed: true, inserted, resumedFromOffset, updated };
     }
-    offset += page.limit;
+    offset = nextOffset;
   }
   throw new Error("Extrato Asaas excedeu o limite seguro de paginacao.");
 };

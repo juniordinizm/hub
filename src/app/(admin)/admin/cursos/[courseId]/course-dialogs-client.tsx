@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
+import { getEffectiveMaxInstallmentCount } from "@/features/payments/course-payment-offer";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
@@ -43,6 +44,10 @@ export function CourseSettingsForm({
   course: CourseData;
 }): React.JSX.Element {
   const [isPending, startTransition] = useTransition();
+  const effectiveMaxInstallmentCount = getEffectiveMaxInstallmentCount({
+    configuredMaxInstallmentCount: course.paymentMaxInstallmentCount,
+    priceInCents: course.priceInCents,
+  });
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -176,6 +181,15 @@ export function CourseSettingsForm({
               O Checkout hospedado não oferece configuracao de juros comerciais.
               Taxas e recebimento seguem o contrato da conta Asaas.
             </p>
+            {course.paymentAllowCreditCard &&
+            effectiveMaxInstallmentCount < course.paymentMaxInstallmentCount ? (
+              <p className="mt-2 text-amber-700 text-xs">
+                Pelo preco atual, o Checkout sera limitado a{" "}
+                {effectiveMaxInstallmentCount}x. A configuracao de{" "}
+                {course.paymentMaxInstallmentCount}x continua salva para futuros
+                reajustes de preco.
+              </p>
+            ) : null}
           </div>
         </FieldGroup>
 

@@ -176,6 +176,81 @@ describe("Asaas webhook worker persistence", () => {
     );
   });
 
+  it("commits conservative effects before scheduling an enrichment retry", async () => {
+    const query = vi.fn((text: string, _values?: unknown[]) => {
+      if (text.includes("from webhook_events")) {
+        return Promise.resolve({ rows: [claimedEvent] });
+      }
+      return Promise.resolve({ rows: [{ id: "event-1" }] });
+    });
+    const release = vi.fn();
+    const processor = {
+      prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+      process: vi.fn(async () => ({
+        errorCode: "installment_enrichment_failed",
+        outcome: "retry" as const,
+      })),
+    };
+
+    await expect(
+      processClaimedAsaasWebhookEvent({
+        event: claimedEvent,
+        pool: {
+          connect: vi.fn().mockResolvedValue({ query, release }),
+          query: vi.fn(),
+        } as never,
+        processor,
+        workerId: "worker-a",
+      })
+    ).resolves.toBe("retrying");
+
+    const retryCall = query.mock.calls.find(([text]) =>
+      text.includes("status = 'retryable'")
+    );
+    expect(retryCall?.[1]).toEqual([
+      "event-1",
+      "worker-a",
+      60_000,
+      "installment_enrichment_failed",
+    ]);
+    expect(query).toHaveBeenLastCalledWith("commit");
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("commits conservative effects and terminalizes an exhausted enrichment retry", async () => {
+    const exhaustedEvent = { ...claimedEvent, attemptCount: 5 };
+    const query = vi.fn((text: string, _values?: unknown[]) => {
+      if (text.includes("from webhook_events")) {
+        return Promise.resolve({ rows: [exhaustedEvent] });
+      }
+      return Promise.resolve({ rows: [{ id: "event-1" }] });
+    });
+    const processor = {
+      prepare: vi.fn(async () => ({ kind: "not_required" as const })),
+      process: vi.fn(async () => ({
+        errorCode: "installment_enrichment_failed",
+        outcome: "retry" as const,
+      })),
+    };
+
+    await expect(
+      processClaimedAsaasWebhookEvent({
+        event: exhaustedEvent,
+        pool: {
+          connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+          query: vi.fn(),
+        } as never,
+        processor,
+        workerId: "worker-a",
+      })
+    ).resolves.toBe("failed");
+
+    expect(
+      query.mock.calls.some(([text]) => text.includes("status = 'failed'"))
+    ).toBe(true);
+    expect(query).toHaveBeenLastCalledWith("commit");
+  });
+
   it("marks a retryable preparation failure through the pool without opening a transaction", async () => {
     const query = vi.fn().mockResolvedValue({ rows: [{ id: "event-1" }] });
     const connect = vi.fn();

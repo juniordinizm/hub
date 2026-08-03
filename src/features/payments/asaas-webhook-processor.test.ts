@@ -262,6 +262,191 @@ const resolvedPreparation = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("Asaas webhook processor", () => {
+  it.each([
+    ["PAYMENT_REFUNDED", "REFUNDED", "payment_refund"],
+    ["PAYMENT_CHARGEBACK_DISPUTE", "DISPUTE", "payment_dispute"],
+    ["PAYMENT_CHARGEBACK_REQUESTED", "CHARGEBACK_REQUESTED", "payment_dispute"],
+  ] as const)("revokes %s conservatively when installment enrichment fails", async (eventName, status, reason) => {
+    const { context, queries } = createContext({
+      correlationRows: [
+        { id: ORDER_ID, match_kind: "provider_installment_id" },
+      ],
+      orderRow: createOrderRow({
+        provider_installment_id: "ins_1",
+        provider_payment_id: "pay_1",
+        status: "paid",
+      }),
+    });
+    const applyRevocation = vi.fn(async () => true);
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation,
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      getInstallment: vi.fn().mockRejectedValue(new Error("Asaas unavailable")),
+      prepareIdentity: vi.fn(async () => ({ kind: "not_required" as const })),
+      resolveIdentity: vi.fn(),
+    });
+    const event = createPaymentEvent(eventName, {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      status,
+      value: 43.3,
+    });
+
+    const preparation = await processor.prepare(event);
+    const outcome = await processEvent(processor, event, context, preparation);
+
+    expect(preparation).toEqual({
+      installmentEnrichmentFailure: { installmentId: "ins_1" },
+      kind: "not_required",
+    });
+    expect(outcome).toEqual({
+      errorCode: "installment_enrichment_failed",
+      outcome: "retry",
+    });
+    expect(applyRevocation).toHaveBeenCalledWith(
+      expect.objectContaining({ reason })
+    );
+    const persistedDecision = queries.find(({ text }) =>
+      text.includes("provider_checkout_id = coalesce")
+    );
+    expect(persistedDecision?.values?.[4]).toBe(false);
+    expect(
+      queries.find(({ text }) => text.includes("insert into payment_reviews"))
+        ?.values
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "event_anomaly",
+      "installment_enrichment_pending",
+    ]);
+  });
+
+  it("does not revoke without an exact persisted installment correlation", async () => {
+    const { context } = createContext({
+      orderRow: createOrderRow({ status: "paid" }),
+    });
+    const applyRevocation = vi.fn(async () => true);
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation,
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      getInstallment: vi.fn().mockRejectedValue(new Error("Asaas unavailable")),
+      prepareIdentity: vi.fn(async () => ({ kind: "not_required" as const })),
+      resolveIdentity: vi.fn(),
+    });
+    const event = createConfirmedRefundEvent({
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      value: 43.3,
+    });
+
+    const preparation = await processor.prepare(event);
+    await expect(
+      processEvent(processor, event, context, preparation)
+    ).resolves.toEqual({
+      errorCode: "installment_enrichment_failed",
+      outcome: "retry",
+    });
+    expect(applyRevocation).not.toHaveBeenCalled();
+  });
+
+  it("keeps positive installment events retryable without granting on enrichment failure", async () => {
+    const processor = createAsaasWebhookProcessor({
+      getInstallment: vi.fn().mockRejectedValue(new Error("Asaas unavailable")),
+      prepareIdentity: vi.fn(async () => ({ kind: "not_required" as const })),
+    });
+    const event = createPaymentEvent("PAYMENT_CONFIRMED", {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      status: "CONFIRMED",
+      value: 43.3,
+    });
+
+    await expect(processor.prepare(event)).rejects.toThrow("Asaas unavailable");
+  });
+
+  it("converges an enriched retry without duplicating a prior revocation", async () => {
+    const { context, queries } = createContext({
+      correlationRows: [
+        { id: ORDER_ID, match_kind: "provider_installment_id" },
+      ],
+      orderRow: createOrderRow({
+        provider_installment_id: "ins_1",
+        provider_payment_id: "pay_1",
+        status: "paid",
+      }),
+    });
+    let revoked = false;
+    const applyRevocation = vi.fn(() => {
+      if (revoked) {
+        return Promise.resolve(false);
+      }
+      revoked = true;
+      return Promise.resolve(true);
+    });
+    const getInstallment = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Asaas unavailable"))
+      .mockResolvedValueOnce({
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_1",
+        id: "ins_1",
+        installmentCount: 3,
+        netValueInCents: 12_500,
+        paymentValueInCents: 4330,
+        refunds: [
+          {
+            dateCreated: "2026-08-02 01:45:03",
+            status: "DONE",
+            valueInCents: 4330,
+          },
+          {
+            dateCreated: "2026-08-02 01:45:03",
+            status: "DONE",
+            valueInCents: 4330,
+          },
+          {
+            dateCreated: "2026-08-02 01:45:03",
+            status: "DONE",
+            valueInCents: 4330,
+          },
+        ],
+        valueInCents: 12_990,
+      });
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess: vi.fn(async () => undefined),
+      applyRevocation,
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      getInstallment,
+      prepareIdentity: vi.fn(async () => ({ kind: "not_required" as const })),
+      resolveIdentity: vi.fn(),
+    });
+    const event = createPaymentEvent("PAYMENT_REFUNDED", {
+      billingType: "CREDIT_CARD",
+      installment: "ins_1",
+      status: "REFUNDED",
+      value: 43.3,
+    });
+
+    const firstPreparation = await processor.prepare(event);
+    await processEvent(processor, event, context, firstPreparation);
+    const secondPreparation = await processor.prepare(event);
+    await expect(
+      processEvent(processor, event, context, secondPreparation)
+    ).resolves.toEqual({ outcome: "processed" });
+
+    expect(revoked).toBe(true);
+    expect(applyRevocation).toHaveBeenCalledTimes(2);
+    expect(
+      queries.some(
+        ({ text, values }) =>
+          text.includes("installment_enrichment_succeeded") &&
+          values?.[0] === EVENT_ID
+      )
+    ).toBe(true);
+  });
+
   it("grants once from a card installment after validating the aggregate total", async () => {
     const { context } = createContext({
       orderRow: createOrderRow({ amount_in_cents: 30_000 }),

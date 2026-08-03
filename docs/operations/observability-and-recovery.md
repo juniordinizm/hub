@@ -42,7 +42,16 @@ As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem
 - `GET /api/health/ready` é readiness: exige `Authorization: Bearer <HEALTHCHECK_SECRET>` quando o segredo existe. Em produção, segredo ausente, conexão indisponível ou schema incompatível retorna 503 sem detalhes.
 - A readiness usa conexão com timeout de um segundo, transação somente leitura e exige no journal `drizzle.__drizzle_migrations` a migration mínima declarada em `src/db/migration-state.ts`. Providers externos não bloqueiam cada request.
 
-RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhook falho e vídeo pendente, com a idade do item mais antigo.
+RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhooks Asaas prontos, em retry ou falhos, checkouts e reembolsos incertos e vídeo pendente, com a idade do item mais antigo.
+
+O snapshot emite códigos operacionais sem PII, com limiares internos nomeados:
+
+- `webhook_ready_stale`: evento `received`/`processing` há pelo menos 15 minutos;
+- `webhook_retry_stale`: evento `retryable` há pelo menos 6 horas;
+- `webhook_failed_stale`: evento `failed` há pelo menos 24 horas;
+- `webhook_payload_retention_risk`: qualquer um desses eventos há pelo menos 25 dias, severidade crítica, cinco dias antes da sanitização obrigatória em 30 dias.
+
+Esses limiares acionam o runbook; não são SLO ratificado nem autorizam mutação externa automática.
 
 ## SLI/SLO antes de ratificação
 
@@ -70,6 +79,26 @@ Até haver baseline e aprovação de produto/operações, excedente gera investi
 1. Relacione `correlationId`, ID do Pedido e `event_key`, sem payload bruto.
 2. Confira token de acesso, deduplicação, estado financeiro e `payment_reviews`.
 3. Use somente retry autorizado; não crie Matrícula diretamente para simular pagamento.
+4. Para `installment_enrichment_failed`, confirme que a Revisão
+   `installment_enrichment_pending` existe e que a Concessão paga já foi revogada quando o
+   ID parcelado era exato. Aguarde as cinco tentativas automáticas; não repita reembolso nem
+   restaure acesso.
+5. Se o evento terminar `failed`, somente Admin com `retryWebhook` pode reenfileirá-lo,
+   após confirmar no Asaas que o agregado está consultável. Suporte apenas consulta e
+   encaminha o caso.
+6. Se a fila Asaas estiver interrompida, reative o envio no painel antes de replay. Confirme
+   que a URL, o token e o tipo de envio pertencem ao ambiente correto; não troque credenciais
+   para contornar backlog.
+7. Antes de reenfileirar um evento falho, consulte o Pedido, a cobrança ou o parcelamento pelo
+   ID exato e compare o estado já persistido. Se a chamada anterior teve resultado incerto,
+   consulte primeiro; nunca repita criação de Checkout ou reembolso para “testar”.
+8. Faça replay pelo painel do Asaas quando a entrega ainda estiver retida. Quando o evento já
+   estiver na inbox local como `failed`, use **Admin > Auditoria**, informe o motivo e
+   reenfileire uma vez. O comando só aceita payload não sanitizado e ainda dentro de 30 dias,
+   zera tentativas e deixa trilha `asaas_webhook.requeued`.
+9. Após o replay, acompanhe `ready`, `retryable`, idade e Revisões até convergirem. Não edite
+   Pedido, Concessão ou Matrícula diretamente. Se o payload alcançou 25 dias, trate como
+   incidente crítico antes que a evidência bruta seja removida.
 
 ### JMVStream e R2
 

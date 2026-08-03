@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   type AsaasFinancialEventDecision,
   type AsaasFinancialOrderSnapshot,
+  decideAsaasAdverseEventWithoutInstallment,
   decideAsaasFinancialEvent,
+  decideQueriedAsaasPayment,
 } from "./asaas-financial-events";
 
 const pendingOrder: AsaasFinancialOrderSnapshot = {
@@ -14,6 +16,92 @@ const pendingOrder: AsaasFinancialOrderSnapshot = {
 };
 
 describe("Asaas financial event matrix", () => {
+  it("classifies credit card capture refusal as operational failure without access", () => {
+    const decision = decideAsaasFinancialEvent({
+      payload: {
+        event: "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED",
+        payment: {
+          billingType: "CREDIT_CARD",
+          id: "payment_1",
+          status: "PENDING",
+          value: 100,
+        },
+      },
+      snapshot: pendingOrder,
+    });
+
+    expect(decision).toMatchObject({
+      action: "apply",
+      alertReason: "event_anomaly",
+      effect: "none",
+      reviewReason: "event_anomaly",
+      updates: {
+        paymentMethod: "CREDIT_CARD",
+        providerPaymentStatus: "PENDING",
+      },
+    });
+    expect(decision.updates.orderStatus).toBeUndefined();
+  });
+
+  it("revokes without claiming an aggregate terminal state when installment evidence is unavailable", () => {
+    const decision = decideAsaasAdverseEventWithoutInstallment({
+      payload: {
+        event: "PAYMENT_REFUNDED",
+        payment: {
+          billingType: "CREDIT_CARD",
+          checkoutSession: "checkout_1",
+          externalReference: "order_123e4567-e89b-12d3-a456-426614174000",
+          id: "payment_2",
+          installment: "installment_1",
+          status: "REFUNDED",
+          value: 50,
+        },
+      },
+      snapshot: { ...pendingOrder, orderStatus: "paid" },
+    });
+
+    expect(decision.effect).toBe("revoke");
+    expect(decision.reviewReason).toBeNull();
+    expect(decision.updates.orderStatus).toBeUndefined();
+    expect(decision.updates.providerRefundStatus).toBe("REFUNDED");
+  });
+
+  it("uses the same payment authority rules for queried evidence", () => {
+    const baseEvidence = {
+      billingType: "PIX",
+      checkoutSession: "checkout_1",
+      externalReference: "order_123e4567-e89b-12d3-a456-426614174000",
+      installmentId: null,
+      netValueInCents: 9700,
+      paymentId: "payment_1",
+      status: "CONFIRMED",
+      valueInCents: 10_000,
+    };
+
+    expect(
+      decideQueriedAsaasPayment({
+        evidence: baseEvidence,
+        snapshot: pendingOrder,
+      }).effect
+    ).toBe("none");
+    expect(
+      decideQueriedAsaasPayment({
+        evidence: { ...baseEvidence, status: "RECEIVED" },
+        snapshot: pendingOrder,
+      }).effect
+    ).toBe("grant");
+    expect(
+      decideQueriedAsaasPayment({
+        evidence: {
+          ...baseEvidence,
+          billingType: "CREDIT_CARD",
+          status: "RECEIVED",
+        },
+        snapshot: pendingOrder,
+      }).effect
+    ).toBe("grant");
+  });
+
   it.each([
     "cancelled",
     "expired",

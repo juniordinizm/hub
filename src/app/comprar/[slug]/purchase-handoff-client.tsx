@@ -7,7 +7,7 @@ import { redirectToCheckout } from "./checkout-navigation";
 
 type HandoffState =
   | { kind: "starting" }
-  | { kind: "processing"; orderId: string }
+  | { kind: "processing"; manualCheck: boolean; orderId: string }
   | { kind: "retry"; replaceAttempt: boolean }
   | { kind: "unavailable" };
 
@@ -31,12 +31,26 @@ type CheckoutOutcome = HandoffState | { kind: "redirect"; redirectUrl: string };
 const CHECKOUT_ENDPOINT = "/api/checkouts/course";
 const ATTEMPT_STORAGE_PREFIX = "hub:checkout-attempt:";
 const ATTEMPT_VALUE_PREFIX = "v1:";
+const SHARED_ATTEMPT_VALUE_PREFIX = "v2:";
+const ATTEMPT_TTL_MS = 60 * 60 * 1000;
+const STATUS_POLL_DELAYS_MS = [1000, 2000, 4000, 8000, 16_000] as const;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const decodeStoredAttempt = (value: string | null): string | null => {
   if (!value) {
     return null;
+  }
+
+  if (value.startsWith(SHARED_ATTEMPT_VALUE_PREFIX)) {
+    const [, expiresAtValue, attemptId] = value.split(":");
+    const expiresAt = Number(expiresAtValue);
+    return Number.isSafeInteger(expiresAt) &&
+      expiresAt > Date.now() &&
+      attemptId &&
+      UUID_PATTERN.test(attemptId)
+      ? attemptId
+      : null;
   }
 
   const attemptId = value.startsWith(ATTEMPT_VALUE_PREFIX)
@@ -47,6 +61,14 @@ const decodeStoredAttempt = (value: string | null): string | null => {
 
 const readAttempt = (key: string, fallback: string | null): string | null => {
   try {
+    const sharedAttempt = decodeStoredAttempt(window.localStorage.getItem(key));
+    if (sharedAttempt) {
+      return sharedAttempt;
+    }
+  } catch {
+    // Session storage and the in-memory ref remain available fallbacks.
+  }
+  try {
     return decodeStoredAttempt(window.sessionStorage.getItem(key)) ?? fallback;
   } catch {
     return fallback;
@@ -54,14 +76,25 @@ const readAttempt = (key: string, fallback: string | null): string | null => {
 };
 
 const storeAttempt = (key: string, attemptId: string): void => {
+  const value = `${SHARED_ATTEMPT_VALUE_PREFIX}${Date.now() + ATTEMPT_TTL_MS}:${attemptId}`;
   try {
-    window.sessionStorage.setItem(key, `${ATTEMPT_VALUE_PREFIX}${attemptId}`);
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Session storage and the in-memory ref remain available fallbacks.
+  }
+  try {
+    window.sessionStorage.setItem(key, value);
   } catch {
     // The in-memory ref remains the safe fallback for this mount.
   }
 };
 
 const removeAttempt = (key: string): void => {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // The session and in-memory values are still replaced below.
+  }
   try {
     window.sessionStorage.removeItem(key);
   } catch {
@@ -150,7 +183,11 @@ const getCheckoutOutcome = (
     case "ready":
       return { kind: "redirect", redirectUrl: response.redirectUrl };
     case "processing":
-      return { kind: "processing", orderId: response.orderId };
+      return {
+        kind: "processing",
+        manualCheck: false,
+        orderId: response.orderId,
+      };
     case "failed":
       return { kind: "retry", replaceAttempt: true };
     case "unavailable":
@@ -171,6 +208,12 @@ export function PurchaseHandoffClient({
   const initialRequestStarted = useRef(false);
   const mounted = useRef(false);
   const memoryAttempt = useRef<string | null>(null);
+  const processingOrderId = useRef<string | null>(null);
+  const pollIndex = useRef(0);
+  const pollStatus = useRef<(attemptId: string) => Promise<void>>(async () => {
+    // Assigned during render before any timer can run.
+  });
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storageKey = `${ATTEMPT_STORAGE_PREFIX}${courseSlug}`;
 
   const setMountedState = useCallback((nextState: HandoffState): void => {
@@ -179,8 +222,100 @@ export function PurchaseHandoffClient({
     }
   }, []);
 
+  const clearPollTimer = useCallback((): void => {
+    if (pollTimer.current !== null) {
+      clearTimeout(pollTimer.current);
+      pollTimer.current = null;
+    }
+  }, []);
+
+  const scheduleStatusPoll = useCallback(
+    (attemptId: string, orderId: string): void => {
+      clearPollTimer();
+      const delay = STATUS_POLL_DELAYS_MS[pollIndex.current];
+      if (delay === undefined) {
+        setMountedState({ kind: "processing", manualCheck: true, orderId });
+        return;
+      }
+
+      pollIndex.current += 1;
+      pollTimer.current = setTimeout(() => {
+        pollTimer.current = null;
+        pollStatus.current(attemptId).catch(() => {
+          setMountedState({ kind: "processing", manualCheck: true, orderId });
+        });
+      }, delay);
+    },
+    [clearPollTimer, setMountedState]
+  );
+
+  const applyCheckoutOutcome = useCallback(
+    (attemptId: string, outcome: CheckoutOutcome): void => {
+      if (outcome.kind === "redirect") {
+        clearPollTimer();
+        try {
+          redirectToCheckout(outcome.redirectUrl);
+        } catch {
+          setMountedState({ kind: "unavailable" });
+        }
+        return;
+      }
+
+      if (outcome.kind === "processing") {
+        processingOrderId.current = outcome.orderId;
+        setMountedState({ ...outcome, manualCheck: false });
+        scheduleStatusPoll(attemptId, outcome.orderId);
+        return;
+      }
+
+      clearPollTimer();
+      setMountedState(outcome);
+    },
+    [clearPollTimer, scheduleStatusPoll, setMountedState]
+  );
+
+  const checkCheckoutStatus = useCallback(
+    async (attemptId: string): Promise<void> => {
+      let response: Response;
+      try {
+        const query = new URLSearchParams({
+          checkoutAttemptId: attemptId,
+          courseSlug,
+        });
+        response = await fetch(`${CHECKOUT_ENDPOINT}?${query.toString()}`, {
+          method: "GET",
+        });
+      } catch {
+        setMountedState({
+          kind: "processing",
+          manualCheck: true,
+          orderId: processingOrderId.current ?? attemptId,
+        });
+        return;
+      }
+
+      const result = await readCheckoutResponse(response);
+      if (!mounted.current) {
+        return;
+      }
+      if (!result) {
+        setMountedState({
+          kind: "processing",
+          manualCheck: true,
+          orderId: processingOrderId.current ?? attemptId,
+        });
+        return;
+      }
+      applyCheckoutOutcome(attemptId, getCheckoutOutcome(result));
+    },
+    [applyCheckoutOutcome, courseSlug, setMountedState]
+  );
+  pollStatus.current = checkCheckoutStatus;
+
   const startCheckout = useCallback(
     async (replaceAttempt: boolean): Promise<void> => {
+      clearPollTimer();
+      pollIndex.current = 0;
       setState({ kind: "starting" });
 
       if (replaceAttempt) {
@@ -213,18 +348,15 @@ export function PurchaseHandoffClient({
       }
 
       const outcome = getCheckoutOutcome(result);
-      if (outcome.kind === "redirect") {
-        try {
-          redirectToCheckout(outcome.redirectUrl);
-        } catch {
-          setMountedState({ kind: "unavailable" });
-        }
-        return;
-      }
-
-      setMountedState(outcome);
+      applyCheckoutOutcome(checkoutAttemptId, outcome);
     },
-    [courseSlug, setMountedState, storageKey]
+    [
+      applyCheckoutOutcome,
+      clearPollTimer,
+      courseSlug,
+      setMountedState,
+      storageKey,
+    ]
   );
 
   useEffect(() => {
@@ -240,13 +372,24 @@ export function PurchaseHandoffClient({
     });
     return () => {
       mounted.current = false;
+      clearPollTimer();
     };
-  }, [setMountedState, startCheckout]);
+  }, [clearPollTimer, setMountedState, startCheckout]);
 
   const handleRetry = async (): Promise<void> => {
     if (state.kind === "retry") {
       await startCheckout(state.replaceAttempt);
     }
+  };
+
+  const handleManualCheck = async (): Promise<void> => {
+    const attemptId = readAttempt(storageKey, memoryAttempt.current);
+    if (!(state.kind === "processing" && attemptId)) {
+      return;
+    }
+    pollIndex.current = 0;
+    setMountedState({ ...state, manualCheck: false });
+    await checkCheckoutStatus(attemptId);
   };
 
   return (
@@ -265,6 +408,11 @@ export function PurchaseHandoffClient({
           <div className="mt-3 space-y-2 text-muted-foreground text-sm">
             <p>O checkout esta sendo preparado. Nao inicie outra tentativa.</p>
             <p>Referencia do pedido: {state.orderId}</p>
+            {state.manualCheck ? (
+              <Button onClick={handleManualCheck} type="button">
+                Verificar novamente
+              </Button>
+            ) : null}
           </div>
         ) : null}
         {state.kind === "retry" ? (

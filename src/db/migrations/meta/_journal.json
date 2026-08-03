@@ -379,6 +379,13 @@
       "when": 1785632318824,
       "tag": "0053_course_payment_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1785744643480,
+      "tag": "0054_payments_hardening",
+      "breakpoints": true
     }
   ]
 }

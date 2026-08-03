@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
+  asaasStatementImportCursors,
   buyerIdentityStatusEnum,
   checkoutStatusEnum,
   courses,
@@ -21,6 +22,9 @@ import {
 const NEWLINE_PATTERN = /\r?\n/;
 const RENAME_COLUMN_PATTERN = /RENAME COLUMN/i;
 const CLEAR_IP_COLUMN_PATTERN = /\bip(?:_address)?\b/i;
+const DESTRUCTIVE_PAYMENT_DELETE_PATTERN =
+  /delete\s+from\s+(orders|refund_requests)/i;
+const RAISE_EXCEPTION_PATTERN = /raise exception/i;
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).columns.map((column) => column.name);
@@ -129,6 +133,15 @@ describe("Asaas persistence contract", () => {
         "orders_provider_checkout_unique_idx",
         "orders_provider_payment_unique_idx",
         "orders_checkout_retry_idx",
+      ])
+    );
+    expect(checkNames(orders)).toEqual(
+      expect.arrayContaining([
+        "orders_amount_in_cents_non_negative",
+        "orders_checkout_attempt_count_non_negative",
+        "orders_financial_amounts_non_negative",
+        "orders_paid_evidence_consistent",
+        "orders_refunded_evidence_consistent",
       ])
     );
   });
@@ -243,11 +256,45 @@ describe("Asaas persistence contract", () => {
     expect(checkNames(refundRequests)).toContain(
       "refund_requests_provider_amount_positive"
     );
+    expect(checkNames(refundRequests)).toContain(
+      "refund_requests_confirmed_evidence_consistent"
+    );
     expect(refundRequests.providerRefundStatus.notNull).toBe(false);
     expect(refundRequests.providerRefundCreatedAt.notNull).toBe(false);
     expect(refundRequests.providerRefundEndToEndId.notNull).toBe(false);
     expect(refundRequests.providerRefundReceiptUrl.notNull).toBe(false);
     expect(refundRequests.providerRefundedAmountInCents.notNull).toBe(false);
+  });
+
+  it("persists a resumable statement import cursor with explicit invariants", async () => {
+    expect(columnNames(asaasStatementImportCursors)).toEqual([
+      "range_key",
+      "start_date",
+      "finish_date",
+      "next_offset",
+      "status",
+      "started_by_user_id",
+      "completed_at",
+      "created_at",
+      "updated_at",
+    ]);
+    expect(checkNames(asaasStatementImportCursors)).toEqual(
+      expect.arrayContaining([
+        "asaas_statement_import_cursor_offset_non_negative",
+        "asaas_statement_import_cursor_status_valid",
+        "asaas_statement_import_cursor_completion_consistent",
+      ])
+    );
+    const migration = await readFile(
+      new URL("./migrations/0054_payments_hardening.sql", import.meta.url),
+      "utf8"
+    );
+    expect(migration).toMatch(RAISE_EXCEPTION_PATTERN);
+    expect(migration).not.toMatch(DESTRUCTIVE_PAYMENT_DELETE_PATTERN);
+    expect(migration).toContain('"paid_amount_in_cents" IS NULL');
+    expect(migration).not.toContain(
+      '"paid_amount_in_cents" IS DISTINCT FROM "amount_in_cents"'
+    );
   });
 
   it("deduplicates financial review by durable webhook identity", async () => {

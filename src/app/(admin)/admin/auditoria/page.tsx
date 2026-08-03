@@ -124,6 +124,15 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               conforme o runbook de observabilidade antes de reprocessar.
             </p>
           </div>
+          {data.operationalBacklog.alerts.length > 0 ? (
+            <ul className="border-b bg-destructive/5 p-5 text-sm">
+              {data.operationalBacklog.alerts.map((alert) => (
+                <li key={alert.code}>
+                  <code>{alert.code}</code> ({alert.severity})
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <dl className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
             <div className="space-y-1 p-5">
               <dt className="text-muted-foreground text-sm">Outbox pendente</dt>
@@ -153,6 +162,21 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               </dd>
               <dd className="text-muted-foreground text-sm">
                 Na fila: {data.operationalBacklog.webhooks.ready}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Retry: {data.operationalBacklog.webhooks.retryable}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Fila mais antiga:{" "}
+                {data.operationalBacklog.webhooks.oldestReadyAt
+                  ? formatDate(data.operationalBacklog.webhooks.oldestReadyAt)
+                  : "nenhuma"}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Retry mais antigo:{" "}
+                {data.operationalBacklog.webhooks.oldestRetryAt
+                  ? formatDate(data.operationalBacklog.webhooks.oldestRetryAt)
+                  : "nenhum"}
               </dd>
             </div>
             <div className="space-y-1 p-5">

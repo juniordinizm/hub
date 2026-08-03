@@ -24,6 +24,7 @@ describe("AuditoriaPage", () => {
     dependencies.getAdminAuditData.mockResolvedValue({
       auditLogs: [],
       operationalBacklog: {
+        alerts: [{ code: "webhook_ready_stale", severity: "high" as const }],
         outbox: { deadLetters: 0, oldestReadyAt: null, ready: 0 },
         payments: {
           uncertainCheckouts: 9,
@@ -31,7 +32,14 @@ describe("AuditoriaPage", () => {
           uncorrelatedOrders: 6,
         },
         videos: { oldestPendingAt: null, pending: 0 },
-        webhooks: { failed: 0, oldestFailedAt: null, ready: 0 },
+        webhooks: {
+          failed: 0,
+          oldestFailedAt: null,
+          oldestReadyAt: null,
+          oldestRetryAt: null,
+          ready: 0,
+          retryable: 0,
+        },
       },
       outboxDeadLetters: [],
     });
@@ -40,5 +48,6 @@ describe("AuditoriaPage", () => {
 
     expect(markup).toContain(">22<");
     expect(markup).toContain("Checkouts incertos: 9");
+    expect(markup).toContain("webhook_ready_stale");
   });
 });

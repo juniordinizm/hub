@@ -83,6 +83,8 @@ describe("auth policy", () => {
     expect(canPerform("admin", "retryOutbox")).toBe(true);
     expect(canPerform("support", "manageFinancialOperations")).toBe(false);
     expect(canPerform("admin", "manageFinancialOperations")).toBe(true);
+    expect(canPerform("support", "manageFinancialReviews")).toBe(false);
+    expect(canPerform("admin", "manageFinancialReviews")).toBe(true);
     expect(canPerform("student", "viewAdminPanel")).toBe(false);
   });
 

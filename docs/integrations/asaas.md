@@ -101,6 +101,16 @@ O Admin configura `payment_allow_pix`, `payment_allow_credit_card` e
 Pedido captura os três snapshots antes da chamada externa. O adapter transforma esses
 campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
 
+Antes de criar o Pedido, o Hub calcula o teto efetivo por
+`floor(price_in_cents / 1000)`, limitado entre 1, o teto configurado e 21. Os `1000`
+centavos são a política comercial aprovada tanto para a cobrança quanto para cada parcela.
+O Asaas documenta o valor mínimo por parcela como configuração da conta que limita as
+parcelas disponíveis; o piso externo deve permanecer abaixo ou igual ao contrato interno.
+A recusa histórica de 3x de R$ 6,63 ocorreu quando a conta estava configurada com mínimo
+de R$ 10,00 e não constitui um limite fixo da API. A configuração do Curso permanece
+intacta e o Pedido recebe somente o teto efetivo, preservando o padrão de novos Cursos em
+3x.
+
 - o Checkout não documenta campo para juros comerciais ou repasse de taxa;
 - `interest` nas APIs de cobrança significa juros por atraso;
 - cada parcela possui um ID de pagamento próprio;
@@ -148,6 +158,20 @@ resolvidas pelo Curso e slug históricos do Pedido antes de consultar o Curso at
 colisões de Curso ou Compradora falham sem revelar o Pedido. Resultado externo desconhecido permanece `uncertain` para reconciliação e nunca
 é repetido automaticamente. Nome e descrição do item são limitados de forma segura a
 30 e 150 caracteres Unicode, respectivamente.
+
+`GET /api/checkouts/course` recupera uma tentativa pública já reservada pela dupla exata
+`checkoutAttemptId` + `courseSlug`. A resposta nunca inclui PII nem estado bruto do Asaas:
+somente `ready`, `processing`, `failed` ou `unavailable`; a URL hospedada aparece apenas
+para `checkout_status=active` com URL persistida. Ausência e divergência produzem a mesma
+resposta genérica, todas as leituras usam `Cache-Control: no-store`, e sessão de equipe ou
+Conta bloqueada continua recusada. O UUID é uma capacidade opaca armazenada no navegador,
+compartilhada entre abas por 60 minutos e enviada sem nome ou e-mail.
+
+Ao receber `processing`, o handoff consulta a mesma tentativa após 1, 2, 4, 8 e 16
+segundos. Depois desse limite, oferece `Verificar novamente`; essa ação é outra leitura,
+nunca outro `POST`. Somente falha definitiva com `retryAllowed=true` permite que um clique
+explícito descarte a tentativa e crie uma nova. Refresh, aba adicional e resposta repetida
+reutilizam o UUID ainda válido; timer é cancelado no unmount.
 
 ## Cliente HTTP e ambientes
 
@@ -338,6 +362,18 @@ zero, múltiplos ou IDs divergentes não consultam PII. Somente depois o worker 
 transação e chama `process`. Nenhuma chamada HTTP externa ocorre dentro da transação local.
 Falha de preparação usa o CAS/backoff da inbox pelo próprio Pool, sem `BEGIN`.
 
+Exceção: se `getInstallment` falhar durante `PAYMENT_REFUNDED`, disputa ou chargeback e
+o `provider_installment_id` do Pedido já coincidir exatamente com o payload, o processor
+não espera o enriquecimento para proteger o acesso. Na transação da inbox ele persiste
+somente o estado bruto seguro de refund/disputa, revoga a Concessão com a razão canônica
+e abre Revisão `event_anomaly` com razão `installment_enrichment_pending`; não declara o
+Pedido inteiro `refunded`/`disputed` sem o agregado. O worker então confirma a transação e
+reagenda o mesmo evento com o backoff normal. Quando `getInstallment` volta, o payload
+agregado percorre a matriz normal, converge o estado e encerra ou transforma a Revisão.
+Após cinco tentativas, o evento fica `failed`, a Revisão permanece e a revogação não é
+desfeita. Evento positivo continua falhando antes da transação e jamais concede sem o
+enriquecimento necessário.
+
 `GET /api/cron/asaas-webhooks` usa o guard compartilhado de `CRON_SECRET` e
 `SCHEDULED_JOBS_ENABLED`, adquire lease persistente de seis minutos e entrega ao worker o
 prazo interno de 270 segundos e a verificação de posse. Sobreposição retorna sucesso
@@ -374,8 +410,14 @@ A matriz aprovada é:
   pagos/adversos não regridem por `CONFIRMED`, `OVERDUE`, `DELETED` ou `PENDING`, e a
   regressão abre Revisão no Pedido correlacionado;
 - reembolso confirmado, disputa ou chargeback: prevalece e revoga;
+- falha temporária ao consultar o agregado parcelado não adia a revogação quando o ID de
+  parcelamento já está persistido e coincide exatamente; sem essa igualdade, abre anomalia
+  e tenta novamente sem alterar acesso;
 - `PAYMENT_REFUND_IN_PROGRESS` e `PAYMENT_REFUND_DENIED`: registram somente evidência
   externa de reembolso, sem revogar nem reabrir Pedido;
+- `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED`: preserva método e estado seguro da cobrança,
+  abre `event_anomaly` e não concede acesso; o nome do evento permanece como contexto
+  operacional, sem inventar um status financeiro terminal não publicado pelo provider;
 - pago tardio após estado adverso: não reativa;
 - cancelamento ou expiração tardios após pagamento: não revoga;
 - `PAYMENT_PARTIALLY_REFUNDED`: sempre abre revisão `partial_refund` e não transiciona;
@@ -434,6 +476,12 @@ semanticamente inválida viram `uncertain`. Somente `failed` aceita nova solicit
 sempre com nova confirmação recente de senha. `processing`, `uncertain` e `confirmed`
 impedem repetição cega.
 
+A confirmação de senha é limitada por Admin: cinco falhas em uma janela móvel de 15 minutos
+por ator. A sexta tentativa é recusada antes de verificar a senha. As tentativas são
+serializadas por lock transacional, expiram no servidor e são removidas após confirmação
+válida; senha, hash digitado, e-mail e demais PII não entram na contagem, auditoria ou logs.
+Esse controle protege a autorização local e não substitui a reserva idempotente do reembolso.
+
 No Sandbox, o recurso `Payment` originado pelo Checkout devolveu
 `externalReference=null`. A solicitação de reembolso aceita essa omissão somente quando
 o ID do pagamento e a `checkoutSession` são exatamente os reservados no Pedido. Todos
@@ -464,13 +512,30 @@ A conciliação administrativa tem dois comandos separados:
   revogar a Concessão e confirmar a solicitação na mesma transação;
 - por extrato, consulta `GET /v3/financialTransactions` em período fechado, páginas de
   100 e ordem crescente, persistindo cada movimento em
-  `asaas_financial_transactions` com deduplicação pelo ID do Asaas.
+  `asaas_financial_transactions` com deduplicação pelo ID do Asaas. Cada página é um
+  único lote transacional; `asaas_statement_import_cursors` avança na mesma transação.
+  Uma execução interrompida retoma do último offset confirmado, sem reler páginas já
+  concluídas, e o resultado separa linhas inseridas de atualizadas. Consulta ao Asaas
+  continua fora da transação PostgreSQL.
+
+A consulta por Pedido é adaptada por `decideQueriedAsaasPayment` para a mesma matriz do
+webhook. A aplicação local passa por `applyConfirmedPaymentAccess`: PIX exige
+`RECEIVED`; cartão aceita `CONFIRMED` ou a evidência posterior `RECEIVED`; risco
+reprovado, estado terminal, Revisão pendente ou identidade bloqueada impedem acesso.
+Compra pública válida cria ou vincula a Conta e enfileira ativação/acesso exatamente
+como o webhook.
 
 Os dois comandos mutáveis exigem `manageFinancialOperations`, capacidade exclusiva de
-Admin. `viewFinancials` permanece suficiente para leitura e resolução ordinária de
-Revisões. O snapshot e a tela de auditoria contam separadamente Checkouts com
+Admin. Resolução manual de Revisão exige `manageFinancialReviews`, também exclusiva de
+Admin; `viewFinancials` permite somente leitura. `buyer_identity`, `event_anomaly` e
+`partial_refund` não aceitam decisão genérica e permanecem pendentes até o fluxo
+financeiro correspondente comprovar seu efeito. O snapshot e a tela de auditoria contam separadamente Checkouts com
 `checkout_status='uncertain'`, reembolsos incertos e Pedidos pagos sem pagamento
-correlacionado.
+correlacionado. Também exibem contagem e idade dos webhooks prontos, em retry e falhos. Os
+sinais `webhook_ready_stale`, `webhook_retry_stale` e `webhook_failed_stale` surgem em 15
+minutos, 6 horas e 24 horas; `webhook_payload_retention_risk` surge em 25 dias, antes da
+sanitização obrigatória do payload em 30 dias. Os sinais exigem o runbook, não replay
+automático.
 
 O extrato publicado expõe `id`, `type`, `value` e `date`, mas não um vínculo contratual
 direto com `payment`. Portanto, o Hub não tenta correlacionar tarifa e Pedido por

@@ -71,6 +71,7 @@ beforeEach(() => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
+  localStorage.clear();
   sessionStorage.clear();
   fetchMock.mockReset();
   navigation.redirectToCheckout.mockReset();
@@ -81,6 +82,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   act(() => root.unmount());
   container.remove();
   vi.unstubAllGlobals();
@@ -139,7 +141,9 @@ describe("PurchaseHandoffClient", () => {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    expect(sessionStorage.getItem(STORAGE_KEY)).toBe(`v1:${FIRST_ATTEMPT}`);
+    expect(sessionStorage.getItem(STORAGE_KEY)).toMatch(
+      new RegExp(`^v2:\\d+:${FIRST_ATTEMPT}$`)
+    );
     expect(navigation.redirectToCheckout).toHaveBeenCalledTimes(1);
     expect(navigation.redirectToCheckout).toHaveBeenCalledWith(
       "https://sandbox.asaas.com/c/checkout"
@@ -216,9 +220,108 @@ describe("PurchaseHandoffClient", () => {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     });
-    expect(sessionStorage.getItem(STORAGE_KEY)).toBe(`v1:${FIRST_ATTEMPT}`);
+    expect(sessionStorage.getItem(STORAGE_KEY)).toMatch(
+      new RegExp(`^v2:\\d+:${FIRST_ATTEMPT}$`)
+    );
     expect(container.textContent).toContain("order-1");
     expect(container.textContent).toContain("Nao inicie outra tentativa");
+  });
+
+  it("consulta a mesma tentativa ate o checkout em processamento ficar pronto", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(
+        response({
+          orderId: "order-1",
+          retryAllowed: false,
+          status: "processing",
+        })
+      )
+      .mockResolvedValueOnce(
+        response({
+          orderId: "order-1",
+          redirectUrl: "https://sandbox.asaas.com/c/checkout",
+          retryAllowed: false,
+          status: "ready",
+        })
+      );
+
+    await renderHandoff();
+    await flushEffects();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    await flushEffects();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/checkouts/course?checkoutAttemptId=${FIRST_ATTEMPT}&courseSlug=curso-publico`,
+      { method: "GET" }
+    );
+    expect(navigation.redirectToCheckout).toHaveBeenCalledWith(
+      "https://sandbox.asaas.com/c/checkout"
+    );
+  });
+
+  it("encerra o polling e permite verificacao manual sem um segundo POST", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(
+      response({
+        orderId: "order-1",
+        retryAllowed: false,
+        status: "processing",
+      })
+    );
+
+    await renderHandoff();
+    await flushEffects();
+    for (const delay of [1000, 2000, 4000, 8000, 16_000]) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(delay);
+      });
+      await flushEffects();
+    }
+
+    const manualButton = Array.from(container.querySelectorAll("button")).find(
+      (candidate) => candidate.textContent === "Verificar novamente"
+    );
+    expect(manualButton).toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+
+    await act(async () => manualButton?.click());
+    await flushEffects();
+
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(
+      fetchMock.mock.calls.filter((call) => call[1]?.method === "POST")
+    ).toHaveLength(1);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/checkouts/course?checkoutAttemptId=${FIRST_ATTEMPT}&courseSlug=curso-publico`,
+      { method: "GET" }
+    );
+  });
+
+  it("cancela a consulta pendente no unmount", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(
+      response({
+        orderId: "order-1",
+        retryAllowed: false,
+        status: "processing",
+      })
+    );
+
+    await renderHandoff();
+    await flushEffects();
+    act(() => root.unmount());
+    root = createRoot(container);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("reusa a tentativa estavel da sessao", async () => {
@@ -240,6 +343,53 @@ describe("PurchaseHandoffClient", () => {
       courseSlug: "curso-publico",
     });
     expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("reusa entre abas a tentativa ainda valida sem criar outro checkout", async () => {
+    fetchMock.mockResolvedValue(
+      response({
+        orderId: "order-1",
+        retryAllowed: false,
+        status: "processing",
+      })
+    );
+
+    await renderHandoff({ strict: true });
+    await flushEffects();
+    act(() => root.unmount());
+    root = createRoot(container);
+    sessionStorage.clear();
+
+    await renderHandoff({ strict: true });
+    await flushEffects();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const attempts = fetchMock.mock.calls.map(
+      (call) =>
+        JSON.parse(String((call[1] as RequestInit).body)).checkoutAttemptId
+    );
+    expect(attempts).toEqual([FIRST_ATTEMPT, FIRST_ATTEMPT]);
+    expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(1);
+  });
+
+  it("substitui uma tentativa compartilhada expirada", async () => {
+    localStorage.setItem(STORAGE_KEY, `v2:1:${SECOND_ATTEMPT}`);
+    fetchMock.mockResolvedValue(
+      response({
+        orderId: "order-2",
+        retryAllowed: false,
+        status: "processing",
+      })
+    );
+
+    await renderHandoff();
+    await flushEffects();
+
+    const checkoutRequest = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(checkoutRequest.body)).checkoutAttemptId).toBe(
+      FIRST_ATTEMPT
+    );
+    expect(globalThis.crypto.randomUUID).toHaveBeenCalledOnce();
   });
 
   it("mantem a tentativa apos erro de rede e so repete no clique", async () => {
@@ -296,7 +446,9 @@ describe("PurchaseHandoffClient", () => {
     expect(JSON.parse(String(retryRequest.body)).checkoutAttemptId).toBe(
       SECOND_ATTEMPT
     );
-    expect(sessionStorage.getItem(STORAGE_KEY)).toBe(`v1:${SECOND_ATTEMPT}`);
+    expect(sessionStorage.getItem(STORAGE_KEY)).toMatch(
+      new RegExp(`^v2:\\d+:${SECOND_ATTEMPT}$`)
+    );
   });
 
   it("mostra indisponibilidade sem retry automatico", async () => {

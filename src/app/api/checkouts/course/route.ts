@@ -3,8 +3,10 @@ import { CheckoutIntentError } from "@/features/payments/checkout";
 import {
   type CheckoutApiResponse,
   parseCheckoutRequest,
+  parseCheckoutStatusRequest,
 } from "@/features/payments/checkout-api";
 import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
+import { readPublicCheckoutStatus } from "@/features/payments/checkout-recovery";
 import {
   createPublicCourseCheckout,
   PublicCheckoutRateLimitError,
@@ -20,36 +22,147 @@ import { getCurrentSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" } as const;
+
 const unavailableResponse = (
   message: string,
   status: number,
-  retryAfterSeconds?: number
-): NextResponse<CheckoutApiResponse> =>
-  NextResponse.json(
+  retryAfterSeconds?: number,
+  noStore = false
+): NextResponse<CheckoutApiResponse> => {
+  const headers: Record<string, string> = {};
+  if (noStore) {
+    headers["Cache-Control"] = "no-store";
+  }
+  if (retryAfterSeconds !== undefined) {
+    headers["Retry-After"] = String(retryAfterSeconds);
+  }
+
+  return NextResponse.json(
     {
       error: message,
       retryAllowed: false,
       status: "unavailable",
     } satisfies CheckoutApiResponse,
     {
-      ...(retryAfterSeconds === undefined
-        ? {}
-        : { headers: { "Retry-After": String(retryAfterSeconds) } }),
+      headers,
       status,
     }
   );
+};
 
-export const POST = async (
-  request: Request
-): Promise<NextResponse<CheckoutApiResponse>> => {
-  let environment: ReturnType<typeof getServerEnv>;
+const statusCodeForCheckout = (checkout: CheckoutApiResponse): number => {
+  if (checkout.status === "processing") {
+    return 202;
+  }
+  if (checkout.status === "unavailable") {
+    return 404;
+  }
+  return 200;
+};
+
+const readCheckoutEnvironment = (): ReturnType<typeof getServerEnv> | null => {
   try {
-    environment = getServerEnv();
+    const environment = getServerEnv();
     assertCheckoutAvailable({
       entry: "public",
       mode: environment.PAYMENTS_CHECKOUT_MODE,
     });
+    return environment;
   } catch {
+    return null;
+  }
+};
+
+const readAllowedSession = async (): Promise<
+  | Awaited<ReturnType<typeof getCurrentSession>>
+  | "blocked"
+  | "team"
+  | "unavailable"
+> => {
+  try {
+    const session = await getCurrentSession();
+    if (session && session.role !== "student") {
+      return "team";
+    }
+    if (session?.platformBlockedAt) {
+      return "blocked";
+    }
+    return session;
+  } catch {
+    return "unavailable";
+  }
+};
+
+export const GET = async (
+  request: Request
+): Promise<NextResponse<CheckoutApiResponse>> => {
+  if (!readCheckoutEnvironment()) {
+    return unavailableResponse(
+      "Servico de checkout indisponivel.",
+      503,
+      undefined,
+      true
+    );
+  }
+
+  const query = parseCheckoutStatusRequest(new URL(request.url).searchParams);
+  if (!query) {
+    return unavailableResponse(
+      "Dados de checkout invalidos.",
+      400,
+      undefined,
+      true
+    );
+  }
+
+  const session = await readAllowedSession();
+  if (session === "team") {
+    return unavailableResponse(
+      "Apenas alunas podem consultar checkout.",
+      403,
+      undefined,
+      true
+    );
+  }
+  if (session === "blocked") {
+    return unavailableResponse(
+      "Conta bloqueada. Entre em contato com o suporte.",
+      403,
+      undefined,
+      true
+    );
+  }
+  if (session === "unavailable") {
+    return unavailableResponse(
+      "Servico de checkout indisponivel.",
+      503,
+      undefined,
+      true
+    );
+  }
+
+  try {
+    const checkout = await readPublicCheckoutStatus(query);
+    return NextResponse.json(checkout, {
+      headers: NO_STORE_HEADERS,
+      status: statusCodeForCheckout(checkout),
+    });
+  } catch {
+    return unavailableResponse(
+      "Servico de checkout indisponivel.",
+      503,
+      undefined,
+      true
+    );
+  }
+};
+
+export const POST = async (
+  request: Request
+): Promise<NextResponse<CheckoutApiResponse>> => {
+  const environment = readCheckoutEnvironment();
+  if (!environment) {
     return unavailableResponse("Servico de checkout indisponivel.", 503);
   }
 
@@ -58,17 +171,14 @@ export const POST = async (
     return unavailableResponse("Dados de checkout invalidos.", 400);
   }
 
-  let session: Awaited<ReturnType<typeof getCurrentSession>>;
-  try {
-    session = await getCurrentSession();
-  } catch {
+  const session = await readAllowedSession();
+  if (session === "unavailable") {
     return unavailableResponse("Servico de checkout indisponivel.", 503);
   }
-
-  if (session && session.role !== "student") {
+  if (session === "team") {
     return unavailableResponse("Apenas alunas podem iniciar checkout.", 403);
   }
-  if (session?.platformBlockedAt) {
+  if (session === "blocked") {
     return unavailableResponse(
       "Conta bloqueada. Entre em contato com o suporte.",
       403

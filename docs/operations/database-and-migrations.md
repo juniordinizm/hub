@@ -22,6 +22,17 @@ colunas de snapshot do Pedido e a oferta padrão Pix + cartão em até 3x no Cur
 existente. Production permaneceu em `0052` durante essa homologação e recebeu
 `0053` somente na promoção protegida posterior.
 
+O repositório agora possui `0054_payments_hardening`, 55 entradas e 41 tabelas no
+snapshot local. Em 2026-08-03, o SQL foi validado primeiro numa branch temporária
+descendente de Staging com `0053`; depois, Development, Staging e Production receberam
+`0054`. Os três alvos apresentaram 55 entradas no journal, topo em `1785744643480`, hash
+`95468fdf6ece0c5873406d9de4e2a5aeee20511d0ebf226d67f1f921a9f673b1`, a tabela de
+cursor do extrato e as seis constraints financeiras esperadas. Development também
+recebeu a `0053` que ainda estava pendente e uma segunda execução do migrador confirmou
+idempotência. Production teve zero violações no preflight e recebeu antes a branch de
+backup `payments-hardening-backup-20260803` (`br-bitter-pond-acl5x8se`). O perfil
+persistente `vercel-preview` continua dormente e, por contrato, não recebe migrations.
+
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
 vincula ao agregado e garante claim exclusivo dos uploads administrativos
@@ -71,7 +82,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0053_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia, `0054_snapshot.json`. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -296,6 +307,12 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   incluindo métodos aceitos, teto de parcelamento e correlação pelo agregado de
   parcelas. Foi exercitada pela CI em branches Neon isoladas e promovida somente
   para Staging em 2026-08-01.
+- `0054`: adiciona o cursor retomável da importação de extrato e checks aditivos de
+  valores não negativos e consistência entre estado financeiro e evidência. Antes de
+  criar os checks, a própria migration executa auditoria somente leitura e aborta com
+  erro explícito se encontrar divergência; ela não corrige nem apaga Pedido ou reembolso.
+  O SQL, journal e snapshot foram gerados pelo Drizzle e passaram em
+  `db:migrations:check`; a promoção para qualquer banco persistente continua pendente.
 - Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
   ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
   `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito

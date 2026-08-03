@@ -939,6 +939,34 @@ export const orders = pgTable(
       "orders_payment_installment_requires_card",
       sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
     ),
+    check(
+      "orders_amount_in_cents_non_negative",
+      sql`${table.amountInCents} >= 0`
+    ),
+    check(
+      "orders_checkout_attempt_count_non_negative",
+      sql`${table.checkoutAttemptCount} >= 0`
+    ),
+    check(
+      "orders_financial_amounts_non_negative",
+      sql`(${table.paidAmountInCents} is null or ${table.paidAmountInCents} >= 0)
+        and (${table.netAmountInCents} is null or ${table.netAmountInCents} >= 0)
+        and (${table.feeAmountInCents} is null or ${table.feeAmountInCents} >= 0)`
+    ),
+    check(
+      "orders_paid_evidence_consistent",
+      sql`${table.status} <> 'paid'
+        or (
+          ${table.paidAt} is not null
+          and ${table.paidAmountInCents} is not null
+          and (${table.providerPaymentId} is not null or ${table.providerInstallmentId} is not null)
+        )`
+    ),
+    check(
+      "orders_refunded_evidence_consistent",
+      sql`${table.status} <> 'refunded'
+        or (${table.refundedAt} is not null and ${table.providerRefundStatus} is not null)`
+    ),
   ]
 );
 
@@ -1048,6 +1076,15 @@ export const refundRequests = pgTable(
       "refund_requests_provider_amount_positive",
       sql`${table.providerRefundedAmountInCents} is null or ${table.providerRefundedAmountInCents} > 0`
     ),
+    check(
+      "refund_requests_confirmed_evidence_consistent",
+      sql`${table.status} <> 'confirmed'
+        or (
+          ${table.confirmedAt} is not null
+          and ${table.providerRefundStatus} is not null
+          and ${table.providerRefundedAmountInCents} > 0
+        )`
+    ),
   ]
 );
 
@@ -1066,6 +1103,36 @@ export const asaasFinancialTransactions = pgTable(
       table.providerTransactionId
     ),
     index("asaas_financial_transactions_date_idx").on(table.transactionDate),
+  ]
+);
+
+export const asaasStatementImportCursors = pgTable(
+  "asaas_statement_import_cursors",
+  {
+    rangeKey: text("range_key").primaryKey(),
+    startDate: text("start_date").notNull(),
+    finishDate: text("finish_date").notNull(),
+    nextOffset: integer("next_offset").default(0).notNull(),
+    status: text("status").default("running").notNull(),
+    startedByUserId: text("started_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    completedAt: timestamp("completed_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "asaas_statement_import_cursor_offset_non_negative",
+      sql`${table.nextOffset} >= 0`
+    ),
+    check(
+      "asaas_statement_import_cursor_status_valid",
+      sql`${table.status} in ('running', 'completed')`
+    ),
+    check(
+      "asaas_statement_import_cursor_completion_consistent",
+      sql`(${table.status} = 'completed') = (${table.completedAt} is not null)`
+    ),
   ]
 );
 

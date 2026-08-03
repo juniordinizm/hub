@@ -115,20 +115,23 @@ const requestRefund = (): Promise<void> =>
   });
 
 describe("refund audit transactions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("creates the confirmation token and audit record in one transaction", async () => {
     const release = vi.fn();
-    const clientQuery = vi
-      .fn()
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
-    const accountQuery = vi.fn().mockResolvedValue({
-      rows: [{ password: "password-hash" }],
+    const clientQuery = vi.fn((text: string) => {
+      if (text.includes("count(*)")) {
+        return Promise.resolve({ rows: [{ count: "0" }] });
+      }
+      if (text.includes("select password")) {
+        return Promise.resolve({ rows: [{ password: "password-hash" }] });
+      }
+      return Promise.resolve({ rows: [] });
     });
     dependencies.getPool.mockReturnValue({
       connect: vi.fn().mockResolvedValue({ query: clientQuery, release }),
-      query: accountQuery,
     });
     dependencies.verifyPassword.mockResolvedValue(true);
 
@@ -142,12 +145,114 @@ describe("refund audit transactions", () => {
 
     expect(clientQuery).toHaveBeenNthCalledWith(1, "begin");
     expect(clientQuery).toHaveBeenNthCalledWith(
-      4,
+      9,
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "refund.password_confirmed", "order-1"]
     );
     expect(clientQuery).toHaveBeenLastCalledWith("commit");
     expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("limits incorrect password confirmations per actor and window", async () => {
+    let failures = 0;
+    const queries: QueryRecord[] = [];
+    const query = vi.fn((text: string, values?: unknown[]) => {
+      queries.push(values ? { text, values } : { text });
+      if (
+        text.includes("count(*)") &&
+        String(values?.[0]).startsWith("refund-password-failures:")
+      ) {
+        return Promise.resolve({ rows: [{ count: String(failures) }] });
+      }
+      if (
+        text.includes("insert into verifications") &&
+        String(values?.[1]).startsWith("refund-password-failures:")
+      ) {
+        failures += 1;
+      }
+      if (text.includes("select password")) {
+        return Promise.resolve({ rows: [{ password: "password-hash" }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    });
+    dependencies.verifyPassword.mockResolvedValue(false);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        issueRefundConfirmation({
+          actorUserId: ACTOR_ID,
+          orderId: ORDER_ID,
+          password: "wrong-password",
+        })
+      ).rejects.toThrow("Senha atual invalida.");
+    }
+    await expect(
+      issueRefundConfirmation({
+        actorUserId: ACTOR_ID,
+        orderId: ORDER_ID,
+        password: "wrong-password",
+      })
+    ).rejects.toThrow(
+      "Muitas tentativas de confirmacao. Tente novamente mais tarde."
+    );
+
+    expect(dependencies.verifyPassword).toHaveBeenCalledTimes(5);
+    expect(queries.flatMap(({ values }) => values ?? [])).not.toContain(
+      "wrong-password"
+    );
+  });
+
+  it("clears password failure throttling after a success", async () => {
+    let failures = 2;
+    const query = vi.fn((text: string, values?: unknown[]) => {
+      if (
+        text.includes("count(*)") &&
+        String(values?.[0]).startsWith("refund-password-failures:")
+      ) {
+        return Promise.resolve({ rows: [{ count: String(failures) }] });
+      }
+      if (text.includes("select password")) {
+        return Promise.resolve({ rows: [{ password: "password-hash" }] });
+      }
+      if (
+        text.includes("delete from verifications") &&
+        String(values?.[0]).startsWith("refund-password-failures:")
+      ) {
+        failures = 0;
+      }
+      if (
+        text.includes("insert into verifications") &&
+        String(values?.[1]).startsWith("refund-password-failures:")
+      ) {
+        failures += 1;
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release: vi.fn() }),
+    });
+    dependencies.verifyPassword
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    await expect(
+      issueRefundConfirmation({
+        actorUserId: ACTOR_ID,
+        orderId: ORDER_ID,
+        password: "correct-password",
+      })
+    ).resolves.toEqual({ confirmationToken: expect.any(String) });
+    await expect(
+      issueRefundConfirmation({
+        actorUserId: ACTOR_ID,
+        orderId: ORDER_ID,
+        password: "wrong-password",
+      })
+    ).rejects.toThrow("Senha atual invalida.");
+    expect(dependencies.verifyPassword).toHaveBeenCalledTimes(2);
   });
 });
 

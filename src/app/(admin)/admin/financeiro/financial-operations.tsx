@@ -202,7 +202,13 @@ export function ImportStatementOperation(): React.JSX.Element {
     setPending(true);
     try {
       const result = await importAsaasStatementAction(formData);
-      setMessage(`${result.imported} movimentações importadas.`);
+      const resumedMessage =
+        result.resumedFromOffset > 0
+          ? ` Retomado do cursor ${result.resumedFromOffset}.`
+          : "";
+      setMessage(
+        `${result.inserted} movimentações inseridas e ${result.updated} atualizadas.${resumedMessage}`
+      );
       router.refresh();
     } catch (caught) {
       setMessage(getErrorMessage(caught));
@@ -246,10 +252,10 @@ export function ImportStatementOperation(): React.JSX.Element {
 }
 
 export function PaymentReviewOperation({
-  canResolveTerminalConflicts,
+  canManageFinancialReviews,
   review,
 }: {
-  canResolveTerminalConflicts: boolean;
+  canManageFinancialReviews: boolean;
   review: {
     id: string;
     orderId: string;
@@ -300,9 +306,9 @@ export function PaymentReviewOperation({
       <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
       <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
       {review.status === "pending" &&
+      canManageFinancialReviews &&
       (review.type === "amount_mismatch" ||
-        (review.type === "terminal_conflict" &&
-          canResolveTerminalConflicts)) ? (
+        review.type === "terminal_conflict") ? (
         <form action={resolve} className="mt-3 grid gap-3">
           <input name="reviewId" type="hidden" value={review.id} />
           <div className="grid gap-1.5">

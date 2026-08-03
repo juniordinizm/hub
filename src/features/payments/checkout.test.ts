@@ -500,6 +500,44 @@ describe("createAsaasCheckoutIntent", () => {
     expect(pool.query.mock.calls.at(-1)?.[0]).toContain("updated_at = now()");
   });
 
+  it("snapshots the effective installment limit derived from the course price", async () => {
+    const lowPriceCourse = { ...course, price_in_cents: 1990 };
+    const effectiveOrder = {
+      ...insertedOrder,
+      amount_in_cents: 1990,
+      payment_max_installment_count: 1,
+    };
+    const pool = createPool((sql, values) => {
+      if (sql.startsWith("select c.id")) {
+        return { rows: [lowPriceCourse] };
+      }
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        expect(values?.at(-1)).toBe(1);
+        return { rows: [effectiveOrder] };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+    const gateway = createGateway();
+
+    await createAsaasCheckoutIntent(authenticatedInput(gateway));
+
+    expect(gateway.calls.createCheckout[0]?.paymentOptions).toEqual({
+      allowCreditCard: true,
+      allowPix: true,
+      maxInstallmentCount: 1,
+    });
+  });
+
   it.each([
     0, 999,
   ])("rejects price %i before persistence or gateway access", async (priceInCents) => {

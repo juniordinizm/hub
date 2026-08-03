@@ -59,12 +59,13 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 40 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 54 entradas alinhadas, com topo `0053_course_payment_offers`;
+O schema possui 41 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 55 entradas alinhadas, com topo local `0054_payments_hardening`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0053` estão aplicadas em Production e Staging. Na Vercel, cada instância limita o pool
+`0053` estão aplicadas em Production e Staging, enquanto `0054` permanece somente no
+repositório até promoção controlada. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -85,9 +86,11 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 3. `/api/webhooks/asaas` autentica, limita, valida e persiste a inbox antes de `200`.
 4. O worker reivindica o evento e abre uma transação com posse exclusiva.
 5. `processAsaasWebhookEvent` correlaciona somente identificadores exatos, bloqueia o
-   Pedido e aplica a matriz financeira sobre o snapshot bloqueado.
-6. A transação persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe
-   Matrícula; ativação ou acesso liberado entram na outbox no mesmo commit.
+   Pedido e aplica a matriz financeira sobre o snapshot bloqueado. A conciliação adapta
+   a consulta oficial do pagamento para a mesma matriz, sem manter política paralela.
+6. `apply-authoritative-financial-evidence.ts` converge pagamento, identidade, Concessão
+   e outbox; webhook e conciliação chamam esse mesmo módulo profundo. A transação
+   persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe Matrícula.
 7. Conflitos ambíguos não escolhem Pedido e geram alerta durável sem payload ou PII.
 
 O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
@@ -184,9 +187,10 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
 - `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
-  compartilhada, `asaas-webhook-processor.ts` aplica
-  a decisão financeira e `public-checkout.ts` autoriza a entrada pública. Provider e
-  transição financeira não devem ser misturados em uma API genérica.
+  compartilhada, `asaas-financial-events.ts` decide eventos e consultas,
+  `apply-authoritative-financial-evidence.ts` aplica o efeito local e
+  `public-checkout.ts` autoriza a entrada pública. Provider e transição financeira não
+  devem ser misturados em uma API genérica.
 - `jmvstream/server.ts` é a façade de leitura operacional e dos casos de uso ainda consumidos; `auth.ts` resolve token, `client.ts` é o contrato HTTP e `upload.ts` executa multipart no navegador. `asset-persistence.ts`, `course-folders.ts`, `upload-session.ts`, `upload-completion.ts`, `player-sync.ts`, `asset-deletion.ts` e `manual-video-sync.ts` separam persistência e lifecycle. `provider-mapper.ts` traduz o estado remoto em operação de galeria. O upload multipart direto é invariante.
 - resources de aula: autoria e player tinham regras duplicadas de extensão, tipo e tamanho. `src/features/courses/resource-presentation.ts` concentra apenas essa apresentação pura, sem importar React ou providers.
 - actions administrativas de matrícula e certificados: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.

@@ -8,7 +8,12 @@ interface PaymentReviewRow {
   course_id: string;
   order_id: string;
   status: "pending" | "paid" | "cancelled" | "refunded" | "disputed";
-  type: "amount_mismatch" | "buyer_identity" | "terminal_conflict";
+  type:
+    | "amount_mismatch"
+    | "buyer_identity"
+    | "event_anomaly"
+    | "partial_refund"
+    | "terminal_conflict";
   user_id: string | null;
 }
 
@@ -77,13 +82,11 @@ const approveAmountMismatch = async ({
 
 export const resolvePaymentReview = async ({
   actorUserId,
-  canResolveTerminalConflicts,
   decision,
   decisionReason,
   reviewId,
 }: {
   actorUserId: string;
-  canResolveTerminalConflicts: boolean;
   decision: "approved" | "rejected";
   decisionReason: string;
   reviewId: string;
@@ -102,13 +105,21 @@ export const resolvePaymentReview = async ({
       throw new Error("Revisao de identidade exige reembolso integral.");
     }
 
+    if (review.type === "event_anomaly") {
+      throw new Error(
+        "Anomalia financeira exige conciliacao ou reprocessamento."
+      );
+    }
+
+    if (review.type === "partial_refund") {
+      throw new Error(
+        "Reembolso parcial exige tratamento financeiro especifico."
+      );
+    }
+
     const trimmedDecisionReason = decisionReason.trim();
     if (!trimmedDecisionReason) {
       throw new Error("Informe o motivo da decisao financeira.");
-    }
-
-    if (review.type === "terminal_conflict" && !canResolveTerminalConflicts) {
-      throw new Error("Somente administradores resolvem conflitos terminais.");
     }
 
     if (review.type === "amount_mismatch" && decision === "approved") {

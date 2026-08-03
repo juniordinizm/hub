@@ -4,6 +4,7 @@ import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 import { parseBuyerIdentity } from "./buyer-identity";
+import { getEffectiveMaxInstallmentCount } from "./course-payment-offer";
 import { getApplicationUrl } from "./provider";
 
 const CHECKOUT_EXPIRATION_MINUTES = 60;
@@ -655,7 +656,10 @@ export const createAsaasCheckoutIntent = async (
       item.description,
       course.payment_allow_pix,
       course.payment_allow_credit_card,
-      course.payment_max_installment_count,
+      getEffectiveMaxInstallmentCount({
+        configuredMaxInstallmentCount: course.payment_max_installment_count,
+        priceInCents: item.valueInCents,
+      }),
     ]
   );
   const createdOrder = inserted.rows[0];

@@ -73,6 +73,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Staging persistente e manutenção integral de Production](superpowers/specs/2026-07-31-staging-environment-and-production-maintenance-design.md)
 - [Plano do runtime Staging e manutenção](superpowers/plans/2026-08-01-staging-runtime-and-maintenance.md)
 - [Plano de provisionamento e release do Staging](superpowers/plans/2026-08-01-staging-provisioning-and-release.md)
+- [Plano de robustecimento do modulo de pagamentos](superpowers/plans/2026-08-03-payments-module-hardening.md)
 
 ## Contrato de manutenção
 

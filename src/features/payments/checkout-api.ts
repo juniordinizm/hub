@@ -16,6 +16,11 @@ export interface PublicCheckoutBody {
   courseSlug?: string;
 }
 
+export interface PublicCheckoutStatusQuery {
+  checkoutAttemptId: string;
+  courseSlug: string;
+}
+
 export type CheckoutApiResponse =
   | {
       orderId: string;
@@ -98,4 +103,35 @@ export const parseCheckoutRequest = (
         courseSlug: normalizedCourseSlug,
       }
     : null;
+};
+
+export const parseCheckoutStatusRequest = (
+  searchParams: URLSearchParams
+): PublicCheckoutStatusQuery | null => {
+  const keys = Array.from(searchParams.keys());
+  if (
+    keys.length !== 2 ||
+    keys.some(
+      (key) => key !== CHECKOUT_ATTEMPT_KEY && key !== COURSE_SLUG_KEY
+    ) ||
+    searchParams.getAll(CHECKOUT_ATTEMPT_KEY).length !== 1 ||
+    searchParams.getAll(COURSE_SLUG_KEY).length !== 1
+  ) {
+    return null;
+  }
+
+  const checkoutAttemptId = searchParams.get(CHECKOUT_ATTEMPT_KEY)?.trim();
+  const courseSlug = searchParams.get(COURSE_SLUG_KEY)?.trim().toLowerCase();
+  if (
+    !(
+      checkoutAttemptId &&
+      UUID_PATTERN.test(checkoutAttemptId) &&
+      courseSlug &&
+      COURSE_SLUG_PATTERN.test(courseSlug)
+    )
+  ) {
+    return null;
+  }
+
+  return { checkoutAttemptId, courseSlug };
 };

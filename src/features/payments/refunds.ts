@@ -15,6 +15,11 @@ import { getAsaasProviderClient } from "@/features/payments/provider";
 import { getServerEnv } from "@/lib/env";
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000;
+const REFUND_PASSWORD_FAILURE_LIMIT = 5;
+const REFUND_PASSWORD_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+
+const passwordFailureIdentifier = (actorUserId: string): string =>
+  `refund-password-failures:${actorUserId}`;
 
 const confirmationIdentifier = ({
   actorUserId,
@@ -61,50 +66,96 @@ export const issueRefundConfirmation = async ({
   if (!password) {
     throw new Error("Informe sua senha atual para continuar.");
   }
-
-  const account = await getPool().query<{ password: string | null }>(
-    `
-      select password
-      from accounts
-      where user_id = $1
-        and provider_id = 'credential'
-      limit 1
-    `,
-    [actorUserId]
-  );
-  const passwordHash = account.rows[0]?.password;
-
-  if (!(passwordHash && (await verifyPassword(passwordHash, password)))) {
-    throw new Error("Senha atual invalida.");
-  }
-
-  const confirmationToken = randomUUID();
-  const identifier = confirmationIdentifier({ actorUserId, orderId });
-  const expiresAt = new Date(Date.now() + CONFIRMATION_TTL_MS);
-
   const client = await getPool().connect();
+  let confirmationToken: string | null = null;
+  let rejectionMessage: string | null = null;
   try {
     await client.query("begin");
+    const failureIdentifier = passwordFailureIdentifier(actorUserId);
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [failureIdentifier]
+    );
     await client.query(
       `
         delete from verifications
         where identifier = $1
+          and expires_at <= now()
       `,
-      [identifier]
+      [failureIdentifier]
     );
-    await client.query(
+
+    const failures = await client.query<{ count: string }>(
       `
-        insert into verifications (id, identifier, value, expires_at)
-        values ($1, $2, $3, $4)
+        select count(*)::text as count
+        from verifications
+        where identifier = $1
+          and expires_at > now()
       `,
-      [randomUUID(), identifier, tokenDigest(confirmationToken), expiresAt]
+      [failureIdentifier]
     );
-    await auditRefund({
-      action: "refund.password_confirmed",
-      actorUserId,
-      client,
-      orderId,
-    });
+    if (Number(failures.rows[0]?.count ?? 0) >= REFUND_PASSWORD_FAILURE_LIMIT) {
+      rejectionMessage =
+        "Muitas tentativas de confirmacao. Tente novamente mais tarde.";
+    } else {
+      const account = await client.query<{ password: string | null }>(
+        `
+          select password
+          from accounts
+          where user_id = $1
+            and provider_id = 'credential'
+          limit 1
+        `,
+        [actorUserId]
+      );
+      const passwordHash = account.rows[0]?.password;
+      const passwordMatches =
+        passwordHash !== null &&
+        passwordHash !== undefined &&
+        (await verifyPassword(passwordHash, password));
+
+      if (passwordMatches) {
+        await client.query("delete from verifications where identifier = $1", [
+          failureIdentifier,
+        ]);
+        confirmationToken = randomUUID();
+        const identifier = confirmationIdentifier({ actorUserId, orderId });
+        await client.query("delete from verifications where identifier = $1", [
+          identifier,
+        ]);
+        await client.query(
+          `
+            insert into verifications (id, identifier, value, expires_at)
+            values ($1, $2, $3, $4)
+          `,
+          [
+            randomUUID(),
+            identifier,
+            tokenDigest(confirmationToken),
+            new Date(Date.now() + CONFIRMATION_TTL_MS),
+          ]
+        );
+        await auditRefund({
+          action: "refund.password_confirmed",
+          actorUserId,
+          client,
+          orderId,
+        });
+      } else {
+        await client.query(
+          `
+            insert into verifications (id, identifier, value, expires_at)
+            values ($1, $2, 'failed', $3)
+          `,
+          [
+            randomUUID(),
+            failureIdentifier,
+            new Date(Date.now() + REFUND_PASSWORD_FAILURE_WINDOW_MS),
+          ]
+        );
+        rejectionMessage = "Senha atual invalida.";
+      }
+    }
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -113,6 +164,12 @@ export const issueRefundConfirmation = async ({
     client.release();
   }
 
+  if (rejectionMessage) {
+    throw new Error(rejectionMessage);
+  }
+  if (!confirmationToken) {
+    throw new Error("Nao foi possivel confirmar a operacao.");
+  }
   return { confirmationToken };
 };
 

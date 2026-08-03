@@ -43,7 +43,10 @@ evento for ambíguo ou conflitante.
 - evento parcial, desconhecido, regressivo ou contraditório abre revisão ou alerta,
   conforme haja ou não Pedido correlacionado e decisão operacional possível.
 
-Uma decisão manual exige permissão explícita, motivo obrigatório e trilha de auditoria.
+Uma decisão manual exige `manageFinancialReviews`, capacidade mutável exclusiva de
+Admin, motivo obrigatório e trilha de auditoria. `viewFinancials` é somente leitura.
+Revisões `buyer_identity`, `event_anomaly` e `partial_refund` não admitem encerramento
+genérico porque a resolução precisa comprovar e aplicar o efeito financeiro específico.
 Ela resolve a exceção registrada; não apaga o evento externo nem reescreve o histórico.
 
 ## Alternativas
@@ -62,7 +65,7 @@ Ela resolve a exceção registrada; não apaga o evento externo nem reescreve o 
 
 ## Estado
 
-Decisão aceita para a migração Asaas. A matriz e o processor Asaas implementam a
-precedência, Revisão durável e efeitos transacionais descritos acima. O worker possui
-agendamento protegido e a conciliação administrativa reutiliza a precedência. As
-migrations geradas ainda não foram aplicadas.
+Decisão aceita e implementada para Asaas. Webhook e consulta de conciliação reutilizam
+a mesma matriz de autoridade e precedência; um módulo compartilhado aplica identidade,
+estado pago, Concessão e outbox. O worker possui agendamento protegido e as migrations
+Asaas estão aplicadas em Staging e Production.

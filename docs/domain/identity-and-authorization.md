@@ -54,10 +54,11 @@ O trigger `users_create_student_profile`, da migration `0041_public_signup_stude
 - `support`: `executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `viewAdminPanel`, `viewFinancials`;
 - `student`: nenhuma capacidade administrativa.
 
-`manageFinancialOperations` é uma capacidade mutável exclusiva de Admin. Conciliação
-por pagamento e importação de extrato exigem essa capacidade. `viewFinancials`
-permanece leitura financeira e autorização da resolução de Revisões; `executeRefund`
-continua separada para o fluxo explícito de estorno.
+`manageFinancialOperations` e `manageFinancialReviews` são capacidades mutáveis
+exclusivas de Admin. Conciliação por pagamento e importação de extrato exigem a
+primeira; qualquer decisão manual que altere Revisão, Pedido ou acesso exige a
+segunda. `viewFinancials` permanece estritamente leitura. `executeRefund` continua
+separada para o Suporte iniciar o fluxo explícito de estorno autorizado.
 
 Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização. O papel Suporte implementado aguarda ratificação de produto.
 
