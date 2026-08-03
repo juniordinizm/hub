@@ -95,10 +95,11 @@ pela action Neon, URLs direta e runtime idênticas, host Neon diferente do compu
 Production conhecido e journal exatamente com 44 entradas até `0043`. Somente então
 executa `truncate table public.orders cascade` em transação e sob advisory lock. Esse
 passo existe exclusivamente para clones efêmeros; não é um comando de limpeza de
-Development ou Production. Se a branch-pai já estiver exatamente em `0052` ou `0053`,
+Development ou Production. Se a branch-pai já estiver exatamente em `0052`, `0053` ou `0054`,
 o comando não altera dados; qualquer journal intermediário, anterior ou posterior aos
-estados reconhecidos falha fechado. A aceitação explícita de `0053` evita que branches
-efêmeras herdadas de Production falhem após a promoção da oferta de pagamento por Curso.
+estados reconhecidos falha fechado. A aceitação explícita do topo atual evita que branches
+efêmeras herdadas de Production falhem depois de uma promoção autorizada, mantendo a
+validação fechada para journals desconhecidos.
 
 O teste PostgreSQL real do worker Asaas depende de
 `CERTIFICATE_CONCURRENCY_DATABASE_URL`. Em 2026-07-29, a Etapa 9 executou essa prova na

@@ -88,7 +88,7 @@ describe("prepareCiMigrationDatabase", () => {
       .mockResolvedValueOnce({ rows: [] });
 
     await expect(prepareCiMigrationDatabase({ query })).rejects.toThrow(
-      "CI migration preparation requires journal 0043, 0052, or 0053."
+      "CI migration preparation requires journal 0043, 0052, 0053, or 0054."
     );
     expect(query).not.toHaveBeenCalledWith(
       "truncate table public.orders cascade"
@@ -122,6 +122,25 @@ describe("prepareCiMigrationDatabase", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{ migration_count: 54, migration_top: "1785632318824" }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(prepareCiMigrationDatabase({ query })).resolves.toEqual({
+      status: "not-needed",
+    });
+    expect(query).not.toHaveBeenCalledWith(
+      "truncate table public.orders cascade"
+    );
+    expect(query).toHaveBeenLastCalledWith("commit");
+  });
+
+  it("does nothing when the parent branch is already at 0054", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ migration_count: 55, migration_top: "1785744643480" }],
       })
       .mockResolvedValueOnce({ rows: [] });
 

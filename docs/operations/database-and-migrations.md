@@ -355,10 +355,10 @@ bun run db:migrate:e2e
 ```
 
 O comando `bun run db:prepare:ci-migration` não é de uso manual. A CI o executa somente
-nas branches criadas pela própria job enquanto a branch-pai está em `0043`. Ele valida
-ambiente CI, branch Neon, URLs, compute não Production e journal antes de truncar
-`orders` com dependências somente no clone efêmero. O journal diferente de `0043`,
-`0052` ou `0053` interrompe o comando; em `0052` ou `0053`, ele não altera dados.
+nas branches criadas pela própria job. Ele valida ambiente CI, branch Neon, URLs,
+compute não Production e journal antes de truncar `orders` com dependências somente no
+clone efêmero herdado de `0043`. O journal diferente de `0043`, `0052`, `0053` ou `0054`
+interrompe o comando; em `0052`, `0053` ou `0054`, ele não altera dados.
 Assim, a exceção de
 corte não se transforma em limpeza recorrente nem bloqueia a CI depois da promoção.
 
