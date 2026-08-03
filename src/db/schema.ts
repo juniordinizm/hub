@@ -301,7 +301,7 @@ export const courses = pgTable(
     ),
     check(
       "courses_payment_installment_count_valid",
-      sql`${table.paymentMaxInstallmentCount} between 1 and 21`
+      sql`${table.paymentMaxInstallmentCount} between 1 and 12`
     ),
     check(
       "courses_payment_installment_requires_card",

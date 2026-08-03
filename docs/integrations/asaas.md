@@ -102,7 +102,7 @@ Pedido captura os três snapshots antes da chamada externa. O adapter transforma
 campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
 
 Antes de criar o Pedido, o Hub calcula o teto efetivo por
-`floor(price_in_cents / 1000)`, limitado entre 1, o teto configurado e 21. Os `1000`
+`floor(price_in_cents / 1000)`, limitado entre 1, o teto configurado e 12. Os `1000`
 centavos são a política comercial aprovada tanto para a cobrança quanto para cada parcela.
 O Asaas documenta o valor mínimo por parcela como configuração da conta que limita as
 parcelas disponíveis; o piso externo deve permanecer abaixo ou igual ao contrato interno.
@@ -111,7 +111,8 @@ de R$ 10,00 e não constitui um limite fixo da API. A configuração do Curso pe
 intacta e o Pedido recebe somente o teto efetivo, preservando o padrão de novos Cursos em
 3x.
 
-- o Checkout não documenta campo para juros comerciais ou repasse de taxa;
+- o Checkout não documenta campo por sessão para escolher se Compradora ou Vendedora
+  absorve o custo do parcelamento;
 - `interest` nas APIs de cobrança significa juros por atraso;
 - cada parcela possui um ID de pagamento próprio;
 - Pix + cartão parcelado no mesmo Checkout foi comprovado no Sandbox.

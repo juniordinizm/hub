@@ -147,7 +147,7 @@ Cada Curso pago deve possuir configuração própria de preço e oferta:
 
 - Pix, cartão ou ambos;
 - cartão à vista ou parcelado;
-- quantidade máxima de parcelas definida pelo Admin;
+- quantidade máxima de parcelas definida pelo Admin, entre 1 e 12;
 - política desejada de parcelamento com ou sem acréscimo para a Compradora.
 
 O padrão inicial é Pix + cartão e cartão em até 3x. Preço e oferta
@@ -155,16 +155,19 @@ efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso
 o contrato vendido.
 
 O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
-`installment.maxInstallmentCount`, mas não documenta juros comerciais por checkout. O
-campo `interest` das APIs de cobrança significa juros por atraso. Portanto, o Admin
-configura métodos e teto de parcelas, mas não uma política de juros que o provider não
-consegue cumprir.
+`installment.maxInstallmentCount`, mas não documenta, por sessão, a escolha de quem
+absorve o custo do parcelamento. O campo `interest` das APIs de cobrança significa juros
+por atraso. Portanto, o Admin configura métodos e teto de parcelas, mas não uma política
+de juros que o provider não consegue cumprir. O teto comercial do Hub é 12x, mesmo que
+contratos ou bandeiras específicos do provider admitam mais.
 
 Cada parcela possui ID de pagamento próprio. O Hub correlaciona o
 `provider_installment_id`, valida o bruto do agregado antes de conceder acesso, aceita os
 IDs individuais sob esse agregado, concilia a lista completa e estorna o parcelamento
 integral pelo endpoint específico. A migration
-`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido.
+`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido;
+`0055_limit_course_installments` reduz configurações vigentes acima de 12x e passa a
+impedir novos valores fora do teto comercial, sem reescrever snapshots históricos.
 
 Ver a
 [pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).
