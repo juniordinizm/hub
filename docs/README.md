@@ -65,6 +65,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 - [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
 - [Pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md)
+- [Pesquisa do repasse do custo do parcelamento](reviews/2026-08-03-asaas-installment-interest-research.md)
 
 ### Especificações aceitas em implementação
 
