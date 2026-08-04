@@ -33,21 +33,16 @@ mínimo devem ser ajustados ou removidos.
 
 **Implementação atual:** a autoria persiste `price_in_cents` localmente ao criar ou
 editar Curso, aceita zero para Curso gratuito e rejeita Curso pago abaixo de `1000`
-centavos sem depender de gateway ou produto remoto. O núcleo Asaas em
-`src/features/payments/checkout.ts` repete o mínimo, persiste o Pedido antes do efeito
-externo e usa exclusivamente os snapshots obrigatórios de nome, descrição, valor e
-duração. As entradas autenticada e pública usam esse mesmo núcleo. O limite público é
-coordenado no PostgreSQL por HMAC de IP e ID canônico do Curso, com cinco novas intenções
-por dez minutos; uma tentativa já persistida não consome novamente o limite. As migrations
-`0044` a `0051` passaram em PostgreSQL descartável, mas ainda não foram aplicadas em
-Production.
+centavos. A compra pública obtém uma cotação server-side, coleta somente a identidade
+necessária para criar/reutilizar o Cliente Asaas e persiste o Pedido antes de criar uma
+Fatura direta. O Pedido captura preço-base, acréscimo, bruto, parcelas, política,
+cotação e valores líquidos/tarifas estimados. CPF/CNPJ é validado e enviado ao Asaas,
+mas nunca persistido pelo Hub.
 
-Quando a criação retorna `processing`, a página pública consulta a mesma tentativa por
-UUID opaco e slug, sem criar outro Checkout automaticamente. O navegador compartilha esse
-UUID sem PII entre abas por até 60 minutos, aplica polling limitado em 1, 2, 4, 8 e 16
-segundos e então oferece somente verificação manual. A leitura exige a dupla exata, não
-aceita `orderId` enumerável separado, responde com `Cache-Control: no-store` e retorna
-apenas estado seguro e URL quando o Pedido correspondente já está `active`.
+Quando a criação retorna `processing`, a página pública consulta a mesma tentativa pela
+dupla UUID opaco + slug antes de permitir outra mutação. O UUID sem PII expira no
+navegador após 60 minutos. A leitura responde com `Cache-Control: no-store` e só expõe
+estado seguro e URL hospedada já persistida.
 
 **Falha:** preço abaixo de `1000` centavos, Curso indisponível, limite público ou provider
 sem configuração impedem checkout.
@@ -169,9 +164,10 @@ Não confundir com reembolso/disputa nem bloqueio da plataforma. Ambos registram
 reservam a intenção local, chamam o Asaas uma única vez e persistem em
 `refund_requests` somente a evidência de valor integral correlacionada ao mesmo
 pagamento. Todos os identificadores presentes precisam convergir e ao menos um dos
-identificadores do Pedido precisa corresponder: `externalReference` exata ou
-`checkoutSession` exata. Isso admite `externalReference=null` no Payment de Checkout
-sem admitir referência ou sessão conflitante.
+identificadores do Pedido precisa corresponder. Checkout legado exige sessão exata quando
+`externalReference` vier nula; Fatura direta exige `externalReference`, Cliente e ausência
+de sessão exatos. Parcelamento usa o endpoint do agregado e devolve o bruto integral,
+incluindo eventual acréscimo cobrado da Compradora.
 
 **Autorização:** `executeRefund`.
 
@@ -199,10 +195,13 @@ barreira efetiva.
 de cartão. Admin poderá oferecer Pix, cartão ou ambos; cartão à vista ou parcelado; e
 limite máximo próprio. A oferta efetiva precisa ser copiada para o Pedido.
 
-**Implementação atual:** preço, Pix, cartão e o teto de 1 a 12 parcelas são configuráveis
-por Curso. O padrão de novos Cursos é Pix + cartão em até 3x. A oferta é copiada para o
-Pedido e convertida em `billingTypes`, `chargeTypes` e
-`installment.maxInstallmentCount` somente na borda Asaas.
+**Implementação atual:** preço, Pix, cartão, teto de 1 a 12 parcelas e política
+`seller_absorbs_all | buyer_pays_incremental_installment_cost` são configuráveis por
+Curso. Novos Cursos usam Pix + cartão em até 3x e repasse econômico incremental; Cursos
+existentes migram para absorção pelo vendedor. O Hub consulta taxas e simula cada opção,
+mantém cotação curta e calcula o menor bruto cujo líquido estimado preserva o líquido de
+1x. Pix e cartão 1x nunca recebem acréscimo. O Asaas não executa esse repasse por API:
+recebe o total já calculado na Fatura direta.
 
 O teto efetivo respeita o piso comercial aprovado de `1000` centavos por parcela,
 equivalente ao preço mínimo de um Curso pago. O Asaas permite configurar na conta o valor
@@ -220,11 +219,11 @@ total devem coincidir com o snapshot. Eventos das demais parcelas são aceitos s
 quando mantêm o mesmo agregado. Conciliação lista todas as cobranças, e reembolso integral
 usa `POST /v3/installments/{id}/refund`.
 
-**Limitação do fornecedor:** o Checkout hospedado não documenta, por sessão, quem absorve
-o custo do parcelamento, repasse de taxa ou preço variável conforme a quantidade
-escolhida. O Hub não apresenta uma opção fictícia “cliente/vendedor”; taxas e recebíveis
-seguem o contrato da conta Asaas. O campo `interest` de outras APIs é juros por atraso e
-não pode ser reutilizado para essa finalidade.
+**Limitação do fornecedor:** o suporte Asaas confirmou que repasse de taxas não está
+disponível via API, inclusive para Checkout ou Link de Pagamento criados pela API. A
+interface web do Asaas possui configuração própria, mas não serve ao contrato por Curso.
+O Hub faz repasse econômico, não repasse nativo: calcula o acréscimo, registra todos os
+componentes e envia o bruto final. O campo `interest` é juros por atraso e não participa.
 
 Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
@@ -235,7 +234,7 @@ Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 - implementação: `src/features/payments`, `src/features/enrollments/server.ts`;
 - testes: `src/features/payments/*.test.ts`, `src/features/enrollments/*.test.ts`,
   `src/features/admin/enrollment-*.test.ts` e `tests/e2e/critical-journeys.spec.ts`;
-- endpoints: `src/app/api/checkouts/course/route.ts`, `src/app/api/webhooks/asaas/route.ts`, `src/app/api/cron/enrollments/route.ts`.
+- endpoints: `src/app/api/purchases/course/route.ts`, `src/app/api/purchases/course/quote/route.ts`, `src/app/api/webhooks/asaas/route.ts`, `src/app/api/cron/enrollments/route.ts`.
 
 ## Decisões e bloqueios
 

@@ -12,14 +12,21 @@ vi.mock("@/lib/session", () => ({
 vi.mock("@/features/payments/purchase-handoff", () => ({
   getPurchaseHandoffView: dependencies.getPurchaseHandoffView,
 }));
-vi.mock("./purchase-handoff-client", () => ({
-  PurchaseHandoffClient: ({
+vi.mock("./purchase-form-client", () => ({
+  PurchaseFormClient: ({
+    buyer,
     courseSlug,
     courseTitle,
   }: {
+    buyer?: { email: string; name: string };
     courseSlug: string;
     courseTitle: string;
-  }) => <div data-client={`${courseSlug}:${courseTitle}`} />,
+  }) => (
+    <div
+      data-buyer={buyer ? `${buyer.name}:${buyer.email}` : "anonymous"}
+      data-client={`${courseSlug}:${courseTitle}`}
+    />
+  ),
 }));
 
 import PurchasePage, { dynamic } from "./page";
@@ -66,6 +73,26 @@ describe("PurchasePage", () => {
     expect(markup).toContain('href="/app/cursos/course-1"');
     expect(markup).toContain("Acessar curso");
     expect(markup).not.toContain("data-client");
+  });
+
+  it("prefills the immutable student identity in the unified purchase form", async () => {
+    dependencies.getCurrentSession.mockResolvedValue({
+      platformBlockedAt: null,
+      role: "student",
+      user: { email: "student@example.com", id: "student", name: "Student" },
+    });
+    dependencies.getPurchaseHandoffView.mockResolvedValue({
+      courseId: "course-1",
+      courseSlug: "curso-publico",
+      courseTitle: "Curso publico",
+      kind: "checkout",
+    });
+
+    const markup = renderToStaticMarkup(
+      await PurchasePage({ params: Promise.resolve({ slug: "curso-publico" }) })
+    );
+
+    expect(markup).toContain('data-buyer="Student:student@example.com"');
   });
 
   it.each([

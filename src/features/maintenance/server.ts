@@ -8,6 +8,7 @@ interface MaintenanceResult {
   certificateTemplateAssetsRemoved: number;
   checkoutReservationsRemoved: number;
   deadlineReached: boolean;
+  expiredPaymentQuotesRemoved: number;
   expiredRateLimitsRemoved: number;
   expiredSessionsRemoved: number;
   learningAnalyticsAggregated: number;
@@ -22,6 +23,7 @@ const emptyMaintenanceResult = (): MaintenanceResult => ({
   certificateTemplateAssetsRemoved: 0,
   checkoutReservationsRemoved: 0,
   deadlineReached: false,
+  expiredPaymentQuotesRemoved: 0,
   expiredRateLimitsRemoved: 0,
   expiredSessionsRemoved: 0,
   learningAnalyticsAggregated: 0,
@@ -78,6 +80,29 @@ export const runMaintenance = async ({
     "delete from public_checkout_rate_limits where expires_at < now()"
   );
   result.expiredRateLimitsRemoved += checkoutRateLimits.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  const expiredPaymentQuotes = await pool.query(`
+    with expired_quotes as (
+      select id
+      from course_payment_quotes
+      where expires_at < now() - interval '7 days'
+        and not exists (
+          select 1
+          from orders
+          where orders.payment_quote_id = course_payment_quotes.id
+        )
+      order by expires_at
+      limit 500
+      for update skip locked
+    )
+    delete from course_payment_quotes
+    using expired_quotes
+    where course_payment_quotes.id = expired_quotes.id
+  `);
+  result.expiredPaymentQuotesRemoved = expiredPaymentQuotes.rowCount ?? 0;
 
   if (!(await canContinue())) {
     return result;

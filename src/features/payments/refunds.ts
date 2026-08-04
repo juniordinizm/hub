@@ -186,8 +186,10 @@ interface ReservedRefund {
   amountInCents: number;
   externalReference: string;
   providerCheckoutId: string | null;
+  providerCustomerId: string | null;
   providerInstallmentId: string | null;
   providerPaymentId: string | null;
+  providerPurchaseFlow: "checkout" | "invoice";
   refundRequestId: string;
 }
 
@@ -224,8 +226,10 @@ const reserveRefund = async ({
       amount_in_cents: number;
       external_id: string;
       provider_checkout_id: string | null;
+      provider_customer_id: string | null;
       provider_installment_id: string | null;
       provider_payment_id: string | null;
+      provider_purchase_flow: "checkout" | "invoice";
       status: "cancelled" | "disputed" | "paid" | "pending" | "refunded";
     }>(
       `
@@ -233,8 +237,10 @@ const reserveRefund = async ({
           amount_in_cents,
           external_id,
           provider_checkout_id,
+          provider_customer_id,
           provider_installment_id,
           provider_payment_id,
+          provider_purchase_flow,
           status
         from orders
         where id = $1
@@ -293,8 +299,10 @@ const reserveRefund = async ({
       amountInCents: selectedOrder.amount_in_cents,
       externalReference: selectedOrder.external_id,
       providerCheckoutId: selectedOrder.provider_checkout_id,
+      providerCustomerId: selectedOrder.provider_customer_id,
       providerInstallmentId: selectedOrder.provider_installment_id ?? null,
       providerPaymentId: selectedOrder.provider_payment_id,
+      providerPurchaseFlow: selectedOrder.provider_purchase_flow,
       refundRequestId: reservation.rows[0].id,
     };
   } catch (error) {
@@ -462,10 +470,22 @@ const hasExactRefundCorrelation = (
   reserved: ReservedRefund
 ): boolean => {
   if ("installmentCount" in payment) {
+    const checkoutMatches =
+      reserved.providerPurchaseFlow === "invoice"
+        ? payment.checkoutSession === null
+        : payment.checkoutSession === reserved.providerCheckoutId &&
+          payment.checkoutSession !== null;
+    return payment.id === reserved.providerInstallmentId && checkoutMatches;
+  }
+  const customerMatches =
+    reserved.providerCustomerId === null ||
+    payment.customer === reserved.providerCustomerId;
+  if (reserved.providerPurchaseFlow === "invoice") {
     return (
-      payment.id === reserved.providerInstallmentId &&
-      payment.checkoutSession === reserved.providerCheckoutId &&
-      payment.checkoutSession !== null
+      payment.id === reserved.providerPaymentId &&
+      payment.externalReference === reserved.externalReference &&
+      payment.checkoutSession === null &&
+      customerMatches
     );
   }
   const externalReferenceMatches =
@@ -480,6 +500,7 @@ const hasExactRefundCorrelation = (
 
   return (
     payment.id === reserved.providerPaymentId &&
+    customerMatches &&
     !(hasConflictingExternalReference || hasConflictingCheckoutSession) &&
     (externalReferenceMatches || checkoutSessionMatches)
   );

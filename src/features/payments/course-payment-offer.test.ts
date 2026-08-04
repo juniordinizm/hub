@@ -2,15 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_COURSE_PAYMENT_OFFER,
   getEffectiveMaxInstallmentCount,
-  MINIMUM_COURSE_INSTALLMENT_AMOUNT_IN_CENTS,
   parseCoursePaymentOffer,
 } from "./course-payment-offer";
+import { MINIMUM_COURSE_INSTALLMENT_AMOUNT_IN_CENTS } from "./installment-pricing";
 
 describe("course payment offer", () => {
   it("defaults new courses to Pix and card in up to three installments", () => {
     expect(DEFAULT_COURSE_PAYMENT_OFFER).toEqual({
       allowCreditCard: true,
       allowPix: true,
+      cardPricingPolicy: "buyer_pays_incremental_installment_cost",
       maxInstallmentCount: 3,
     });
   });
@@ -20,6 +21,7 @@ describe("course payment offer", () => {
       parseCoursePaymentOffer({
         allowCreditCard: false,
         allowPix: false,
+        cardPricingPolicy: "buyer_pays_incremental_installment_cost",
         maxInstallmentCount: 1,
       })
     ).toThrow("Selecione Pix, cartao ou ambos.");
@@ -30,11 +32,13 @@ describe("course payment offer", () => {
       parseCoursePaymentOffer({
         allowCreditCard: false,
         allowPix: true,
+        cardPricingPolicy: "buyer_pays_incremental_installment_cost",
         maxInstallmentCount: 3,
       })
     ).toEqual({
       allowCreditCard: false,
       allowPix: true,
+      cardPricingPolicy: "seller_absorbs_all",
       maxInstallmentCount: 1,
     });
   });
@@ -44,9 +48,21 @@ describe("course payment offer", () => {
       parseCoursePaymentOffer({
         allowCreditCard: true,
         allowPix: true,
+        cardPricingPolicy: "buyer_pays_incremental_installment_cost",
         maxInstallmentCount: limit,
       })
     ).toThrow("Quantidade de parcelas deve estar entre 1 e 12.");
+  });
+
+  it("rejects an unknown card pricing policy", () => {
+    expect(() =>
+      parseCoursePaymentOffer({
+        allowCreditCard: true,
+        allowPix: true,
+        cardPricingPolicy: "manual_percentage" as never,
+        maxInstallmentCount: 3,
+      })
+    ).toThrow("Politica de parcelamento invalida.");
   });
 
   it("uses the approved ten-real minimum per installment", () => {

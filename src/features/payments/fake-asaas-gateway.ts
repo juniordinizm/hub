@@ -1,16 +1,25 @@
 import type {
   AsaasCheckout,
+  AsaasCreditCardFeeSchedule,
   AsaasCustomer,
+  AsaasCustomerPage,
+  AsaasCustomerReference,
   AsaasFinancialTransactionPage,
   AsaasGateway,
   AsaasInstallment,
   AsaasPayment,
   AsaasPaymentPage,
+  AsaasPaymentSimulation,
   CreateAsaasCheckout,
+  CreateAsaasCustomer,
+  CreateAsaasPayment,
+  CreatedAsaasPayment,
+  ListAsaasCustomers,
   ListAsaasFinancialTransactions,
   ListAsaasPayments,
   RefundAsaasInstallment,
   RefundAsaasPayment,
+  SimulateAsaasPayment,
 } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 
@@ -19,26 +28,36 @@ type FakeOutcome<T> = Error | T;
 interface FakeAsaasGatewayConfig {
   cancelCheckout?: FakeOutcome<AsaasCheckout>;
   createCheckout?: FakeOutcome<AsaasCheckout>;
+  createCustomer?: FakeOutcome<AsaasCustomerReference>;
+  createPayment?: FakeOutcome<CreatedAsaasPayment>;
+  getAccountFees?: FakeOutcome<AsaasCreditCardFeeSchedule>;
   getInstallment?: FakeOutcome<AsaasInstallment>;
   getPayment?: FakeOutcome<AsaasPayment>;
+  listCustomers?: FakeOutcome<AsaasCustomerPage>;
   listFinancialTransactions?: FakeOutcome<AsaasFinancialTransactionPage>;
   listInstallmentPayments?: FakeOutcome<AsaasPaymentPage>;
   listPayments?: FakeOutcome<AsaasPaymentPage>;
   refundInstallment?: FakeOutcome<AsaasInstallment>;
   refundPayment?: FakeOutcome<AsaasPayment>;
+  simulatePayment?: FakeOutcome<AsaasPaymentSimulation>;
 }
 
 interface FakeAsaasGatewayCalls {
   cancelCheckout: string[];
   createCheckout: CreateAsaasCheckout[];
+  createCustomer: CreateAsaasCustomer[];
+  createPayment: CreateAsaasPayment[];
+  getAccountFees: number;
   getCustomer: string[];
   getInstallment: string[];
   getPayment: string[];
+  listCustomers: ListAsaasCustomers[];
   listFinancialTransactions: ListAsaasFinancialTransactions[];
   listInstallmentPayments: string[];
   listPayments: ListAsaasPayments[];
   refundInstallment: RefundAsaasInstallment[];
   refundPayment: RefundAsaasPayment[];
+  simulatePayment: SimulateAsaasPayment[];
 }
 
 const resolveOutcome = <T>(
@@ -60,14 +79,19 @@ export class FakeAsaasGateway implements AsaasGateway {
   readonly calls: FakeAsaasGatewayCalls = {
     cancelCheckout: [],
     createCheckout: [],
+    createCustomer: [],
+    createPayment: [],
+    getAccountFees: 0,
     getCustomer: [],
     getPayment: [],
     getInstallment: [],
     listFinancialTransactions: [],
+    listCustomers: [],
     listInstallmentPayments: [],
     listPayments: [],
     refundPayment: [],
     refundInstallment: [],
+    simulatePayment: [],
   };
 
   readonly customers = new Map<string, AsaasCustomer>();
@@ -86,6 +110,23 @@ export class FakeAsaasGateway implements AsaasGateway {
   async createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout> {
     this.calls.createCheckout.push(input);
     return await resolveOutcome("createCheckout", this.config.createCheckout);
+  }
+
+  async createCustomer(
+    input: CreateAsaasCustomer
+  ): Promise<AsaasCustomerReference> {
+    this.calls.createCustomer.push(input);
+    return await resolveOutcome("createCustomer", this.config.createCustomer);
+  }
+
+  async createPayment(input: CreateAsaasPayment): Promise<CreatedAsaasPayment> {
+    this.calls.createPayment.push(input);
+    return await resolveOutcome("createPayment", this.config.createPayment);
+  }
+
+  async getAccountFees(): Promise<AsaasCreditCardFeeSchedule> {
+    this.calls.getAccountFees += 1;
+    return await resolveOutcome("getAccountFees", this.config.getAccountFees);
   }
 
   async getCustomer(customerId: string): Promise<AsaasCustomer> {
@@ -123,6 +164,11 @@ export class FakeAsaasGateway implements AsaasGateway {
     );
   }
 
+  async listCustomers(filters: ListAsaasCustomers): Promise<AsaasCustomerPage> {
+    this.calls.listCustomers.push(filters);
+    return await resolveOutcome("listCustomers", this.config.listCustomers);
+  }
+
   async listPayments(filters: ListAsaasPayments): Promise<AsaasPaymentPage> {
     this.calls.listPayments.push(filters);
     return await resolveOutcome("listPayments", this.config.listPayments);
@@ -151,5 +197,12 @@ export class FakeAsaasGateway implements AsaasGateway {
       "refundInstallment",
       this.config.refundInstallment
     );
+  }
+
+  async simulatePayment(
+    input: SimulateAsaasPayment
+  ): Promise<AsaasPaymentSimulation> {
+    this.calls.simulatePayment.push(input);
+    return await resolveOutcome("simulatePayment", this.config.simulatePayment);
   }
 }

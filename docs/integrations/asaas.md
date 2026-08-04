@@ -34,6 +34,19 @@ Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
 entradas e `404` na rota legada removida.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
+A migration `0056_asaas_installment_pricing` está validada e aplicada em Development.
+Duas execuções idempotentes deixaram 57 entradas, topo `1785793942565`, e a auditoria
+somente-leitura confirmou tabelas, tipos, colunas e índice. Staging e Production não
+receberam a migration. Ela adiciona política por Curso, cotação curta, mapeamento de
+Cliente sem CPF/CNPJ, origem `invoice` e snapshots econômicos do Pedido.
+
+O runtime local foi exposto pelo domínio ngrok reservado em 2026-08-03. Saúde, página
+pública, cotação real Sandbox, recusa de webhook sem token, aceitação do token antes de
+rejeitar payload inválido e worker sem backlog responderam conforme o contrato. Um
+webhook Sandbox separado, `Neuro Capacitar Local`, ficou ativo com os mesmos 18 eventos;
+o webhook de Staging não foi alterado. Pagamento manual, webhook financeiro, acesso e
+reembolso da nova Fatura continuam sendo o gate antes de qualquer promoção.
+
 O release de manutenção de 2026-08-02 promoveu o código e a migration
 `0053_course_payment_offers` para Production pelo workflow protegido
 `30735668308`. O deployment permaneceu com checkout e webhook desabilitados e todas as
@@ -75,15 +88,15 @@ pressupõem a limpeza dos Pedidos de teste legados antes do DDL.
 
 ## Escopo do checkout
 
-O Hub cria Checkout hospedado com Pix, cartão ou ambos, conforme a oferta do Curso.
-Cartão pode ser à vista (`DETACHED`) ou admitir `INSTALLMENT` até o teto configurado.
-Cada Checkout tem item inline; Curso não possui produto remoto no Asaas.
+Novas compras usam Fatura direta do Asaas com Pix ou cartão e quantidade de parcelas
+escolhida no Hub. O Checkout hospedado anterior permanece somente como compatibilidade
+de leitura, webhook, conciliação e reembolso de Pedidos históricos. Curso não possui
+produto remoto no Asaas.
 
 - `externalReference` carrega somente uma referência local opaca, sem nome, e-mail ou
   outro dado pessoal;
-- o Hub não envia `customerData`: no Sandbox, nome/e-mail sem `cpfCnpj` são rejeitados,
-  e a política local não coleta nem inventa CPF; o checkout hospedado coleta os dados
-  exigidos pelo Asaas;
+- o Hub valida nome, e-mail e CPF/CNPJ, cria ou reutiliza o Cliente Asaas e não persiste
+  CPF/CNPJ; o mapeamento local usa fingerprint HMAC não reversível;
 - valores internos permanecem em centavos inteiros;
 - Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10; autoria e checkout
   validam o limite antes da chamada externa;
@@ -92,14 +105,21 @@ Cada Checkout tem item inline; Curso não possui produto remoto no Asaas.
   [guia de Checkout Asaas](https://docs.asaas.com/docs/checkout-asaas) não estabelece
   essa exigência e o sandbox aceitou sua ausência;
 - o adapter inicial omite `imageBase64`; imagem só entra após novo contrato e validação;
-- callback não é autoridade financeira nem libera acesso.
+- callback é opcional, não é autoridade financeira e nunca libera acesso.
+
+Na criação da Fatura, o adapter segue a separação documentada pelo Asaas: cobrança 1x
+envia somente `value`; cobrança de 2x a 12x envia `installmentCount` + `totalValue` e
+omite `value` e `installmentValue`. `totalValue` é o bruto final calculado pelo Hub, não
+um campo de acréscimo. Preço-base, acréscimo e bruto contratado permanecem em snapshots
+separados no Pedido.
 
 ### Configuração comercial por Curso
 
-O Admin configura `payment_allow_pix`, `payment_allow_credit_card` e
-`payment_max_installment_count` por Curso. Novos Cursos usam Pix + cartão e até 3x; cada
-Pedido captura os três snapshots antes da chamada externa. O adapter transforma esses
-campos em `billingTypes`, `chargeTypes` e `installment.maxInstallmentCount`.
+O Admin configura `payment_allow_pix`, `payment_allow_credit_card`,
+`payment_max_installment_count` e `payment_card_pricing_policy` por Curso. Novos Cursos
+usam Pix + cartão, até 3x e repasse econômico incremental; Cursos existentes migram para
+`seller_absorbs_all`. Cada Pedido captura oferta, política, cotação e valores antes da
+chamada externa.
 
 Antes de criar o Pedido, o Hub calcula o teto efetivo por
 `floor(price_in_cents / 1000)`, limitado entre 1, o teto configurado e 12. Os `1000`
@@ -111,8 +131,16 @@ de R$ 10,00 e não constitui um limite fixo da API. A configuração do Curso pe
 intacta e o Pedido recebe somente o teto efetivo, preservando o padrão de novos Cursos em
 3x.
 
-- o Checkout não documenta campo por sessão para escolher se Compradora ou Vendedora
-  absorve o custo do parcelamento;
+- o suporte Asaas confirmou que API, Checkout e Link criados via API não ativam repasse
+  nem recalculam o total conforme a quantidade escolhida;
+- o Hub consulta taxas atuais e usa a simulação do Asaas; não mantém uma tabela comercial
+  manual de percentuais;
+- 1x preserva o preço-base; em 2x+ a política incremental procura o menor bruto cujo
+  líquido estimado seja pelo menos o líquido-alvo de 1x;
+- a cotação expira em 30 minutos ou antes da promoção de taxa; a opção escolhida é
+  simulada novamente imediatamente antes de reservar o Pedido;
+- a manutenção remove em lotes de 500 somente cotações expiradas há mais de sete dias
+  que não estejam referenciadas por nenhum Pedido;
 - `interest` nas APIs de cobrança significa juros por atraso;
 - cada parcela possui um ID de pagamento próprio;
 - Pix + cartão parcelado no mesmo Checkout foi comprovado no Sandbox.
@@ -146,10 +174,10 @@ cobranças e usa o endpoint de estorno do parcelamento. O contrato está descrit
 [DEC-DISC-011](../decisions.md#dec-disc-011) e nos casos da
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
 
-`src/features/payments/checkout.ts` usa o UUID estável fornecido pela entrada como ID do
-Pedido e uma `externalReference` opaca sem PII. O insert `pending` com identidade local
-e snapshots reserva a tentativa antes da autorização coordenada. Somente o insert vencedor
-executa essa autorização; depois, uma CAS `pending → creating` precede `createCheckout`.
+`src/features/payments/invoice-intent.ts` usa o UUID estável fornecido pela entrada como
+ID do Pedido e uma `externalReference` opaca sem PII. O insert `pending` com snapshots
+reserva a tentativa antes dos efeitos externos. Uma CAS `pending → creating` precede a
+criação da Fatura.
 Se a autorização rejeitar a nova intenção, inclusive por rate limit público, o Hub remove
 por CAS somente a reserva ainda `pending`, com zero tentativas e sem URL, ID ou estado do
 provedor, e devolve o erro original. Pedidos `creating`, `uncertain`, `active`, `failed` ou
@@ -160,19 +188,18 @@ colisões de Curso ou Compradora falham sem revelar o Pedido. Resultado externo 
 é repetido automaticamente. Nome e descrição do item são limitados de forma segura a
 30 e 150 caracteres Unicode, respectivamente.
 
-`GET /api/checkouts/course` recupera uma tentativa pública já reservada pela dupla exata
-`checkoutAttemptId` + `courseSlug`. A resposta nunca inclui PII nem estado bruto do Asaas:
+`GET /api/purchases/course` recupera uma tentativa pública já reservada pela dupla exata
+`purchaseAttemptId` + `courseSlug`. A resposta nunca inclui PII nem estado bruto do Asaas:
 somente `ready`, `processing`, `failed` ou `unavailable`; a URL hospedada aparece apenas
 para `checkout_status=active` com URL persistida. Ausência e divergência produzem a mesma
 resposta genérica, todas as leituras usam `Cache-Control: no-store`, e sessão de equipe ou
 Conta bloqueada continua recusada. O UUID é uma capacidade opaca armazenada no navegador,
 compartilhada entre abas por 60 minutos e enviada sem nome ou e-mail.
 
-Ao receber `processing`, o handoff consulta a mesma tentativa após 1, 2, 4, 8 e 16
-segundos. Depois desse limite, oferece `Verificar novamente`; essa ação é outra leitura,
-nunca outro `POST`. Somente falha definitiva com `retryAllowed=true` permite que um clique
-explícito descarte a tentativa e crie uma nova. Refresh, aba adicional e resposta repetida
-reutilizam o UUID ainda válido; timer é cancelado no unmount.
+Ao receber `processing`, o formulário consulta a mesma tentativa de forma limitada antes
+de informar que ela ainda está em preparação. Falha definitiva descarta o UUID; resposta
+incerta o conserva. Refresh, aba adicional e resposta repetida reutilizam o UUID ainda
+válido por até 60 minutos.
 
 ## Cliente HTTP e ambientes
 
@@ -237,23 +264,17 @@ de persistir uma nova intenção local.
 
 ## Entradas de checkout
 
-`POST /api/checkouts/course` não é cacheado e aceita JSON com exatamente:
+`GET /api/purchases/course/quote` aceita somente `courseSlug` e devolve as opções públicas
+sem percentuais, taxas internas ou segredos. `POST /api/purchases/course` não é cacheado e
+aceita exatamente slug, cotação, método, parcelas, UUID idempotente, nome, e-mail e
+CPF/CNPJ. Preço, callbacks, cartão, gifting e campos extras são rejeitados. Student usa
+nome/e-mail imutáveis da sessão; Admin, Suporte, Conta bloqueada/revogada ou identidade já
+associada a equipe recebem `403` antes da cobrança sempre que detectável.
 
-- `checkoutAttemptId`, UUID opaco e idempotente;
-- exatamente um entre `courseId` e `courseSlug`.
-
-Nome, e-mail, CPF, preço, callbacks, método de pagamento, gifting e quaisquer campos extras
-são rejeitados antes do checkout. Visitante segue sem identidade local; Student elegível usa
-nome/e-mail da sessão; Admin, Suporte e Student com bloqueio geral recebem `403`. `ready`
-retorna `200` com `status`, `orderId` e `redirectUrl`; `processing` retorna `202` com
-`status` e `orderId`; rejeição externa conhecida retorna `502` com retry explícito;
-resultado incerto retorna `202` sem retry automático. Validação retorna `400`. Limite
-público retorna `429` e `Retry-After`, sem ecoar PII ou payload externo.
-
-O núcleo normaliza e valida nome/e-mail somente para a identidade autenticada. A tentativa
-pública persiste `user_id`, nome e e-mail nulos com identidade `pending`; o Checkout Asaas
-coleta os dados. Erros esperados são tipados como validação, conflito ou indisponibilidade;
-falhas inesperadas de DB, ambiente ou runtime retornam `503` genérico.
+`ready` retorna `200`; resultado incerto retorna `202`; rejeição externa conhecida retorna
+`502`; validação retorna `400`; cotação/tentativa conflitante retorna `409`; limite público
+retorna `429` com `Retry-After`; falha inesperada retorna `503`. Nenhuma resposta ecoa CPF,
+e-mail ou payload do Asaas.
 
 O limite permite cinco novas intenções em dez minutos por HMAC-SHA-256 de IP e ID
 canônico do Curso, usando `BETTER_AUTH_SECRET`. O PostgreSQL coordena a janela em
@@ -263,13 +284,8 @@ antes do hook e não incrementa o contador. Tentativas concorrentes com o mesmo 
 a reserva local, portanto consomem no máximo uma autorização. UUIDs distintos rejeitados
 depois do limite não conservam Pedido, nome ou e-mail.
 
-A ação autenticada recebe somente Curso e tentativa pelo formulário; Conta, nome e e-mail
-vêm da sessão. Os callbacks absolutos são:
-
-- autenticado: sucesso em `/app/checkout/sucesso?courseId=...`;
-- público: sucesso em `/checkout/sucesso`;
-- ambos: cancelamento em `/checkout/cancelado?attemptId=...` e expiração em
-  `/checkout/expirado?attemptId=...`.
+Quando `ASAAS_PAYMENT_RETURN_ENABLED=true`, a Fatura recebe callback HTTPS para
+`/checkout/sucesso`. O default é `false`; retorno não participa da autoridade financeira.
 
 Cancelamento e expiração validam o UUID antes de consultar somente o snapshot do slug no
 Pedido Asaas e oferecem nova tentativa pelo link estável `/comprar/[slug]`. Referência
@@ -277,11 +293,10 @@ inválida ou inexistente oferece login e contato com Suporte, nunca navega para 
 tentativa em GET. Páginas de retorno informam processamento ou ausência de confirmação;
 callback de checkout não é autoridade para declarar pagamento.
 
-A raiz da aplicação continua protegida. O handoff estável `/comprar/[slug]` é público,
-read-only no `GET` e não contém formulário; um Client Component cria/reutiliza um UUID no
-`sessionStorage`, faz um único `POST` e redireciona ao Checkout hospedado. Falha de rede ou
-resposta malformada permite retry manual com a mesma tentativa; recusa terminal substitui a
-tentativa somente no clique. A navegação aceita somente HTTPS, sem credenciais ou porta, nos
+A raiz da aplicação continua protegida. `/comprar/[slug]` é público e contém o formulário
+de identidade e escolha da opção cotada; nunca contém campos de cartão. O navegador
+cria/reutiliza o UUID, envia uma única intenção e redireciona à Fatura hospedada. A
+navegação aceita somente HTTPS, sem credenciais ou porta, nos
 hosts exatos `sandbox.asaas.com`, `www.asaas.com` ou `asaas.com`; qualquer outro destino
 falha fechado. O runtime E2E permite adicionalmente apenas
 `http://127.0.0.1:4570`, condicionado a `NEXT_PUBLIC_E2E_TEST_MODE=true`; essa origem não é
@@ -296,9 +311,10 @@ Clipboard API e, quando indisponível, seleciona o campo read-only para cópia m
 O contrato alvo mantém o Hub como autoridade sobre Contas e usa o Asaas apenas como fonte
 da identidade pretendida do pagador:
 
-- checkout autenticado usa a Conta da sessão;
-- checkout público nasce sem PII e o Asaas coleta os dados do pagador;
-- após evento financeiro autoritativo, o Hub consulta somente nome/e-mail do cliente;
+- Student autenticada usa nome/e-mail imutáveis da sessão e informa CPF/CNPJ apenas para
+  o Asaas;
+- visitante informa nome/e-mail/CPF ou CNPJ antes da Fatura;
+- o Hub persiste nome/e-mail e ID do Cliente Asaas, nunca CPF/CNPJ;
 - no fluxo público, Compradora = Aluna;
 - a compra pode ocorrer antes de existir credencial;
 - o Asaas não verifica Conta e não sobrescreve Conta existente;
@@ -491,6 +507,12 @@ os identificadores presentes precisam convergir, ao menos `externalReference` ou
 Resposta com qualquer identificador conflitante permanece `uncertain`, sem repetição
 cega.
 
+Para Fatura direta, a correlação é mais estrita: `externalReference` precisa coincidir,
+`checkoutSession` precisa ser nula e, em pagamento único, o Cliente precisa coincidir.
+Parcelamentos usam `provider_installment_id`, aceitam sessão nula e exigem que todas as
+cobranças listadas pertençam ao agregado, Cliente e referência do Pedido. O reembolso
+integral usa o bruto do snapshot, incluindo o acréscimo comercial.
+
 Webhook é o fluxo normal. Consultas de cobrança, webhook e extrato servem para reparo
 direcionado, respeitando os limites publicados de 25.000 requisições por 12 horas e 50
 GETs concorrentes em [Rate e quota limit](https://docs.asaas.com/reference/rate-e-quota-limit).
@@ -503,7 +525,7 @@ segundos. Falhas diferentes de rate limit não recebem retry automático nessa c
 
 A conciliação administrativa tem dois comandos separados:
 
-- por Pedido, consulta `GET /v3/payments/{id}`, exige igualdade do ID do pagamento e
+- por Pedido único, consulta `GET /v3/payments/{id}`, exige igualdade do ID do pagamento e
   convergência de todos os identificadores presentes. O `Payment` criado por Checkout
   pode omitir `externalReference`; nesse caso, `checkoutSession` deve ser exatamente o
   `provider_checkout_id` do Pedido. Referência ou sessão conflitante é rejeitada. A
@@ -511,6 +533,9 @@ A conciliação administrativa tem dois comandos separados:
   terminais e evidência de pagamento segundo a ADR-0005, abre Revisão em conflito e
   atualiza somente o Pedido bloqueado. Reembolso integral exatamente comprovado pode
   revogar a Concessão e confirmar a solicitação na mesma transação;
+- por parcelamento, consulta o agregado e lista todas as cobranças. Checkout histórico
+  exige sessão exata; Fatura direta exige sessão nula e referência externa exata em cada
+  cobrança. Quantidade, bruto agregado, Cliente e IDs precisam convergir;
 - por extrato, consulta `GET /v3/financialTransactions` em período fechado, páginas de
   100 e ordem crescente, persistindo cada movimento em
   `asaas_financial_transactions` com deduplicação pelo ID do Asaas. Cada página é um
@@ -540,8 +565,9 @@ automático.
 
 O extrato publicado expõe `id`, `type`, `value` e `date`, mas não um vínculo contratual
 direto com `payment`. Portanto, o Hub não tenta correlacionar tarifa e Pedido por
-proximidade de data ou valor. O painel mostra bruto, líquido e tarifa derivados da
-cobrança detalhada/webhook; o extrato permanece evidência contábil independente.
+proximidade de data ou valor. O painel separa preço-base, acréscimo, bruto, parcelas,
+política, origem Checkout/Fatura, líquido e tarifa cotados e realizados; o extrato
+permanece evidência contábil independente.
 
 ## PII e retenção
 

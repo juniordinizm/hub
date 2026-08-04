@@ -19,10 +19,16 @@ const PLUS_ADDRESSING_IDENTITY_DOMAINS = new Set([
   "yahoo.com",
   "zoho.com",
 ]);
+const CPF_CNPJ_LENGTH_PATTERN = /^\d{11}(?:\d{3})?$/;
+const REPEATED_DIGITS_PATTERN = /^(\d)\1+$/;
 
 export interface BuyerIdentity {
   email: string;
   name: string;
+}
+
+export interface PurchaseBuyerIdentity extends BuyerIdentity {
+  cpfCnpj: string;
 }
 
 export const normalizeBuyerEmail = (email: string): string => {
@@ -76,3 +82,79 @@ export const parseBuyerIdentity = (value: unknown): BuyerIdentity | null => {
 
   return { email: normalizedEmail, name: normalizedName };
 };
+
+const hasValidCheckDigits = (
+  digits: string,
+  initialLength: number
+): boolean => {
+  let current = digits.slice(0, initialLength);
+  for (let index = initialLength; index < digits.length; index += 1) {
+    let sum = 0;
+    if (digits.length === 11) {
+      const weightStart = current.length + 1;
+      for (let position = 0; position < current.length; position += 1) {
+        sum += Number(current[position]) * (weightStart - position);
+      }
+      const remainder = (sum * 10) % 11;
+      current += String(remainder === 10 ? 0 : remainder);
+    } else {
+      let weight = current.length - 7;
+      for (const digit of current) {
+        sum += Number(digit) * weight;
+        weight -= 1;
+        if (weight === 1) {
+          weight = 9;
+        }
+      }
+      const remainder = sum % 11;
+      current += String(remainder < 2 ? 0 : 11 - remainder);
+    }
+  }
+  return current === digits;
+};
+
+const isValidCpfCnpj = (digits: string): boolean => {
+  if (
+    !CPF_CNPJ_LENGTH_PATTERN.test(digits) ||
+    REPEATED_DIGITS_PATTERN.test(digits)
+  ) {
+    return false;
+  }
+  return hasValidCheckDigits(digits, digits.length === 11 ? 9 : 12);
+};
+
+export const parsePurchaseBuyerIdentity = (
+  value: unknown
+): PurchaseBuyerIdentity | null => {
+  const identity = parseBuyerIdentity(value);
+  if (!(identity && typeof value === "object" && value !== null)) {
+    return null;
+  }
+  const cpfCnpj = "cpfCnpj" in value ? value.cpfCnpj : null;
+  if (typeof cpfCnpj !== "string") {
+    return null;
+  }
+  const digits = cpfCnpj.replace(/\D/g, "");
+  if (!isValidCpfCnpj(digits)) {
+    return null;
+  }
+  return { ...identity, cpfCnpj: digits };
+};
+
+export const createAsaasIdentityFingerprint = ({
+  cpfCnpj,
+  normalizedEmail,
+  secret,
+}: {
+  cpfCnpj: string;
+  normalizedEmail: string;
+  secret: string;
+}): string =>
+  createHmac("sha256", secret)
+    .update("asaas-customer:v1:")
+    .update(cpfCnpj)
+    .update(":")
+    .update(normalizedEmail)
+    .digest("hex");
+
+import { createHmac } from "node:crypto";

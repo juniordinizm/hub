@@ -13,6 +13,7 @@ const course: CourseData = {
   id: "course-1",
   paymentAllowCreditCard: true,
   paymentAllowPix: true,
+  paymentCardPricingPolicy: "buyer_pays_incremental_installment_cost",
   paymentMaxInstallmentCount: 3,
   priceInCents: 1990,
   slug: "curso-teste",
@@ -25,7 +26,11 @@ const course: CourseData = {
 
 describe("course payment settings", () => {
   it("explains when price reduces the effective installment maximum", () => {
-    const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
+    const markup = renderToStaticMarkup(
+      <CourseSettingsForm
+        course={{ ...course, paymentCardPricingPolicy: "seller_absorbs_all" }}
+      />
+    );
 
     expect(markup).toContain("Checkout sera limitado a");
     expect(markup).toContain("1x");
@@ -45,5 +50,14 @@ describe("course payment settings", () => {
 
     expect(markup).toContain('name="paymentMaxInstallmentCount"');
     expect(markup).toContain('max="12"');
+  });
+
+  it("lets the admin choose who absorbs the incremental installment cost", () => {
+    const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
+
+    expect(markup).toContain('name="paymentCardPricingPolicy"');
+    expect(markup).toContain("Cliente paga somente o acrescimo das parcelas");
+    expect(markup).toContain("Parcelamento sem acrescimo");
+    expect(markup).toContain("1x permanece sem acrescimo");
   });
 });

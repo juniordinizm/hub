@@ -33,11 +33,17 @@ interface QueryRecord {
 
 const createRefundDatabase = ({
   confirmedBeforePostMutation = false,
+  providerCheckoutId = "chk_123",
+  providerCustomerId = "cus_123",
   providerInstallmentId = null,
+  providerPurchaseFlow = "checkout",
   reservationExists = true,
 }: {
   confirmedBeforePostMutation?: boolean;
+  providerCheckoutId?: string | null;
+  providerCustomerId?: string | null;
   providerInstallmentId?: string | null;
+  providerPurchaseFlow?: "checkout" | "invoice";
   reservationExists?: boolean;
 } = {}) => {
   const queries: QueryRecord[] = [];
@@ -52,9 +58,11 @@ const createRefundDatabase = ({
           {
             amount_in_cents: 12_990,
             external_id: `order_${ORDER_ID}`,
-            provider_checkout_id: "chk_123",
+            provider_checkout_id: providerCheckoutId,
+            provider_customer_id: providerCustomerId,
             provider_installment_id: providerInstallmentId,
             provider_payment_id: "pay_123",
+            provider_purchase_flow: providerPurchaseFlow,
             status: "paid",
           },
         ],
@@ -319,6 +327,52 @@ describe("Asaas full refund requests", () => {
       installmentId: "ins_123",
     });
     expect(dependencies.gateway.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it("refunds the full gross amount of an Invoice payment", async () => {
+    const { queries } = createRefundDatabase({
+      providerCheckoutId: null,
+      providerPurchaseFlow: "invoice",
+    });
+    dependencies.gateway.refundPayment.mockResolvedValue({
+      ...validRefundPayment,
+      checkoutSession: null,
+    });
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+
+    expect(dependencies.gateway.refundPayment).toHaveBeenCalledWith({
+      description: "Solicitação aprovada pelo suporte",
+      paymentId: "pay_123",
+    });
+    expect(
+      queries.find(({ text }) =>
+        text.includes("provider_refunded_amount_in_cents = $6")
+      )?.values
+    ).toContain(12_990);
+  });
+
+  it("refunds an Invoice installment with no Checkout session", async () => {
+    createRefundDatabase({
+      providerCheckoutId: null,
+      providerInstallmentId: "ins_123",
+      providerPurchaseFlow: "invoice",
+    });
+    dependencies.gateway.refundInstallment.mockResolvedValue({
+      billingType: "CREDIT_CARD",
+      checkoutSession: null,
+      id: "ins_123",
+      installmentCount: 3,
+      netValueInCents: 12_000,
+      paymentValueInCents: 4330,
+      refunds: validRefundPayment.refunds,
+      valueInCents: 12_990,
+    });
+
+    await expect(requestRefund()).resolves.toBeUndefined();
+    expect(dependencies.gateway.refundInstallment).toHaveBeenCalledWith({
+      installmentId: "ins_123",
+    });
   });
 
   it("aggregates the per-charge refund evidence returned for an installment", async () => {

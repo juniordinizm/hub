@@ -370,6 +370,7 @@ describe("AsaasClient", () => {
         customer: "cus_123",
         externalReference: "order_123",
         id: "pay_123",
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_123",
         netValue: 127.4,
         refunds: [
           {
@@ -394,6 +395,7 @@ describe("AsaasClient", () => {
       customer: "cus_123",
       externalReference: "order_123",
       id: "pay_123",
+      invoiceUrl: "https://sandbox.asaas.com/i/pay_123",
       netValueInCents: 12_740,
       refunds: [
         {

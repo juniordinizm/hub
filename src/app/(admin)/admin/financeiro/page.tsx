@@ -60,6 +60,11 @@ const webhookStatusLabels: Record<string, string> = {
   received: "Recebido",
 };
 
+const pricingPolicyLabels = {
+  buyer_pays_incremental_installment_cost: "Cliente paga o acréscimo",
+  seller_absorbs_all: "Vendedor absorve",
+} as const;
+
 const readSearchParameter = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 
@@ -103,6 +108,31 @@ const getOrderQuery = (
   };
 };
 
+function FinancialQuoteSnapshot({
+  order,
+}: {
+  order: AdminOrder;
+}): React.JSX.Element | null {
+  if (order.quotedNetAmountInCents === null) {
+    return null;
+  }
+  const fee =
+    order.quotedFeeAmountInCents === null
+      ? ""
+      : ` · tarifa ${formatCurrencyInCents(order.quotedFeeAmountInCents)}`;
+  const target =
+    order.targetNetAmountInCents === null
+      ? ""
+      : ` · meta ${formatCurrencyInCents(order.targetNetAmountInCents)}`;
+  return (
+    <p className="mt-1 text-muted-foreground text-xs">
+      Cotação: líquido {formatCurrencyInCents(order.quotedNetAmountInCents)}
+      {fee}
+      {target}
+    </p>
+  );
+}
+
 export function FinancialOrderCard({
   canManageFinancialOperations,
   hasPendingBuyerIdentityReview,
@@ -132,6 +162,12 @@ export function FinancialOrderCard({
             order.paidAmountInCents ?? order.amountInCents
           )}
         </span>
+        <span>Base: {formatCurrencyInCents(order.baseAmountInCents)}</span>
+        {order.surchargeAmountInCents > 0 ? (
+          <span>
+            Acréscimo: {formatCurrencyInCents(order.surchargeAmountInCents)}
+          </span>
+        ) : null}
         {order.netAmountInCents === null ? null : (
           <span>Líquido: {formatCurrencyInCents(order.netAmountInCents)}</span>
         )}
@@ -140,20 +176,23 @@ export function FinancialOrderCard({
         )}
         <span className="text-muted-foreground">/</span>
         <span className="font-mono text-[10px] text-muted-foreground">
-          checkout {order.providerCheckoutId ?? "pendente"}
+          {order.providerPurchaseFlow === "invoice" ? "fatura" : "checkout"}{" "}
+          {order.providerCheckoutId ?? "direta"}
         </span>
         <span className="font-mono text-[10px] text-muted-foreground">
           pagamento {order.providerPaymentId ?? "não correlacionado"}
         </span>
       </div>
       <p className="mt-2 text-muted-foreground text-xs">
-        {order.paymentMethod ?? "Método pendente"} · checkout{" "}
+        {order.paymentMethod ?? "Método pendente"} · {order.installmentCount}x ·{" "}
+        {pricingPolicyLabels[order.cardPricingPolicy]} · checkout{" "}
         {order.checkoutStatus} · pagamento{" "}
         {order.providerPaymentStatus ?? "pendente"}
         {order.refundRequestStatus
           ? ` · reembolso ${order.refundRequestStatus}`
           : ""}
       </p>
+      <FinancialQuoteSnapshot order={order} />
       {order.status === "paid" && !hasPendingBuyerIdentityReview ? (
         <RefundOperation orderId={order.id} />
       ) : null}

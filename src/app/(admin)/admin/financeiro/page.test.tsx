@@ -19,6 +19,8 @@ import { FinancialOrderCard, FinancialStatementImportCard } from "./page";
 
 const paidOrder = {
   amountInCents: 12_990,
+  baseAmountInCents: 12_000,
+  cardPricingPolicy: "buyer_pays_incremental_installment_cost",
   checkoutStatus: "active",
   courseId: "course-1",
   courseTitle: "Curso",
@@ -26,15 +28,21 @@ const paidOrder = {
   customerName: "Student",
   feeAmountInCents: 390,
   id: "order-1",
+  installmentCount: 3,
   netAmountInCents: 12_600,
   paidAmountInCents: 12_990,
   paidAt: new Date("2026-07-30T12:00:00.000Z"),
   paymentMethod: "PIX",
-  providerCheckoutId: "chk-1",
+  providerCheckoutId: null,
   providerPaymentId: "pay-1",
   providerPaymentStatus: "RECEIVED",
+  providerPurchaseFlow: "invoice",
+  quotedFeeAmountInCents: 390,
+  quotedNetAmountInCents: 12_600,
   refundRequestStatus: null,
   status: "paid",
+  surchargeAmountInCents: 990,
+  targetNetAmountInCents: 12_600,
 } as const;
 
 describe("FinancialOrderCard", () => {
@@ -52,6 +60,10 @@ describe("FinancialOrderCard", () => {
     expect(markup.match(/name="orderId"/g)).toHaveLength(1);
     expect(markup.match(/id="refund-password-order-1"/g)).toHaveLength(1);
     expect(markup).not.toContain("Conciliar pagamento");
+    expect(markup).toContain("Base:");
+    expect(markup).toContain("Acréscimo:");
+    expect(markup).toContain("Cliente paga o acréscimo");
+    expect(markup).toContain("fatura direta");
   });
 
   it("shows reconciliation with mutable financial access", () => {

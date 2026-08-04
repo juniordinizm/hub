@@ -31,6 +31,9 @@ export interface CourseData {
   id: string;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
+  paymentCardPricingPolicy:
+    | "buyer_pays_incremental_installment_cost"
+    | "seller_absorbs_all";
   paymentMaxInstallmentCount: number;
   priceInCents: number;
   slug: string;
@@ -179,13 +182,36 @@ export function CourseSettingsForm({
                   type="number"
                 />
               </Field>
+              <Field className="md:col-span-3">
+                <FieldLabel htmlFor="course-payment-pricing-policy">
+                  Custo do parcelamento
+                </FieldLabel>
+                <Select
+                  defaultValue={course.paymentCardPricingPolicy}
+                  name="paymentCardPricingPolicy"
+                >
+                  <SelectTrigger id="course-payment-pricing-policy">
+                    <SelectValue placeholder="Selecione a politica" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="buyer_pays_incremental_installment_cost">
+                      Cliente paga somente o acrescimo das parcelas
+                    </SelectItem>
+                    <SelectItem value="seller_absorbs_all">
+                      Parcelamento sem acrescimo
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
             </div>
             <p className="mt-3 text-muted-foreground text-xs">
-              O Checkout hospedado nao permite definir, por compra, quem paga os
-              juros do parcelamento. Taxas e recebimento seguem o contrato da
-              conta Asaas.
+              1x permanece sem acrescimo. Nas demais parcelas, o Hub le as taxas
+              atuais da conta Asaas automaticamente e fixa o total antes de
+              enviar a compradora para a Fatura hospedada. Escolha Cliente paga
+              somente o acrescimo das parcelas ou Parcelamento sem acrescimo.
             </p>
             {course.paymentAllowCreditCard &&
+            course.paymentCardPricingPolicy === "seller_absorbs_all" &&
             effectiveMaxInstallmentCount < course.paymentMaxInstallmentCount ? (
               <p className="mt-2 text-amber-700 text-xs">
                 Pelo preco atual, o Checkout sera limitado a{" "}

@@ -65,6 +65,7 @@ describe("runMaintenance", () => {
       .mockResolvedValueOnce({ rowCount: 2 })
       .mockResolvedValueOnce({ rowCount: 3 })
       .mockResolvedValueOnce({ rowCount: 4 })
+      .mockResolvedValueOnce({ rowCount: 12 })
       .mockResolvedValueOnce({ rowCount: 10 })
       .mockResolvedValueOnce({ rowCount: 11 })
       .mockResolvedValueOnce({ rowCount: 5 })
@@ -78,6 +79,7 @@ describe("runMaintenance", () => {
       checkoutReservationsRemoved: 10,
       deadlineReached: false,
       expiredRateLimitsRemoved: 7,
+      expiredPaymentQuotesRemoved: 12,
       expiredSessionsRemoved: 2,
       learningAnalyticsAggregated: 5,
       learningAnalyticsEventsRemoved: 6,
@@ -90,6 +92,17 @@ describe("runMaintenance", () => {
     expect(query).toHaveBeenCalledWith(
       "delete from public_checkout_rate_limits where expires_at < now()"
     );
+    const quoteCleanupQuery = query.mock.calls.find(([sql]) =>
+      String(sql).includes("with expired_quotes")
+    )?.[0];
+    expect(quoteCleanupQuery).toContain("from course_payment_quotes");
+    expect(quoteCleanupQuery).toContain(
+      "expires_at < now() - interval '7 days'"
+    );
+    expect(quoteCleanupQuery).toContain("not exists");
+    expect(quoteCleanupQuery).toContain("from orders");
+    expect(quoteCleanupQuery).toContain("limit 500");
+    expect(quoteCleanupQuery).toContain("for update skip locked");
     const cleanupQuery = query.mock.calls.find(([sql]) =>
       String(sql).includes("with stale_reservations")
     )?.[0];
@@ -151,6 +164,7 @@ describe("runMaintenance", () => {
           certificateTemplateAssetsRemoved: 9,
           checkoutReservationsRemoved: 10,
           deadlineReached: false,
+          expiredPaymentQuotesRemoved: 12,
           expiredRateLimitsRemoved: 7,
           expiredSessionsRemoved: 2,
           learningAnalyticsAggregated: 5,

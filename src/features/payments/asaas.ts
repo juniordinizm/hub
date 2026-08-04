@@ -6,6 +6,76 @@ export interface AsaasCustomer {
   name: string;
 }
 
+export interface AsaasCustomerReference extends AsaasCustomer {
+  externalReference: string;
+}
+
+export interface AsaasCustomerPage {
+  data: AsaasCustomerReference[];
+  hasMore: boolean;
+  limit: number;
+  object: string;
+  offset: number;
+  totalCount: number;
+}
+
+export interface AsaasCreditCardFeeSchedule {
+  discountExpiration?: string;
+  oneInstallmentPercentageBasisPoints: number;
+  operationFeeInCents: number;
+  promotionalOneInstallmentPercentageBasisPoints?: number;
+  promotionalUpToSixInstallmentsPercentageBasisPoints?: number;
+  promotionalUpToTwelveInstallmentsPercentageBasisPoints?: number;
+  upToSixInstallmentsPercentageBasisPoints: number;
+  upToTwelveInstallmentsPercentageBasisPoints: number;
+}
+
+export interface AsaasPaymentSimulation {
+  feePercentageBasisPoints: number;
+  installmentAmountInCents: number;
+  installmentNetAmountInCents: number;
+  netAmountInCents: number;
+  operationFeeInCents: number;
+}
+
+export interface SimulateAsaasPayment {
+  billingType: "CREDIT_CARD";
+  installmentCount: number;
+  valueInCents: number;
+}
+
+export interface CreateAsaasCustomer {
+  cpfCnpj: string;
+  email: string;
+  externalReference: string;
+  name: string;
+}
+
+export interface CreateAsaasPayment {
+  billingType: "CREDIT_CARD" | "PIX";
+  callback?: {
+    autoRedirect: boolean;
+    successUrl: string;
+  };
+  customerId: string;
+  description: string;
+  dueDate: string;
+  externalReference: string;
+  installmentCount: number;
+  totalAmountInCents: number;
+}
+
+export interface CreatedAsaasPayment {
+  id: string;
+  installmentId: string | null;
+  invoiceUrl: string;
+  status: string;
+}
+
+export interface ListAsaasCustomers {
+  externalReference: string;
+}
+
 export interface AsaasCheckout {
   id: string;
   link: string;
@@ -47,6 +117,7 @@ export interface AsaasPayment {
   externalReference: string | null;
   id: string;
   installmentId?: string;
+  invoiceUrl?: string;
   netValueInCents: number;
   refunds: AsaasRefundEvidence[];
   status: string;
@@ -117,9 +188,13 @@ export interface RefundAsaasInstallment {
 export interface AsaasGateway {
   cancelCheckout(checkoutId: string): Promise<AsaasCheckout>;
   createCheckout(input: CreateAsaasCheckout): Promise<AsaasCheckout>;
+  createCustomer(input: CreateAsaasCustomer): Promise<AsaasCustomerReference>;
+  createPayment(input: CreateAsaasPayment): Promise<CreatedAsaasPayment>;
+  getAccountFees(): Promise<AsaasCreditCardFeeSchedule>;
   getCustomer(customerId: string): Promise<AsaasCustomer>;
   getInstallment(installmentId: string): Promise<AsaasInstallment>;
   getPayment(paymentId: string): Promise<AsaasPayment>;
+  listCustomers(filters: ListAsaasCustomers): Promise<AsaasCustomerPage>;
   listFinancialTransactions(
     filters: ListAsaasFinancialTransactions
   ): Promise<AsaasFinancialTransactionPage>;
@@ -127,4 +202,5 @@ export interface AsaasGateway {
   listPayments(filters: ListAsaasPayments): Promise<AsaasPaymentPage>;
   refundInstallment(input: RefundAsaasInstallment): Promise<AsaasInstallment>;
   refundPayment(input: RefundAsaasPayment): Promise<AsaasPayment>;
+  simulatePayment(input: SimulateAsaasPayment): Promise<AsaasPaymentSimulation>;
 }

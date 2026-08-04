@@ -1,7 +1,10 @@
-import {
-  type CoursePaymentOffer,
-  parseCoursePaymentOffer,
-} from "./course-payment-offer";
+import { parseCoursePaymentOffer } from "./course-payment-offer";
+
+interface LegacyCheckoutPaymentOffer {
+  allowCreditCard: boolean;
+  allowPix: boolean;
+  maxInstallmentCount: number;
+}
 
 export interface AsaasCheckoutPaymentOptions {
   billingTypes: Array<"CREDIT_CARD" | "PIX">;
@@ -12,9 +15,12 @@ export interface AsaasCheckoutPaymentOptions {
 }
 
 export const buildAsaasCheckoutPaymentOptions = (
-  offer: CoursePaymentOffer
+  offer: LegacyCheckoutPaymentOffer
 ): AsaasCheckoutPaymentOptions => {
-  const parsed = parseCoursePaymentOffer(offer);
+  const parsed = parseCoursePaymentOffer({
+    ...offer,
+    cardPricingPolicy: "seller_absorbs_all",
+  });
   const billingTypes: AsaasCheckoutPaymentOptions["billingTypes"] = [];
   if (parsed.allowPix) {
     billingTypes.push("PIX");

@@ -44,6 +44,19 @@ describe("server environment", () => {
     expect(getServerEnv().ASAAS_WEBHOOK_ENABLED).toBe(true);
   });
 
+  it("requires HTTPS when the Asaas payment return is enabled", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("ASAAS_PAYMENT_RETURN_ENABLED", "true");
+    setEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+
+    expect(() => getServerEnv()).toThrow(
+      "ASAAS_PAYMENT_RETURN_ENABLED requires an HTTPS NEXT_PUBLIC_APP_URL."
+    );
+
+    setEnv("NEXT_PUBLIC_APP_URL", "https://preview.neurocapacitar.com.br");
+    expect(getServerEnv().ASAAS_PAYMENT_RETURN_ENABLED).toBe(true);
+  });
+
   it("requires an explicit auth secret in production", () => {
     setEnv("NODE_ENV", "production");
     setEnv("BETTER_AUTH_SECRET", "");

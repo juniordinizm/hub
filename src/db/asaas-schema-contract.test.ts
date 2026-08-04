@@ -2,9 +2,13 @@ import { readFile } from "node:fs/promises";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
+  asaasCustomerMappingStatusEnum,
+  asaasCustomerMappings,
   asaasStatementImportCursors,
   buyerIdentityStatusEnum,
   checkoutStatusEnum,
+  courseCardPricingPolicyEnum,
+  coursePaymentQuotes,
   courses,
   enrollmentGrantSourceTypeEnum,
   enrollmentGrants,
@@ -12,6 +16,7 @@ import {
   orders,
   paymentReviews,
   paymentReviewTypeEnum,
+  providerPurchaseFlowEnum,
   publicCheckoutRateLimits,
   refundRequestStatusEnum,
   refundRequests,
@@ -63,6 +68,81 @@ describe("Asaas persistence contract", () => {
     expect(checkNames(courses)).toContain(
       "courses_price_in_cents_zero_or_minimum"
     );
+  });
+
+  it("persists automatic installment pricing without changing historical offers", async () => {
+    expect(courseCardPricingPolicyEnum.enumValues).toEqual([
+      "seller_absorbs_all",
+      "buyer_pays_incremental_installment_cost",
+    ]);
+    expect(providerPurchaseFlowEnum.enumValues).toEqual([
+      "checkout",
+      "invoice",
+    ]);
+    expect(asaasCustomerMappingStatusEnum.enumValues).toEqual([
+      "pending",
+      "creating",
+      "ready",
+      "uncertain",
+      "failed",
+    ]);
+    expect(columnNames(courses)).toContain("payment_card_pricing_policy");
+    expect(columnNames(coursePaymentQuotes)).toEqual(
+      expect.arrayContaining([
+        "id",
+        "course_id",
+        "signature",
+        "provider_environment",
+        "base_amount_in_cents",
+        "card_pricing_policy",
+        "options_json",
+        "fee_profile_json",
+        "generated_at",
+        "expires_at",
+      ])
+    );
+    expect(indexNames(coursePaymentQuotes)).toContain(
+      "course_payment_quotes_signature_expires_idx"
+    );
+    expect(columnNames(asaasCustomerMappings)).not.toContain("cpf_cnpj");
+    expect(indexNames(asaasCustomerMappings)).toEqual(
+      expect.arrayContaining([
+        "asaas_customer_mappings_identity_unique_idx",
+        "asaas_customer_mappings_provider_customer_unique_idx",
+      ])
+    );
+    expect(columnNames(orders)).toEqual(
+      expect.arrayContaining([
+        "provider_purchase_flow",
+        "payment_quote_id",
+        "base_amount_in_cents",
+        "surcharge_amount_in_cents",
+        "installment_count",
+        "card_pricing_policy",
+        "target_net_amount_in_cents",
+        "quoted_net_amount_in_cents",
+        "quoted_fee_amount_in_cents",
+        "quoted_fee_percentage_basis_points",
+        "quoted_operation_fee_in_cents",
+        "quoted_at",
+      ])
+    );
+    expect(checkNames(orders)).toContain("orders_pricing_snapshot_consistent");
+
+    const migration = await readFile(
+      new URL(
+        "./migrations/0056_asaas_installment_pricing.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    expect(migration).toContain(
+      'UPDATE "courses" SET "payment_card_pricing_policy" = \'seller_absorbs_all\''
+    );
+    expect(migration).toContain(
+      'UPDATE "orders" SET "base_amount_in_cents" = "amount_in_cents"'
+    );
+    expect(migration).not.toMatch(DESTRUCTIVE_PAYMENT_DELETE_PATTERN);
   });
 
   it("uses a provider-neutral paid order as the access grant source", () => {

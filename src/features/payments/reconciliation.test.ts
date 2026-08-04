@@ -47,9 +47,11 @@ const orderRow = {
   external_id: "order_order-1",
   id: "order-1",
   provider_checkout_id: "chk-1",
+  provider_customer_id: "cus-1",
   provider_installment_id: null,
   provider_payment_id: "pay-1",
   provider_payment_status: "RECEIVED",
+  provider_purchase_flow: "checkout",
   status: "paid",
   user_id: "user-1",
 };
@@ -220,6 +222,7 @@ describe("Asaas reconciliation", () => {
     const publicOrder = {
       ...orderRow,
       buyer_identity_status: "pending",
+      provider_customer_id: "cus-public",
       provider_payment_status: null,
       status: "pending",
       user_id: null,
@@ -295,6 +298,7 @@ describe("Asaas reconciliation", () => {
     const publicOrder = {
       ...orderRow,
       buyer_identity_status: "pending",
+      provider_customer_id: "cus-invalid",
       provider_payment_status: null,
       status: "pending",
       user_id: null,
@@ -359,6 +363,7 @@ describe("Asaas reconciliation", () => {
     const publicOrder = {
       ...orderRow,
       buyer_identity_status: "pending",
+      provider_customer_id: "cus-team",
       provider_payment_status: null,
       status: "pending",
       user_id: null,
@@ -494,6 +499,64 @@ describe("Asaas reconciliation", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("reconciles an Invoice payment only through its exact external reference", async () => {
+    const invoiceOrder = {
+      ...orderRow,
+      provider_checkout_id: null,
+      provider_purchase_flow: "invoice",
+    };
+    const client = {
+      query: vi.fn((text: string) =>
+        Promise.resolve(
+          text.includes("from orders") ? { rows: [invoiceOrder] } : { rows: [] }
+        )
+      ),
+      release: vi.fn(),
+    };
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [invoiceOrder] }),
+    });
+
+    await expect(
+      reconcileAsaasPayment({
+        actorUserId: "admin-1",
+        gateway: new FakeAsaasGateway({
+          getPayment: {
+            ...payment,
+            checkoutSession: null,
+          },
+        }),
+        orderId: "order-1",
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects an Invoice payment without its exact external reference", async () => {
+    const invoiceOrder = {
+      ...orderRow,
+      provider_checkout_id: null,
+      provider_purchase_flow: "invoice",
+    };
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({ rows: [invoiceOrder] }),
+    });
+
+    await expect(
+      reconcileAsaasPayment({
+        actorUserId: "admin-1",
+        gateway: new FakeAsaasGateway({
+          getPayment: {
+            ...payment,
+            checkoutSession: null,
+            externalReference: null,
+          },
+        }),
+        orderId: "order-1",
+      })
+    ).rejects.toThrow("A consulta Asaas nao corresponde ao Pedido informado.");
+  });
+
   it("reconciles every payment under the exact installment aggregate", async () => {
     const installmentOrder = {
       ...orderRow,
@@ -608,6 +671,70 @@ describe("Asaas reconciliation", () => {
         text.includes("insert into payment_reviews")
       )
     ).toBe(false);
+  });
+
+  it("reconciles an Invoice installment through every exact external reference", async () => {
+    const invoiceOrder = {
+      ...orderRow,
+      buyer_identity_status: "review_required",
+      provider_checkout_id: null,
+      provider_installment_id: "ins-1",
+      provider_purchase_flow: "invoice",
+      user_id: null,
+    };
+    const client = {
+      query: vi.fn((text: string) =>
+        Promise.resolve(
+          text.includes("from orders") ? { rows: [invoiceOrder] } : { rows: [] }
+        )
+      ),
+      release: vi.fn(),
+    };
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [invoiceOrder] }),
+    });
+    const invoiceInstallmentPayment = {
+      ...payment,
+      billingType: "CREDIT_CARD",
+      checkoutSession: null,
+      installmentId: "ins-1",
+      refunds: [],
+      status: "RECEIVED",
+      valueInCents: 4330,
+    };
+    const gateway = new FakeAsaasGateway({
+      getInstallment: {
+        billingType: "CREDIT_CARD",
+        checkoutSession: null,
+        id: "ins-1",
+        installmentCount: 3,
+        netValueInCents: 12_500,
+        paymentValueInCents: 4330,
+        refunds: [],
+        valueInCents: 12_990,
+      },
+      listInstallmentPayments: {
+        data: [
+          invoiceInstallmentPayment,
+          { ...invoiceInstallmentPayment, id: "pay-2" },
+          { ...invoiceInstallmentPayment, id: "pay-3" },
+        ],
+        hasMore: false,
+        limit: 100,
+        object: "list",
+        offset: 0,
+        totalCount: 3,
+      },
+    });
+
+    await expect(
+      reconcileAsaasPayment({
+        actorUserId: "admin-1",
+        gateway,
+        orderId: "order-1",
+      })
+    ).resolves.toBeUndefined();
   });
 
   it.each([

@@ -13,7 +13,7 @@ Centralizar venda, entrega e operação de Cursos da PROTEA-R. O Hub permite que
 ## Público
 
 - **Aluna:** aprende, acompanha acesso/progresso, comenta, baixa materiais e consulta Certificados.
-- **Compradora:** fornece identidade no checkout hospedado Asaas. Na compra de Curso
+- **Compradora:** fornece identidade no Hub e conclui o pagamento na Fatura hospedada Asaas. Na compra de Curso
   atual, Compradora e Aluna são a mesma pessoa; compra para terceiro permanece fora do
   escopo.
 - **Especialista:** define conteúdo, experiência pedagógica e decisões de produto.
@@ -26,23 +26,23 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 ### Compra e liberação
 
-1. Visitante ou Aluna autenticada escolhe Curso ativo e inicia checkout.
-2. Hub persiste o Pedido e seus snapshots antes de criar o checkout hospedado Asaas com
-   item inline; não existe produto remoto por Curso.
+1. Visitante ou Aluna autenticada abre o link estável do Curso, informa identidade e
+   escolhe Pix/cartão e, no cartão, a quantidade de parcelas disponível.
+2. Hub cota o total, persiste o Pedido e seus snapshots antes de criar Cliente e Fatura
+   direta Asaas; não existe produto remoto por Curso.
 3. Webhook autenticado entra em inbox durável e o worker atualiza o Pedido.
 4. Pagamento válido vincula a compra à Conta existente pelo e-mail local ou cria uma
    Conta não verificada, depois cria Concessão e recompõe a Matrícula.
 5. Hub envia ativação ou aviso de acesso pela outbox; divergência financeira cria revisão
    humana.
 
-A jornada pública aprovada está implementada em código: usa o link estável
-`/comprar/[slug]`, copiável pela administração e consumido pela landing page externa; o
-handoff cria o Checkout sem formulário local e mantém `/` protegida. O worker enriquece a
-identidade fora da transação e trata Conta de equipe, bloqueio e revogação sem liberar
-acesso. A execução E2E em PostgreSQL descartável e o handoff público no Sandbox foram
-homologados. Uma compra pública em 3x, o bloqueio de identidade revogada e o reembolso
-integral do parcelamento foram homologados manualmente no Sandbox de Staging; somente o
-corte controlado de Production permanece pendente.
+A jornada pública aprovada usa `/comprar/[slug]`, copiável pela administração e consumido
+pela landing page externa, sem tornar `/` pública. O Hub coleta apenas os dados necessários
+para Cliente/Fatura e não recebe dados de cartão. Conta de equipe, bloqueio, revogação e
+acesso existente impedem a cobrança; a verificação autoritativa após o pagamento permanece
+como proteção contra corridas. A implementação de Fatura e precificação automática está
+concluída localmente; a migration passou em Development e os smokes pelo ngrok/Sandbox
+passaram. Pagamento e efeitos financeiros ainda aguardam homologação manual.
 
 ### Aprendizagem
 
@@ -70,14 +70,13 @@ corte controlado de Production permanece pendente.
 - vídeo JMVStream, texto rico, anexos e imagens R2;
 - catálogo, Matrícula, expiração, bloqueio, progresso e analytics técnico minimizado;
 - comentários com uma camada de resposta e moderação;
-- núcleo Asaas anterior da compra autenticada, inbox/worker, conciliação e reembolso
+- núcleo Asaas, inbox/worker, conciliação e reembolso
   integral implementados e homologados em Sandbox, ainda sem corte de Production;
-- API, jornada pública e revisão de identidade implementadas, cobertas por E2E em
-  PostgreSQL descartável e homologadas no handoff Sandbox;
-- oferta comercial por Curso com Pix, cartão ou ambos e teto de parcelamento,
-  homologada no Checkout Sandbox com pagamento e reembolso reais em 3x;
+- jornada pública por Fatura direta e identidade pré-cobrança implementada localmente;
+- oferta por Curso com Pix, cartão ou ambos, teto de 1x a 12x e política de absorção ou
+  acréscimo incremental calculado a partir das taxas/simulações da conta Asaas;
 - Certificados públicos, PDF, revogação e reemissão;
-- manutenção técnica de sessões, rate limits e analytics com retenção limitada;
+- manutenção técnica de sessões, rate limits, cotações órfãs expiradas e analytics;
 - banners, FAQ, configurações, auditoria e crons operacionais.
 
 ## Não objetivos atuais
@@ -101,8 +100,7 @@ decisão arquitetural retroativamente inventada.
 O [registro de decisões](docs/decisions.md) separa comportamento implementado, decisão aprovada, implementação aguardando ratificação e pendência real.
 
 Pendências principais: base legal e texto final de transparência para analytics padrão
-antes da produção; política comercial para eventual subsídio de juros, não configurável
-no Checkout hospedado;
+antes da produção; validação contábil do destaque do acréscimo;
 reversão de ajustes encadeados;
 critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão
 tratados como caso excepcional quando houver política jurídica formal e demanda real.

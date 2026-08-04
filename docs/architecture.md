@@ -81,8 +81,10 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 
 ### Checkout e acesso
 
-1. Route Handler/Action chama `createPublicCourseCheckout` ou `createCourseCheckout`.
-2. O núcleo Asaas persiste o Pedido e seus snapshots antes da chamada externa.
+1. `/comprar/[slug]` solicita uma cotação pública e envia uma escolha explícita para
+   `/api/purchases/course`.
+2. O núcleo Asaas revalida a cotação, persiste o Pedido e seus snapshots e então resolve
+   Cliente e cria a Fatura; dados de cartão nunca atravessam o Hub.
 3. `/api/webhooks/asaas` autentica, limita, valida e persiste a inbox antes de `200`.
 4. O worker reivindica o evento e abre uma transação com posse exclusiva.
 5. `processAsaasWebhookEvent` correlaciona somente identificadores exatos, bloqueia o
@@ -120,7 +122,8 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
 - download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
-  limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
+  limpeza técnica limitada: sessões e rate limits expirados, cotações expiradas sem
+  Pedido, reservas Asaas
   inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas
   após 30 dias, agregação diária de analytics e retenção de analytics brutos por 90 dias
   e agregados por 13 meses.
@@ -186,8 +189,9 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `courses/server.ts`: catálogo, acesso da aluna, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
-- `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
-  compartilhada, `asaas-financial-events.ts` decide eventos e consultas,
+- `payments/provider.ts` cria o adapter Asaas; `payment-quotes.ts`,
+  `invoice-intent.ts` e `postgres-invoice-intent-store.ts` concentram novas compras;
+  `checkout.ts` permanece para histórico, `asaas-financial-events.ts` decide eventos e consultas,
   `apply-authoritative-financial-evidence.ts` aplica o efeito local e
   `public-checkout.ts` autoriza a entrada pública. Provider e transição financeira não
   devem ser misturados em uma API genérica.
@@ -215,13 +219,13 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 #### Acesso e comércio
 
-- **Símbolos:** `resolveCourseAccess` e `resolveLessonAccess`; concessões, projeção e ajustes de expiração; checkout autenticado/público, webhook, revisão e retry de pagamento.
-- **Consumidores:** cursos, actions administrativas, handlers de checkout e webhook
+- **Símbolos:** `resolveCourseAccess` e `resolveLessonAccess`; concessões, projeção e ajustes de expiração; cotação, Fatura pública, webhook, revisão e retry de pagamento.
+- **Consumidores:** cursos, actions administrativas, handlers de compra e webhook
   Asaas.
 - **Invariante, transação e efeitos:** Concessão é fonte e Matrícula é projeção. A inbox
   deduplicada só aplica transição financeira válida; conflitos entram em revisão. O
-  adapter Asaas concentra HTTP/configuração, e o rate limit pertence exclusivamente ao
-  checkout público.
+  adapter Asaas concentra HTTP/configuração, e o rate limit pertence exclusivamente às
+  entradas públicas de cotação e compra.
 
 #### JMVStream e resources
 

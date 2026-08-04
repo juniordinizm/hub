@@ -60,6 +60,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [ADR-0006: ciclo de certificados](adr/0006-certificate-lifecycle.md)
 - [ADR-0007: versionamento curricular](adr/0007-course-versioning-and-enrollment-curriculum.md)
 - [ADR-0008: analytics opcional de aprendizagem](adr/0008-optional-learning-analytics.md)
+- [ADR-0009: precificação automática e Fatura Asaas](adr/0009-automatic-installment-pricing-and-invoice-flow.md)
 
 ### Revisões
 
@@ -75,6 +76,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Plano do runtime Staging e manutenção](superpowers/plans/2026-08-01-staging-runtime-and-maintenance.md)
 - [Plano de provisionamento e release do Staging](superpowers/plans/2026-08-01-staging-provisioning-and-release.md)
 - [Plano de robustecimento do modulo de pagamentos](superpowers/plans/2026-08-03-payments-module-hardening.md)
+- [Plano de precificacao automatica do parcelamento Asaas](superpowers/plans/2026-08-03-asaas-automatic-installment-pricing.md)
 
 ## Contrato de manutenção
 

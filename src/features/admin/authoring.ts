@@ -66,6 +66,9 @@ interface CourseFormValues {
   description: string | null;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
+  paymentCardPricingPolicy:
+    | "buyer_pays_incremental_installment_cost"
+    | "seller_absorbs_all";
   paymentMaxInstallmentCount: number;
   priceInCents: number;
   status: ContentStatus;
@@ -165,6 +168,7 @@ const readCourseFormValues = (formData: FormData): CourseFormValues => {
     ? parseCoursePaymentOffer({
         allowCreditCard: formData.has("paymentAllowCreditCard"),
         allowPix: formData.has("paymentAllowPix"),
+        cardPricingPolicy: readString(formData, "paymentCardPricingPolicy"),
         maxInstallmentCount: readNumber(
           formData,
           "paymentMaxInstallmentCount",
@@ -178,6 +182,7 @@ const readCourseFormValues = (formData: FormData): CourseFormValues => {
     description: readString(formData, "description") || null,
     paymentAllowCreditCard: paymentOffer.allowCreditCard,
     paymentAllowPix: paymentOffer.allowPix,
+    paymentCardPricingPolicy: paymentOffer.cardPricingPolicy,
     paymentMaxInstallmentCount: paymentOffer.maxInstallmentCount,
     priceInCents: parseCoursePriceToCents(readString(formData, "price")),
     status: readContentStatus(formData),
@@ -955,12 +960,13 @@ const updateExistingCourse = async ({
             payment_allow_pix = $5,
             payment_allow_credit_card = $6,
             payment_max_installment_count = $7,
-            thumbnail_url = $8,
-            cover_image_json = $9::jsonb,
-            access_duration_months = $10,
-            status = $11,
+            payment_card_pricing_policy = $8,
+            thumbnail_url = $9,
+            cover_image_json = $10::jsonb,
+            access_duration_months = $11,
+            status = $12,
             updated_at = now()
-        where id = $12
+        where id = $13
       `,
       [
         values.title,
@@ -970,6 +976,7 @@ const updateExistingCourse = async ({
         values.paymentAllowPix,
         values.paymentAllowCreditCard,
         values.paymentMaxInstallmentCount,
+        values.paymentCardPricingPolicy,
         thumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,
@@ -1040,12 +1047,13 @@ const createNewCourse = async ({
           payment_allow_pix,
           payment_allow_credit_card,
           payment_max_installment_count,
+          payment_card_pricing_policy,
           thumbnail_url,
           cover_image_json,
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13)
         returning id
       `,
       [
@@ -1058,6 +1066,7 @@ const createNewCourse = async ({
         values.paymentAllowPix,
         values.paymentAllowCreditCard,
         values.paymentMaxInstallmentCount,
+        values.paymentCardPricingPolicy,
         insertedThumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,

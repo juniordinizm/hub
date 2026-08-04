@@ -101,6 +101,11 @@ const inspectState = async (client: PoolClient): Promise<MigrationCheck[]> => {
       "remocao do workflow de solicitacoes de dados",
       "select to_regclass('public.privacy_requests') is null and to_regtype('public.privacy_request_status') is null as present"
     ),
+    scheduleExistsCheck(
+      "0056_asaas_installment_pricing",
+      "precificacao automatica, mapeamento de cliente e origem da compra",
+      "select to_regclass('public.course_payment_quotes') is not null and to_regclass('public.asaas_customer_mappings') is not null and to_regtype('public.course_card_pricing_policy') is not null and to_regtype('public.provider_purchase_flow') is not null and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'courses' and column_name = 'payment_card_pricing_policy') and exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'orders' and column_name in ('provider_purchase_flow', 'base_amount_in_cents', 'surcharge_amount_in_cents', 'installment_count', 'card_pricing_policy', 'payment_quote_id', 'target_net_amount_in_cents', 'quoted_net_amount_in_cents', 'quoted_fee_amount_in_cents', 'quoted_fee_percentage_basis_points', 'quoted_operation_fee_in_cents', 'quoted_at') having count(*) = 12) and to_regclass('public.orders_payment_quote_idx') is not null as present"
+    ),
     ...certificateMigrationStateChecks.map(({ check, migration, statement }) =>
       scheduleExistsCheck(migration, check, statement)
     ),

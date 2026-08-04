@@ -7,7 +7,7 @@ import {
 } from "@/features/payments/purchase-handoff";
 import { route } from "@/lib/routes";
 import { getCurrentSession } from "@/lib/session";
-import { PurchaseHandoffClient } from "./purchase-handoff-client";
+import { PurchaseFormClient } from "./purchase-form-client";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +92,15 @@ export default async function PurchasePage({
 
   if (view.kind === "checkout") {
     return (
-      <PurchaseHandoffClient
+      <PurchaseFormClient
+        {...(session?.role === "student"
+          ? {
+              buyer: {
+                email: session.user.email,
+                name: session.user.name,
+              },
+            }
+          : {})}
         courseSlug={view.courseSlug}
         courseTitle={view.courseTitle}
       />

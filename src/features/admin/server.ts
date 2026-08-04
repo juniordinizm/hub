@@ -117,6 +117,9 @@ export interface AdminCourse {
   id: string;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
+  paymentCardPricingPolicy:
+    | "buyer_pays_incremental_installment_cost"
+    | "seller_absorbs_all";
   paymentMaxInstallmentCount: number;
   priceInCents: number;
   slug: string;
@@ -215,6 +218,10 @@ export interface AdminPaymentReview {
 
 export interface AdminOrder {
   amountInCents: number;
+  baseAmountInCents: number;
+  cardPricingPolicy:
+    | "buyer_pays_incremental_installment_cost"
+    | "seller_absorbs_all";
   checkoutStatus: string;
   courseId: string;
   courseTitle: string;
@@ -222,6 +229,7 @@ export interface AdminOrder {
   customerName: string | null;
   feeAmountInCents: number | null;
   id: string;
+  installmentCount: number;
   netAmountInCents: number | null;
   paidAmountInCents: number | null;
   paidAt: Date | null;
@@ -229,8 +237,13 @@ export interface AdminOrder {
   providerCheckoutId: string | null;
   providerPaymentId: string | null;
   providerPaymentStatus: string | null;
+  providerPurchaseFlow: "checkout" | "invoice";
+  quotedFeeAmountInCents: number | null;
+  quotedNetAmountInCents: number | null;
   refundRequestStatus: string | null;
   status: string;
+  surchargeAmountInCents: number;
+  targetNetAmountInCents: number | null;
 }
 
 export interface AdminSettings {
@@ -282,6 +295,9 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     id: string;
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
+    payment_card_pricing_policy:
+      | "buyer_pays_incremental_installment_cost"
+      | "seller_absorbs_all";
     payment_max_installment_count: number;
     price_in_cents: number;
     slug: string;
@@ -293,8 +309,8 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     workload_hours: number;
   }>(
     courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
+      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, payment_card_pricing_policy, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
+      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, payment_card_pricing_policy, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
     courseId ? [courseId] : undefined
   );
 
@@ -305,6 +321,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     id: row.id,
     paymentAllowCreditCard: row.payment_allow_credit_card,
     paymentAllowPix: row.payment_allow_pix,
+    paymentCardPricingPolicy: row.payment_card_pricing_policy,
     paymentMaxInstallmentCount: row.payment_max_installment_count,
     priceInCents: row.price_in_cents,
     slug: row.slug,
@@ -626,6 +643,10 @@ const readOrders = async (
       })();
   const { rows } = await getPool().query<{
     amount_in_cents: number;
+    base_amount_in_cents: number;
+    card_pricing_policy:
+      | "buyer_pays_incremental_installment_cost"
+      | "seller_absorbs_all";
     checkout_status: string;
     course_id: string;
     course_title: string;
@@ -633,6 +654,7 @@ const readOrders = async (
     customer_name: string | null;
     fee_amount_in_cents: number | null;
     id: string;
+    installment_count: number;
     net_amount_in_cents: number | null;
     paid_at: Date | null;
     paid_amount_in_cents: number | null;
@@ -640,14 +662,23 @@ const readOrders = async (
     provider_checkout_id: string | null;
     provider_payment_id: string | null;
     provider_payment_status: string | null;
+    provider_purchase_flow: "checkout" | "invoice";
+    quoted_fee_amount_in_cents: number | null;
+    quoted_net_amount_in_cents: number | null;
     refund_request_status: string | null;
     status: string;
+    surcharge_amount_in_cents: number;
+    target_net_amount_in_cents: number | null;
   }>(
     `
       select o.id, c.id as course_id, c.title as course_title,
              o.provider_checkout_id, o.provider_payment_id, o.status,
              o.checkout_status, o.provider_payment_status, o.payment_method,
              o.amount_in_cents, o.paid_amount_in_cents, o.net_amount_in_cents,
+             o.base_amount_in_cents, o.surcharge_amount_in_cents,
+             o.installment_count, o.card_pricing_policy, o.provider_purchase_flow,
+             o.target_net_amount_in_cents, o.quoted_net_amount_in_cents,
+             o.quoted_fee_amount_in_cents,
              o.fee_amount_in_cents, o.customer_email, o.customer_name, o.paid_at,
              rr.status as refund_request_status
       from orders o
@@ -662,6 +693,8 @@ const readOrders = async (
 
   return rows.map((row) => ({
     amountInCents: row.amount_in_cents,
+    baseAmountInCents: row.base_amount_in_cents,
+    cardPricingPolicy: row.card_pricing_policy,
     checkoutStatus: row.checkout_status,
     courseId: row.course_id,
     courseTitle: row.course_title,
@@ -669,6 +702,7 @@ const readOrders = async (
     customerName: row.customer_name,
     feeAmountInCents: row.fee_amount_in_cents,
     id: row.id,
+    installmentCount: row.installment_count,
     netAmountInCents: row.net_amount_in_cents,
     paidAt: row.paid_at,
     paidAmountInCents: row.paid_amount_in_cents,
@@ -676,8 +710,13 @@ const readOrders = async (
     providerCheckoutId: row.provider_checkout_id,
     providerPaymentId: row.provider_payment_id,
     providerPaymentStatus: row.provider_payment_status,
+    providerPurchaseFlow: row.provider_purchase_flow,
+    quotedFeeAmountInCents: row.quoted_fee_amount_in_cents,
+    quotedNetAmountInCents: row.quoted_net_amount_in_cents,
     refundRequestStatus: row.refund_request_status,
     status: row.status,
+    surchargeAmountInCents: row.surcharge_amount_in_cents,
+    targetNetAmountInCents: row.target_net_amount_in_cents,
   }));
 };
 

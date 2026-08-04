@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseBuyerIdentity } from "./buyer-identity";
+import {
+  createAsaasIdentityFingerprint,
+  parseBuyerIdentity,
+  parsePurchaseBuyerIdentity,
+} from "./buyer-identity";
+
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 
 describe("parseBuyerIdentity", () => {
   it("normalizes a valid buyer identity", () => {
@@ -92,5 +98,38 @@ describe("parseBuyerIdentity", () => {
         name: "\u{1f9d1}".repeat(121),
       })
     ).toBeNull();
+  });
+
+  it("validates and normalizes CPF without persisting formatting", () => {
+    expect(
+      parsePurchaseBuyerIdentity({
+        cpfCnpj: "390.533.447-05",
+        email: " Buyer@Example.COM ",
+        name: " Compradora ",
+      })
+    ).toEqual({
+      cpfCnpj: "39053344705",
+      email: "buyer@example.com",
+      name: "Compradora",
+    });
+    expect(
+      parsePurchaseBuyerIdentity({
+        cpfCnpj: "111.111.111-11",
+        email: "buyer@example.com",
+        name: "Compradora",
+      })
+    ).toBeNull();
+  });
+
+  it("creates a domain-separated identity HMAC without exposing the document", () => {
+    const fingerprint = createAsaasIdentityFingerprint({
+      cpfCnpj: "39053344705",
+      normalizedEmail: "buyer@example.com",
+      secret: "test-secret",
+    });
+
+    expect(fingerprint).toMatch(SHA256_HEX_PATTERN);
+    expect(fingerprint).not.toContain("39053344705");
+    expect(fingerprint).not.toContain("buyer@example.com");
   });
 });

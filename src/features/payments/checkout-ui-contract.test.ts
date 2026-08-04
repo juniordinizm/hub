@@ -2,17 +2,22 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("checkout UI contract", () => {
-  it("renders one opaque attempt id with the authenticated purchase form", async () => {
-    const source = await readFile(
+  it("routes authenticated purchases through the public invoice form", async () => {
+    const dashboard = await readFile(
       "src/app/(student)/app/(dashboard)/page.tsx",
       "utf8"
     );
+    const purchaseForm = await readFile(
+      "src/app/comprar/[slug]/purchase-form-client.tsx",
+      "utf8"
+    );
 
-    expect(source).toContain('name="checkoutAttemptId"');
-    expect(source).toContain("value={randomUUID()}");
-    expect(source).toContain('name="courseId"');
-    expect(source).not.toContain('name="buyerEmail"');
-    expect(source).not.toContain('name="buyerName"');
+    expect(dashboard).toContain("route(`/comprar/");
+    expect(dashboard).toContain("course.slug");
+    expect(dashboard).not.toContain('name="checkoutAttemptId"');
+    expect(purchaseForm).toContain("crypto.randomUUID()");
+    expect(purchaseForm).toContain('name="cpfCnpj"');
+    expect(purchaseForm).not.toContain('name="cardNumber"');
   });
 
   it("does not claim payment confirmation on callback pages", async () => {

@@ -38,10 +38,12 @@ interface ReconciliationOrder {
   courseId: string;
   externalId: string;
   id: string;
-  providerCheckoutId: string;
+  providerCheckoutId: string | null;
+  providerCustomerId: string | null;
   providerInstallmentId: string | null;
   providerPaymentId: string;
   providerPaymentStatus: string | null;
+  providerPurchaseFlow: "checkout" | "invoice";
   providerRiskStatus: string | null;
   status: PersistedOrderStatus;
   userId: string | null;
@@ -69,7 +71,8 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
   return typeof value.id === "string" &&
     typeof value.course_id === "string" &&
     typeof value.external_id === "string" &&
-    typeof value.provider_checkout_id === "string" &&
+    (value.provider_checkout_id === null ||
+      typeof value.provider_checkout_id === "string") &&
     typeof value.provider_payment_id === "string" &&
     typeof value.amount_in_cents === "number" &&
     typeof value.buyer_identity_status === "string" &&
@@ -90,6 +93,10 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
         externalId: value.external_id,
         id: value.id,
         providerCheckoutId: value.provider_checkout_id,
+        providerCustomerId:
+          typeof value.provider_customer_id === "string"
+            ? value.provider_customer_id
+            : null,
         providerInstallmentId:
           typeof value.provider_installment_id === "string"
             ? value.provider_installment_id
@@ -98,6 +105,8 @@ const readReconciliationOrder = (row: unknown): ReconciliationOrder | null => {
           typeof value.provider_payment_status === "string"
             ? value.provider_payment_status
             : null,
+        providerPurchaseFlow:
+          value.provider_purchase_flow === "invoice" ? "invoice" : "checkout",
         providerPaymentId: value.provider_payment_id,
         providerRiskStatus:
           typeof value.provider_risk_status === "string"
@@ -319,6 +328,12 @@ const getReconciliationPayment = async ({
       gateway.listInstallmentPayments(order.providerInstallmentId ?? ""),
   });
   const payments = page.data;
+  const hasExactInvoiceReferences =
+    order.providerPurchaseFlow !== "invoice" ||
+    payments.every((payment) => payment.externalReference === order.externalId);
+  const hasExactCustomer =
+    order.providerCustomerId === null ||
+    payments.every((payment) => payment.customer === order.providerCustomerId);
   const hasExactPayments =
     installment.id === order.providerInstallmentId &&
     installment.checkoutSession === order.providerCheckoutId &&
@@ -326,6 +341,8 @@ const getReconciliationPayment = async ({
     installment.installmentCount === page.totalCount &&
     payments.length === page.totalCount &&
     payments.some((payment) => payment.id === order.providerPaymentId) &&
+    hasExactInvoiceReferences &&
+    hasExactCustomer &&
     payments.every(
       (payment) =>
         payment.installmentId === installment.id &&
@@ -341,7 +358,8 @@ const getReconciliationPayment = async ({
     billingType: installment.billingType,
     checkoutSession: installment.checkoutSession,
     customer: payments[0]?.customer ?? "",
-    externalReference: null,
+    externalReference:
+      order.providerPurchaseFlow === "invoice" ? order.externalId : null,
     id: order.providerPaymentId,
     installmentId: installment.id,
     netValueInCents: installment.netValueInCents,
@@ -468,6 +486,17 @@ const hasExactPaymentCorrelation = ({
   order: ReconciliationOrder;
   payment: AsaasPayment;
 }): boolean => {
+  const customerMatches =
+    order.providerCustomerId === null ||
+    payment.customer === order.providerCustomerId;
+  if (order.providerPurchaseFlow === "invoice") {
+    return (
+      payment.id === order.providerPaymentId &&
+      payment.externalReference === order.externalId &&
+      payment.checkoutSession === null &&
+      customerMatches
+    );
+  }
   const externalReferenceMatches =
     payment.externalReference === null ||
     payment.externalReference === order.externalId;
@@ -479,6 +508,7 @@ const hasExactPaymentCorrelation = ({
     payment.checkoutSession === order.providerCheckoutId;
   return (
     payment.id === order.providerPaymentId &&
+    customerMatches &&
     externalReferenceMatches &&
     checkoutSessionMatches &&
     hasExactOrderReference
@@ -498,7 +528,7 @@ export const reconcileAsaasPayment = async ({
   const initial = await pool.query(
     `select id, course_id, user_id, external_id, buyer_identity_status,
             access_duration_months,
-            provider_checkout_id,
+            provider_checkout_id, provider_customer_id, provider_purchase_flow,
             provider_payment_id, provider_installment_id,
             provider_payment_status, provider_risk_status, amount_in_cents, status
      from orders
@@ -528,7 +558,7 @@ export const reconcileAsaasPayment = async ({
     const locked = await client.query(
       `select id, course_id, user_id, external_id, buyer_identity_status,
               access_duration_months,
-              provider_checkout_id,
+              provider_checkout_id, provider_customer_id, provider_purchase_flow,
               provider_payment_id, provider_installment_id,
               provider_payment_status, provider_risk_status, amount_in_cents, status
        from orders
@@ -542,6 +572,8 @@ export const reconcileAsaasPayment = async ({
       current.providerPaymentId !== payment.id ||
       current.providerInstallmentId !== order.providerInstallmentId ||
       current.providerCheckoutId !== order.providerCheckoutId ||
+      current.providerCustomerId !== order.providerCustomerId ||
+      current.providerPurchaseFlow !== order.providerPurchaseFlow ||
       current.externalId !== order.externalId
     ) {
       throw new Error("O Pedido mudou durante a conciliacao.");

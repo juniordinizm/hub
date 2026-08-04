@@ -1151,6 +1151,47 @@ describe("Asaas webhook processor", () => {
     expect(update).toContain("$3::text is null");
   });
 
+  it("grants an invoice payment correlated without a checkout session", async () => {
+    const { context, queries } = createContext({
+      orderRow: createOrderRow({
+        amount_in_cents: 10_048,
+        provider_checkout_id: null,
+        provider_customer_id: "cus_1",
+        provider_payment_id: "pay_1",
+      }),
+    });
+    const applyPaidAccess = vi.fn(async () => undefined);
+    const processor = createAsaasWebhookProcessor({
+      applyPaidAccess,
+      applyRevocation: vi.fn(async () => true),
+      enqueueMessage: vi.fn(async () => ({ id: null, inserted: false })),
+      resolveIdentity: vi.fn(async () => ({
+        activationRequired: false,
+        userId: USER_ID,
+      })),
+    });
+
+    await expect(
+      processEvent(
+        processor,
+        createPaymentEvent("PAYMENT_RECEIVED", {
+          checkoutSession: null,
+          customer: "cus_1",
+          value: 100.48,
+        }),
+        context
+      )
+    ).resolves.toEqual({ outcome: "processed" });
+
+    expect(applyPaidAccess).toHaveBeenCalledOnce();
+    expect(
+      queries.some(
+        ({ text, values }) =>
+          text.includes("update orders") && values?.includes("paid")
+      )
+    ).toBe(true);
+  });
+
   it("keeps card confirmation blocked while risk is awaiting analysis", async () => {
     const { context } = createContext({
       orderRow: createOrderRow({

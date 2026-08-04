@@ -212,6 +212,7 @@ describe("admin authoring", () => {
       String(sql).includes("insert into courses")
     );
     expect(courseInsert?.[0]).not.toContain("payment_provider_product_id");
+    expect(courseInsert?.[0]).toContain("payment_card_pricing_policy");
     expect(courseInsert?.[1]).toEqual([
       result.courseId,
       "curso-novo",
@@ -222,6 +223,7 @@ describe("admin authoring", () => {
       true,
       true,
       3,
+      "buyer_pays_incremental_installment_cost",
       null,
       null,
       6,
@@ -305,7 +307,7 @@ describe("admin authoring", () => {
       String(sql).includes("update courses")
     );
     expect(updateCourseCall?.[0]).toContain("price_in_cents = $4");
-    expect(updateCourseCall?.[0]).toContain("where id = $12");
+    expect(updateCourseCall?.[0]).toContain("where id = $13");
     expect(updateCourseCall?.[1]).toEqual([
       "Curso existente",
       null,
@@ -314,6 +316,7 @@ describe("admin authoring", () => {
       true,
       true,
       3,
+      "buyer_pays_incremental_installment_cost",
       null,
       null,
       12,

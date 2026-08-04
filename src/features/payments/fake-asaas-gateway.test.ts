@@ -59,7 +59,33 @@ describe("FakeAsaasGateway", () => {
     const fake = new FakeAsaasGateway({
       cancelCheckout: checkout,
       createCheckout: checkout,
+      createCustomer: {
+        email: "aluna@example.com",
+        externalReference: "buyer_123",
+        id: "cus_123",
+        name: "Aluna Teste",
+      },
+      createPayment: {
+        id: "pay_123",
+        installmentId: null,
+        invoiceUrl: "https://sandbox.asaas.com/i/pay_123",
+        status: "PENDING",
+      },
+      getAccountFees: {
+        oneInstallmentPercentageBasisPoints: 299,
+        operationFeeInCents: 49,
+        upToSixInstallmentsPercentageBasisPoints: 349,
+        upToTwelveInstallmentsPercentageBasisPoints: 399,
+      },
       getPayment: payment,
+      listCustomers: {
+        data: [],
+        hasMore: false,
+        limit: 100,
+        object: "list",
+        offset: 0,
+        totalCount: 0,
+      },
       listPayments: {
         data: [payment],
         hasMore: false,
@@ -78,6 +104,13 @@ describe("FakeAsaasGateway", () => {
           },
         ],
         status: "REFUNDED",
+      },
+      simulatePayment: {
+        feePercentageBasisPoints: 299,
+        installmentAmountInCents: 10_000,
+        installmentNetAmountInCents: 9652,
+        netAmountInCents: 9652,
+        operationFeeInCents: 49,
       },
     });
     const createInput = {
@@ -101,6 +134,31 @@ describe("FakeAsaasGateway", () => {
     };
 
     await expect(fake.createCheckout(createInput)).resolves.toEqual(checkout);
+    const createCustomerInput = {
+      cpfCnpj: "39052900060",
+      email: "aluna@example.com",
+      externalReference: "buyer_123",
+      name: "Aluna Teste",
+    };
+    await fake.createCustomer(createCustomerInput);
+    const createPaymentInput = {
+      billingType: "PIX" as const,
+      customerId: "cus_123",
+      description: "Curso",
+      dueDate: "2026-08-04",
+      externalReference: "order_123",
+      installmentCount: 1,
+      totalAmountInCents: 1000,
+    };
+    await fake.createPayment(createPaymentInput);
+    await fake.getAccountFees();
+    await fake.listCustomers({ externalReference: "buyer_123" });
+    const simulationInput = {
+      billingType: "CREDIT_CARD" as const,
+      installmentCount: 1,
+      valueInCents: 10_000,
+    };
+    await fake.simulatePayment(simulationInput);
     await expect(fake.cancelCheckout("chk_123")).resolves.toEqual(checkout);
     await expect(fake.getPayment("pay_123")).resolves.toEqual(payment);
     await expect(
@@ -116,10 +174,14 @@ describe("FakeAsaasGateway", () => {
     expect(fake.calls).toEqual({
       cancelCheckout: ["chk_123"],
       createCheckout: [createInput],
+      createCustomer: [createCustomerInput],
+      createPayment: [createPaymentInput],
+      getAccountFees: 1,
       getCustomer: [],
       getInstallment: [],
       getPayment: ["pay_123"],
       listFinancialTransactions: [],
+      listCustomers: [{ externalReference: "buyer_123" }],
       listInstallmentPayments: [],
       listPayments: [{ externalReference: "order_123", limit: 20 }],
       refundInstallment: [],
@@ -129,6 +191,7 @@ describe("FakeAsaasGateway", () => {
           paymentId: "pay_123",
         },
       ],
+      simulatePayment: [simulationInput],
     });
   });
 

@@ -101,6 +101,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `ASAAS_USER_AGENT` | identificação estável com contato técnico | adapter Asaas | não |
 | `ASAAS_WEBHOOK_TOKEN` | segredo próprio com mínimo de 32 caracteres | inbox Asaas | sim |
 | `ASAAS_WEBHOOK_ENABLED` | `false` no pré-corte; habilita ingresso e worker Asaas juntos | inbox/cron Asaas | não |
+| `ASAAS_PAYMENT_RETURN_ENABLED` | opcional, default `false`; exige `NEXT_PUBLIC_APP_URL` HTTPS quando `true` | callback da Fatura Asaas | não |
 | `PAYMENTS_CHECKOUT_MODE` | `disabled`, `authenticated` ou `public`; explícita em Production e sempre `disabled` em Preview | entradas de checkout | não |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
@@ -232,7 +233,7 @@ Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota r
 
 ## Manutenção técnica
 
-`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, remove em lotes reservas Asaas pré-autorização abandonadas há mais de 15 minutos, sanitiza payloads de webhook Asaas vencidos há 30 dias, consolida analytics diários e remove eventos brutos após 90 dias e agregados após 13 meses. A limpeza de checkout exige estado canônico e checkout `pending`, zero tentativas e ausência completa de URL, IDs e estados do provedor. A sanitização troca somente o JSON bruto por `{}` e preserva os metadados operacionais. Ambas respeitam lease/deadline; a sanitização não disputa evento `processing` com lock vigente. Não executa anonimização ou pedidos de dados.
+`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, remove em lotes cotações vencidas há mais de sete dias sem Pedido e reservas Asaas pré-autorização abandonadas há mais de 15 minutos, sanitiza payloads de webhook Asaas vencidos há 30 dias, consolida analytics diários e remove eventos brutos após 90 dias e agregados após 13 meses. A limpeza de checkout exige estado canônico e checkout `pending`, zero tentativas e ausência completa de URL, IDs e estados do provedor. A sanitização troca somente o JSON bruto por `{}` e preserva os metadados operacionais. Todas as etapas respeitam lease/deadline; a sanitização não disputa evento `processing` com lock vigente. Não executa anonimização ou pedidos de dados.
 
 ## Verificação local
 

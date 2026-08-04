@@ -95,6 +95,18 @@ export const checkoutStatusEnum = pgEnum("checkout_status", [
   "cancelled",
   "expired",
 ]);
+export const courseCardPricingPolicyEnum = pgEnum(
+  "course_card_pricing_policy",
+  ["seller_absorbs_all", "buyer_pays_incremental_installment_cost"]
+);
+export const providerPurchaseFlowEnum = pgEnum("provider_purchase_flow", [
+  "checkout",
+  "invoice",
+]);
+export const asaasCustomerMappingStatusEnum = pgEnum(
+  "asaas_customer_mapping_status",
+  ["pending", "creating", "ready", "uncertain", "failed"]
+);
 export const webhookStatusEnum = pgEnum("webhook_status", [
   "received",
   "processing",
@@ -273,6 +285,11 @@ export const courses = pgTable(
     paymentMaxInstallmentCount: integer("payment_max_installment_count")
       .default(3)
       .notNull(),
+    paymentCardPricingPolicy: courseCardPricingPolicyEnum(
+      "payment_card_pricing_policy"
+    )
+      .default("buyer_pays_incremental_installment_cost")
+      .notNull(),
     thumbnailUrl: text("thumbnail_url"),
     coverImageJson: jsonb("cover_image_json"),
     accessDurationMonths: integer("access_duration_months")
@@ -306,6 +323,110 @@ export const courses = pgTable(
     check(
       "courses_payment_installment_requires_card",
       sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
+    ),
+    check(
+      "courses_card_pricing_requires_card",
+      sql`${table.paymentAllowCreditCard} or ${table.paymentCardPricingPolicy} = 'seller_absorbs_all'`
+    ),
+  ]
+);
+
+export const coursePaymentQuotes = pgTable(
+  "course_payment_quotes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    provider: text("provider").default("asaas").notNull(),
+    providerEnvironment: text("provider_environment").notNull(),
+    signature: text("signature").notNull(),
+    baseAmountInCents: integer("base_amount_in_cents").notNull(),
+    allowPix: boolean("allow_pix").notNull(),
+    allowCreditCard: boolean("allow_credit_card").notNull(),
+    maxInstallmentCount: integer("max_installment_count").notNull(),
+    cardPricingPolicy: courseCardPricingPolicyEnum(
+      "card_pricing_policy"
+    ).notNull(),
+    optionsJson: jsonb("options_json").notNull(),
+    feeProfileJson: jsonb("fee_profile_json"),
+    generatedAt: timestamp("generated_at", tz).defaultNow().notNull(),
+    expiresAt: timestamp("expires_at", tz).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("course_payment_quotes_signature_expires_idx").on(
+      table.signature,
+      table.expiresAt
+    ),
+    index("course_payment_quotes_course_expires_idx").on(
+      table.courseId,
+      table.expiresAt
+    ),
+    check(
+      "course_payment_quotes_base_minimum",
+      sql`${table.baseAmountInCents} >= 1000`
+    ),
+    check(
+      "course_payment_quotes_payment_method_required",
+      sql`${table.allowPix} or ${table.allowCreditCard}`
+    ),
+    check(
+      "course_payment_quotes_installment_count_valid",
+      sql`${table.maxInstallmentCount} between 1 and 12`
+    ),
+    check(
+      "course_payment_quotes_expiration_valid",
+      sql`${table.expiresAt} > ${table.generatedAt}`
+    ),
+    check(
+      "course_payment_quotes_environment_valid",
+      sql`${table.providerEnvironment} in ('sandbox', 'production')`
+    ),
+  ]
+);
+
+export const asaasCustomerMappings = pgTable(
+  "asaas_customer_mappings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").default("asaas").notNull(),
+    identityFingerprint: text("identity_fingerprint").notNull(),
+    normalizedEmail: text("normalized_email").notNull(),
+    externalReference: text("external_reference").notNull(),
+    providerCustomerId: text("provider_customer_id"),
+    status: asaasCustomerMappingStatusEnum("status")
+      .default("pending")
+      .notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", tz),
+    errorMessage: text("error_message"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("asaas_customer_mappings_identity_unique_idx").on(
+      table.provider,
+      table.identityFingerprint,
+      table.normalizedEmail
+    ),
+    uniqueIndex("asaas_customer_mappings_external_reference_unique_idx").on(
+      table.provider,
+      table.externalReference
+    ),
+    uniqueIndex("asaas_customer_mappings_provider_customer_unique_idx")
+      .on(table.provider, table.providerCustomerId)
+      .where(sql`${table.providerCustomerId} is not null`),
+    index("asaas_customer_mappings_status_idx").on(
+      table.status,
+      table.lastAttemptAt
+    ),
+    check(
+      "asaas_customer_mappings_attempt_count_non_negative",
+      sql`${table.attemptCount} >= 0`
+    ),
+    check(
+      "asaas_customer_mappings_ready_consistent",
+      sql`${table.status} <> 'ready' or ${table.providerCustomerId} is not null`
     ),
   ]
 );
@@ -862,6 +983,9 @@ export const orders = pgTable(
       "buyer_identity_status"
     ).notNull(),
     provider: text("provider").notNull(),
+    providerPurchaseFlow: providerPurchaseFlowEnum("provider_purchase_flow")
+      .default("checkout")
+      .notNull(),
     providerCheckoutId: text("provider_checkout_id"),
     providerPaymentId: text("provider_payment_id"),
     providerInstallmentId: text("provider_installment_id"),
@@ -885,6 +1009,26 @@ export const orders = pgTable(
     providerRefundStatus: text("provider_refund_status"),
     providerDisputeStatus: text("provider_dispute_status"),
     amountInCents: integer("amount_in_cents").default(0).notNull(),
+    baseAmountInCents: integer("base_amount_in_cents").default(0).notNull(),
+    surchargeAmountInCents: integer("surcharge_amount_in_cents")
+      .default(0)
+      .notNull(),
+    installmentCount: integer("installment_count").default(1).notNull(),
+    cardPricingPolicy: courseCardPricingPolicyEnum("card_pricing_policy")
+      .default("seller_absorbs_all")
+      .notNull(),
+    paymentQuoteId: uuid("payment_quote_id").references(
+      () => coursePaymentQuotes.id,
+      { onDelete: "restrict" }
+    ),
+    targetNetAmountInCents: integer("target_net_amount_in_cents"),
+    quotedNetAmountInCents: integer("quoted_net_amount_in_cents"),
+    quotedFeeAmountInCents: integer("quoted_fee_amount_in_cents"),
+    quotedFeePercentageBasisPoints: integer(
+      "quoted_fee_percentage_basis_points"
+    ),
+    quotedOperationFeeInCents: integer("quoted_operation_fee_in_cents"),
+    quotedAt: timestamp("quoted_at", tz),
     paymentAllowPix: boolean("payment_allow_pix").default(true).notNull(),
     paymentAllowCreditCard: boolean("payment_allow_credit_card")
       .default(true)
@@ -923,6 +1067,7 @@ export const orders = pgTable(
     ),
     uniqueIndex("orders_external_unique_idx").on(table.externalId),
     index("orders_course_status_idx").on(table.courseId, table.status),
+    index("orders_payment_quote_idx").on(table.paymentQuoteId),
     check(
       "orders_access_duration_positive",
       sql`${table.accessDurationMonths} is null or ${table.accessDurationMonths} > 0`
@@ -942,6 +1087,23 @@ export const orders = pgTable(
     check(
       "orders_amount_in_cents_non_negative",
       sql`${table.amountInCents} >= 0`
+    ),
+    check(
+      "orders_pricing_snapshot_consistent",
+      sql`${table.baseAmountInCents} >= 0
+        and ${table.surchargeAmountInCents} >= 0
+        and ${table.amountInCents} = ${table.baseAmountInCents} + ${table.surchargeAmountInCents}
+        and ${table.installmentCount} between 1 and 12
+        and (${table.installmentCount} > 1 or ${table.surchargeAmountInCents} = 0)
+        and (${table.cardPricingPolicy} <> 'seller_absorbs_all' or ${table.surchargeAmountInCents} = 0)`
+    ),
+    check(
+      "orders_quoted_amounts_non_negative",
+      sql`(${table.targetNetAmountInCents} is null or ${table.targetNetAmountInCents} >= 0)
+        and (${table.quotedNetAmountInCents} is null or ${table.quotedNetAmountInCents} >= 0)
+        and (${table.quotedFeeAmountInCents} is null or ${table.quotedFeeAmountInCents} >= 0)
+        and (${table.quotedFeePercentageBasisPoints} is null or ${table.quotedFeePercentageBasisPoints} >= 0)
+        and (${table.quotedOperationFeeInCents} is null or ${table.quotedOperationFeeInCents} >= 0)`
     ),
     check(
       "orders_checkout_attempt_count_non_negative",

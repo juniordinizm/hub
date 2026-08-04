@@ -83,34 +83,34 @@ Certificado tem snapshots, código público, estado válido/revogado e reemissã
 ## DEC-DISC-007
 
 **Tema:** identidade, verificação e recuperação.
-**Estado:** aprovado e implementado em código; homologação PostgreSQL/Sandbox pendente.
+**Estado:** aprovado e implementado localmente; homologação PostgreSQL/Sandbox pendente.
 
-No checkout autenticado, a Conta é a da sessão; o provider não pode alterar nome, e-mail,
-verificação ou credenciais. No checkout público, o Pedido nasce sem PII e o Asaas coleta
-os dados do pagador. Depois do evento financeiro autoritativo, o Hub consulta o cliente
-Asaas, persiste uma vez somente nome/e-mail necessários e registra Compradora = Aluna. O
-provider informa identidade pretendida, mas não verifica Conta.
+Na compra pública por Fatura direta, o Hub coleta nome, e-mail e CPF/CNPJ antes da criação
+da cobrança porque a API exige um Cliente Asaas. O documento é validado, usado na borda e
+não é persistido; o mapeamento local guarda e-mail normalizado e fingerprint HMAC não
+reversível. O Pedido captura nome/e-mail e a Conta, quando existir, deve coincidir com a
+sessão Student. O provider informa identidade pretendida, mas não verifica Conta.
 
 O e-mail normalizado vincula o Pedido a uma Conta Student existente ou cria Conta local
 não verificada; a ativação permite definir a senha. Conta existente não é sobrescrita.
 Identidade ausente, inválida, divergente, pertencente a Admin/Suporte, vinculada a Conta
 com bloqueio geral ou a Matrícula `revoked` no Curso não concede acesso: abre Revisão sem
 opção de aprovação e permite somente reembolso integral e nova compra elegível. Quando a
-sessão já revela bloqueio ou revogação, o Checkout é impedido antes da cobrança e a pessoa
+sessão já revela bloqueio ou revogação, a compra é impedida antes da cobrança e a pessoa
 é orientada ao Suporte. Transferência manual e compra para terceiro ficam fora do escopo.
 
 A entrada comercial é um link estável do Hub em `/comprar/[slug]`, copiado da configuração
-do Curso e usado pela landing page externa. O handoff não possui formulário ou segundo
-clique visível em condições normais, mas cria a tentativa por `POST` para evitar que o
-`GET` de robôs e previews produza Checkout. Ver a
-[especificação aceita](superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md).
+do Curso e usado pela landing page externa. A página mostra oferta, identidade, método e
+parcelamento; somente um `POST` explícito cria Cliente/Pedido/Fatura, portanto `GET` de
+robôs e previews não produz efeito financeiro. O Asaas recebe a opção final e hospeda a
+página segura de pagamento da Fatura.
 
 ## DEC-DISC-008
 
 **Tema:** retenção, privacidade e acessibilidade.
 **Estado:** manutenção técnica implementada; política jurídica de dados pendente.
 
-O workflow de solicitações e anonimização foi removido: não havia solicitante, operação administrativa recorrente ou plano aprovado. O cron de manutenção preserva apenas limpeza técnica de sessões, rate limits e analytics. Se houver pedido real no futuro, será necessário definir política jurídica, fluxo e auditoria antes de criar nova funcionalidade. Ledger financeiro e evidências necessárias para auditoria/defesa não devem ser apagados por atalho.
+O workflow de solicitações e anonimização foi removido: não havia solicitante, operação administrativa recorrente ou plano aprovado. O cron de manutenção preserva apenas limpeza técnica de sessões, rate limits, cotações expiradas sem Pedido e analytics. Se houver pedido real no futuro, será necessário definir política jurídica, fluxo e auditoria antes de criar nova funcionalidade. Ledger financeiro e evidências necessárias para auditoria/defesa não devem ser apagados por atalho.
 
 ## DEC-DISC-009
 
@@ -141,7 +141,7 @@ e [Asaas](integrations/asaas.md).
 ## DEC-DISC-011
 
 **Tema:** oferta de pagamento configurável por Curso.
-**Estado:** implementado no limite do contrato oficial; juros comerciais indisponíveis.
+**Estado:** aceito; implementação local concluída e homologação Sandbox pendente.
 
 Cada Curso pago deve possuir configuração própria de preço e oferta:
 
@@ -154,29 +154,27 @@ O padrão inicial é Pix + cartão e cartão em até 3x. Preço e oferta
 efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso não altere
 o contrato vendido.
 
-O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
-`installment.maxInstallmentCount`, mas não documenta, por sessão, a escolha de quem
-absorve o custo do parcelamento. O campo `interest` das APIs de cobrança significa juros
-por atraso. Portanto, o Admin configura métodos e teto de parcelas, mas não uma política
-de juros que o provider não consegue cumprir. O teto comercial do Hub é 12x, mesmo que
-contratos ou bandeiras específicos do provider admitam mais.
+O suporte Asaas confirmou que o repasse de taxas não pode ser ativado pela API e que
+Checkout/Link criados pela API não recalculam o total pela parcela escolhida. Portanto,
+o Hub implementa repasse econômico: consulta a tabela vigente, simula cada parcelamento e
+calcula o menor bruto cujo líquido estimado preserve o líquido de 1x. Em 1x a Vendedora
+absorve; em 2x ou mais a Compradora paga apenas o custo incremental. A política alternativa
+mantém absorção integral. O teto comercial permanece 12x.
 
 Cada parcela possui ID de pagamento próprio. O Hub correlaciona o
 `provider_installment_id`, valida o bruto do agregado antes de conceder acesso, aceita os
 IDs individuais sob esse agregado, concilia a lista completa e estorna o parcelamento
 integral pelo endpoint específico. A migration
-`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido;
-`0055_limit_course_installments` reduz configurações vigentes acima de 12x e passa a
-impedir novos valores fora do teto comercial, sem reescrever snapshots históricos.
+`0053_course_payment_offers` adicionou a oferta inicial; `0055_limit_course_installments`
+fixou o teto de 12x; `0056_asaas_installment_pricing` adiciona política, cotações,
+mapeamento de Cliente, origem Fatura e snapshots econômicos. Development recebeu a
+migration; Staging e Production permanecem inalterados até a homologação manual.
 
 Ver a
 [pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).
 
 ## Outras ratificações necessárias
 
-- escopo definitivo de `support` e capacidades financeiras mutáveis;
-- tratamento de compra pública com e-mail já pertencente a Admin/Suporte;
-- viabilidade e cálculo do acréscimo comercial por parcelamento;
 - política de reversão de ajustes encadeados;
 - confiabilidade banco e e-mail sem outbox;
 - critérios de incidente e SLOs;

@@ -18,6 +18,10 @@ const serverEnvSchema = z.object({
   APPLICATION_MAINTENANCE_MODE: z.enum(["full", "off"]).default("off"),
   ASAAS_API_BASE_URL: z.string().url().optional(),
   ASAAS_API_KEY: optionalNonEmptyString,
+  ASAAS_PAYMENT_RETURN_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   ASAAS_USER_AGENT: optionalNonEmptyString,
   ASAAS_WEBHOOK_ENABLED: z
     .enum(["true", "false"])
@@ -142,6 +146,15 @@ const validateServerEnvironment = (
     throw new Error("E2E_TEST_MODE requires CI=true.");
   }
 
+  if (
+    env.ASAAS_PAYMENT_RETURN_ENABLED &&
+    new URL(env.NEXT_PUBLIC_APP_URL).protocol !== "https:"
+  ) {
+    throw new Error(
+      "ASAAS_PAYMENT_RETURN_ENABLED requires an HTTPS NEXT_PUBLIC_APP_URL."
+    );
+  }
+
   const isolatedE2eRuntime = isLoopbackE2eRuntime(env);
   if (env.E2E_TEST_MODE && !isolatedE2eRuntime) {
     throw new Error("E2E_TEST_MODE requires loopback application URLs.");
@@ -196,6 +209,7 @@ export const getServerEnv = () => {
     APPLICATION_MAINTENANCE_MODE: process.env.APPLICATION_MAINTENANCE_MODE,
     ASAAS_API_BASE_URL: process.env.ASAAS_API_BASE_URL,
     ASAAS_API_KEY: process.env.ASAAS_API_KEY,
+    ASAAS_PAYMENT_RETURN_ENABLED: process.env.ASAAS_PAYMENT_RETURN_ENABLED,
     ASAAS_USER_AGENT: process.env.ASAAS_USER_AGENT,
     ASAAS_WEBHOOK_ENABLED: process.env.ASAAS_WEBHOOK_ENABLED,
     ASAAS_WEBHOOK_TOKEN: process.env.ASAAS_WEBHOOK_TOKEN,

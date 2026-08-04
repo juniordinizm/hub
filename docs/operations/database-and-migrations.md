@@ -42,6 +42,13 @@ a 12. Development recebeu a migration e passou a ter 56 entradas, topo em
 somente no commit local; aplicar a constraint antes do código correspondente seria
 incompatível com a interface anterior, que ainda aceitava até 21x.
 
+Em 2026-08-03, Development recebeu `0056_asaas_installment_pricing` para a homologação
+local por ngrok e Asaas Sandbox. Uma segunda execução confirmou idempotência; o journal
+ficou com 57 entradas e topo `1785793942565`. A auditoria somente-leitura confirmou as
+tabelas de cotação e mapeamento de Cliente, os enums, as 12 colunas novas do Pedido, a
+política do Curso e o índice de cotação. Staging e Production permanecem no topo anterior
+até aprovação explícita dos testes manuais.
+
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
 vincula ao agregado e garante claim exclusivo dos uploads administrativos

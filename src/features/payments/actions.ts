@@ -1,17 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { requeueFailedAsaasWebhook } from "@/features/payments/asaas-webhook-worker";
-import {
-  createAsaasCheckoutIntent,
-  createCheckoutCallbacks,
-} from "@/features/payments/checkout";
-import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
 import { resolvePaymentReview } from "@/features/payments/payment-reviews";
-import {
-  getApplicationUrl,
-  getAsaasProviderClient,
-} from "@/features/payments/provider";
 import {
   type FinancialStatementImportResult,
   importAsaasFinancialStatement,
@@ -22,62 +12,10 @@ import {
   requestFullRefund,
 } from "@/features/payments/refunds";
 import { requirePermission } from "@/lib/auth-permissions";
-import { getServerEnv } from "@/lib/env";
-import { requireSession } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-export const startCourseCheckoutAction = async (
-  formData: FormData
-): Promise<void> => {
-  assertCheckoutAvailable({
-    entry: "authenticated",
-    mode: getServerEnv().PAYMENTS_CHECKOUT_MODE,
-  });
-  const session = await requireSession();
-
-  if (session.role !== "student") {
-    throw new Error("Apenas alunos podem iniciar checkout.");
-  }
-
-  const courseId = readString(formData, "courseId");
-  const checkoutAttemptId = readString(formData, "checkoutAttemptId");
-
-  if (!(courseId && checkoutAttemptId)) {
-    throw new Error("Curso invalido.");
-  }
-
-  const callbacks = createCheckoutCallbacks(checkoutAttemptId);
-  const checkout = await createAsaasCheckoutIntent({
-    attemptId: checkoutAttemptId,
-    buyer: {
-      email: session.user.email,
-      kind: "authenticated",
-      name: session.user.name,
-      userId: session.user.id,
-    },
-    callbacks: {
-      ...callbacks,
-      successUrl: getApplicationUrl(
-        `/app/checkout/sucesso?courseId=${encodeURIComponent(courseId)}`
-      ),
-    },
-    courseId,
-    gateway: getAsaasProviderClient(),
-  });
-
-  if (checkout.status === "failed") {
-    throw new Error("Nao foi possivel iniciar o checkout.");
-  }
-
-  const destination =
-    checkout.status === "ready"
-      ? checkout.redirectUrl
-      : `/app/checkout/sucesso?courseId=${encodeURIComponent(courseId)}`;
-  redirect(destination as Parameters<typeof redirect>[0]);
-};
 
 export const confirmRefundPasswordAction = async (
   formData: FormData

@@ -1,19 +1,28 @@
 import {
   ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS,
   type AsaasCheckout,
+  type AsaasCreditCardFeeSchedule,
   type AsaasCustomer,
+  type AsaasCustomerPage,
+  type AsaasCustomerReference,
   type AsaasFinancialTransaction,
   type AsaasFinancialTransactionPage,
   type AsaasGateway,
   type AsaasInstallment,
   type AsaasPayment,
   type AsaasPaymentPage,
+  type AsaasPaymentSimulation,
   type AsaasRefundEvidence,
   type CreateAsaasCheckout,
+  type CreateAsaasCustomer,
+  type CreateAsaasPayment,
+  type CreatedAsaasPayment,
+  type ListAsaasCustomers,
   type ListAsaasFinancialTransactions,
   type ListAsaasPayments,
   type RefundAsaasInstallment,
   type RefundAsaasPayment,
+  type SimulateAsaasPayment,
 } from "./asaas";
 import { buildAsaasCheckoutPaymentOptions } from "./asaas-checkout-options";
 import {
@@ -95,11 +104,19 @@ const MIN_CHECKOUT_EXPIRATION_MINUTES = 10;
 const MAX_CHECKOUT_ITEM_DESCRIPTION_LENGTH = 150;
 const MAX_CHECKOUT_ITEM_NAME_LENGTH = 30;
 const MAX_PAYMENT_PAGE_SIZE = 100;
+const MAX_INSTALLMENT_COUNT = 12;
+const MAX_PAYMENT_DESCRIPTION_LENGTH = 500;
 const INVALID_RESPONSE_MESSAGE = "Resposta de sucesso invalida do Asaas.";
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const CPF_CNPJ_RE = /^(?:\d{11}|\d{14})$/;
 const JSON_DECIMAL_RE = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
 const SAFE_PROVIDER_CODE_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 const TRAILING_SLASHES_RE = /\/+$/;
+const PROVIDER_INVOICE_HOSTS = new Set([
+  "asaas.com",
+  "sandbox.asaas.com",
+  "www.asaas.com",
+]);
 
 const trimTrailingSlash = (value: string): string =>
   value.replace(TRAILING_SLASHES_RE, "");
@@ -235,6 +252,183 @@ const parseCustomer = (
   };
 };
 
+const parseCustomerReference = (value: unknown): AsaasCustomerReference => {
+  if (
+    !(
+      isRecord(value) &&
+      isNonEmptyString(value.email) &&
+      isNonEmptyString(value.externalReference) &&
+      isNonEmptyString(value.id) &&
+      isNonEmptyString(value.name)
+    )
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  return {
+    email: value.email,
+    externalReference: value.externalReference,
+    id: value.id,
+    name: value.name,
+  };
+};
+
+const parseCustomerPage = (value: unknown): AsaasCustomerPage => {
+  if (
+    !(isRecord(value) && Array.isArray(value.data)) ||
+    typeof value.hasMore !== "boolean" ||
+    !Number.isSafeInteger(value.limit) ||
+    !isNonEmptyString(value.object) ||
+    !Number.isSafeInteger(value.offset) ||
+    !Number.isSafeInteger(value.totalCount) ||
+    (value.limit as number) <= 0 ||
+    (value.limit as number) > MAX_PAYMENT_PAGE_SIZE ||
+    (value.offset as number) < 0 ||
+    (value.totalCount as number) < 0 ||
+    value.data.length > (value.limit as number) ||
+    (value.hasMore && value.data.length === 0)
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+
+  return {
+    data: value.data.map(parseCustomerReference),
+    hasMore: value.hasMore,
+    limit: value.limit as number,
+    object: value.object,
+    offset: value.offset as number,
+    totalCount: value.totalCount as number,
+  };
+};
+
+const getRequiredRecord = (
+  value: Record<string, unknown>,
+  key: string
+): Record<string, unknown> => {
+  const nested = value[key];
+  if (!isRecord(nested)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return nested;
+};
+
+const providerPercentageToBasisPoints = (value: unknown): number =>
+  providerDecimalToCents(value);
+
+const getOptionalPercentageInBasisPoints = (
+  value: unknown
+): number | undefined =>
+  value === undefined || value === null
+    ? undefined
+    : providerPercentageToBasisPoints(value);
+
+const parseCreditCardFeeSchedule = (
+  value: unknown
+): AsaasCreditCardFeeSchedule => {
+  if (!isRecord(value)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  const payment = getRequiredRecord(value, "payment");
+  const creditCard = getRequiredRecord(payment, "creditCard");
+  const discountExpiration = getOptionalString(creditCard.discountExpiration);
+  const promotionalOneInstallmentPercentageBasisPoints =
+    getOptionalPercentageInBasisPoints(
+      creditCard.discountOneInstallmentPercentage
+    );
+  const promotionalUpToSixInstallmentsPercentageBasisPoints =
+    getOptionalPercentageInBasisPoints(
+      creditCard.discountUpToSixInstallmentsPercentage
+    );
+  const promotionalUpToTwelveInstallmentsPercentageBasisPoints =
+    getOptionalPercentageInBasisPoints(
+      creditCard.discountUpToTwelveInstallmentsPercentage
+    );
+
+  return {
+    ...(discountExpiration ? { discountExpiration } : {}),
+    oneInstallmentPercentageBasisPoints: providerPercentageToBasisPoints(
+      creditCard.oneInstallmentPercentage
+    ),
+    operationFeeInCents: providerDecimalToCents(creditCard.operationValue),
+    ...(promotionalOneInstallmentPercentageBasisPoints === undefined
+      ? {}
+      : { promotionalOneInstallmentPercentageBasisPoints }),
+    ...(promotionalUpToSixInstallmentsPercentageBasisPoints === undefined
+      ? {}
+      : { promotionalUpToSixInstallmentsPercentageBasisPoints }),
+    ...(promotionalUpToTwelveInstallmentsPercentageBasisPoints === undefined
+      ? {}
+      : { promotionalUpToTwelveInstallmentsPercentageBasisPoints }),
+    upToSixInstallmentsPercentageBasisPoints: providerPercentageToBasisPoints(
+      creditCard.upToSixInstallmentsPercentage
+    ),
+    upToTwelveInstallmentsPercentageBasisPoints:
+      providerPercentageToBasisPoints(
+        creditCard.upToTwelveInstallmentsPercentage
+      ),
+  };
+};
+
+const parsePaymentSimulation = (value: unknown): AsaasPaymentSimulation => {
+  if (!isRecord(value)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  const creditCard = getRequiredRecord(value, "creditCard");
+  const installment = getRequiredRecord(creditCard, "installment");
+  return {
+    feePercentageBasisPoints: providerPercentageToBasisPoints(
+      creditCard.feePercentage
+    ),
+    installmentAmountInCents: providerDecimalToCents(installment.paymentValue),
+    installmentNetAmountInCents: providerDecimalToCents(
+      installment.paymentNetValue
+    ),
+    netAmountInCents: providerDecimalToCents(creditCard.netValue),
+    operationFeeInCents: providerDecimalToCents(creditCard.operationFee),
+  };
+};
+
+const parseInvoiceUrl = (value: unknown): string => {
+  if (!isNonEmptyString(value)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.port ||
+    !PROVIDER_INVOICE_HOSTS.has(url.hostname)
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return url.toString();
+};
+
+const parseCreatedPayment = (value: unknown): CreatedAsaasPayment => {
+  if (
+    !(
+      isRecord(value) &&
+      isNonEmptyString(value.id) &&
+      isNonEmptyString(value.status)
+    )
+  ) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  const installmentId = getNullableString(value.installment);
+  return {
+    id: value.id,
+    installmentId,
+    invoiceUrl: parseInvoiceUrl(value.invoiceUrl),
+    status: value.status,
+  };
+};
+
 const parseRefund = (value: unknown): AsaasRefundEvidence => {
   if (
     !(
@@ -278,6 +472,9 @@ const parsePayment = (value: unknown): AsaasPayment => {
 
   const transactionReceiptUrl = getOptionalString(value.transactionReceiptUrl);
   const installmentId = getOptionalString(value.installment);
+  const invoiceUrl = value.invoiceUrl
+    ? parseInvoiceUrl(value.invoiceUrl)
+    : undefined;
 
   return {
     billingType: value.billingType,
@@ -285,6 +482,7 @@ const parsePayment = (value: unknown): AsaasPayment => {
     customer: value.customer,
     externalReference: getNullableString(value.externalReference),
     id: value.id,
+    ...(invoiceUrl ? { invoiceUrl } : {}),
     ...(installmentId ? { installmentId } : {}),
     netValueInCents: providerDecimalToCents(value.netValue),
     refunds: rawRefunds.map(parseRefund),
@@ -549,6 +747,58 @@ const validateCheckout = (input: CreateAsaasCheckout): void => {
   centsToProviderDecimal(input.item.valueInCents);
 };
 
+const validateCustomer = (input: CreateAsaasCustomer): void => {
+  if (!isNonEmptyString(input.name)) {
+    throw createValidationError("Nome do cliente invalido.");
+  }
+  if (!isNonEmptyString(input.email)) {
+    throw createValidationError("Email do cliente invalido.");
+  }
+  if (!CPF_CNPJ_RE.test(input.cpfCnpj)) {
+    throw createValidationError("Documento do cliente invalido.");
+  }
+  assertNonEmptyId(input.externalReference, "Referencia externa do cliente");
+};
+
+const validatePayment = (input: CreateAsaasPayment): void => {
+  assertNonEmptyId(input.customerId, "Cliente");
+  assertNonEmptyId(input.externalReference, "Referencia externa");
+  if (
+    !isNonEmptyString(input.description) ||
+    input.description.length > MAX_PAYMENT_DESCRIPTION_LENGTH
+  ) {
+    throw createValidationError(
+      "Descricao da cobranca deve ter entre 1 e 500 caracteres."
+    );
+  }
+  if (!ISO_DATE_RE.test(input.dueDate)) {
+    throw createValidationError("Vencimento da cobranca invalido.");
+  }
+  if (
+    !Number.isInteger(input.installmentCount) ||
+    input.installmentCount < 1 ||
+    input.installmentCount > MAX_INSTALLMENT_COUNT ||
+    (input.billingType === "PIX" && input.installmentCount !== 1)
+  ) {
+    throw createValidationError("Quantidade de parcelas invalida.");
+  }
+  centsToProviderDecimal(input.totalAmountInCents);
+  if (input.callback) {
+    if (typeof input.callback.autoRedirect !== "boolean") {
+      throw createValidationError("Redirecionamento da cobranca invalido.");
+    }
+    let successUrl: URL;
+    try {
+      successUrl = new URL(input.callback.successUrl);
+    } catch {
+      throw createValidationError("URL de retorno da cobranca invalida.");
+    }
+    if (successUrl.protocol !== "https:") {
+      throw createValidationError("URL de retorno da cobranca invalida.");
+    }
+  }
+};
+
 export class AsaasClient implements AsaasGateway {
   private readonly accessToken: string;
   private readonly baseUrl: string;
@@ -598,6 +848,99 @@ export class AsaasClient implements AsaasGateway {
       { body, method: "POST" },
       "mutation",
       parseCheckout
+    );
+  }
+
+  async getAccountFees(): Promise<AsaasCreditCardFeeSchedule> {
+    return await this.request(
+      "/v3/myAccount/fees/",
+      { method: "GET" },
+      "query",
+      parseCreditCardFeeSchedule
+    );
+  }
+
+  async simulatePayment(
+    input: SimulateAsaasPayment
+  ): Promise<AsaasPaymentSimulation> {
+    if (
+      !Number.isInteger(input.installmentCount) ||
+      input.installmentCount < 1 ||
+      input.installmentCount > MAX_INSTALLMENT_COUNT
+    ) {
+      throw createValidationError("Quantidade de parcelas invalida.");
+    }
+    const value = centsToProviderDecimal(input.valueInCents);
+    return await this.request(
+      "/v3/payments/simulate",
+      {
+        body: {
+          billingTypes: [input.billingType],
+          installmentCount: input.installmentCount,
+          value,
+        },
+        method: "POST",
+      },
+      "query",
+      parsePaymentSimulation
+    );
+  }
+
+  async createCustomer(
+    input: CreateAsaasCustomer
+  ): Promise<AsaasCustomerReference> {
+    validateCustomer(input);
+    return await this.request(
+      "/v3/customers",
+      { body: input, method: "POST" },
+      "mutation",
+      parseCustomerReference
+    );
+  }
+
+  async listCustomers(filters: ListAsaasCustomers): Promise<AsaasCustomerPage> {
+    assertNonEmptyId(
+      filters.externalReference,
+      "Referencia externa do cliente"
+    );
+    const query = new URLSearchParams({
+      externalReference: filters.externalReference,
+      limit: String(MAX_PAYMENT_PAGE_SIZE),
+    });
+    return await this.request(
+      `/v3/customers?${query.toString()}`,
+      { method: "GET" },
+      "query",
+      parseCustomerPage
+    );
+  }
+
+  async createPayment(input: CreateAsaasPayment): Promise<CreatedAsaasPayment> {
+    validatePayment(input);
+    const value = centsToProviderDecimal(input.totalAmountInCents);
+    const installment =
+      input.installmentCount >= 2
+        ? {
+            installmentCount: input.installmentCount,
+            totalValue: value,
+          }
+        : { value };
+    return await this.request(
+      "/v3/payments",
+      {
+        body: {
+          billingType: input.billingType,
+          ...(input.callback ? { callback: input.callback } : {}),
+          customer: input.customerId,
+          description: input.description,
+          dueDate: input.dueDate,
+          externalReference: input.externalReference,
+          ...installment,
+        },
+        method: "POST",
+      },
+      "mutation",
+      parseCreatedPayment
     );
   }
 
