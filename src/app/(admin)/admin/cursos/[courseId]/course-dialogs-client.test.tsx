@@ -39,4 +39,11 @@ describe("course payment settings", () => {
 
     expect(markup).not.toContain("Checkout sera limitado a");
   });
+
+  it("limits the admin configuration to twelve installments", () => {
+    const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
+
+    expect(markup).toContain('name="paymentMaxInstallmentCount"');
+    expect(markup).toContain('max="12"');
+  });
 });

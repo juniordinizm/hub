@@ -33,6 +33,23 @@ idempotência. Production teve zero violações no preflight e recebeu antes a b
 backup `payments-hardening-backup-20260803` (`br-bitter-pond-acl5x8se`). O perfil
 persistente `vercel-preview` continua dormente e, por contrato, não recebe migrations.
 
+O repositório também possui `0055_limit_course_installments`, que reduz para 12 o teto
+configurável de parcelas dos Cursos sem reescrever snapshots históricos dos Pedidos. Em
+2026-08-03, o SQL foi exercitado numa branch Neon descartável descendente de Production:
+zero Cursos exigiram normalização e a constraint resultante aceitou somente valores de 1
+a 12. Development recebeu a migration e passou a ter 56 entradas, topo em
+`1785751899658`. Staging e Production permanecem em `0054` enquanto esta mudança estiver
+somente no commit local; aplicar a constraint antes do código correspondente seria
+incompatível com a interface anterior, que ainda aceitava até 21x.
+
+Development recebeu posteriormente a migration experimental
+`0056_asaas_installment_pricing`, preservada somente na PR draft pausada `#26`. Ela é
+aditiva e deixou 57 entradas no journal; Staging e Production não a receberam. A linha de
+lançamento continua em `0055`, mantém o Checkout hospedado e tolera os objetos adicionais
+em Development porque a readiness exige a presença da migration compatível, não que ela
+seja a última do banco. Não aplique `0056` em outro ambiente nem reutilize seus objetos
+antes de decidir entre retomar o experimento ou criar uma correção forward-only.
+
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
 vincula ao agregado e garante claim exclusivo dos uploads administrativos

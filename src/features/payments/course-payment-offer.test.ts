@@ -39,14 +39,14 @@ describe("course payment offer", () => {
     });
   });
 
-  it.each([0, 1.5, 22])("rejects invalid installment limit %s", (limit) => {
+  it.each([0, 1.5, 13])("rejects invalid installment limit %s", (limit) => {
     expect(() =>
       parseCoursePaymentOffer({
         allowCreditCard: true,
         allowPix: true,
         maxInstallmentCount: limit,
       })
-    ).toThrow("Quantidade de parcelas deve estar entre 1 e 21.");
+    ).toThrow("Quantidade de parcelas deve estar entre 1 e 12.");
   });
 
   it("uses the approved ten-real minimum per installment", () => {
@@ -69,12 +69,12 @@ describe("course payment offer", () => {
     expect(DEFAULT_COURSE_PAYMENT_OFFER.maxInstallmentCount).toBe(3);
   });
 
-  it("never exceeds the configured or provider maximum", () => {
+  it("never exceeds the twelve-installment product maximum", () => {
     expect(
       getEffectiveMaxInstallmentCount({
         configuredMaxInstallmentCount: 21,
-        priceInCents: 10_000,
+        priceInCents: 30_000,
       })
-    ).toBe(10);
+    ).toBe(12);
   });
 });

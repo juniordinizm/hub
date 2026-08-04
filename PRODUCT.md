@@ -74,8 +74,9 @@ corte controlado de Production permanece pendente.
   integral implementados e homologados em Sandbox, ainda sem corte de Production;
 - API, jornada pública e revisão de identidade implementadas, cobertas por E2E em
   PostgreSQL descartável e homologadas no handoff Sandbox;
-- oferta comercial por Curso com Pix, cartão ou ambos e teto de parcelamento,
-  homologada no Checkout Sandbox com pagamento e reembolso reais em 3x;
+- oferta comercial por Curso com Pix, cartão ou ambos, preço único entre os métodos e
+  teto de parcelamento; a Vendedora absorve as taxas, conforme homologado no Checkout
+  Sandbox com pagamento e reembolso reais em 3x;
 - Certificados públicos, PDF, revogação e reemissão;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.

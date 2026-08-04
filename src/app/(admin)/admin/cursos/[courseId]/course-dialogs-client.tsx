@@ -18,7 +18,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
-import { getEffectiveMaxInstallmentCount } from "@/features/payments/course-payment-offer";
+import {
+  getEffectiveMaxInstallmentCount,
+  MAX_INSTALLMENT_COUNT,
+} from "@/features/payments/course-payment-offer";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
 export interface CourseData {
@@ -169,7 +172,7 @@ export function CourseSettingsForm({
                 <Input
                   defaultValue={course.paymentMaxInstallmentCount}
                   id="course-payment-installments"
-                  max={21}
+                  max={MAX_INSTALLMENT_COUNT}
                   min={1}
                   name="paymentMaxInstallmentCount"
                   required
@@ -178,8 +181,9 @@ export function CourseSettingsForm({
               </Field>
             </div>
             <p className="mt-3 text-muted-foreground text-xs">
-              O Checkout hospedado não oferece configuracao de juros comerciais.
-              Taxas e recebimento seguem o contrato da conta Asaas.
+              O Checkout hospedado nao permite definir, por compra, quem paga os
+              juros do parcelamento. Taxas e recebimento seguem o contrato da
+              conta Asaas.
             </p>
             {course.paymentAllowCreditCard &&
             effectiveMaxInstallmentCount < course.paymentMaxInstallmentCount ? (
