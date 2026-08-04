@@ -141,25 +141,28 @@ e [Asaas](integrations/asaas.md).
 ## DEC-DISC-011
 
 **Tema:** oferta de pagamento configurável por Curso.
-**Estado:** implementado no limite do contrato oficial; juros comerciais indisponíveis.
+**Estado:** implementado para o lançamento; repasse de taxas adiado.
 
 Cada Curso pago deve possuir configuração própria de preço e oferta:
 
 - Pix, cartão ou ambos;
 - cartão à vista ou parcelado;
 - quantidade máxima de parcelas definida pelo Admin, entre 1 e 12;
-- política desejada de parcelamento com ou sem acréscimo para a Compradora.
+- preço único para Pix e cartão, independentemente da quantidade de parcelas;
+- taxas de pagamento e parcelamento absorvidas pela Vendedora.
 
 O padrão inicial é Pix + cartão e cartão em até 3x. Preço e oferta
 efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso não altere
 o contrato vendido.
 
-O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
-`installment.maxInstallmentCount`, mas não documenta, por sessão, a escolha de quem
-absorve o custo do parcelamento. O campo `interest` das APIs de cobrança significa juros
-por atraso. Portanto, o Admin configura métodos e teto de parcelas, mas não uma política
-de juros que o provider não consegue cumprir. O teto comercial do Hub é 12x, mesmo que
-contratos ou bandeiras específicos do provider admitam mais.
+O Asaas Checkout recebe um único valor de item para Pix e cartão. Ele documenta
+`billingTypes`, `chargeTypes=INSTALLMENT` e `installment.maxInstallmentCount`, mas não
+documenta, por sessão, a escolha de quem absorve o custo do parcelamento nem valores
+diferentes por método. O campo `interest` das APIs de cobrança significa juros por
+atraso. Portanto, o Admin configura métodos e teto de parcelas; o Hub envia o mesmo total
+em todos os métodos e a Vendedora absorve as taxas descontadas do recebível. O teto
+comercial do Hub é 12x, mesmo que contratos ou bandeiras específicos do provider admitam
+mais.
 
 Cada parcela possui ID de pagamento próprio. O Hub correlaciona o
 `provider_installment_id`, valida o bruto do agregado antes de conceder acesso, aceita os
@@ -176,7 +179,8 @@ Ver a
 
 - escopo definitivo de `support` e capacidades financeiras mutáveis;
 - tratamento de compra pública com e-mail já pertencente a Admin/Suporte;
-- viabilidade e cálculo do acréscimo comercial por parcelamento;
+- eventual retomada, após o lançamento, do experimento de acréscimo comercial por
+  parcelamento;
 - política de reversão de ajustes encadeados;
 - confiabilidade banco e e-mail sem outbox;
 - critérios de incidente e SLOs;

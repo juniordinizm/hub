@@ -77,7 +77,9 @@ pressupõem a limpeza dos Pedidos de teste legados antes do DDL.
 
 O Hub cria Checkout hospedado com Pix, cartão ou ambos, conforme a oferta do Curso.
 Cartão pode ser à vista (`DETACHED`) ou admitir `INSTALLMENT` até o teto configurado.
-Cada Checkout tem item inline; Curso não possui produto remoto no Asaas.
+Cada Checkout tem item inline com um único valor para todos os métodos e quantidades de
+parcelas; Curso não possui produto remoto no Asaas. A Vendedora absorve as taxas
+descontadas do recebível.
 
 - `externalReference` carrega somente uma referência local opaca, sem nome, e-mail ou
   outro dado pessoal;
@@ -113,6 +115,8 @@ intacta e o Pedido recebe somente o teto efetivo, preservando o padrão de novos
 
 - o Checkout não documenta campo por sessão para escolher se Compradora ou Vendedora
   absorve o custo do parcelamento;
+- Pix, cartão à vista e cartão parcelado usam o mesmo total do item; a quantidade de
+  parcelas não altera o preço pago pela Compradora;
 - `interest` nas APIs de cobrança significa juros por atraso;
 - cada parcela possui um ID de pagamento próprio;
 - Pix + cartão parcelado no mesmo Checkout foi comprovado no Sandbox.

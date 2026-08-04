@@ -202,7 +202,9 @@ limite máximo próprio. A oferta efetiva precisa ser copiada para o Pedido.
 **Implementação atual:** preço, Pix, cartão e o teto de 1 a 12 parcelas são configuráveis
 por Curso. O padrão de novos Cursos é Pix + cartão em até 3x. A oferta é copiada para o
 Pedido e convertida em `billingTypes`, `chargeTypes` e
-`installment.maxInstallmentCount` somente na borda Asaas.
+`installment.maxInstallmentCount` somente na borda Asaas. O item possui um único preço
+para Pix, cartão à vista e cartão parcelado. A Vendedora absorve as taxas descontadas pelo
+Asaas do recebível; a quantidade escolhida não altera o total pago pela Compradora.
 
 O teto efetivo respeita o piso comercial aprovado de `1000` centavos por parcela,
 equivalente ao preço mínimo de um Curso pago. O Asaas permite configurar na conta o valor
@@ -220,11 +222,11 @@ total devem coincidir com o snapshot. Eventos das demais parcelas são aceitos s
 quando mantêm o mesmo agregado. Conciliação lista todas as cobranças, e reembolso integral
 usa `POST /v3/installments/{id}/refund`.
 
-**Limitação do fornecedor:** o Checkout hospedado não documenta, por sessão, quem absorve
-o custo do parcelamento, repasse de taxa ou preço variável conforme a quantidade
-escolhida. O Hub não apresenta uma opção fictícia “cliente/vendedor”; taxas e recebíveis
-seguem o contrato da conta Asaas. O campo `interest` de outras APIs é juros por atraso e
-não pode ser reutilizado para essa finalidade.
+**Limitação do fornecedor:** o Checkout hospedado não aceita preço diferente por método
+ou quantidade de parcelas e não documenta, por sessão, quem absorve o custo do
+parcelamento. O Hub não apresenta uma opção fictícia “cliente/vendedor”; no contrato de
+lançamento, o preço é único e a Vendedora absorve as taxas. O campo `interest` de outras
+APIs é juros por atraso e não pode ser reutilizado para essa finalidade.
 
 Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).

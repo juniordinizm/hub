@@ -6,6 +6,13 @@ last_verified_commit: a963eed
 
 # Pesquisa: repasse do custo do parcelamento por Curso no Asaas
 
+## Decisão posterior
+
+O experimento derivado desta pesquisa foi pausado antes do lançamento. O produto mantém
+o Checkout hospedado, um único preço para Pix e cartão e absorção das taxas pela
+Vendedora. A pesquisa permanece como evidência para uma retomada futura; não descreve o
+fluxo ativo.
+
 ## Escopo e método
 
 Pesquisa concluída em 3 de agosto de 2026, usando somente fontes primárias do Asaas:
