@@ -36,7 +36,7 @@ describe("transactional email", () => {
     send.mockReset();
   });
 
-  it("sends React email through Resend with reply-to", async () => {
+  it("renders email content through Resend with reply-to", async () => {
     process.env.RESEND_API_KEY = "re_test";
     process.env.RESEND_FROM_EMAIL = "PROTEA-R <noreply@example.com>";
     send.mockResolvedValue({ data: { id: "email_123" }, error: null });
@@ -51,11 +51,28 @@ describe("transactional email", () => {
     expect(Resend).toHaveBeenCalledWith("re_test");
     expect(send).toHaveBeenCalledWith({
       from: "PROTEA-R <noreply@example.com>",
-      react: "Conteúdo do e-mail",
+      html: expect.stringContaining("Conteúdo do e-mail"),
       replyTo: "student@example.com",
       subject: "Suporte",
       to: "support@example.com",
     });
+  });
+
+  it("escapes string content before sending it as HTML", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendTransactionalEmail({
+      react: "<b>unsafe content</b>",
+      subject: "Acesso liberado",
+      to: "student@example.com",
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("&lt;b&gt;unsafe content&lt;/b&gt;"),
+      })
+    );
   });
 
   it("uses the monitored support inbox as the default reply-to", async () => {
@@ -73,7 +90,7 @@ describe("transactional email", () => {
 
     expect(send).toHaveBeenCalledWith({
       from: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
-      react: "Conteúdo do e-mail",
+      html: expect.stringContaining("Conteúdo do e-mail"),
       replyTo: "suporte@neurocapacitar.com.br",
       subject: "Acesso liberado",
       to: "student@example.com",
@@ -128,6 +145,26 @@ describe("transactional email", () => {
       idempotencyKey:
         "auth-account-activation-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     });
+  });
+
+  it("renders the reset link and user name in the password reset email", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendPasswordResetEmail({
+      resetUrl: "https://auth.example.test/reset/token",
+      to: "student@example.com",
+      userName: "Student",
+    });
+
+    const [email] = send.mock.calls[0] ?? [];
+    expect(email).toEqual(
+      expect.objectContaining({
+        html: expect.stringContaining("https://auth.example.test/reset/token"),
+      })
+    );
+    expect(email.html).toContain("Student");
+    expect(email).not.toHaveProperty("react");
   });
 
   it("treats an activation payload conflict as an already accepted email", async () => {

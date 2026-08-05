@@ -1,4 +1,5 @@
 import "server-only";
+import { render } from "@react-email/components";
 import { Resend } from "resend";
 import { assertDevelopmentEmailRecipientAllowed } from "@/features/email/development-recipient";
 import {
@@ -43,9 +44,10 @@ export const sendTransactionalEmail = async ({
   });
 
   const resolvedReplyTo = replyTo ?? env.SUPPORT_EMAIL;
+  const html = await render(react);
   const email = {
     from: env.RESEND_FROM_EMAIL,
-    react,
+    html,
     ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
     subject,
     to,
