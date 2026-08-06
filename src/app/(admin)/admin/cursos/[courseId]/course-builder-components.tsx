@@ -88,12 +88,12 @@ export function ModuleSection({
   course,
   moduleData,
   moduleLessons,
-  index,
+  index: _index,
 }: {
   course: CourseData;
+  index?: number;
   moduleData: ModuleData;
   moduleLessons: LessonData[];
-  index: number;
 }): React.JSX.Element {
   const nextLessonSortOrder =
     moduleLessons.length > 0
@@ -104,8 +104,7 @@ export function ModuleSection({
     <>
       <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-muted-foreground text-xs">Modulo {index + 1}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-semibold">{moduleData.title}</h3>
             <Badge
               variant={moduleData.status === "active" ? "default" : "outline"}
