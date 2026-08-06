@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 5bc18b1dc3eb0e56e86a6f11144a1371d9dd026d
 ---
 
 # Comércio e acesso
