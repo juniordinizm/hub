@@ -196,6 +196,24 @@ function PanelLayoutInner({
     "/admin/auditoria",
   ].includes(pathname);
 
+  const handleBack = useCallback(() => {
+    const hasHistory =
+      typeof window !== "undefined" &&
+      window.history.length > 1 &&
+      document.referrer?.startsWith(window.location.origin);
+
+    if (hasHistory) {
+      router.back();
+      return;
+    }
+
+    if (pathname.startsWith("/admin")) {
+      router.push(route("/admin/cursos"));
+    } else {
+      router.push(route("/app"));
+    }
+  }, [pathname, router]);
+
   const handleSignOut = async () => {
     setIsPending(true);
     await authClient.signOut();
@@ -316,8 +334,8 @@ function PanelLayoutInner({
               />
               {showBackButton && (
                 <Button
-                  className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
-                  onClick={() => router.back()}
+                  className="hidden shrink-0 gap-1.5 text-muted-foreground hover:text-foreground md:inline-flex"
+                  onClick={handleBack}
                   size="sm"
                   variant="ghost"
                 >
