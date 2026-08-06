@@ -2,6 +2,10 @@ import "server-only";
 import { getPool } from "@/db";
 import { requirePermission } from "@/lib/auth-permissions";
 import {
+  APP_CURRENT_DATE_SQL,
+  APP_CURRENT_DAY_START_SQL,
+} from "@/lib/timezone";
+import {
   isLearningAnalyticsEnabled,
   LEARNING_ANALYTICS_POLICY_VERSION,
   type LearningAnalyticsEventType,
@@ -161,14 +165,14 @@ export const getLessonAnalyticsMetrics = async (): Promise<
              count(*)::int as event_count,
              count(distinct enrollment_id)::int as unique_enrollment_count
       from learning_analytics_events
-      where occurred_at >= current_date
+      where occurred_at >= ${APP_CURRENT_DAY_START_SQL}
       group by course_publication_id, lesson_id, event_type
       union all
       select course_publication_id, lesson_id, event_type,
              event_count, unique_enrollment_count
       from learning_analytics_daily_metrics
-      where metric_date < current_date
-        and metric_date >= current_date - interval '13 months'
+      where metric_date < ${APP_CURRENT_DATE_SQL}
+        and metric_date >= (${APP_CURRENT_DATE_SQL} - interval '13 months')::date
     ), analytics as (
       select course_publication_id, lesson_id,
              coalesce(sum(unique_enrollment_count) filter (where event_type = 'lesson_started'), 0)::int as started,

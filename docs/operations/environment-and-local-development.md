@@ -246,6 +246,22 @@ Use `verify:quick` durante o trabalho e `verify` antes do Pull Request.
 deliberado. O fluxo completo até Production está no
 [tutorial de release](production-release-guide.md).
 
+## Política de datas e fusos
+
+O banco guarda instantes em UTC nos timestamps com `withTimezone: true`. A
+interface do produto exibe esses instantes no fuso fixo `America/Sao_Paulo`, por
+meio dos helpers de `src/lib/formatters.ts`. Isso torna Development, Staging e
+Production determinísticos, independentemente do fuso do processo Node/Bun,
+da região de execução da Vercel ou do navegador do usuário.
+
+Não use `Intl.DateTimeFormat` sem `timeZone`, `Date#toLocaleString`,
+`Date#toString` ou `toISOString().slice(0, 10)` para saída de calendário. Uma
+data escolhida sem horário é interpretada como calendário de São Paulo e só
+depois convertida em um instante UTC antes de ser persistida. Agendamentos e
+logs operacionais continuam em UTC e devem ser rotulados como tal.
+Relatórios diários e agregações SQL usam explicitamente a meia-noite desse fuso;
+não dependem do `TimeZone` da sessão PostgreSQL.
+
 ## Evidências
 
 `src/lib/env.ts`, `drizzle.config.ts`, `src/features/maintenance/server.ts`, `src/app/api/cron/maintenance/route.ts`, `src/features/storage/r2.ts` e `next.config.ts`.

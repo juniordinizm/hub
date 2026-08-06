@@ -6,7 +6,6 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { format } from "date-fns";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { DatePickerField } from "@/components/date-picker-field";
 import {
@@ -33,6 +32,7 @@ import {
   blockEnrollmentAccessAction,
   restoreEnrollmentAccessAction,
 } from "@/features/admin/actions";
+import { formatDateInput, formatDateTime } from "@/lib/formatters";
 
 export interface EnrollmentExpirationControlData {
   courseTitle: string;
@@ -51,21 +51,12 @@ export const statusLabels: Record<string, string> = {
   revoked: "Bloqueado",
 };
 
-export const formatDateTime = (value: Date | string): string =>
-  new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-
-const formatDateInput = (value: Date | string): string =>
-  format(new Date(value), "yyyy-MM-dd");
-
 export function EnrollmentExpirationControls({
   enrollment,
 }: {
   enrollment: EnrollmentExpirationControlData;
 }): React.JSX.Element {
-  const today = new Date();
+  const today = formatDateInput(new Date());
   const isBlocked = enrollment.status === "revoked";
   const isManuallyBlocked =
     isBlocked && enrollment.revokedReason === "manual_access_block";

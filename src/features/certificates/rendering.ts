@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { formatDate } from "@/lib/formatters";
 import { createCertificatePdfDocument } from "./pdf-document";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { getCertificateValidationPath } from "./rules";
@@ -8,18 +9,13 @@ import { CERTIFICATE_PAGE } from "./template-rules";
 
 const pointsPerMillimeter = 72 / 25.4;
 
-const formatCertificateDate = (value: string): string =>
-  new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
-
 const fieldValues = (
   snapshot: CertificateRenderSnapshot
 ): Record<string, string> => ({
-  completedAt: formatCertificateDate(snapshot.completion.completedAt),
+  completedAt: formatDate(snapshot.completion.completedAt),
   courseFreeStatement: snapshot.issuer.courseFreeStatement,
   courseTitle: snapshot.course.title,
-  issuedAt: formatCertificateDate(snapshot.certificate.issuedAt),
+  issuedAt: formatDate(snapshot.certificate.issuedAt),
   issuerCnpj: snapshot.issuer.cnpj,
   issuerName: snapshot.issuer.displayName,
   signerName: snapshot.template.signerName ?? "",

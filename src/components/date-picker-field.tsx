@@ -2,7 +2,7 @@
 
 import { Calendar03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { format, parse, startOfDay } from "date-fns";
+import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -28,18 +28,14 @@ export function DatePickerField({
   placeholder = "Selecionar data",
 }: {
   defaultValue: string;
-  minDate?: Date;
+  minDate?: string;
   name: string;
   placeholder?: string;
 }): React.JSX.Element {
   const [value, setValue] = useState(defaultValue);
   const selected = useMemo(() => parseDateValue(value), [value]);
-  const minimumDate = useMemo(
-    () => (minDate ? startOfDay(minDate) : null),
-    [minDate]
-  );
   const isDateDisabled = (date: Date): boolean =>
-    Boolean(minimumDate && startOfDay(date) < minimumDate);
+    Boolean(minDate && format(date, DATE_FORMAT) < minDate);
 
   return (
     <Popover>

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { summarizeAdminStudentAccess } from "@/features/admin/presentation";
 import { getAdminStudentsData } from "@/features/admin/server";
+import { formatDateInput } from "@/lib/formatters";
 import { AdminMetricCard } from "../admin-metric-card";
 import {
   type StudentEnrollmentRow,
@@ -22,8 +23,6 @@ import {
 } from "./students-table";
 
 export const dynamic = "force-dynamic";
-
-const dateInputValue = (date: Date): string => date.toISOString().slice(0, 10);
 
 export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
   const data = await getAdminStudentsData();
@@ -34,11 +33,11 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
     const current = enrollmentsByUserId.get(enrollment.userId) ?? [];
     current.push({
       courseTitle: enrollment.courseTitle,
-      expiresAt: dateInputValue(enrollment.expiresAt),
+      expiresAt: formatDateInput(enrollment.expiresAt),
       id: enrollment.id,
-      originalExpiresAt: dateInputValue(enrollment.originalExpiresAt),
+      originalExpiresAt: formatDateInput(enrollment.originalExpiresAt),
       revokedReason: enrollment.revokedReason,
-      startedAt: dateInputValue(enrollment.startsAt),
+      startedAt: formatDateInput(enrollment.startsAt),
       status: enrollment.status,
       userId: enrollment.userId,
     });

@@ -48,6 +48,7 @@ import {
   blockStudentPlatformAccessAction,
   restoreStudentPlatformAccessAction,
 } from "@/features/admin/actions";
+import { formatShortDate } from "@/lib/formatters";
 
 export interface StudentEnrollmentRow {
   courseTitle: string;
@@ -73,14 +74,12 @@ export interface StudentTableRow {
   userId: string;
 }
 
-const formatDate = (value: string | null): string => {
+const formatNullableDate = (value: string | null): string => {
   if (!value) {
     return "Sem registro";
   }
 
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
-    new Date(value)
-  );
+  return formatShortDate(value);
 };
 
 const columns: ColumnDef<StudentTableRow>[] = [
@@ -115,12 +114,12 @@ const columns: ColumnDef<StudentTableRow>[] = [
   {
     accessorKey: "latestExpiration",
     header: "Expiracao final",
-    cell: ({ row }) => formatDate(row.original.latestExpiration),
+    cell: ({ row }) => formatNullableDate(row.original.latestExpiration),
   },
   {
     accessorKey: "lastAccessAt",
     header: "Ultimo acesso",
-    cell: ({ row }) => formatDate(row.original.lastAccessAt),
+    cell: ({ row }) => formatNullableDate(row.original.lastAccessAt),
   },
   {
     id: "actions",
@@ -180,7 +179,7 @@ function StudentEnrollmentsDialog({
                 Primeiro acesso
               </span>
               <span className="font-medium">
-                {formatDate(student.firstEnrollmentAt)}
+                {formatNullableDate(student.firstEnrollmentAt)}
               </span>
             </div>
             <div className="flex flex-col gap-1">
@@ -188,7 +187,7 @@ function StudentEnrollmentsDialog({
                 Último acesso
               </span>
               <span className="font-medium">
-                {formatDate(student.lastAccessAt)}
+                {formatNullableDate(student.lastAccessAt)}
               </span>
             </div>
             {student.platformBlockedReason && (
@@ -246,7 +245,7 @@ export function StudentCoursesSummary({
                 {enrollment.courseTitle}
               </p>
               <p className="text-muted-foreground text-xs">
-                Expira em {formatDate(enrollment.expiresAt)}
+                Expira em {formatNullableDate(enrollment.expiresAt)}
               </p>
             </div>
             <Badge className="w-fit" variant="secondary">

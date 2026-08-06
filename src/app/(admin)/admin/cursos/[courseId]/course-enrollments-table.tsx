@@ -16,22 +16,19 @@ import {
 } from "@/components/ui/dialog";
 import {
   EnrollmentExpirationControls,
-  formatDateTime,
   statusLabels,
 } from "@/features/admin/enrollment-expiration-controls";
 import type { AdminEnrollment } from "@/features/admin/server";
+import { formatDateTime as formatAppDateTime } from "@/lib/formatters";
 
 export type CourseEnrollmentRow = AdminEnrollment;
 
-const formatDate = (value: Date | string | null): string => {
+const formatNullableDateTime = (value: Date | string | null): string => {
   if (!value) {
     return "Sem registro";
   }
 
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatAppDateTime(value);
 };
 
 const columns: ColumnDef<CourseEnrollmentRow>[] = [
@@ -48,12 +45,12 @@ const columns: ColumnDef<CourseEnrollmentRow>[] = [
   {
     accessorKey: "startsAt",
     header: "Matricula",
-    cell: ({ row }) => formatDate(row.original.startsAt),
+    cell: ({ row }) => formatNullableDateTime(row.original.startsAt),
   },
   {
     accessorKey: "expiresAt",
     header: "Expira em",
-    cell: ({ row }) => formatDate(row.original.expiresAt),
+    cell: ({ row }) => formatNullableDateTime(row.original.expiresAt),
   },
   {
     accessorKey: "status",
@@ -119,7 +116,7 @@ function EnrollmentEditDialog({
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground text-xs">Início</span>
               <span className="font-medium">
-                {formatDateTime(enrollment.startsAt)}
+                {formatAppDateTime(enrollment.startsAt)}
               </span>
             </div>
             <div className="flex flex-col gap-1">
@@ -127,7 +124,7 @@ function EnrollmentEditDialog({
                 Expiração original
               </span>
               <span className="font-medium">
-                {formatDateTime(enrollment.originalExpiresAt)}
+                {formatAppDateTime(enrollment.originalExpiresAt)}
               </span>
             </div>
             <div className="flex flex-col gap-1">
@@ -135,7 +132,7 @@ function EnrollmentEditDialog({
                 Expiração atual
               </span>
               <span className="font-medium">
-                {formatDateTime(enrollment.expiresAt)}
+                {formatAppDateTime(enrollment.expiresAt)}
               </span>
             </div>
           </div>

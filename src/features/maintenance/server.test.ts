@@ -144,6 +144,16 @@ describe("runMaintenance", () => {
     expect(query).toHaveBeenCalledWith(
       "delete from learning_analytics_events where occurred_at < now() - interval '90 days'"
     );
+    const analyticsAggregationQuery = query.mock.calls.find(([sql]) =>
+      String(sql).includes("insert into learning_analytics_daily_metrics")
+    )?.[0];
+    expect(analyticsAggregationQuery).toContain(
+      "(occurred_at at time zone 'America/Sao_Paulo')::date"
+    );
+    expect(analyticsAggregationQuery).toContain(
+      "date_trunc('day', current_timestamp at time zone 'America/Sao_Paulo')"
+    );
+    expect(analyticsAggregationQuery).not.toContain("occurred_at::date");
     expect(query).toHaveBeenLastCalledWith(
       expect.stringContaining("maintenance.executed"),
       [
