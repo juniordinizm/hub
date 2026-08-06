@@ -501,7 +501,9 @@ test("completion persists and advances to the next lesson", async ({
   if (await completionButton.isVisible()) {
     await completionButton.click();
   } else {
-    await page.goto(`/app/aulas/${fixture.course.lessonTwoId}`);
+    await page
+      .getByRole("button", { name: "Concluir aula no cabeçalho" })
+      .click();
   }
   await expect(page).toHaveURL(
     new RegExp(`/app/aulas/${fixture.course.lessonTwoId}$`)

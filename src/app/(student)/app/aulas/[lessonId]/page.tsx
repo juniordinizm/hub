@@ -914,7 +914,7 @@ function NavigationCard({
     return (
       <div
         className={cn(
-          "flex min-w-0 select-none flex-col rounded-xl border border-border bg-muted/30 p-3 text-muted-foreground opacity-75 sm:p-4",
+          "flex min-w-0 select-none flex-col rounded-xl border border-border bg-muted/30 p-3 text-muted-foreground sm:p-4",
           type === "previous" ? "items-start text-left" : "items-end text-right"
         )}
       >
@@ -1031,7 +1031,7 @@ function LessonSidebarItem({
           {lesson.title}
         </span>
         {lesson.isAvailable ? null : (
-          <span className="block text-xs opacity-75">
+          <span className="block text-sidebar-foreground/70 text-xs">
             Libere concluindo a aula anterior
           </span>
         )}
@@ -1045,7 +1045,7 @@ function LessonSidebarItem({
   if (!lesson.isAvailable) {
     return (
       <SidebarMenuItem>
-        <div className="flex min-h-9 select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/50 text-sm">
+        <div className="flex min-h-9 select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/70 text-sm">
           {content}
         </div>
       </SidebarMenuItem>

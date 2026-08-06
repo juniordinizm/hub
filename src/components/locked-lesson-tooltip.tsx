@@ -22,7 +22,7 @@ export function LockedNavigationCard({
   return (
     <div
       aria-disabled="true"
-      className="flex w-full min-w-0 select-none flex-col items-end rounded-xl border border-border bg-muted/30 p-3 text-right text-muted-foreground opacity-75 sm:p-4"
+      className="flex w-full min-w-0 select-none flex-col items-end rounded-xl border border-border bg-muted/30 p-3 text-right text-muted-foreground sm:p-4"
     >
       <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
         <span className="truncate">{label}</span>
