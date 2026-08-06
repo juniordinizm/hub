@@ -14,6 +14,7 @@ import { CourseBuilderClient } from "@/components/course-builder-dnd";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogBody,
   DialogFooter,
@@ -296,12 +297,7 @@ export function LessonEditorSidebarFields({
         type="hidden"
         value={lesson.moduleId}
       />
-      <input
-        form={formId}
-        name="isRequired"
-        type="hidden"
-        value={lesson.isRequired ? "on" : "false"}
-      />
+      <input form={formId} name="isRequired" type="hidden" value="false" />
       <Field>
         <FieldLabel>Titulo da aula</FieldLabel>
         <Input
@@ -322,13 +318,12 @@ export function LessonEditorSidebarFields({
         />
       </Field>
       <Field orientation="horizontal">
-        <Input
+        <Checkbox
           defaultChecked={lesson.isRequired}
           disabled={lesson.coursePublicationStatus === "published"}
           form={formId}
           id="lesson-is-required"
           name="isRequired"
-          type="checkbox"
           value="on"
         />
         <FieldLabel htmlFor="lesson-is-required">

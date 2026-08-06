@@ -220,6 +220,26 @@ describe("student experience reads", () => {
     expect(syncJmvstreamLessonPlayer).not.toHaveBeenCalled();
   });
 
+  it("marks the immediate next lesson as unavailable until the current lesson is completed", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 }),
+        createLessonRow({ lessonId: "lesson-2", lessonSortOrder: 2 }),
+      ],
+    });
+
+    const workspace = await getStudentLessonWorkspace({
+      lessonId: "lesson-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(workspace).toMatchObject({ nextLessonId: "lesson-2" });
+    expect(workspace?.modules[0]?.lessons).toMatchObject([
+      { id: "lesson-1", isAvailable: true },
+      { id: "lesson-2", isAvailable: false },
+    ]);
+  });
+
   it("resolves JMVStream video through the lesson workspace interface", async () => {
     query.mockResolvedValue({
       rows: [

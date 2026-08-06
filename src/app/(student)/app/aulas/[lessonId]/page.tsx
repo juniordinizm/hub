@@ -11,6 +11,7 @@ import {
   FileImageIcon,
   FileLinkIcon,
   Pdf01Icon,
+  SquareLock02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
@@ -76,6 +77,7 @@ interface LessonSearchParams {
 }
 interface LessonWithModule {
   id: string;
+  isAvailable: boolean;
   moduleTitle: string;
   title: string;
 }
@@ -211,6 +213,7 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
   return data.modules.flatMap((module) =>
     module.lessons.map((lesson) => ({
       id: lesson.id,
+      isAvailable: lesson.isAvailable,
       moduleTitle: module.title,
       title: lesson.title,
     }))
@@ -744,7 +747,7 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <aside aria-label="Conteúdo do curso">
+    <aside aria-label="Conteúdo do curso" className="h-full">
       <Sidebar
         className="hidden h-full w-[340px] shrink-0 border-l-0 lg:flex"
         collapsible="none"
@@ -829,7 +832,7 @@ function LessonCourseOutline({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-2 py-2">
+    <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
       {modules.map((module) => (
         <SidebarGroup key={module.id}>
           <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
@@ -942,6 +945,31 @@ function NavigationCard({
     );
   }
 
+  if (type === "next" && !lesson.isAvailable) {
+    return (
+      <div
+        aria-disabled="true"
+        className="flex flex-col items-end rounded-xl border bg-muted/20 p-4 text-right text-muted-foreground"
+      >
+        <span className="flex items-center gap-1.5 text-xs">
+          {label}
+          <HugeiconsIcon
+            className="shrink-0"
+            icon={ArrowRightIcon}
+            size={14}
+            strokeWidth={2}
+          />
+        </span>
+        <span className="mt-1 block w-full truncate font-semibold text-foreground">
+          {lesson.title}
+        </span>
+        <span className="mt-1 text-xs">
+          Conclua esta aula para liberar a próxima.
+        </span>
+      </div>
+    );
+  }
+
   return (
     <Button
       asChild
@@ -1006,19 +1034,21 @@ function LessonSidebarItem({
   const marker = getLessonMarker(lesson);
   const content = (
     <>
-      <span className="w-4 text-sidebar-foreground text-xs">{marker}</span>
+      <span className="flex size-4 shrink-0 items-center justify-center text-xs">
+        {marker}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate">
           {lesson.isCompleted ? "Concluída · " : ""}
           {lesson.title}
         </span>
         {lesson.isAvailable ? null : (
-          <span className="block text-sidebar-foreground text-xs">
+          <span className="block text-xs opacity-75">
             Libere concluindo a aula anterior
           </span>
         )}
       </span>
-      <span className="ml-auto text-sidebar-foreground text-xs">
+      <span className="ml-auto text-xs">
         {formatLessonDuration(lesson.durationSeconds)}
       </span>
     </>
@@ -1027,7 +1057,7 @@ function LessonSidebarItem({
   if (!lesson.isAvailable) {
     return (
       <SidebarMenuItem>
-        <div className="flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground text-sm">
+        <div className="flex min-h-9 select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/50 text-sm">
           {content}
         </div>
       </SidebarMenuItem>
@@ -1053,7 +1083,7 @@ function getLessonMarker({
 }: {
   isAvailable: boolean;
   isCompleted: boolean;
-}): string {
+}): React.ReactNode {
   if (isCompleted) {
     return "✓";
   }
@@ -1062,5 +1092,5 @@ function getLessonMarker({
     return "•";
   }
 
-  return "–";
+  return <HugeiconsIcon icon={SquareLock02Icon} size={14} strokeWidth={2} />;
 }
