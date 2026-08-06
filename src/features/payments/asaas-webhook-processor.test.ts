@@ -445,6 +445,11 @@ describe("Asaas webhook processor", () => {
           values?.[0] === EVENT_ID
       )
     ).toBe(true);
+    const enrichmentReviewUpdate = queries.find(({ text }) =>
+      text.includes("installment_enrichment_succeeded")
+    );
+    expect(enrichmentReviewUpdate?.text).toContain("status = 'approved'");
+    expect(enrichmentReviewUpdate?.text).not.toContain("decision =");
   });
 
   it("grants once from a card installment after validating the aggregate total", async () => {

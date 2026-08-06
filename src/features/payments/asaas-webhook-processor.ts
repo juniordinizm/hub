@@ -558,7 +558,6 @@ const reconcileInstallmentEnrichmentReview = async ({
   await client.query(
     `update payment_reviews
      set status = 'approved',
-         decision = 'approve',
          decision_reason = 'installment_enrichment_succeeded',
          resolved_by_user_id = null,
          resolved_at = coalesce(resolved_at, $2),
