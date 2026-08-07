@@ -18,21 +18,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import type { CertificateTemplateField } from "@/features/certificates/template-rules";
-
-const fieldLabels: Record<CertificateTemplateField["field"], string> = {
-  completedAt: "Conclusão",
-  courseFreeStatement: "Texto de curso livre",
-  courseTitle: "Curso",
-  issuedAt: "Emissão",
-  issuerCnpj: "CNPJ",
-  issuerName: "Empresa",
-  qrCode: "QR de validação",
-  signatureImage: "Assinatura visual",
-  signerName: "Responsável",
-  studentName: "Nome da aluna",
-  validationCode: "Código",
-  workloadHours: "Carga horária",
-};
+import { certificateTemplateFieldLabels } from "./certificate-template-field-labels";
 
 export type CertificateFieldChange = <
   Key extends keyof CertificateTemplateField,
@@ -65,7 +51,7 @@ const CertificateFieldPositionControls = ({
     <Field>
       <FieldLabel>Horizontal: {field.x}%</FieldLabel>
       <Slider
-        aria-label={`Posição horizontal de ${fieldLabels[field.field]}`}
+        aria-label={`Posição horizontal de ${certificateTemplateFieldLabels[field.field]}`}
         max={100 - field.width}
         min={0}
         onValueChange={(value) =>
@@ -77,7 +63,7 @@ const CertificateFieldPositionControls = ({
     <Field>
       <FieldLabel>Vertical: {field.y}%</FieldLabel>
       <Slider
-        aria-label={`Posição vertical de ${fieldLabels[field.field]}`}
+        aria-label={`Posição vertical de ${certificateTemplateFieldLabels[field.field]}`}
         max={100 - field.height}
         min={0}
         onValueChange={(value) =>
@@ -89,7 +75,7 @@ const CertificateFieldPositionControls = ({
     <Field>
       <FieldLabel>Largura: {field.width}%</FieldLabel>
       <Slider
-        aria-label={`Largura de ${fieldLabels[field.field]}`}
+        aria-label={`Largura de ${certificateTemplateFieldLabels[field.field]}`}
         max={100 - field.x}
         min={1}
         onValueChange={(value) =>
@@ -101,7 +87,7 @@ const CertificateFieldPositionControls = ({
     <Field>
       <FieldLabel>Altura: {field.height}%</FieldLabel>
       <Slider
-        aria-label={`Altura de ${fieldLabels[field.field]}`}
+        aria-label={`Altura de ${certificateTemplateFieldLabels[field.field]}`}
         max={100 - field.y}
         min={1}
         onValueChange={(value) =>
@@ -211,14 +197,14 @@ const CertificateTemplateFieldItem = memo(
         <AccordionPrimitive.Header className="flex px-2 sm:px-4">
           <div className="flex flex-1 items-center gap-3">
             <Switch
-              aria-label={`Exibir ${fieldLabels[field.field]}`}
+              aria-label={`Exibir ${certificateTemplateFieldLabels[field.field]}`}
               checked={field.visible}
               onCheckedChange={(checked) =>
                 onFieldChange(field.field, "visible", checked)
               }
             />
-            <AccordionPrimitive.Trigger className="group/trigger relative flex min-h-10 flex-1 items-center justify-between py-4 text-left font-medium text-sm outline-none transition-[color] hover:underline disabled:pointer-events-none disabled:opacity-50">
-              {fieldLabels[field.field]}
+            <AccordionPrimitive.Trigger className="group/trigger relative flex min-h-10 flex-1 items-center justify-between rounded-md py-4 text-left font-medium text-sm outline-none transition-[color] hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+              {certificateTemplateFieldLabels[field.field]}
               <span className="flex items-center text-muted-foreground">
                 <HugeiconsIcon
                   className="group-data-[state=open]/trigger:hidden"
@@ -261,25 +247,23 @@ const CertificateTemplateFieldItem = memo(
                     value={signerRole}
                   />
                 </Field>
-              </div>
-            ) : null}
-            {field.field === "signatureImage" ? (
-              <div className="mb-4">
-                <FieldLabel
-                  className="mb-2 block"
-                  htmlFor="certificate-signature"
-                >
-                  Imagem da assinatura
-                </FieldLabel>
-                <CertificateImageUploadField
-                  className="max-w-sm"
-                  id="certificate-signature"
-                  imageUrl={signaturePreviewUrl}
-                  kind="signature"
-                  label="Arraste a assinatura (fundo transparente)"
-                  onFileSelect={onSignatureFileSelect}
-                  selectedFile={signatureFile}
-                />
+                <Field className="sm:col-span-2">
+                  <FieldLabel
+                    className="mb-2 block"
+                    htmlFor="certificate-signature"
+                  >
+                    Imagem da assinatura
+                  </FieldLabel>
+                  <CertificateImageUploadField
+                    className="max-w-sm"
+                    id="certificate-signature"
+                    imageUrl={signaturePreviewUrl}
+                    kind="signature"
+                    label="Arraste a assinatura (fundo transparente)"
+                    onFileSelect={onSignatureFileSelect}
+                    selectedFile={signatureFile}
+                  />
+                </Field>
               </div>
             ) : null}
             <CertificateFieldPositionControls

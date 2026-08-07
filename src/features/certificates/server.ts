@@ -22,11 +22,42 @@ import {
   uploadPrivateR2ObjectIfAbsent,
 } from "@/features/storage/r2";
 import { getServerEnv } from "@/lib/env";
+import { CertificateDomainError } from "./errors";
+
+const MAX_CERTIFICATE_CODE_ATTEMPTS = 3;
+const CERTIFICATE_CODE_GENERATION_ERROR =
+  "Nao foi possivel gerar um codigo publico unico.";
+
+const isCertificateCodeCollision = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return (
+    candidate.code === "23505" &&
+    candidate.constraint === "certificates_code_unique"
+  );
+};
+
+const lockCertificatePair = async (
+  client: PoolClient,
+  userId: string,
+  courseId: string
+): Promise<void> => {
+  await client.query(
+    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
+    [userId, courseId]
+  );
+};
 
 export interface CertificateRecord {
   code: string;
+  completionAt?: Date | null;
   courseTitle: string;
   issuedAt: Date;
+  issuerCnpj?: string | null;
+  issuerName?: string | null;
   renderStatus: "failed" | "pending" | "ready";
   revokedAt: Date | null;
   revokedReasonCategory: CertificateReasonCode | null;
@@ -34,6 +65,15 @@ export interface CertificateRecord {
   studentName: string;
   workloadHours: number;
 }
+
+const parseSnapshotDate = (value: string | null): Date | null => {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
 
 export const tryIssueAutomaticCompletionCertificate = async ({
   client,
@@ -54,6 +94,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
   userId: string;
   workloadHours: number;
 }): Promise<string | null> => {
+  await lockCertificatePair(client, userId, courseId);
   const template = await client.query<{
     id: string;
     version: number;
@@ -68,13 +109,17 @@ export const tryIssueAutomaticCompletionCertificate = async ({
     issuer_legal_name: string;
   }>(
     `
-      select ct.id, ct.version, ct.background_key, ct.spec, ct.signer_name, ct.signer_role, ct.signature_key,
+      select ct.id, ct.version, ct.background_key, ct.spec,
+             coalesce(ct.signer_name, settings.certificate_signer_name) as signer_name,
+             coalesce(ct.signer_role, settings.certificate_signer_role) as signer_role,
+             ct.signature_key,
              issuer.cnpj as issuer_cnpj, issuer.legal_name as issuer_legal_name,
              issuer.display_name as issuer_display_name,
              issuer.course_free_statement as issuer_course_free_statement
       from courses c
       join certificate_templates ct on ct.course_id = c.id and ct.status = 'published'
       join certificate_issuer_profiles issuer on issuer.id = 'global'
+      left join app_settings settings on settings.id = 'global'
       where c.id = $1 and c.certificate_enabled = true
       limit 1
     `,
@@ -84,60 +129,84 @@ export const tryIssueAutomaticCompletionCertificate = async ({
   if (!templateSnapshot) {
     return null;
   }
-  const candidateCode = createCertificateCode(randomUUID());
   const issuedAt = new Date().toISOString();
-  const renderSnapshot = parseCertificateRenderSnapshot({
-    certificate: { code: candidateCode, issuedAt },
-    completion: { completedAt: completedAt.toISOString() },
-    course: { title: courseTitle, workloadHours },
-    issuer: {
-      cnpj: templateSnapshot.issuer_cnpj,
-      courseFreeStatement: templateSnapshot.issuer_course_free_statement,
-      displayName: templateSnapshot.issuer_display_name,
-      legalName: templateSnapshot.issuer_legal_name,
-    },
-    student: { name: studentName },
-    template: {
-      backgroundKey: templateSnapshot.background_key,
-      fields: parseCertificateTemplateDraft(templateSnapshot.spec).fields,
-      id: templateSnapshot.id,
-      signatureKey: templateSnapshot.signature_key,
-      signerName: templateSnapshot.signer_name,
-      signerRole: templateSnapshot.signer_role,
-      version: templateSnapshot.version,
-    },
-    version: 1,
-  });
-  const certificate = await client.query<{ code: string }>(
-    `
-      insert into certificates (
-        user_id,
-        course_id,
-        course_publication_id,
-        code,
-        student_name_snapshot,
-        course_title_snapshot,
-        workload_hours_snapshot
-        , certificate_template_id, render_snapshot
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-      on conflict do nothing
-      returning code
-    `,
-    [
-      userId,
-      courseId,
-      coursePublicationId,
-      candidateCode,
-      studentName,
-      courseTitle,
-      workloadHours,
-      templateSnapshot.id,
-      JSON.stringify(renderSnapshot),
-    ]
-  );
+  const completionAt = completedAt.toISOString();
+  const templateFields = parseCertificateTemplateDraft(
+    templateSnapshot.spec
+  ).fields;
 
-  return certificate.rows[0]?.code ?? null;
+  for (let attempt = 0; attempt < MAX_CERTIFICATE_CODE_ATTEMPTS; attempt += 1) {
+    const savepoint = `certificate_code_attempt_${attempt}`;
+    await client.query(`savepoint ${savepoint}`);
+    const candidateCode = createCertificateCode(randomUUID());
+    const renderSnapshot = parseCertificateRenderSnapshot({
+      certificate: { code: candidateCode, issuedAt },
+      completion: { completedAt: completionAt },
+      course: { title: courseTitle, workloadHours },
+      issuer: {
+        cnpj: templateSnapshot.issuer_cnpj,
+        courseFreeStatement: templateSnapshot.issuer_course_free_statement,
+        displayName: templateSnapshot.issuer_display_name,
+        legalName: templateSnapshot.issuer_legal_name,
+      },
+      student: { name: studentName },
+      template: {
+        backgroundKey: templateSnapshot.background_key,
+        fields: templateFields,
+        id: templateSnapshot.id,
+        signatureKey: templateSnapshot.signature_key,
+        signerName: templateSnapshot.signer_name,
+        signerRole: templateSnapshot.signer_role,
+        version: templateSnapshot.version,
+      },
+      version: 1,
+    });
+
+    try {
+      const certificate = await client.query<{ code: string }>(
+        `
+          insert into certificates (
+            user_id,
+            course_id,
+            course_publication_id,
+            code,
+            student_name_snapshot,
+            course_title_snapshot,
+            workload_hours_snapshot
+            , certificate_template_id, render_snapshot
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+          on conflict (user_id, course_id) where status = 'valid' do nothing
+          returning code
+        `,
+        [
+          userId,
+          courseId,
+          coursePublicationId,
+          candidateCode,
+          studentName,
+          courseTitle,
+          workloadHours,
+          templateSnapshot.id,
+          JSON.stringify(renderSnapshot),
+        ]
+      );
+      await client.query(`release savepoint ${savepoint}`);
+      return certificate.rows[0]?.code ?? null;
+    } catch (error) {
+      await client.query(`rollback to savepoint ${savepoint}`);
+      await client.query(`release savepoint ${savepoint}`);
+      if (isCertificateCodeCollision(error)) {
+        if (attempt + 1 < MAX_CERTIFICATE_CODE_ATTEMPTS) {
+          continue;
+        }
+        throw new CertificateDomainError(CERTIFICATE_CODE_GENERATION_ERROR);
+      }
+      throw error;
+    }
+  }
+
+  throw new CertificateDomainError(CERTIFICATE_CODE_GENERATION_ERROR);
 };
 
 export interface CompletionCertificateSummary {
@@ -171,6 +240,7 @@ export const issueCompletionCertificateIfEligible = async ({
     return false;
   }
 
+  await lockCertificatePair(client, userId, courseId);
   const completion = await client.query<{ completed_at: Date; id: string }>(
     `
       insert into course_completions as completion (user_id, course_id, course_publication_id)
@@ -213,7 +283,9 @@ export const issueCompletionCertificateIfEligible = async ({
   const certificateId = certificate.rows[0]?.id;
 
   if (!certificateId) {
-    throw new Error("Certificado emitido sem identificador persistido.");
+    throw new CertificateDomainError(
+      "Certificado emitido sem identificador persistido."
+    );
   }
 
   await enqueueOutboxMessage({
@@ -256,7 +328,9 @@ const requireCertificateReason = ({
   const category = parseCertificateReasonCode(reasonCategory);
 
   if (!(category && reasonDetail.trim())) {
-    throw new Error("Informe a categoria e o detalhe interno do motivo.");
+    throw new CertificateDomainError(
+      "Informe a categoria e o detalhe interno do motivo."
+    );
   }
 
   return category;
@@ -308,8 +382,8 @@ const issueCertificate = async ({
         ct.version as template_version,
         ct.background_key,
         ct.spec,
-        ct.signer_name,
-        ct.signer_role,
+        coalesce(ct.signer_name, settings.certificate_signer_name) as signer_name,
+        coalesce(ct.signer_role, settings.certificate_signer_role) as signer_role,
         ct.signature_key,
         issuer.cnpj as issuer_cnpj,
         issuer.legal_name as issuer_legal_name,
@@ -324,6 +398,7 @@ const issueCertificate = async ({
        and cc.course_publication_id = cp.id
       join certificate_templates ct on ct.course_id = c.id and ct.status = 'published'
       join certificate_issuer_profiles issuer on issuer.id = 'global'
+      left join app_settings settings on settings.id = 'global'
       where u.id = $1
       limit 1
     `,
@@ -332,71 +407,92 @@ const issueCertificate = async ({
   const source = snapshot.rows[0];
 
   if (!source) {
-    throw new Error("Aluna ou curso nao localizado.");
+    throw new CertificateDomainError("Aluna ou curso nao localizado.");
   }
 
-  const certificateCode = randomUUID();
   const issuedAt = new Date().toISOString();
-  const renderSnapshot = parseCertificateRenderSnapshot({
-    certificate: { code: certificateCode, issuedAt },
-    completion: { completedAt: source.completed_at.toISOString() },
-    course: {
-      title: source.course_title,
-      workloadHours: source.workload_hours,
-    },
-    issuer: {
-      cnpj: source.issuer_cnpj,
-      courseFreeStatement: source.issuer_course_free_statement,
-      displayName: source.issuer_display_name,
-      legalName: source.issuer_legal_name,
-    },
-    student: { name: source.student_name },
-    template: {
-      backgroundKey: source.background_key,
-      fields: parseCertificateTemplateDraft(source.spec).fields,
-      id: source.template_id,
-      signatureKey: source.signature_key,
-      signerName: source.signer_name,
-      signerRole: source.signer_role,
-      version: source.template_version,
-    },
-    version: 1,
-  });
+  const templateFields = parseCertificateTemplateDraft(source.spec).fields;
+  let certificateId: string | undefined;
 
-  const certificate = await client.query<{ id: string }>(
-    `
-      insert into certificates (
-        user_id,
-        course_id,
-        course_publication_id,
-        code,
-        student_name_snapshot,
-        course_title_snapshot,
-        workload_hours_snapshot,
-        replaces_certificate_id,
-        certificate_template_id,
-        render_snapshot
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
-      returning id
-    `,
-    [
-      userId,
-      courseId,
-      coursePublicationId,
-      certificateCode,
-      source.student_name,
-      source.course_title,
-      source.workload_hours,
-      replacesCertificateId ?? null,
-      source.template_id,
-      JSON.stringify(renderSnapshot),
-    ]
-  );
-  const certificateId = certificate.rows[0]?.id;
+  for (let attempt = 0; attempt < MAX_CERTIFICATE_CODE_ATTEMPTS; attempt += 1) {
+    const savepoint = `certificate_code_attempt_${attempt}`;
+    await client.query(`savepoint ${savepoint}`);
+    const certificateCode = createCertificateCode(randomUUID());
+    const renderSnapshot = parseCertificateRenderSnapshot({
+      certificate: { code: certificateCode, issuedAt },
+      completion: { completedAt: source.completed_at.toISOString() },
+      course: {
+        title: source.course_title,
+        workloadHours: source.workload_hours,
+      },
+      issuer: {
+        cnpj: source.issuer_cnpj,
+        courseFreeStatement: source.issuer_course_free_statement,
+        displayName: source.issuer_display_name,
+        legalName: source.issuer_legal_name,
+      },
+      student: { name: source.student_name },
+      template: {
+        backgroundKey: source.background_key,
+        fields: templateFields,
+        id: source.template_id,
+        signatureKey: source.signature_key,
+        signerName: source.signer_name,
+        signerRole: source.signer_role,
+        version: source.template_version,
+      },
+      version: 1,
+    });
+
+    try {
+      const certificate = await client.query<{ id: string }>(
+        `
+          insert into certificates (
+            user_id,
+            course_id,
+            course_publication_id,
+            code,
+            student_name_snapshot,
+            course_title_snapshot,
+            workload_hours_snapshot,
+            replaces_certificate_id,
+            certificate_template_id,
+            render_snapshot
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+          returning id
+        `,
+        [
+          userId,
+          courseId,
+          coursePublicationId,
+          certificateCode,
+          source.student_name,
+          source.course_title,
+          source.workload_hours,
+          replacesCertificateId ?? null,
+          source.template_id,
+          JSON.stringify(renderSnapshot),
+        ]
+      );
+      await client.query(`release savepoint ${savepoint}`);
+      certificateId = certificate.rows[0]?.id;
+      break;
+    } catch (error) {
+      await client.query(`rollback to savepoint ${savepoint}`);
+      await client.query(`release savepoint ${savepoint}`);
+      if (isCertificateCodeCollision(error)) {
+        if (attempt + 1 < MAX_CERTIFICATE_CODE_ATTEMPTS) {
+          continue;
+        }
+        throw new CertificateDomainError(CERTIFICATE_CODE_GENERATION_ERROR);
+      }
+      throw error;
+    }
+  }
 
   if (!certificateId) {
-    throw new Error("Nao foi possivel emitir o certificado.");
+    throw new CertificateDomainError("Nao foi possivel emitir o certificado.");
   }
 
   await auditCertificate({
@@ -439,6 +535,7 @@ export const issueManualCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
+    await lockCertificatePair(client, userId, courseId);
     const enrollment = await client.query<{ id: string }>(
       `
         select id
@@ -449,7 +546,9 @@ export const issueManualCertificate = async ({
       [userId, courseId]
     );
     if (!enrollment.rows[0]) {
-      throw new Error("A aluna nao possui matricula no curso.");
+      throw new CertificateDomainError(
+        "A aluna nao possui matricula no curso."
+      );
     }
     const certificateHistory = await client.query<{
       id: string;
@@ -459,7 +558,7 @@ export const issueManualCertificate = async ({
         select id, status
         from certificates
         where user_id = $1 and course_id = $2
-        order by issued_at desc
+        order by issued_at desc, id desc
         limit 1
         for update
       `,
@@ -467,12 +566,12 @@ export const issueManualCertificate = async ({
     );
     const existingCertificate = certificateHistory.rows[0];
     if (existingCertificate?.status === "valid") {
-      throw new Error(
+      throw new CertificateDomainError(
         "A aluna ja possui um certificado valido para este curso."
       );
     }
     if (existingCertificate?.status === "revoked") {
-      throw new Error(
+      throw new CertificateDomainError(
         "Use a reemissao para substituir um certificado historico revogado."
       );
     }
@@ -487,7 +586,7 @@ export const issueManualCertificate = async ({
     );
     const publishedCoursePublicationId = publication.rows[0]?.id;
     if (!publishedCoursePublicationId) {
-      throw new Error("Curso sem publicacao vigente.");
+      throw new CertificateDomainError("Curso sem publicacao vigente.");
     }
     await client.query(
       `
@@ -508,7 +607,7 @@ export const issueManualCertificate = async ({
     );
     const coursePublicationId = completion.rows[0]?.course_publication_id;
     if (!coursePublicationId) {
-      throw new Error("Conclusao do curso nao localizada.");
+      throw new CertificateDomainError("Conclusao do curso nao localizada.");
     }
     const certificate = await issueCertificate({
       actorUserId,
@@ -563,7 +662,7 @@ export const revokeCertificate = async ({
     );
 
     if (!result.rows[0]) {
-      throw new Error("Certificado invalido ou ja revogado.");
+      throw new CertificateDomainError("Certificado invalido ou ja revogado.");
     }
 
     await auditCertificate({
@@ -599,47 +698,121 @@ export const reissueCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
-    const previous = await client.query<{
+    const previousResult = await client.query<{
       course_id: string;
       course_publication_id: string;
+      id: string;
+      status: "revoked" | "valid";
       user_id: string;
     }>(
       `
-        update certificates
-        set status = 'revoked',
-            revoked_at = now(),
-            revoked_reason_category = $2,
-            revoked_reason = $3,
-            revoked_by_user_id = $4,
-            updated_at = now()
+        select id, user_id, course_id, course_publication_id, status
+        from certificates
         where id = $1
-          and status = 'valid'
-        returning user_id, course_id, course_publication_id
       `,
-      [certificateId, category, reasonDetail.trim(), actorUserId]
+      [certificateId]
     );
-    const previousCertificate = previous.rows[0];
+    const previousCertificate = previousResult.rows[0];
 
     if (!previousCertificate) {
-      throw new Error("Certificado invalido ou ja revogado.");
+      throw new CertificateDomainError("Certificado nao localizado.");
     }
 
-    await auditCertificate({
-      action: "certificate.revoked_for_reissue",
-      actorUserId,
-      certificateId,
+    await lockCertificatePair(
       client,
-      metadata: { reasonCategory: category, reasonDetail: reasonDetail.trim() },
-    });
+      previousCertificate.user_id,
+      previousCertificate.course_id
+    );
+
+    const lockedPreviousResult = await client.query<{
+      course_id: string;
+      course_publication_id: string;
+      id: string;
+      status: "revoked" | "valid";
+      user_id: string;
+    }>(
+      `
+        select id, user_id, course_id, course_publication_id, status
+        from certificates
+        where id = $1
+        for update
+      `,
+      [certificateId]
+    );
+    const lockedPreviousCertificate = lockedPreviousResult.rows[0];
+
+    if (!lockedPreviousCertificate) {
+      throw new CertificateDomainError("Certificado nao localizado.");
+    }
+
+    const latest = await client.query<{
+      id: string;
+      status: "revoked" | "valid";
+    }>(
+      `
+        select id, status
+        from certificates
+        where user_id = $1 and course_id = $2
+        order by issued_at desc, id desc
+        limit 1
+        for update
+      `,
+      [lockedPreviousCertificate.user_id, lockedPreviousCertificate.course_id]
+    );
+    if (latest.rows[0]?.id !== lockedPreviousCertificate.id) {
+      throw new CertificateDomainError(
+        "Somente o certificado historico mais recente pode ser reemitido."
+      );
+    }
+
+    if (lockedPreviousCertificate.status === "valid") {
+      const revoked = await client.query<{ id: string }>(
+        `
+          update certificates
+          set status = 'revoked',
+              revoked_at = now(),
+              revoked_reason_category = $2,
+              revoked_reason = $3,
+              revoked_by_user_id = $4,
+              updated_at = now()
+          where id = $1
+            and status = 'valid'
+          returning id
+        `,
+        [
+          lockedPreviousCertificate.id,
+          category,
+          reasonDetail.trim(),
+          actorUserId,
+        ]
+      );
+
+      if (!revoked.rows[0]) {
+        throw new CertificateDomainError(
+          "Certificado invalido ou ja revogado."
+        );
+      }
+
+      await auditCertificate({
+        action: "certificate.revoked_for_reissue",
+        actorUserId,
+        certificateId,
+        client,
+        metadata: {
+          reasonCategory: category,
+          reasonDetail: reasonDetail.trim(),
+        },
+      });
+    }
     const replacement = await issueCertificate({
       actorUserId,
       client,
-      courseId: previousCertificate.course_id,
-      coursePublicationId: previousCertificate.course_publication_id,
+      courseId: lockedPreviousCertificate.course_id,
+      coursePublicationId: lockedPreviousCertificate.course_publication_id,
       reasonCategory: category,
       reasonDetail: reasonDetail.trim(),
       replacesCertificateId: certificateId,
-      userId: previousCertificate.user_id,
+      userId: lockedPreviousCertificate.user_id,
     });
     await client.query("commit");
     return replacement;
@@ -656,10 +829,13 @@ export const getCertificateByCode = async (
 ): Promise<CertificateRecord | null> => {
   const { rows } = await getPool().query<{
     code: string;
+    completion_at_snapshot: string | null;
     student_name_snapshot: string;
     course_title_snapshot: string;
     workload_hours_snapshot: number;
     issued_at: Date;
+    issuer_cnpj_snapshot: string | null;
+    issuer_name_snapshot: string | null;
     revoked_at: Date | null;
     revoked_reason_category: string | null;
     status: "revoked" | "valid";
@@ -668,10 +844,13 @@ export const getCertificateByCode = async (
     `
       select
         code,
+        render_snapshot->'completion'->>'completedAt' as completion_at_snapshot,
         student_name_snapshot,
         course_title_snapshot,
         workload_hours_snapshot,
         issued_at,
+        render_snapshot->'issuer'->>'cnpj' as issuer_cnpj_snapshot,
+        render_snapshot->'issuer'->>'displayName' as issuer_name_snapshot,
         revoked_at,
         revoked_reason_category,
         render_status,
@@ -690,10 +869,13 @@ export const getCertificateByCode = async (
 
   return {
     code: row.code,
+    completionAt: parseSnapshotDate(row.completion_at_snapshot),
     studentName: row.student_name_snapshot,
     courseTitle: row.course_title_snapshot,
     workloadHours: row.workload_hours_snapshot,
     issuedAt: row.issued_at,
+    issuerCnpj: row.issuer_cnpj_snapshot,
+    issuerName: row.issuer_name_snapshot,
     revokedAt: row.revoked_at,
     revokedReasonCategory:
       parseCertificateReasonCode(row.revoked_reason_category) ??
@@ -751,6 +933,7 @@ export const getCertificatesForUser = async (
 };
 
 export interface CertificateOperationRecord extends CertificateRecord {
+  canReissue: boolean;
   id: string;
 }
 
@@ -759,6 +942,7 @@ export const getCertificateOperationsForUser = async (
 ): Promise<CertificateOperationRecord[]> => {
   const { rows } = await getPool().query<{
     code: string;
+    can_reissue: boolean;
     course_id: string;
     course_title_snapshot: string;
     id: string;
@@ -771,18 +955,30 @@ export const getCertificateOperationsForUser = async (
     workload_hours_snapshot: number;
   }>(
     `
-      select id, code, student_name_snapshot, course_title_snapshot,
-             workload_hours_snapshot, issued_at, revoked_at,
-             revoked_reason_category, status
-             , render_status
-      from certificates
-      where user_id = $1
-      order by issued_at desc
+      select certificate.id, certificate.code, certificate.student_name_snapshot,
+             certificate.course_title_snapshot, certificate.workload_hours_snapshot,
+             certificate.issued_at, certificate.revoked_at,
+             certificate.revoked_reason_category, certificate.status,
+             certificate.render_status,
+             not exists (
+               select 1
+               from certificates newer
+               where newer.user_id = certificate.user_id
+                 and newer.course_id = certificate.course_id
+                 and (
+                   newer.issued_at > certificate.issued_at
+                   or (newer.issued_at = certificate.issued_at and newer.id > certificate.id)
+                 )
+             ) as can_reissue
+      from certificates certificate
+      where certificate.user_id = $1
+      order by certificate.issued_at desc, certificate.id desc
     `,
     [userId]
   );
 
   return rows.map((row) => ({
+    canReissue: row.can_reissue,
     code: row.code,
     courseTitle: row.course_title_snapshot,
     id: row.id,
@@ -815,7 +1011,10 @@ export const renderPendingCertificate = async (
       [certificateId, claimToken]
     );
   };
-  const claim = await pool.query<{ render_snapshot: unknown }>(
+  const claim = await pool.query<{
+    pdf_sha256: string | null;
+    render_snapshot: unknown;
+  }>(
     `update certificates
      set render_claim_token = $2,
          render_claimed_at = now(),
@@ -827,7 +1026,7 @@ export const renderPendingCertificate = async (
          render_claim_token is null
          or render_claimed_at < now() - ($3 * interval '1 minute')
        )
-     returning render_snapshot`,
+       returning render_snapshot, pdf_sha256`,
     [certificateId, claimToken, CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES]
   );
   const certificate = claim.rows[0];
@@ -877,6 +1076,13 @@ export const renderPendingCertificate = async (
       };
     };
     const storedArtifact = await readStoredArtifact();
+    if (
+      storedArtifact &&
+      certificate.pdf_sha256 &&
+      storedArtifact.sha256 !== certificate.pdf_sha256
+    ) {
+      throw new Error("certificate_artifact_hash_mismatch");
+    }
     const artifact = storedArtifact
       ? storedArtifact
       : await (async () => {
@@ -912,6 +1118,7 @@ export const renderPendingCertificate = async (
             body: rendered.pdf,
             contentType: "application/pdf",
             key,
+            metadata: { sha256: rendered.sha256 },
           });
           if (uploadResult === "existing") {
             const winner = await readStoredArtifact();

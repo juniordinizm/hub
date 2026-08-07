@@ -1145,7 +1145,7 @@ export const certificates = pgTable(
       .references(() => users.id),
     courseId: uuid("course_id")
       .notNull()
-      .references(() => courses.id, { onDelete: "cascade" }),
+      .references(() => courses.id, { onDelete: "restrict" }),
     coursePublicationId: uuid("course_publication_id")
       .notNull()
       .references(() => coursePublications.id, { onDelete: "restrict" }),
@@ -1195,6 +1195,18 @@ export const certificates = pgTable(
     check(
       "certificates_ready_artifact_check",
       sql`${table.renderStatus} <> 'ready' or (${table.pdfStorageKey} is not null and ${table.pdfSha256} is not null and ${table.renderedAt} is not null and ${table.renderClaimToken} is null)`
+    ),
+    check(
+      "certificates_revocation_state_check",
+      sql`(${table.status} = 'revoked') = (${table.revokedAt} is not null)`
+    ),
+    check(
+      "certificates_revoked_reason_category_check",
+      sql`${table.revokedReasonCategory} is null or ${table.revokedReasonCategory} in ('identity_correction', 'course_snapshot_correction', 'eligibility_correction', 'duplicate_or_technical_issue', 'integrity_review', 'legal_or_compliance', 'other')`
+    ),
+    check(
+      "certificates_valid_revocation_fields_check",
+      sql`${table.status} = 'revoked' or (${table.revokedReason} is null and ${table.revokedReasonCategory} is null and ${table.revokedByUserId} is null)`
     ),
   ]
 );

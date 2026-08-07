@@ -91,13 +91,13 @@ describe("course cover upload", () => {
     });
     expect(parts.coverImage.variants.card).toMatchObject({
       contentType: "image/webp",
-      height: 540,
+      height: 1000,
       key: "courses/course-1/cover/upload-1-card.webp",
       width: 960,
     });
     expect(parts.coverImage.variants.thumb).toMatchObject({
       contentType: "image/webp",
-      height: 270,
+      height: 500,
       key: "courses/course-1/cover/upload-1-thumb.webp",
       width: 480,
     });

@@ -1,8 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  type CertificateActionState,
+  certificateActionInitialState,
+} from "@/features/certificates/action-state";
 import {
   issueManualCertificateAction,
   reissueCertificateAction,
@@ -14,12 +18,10 @@ import {
 } from "@/features/certificates/reasons";
 import type { CertificateOperationRecord } from "@/features/certificates/server";
 
-const errorMessage = (error: unknown): string =>
-  error instanceof Error
-    ? error.message
-    : "Não foi possível salvar a operação.";
-
-type CertificateAction = (formData: FormData) => Promise<void>;
+type CertificateAction = (
+  previousState: CertificateActionState,
+  formData: FormData
+) => Promise<CertificateActionState>;
 
 function CertificateForm({
   action,
@@ -35,23 +37,24 @@ function CertificateForm({
   userId: string;
 }): React.JSX.Element {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const submit = async (formData: FormData): Promise<void> => {
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [state, formAction, pending] = useActionState(
+    action,
+    certificateActionInitialState
+  );
+
+  useEffect(() => {
+    if (state.status === "success") {
+      router.refresh();
+    }
+  }, [router, state.status]);
+  const submit = (formData: FormData): void => {
     if (formData.get("confirmed") !== "yes") {
-      setError("Confirme que revisou esta operação antes de continuar.");
+      setLocalError("Confirme que revisou esta operação antes de continuar.");
       return;
     }
-    setError(null);
-    setPending(true);
-    try {
-      await action(formData);
-      router.refresh();
-    } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setPending(false);
-    }
+    setLocalError(null);
+    formAction(formData);
   };
   return (
     <form action={submit} className="mt-3 grid gap-2 rounded border p-3">
@@ -109,9 +112,9 @@ function CertificateForm({
       >
         {pending ? "Salvando..." : label}
       </Button>
-      {error ? (
+      {localError || state.status === "error" ? (
         <p aria-live="polite" className="text-destructive text-sm" role="alert">
-          {error}
+          {localError ?? state.message}
         </p>
       ) : null}
     </form>
@@ -151,15 +154,17 @@ export function CertificateOperations({
           <p className="text-muted-foreground text-sm">
             {certificate.code} · {certificate.status}
           </p>
-          {certificate.status === "valid" ? (
+          {certificate.canReissue ? (
             <>
-              <CertificateForm
-                action={revokeCertificateAction}
-                certificateId={certificate.id}
-                courses={courses}
-                label="Revogar certificado"
-                userId={userId}
-              />
+              {certificate.status === "valid" ? (
+                <CertificateForm
+                  action={revokeCertificateAction}
+                  certificateId={certificate.id}
+                  courses={courses}
+                  label="Revogar certificado"
+                  userId={userId}
+                />
+              ) : null}
               <CertificateForm
                 action={reissueCertificateAction}
                 certificateId={certificate.id}

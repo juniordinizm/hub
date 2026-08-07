@@ -40,6 +40,7 @@ import { CertificateTemplateCropDialog } from "@/features/certificates/template-
 import {
   type CertificateTemplateSpec,
   createDefaultCertificateTemplateFields,
+  findCertificateTemplateOverlaps,
 } from "@/features/certificates/template-rules";
 import type { StagedAdminImageReference } from "@/features/storage/staged-image-upload";
 import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
@@ -49,6 +50,7 @@ import {
   CertificateTemplateFields,
 } from "./certificate-template-fields";
 import { applyCertificateTemplateUploads } from "./certificate-template-form-data";
+import { CertificateTemplateOverlapNotice } from "./certificate-template-overlap-notice";
 import { CertificateTemplatePreview } from "./certificate-template-preview";
 
 export interface CertificateTemplateEditorTemplate {
@@ -62,31 +64,64 @@ export interface CertificateTemplateEditorTemplate {
   version: number;
 }
 
+const getTemplateActionError = (
+  saveState: CertificateTemplateActionState,
+  publishState: CertificateTemplateActionState,
+  lastAction: "save" | "publish" | null
+): CertificateTemplateActionState | null => {
+  let actionState: CertificateTemplateActionState | null = null;
+  if (lastAction === "publish") {
+    actionState = publishState;
+  } else if (lastAction === "save") {
+    actionState = saveState;
+  }
+  if (actionState?.status !== "error") {
+    return null;
+  }
+  return actionState;
+};
+
 const TemplateFormNotices = ({
+  lastAction,
   issuerConfigured,
+  publishState,
   saveState,
 }: {
+  lastAction: "save" | "publish" | null;
   issuerConfigured: boolean;
+  publishState: CertificateTemplateActionState;
   saveState: CertificateTemplateActionState;
-}): React.JSX.Element => (
-  <>
-    {issuerConfigured ? null : (
-      <Alert variant="destructive">
-        <AlertTitle>Perfil emissor pendente</AlertTitle>
-        <AlertDescription>
-          Cadastre razão social, nome de marca e CNPJ em Configurações antes de
-          publicar.
-        </AlertDescription>
-      </Alert>
-    )}
-    {saveState.status === "error" ? (
-      <Alert variant="destructive">
-        <AlertTitle>Rascunho não salvo</AlertTitle>
-        <AlertDescription>{saveState.message}</AlertDescription>
-      </Alert>
-    ) : null}
-  </>
-);
+}): React.JSX.Element => {
+  const actionError = getTemplateActionError(
+    saveState,
+    publishState,
+    lastAction
+  );
+
+  return (
+    <>
+      {issuerConfigured ? null : (
+        <Alert variant="destructive">
+          <AlertTitle>Perfil emissor pendente</AlertTitle>
+          <AlertDescription>
+            Cadastre razão social, nome de marca e CNPJ em Configurações antes
+            de publicar.
+          </AlertDescription>
+        </Alert>
+      )}
+      {actionError ? (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {lastAction === "publish"
+              ? "Certificado não publicado"
+              : "Rascunho não salvo"}
+          </AlertTitle>
+          <AlertDescription>{actionError.message}</AlertDescription>
+        </Alert>
+      ) : null}
+    </>
+  );
+};
 
 const TemplateVersionBadges = ({
   isDirty,
@@ -104,7 +139,7 @@ const TemplateVersionBadges = ({
     ) : (
       <Badge variant="secondary">Nova arte</Badge>
     )}
-    {isDirty ? <Badge variant="outline">Alteracoes nao salvas</Badge> : null}
+    {isDirty ? <Badge variant="outline">Alterações não salvas</Badge> : null}
   </div>
 );
 
@@ -211,6 +246,7 @@ export function CertificateTemplateForm({
     useState<StagedAdminImageReference | null>(null);
   const [signatureRemoved, setSignatureRemoved] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [lastAction, setLastAction] = useState<"save" | "publish" | null>(null);
   const [pendingImageUploads, setPendingImageUploads] = useState(0);
   const [signerName, setSignerName] = useState(template?.signerName ?? "");
   const [signerRole, setSignerRole] = useState(template?.signerRole ?? "");
@@ -245,10 +281,12 @@ export function CertificateTemplateForm({
     });
   const saveTemplate = (formData: FormData): void => {
     prepareSubmission(formData);
+    setLastAction("save");
     saveAction(formData);
   };
   const publishTemplate = (formData: FormData): void => {
     prepareSubmission(formData);
+    setLastAction("publish");
     publishAction(formData);
   };
 
@@ -282,6 +320,18 @@ export function CertificateTemplateForm({
     });
   }, [publishState, router]);
 
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
   const spec = useMemo<CertificateTemplateSpec>(
     () => ({
       // Se backgroundPreviewUrl for null, o usuário removeu, então mandamos vazio.
@@ -293,6 +343,19 @@ export function CertificateTemplateForm({
     }),
     [fields, template?.spec.backgroundKey, backgroundPreviewUrl]
   );
+  const overlaps = useMemo(
+    () => findCertificateTemplateOverlaps(spec.fields),
+    [spec.fields]
+  );
+  const overlapFields = useMemo(
+    () => new Set(overlaps.flatMap(({ fields: fieldPair }) => fieldPair)),
+    [overlaps]
+  );
+  const templateFieldError = getTemplateActionError(
+    saveState,
+    publishState,
+    lastAction
+  )?.fieldErrors?.template;
 
   const updateField = useCallback<CertificateFieldChange>(
     (name, key, value): void => {
@@ -402,6 +465,8 @@ export function CertificateTemplateForm({
       />
       <TemplateFormNotices
         issuerConfigured={issuerConfigured}
+        lastAction={lastAction}
+        publishState={publishState}
         saveState={saveState}
       />
 
@@ -426,13 +491,14 @@ export function CertificateTemplateForm({
                 />
                 <input name="spec" type="hidden" value={JSON.stringify(spec)} />
                 <Button
+                  aria-busy={isSaving}
                   disabled={!isDirty || isBusy}
                   name="intent"
                   type="submit"
                   value="save"
                   variant="secondary"
                 >
-                  {isSaving ? "Salvando..." : "Salvar rascunho"}
+                  {isSaving ? "Salvando…" : "Salvar rascunho"}
                 </Button>
                 <Button
                   onClick={() =>
@@ -446,6 +512,7 @@ export function CertificateTemplateForm({
                   Dados {previewVariant === "short" ? "longos" : "curtos"}
                 </Button>
                 <Button
+                  aria-busy={isPublishing}
                   disabled={
                     !(
                       issuerConfigured &&
@@ -459,7 +526,7 @@ export function CertificateTemplateForm({
                   value="publish"
                   variant="default"
                 >
-                  {isPublishing ? "Publicando..." : "Salvar e publicar"}
+                  {isPublishing ? "Publicando…" : "Salvar e publicar"}
                 </Button>
               </div>
             </CardHeader>
@@ -467,14 +534,16 @@ export function CertificateTemplateForm({
               <CertificateTemplatePreview
                 backgroundUrl={backgroundPreviewUrl}
                 fields={fields}
+                overlapFields={overlapFields}
                 signatureUrl={signaturePreviewUrl}
                 signerName={signerName}
+                signerRole={signerRole}
                 variant={previewVariant}
               />
               <FieldError className="mt-4 text-center">
-                {saveState.fieldErrors?.template ??
-                  publishState.fieldErrors?.template}
+                {templateFieldError}
               </FieldError>
+              <CertificateTemplateOverlapNotice overlaps={overlaps} />
               <NoPublishableChangesHint
                 hasPublishableChanges={hasPublishableChanges}
               />

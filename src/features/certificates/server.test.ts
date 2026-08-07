@@ -25,12 +25,15 @@ import {
   getCertificateByCode,
   issueCompletionCertificateIfEligible,
   issueManualCertificate,
+  reissueCertificate,
   renderPendingCertificate,
   revokeCertificate,
+  tryIssueAutomaticCompletionCertificate,
 } from "./server";
 
 const UUID_PATTERN = /^[0-9a-f-]{36}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -151,14 +154,114 @@ describe("certificate lifecycle reasons", () => {
       completion: { completedAt: string };
     };
 
+    expect(values?.[3]).toMatch(CERTIFICATE_CODE_PATTERN);
     expect(values?.[2]).toBe("publication-origin");
     expect(snapshot.completion.completedAt).toBe(completedAt.toISOString());
+  });
+
+  it("retries a manual code collision inside the existing transaction", async () => {
+    let insertAttempts = 0;
+    const duplicateCodeError = Object.assign(
+      new Error("duplicate certificate code"),
+      { code: "23505", constraint: "certificates_code_unique" }
+    );
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
+      if (statement === "begin" || statement === "commit") {
+        return { rows: [] };
+      }
+      if (statement.includes("from enrollments")) {
+        return { rows: [{ id: "enrollment-1" }] };
+      }
+      if (
+        statement.includes("from certificates") &&
+        statement.includes("order by issued_at")
+      ) {
+        return { rows: [] };
+      }
+      if (
+        statement.includes("from course_publications") &&
+        statement.includes("status = 'published'")
+      ) {
+        return { rows: [{ id: "publication-current" }] };
+      }
+      if (
+        statement.includes("from course_completions") &&
+        statement.includes("course_publication_id")
+      ) {
+        return { rows: [{ course_publication_id: "publication-origin" }] };
+      }
+      if (
+        statement.includes("from users u") &&
+        statement.includes("join certificate_templates")
+      ) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              completed_at: new Date("2026-06-10T15:30:00.000Z"),
+              course_title: "Curso",
+              issuer_cnpj: "00.000.000/0001-00",
+              issuer_course_free_statement: "Curso livre.",
+              issuer_display_name: "Emissora",
+              issuer_legal_name: "Emissora LTDA",
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: "templates/background.webp",
+                fields: renderSnapshot.template.fields,
+              },
+              student_name: "Aluna",
+              template_id: renderSnapshot.template.id,
+              template_version: 1,
+              workload_hours: 8,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        insertAttempts += 1;
+        if (insertAttempts === 1) {
+          throw duplicateCodeError;
+        }
+        return { rows: [{ id: "certificate-2" }] };
+      }
+      if (
+        statement.includes("insert into course_completions") ||
+        statement.includes("insert into audit_logs") ||
+        statement.includes("insert into outbox_messages")
+      ) {
+        return { rows: [{ id: "completion-1" }] };
+      }
+      return { rows: [] };
+    });
+    const release = vi.fn();
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await expect(
+      issueManualCertificate({
+        actorUserId: "support-1",
+        courseId: "course-1",
+        reasonCategory: "duplicate_or_technical_issue",
+        reasonDetail: "Nova via apos colisao de identificador.",
+        userId: "student-1",
+      })
+    ).resolves.toEqual({ id: "certificate-2" });
+
+    expect(insertAttempts).toBe(2);
+    expect(query).toHaveBeenCalledWith(
+      "rollback to savepoint certificate_code_attempt_0"
+    );
+    expect(release).toHaveBeenCalledOnce();
   });
 
   it("requires reissue when the student already has a revoked certificate", async () => {
     const release = vi.fn();
     const query = vi
       .fn()
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "enrollment-1" }] })
       .mockResolvedValueOnce({
@@ -178,6 +281,156 @@ describe("certificate lifecycle reasons", () => {
       })
     ).rejects.toThrow("Use a reemissao");
 
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("reissues the latest revoked certificate without rewriting its history", async () => {
+    const release = vi.fn();
+    const replacementId = "certificate-replacement";
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
+      if (statement === "begin" || statement === "commit") {
+        return { rows: [] };
+      }
+      if (statement.includes("pg_advisory_xact_lock")) {
+        return { rows: [] };
+      }
+      if (
+        statement.includes("select id, user_id, course_id") &&
+        statement.includes("from certificates")
+      ) {
+        return {
+          rows: [
+            {
+              course_id: "course-1",
+              course_publication_id: "publication-origin",
+              id: "certificate-1",
+              status: "revoked",
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      if (
+        statement.includes("order by issued_at desc") &&
+        statement.includes("from certificates")
+      ) {
+        return { rows: [{ id: "certificate-1", status: "revoked" }] };
+      }
+      if (
+        statement.includes("status = 'valid'") &&
+        statement.includes("from certificates")
+      ) {
+        return { rows: [] };
+      }
+      if (
+        statement.includes("from users u") &&
+        statement.includes("join certificate_templates")
+      ) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              completed_at: new Date("2026-06-10T15:30:00.000Z"),
+              course_title: "Curso",
+              issuer_cnpj: "00.000.000/0001-00",
+              issuer_course_free_statement: "Curso livre.",
+              issuer_display_name: "Emissora",
+              issuer_legal_name: "Emissora LTDA",
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: "templates/background.webp",
+                fields: renderSnapshot.template.fields,
+              },
+              student_name: "Aluna",
+              template_id: renderSnapshot.template.id,
+              template_version: 1,
+              workload_hours: 8,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        return { rows: [{ id: replacementId }] };
+      }
+      if (statement.includes("insert into audit_logs")) {
+        return { rows: [] };
+      }
+      if (statement.includes("insert into outbox_messages")) {
+        return { rows: [{ id: "outbox-1" }] };
+      }
+      return { rows: [] };
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await expect(
+      reissueCertificate({
+        actorUserId: "support-1",
+        certificateId: "certificate-1",
+        reasonCategory: "identity_correction",
+        reasonDetail: "Nome corrigido após revogação anterior.",
+      })
+    ).resolves.toEqual({ id: replacementId });
+
+    const insert = query.mock.calls.find(([statement]) =>
+      statement.includes("insert into certificates")
+    );
+    expect(insert?.[1]).toEqual(expect.arrayContaining(["certificate-1"]));
+    expect(
+      query.mock.calls.some(([statement]) =>
+        statement.includes("set status = 'revoked'")
+      )
+    ).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("rejects reissue of an older certificate after a newer history entry exists", async () => {
+    const release = vi.fn();
+    const query = vi.fn((statement: string) => {
+      if (statement === "begin" || statement === "rollback") {
+        return { rows: [] };
+      }
+      if (statement.includes("select id, user_id, course_id")) {
+        return {
+          rows: [
+            {
+              course_id: "course-1",
+              course_publication_id: "publication-origin",
+              id: "certificate-old",
+              status: "revoked",
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      if (statement.includes("pg_advisory_xact_lock")) {
+        return { rows: [] };
+      }
+      if (statement.includes("order by issued_at desc")) {
+        return { rows: [{ id: "certificate-newer", status: "revoked" }] };
+      }
+      return { rows: [] };
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await expect(
+      reissueCertificate({
+        actorUserId: "support-1",
+        certificateId: "certificate-old",
+        reasonCategory: "identity_correction",
+        reasonDetail: "Registro antigo.",
+      })
+    ).rejects.toThrow("Somente o certificado historico mais recente");
+
+    expect(query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into certificates"),
+      expect.anything()
+    );
     expect(release).toHaveBeenCalledOnce();
   });
 
@@ -250,9 +503,154 @@ describe("certificate lifecycle reasons", () => {
       ["PRT-12345678"]
     );
   });
+
+  it("returns public claims needed to compare the PDF with the verifier", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          code: "PRT-1234567890ABCDEF1234567890ABCDEF",
+          completion_at_snapshot: "2026-07-20T12:00:00.000Z",
+          course_title_snapshot: "Curso",
+          issued_at: new Date("2026-07-21T00:00:00.000Z"),
+          issuer_cnpj_snapshot: "00.000.000/0001-00",
+          issuer_name_snapshot: "Emissora",
+          revoked_at: null,
+          revoked_reason_category: null,
+          status: "valid",
+          student_name_snapshot: "Aluna",
+          workload_hours_snapshot: 8,
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await expect(
+      getCertificateByCode("PRT-1234567890ABCDEF1234567890ABCDEF")
+    ).resolves.toMatchObject({
+      completionAt: new Date("2026-07-20T12:00:00.000Z"),
+      issuerCnpj: "00.000.000/0001-00",
+      issuerName: "Emissora",
+    });
+  });
 });
 
 describe("automatic completion certificate retries", () => {
+  it("retries a public code collision without aborting the surrounding transaction", async () => {
+    let insertAttempts = 0;
+    const duplicateCodeError = Object.assign(
+      new Error("duplicate certificate code"),
+      { code: "23505", constraint: "certificates_code_unique" }
+    );
+    const query = vi.fn((statement: string) => {
+      if (statement.includes("join certificate_templates")) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              id: renderSnapshot.template.id,
+              issuer_cnpj: renderSnapshot.issuer.cnpj,
+              issuer_course_free_statement:
+                renderSnapshot.issuer.courseFreeStatement,
+              issuer_display_name: renderSnapshot.issuer.displayName,
+              issuer_legal_name: renderSnapshot.issuer.legalName,
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: "templates/background.webp",
+                fields: renderSnapshot.template.fields,
+              },
+              version: 1,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        insertAttempts += 1;
+        if (insertAttempts === 1) {
+          throw duplicateCodeError;
+        }
+        return { rows: [{ code: "PRT-RETRIED" }] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      tryIssueAutomaticCompletionCertificate({
+        client: { query } as never,
+        courseId: "course-1",
+        coursePublicationId: "publication-1",
+        courseTitle: "Curso",
+        completedAt: new Date("2026-07-22T12:00:00.000Z"),
+        studentName: "Aluna",
+        userId: "student-1",
+        workloadHours: 8,
+      })
+    ).resolves.toBe("PRT-RETRIED");
+
+    expect(insertAttempts).toBe(2);
+    expect(query).toHaveBeenCalledWith("savepoint certificate_code_attempt_0");
+    expect(query).toHaveBeenCalledWith(
+      "rollback to savepoint certificate_code_attempt_0"
+    );
+  });
+
+  it("returns a typed failure after exhausting public code collision retries", async () => {
+    let insertAttempts = 0;
+    const duplicateCodeError = Object.assign(
+      new Error("duplicate certificate code"),
+      { code: "23505", constraint: "certificates_code_unique" }
+    );
+    const query = vi.fn((statement: string) => {
+      if (statement.includes("join certificate_templates")) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              id: renderSnapshot.template.id,
+              issuer_cnpj: renderSnapshot.issuer.cnpj,
+              issuer_course_free_statement:
+                renderSnapshot.issuer.courseFreeStatement,
+              issuer_display_name: renderSnapshot.issuer.displayName,
+              issuer_legal_name: renderSnapshot.issuer.legalName,
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: "templates/background.webp",
+                fields: renderSnapshot.template.fields,
+              },
+              version: 1,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        insertAttempts += 1;
+        throw duplicateCodeError;
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      tryIssueAutomaticCompletionCertificate({
+        client: { query } as never,
+        courseId: "course-1",
+        coursePublicationId: "publication-1",
+        courseTitle: "Curso",
+        completedAt: new Date("2026-07-22T12:00:00.000Z"),
+        studentName: "Aluna",
+        userId: "student-1",
+        workloadHours: 8,
+      })
+    ).rejects.toThrow("codigo publico unico");
+
+    expect(insertAttempts).toBe(3);
+    expect(query).toHaveBeenCalledWith(
+      "rollback to savepoint certificate_code_attempt_2"
+    );
+  });
+
   it("reuses an existing completion, issues from the available template, and enqueues rendering", async () => {
     const query = vi.fn((sql: string) => {
       if (sql.includes("insert into course_completions")) {
@@ -380,6 +778,11 @@ describe("certificate rendering assets", () => {
     await expect(renderPendingCertificate("certificate-1")).resolves.toBe(true);
 
     expect(connect).not.toHaveBeenCalled();
+    expect(dependencies.uploadPrivateR2ObjectIfAbsent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: { sha256: "a".repeat(64) },
+      })
+    );
     expect(query).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining("render_claim_token is null"),
@@ -458,6 +861,32 @@ describe("certificate rendering assets", () => {
         expect.stringMatching(SHA256_PATTERN),
         expect.stringMatching(UUID_PATTERN),
       ]
+    );
+  });
+
+  it("rejects a stored artifact whose bytes do not match the persisted hash", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            pdf_sha256: "0".repeat(64),
+            render_snapshot: renderSnapshot,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+    dependencies.getPool.mockReturnValue({ query });
+    dependencies.createR2ObjectReadUrl.mockResolvedValue(
+      "https://r2.test/certificate.pdf"
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(Buffer.from("existing-pdf")))
+    );
+
+    await expect(renderPendingCertificate("certificate-1")).rejects.toThrow(
+      "certificate_artifact_hash_mismatch"
     );
   });
 

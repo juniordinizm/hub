@@ -97,6 +97,7 @@ const draftTemplate = {
   status: "draft" as const,
   version: 2,
 };
+const overlapMessagePattern = /sobreposi.*detectad/;
 
 describe("CertificateTemplateEditor", () => {
   let container: HTMLDivElement;
@@ -260,6 +261,13 @@ describe("CertificateTemplateEditor", () => {
     expect(
       container.querySelector('input[data-upload-kind="signature"]')
     ).not.toBeNull();
+    expect(container.textContent).toContain("Assinatura");
+    expect(container.textContent).toContain("Posição da assinatura");
+    expect(
+      container.querySelector(
+        "button.focus-visible\\:ring-2.focus-visible\\:ring-ring"
+      )
+    ).not.toBeNull();
   });
 
   it("toggles the preview between short and long sample data", () => {
@@ -281,6 +289,79 @@ describe("CertificateTemplateEditor", () => {
     expect(container.textContent).toContain(
       "Especialização em Técnicas Avançadas"
     );
+  });
+
+  it("announces intentional overlaps without disabling save or publish", () => {
+    const overlappingTemplate = {
+      ...draftTemplate,
+      spec: {
+        ...draftTemplate.spec,
+        fields: draftTemplate.spec.fields.map((field) => {
+          if (field.field === "studentName") {
+            return { ...field, height: 12, width: 40, x: 0, y: 0 };
+          }
+          if (field.field === "courseTitle") {
+            return { ...field, height: 12, width: 40, x: 20, y: 0 };
+          }
+          return field;
+        }),
+      },
+    };
+
+    act(() => {
+      root.render(
+        <CertificateTemplateEditor
+          certificateEnabled
+          courseId="course-1"
+          issuerConfigured
+          templates={[overlappingTemplate]}
+        />
+      );
+    });
+
+    expect(container.textContent?.toLocaleLowerCase()).toMatch(
+      overlapMessagePattern
+    );
+    expect(container.textContent?.toLocaleLowerCase()).toContain(
+      "não impede salvar ou publicar"
+    );
+    expect(container.querySelectorAll('[data-overlap="true"]')).toHaveLength(2);
+
+    const visibilitySwitch =
+      container.querySelector<HTMLButtonElement>('[role="switch"]');
+    act(() => visibilitySwitch?.click());
+    const save = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Salvar rascunho")
+    );
+    const publish = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Salvar e publicar")
+    );
+    expect(save?.disabled).toBe(false);
+    expect(publish?.disabled).toBe(false);
+  });
+
+  it("warns before closing while the template has unsaved changes", () => {
+    act(() => {
+      root.render(
+        <CertificateTemplateEditor
+          certificateEnabled
+          courseId="course-1"
+          issuerConfigured
+          templates={[draftTemplate]}
+        />
+      );
+    });
+
+    const visibilitySwitch =
+      container.querySelector<HTMLButtonElement>('[role="switch"]');
+    act(() => visibilitySwitch?.click());
+
+    const event = new Event("beforeunload", {
+      cancelable: true,
+    }) as BeforeUnloadEvent;
+    act(() => window.dispatchEvent(event));
+
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it("shows pending state, inline validation, and success feedback from the save action", async () => {
@@ -307,7 +388,7 @@ describe("CertificateTemplateEditor", () => {
       button.textContent?.includes("Salvar rascunho")
     );
     act(() => save?.click());
-    expect(container.textContent).toContain("Salvando...");
+    expect(container.textContent).toContain("Salvando…");
 
     await act(async () => {
       resolveSave?.({

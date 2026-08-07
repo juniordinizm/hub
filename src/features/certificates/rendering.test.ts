@@ -32,6 +32,18 @@ const snapshot: CertificateRenderSnapshot = {
       {
         align: "center",
         color: "#111111",
+        field: "signerRole",
+        font: "Helvetica",
+        fontSize: 10,
+        height: 5,
+        visible: true,
+        width: 40,
+        x: 30,
+        y: 45,
+      },
+      {
+        align: "center",
+        color: "#111111",
         field: "qrCode",
         fontSize: 10,
         height: 10,

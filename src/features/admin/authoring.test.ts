@@ -73,14 +73,14 @@ const coverImage = {
   variants: {
     card: {
       contentType: "image/webp",
-      height: 540,
+      height: 1000,
       key: "courses/course-1/cover/card.webp",
       sizeBytes: 1,
       width: 960,
     },
     thumb: {
       contentType: "image/webp",
-      height: 270,
+      height: 500,
       key: "courses/course-1/cover/thumb.webp",
       sizeBytes: 1,
       width: 480,

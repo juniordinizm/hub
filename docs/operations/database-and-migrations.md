@@ -38,17 +38,21 @@ configurável de parcelas dos Cursos sem reescrever snapshots históricos dos Pe
 2026-08-03, o SQL foi exercitado numa branch Neon descartável descendente de Production:
 zero Cursos exigiram normalização e a constraint resultante aceitou somente valores de 1
 a 12. Development recebeu a migration e passou a ter 56 entradas, topo em
-`1785751899658`. Staging e Production permanecem em `0054` enquanto esta mudança estiver
-somente no commit local; aplicar a constraint antes do código correspondente seria
-incompatível com a interface anterior, que ainda aceitava até 21x.
+`1785751899658`. Esse registro é histórico do ensaio de 2026-08-03; o estado atual dos
+alvos persistentes está descrito no parágrafo de 2026-08-07 abaixo.
 
-Development recebeu posteriormente a migration experimental
-`0056_asaas_installment_pricing`, preservada somente na PR draft pausada `#26`. Ela é
-aditiva e deixou 57 entradas no journal; Staging e Production não a receberam. A linha de
-lançamento continua em `0055`, mantém o Checkout hospedado e tolera os objetos adicionais
-em Development porque a readiness exige a presença da migration compatível, não que ela
-seja a última do banco. Não aplique `0056` em outro ambiente nem reutilize seus objetos
-antes de decidir entre retomar o experimento ou criar uma correção forward-only.
+Uma PR draft pausada `#26` usou anteriormente o rótulo experimental
+`0056_asaas_installment_pricing`; esse experimento não integra a cadeia atual e seus
+objetos não devem ser reutilizados. A migration atual `0056_certificate_state_invariants`
+é a migration versionada vigente para o módulo de Certificados.
+
+Em 2026-08-07, `0056_certificate_state_invariants` foi aplicada pelo runner oficial na
+branch Staging `br-rapid-rain-acnqzhiv`. O journal passou a 57 linhas, topo
+`1786099773858`, hash `a65efc91b945926a6e1ea2f607324c28e1dac6650798ac5716e3d885c88e22f1`;
+o postflight confirmou três constraints de revogação, FK de Curso em `ON DELETE RESTRICT`
+e zero Certificados. Uma segunda execução do runner foi idempotente, sem nova linha ou
+reaplicação de DDL. Production permanece em 0054; a promoção protegida precisa aplicar
+0055 e 0056 em ordem, com backup e preflight.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
@@ -99,7 +103,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0054_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia, `0056_snapshot.json`. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -328,8 +332,9 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   valores não negativos e consistência entre estado financeiro e evidência. Antes de
   criar os checks, a própria migration executa auditoria somente leitura e aborta com
   erro explícito se encontrar divergência; ela não corrige nem apaga Pedido ou reembolso.
-  O SQL, journal e snapshot foram gerados pelo Drizzle e passaram em
-  `db:migrations:check`; a promoção para qualquer banco persistente continua pendente.
+  O SQL, journal e snapshot foram gerados pelo Drizzle, passaram em
+  `db:migrations:check` e foram promovidos aos alvos persistentes em 2026-08-03;
+  o estado atual de cada branch deve ser conferido no catálogo antes de nova promoção.
 - Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
   ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
   `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito

@@ -39,6 +39,7 @@ import {
   deleteExpiredStagedAdminImages,
   publishR2Object,
   uploadPrivateR2ObjectIfAbsent,
+  verifyPrivateR2ObjectSha256,
 } from "./r2";
 
 describe("uploadPrivateR2ObjectIfAbsent", () => {
@@ -71,6 +72,66 @@ describe("uploadPrivateR2ObjectIfAbsent", () => {
         input: expect.objectContaining({ IfNoneMatch: "*" }),
       })
     );
+  });
+
+  it("persists certificate hash metadata with a conditional artifact write", async () => {
+    dependencies.send.mockResolvedValue({});
+
+    await uploadPrivateR2ObjectIfAbsent({
+      body: Buffer.from("pdf"),
+      contentType: "application/pdf",
+      key: "certificates/id/certificate.pdf",
+      metadata: { sha256: "a".repeat(64) },
+    });
+
+    expect(dependencies.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          Metadata: { sha256: "a".repeat(64) },
+        }),
+      })
+    );
+  });
+
+  it.each([
+    ["match", "A".repeat(64), "match"],
+    ["mismatch", "b".repeat(64), "mismatch"],
+  ] as const)("reports a %s certificate artifact hash", async (_label, actualHash, expected) => {
+    dependencies.send.mockResolvedValue({
+      Metadata: { sha256: actualHash },
+    });
+
+    await expect(
+      verifyPrivateR2ObjectSha256({
+        expectedSha256: "a".repeat(64),
+        key: "certificates/id/certificate.pdf",
+      })
+    ).resolves.toBe(expected);
+  });
+
+  it("keeps legacy artifacts explicitly unverifiable until metadata is backfilled", async () => {
+    dependencies.send.mockResolvedValue({ Metadata: {} });
+
+    await expect(
+      verifyPrivateR2ObjectSha256({
+        expectedSha256: "a".repeat(64),
+        key: "certificates/legacy/certificate.pdf",
+      })
+    ).resolves.toBe("unknown");
+  });
+
+  it.each([
+    ["missing", { $metadata: { httpStatusCode: 404 } }],
+    ["unavailable", { $metadata: { httpStatusCode: 503 } }],
+  ] as const)("reports an R2 %s while checking a certificate artifact", async (expected, error) => {
+    dependencies.send.mockRejectedValue(error);
+
+    await expect(
+      verifyPrivateR2ObjectSha256({
+        expectedSha256: "a".repeat(64),
+        key: "certificates/id/certificate.pdf",
+      })
+    ).resolves.toBe(expected);
   });
 
   it("prefixes a conditional certificate write in Staging", async () => {

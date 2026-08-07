@@ -224,7 +224,7 @@ function CourseCard({
   const cardHref = route(`/app/cursos/${course.courseId}`);
 
   return (
-    <article className="group relative flex w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
+    <article className="group relative flex aspect-[24/25] w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
       <div className="absolute inset-0 z-0">
         {course.thumbnailUrl ? (
           <CourseCoverImage
@@ -257,7 +257,7 @@ function CourseCard({
         )}
       </div>
 
-      <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <Badge
             className={
@@ -296,7 +296,7 @@ function CourseCard({
         </div>
       </div>
 
-      <div className="relative z-10 flex flex-1 flex-col justify-end p-5 pt-0 sm:p-6 sm:pt-0">
+      <div className="relative z-10 flex shrink-0 flex-col justify-end p-5 pt-0 sm:p-6 sm:pt-0">
         <div className="flex flex-col gap-5">
           {hasActiveAccess ? (
             <div>

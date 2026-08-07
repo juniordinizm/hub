@@ -788,6 +788,7 @@ const persistCertificateTemplateDraft = async ({
         }
         signatureKey = nextSignatureKey;
         return await saveCertificateTemplateDraft({
+          actorUserId,
           courseId,
           signerName: readString(formData, "signerName") || null,
           signerRole: readString(formData, "signerRole") || null,
@@ -864,7 +865,8 @@ export const publishCertificateTemplateFormAction = async (
     const session = await requireRole(["admin"]);
     await saveAndPublishCertificateTemplate({
       formData,
-      publishDraft: publishCertificateTemplate,
+      publishDraft: (courseId) =>
+        publishCertificateTemplate(courseId, session.user.id),
       saveDraft: async (draftFormData) => {
         await persistCertificateTemplateDraft({
           actorUserId: session.user.id,
@@ -891,16 +893,16 @@ export const publishCertificateTemplateFormAction = async (
 export const disableCertificateForCourseAction = async (
   courseId: string
 ): Promise<void> => {
-  await requireRole(["admin"]);
-  await disableCertificateForCourse(courseId);
+  const session = await requireRole(["admin"]);
+  await disableCertificateForCourse(courseId, session.user.id);
   revalidateAdmin();
 };
 
 export const enableCertificateForCourseAction = async (
   courseId: string
 ): Promise<void> => {
-  await requireRole(["admin"]);
-  await enableCertificateForCourse(courseId);
+  const session = await requireRole(["admin"]);
+  await enableCertificateForCourse(courseId, session.user.id);
   revalidateAdmin();
 };
 

@@ -1,6 +1,7 @@
 import type { ErrorEvent } from "@sentry/core";
 
 const SENTRY_TRACE_SAMPLE_RATE = 0.1;
+const CERTIFICATE_CODE_PATH = /\/certificados\/[^/]+(?=\/|$)/;
 
 const stripQuery = (url: string | undefined): string | undefined => {
   if (!url) {
@@ -9,7 +10,11 @@ const stripQuery = (url: string | undefined): string | undefined => {
 
   try {
     const parsed = new URL(url);
-    return `${parsed.origin}${parsed.pathname}`;
+    const pathname = parsed.pathname.replace(
+      CERTIFICATE_CODE_PATH,
+      "/certificados/[certificate-code]"
+    );
+    return `${parsed.origin}${pathname}`;
   } catch {
     return;
   }

@@ -8,6 +8,7 @@ import { getCertificateValidationPath } from "./rules";
 import { CERTIFICATE_PAGE } from "./template-rules";
 
 const pointsPerMillimeter = 72 / 25.4;
+const CERTIFICATE_FIELD_OVERFLOW_TOLERANCE = 0.5;
 
 const fieldValues = (
   snapshot: CertificateRenderSnapshot
@@ -19,6 +20,7 @@ const fieldValues = (
   issuerCnpj: snapshot.issuer.cnpj,
   issuerName: snapshot.issuer.displayName,
   signerName: snapshot.template.signerName ?? "",
+  signerRole: snapshot.template.signerRole ?? "",
   studentName: snapshot.student.name,
   validationCode: snapshot.certificate.code,
   workloadHours: `${snapshot.course.workloadHours} horas`,
@@ -48,8 +50,12 @@ export const renderCertificatePdf = async ({
   const pageHeight = CERTIFICATE_PAGE.height * pointsPerMillimeter;
   const document = createCertificatePdfDocument({
     info: {
+      Author: snapshot.issuer.displayName,
       CreationDate: new Date(snapshot.certificate.issuedAt),
+      Creator: "Hub",
+      Keywords: `certificado,verificacao,${snapshot.certificate.code}`,
       ModDate: new Date(snapshot.certificate.issuedAt),
+      Subject: `Certificado de conclusao: ${snapshot.course.title}`,
       Title: `Certificado ${snapshot.certificate.code}`,
     },
     layout: "landscape",
@@ -100,10 +106,16 @@ export const renderCertificatePdf = async ({
 
     const value = values[field.field];
     if (value) {
+      document.font(field.font ?? "Helvetica").fontSize(field.fontSize);
+      const measuredHeight = document.heightOfString(value, {
+        align: field.align,
+        width,
+      });
+      if (measuredHeight > height + CERTIFICATE_FIELD_OVERFLOW_TOLERANCE) {
+        throw new Error(`certificate_field_overflow:${field.field}`);
+      }
       document
-        .font(field.font ?? "Helvetica")
         .fillColor(field.color)
-        .fontSize(field.fontSize)
         .text(value, x, y, { align: field.align, height, width });
     }
   }

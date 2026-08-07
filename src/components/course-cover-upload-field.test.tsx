@@ -16,6 +16,27 @@ vi.mock("sonner", () => ({
 vi.mock("@/features/storage/staged-image-upload-client", () => ({
   uploadStagedAdminImage: stagedUploadMock,
 }));
+vi.mock("@/features/courses/course-cover-crop-dialog", () => ({
+  CourseCoverCropDialog: ({
+    file,
+    onComplete,
+  }: {
+    file: File | null;
+    onComplete: (file: File) => void;
+  }) =>
+    file ? (
+      <button
+        onClick={() =>
+          onComplete(
+            new File(["cropped"], "cropped.webp", { type: "image/webp" })
+          )
+        }
+        type="button"
+      >
+        Confirmar recorte
+      </button>
+    ) : null,
+}));
 
 import { CourseCoverUploadField } from "./course-cover-upload-field";
 
@@ -48,6 +69,7 @@ describe("CourseCoverUploadField", () => {
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    stagedUploadMock.mockReset();
     vi.spyOn(URL, "createObjectURL").mockImplementation(
       (file) => `blob:${(file as File).name}`
     );
@@ -84,7 +106,17 @@ describe("CourseCoverUploadField", () => {
     };
 
     act(() => select(new File(["a"], "a.png", { type: "image/png" })));
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "Confirmar recorte")
+        ?.click()
+    );
     act(() => select(new File(["b"], "b.png", { type: "image/png" })));
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "Confirmar recorte")
+        ?.click()
+    );
     await act(async () => {
       first.resolve(referenceFor("a.png"));
       await first.promise;
@@ -115,5 +147,45 @@ describe("CourseCoverUploadField", () => {
         'input[name="coverUploadPending"]'
       )?.value
     ).toBe("");
+  });
+
+  it("waits for the card crop before staging a selected file", async () => {
+    stagedUploadMock.mockResolvedValue(referenceFor("cropped.webp"));
+
+    act(() => {
+      root.render(<CourseCoverUploadField aggregateId={aggregateId} />);
+    });
+    const input =
+      container.querySelector<HTMLInputElement>('input[type="file"]');
+    const source = new File(["source"], "source.png", { type: "image/png" });
+
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [source],
+    });
+    act(() => input?.dispatchEvent(new Event("change", { bubbles: true })));
+
+    expect(stagedUploadMock).not.toHaveBeenCalled();
+    expect(
+      [...container.querySelectorAll("button")].some(
+        (button) => button.textContent === "Confirmar recorte"
+      )
+    ).toBe(true);
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "Confirmar recorte")
+        ?.click()
+    );
+    await act(async () => undefined);
+
+    expect(stagedUploadMock).toHaveBeenCalledWith({
+      aggregateId,
+      file: expect.objectContaining({
+        name: "cropped.webp",
+        type: "image/webp",
+      }),
+      purpose: "course-cover",
+    });
   });
 });

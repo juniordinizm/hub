@@ -393,6 +393,13 @@
       "when": 1785751899658,
       "tag": "0055_limit_course_installments",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1786099773858,
+      "tag": "0056_certificate_state_invariants",
+      "breakpoints": true
     }
   ]
 }

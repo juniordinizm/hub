@@ -23,9 +23,9 @@ export default function StudentAreaLoading(): React.JSX.Element {
               <Skeleton className="h-5 w-72" />
             </div>
             <div className="flex flex-wrap gap-5">
-              <Skeleton className="h-[380px] w-full max-w-[340px] rounded-xl" />
-              <Skeleton className="h-[380px] w-full max-w-[340px] rounded-xl" />
-              <Skeleton className="hidden h-[380px] w-full max-w-[340px] rounded-xl sm:block" />
+              <Skeleton className="aspect-[24/25] w-full max-w-[340px] rounded-xl" />
+              <Skeleton className="aspect-[24/25] w-full max-w-[340px] rounded-xl" />
+              <Skeleton className="hidden aspect-[24/25] w-full max-w-[340px] rounded-xl sm:block" />
             </div>
           </section>
         </div>

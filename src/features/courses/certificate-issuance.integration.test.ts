@@ -371,7 +371,9 @@ describe("emissao concorrente de certificado", () => {
     ).resolves.toMatchObject({ certificateIssued: false });
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
 
-    await getTestPool().query("update certificates set status = 'revoked'");
+    await getTestPool().query(
+      "update certificates set status = 'revoked', revoked_at = now(), revoked_reason_category = 'other'"
+    );
     await expect(
       completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId })
     ).resolves.toMatchObject({ certificateIssued: false });
@@ -581,7 +583,7 @@ describe("claim persistido de renderizacao", () => {
       expect(dependencies.renderCertificatePdf).toHaveBeenCalledOnce();
     });
     await pool.query(
-      "update certificates set status = 'revoked', revoked_at = now() where id = $1",
+      "update certificates set status = 'revoked', revoked_at = now(), revoked_reason_category = 'other' where id = $1",
       [certificateId]
     );
 

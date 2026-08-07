@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getPool } from "@/db";
 import {
   createR2ObjectReadUrl,
@@ -84,12 +84,14 @@ export const uploadCertificateSignature = async ({
 };
 
 export const saveCertificateTemplateDraft = async ({
+  actorUserId,
   courseId,
   signerName,
   signerRole,
   signatureKey,
   spec,
 }: {
+  actorUserId: string;
   courseId: string;
   signerName: string | null;
   signerRole: string | null;
@@ -101,6 +103,9 @@ export const saveCertificateTemplateDraft = async ({
   if (firstError) {
     throw new CertificateTemplateDomainError(firstError);
   }
+  const specSha256 = createHash("sha256")
+    .update(JSON.stringify(spec))
+    .digest("hex");
   const client = await getPool().connect();
   try {
     await client.query("begin");
@@ -175,6 +180,18 @@ export const saveCertificateTemplateDraft = async ({
       courseId,
       keys: replacedKeys,
     });
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, $2, 'certificate_template', $3, $4::jsonb)
+      `,
+      [
+        actorUserId,
+        "certificate.template_draft_saved",
+        courseId,
+        JSON.stringify({ replacedAssetCount: replacedKeys.length, specSha256 }),
+      ]
+    );
     await client.query("commit");
     return replacedKeys;
   } catch (error) {
@@ -246,7 +263,8 @@ export const hasCertificateIssuerProfile = async (): Promise<boolean> => {
 };
 
 export const publishCertificateTemplate = async (
-  courseId: string
+  courseId: string,
+  actorUserId: string
 ): Promise<void> => {
   const client = await getPool().connect();
   try {
@@ -284,6 +302,18 @@ export const publishCertificateTemplate = async (
       "update courses set certificate_enabled = true, updated_at = now() where id = $1",
       [courseId]
     );
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, $2, 'certificate_template', $3, $4::jsonb)
+      `,
+      [
+        actorUserId,
+        "certificate.template_published",
+        courseId,
+        JSON.stringify({ templateId: draft.rows[0].id }),
+      ]
+    );
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");
@@ -294,42 +324,88 @@ export const publishCertificateTemplate = async (
 };
 
 export const disableCertificateForCourse = async (
-  courseId: string
+  courseId: string,
+  actorUserId: string
 ): Promise<void> => {
-  await getPool().query(
-    "update courses set certificate_enabled = false, updated_at = now() where id = $1",
-    [courseId]
-  );
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [courseId]
+    );
+    const result = await client.query(
+      "update courses set certificate_enabled = false, updated_at = now() where id = $1",
+      [courseId]
+    );
+    if (result.rowCount !== 1) {
+      throw new CertificateTemplateDomainError("Curso nao localizado.");
+    }
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, $2, 'course', $3, '{}'::jsonb)
+      `,
+      [actorUserId, "certificate.disabled", courseId]
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const enableCertificateForCourse = async (
-  courseId: string
+  courseId: string,
+  actorUserId: string
 ): Promise<void> => {
-  const pool = getPool();
-  const prerequisite = await pool.query<{ id: string }>(
-    `
-      select template.id
-      from certificate_templates template
-      join certificate_issuer_profiles issuer on issuer.id = 'global'
-      where template.course_id = $1
-        and template.status = 'published'
-      limit 1
-    `,
-    [courseId]
-  );
-
-  if (!prerequisite.rows[0]) {
-    throw new CertificateTemplateDomainError(
-      "Publique um template e configure o perfil emissor antes de ligar certificados."
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [courseId]
     );
-  }
+    const prerequisite = await client.query<{ id: string }>(
+      `
+        select template.id
+        from certificate_templates template
+        join certificate_issuer_profiles issuer on issuer.id = 'global'
+        where template.course_id = $1
+          and template.status = 'published'
+        limit 1
+      `,
+      [courseId]
+    );
 
-  const result = await pool.query(
-    "update courses set certificate_enabled = true, updated_at = now() where id = $1",
-    [courseId]
-  );
+    if (!prerequisite.rows[0]) {
+      throw new CertificateTemplateDomainError(
+        "Publique um template e configure o perfil emissor antes de ligar certificados."
+      );
+    }
 
-  if (result.rowCount !== 1) {
-    throw new CertificateTemplateDomainError("Curso nao localizado.");
+    const result = await client.query(
+      "update courses set certificate_enabled = true, updated_at = now() where id = $1",
+      [courseId]
+    );
+
+    if (result.rowCount !== 1) {
+      throw new CertificateTemplateDomainError("Curso nao localizado.");
+    }
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, $2, 'course', $3, '{}'::jsonb)
+      `,
+      [actorUserId, "certificate.enabled", courseId]
+    );
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
   }
 };

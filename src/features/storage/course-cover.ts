@@ -1,8 +1,21 @@
 import { sanitizeR2FileName } from "@/features/storage/r2-objects";
 
+export const COURSE_COVER_CARD_WIDTH = 960;
+export const COURSE_COVER_CARD_HEIGHT = 1000;
+export const COURSE_COVER_ASPECT_RATIO =
+  COURSE_COVER_CARD_WIDTH / COURSE_COVER_CARD_HEIGHT;
+
 export const COURSE_COVER_VARIANTS = {
-  thumb: { height: 270, maxSizeBytes: 350 * 1024, width: 480 },
-  card: { height: 540, maxSizeBytes: 950 * 1024, width: 960 },
+  thumb: {
+    height: COURSE_COVER_CARD_HEIGHT / 2,
+    maxSizeBytes: 350 * 1024,
+    width: COURSE_COVER_CARD_WIDTH / 2,
+  },
+  card: {
+    height: COURSE_COVER_CARD_HEIGHT,
+    maxSizeBytes: 950 * 1024,
+    width: COURSE_COVER_CARD_WIDTH,
+  },
 } as const;
 
 export type CourseCoverVariant = keyof typeof COURSE_COVER_VARIANTS;

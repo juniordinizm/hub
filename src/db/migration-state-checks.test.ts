@@ -8,7 +8,7 @@ describe("migration state checks", () => {
   it("covers the certificate template and render-claim catalog", () => {
     const certificateChecks = certificateMigrationStateChecks;
 
-    expect(certificateChecks).toHaveLength(2);
+    expect(certificateChecks).toHaveLength(3);
     expect(certificateChecks[0]?.statement).toContain(
       "certificate_issuer_profiles"
     );
@@ -18,6 +18,9 @@ describe("migration state checks", () => {
     expect(certificateChecks[1]?.statement).toContain("render_claim_token");
     expect(certificateChecks[1]?.statement).toContain(
       "certificates_ready_artifact_check"
+    );
+    expect(certificateChecks[2]?.statement).toContain(
+      "certificates_revocation_state_check"
     );
   });
 

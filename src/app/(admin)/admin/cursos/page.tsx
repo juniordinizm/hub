@@ -150,7 +150,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
 
               return (
                 <article
-                  className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
+                  className="group relative flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
                   key={course.id}
                 >
                   <div className="absolute inset-0 z-0">
@@ -177,7 +177,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
                   </div>
 
-                  <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
+                  <div className="relative z-10 flex min-h-0 flex-1 flex-col p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
                       <Badge className={statusInfo.color} variant="outline">
                         {statusInfo.label}
@@ -208,7 +208,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     </div>
                   </div>
 
-                  <div className="relative z-10 flex flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
+                  <div className="relative z-10 flex shrink-0 flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
                     <div className="flex items-center justify-between text-muted-foreground text-xs">
                       <span>{course.accessDurationMonths}m acesso</span>
                       <span className="font-semibold text-foreground">

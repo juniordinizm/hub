@@ -40,6 +40,22 @@ describe("Sentry options", () => {
     expect(event?.user).toBeUndefined();
   });
 
+  it("redacts certificate public codes from request paths", () => {
+    const options = getSentryOptions(
+      "https://public@example.ingest.sentry.io/1"
+    );
+    const event = options.beforeSend?.({
+      request: {
+        url: "https://hub.example.test/certificados/PRT-ABC123/pdfs?download=1",
+      },
+    } as unknown as Parameters<NonNullable<typeof options.beforeSend>>[0]);
+
+    expect(event?.request?.url).toBe(
+      "https://hub.example.test/certificados/[certificate-code]/pdfs"
+    );
+    expect(event?.request?.url).not.toContain("PRT-ABC123");
+  });
+
   it("preserves only explicit safe tags while removing request identifiers", () => {
     const options = getSentryOptions(
       "https://public@example.ingest.sentry.io/1"

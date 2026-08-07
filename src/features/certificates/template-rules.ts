@@ -10,6 +10,7 @@ export const CERTIFICATE_FIELDS = [
   "issuerCnpj",
   "courseFreeStatement",
   "signerName",
+  "signerRole",
   "signatureImage",
   "validationCode",
   "qrCode",
@@ -35,6 +36,10 @@ export interface CertificateTemplateSpec {
   fields: CertificateTemplateField[];
 }
 
+export interface CertificateTemplateOverlap {
+  fields: [CertificateField, CertificateField];
+}
+
 export const createDefaultCertificateTemplateFields =
   (): CertificateTemplateField[] =>
     CERTIFICATE_FIELDS.map((field, index) => ({
@@ -47,11 +52,14 @@ export const createDefaultCertificateTemplateFields =
       visible: !(
         field === "courseFreeStatement" ||
         field === "signatureImage" ||
-        field === "signerName"
+        field === "signerName" ||
+        field === "signerRole"
       ),
       width: field === "qrCode" ? 12 : 70,
       x: field === "qrCode" ? 82 : 15,
-      y: Math.min(90, 8 + index * 7),
+      // Keep every default field inside the printable area, including the
+      // 12%-high QR field at the bottom of the page.
+      y: 8 + index * 6,
     }));
 
 const requiredFields = new Set<CertificateField>([
@@ -91,25 +99,28 @@ const validateField = (item: CertificateTemplateField): string[] => {
   return errors;
 };
 
-const findOverlaps = (fields: CertificateTemplateField[]): string[] => {
-  const errors: string[] = [];
-  for (let index = 0; index < fields.length; index += 1) {
-    const left = fields[index];
+export const findCertificateTemplateOverlaps = (
+  fields: CertificateTemplateField[]
+): CertificateTemplateOverlap[] => {
+  const overlaps: CertificateTemplateOverlap[] = [];
+  const visibleFields = fields.filter((item) => item.visible);
+  for (let index = 0; index < visibleFields.length; index += 1) {
+    const left = visibleFields[index];
     if (!left) {
       continue;
     }
-    for (const right of fields.slice(index + 1)) {
-      const overlaps =
+    for (const right of visibleFields.slice(index + 1)) {
+      const overlapsFound =
         left.x < right.x + right.width &&
         left.x + left.width > right.x &&
         left.y < right.y + right.height &&
         left.y + left.height > right.y;
-      if (overlaps) {
-        errors.push(`Os campos ${left.field} e ${right.field} se sobrepoem.`);
+      if (overlapsFound) {
+        overlaps.push({ fields: [left.field, right.field] });
       }
     }
   }
-  return errors;
+  return overlaps;
 };
 
 export const validateCertificateTemplate = (
@@ -132,6 +143,5 @@ export const validateCertificateTemplate = (
       errors.push(`O campo ${field} e obrigatorio.`);
     }
   }
-  errors.push(...findOverlaps(spec.fields.filter((item) => item.visible)));
   return errors;
 };

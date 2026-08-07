@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 const temporaryDirectories: string[] = [];
@@ -10,6 +10,23 @@ const launcherPath = resolve(
   import.meta.dirname,
   "../../scripts/run-development.ts"
 );
+const shellArgument = (value: string): string =>
+  process.platform === "win32" ? `"${value.replaceAll('"', '\\"')}"` : value;
+
+const runLauncher = (
+  probePath: string,
+  environment: NodeJS.ProcessEnv
+): ReturnType<typeof spawnSync> =>
+  spawnSync(
+    bunExecutable,
+    [shellArgument(launcherPath), "bun", shellArgument(probePath)],
+    {
+      cwd: dirname(probePath),
+      encoding: "utf8",
+      env: environment,
+      shell: process.platform === "win32",
+    }
+  );
 
 const developmentEnvironment = `
 DATABASE_URL=postgresql://user:password@ep-development-pooler.example.com/neondb
@@ -77,14 +94,12 @@ describe("Development launcher", () => {
       delete environment[line.slice(0, line.indexOf("="))];
     }
 
-    const result = spawnSync(bunExecutable, [launcherPath, "bun", probePath], {
-      cwd: directory,
-      encoding: "utf8",
-      env: environment,
-      shell: process.platform === "win32",
-    });
+    const result = runLauncher(probePath, environment);
 
-    expect(result.status).toBe(0);
+    expect(
+      result.status,
+      result.stderr?.toString() || result.error?.message
+    ).toBe(0);
     expect(result.stdout).toContain("ASAAS_API_KEY_PRESERVED=true");
   });
 
@@ -121,14 +136,12 @@ describe("Development launcher", () => {
       R2_BUCKET_NAME: "hub-e2e",
       R2_ENDPOINT: "http://127.0.0.1:4568",
     };
-    const result = spawnSync(bunExecutable, [launcherPath, "bun", probePath], {
-      cwd: directory,
-      encoding: "utf8",
-      env: environment,
-      shell: process.platform === "win32",
-    });
+    const result = runLauncher(probePath, environment);
 
-    expect(result.status).toBe(0);
+    expect(
+      result.status,
+      result.stderr?.toString() || result.error?.message
+    ).toBe(0);
     expect(result.stdout).toContain("E2E_OVERRIDES_PRESERVED=true");
   });
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCourseCoverObjectKey,
+  COURSE_COVER_ASPECT_RATIO,
+  COURSE_COVER_CARD_HEIGHT,
+  COURSE_COVER_CARD_WIDTH,
   getCourseCoverStorageKeys,
   getCourseCoverVariantPath,
   parseCourseCoverImage,
@@ -8,6 +11,12 @@ import {
 } from "./course-cover";
 
 describe("course cover storage", () => {
+  it("defines the card crop as 960x1000 at 24:25", () => {
+    expect(COURSE_COVER_CARD_WIDTH).toBe(960);
+    expect(COURSE_COVER_CARD_HEIGHT).toBe(1000);
+    expect(COURSE_COVER_ASPECT_RATIO).toBe(24 / 25);
+  });
+
   it("builds scoped R2 object keys for cover variants", () => {
     expect(
       buildCourseCoverObjectKey({
@@ -100,14 +109,14 @@ describe("course cover storage", () => {
         variants: {
           card: {
             contentType: "image/webp",
-            height: 540,
+            height: 1000,
             key: "courses/course-1/cover/upload-card.webp",
             sizeBytes: 500_000,
             width: 960,
           },
           thumb: {
             contentType: "image/webp",
-            height: 270,
+            height: 500,
             key: "courses/course-1/cover/upload-thumb.webp",
             sizeBytes: 120_000,
             width: 480,
@@ -125,14 +134,14 @@ describe("course cover storage", () => {
       variants: {
         card: {
           contentType: "image/webp",
-          height: 540,
+          height: 1000,
           key: "courses/course-1/cover/upload-card.webp",
           sizeBytes: 500_000,
           width: 960,
         },
         thumb: {
           contentType: "image/webp",
-          height: 270,
+          height: 500,
           key: "courses/course-1/cover/upload-thumb.webp",
           sizeBytes: 120_000,
           width: 480,
@@ -155,7 +164,7 @@ describe("course cover storage", () => {
           variants: {
             card: {
               contentType: "image/webp",
-              height: 540,
+              height: 1000,
               key: "courses/course-1/cover/upload-card.webp",
               sizeBytes: 500_000,
               width: 960,
@@ -187,7 +196,7 @@ describe("course cover storage", () => {
         variants: {
           card: {
             contentType: "image/webp",
-            height: 540,
+            height: 1000,
             key: "courses/course-1/cover/upload-card.webp",
             sizeBytes: 500_000,
             width: 960,
@@ -201,7 +210,7 @@ describe("course cover storage", () => {
           },
           thumb: {
             contentType: "image/webp",
-            height: 270,
+            height: 500,
             key: "courses/course-1/cover/upload-thumb.webp",
             sizeBytes: 120_000,
             width: 480,
