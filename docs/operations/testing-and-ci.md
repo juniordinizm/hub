@@ -31,8 +31,9 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
-contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
-própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
+contribuidores externos. `integration-db` cria sua branch Neon e a remove no cleanup; somente
+depois disso `e2e` cria a própria branch. A serialização evita exceder a cota finita de branches
+do projeto Neon de CI. `build-and-knip` só inicia após as duas terminarem e
 `vercel-preview` só inicia depois de todos esses gates, com uma terceira branch Neon.
 
 O perfil Preview permanece dormente e fail-closed: não recebe R2, Resend, Asaas
@@ -68,8 +69,8 @@ continua passando pelos mesmos gates.
 
 ## Banco efêmero da CI
 
-As jobs que precisam de Postgres criam branches distintas no projeto Neon exclusivo de CI. Cada
-branch recebe expiração de 24 horas e é removida em um passo `always()`. A expiração é a contenção
+As jobs que precisam de Postgres criam branches distintas, em sequência, no projeto Neon exclusivo
+de CI. Cada branch recebe expiração de 24 horas e é removida em um passo `always()`. A expiração é a contenção
 para cancelamentos que interrompam o runner antes do cleanup explícito.
 
 Antes da primeira execução remota, configure no repositório GitHub:
