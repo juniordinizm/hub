@@ -51,7 +51,7 @@ jobs:
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
         id: neon
-        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
+        uses: ./.github/actions/create-neon-branch
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-integration-${{ github.run_id }}-${{ github.run_attempt }}
@@ -110,7 +110,7 @@ jobs:
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
         id: neon
-        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
+        uses: ./.github/actions/create-neon-branch
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-e2e-${{ github.run_id }}-${{ github.run_attempt }}

@@ -118,6 +118,12 @@ branch temporária isolada a partir de `production` e deve removê-la ao termina
 Nenhuma etapa de CI pode executar migrations, integração ou E2E diretamente na
 branch `production`.
 
+O provisionamento passa por `.github/actions/create-neon-branch`, que tenta criar ou reutilizar a
+mesma branch até três vezes, com espera de 5 e 10 segundos. A action reutiliza o mesmo nome em cada
+tentativa para absorver respostas transitórias da API Neon sem criar branches duplicadas. Somente
+uma tentativa bem-sucedida libera as URLs e o ID usados pelos migradores; depois das três falhas a
+execução termina sem executar migrations ou testes.
+
 ## E2E
 
 `bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador visual, e roda
