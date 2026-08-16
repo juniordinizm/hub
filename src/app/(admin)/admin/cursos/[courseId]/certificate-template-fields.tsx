@@ -723,6 +723,18 @@ export const CertificateTemplateFields = memo(
 
     return (
       <section className="flex min-w-0 flex-col gap-5">
+        {backgroundSelected ? null : (
+          <div className="hidden">
+            <CertificateImageUploadField
+              id="certificate-background"
+              imageUrl={backgroundPreviewUrl}
+              kind="background"
+              onFileSelect={onBackgroundFileSelect}
+              required={!backgroundPreviewUrl}
+              selectedFile={backgroundFile}
+            />
+          </div>
+        )}
         {selectedField === "signerName" ? null : (
           <input name="signerName" type="hidden" value={signerName} />
         )}
