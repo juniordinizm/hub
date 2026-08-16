@@ -201,7 +201,10 @@ Não há variável de “aprovação jurídica” ou “retenção de privacidad
 
 ## Setup local
 
-1. Instale Bun 1.3.11 e execute `bun install`.
+1. Instale Bun 1.3.11 e execute `bun install`. O projeto fixa `sharp` na mesma
+   linha compatível com o `sharp` opcional do Next; não force outra versão no
+   `overrides`, pois dois runtimes nativos de `sharp` no mesmo processo Windows
+   podem causar `ERR_DLOPEN_FAILED`.
 2. Copie `.env.example` para `.env.local`.
 3. Configure `DATABASE_URL` para a branch compartilhada `development` já
    migrada; nunca use o compute Production.

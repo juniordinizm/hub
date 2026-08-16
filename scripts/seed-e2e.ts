@@ -385,13 +385,12 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     await client.query(
       `
         insert into certificate_issuer_profiles (
-          id, legal_name, cnpj, display_name, course_free_statement
+          id, legal_name, cnpj, display_name
         ) values (
           'global',
           'Escola E2E Ltda',
           '12.345.678/0001-90',
-          'Escola E2E',
-          'Curso livre para fins de aperfeicoamento profissional.'
+          'Escola E2E'
         )
         on conflict (id) do nothing
       `

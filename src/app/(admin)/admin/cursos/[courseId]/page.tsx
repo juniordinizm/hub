@@ -28,10 +28,7 @@ import {
   getCertificateTemplatesForCourse,
   hasCertificateIssuerProfile,
 } from "@/features/certificates/templates";
-import {
-  formatCourseWorkload,
-  summarizeCoursePublicationReadiness,
-} from "@/features/courses/presentation";
+import { summarizeCoursePublicationReadiness } from "@/features/courses/presentation";
 import { getCoursePurchaseLink } from "@/features/payments/course-purchase-link";
 import { getServerEnv } from "@/lib/env";
 import { route } from "@/lib/routes";
@@ -195,12 +192,14 @@ export default async function AdminCourseDetailPage({
                 value={certificates.length.toString()}
               />
               <CourseMetricCard
-                helper="Duração total das aulas."
+                helper={
+                  course.workloadHoursOverride === null
+                    ? "Calculada pela soma das aulas."
+                    : "Valor manual exibido para os alunos."
+                }
                 icon={Clock01Icon}
                 label="Carga horária"
-                value={formatCourseWorkload(
-                  contentSummary.totalDurationSeconds
-                )}
+                value={`${course.workloadHours}h`}
               />
             </section>
 
@@ -333,6 +332,7 @@ export default async function AdminCourseDetailPage({
             <CertificateTemplateEditor
               certificateEnabled={course.certificateEnabled}
               courseId={course.id}
+              courseWorkloadHours={course.workloadHours}
               issuerConfigured={issuerConfigured}
               templates={certificateTemplates}
             />

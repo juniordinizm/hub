@@ -1,4 +1,3 @@
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { CertificateTemplateOverlap } from "@/features/certificates/template-rules";
 import { certificateTemplateFieldLabels } from "./certificate-template-field-labels";
 
@@ -11,30 +10,21 @@ export function CertificateTemplateOverlapNotice({
     return null;
   }
 
+  const overlapLabels = overlaps.map(({ fields }) =>
+    fields.map((field) => certificateTemplateFieldLabels[field]).join(" + ")
+  );
+
   return (
-    <Alert
+    <div
       aria-live="polite"
-      className="mt-4 border-amber-500/50 bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-amber-500/8 px-3 py-2 text-muted-foreground text-xs"
       role="status"
     >
-      <AlertTitle>
-        {overlaps.length} sobreposição{overlaps.length === 1 ? "" : "ões"}{" "}
-        detectada{overlaps.length === 1 ? "" : "s"}
-      </AlertTitle>
-      <AlertDescription>
-        <p>
-          Isso não impede salvar ou publicar. Confirme que a sobreposição é
-          intencional:
-        </p>
-        <ul className="mt-2 list-disc pl-5">
-          {overlaps.map(({ fields }) => (
-            <li key={fields.join(":")}>
-              {certificateTemplateFieldLabels[fields[0]]} e{" "}
-              {certificateTemplateFieldLabels[fields[1]]}
-            </li>
-          ))}
-        </ul>
-      </AlertDescription>
-    </Alert>
+      <span
+        aria-hidden="true"
+        className="size-1.5 shrink-0 rounded-full bg-amber-500"
+      />
+      <span>Sobreposição: {overlapLabels.join(" · ")}</span>
+    </div>
   );
 }

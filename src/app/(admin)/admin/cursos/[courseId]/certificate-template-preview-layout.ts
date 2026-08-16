@@ -9,6 +9,30 @@ export const CERTIFICATE_PAGE_WIDTH_POINTS =
 // closest stable browser approximation of PDFKit's built-in Helvetica leading.
 export const CERTIFICATE_PREVIEW_LINE_HEIGHT = 1.15;
 
+const getVerticalAlignItems = (
+  verticalAlign: CertificateTemplateField["verticalAlign"]
+): "center" | "flex-end" | "flex-start" => {
+  if (verticalAlign === "top") {
+    return "flex-start";
+  }
+  if (verticalAlign === "bottom") {
+    return "flex-end";
+  }
+  return "center";
+};
+
+const getHorizontalJustifyContent = (
+  align: CertificateTemplateField["align"]
+): "center" | "flex-end" | "flex-start" => {
+  if (align === "right") {
+    return "flex-end";
+  }
+  if (align === "center") {
+    return "center";
+  }
+  return "flex-start";
+};
+
 export const getCertificatePreviewFontSize = (
   fontSizePoints: number,
   renderedWidth: number
@@ -26,16 +50,22 @@ export const getCertificatePreviewFrame = (
 export const getCertificatePreviewTextStyle = (
   field: CertificateTemplateField,
   renderedWidth: number
-): React.CSSProperties => ({
-  ...getCertificatePreviewFrame(field),
-  color: field.color,
-  fontFamily: "Helvetica, Arial, sans-serif",
-  fontSize: `${
-    Math.round(
-      getCertificatePreviewFontSize(field.fontSize, renderedWidth) * 1000
-    ) / 1000
-  }px`,
-  fontWeight: field.font === "Helvetica-Bold" ? 700 : 400,
-  lineHeight: CERTIFICATE_PREVIEW_LINE_HEIGHT,
-  textAlign: field.align,
-});
+): React.CSSProperties => {
+  const verticalAlign = field.verticalAlign ?? "middle";
+  return {
+    ...getCertificatePreviewFrame(field),
+    alignItems: getVerticalAlignItems(verticalAlign),
+    color: field.color,
+    display: "flex",
+    fontFamily: "Helvetica, Arial, sans-serif",
+    fontSize: `${
+      Math.round(
+        getCertificatePreviewFontSize(field.fontSize, renderedWidth) * 1000
+      ) / 1000
+    }px`,
+    fontWeight: field.font === "Helvetica-Bold" ? 700 : 400,
+    justifyContent: getHorizontalJustifyContent(field.align),
+    lineHeight: CERTIFICATE_PREVIEW_LINE_HEIGHT,
+    textAlign: field.align,
+  };
+};

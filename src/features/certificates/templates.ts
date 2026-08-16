@@ -141,8 +141,8 @@ export const saveCertificateTemplateDraft = async ({
     if (previousDraft) {
       await client.query(
         `update certificate_templates
-         set background_key = $2, spec = $3::jsonb, signer_name = $4, signer_role = $5,
-             signature_key = $6, updated_at = now()
+         set background_key = $2, spec = $3::jsonb,
+             signer_name = $4, signer_role = $5, signature_key = $6, updated_at = now()
          where id = $1`,
         [
           previousDraft.id,
@@ -229,7 +229,8 @@ export const getCertificateTemplatesForCourse = async (
     status: "draft" | "published" | "superseded";
     version: number;
   }>(
-    `select id, version, status, background_key, spec, signer_name, signer_role, signature_key
+    `select id, version, status, background_key, spec,
+            signer_name, signer_role, signature_key
      from certificate_templates
      where course_id = $1
      order by version desc`,

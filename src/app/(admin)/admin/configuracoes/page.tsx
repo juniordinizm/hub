@@ -140,15 +140,6 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Texto padrão de curso livre</FieldLabel>
-                    <Input
-                      defaultValue={
-                        data.settings.issuerCourseFreeStatement ?? ""
-                      }
-                      name="issuerCourseFreeStatement"
-                    />
-                  </Field>
-                  <Field>
                     <FieldLabel>Nome da assinatura</FieldLabel>
                     <Input
                       defaultValue={data.settings.certificateSignerName ?? ""}

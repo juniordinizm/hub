@@ -265,6 +265,7 @@ export const courses = pgTable(
     subtitle: text("subtitle"),
     description: text("description"),
     workloadHours: integer("workload_hours").default(0).notNull(),
+    workloadHoursOverride: integer("workload_hours_override"),
     priceInCents: integer("price_in_cents").default(0).notNull(),
     paymentAllowPix: boolean("payment_allow_pix").default(true).notNull(),
     paymentAllowCreditCard: boolean("payment_allow_credit_card")
@@ -290,6 +291,10 @@ export const courses = pgTable(
     check(
       "courses_workload_hours_non_negative",
       sql`${table.workloadHours} >= 0`
+    ),
+    check(
+      "courses_workload_hours_override_non_negative",
+      sql`${table.workloadHoursOverride} is null or ${table.workloadHoursOverride} >= 0`
     ),
     check(
       "courses_price_in_cents_zero_or_minimum",
@@ -1218,7 +1223,6 @@ export const certificateIssuerProfiles = pgTable(
     legalName: text("legal_name").notNull(),
     cnpj: text("cnpj").notNull(),
     displayName: text("display_name").notNull(),
-    courseFreeStatement: text("course_free_statement").notNull(),
     ...timestamps,
   }
 );

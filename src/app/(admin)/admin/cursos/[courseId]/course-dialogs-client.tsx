@@ -7,7 +7,12 @@ import { toast } from "sonner";
 import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -39,6 +44,7 @@ export interface CourseData {
   thumbnailUrl: string | null;
   title: string;
   workloadHours: number;
+  workloadHoursOverride: number | null;
 }
 
 export function CourseSettingsForm({
@@ -99,6 +105,35 @@ export function CourseSettingsForm({
               name="description"
             />
           </Field>
+
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <div className="mb-3">
+              <h3 className="font-medium text-sm">Carga horária exibida</h3>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Deixe vazio para calcular automaticamente pela soma das aulas. O
+                valor definido aqui aparece para os alunos e nos próximos
+                certificados.
+              </p>
+            </div>
+            <Field className="max-w-xs gap-2">
+              <FieldLabel htmlFor="course-settings-workload-hours">
+                Horas do curso
+              </FieldLabel>
+              <Input
+                defaultValue={course.workloadHoursOverride ?? ""}
+                id="course-settings-workload-hours"
+                inputMode="numeric"
+                min={0}
+                name="workloadHoursOverride"
+                placeholder={`Automática: ${course.workloadHours} horas`}
+                type="number"
+              />
+              <FieldDescription>
+                Cálculo atual: {course.workloadHours}{" "}
+                {course.workloadHours === 1 ? "hora" : "horas"}.
+              </FieldDescription>
+            </Field>
+          </div>
 
           <div className="grid gap-5 md:grid-cols-3">
             <Field>

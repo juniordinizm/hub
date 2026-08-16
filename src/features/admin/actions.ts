@@ -699,18 +699,12 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
   const legalName = readString(formData, "issuerLegalName");
   const displayName = readString(formData, "issuerDisplayName");
   const cnpj = readString(formData, "issuerCnpj");
-  const courseFreeStatement = readString(formData, "issuerCourseFreeStatement");
   if (legalName && cnpj) {
     await getPool().query(
-      `insert into certificate_issuer_profiles (id, legal_name, cnpj, display_name, course_free_statement)
-     values ('global', $1, $2, $3, $4)
-     on conflict (id) do update set legal_name = excluded.legal_name, cnpj = excluded.cnpj, display_name = excluded.display_name, course_free_statement = excluded.course_free_statement, updated_at = now()`,
-      [
-        legalName,
-        cnpj,
-        displayName || legalName,
-        courseFreeStatement || "Certificado de conclusao de curso livre.",
-      ]
+      `insert into certificate_issuer_profiles (id, legal_name, cnpj, display_name)
+       values ('global', $1, $2, $3)
+       on conflict (id) do update set legal_name = excluded.legal_name, cnpj = excluded.cnpj, display_name = excluded.display_name, updated_at = now()`,
+      [legalName, cnpj, displayName || legalName]
     );
   }
   await audit({
