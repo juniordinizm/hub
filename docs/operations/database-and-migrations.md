@@ -99,7 +99,10 @@ compute Production conhecido antes de abrir conexão. O reset possui modo
 `plan`, que lê contagens dentro de transação e faz rollback, e modo `execute`,
 que exige `RESET_STAGING_DATA`, preserva `__drizzle_migrations`, recria somente
 o Admin e limpa apenas o namespace físico `staging/` nos dois buckets
-Development compartilhados. Não remove vídeos JMVStream.
+Development compartilhados. Não remove vídeos JMVStream. Antes do reset, o
+workflow cria um backup usando o input `parent_branch` da action Neon e confere
+via API que a branch criada descende da branch Staging configurada; se a
+ancestralidade não coincidir, a execução é interrompida.
 
 ## Autoridades
 

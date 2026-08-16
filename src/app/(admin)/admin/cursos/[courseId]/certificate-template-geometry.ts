@@ -200,13 +200,6 @@ export const fitCertificateFieldToContent = (
   });
 };
 
-export const resizeCertificateFieldWidth = (
-  field: CertificateFieldGeometry,
-  width: number,
-  anchor: CertificateResizeAnchor = "center"
-): CertificateFieldGeometry =>
-  resizeCertificateField(field, { width }, { anchor });
-
 export const snapCertificateFieldPosition = (
   field: CertificateFieldGeometry,
   position: Pick<CertificateFieldGeometry, "x" | "y">,
