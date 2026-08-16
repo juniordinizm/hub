@@ -47,6 +47,30 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
+      - name: Validate isolated Neon source
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_CI_PARENT_BRANCH_ID: ${{ vars.NEON_CI_PARENT_BRANCH_ID }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          for name in NEON_CI_PARENT_BRANCH_ID NEON_PROJECT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "${name} is required for isolated CI databases." >&2
+              exit 1
+            fi
+          done
+          parent_branch="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Accept: application/json" \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_CI_PARENT_BRANCH_ID}"
+          )"
+          jq -e \
+            --arg project "${NEON_PROJECT_ID}" \
+            --arg parent "${NEON_CI_PARENT_BRANCH_ID}" \
+            '.branch.project_id == $project and .branch.id == $parent and .branch.name == "vercel-preview"' \
+            <<< "${parent_branch}" > /dev/null
       - name: Set branch expiry
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
@@ -56,6 +80,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-integration-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_EXPIRES_AT }}
+          parent_branch: ${{ vars.NEON_CI_PARENT_BRANCH_ID }}
           project_id: ${{ vars.NEON_PROJECT_ID }}
       - name: Prepare inherited migration data
         env:
@@ -108,6 +133,30 @@ jobs:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
       - run: bunx playwright install --with-deps chromium
+      - name: Validate isolated Neon source
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_CI_PARENT_BRANCH_ID: ${{ vars.NEON_CI_PARENT_BRANCH_ID }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          for name in NEON_CI_PARENT_BRANCH_ID NEON_PROJECT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "${name} is required for isolated CI databases." >&2
+              exit 1
+            fi
+          done
+          parent_branch="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Accept: application/json" \
+              "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_CI_PARENT_BRANCH_ID}"
+          )"
+          jq -e \
+            --arg project "${NEON_PROJECT_ID}" \
+            --arg parent "${NEON_CI_PARENT_BRANCH_ID}" \
+            '.branch.project_id == $project and .branch.id == $parent and .branch.name == "vercel-preview"' \
+            <<< "${parent_branch}" > /dev/null
       - name: Set branch expiry
         run: echo "NEON_EXPIRES_AT=$(date -u --date '+1 day' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create isolated Neon branch
@@ -117,6 +166,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: ci-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_EXPIRES_AT }}
+          parent_branch: ${{ vars.NEON_CI_PARENT_BRANCH_ID }}
           project_id: ${{ vars.NEON_PROJECT_ID }}
       - name: Prepare inherited migration data
         env:

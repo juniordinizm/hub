@@ -1217,6 +1217,7 @@ describe("CertificateTemplateEditor", () => {
     expect(
       container.querySelector('[data-document-properties="true"]')
     ).toBeNull();
+    expect(container.querySelector("#certificate-background")).not.toBeNull();
     selectBackground(container);
     expect(
       container.querySelector('[data-compact-upload="background"]')

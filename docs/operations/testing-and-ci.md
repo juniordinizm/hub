@@ -77,10 +77,18 @@ Antes da primeira execução remota, configure no repositório GitHub:
 
 - secret `NEON_API_KEY`: chave de API limitada ao projeto/organização de CI;
 - variable `NEON_PROJECT_ID`: ID do projeto Neon dedicado de CI.
+- variable `NEON_CI_PARENT_BRANCH_ID`: branch vazia e sem dados de Production
+  usada como origem das branches efêmeras.
 
 Não use o projeto Neon de produção, sua URL de conexão ou uma chave com escopo de produção.
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
 mascarados, usadas pelos migradores, integração e E2E.
+
+Antes de disparar uma execução, confirme também que `NEON_PROJECT_ID` aponta para
+o projeto CI dedicado e que a action cria a branch a partir de uma origem sem
+dados de Production. Sem `parent_branch` explícito, o Neon usa a branch padrão
+do projeto; nesse caso, a execução deve ser interrompida em vez de copiar dados
+reais para uma branch efêmera.
 
 Antes de rodar integração ou E2E, cada job tenta seu migrador até cinco vezes,
 com espera limitada entre tentativas. Integração usa `db:migrate`; E2E usa

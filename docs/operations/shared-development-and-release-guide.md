@@ -16,14 +16,21 @@ recursos podem ser registrados; senhas, tokens e URLs de banco não.
 
 ## Antes de começar
 
-O projeto possui quatro ambientes com finalidades diferentes:
+O projeto possui cinco ambientes com finalidades diferentes:
 
 | Ambiente | Para que serve | Banco | Providers |
 |---|---|---|---|
-| Development | trabalho manual compartilhado | branch persistente `development` | recursos reais, mas exclusivos de Development |
+| Development | desenvolvimento local com recursos de teste compartilhados | branch persistente `development` | recursos reais, mas exclusivos de Development |
 | E2E | jornadas automatizadas da CI | branch efêmera apagada após o teste | storage S3 local descartável; e-mail absorvido |
 | Preview | smoke de cada PR/push | branch persistente `vercel-preview`, vazia | providers proibidos |
+| Staging | homologação pré-produção na URL de teste | branch Neon configurada pelo Environment `vercel-staging` | providers de Staging; R2 Development com namespace `staging/` |
 | Production | aplicação pública | branch `production` | recursos definitivos |
+
+`development` é o ambiente usado pelo código rodando localmente; seus recursos
+persistentes são compartilhados apenas entre estações autorizadas. `staging` é a
+etapa de pré-produção para homologação manual. A branch Git `main` representa o
+candidato de Production, mas o merge sozinho não publica o domínio: a promoção
+continua protegida pelo workflow manual `Deploy Vercel production`.
 
 Branch Git e branch Neon são independentes. Trocar de branch com `git switch`
 não muda o banco. `bun run dev` usa a URL presente no `.env.local`.

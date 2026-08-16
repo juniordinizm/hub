@@ -14,6 +14,9 @@ inputs:
   project_id:
     description: Neon project ID
     required: true
+  parent_branch:
+    description: Parent Neon branch for the isolated database
+    required: true
   api_host:
     description: Neon API host
     required: false
@@ -42,6 +45,7 @@ runs:
         api_host: ${{ inputs.api_host }}
         branch_name: ${{ inputs.branch_name }}
         expires_at: ${{ inputs.expires_at }}
+        parent_branch: ${{ inputs.parent_branch }}
         project_id: ${{ inputs.project_id }}
 
     - name: Wait before Neon branch retry 2
@@ -59,6 +63,7 @@ runs:
         api_host: ${{ inputs.api_host }}
         branch_name: ${{ inputs.branch_name }}
         expires_at: ${{ inputs.expires_at }}
+        parent_branch: ${{ inputs.parent_branch }}
         project_id: ${{ inputs.project_id }}
 
     - name: Wait before Neon branch retry 3
@@ -76,6 +81,7 @@ runs:
         api_host: ${{ inputs.api_host }}
         branch_name: ${{ inputs.branch_name }}
         expires_at: ${{ inputs.expires_at }}
+        parent_branch: ${{ inputs.parent_branch }}
         project_id: ${{ inputs.project_id }}
 
     - name: Fail after Neon branch retries

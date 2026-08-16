@@ -8,6 +8,12 @@ const readWorkflow = (fileName: string): string =>
     "utf8"
   );
 
+const readAction = (actionPath: string): string =>
+  readFileSync(
+    resolve(import.meta.dirname, `../../.github/${actionPath}`),
+    "utf8"
+  );
+
 const githubExpression = (expression: string): string =>
   ["$", "{{ ", expression, " }}"].join("");
 
@@ -96,9 +102,21 @@ describe("Production cleanup workflow", () => {
 describe("CI workflow", () => {
   it("prepares inherited data only inside the two ephemeral test branches", () => {
     const workflow = readWorkflow("ci.yml");
+    const neonAction = readAction("actions/create-neon-branch/action.yml");
 
     expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
     expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
+    expect(
+      workflow.match(
+        /parent_branch: \$\{\{ vars\.NEON_CI_PARENT_BRANCH_ID \}\}/g
+      )
+    ).toHaveLength(2);
+    expect(workflow).toContain("is required for isolated CI databases.");
+    expect(neonAction).toContain("parent_branch:");
+    expect(neonAction).toContain("required: true");
+    expect(
+      neonAction.match(/parent_branch: \$\{\{ inputs\.parent_branch \}\}/g)
+    ).toHaveLength(3);
     expect(workflow).toContain(
       `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
     );
@@ -180,6 +198,23 @@ describe("Release backup ancestry", () => {
     expect(workflow).toContain(
       `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
         "PRODUCTION_NEON_BRANCH_ID"
+      )}" ]]`
+    );
+  });
+
+  it("creates and verifies a Staging reset backup from Staging", () => {
+    const workflow = readWorkflow("reset-staging.yml");
+
+    expect(workflow).toContain(
+      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
+    );
+    expect(workflow).not.toContain("\n          parent:");
+    expect(workflow).toContain("name: Verify Staging backup ancestry");
+    expect(workflow).toContain("BACKUP_BRANCH_ID:");
+    expect(workflow).toContain(".branch.parent_id");
+    expect(workflow).toContain(
+      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
+        "STAGING_NEON_BRANCH_ID"
       )}" ]]`
     );
   });
