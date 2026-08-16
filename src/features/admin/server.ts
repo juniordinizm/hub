@@ -125,6 +125,7 @@ export interface AdminCourse {
   thumbnailUrl: string | null;
   title: string;
   workloadHours: number;
+  workloadHoursOverride: number | null;
 }
 
 export interface AdminEnrollment {
@@ -237,7 +238,6 @@ export interface AdminSettings {
   certificateSignerName: string | null;
   certificateSignerRole: string | null;
   issuerCnpj: string | null;
-  issuerCourseFreeStatement: string | null;
   issuerDisplayName: string | null;
   issuerLegalName: string | null;
 }
@@ -291,10 +291,11 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     thumbnail_url: string | null;
     title: string;
     workload_hours: number;
+    workload_hours_override: number | null;
   }>(
     courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
+      ? "select id, slug, title, subtitle, description, workload_hours, workload_hours_override, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
+      : "select id, slug, title, subtitle, description, workload_hours, workload_hours_override, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
     courseId ? [courseId] : undefined
   );
 
@@ -314,6 +315,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     thumbnailUrl: row.thumbnail_url,
     title: row.title,
     workloadHours: row.workload_hours,
+    workloadHoursOverride: row.workload_hours_override,
   }));
 };
 
@@ -793,18 +795,16 @@ const readSettings = async (): Promise<AdminSettings> => {
   const settings = rows[0];
   const issuer = await getPool().query<{
     cnpj: string;
-    course_free_statement: string;
     display_name: string;
     legal_name: string;
   }>(
-    "select cnpj, display_name, legal_name, course_free_statement from certificate_issuer_profiles where id = 'global' limit 1"
+    "select cnpj, display_name, legal_name from certificate_issuer_profiles where id = 'global' limit 1"
   );
 
   return {
     certificateSignerName: settings?.certificate_signer_name ?? null,
     certificateSignerRole: settings?.certificate_signer_role ?? null,
     issuerCnpj: issuer.rows[0]?.cnpj ?? null,
-    issuerCourseFreeStatement: issuer.rows[0]?.course_free_statement ?? null,
     issuerDisplayName: issuer.rows[0]?.display_name ?? null,
     issuerLegalName: issuer.rows[0]?.legal_name ?? null,
   };

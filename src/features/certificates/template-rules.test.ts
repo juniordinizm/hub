@@ -44,6 +44,11 @@ const makeRequiredFields = (
 describe("certificate template rules", () => {
   it("creates a valid default template", () => {
     expect(
+      createDefaultCertificateTemplateFields().every(
+        (field) => field.verticalAlign === "middle"
+      )
+    ).toBe(true);
+    expect(
       validateCertificateTemplate({
         backgroundKey: "certificates/a4.png",
         fields: createDefaultCertificateTemplateFields(),

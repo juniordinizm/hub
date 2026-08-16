@@ -44,7 +44,6 @@ const snapshot: CertificateRenderSnapshot = {
   course: { title: "Curso de teste", workloadHours: 10 },
   issuer: {
     cnpj: "12.345.678/0001-90",
-    courseFreeStatement: "Curso livre.",
     displayName: "Hub Educacao",
     legalName: "Hub Educacao LTDA",
   },
@@ -63,6 +62,7 @@ const snapshot: CertificateRenderSnapshot = {
         width: 40,
         x: 30,
         y: 45,
+        verticalAlign: "middle",
       },
     ],
     id: "2c5c41a6-29c1-4a42-8474-f1f7021d5137",
@@ -109,6 +109,82 @@ describe("certificate rendering field values", () => {
     );
   });
 
+  it("renders the effective course workload", async () => {
+    const document = createMockDocument();
+    dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 1680, width: 2376 },
+    })
+      .webp()
+      .toBuffer();
+    const sourceField = snapshot.template.fields[0];
+    if (!sourceField) {
+      throw new Error("Fixture de campo ausente.");
+    }
+    const workloadSnapshot: CertificateRenderSnapshot = {
+      ...snapshot,
+      template: {
+        ...snapshot.template,
+        fields: [
+          {
+            ...sourceField,
+            field: "workloadHours",
+          },
+        ],
+      },
+    };
+
+    await renderCertificatePdf({
+      background,
+      publicBaseUrl: "https://hub.example.test",
+      signature: null,
+      snapshot: workloadSnapshot,
+    });
+
+    expect(document.text).toHaveBeenCalledWith(
+      "10 horas",
+      expect.any(Number),
+      expect.any(Number),
+      expect.objectContaining({ align: "center" })
+    );
+  });
+
+  it("keeps rendering legacy course-free fields from immutable snapshots", async () => {
+    const document = createMockDocument();
+    dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 1680, width: 2376 },
+    })
+      .webp()
+      .toBuffer();
+    const sourceField = snapshot.template.fields[0];
+    if (!sourceField) {
+      throw new Error("Fixture de campo ausente.");
+    }
+    const legacySnapshot: CertificateRenderSnapshot = {
+      ...snapshot,
+      issuer: { ...snapshot.issuer, courseFreeStatement: "Curso livre." },
+      template: {
+        ...snapshot.template,
+        fields: [{ ...sourceField, field: "courseFreeStatement" }],
+      },
+    };
+
+    await renderCertificatePdf({
+      background,
+      publicBaseUrl: "https://hub.example.test",
+      signature: null,
+      snapshot: legacySnapshot,
+    });
+
+    expect(document.text).toHaveBeenCalledWith(
+      "Curso livre.",
+      expect.any(Number),
+      expect.any(Number),
+      expect.objectContaining({ align: "center" })
+    );
+  });
+
   it("rejects text that cannot fit its configured field height", async () => {
     const document = createMockDocument();
     document.heightOfString = vi.fn(() => 100);
@@ -127,5 +203,33 @@ describe("certificate rendering field values", () => {
         snapshot,
       })
     ).rejects.toThrow("certificate_field_overflow:signerRole");
+  });
+
+  it("centers text vertically inside its configured field box", async () => {
+    const document = createMockDocument();
+    document.heightOfString = vi.fn(() => 2);
+    dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 1680, width: 2376 },
+    })
+      .webp()
+      .toBuffer();
+
+    await renderCertificatePdf({
+      background,
+      publicBaseUrl: "https://hub.example.test",
+      signature: null,
+      snapshot,
+    });
+
+    const pageHeight = (210 * 72) / 25.4;
+    const boxY = (45 / 100) * pageHeight;
+    const boxHeight = (5 / 100) * pageHeight;
+    expect(document.text).toHaveBeenCalledWith(
+      "Responsavel tecnica",
+      expect.any(Number),
+      boxY + (boxHeight - 2) / 2,
+      expect.objectContaining({ height: boxHeight, width: expect.any(Number) })
+    );
   });
 });

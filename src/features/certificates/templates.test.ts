@@ -137,6 +137,58 @@ describe("certificate template draft serialization", () => {
     expect(release).toHaveBeenCalledOnce();
   });
 
+  it("does not persist course workload configuration in the certificate draft", async () => {
+    const query = vi.fn((statement: string) => {
+      if (statement.includes("from certificate_templates")) {
+        return { rows: [] };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    const release = vi.fn();
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await saveCertificateTemplateDraft({
+      actorUserId: "admin-1",
+      courseId: "course-1",
+      signatureKey: null,
+      signerName: null,
+      signerRole: null,
+      spec: {
+        backgroundKey: "templates/background.webp",
+        fields: [
+          "studentName",
+          "courseTitle",
+          "issuerName",
+          "validationCode",
+          "qrCode",
+        ].map((field, index) => ({
+          align: "center" as const,
+          color: "#111111",
+          field: field as
+            | "courseTitle"
+            | "issuerName"
+            | "qrCode"
+            | "studentName"
+            | "validationCode",
+          fontSize: 10,
+          height: 5,
+          visible: true,
+          width: 10,
+          x: 0,
+          y: index * 10,
+        })),
+      },
+    });
+
+    expect(
+      query.mock.calls.some(([statement]) =>
+        statement.includes("certificate_workload_hours")
+      )
+    ).toBe(false);
+  });
+
   it("locks the course and returns replaced keys from the same transaction", async () => {
     const query = vi.fn((sql: string) => {
       if (

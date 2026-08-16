@@ -27,6 +27,19 @@ salvar o rascunho nem publicar. Continuam bloqueantes a ausência da arte,
 campos fora da área imprimível, campos duplicados, campos obrigatórios ocultos,
 cores inválidas, fontes não permitidas e tamanhos de fonte fora do limite.
 
+O certificado sempre usa a carga horária efetiva do Curso. A configuração do
+Curso pode deixar `courses.workload_hours_override` nulo para calcular
+automaticamente a soma arredondada das aulas, ou informar um inteiro não
+negativo para substituir o valor exibido aos alunos e usado nas próximas
+emissões. A emissão grava somente a carga efetiva em
+`certificates.workload_hours_snapshot`; certificados já emitidos permanecem
+imutáveis. Campos de texto usam `verticalAlign` (`top`, `middle` ou `bottom`),
+com `middle` como default compatível para specs legados, tanto no preview quanto
+no PDF. O antigo campo de curso livre não faz parte do perfil emissor, template
+ou novas emissões; snapshots históricos que ainda o contenham são somente
+leitura. A migration de contrato transfere para o Curso um override manual
+existente no template ativo antes de remover a coluna legada.
+
 Quando um rascunho substitui fundo ou assinatura, a chave anterior entra em
 `certificate_template_asset_cleanup` com carência de 24 horas. A manutenção
 reconfirma que nenhum template referencia a chave antes de excluir no R2. O

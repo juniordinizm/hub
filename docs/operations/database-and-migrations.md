@@ -43,8 +43,27 @@ alvos persistentes está descrito no parágrafo de 2026-08-07 abaixo.
 
 Uma PR draft pausada `#26` usou anteriormente o rótulo experimental
 `0056_asaas_installment_pricing`; esse experimento não integra a cadeia atual e seus
-objetos não devem ser reutilizados. A migration atual `0056_certificate_state_invariants`
-é a migration versionada vigente para o módulo de Certificados.
+objetos não devem ser reutilizados. `0056_certificate_state_invariants` é a
+última migration do módulo de Certificados já promovida aos ambientes compartilhados.
+
+A migration local `0057_pink_chronomancer` adiciona o override nullable de carga
+horária em `certificate_templates` e sua constraint de não negatividade. A
+`0058_reconcile_certificate_state_invariants` reconcilia o drift catalogado em
+Development antes de liberar o runtime compatível com o novo contrato. As duas
+foram geradas e revisadas em 2026-08-08. `0057` e `0058` foram promovidas somente
+a Development (`br-cool-voice-acsxtxyv`) pelo runner guardado, com autorização
+explícita; Staging e Production continuam sem essas migrations. O journal de
+Development ficou com 61 entradas, topo em `1786206200471`, e o postflight
+confirmou a coluna de carga horária, sua constraint, as três constraints de
+revogação e a FK de Curso em `ON DELETE RESTRICT`.
+
+Uma auditoria somente-leitura em 2026-08-08 confirmou que Development
+(`br-cool-voice-acsxtxyv`) ainda não possuía a coluna de `0057`. A mesma auditoria
+encontrou uma divergência anterior: o journal registrava `0056`, mas os três checks
+de estado de revogação dessa migration estavam ausentes e a FK de Curso usava
+`ON DELETE CASCADE`. Esse drift foi reconciliado por `0058` antes da promoção em
+Development; as próximas promoções ainda devem usar uma branch Neon descartável e
+o workflow protegido.
 
 Em 2026-08-07, `0056_certificate_state_invariants` foi aplicada pelo runner oficial na
 branch Staging `br-rapid-rain-acnqzhiv`. O journal passou a 57 linhas, topo
@@ -52,7 +71,7 @@ branch Staging `br-rapid-rain-acnqzhiv`. O journal passou a 57 linhas, topo
 o postflight confirmou três constraints de revogação, FK de Curso em `ON DELETE RESTRICT`
 e zero Certificados. Uma segunda execução do runner foi idempotente, sem nova linha ou
 reaplicação de DDL. Production permanece em 0054; a promoção protegida precisa aplicar
-0055 e 0056 em ordem, com backup e preflight.
+0055, 0056, 0057 e 0058 em ordem, com backup e preflight.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
@@ -103,7 +122,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0056_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia, `0058_snapshot.json`. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -130,6 +149,22 @@ zero registros em todas as tabelas operacionais. Em seguida, o run
 `30605515827` aplicou `0044` a `0052`, auditou o journal e promoveu a Release B.
 A branch de backup deve permanecer durante a estabilização e não pode ser
 removida sem aceite explícito.
+
+A migration local `0059_material_madame_hydra` adiciona
+`courses.workload_hours_override`, migra para esse campo o override manual
+existente no template publicado (ou no rascunho mais recente, quando não há
+publicado) e sincroniza o cache efetivo de `courses.workload_hours`, remove
+`course_free_statement` do perfil emissor e remove
+`certificate_workload_hours` do template. Ela preserva os snapshots históricos
+porque apenas altera o schema vivo; o runtime mantém compatibilidade de leitura
+para esses registros antigos. A migration foi gerada e revisada localmente. Em
+2026-08-14, a branch persistente `development` (`br-cool-voice-acsxtxyv`) foi
+reativada pelo Neon e recebeu `0059` com `bun run db:migrate:development`,
+usando o endpoint direto validado pelo guard. O journal passou a 62 entradas,
+com o hash `8479636c6c4b8843b752d076dce75217a72765b7b91c579492cdd1b9e7d997e8`;
+o postflight confirmou `courses.workload_hours_override`, a constraint de não
+negatividade e a remoção das duas colunas aposentadas. Staging e Production
+permaneceram intocados nesta etapa.
 
 ## Conexões
 

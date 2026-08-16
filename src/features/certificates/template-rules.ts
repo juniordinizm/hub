@@ -8,7 +8,6 @@ export const CERTIFICATE_FIELDS = [
   "issuedAt",
   "issuerName",
   "issuerCnpj",
-  "courseFreeStatement",
   "signerName",
   "signerRole",
   "signatureImage",
@@ -25,6 +24,8 @@ export interface CertificateTemplateField {
   font?: "Helvetica" | "Helvetica-Bold";
   fontSize: number;
   height: number;
+  /** Optional in the TypeScript boundary so legacy drafts can be normalized. */
+  verticalAlign?: "top" | "middle" | "bottom";
   visible: boolean;
   width: number;
   x: number;
@@ -50,7 +51,6 @@ export const createDefaultCertificateTemplateFields =
       fontSize: field === "studentName" ? 30 : 10,
       height: field === "qrCode" ? 12 : 5,
       visible: !(
-        field === "courseFreeStatement" ||
         field === "signatureImage" ||
         field === "signerName" ||
         field === "signerRole"
@@ -60,15 +60,41 @@ export const createDefaultCertificateTemplateFields =
       // Keep every default field inside the printable area, including the
       // 12%-high QR field at the bottom of the page.
       y: 8 + index * 6,
+      verticalAlign: "middle",
     }));
 
-const requiredFields = new Set<CertificateField>([
+/**
+ * Keeps older editable templates compatible when a new canonical field is
+ * introduced. Existing field settings and order are preserved; only missing
+ * canonical fields are appended with their safe defaults. An empty legacy
+ * draft is recovered with the complete default field set.
+ */
+export const ensureCertificateTemplateFields = (
+  fields: CertificateTemplateField[]
+): CertificateTemplateField[] => {
+  if (fields.length === 0) {
+    return createDefaultCertificateTemplateFields();
+  }
+
+  const existingFields = new Set(fields.map((field) => field.field));
+  const missingFields = createDefaultCertificateTemplateFields().filter(
+    (field) => !existingFields.has(field.field)
+  );
+  return missingFields.length > 0 ? [...fields, ...missingFields] : fields;
+};
+
+export const CERTIFICATE_REQUIRED_FIELDS = [
   "studentName",
   "courseTitle",
   "issuerName",
   "validationCode",
   "qrCode",
-]);
+] as const satisfies readonly CertificateField[];
+
+const requiredFields = new Set<CertificateField>(CERTIFICATE_REQUIRED_FIELDS);
+
+export const isRequiredCertificateField = (field: CertificateField): boolean =>
+  requiredFields.has(field);
 
 const hexColorPattern = /^#[0-9a-f]{6}$/i;
 

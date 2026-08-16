@@ -21,6 +21,7 @@ const course: CourseData = {
   thumbnailUrl: null,
   title: "Curso de teste",
   workloadHours: 10,
+  workloadHoursOverride: null,
 };
 
 describe("course payment settings", () => {
@@ -45,5 +46,21 @@ describe("course payment settings", () => {
 
     expect(markup).toContain('name="paymentMaxInstallmentCount"');
     expect(markup).toContain('max="12"');
+  });
+
+  it("exposes the automatic workload calculation and manual course override", () => {
+    const automaticMarkup = renderToStaticMarkup(
+      <CourseSettingsForm course={course} />
+    );
+    const manualMarkup = renderToStaticMarkup(
+      <CourseSettingsForm course={{ ...course, workloadHoursOverride: 18 }} />
+    );
+
+    expect(automaticMarkup).toContain('name="workloadHoursOverride"');
+    expect(automaticMarkup).toContain("Automática: 10 horas");
+    expect(manualMarkup).toContain('value="18"');
+    expect(automaticMarkup).toContain(
+      "Deixe vazio para calcular automaticamente pela soma das aulas."
+    );
   });
 });

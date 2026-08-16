@@ -46,7 +46,6 @@ const renderSnapshot = {
   course: { title: "Curso", workloadHours: 8 },
   issuer: {
     cnpj: "00.000.000/0001-00",
-    courseFreeStatement: "Curso livre.",
     displayName: "Emissora",
     legalName: "Emissora LTDA",
   },
@@ -76,7 +75,7 @@ const renderSnapshot = {
 } as const;
 
 describe("certificate lifecycle reasons", () => {
-  it("uses the persisted course completion date in manual issuance snapshots", async () => {
+  it("uses the persisted completion date and effective course workload in manual snapshots", async () => {
     const completedAt = new Date("2026-06-10T15:30:00.000Z");
     const query = vi.fn((statement: string, _values?: unknown[]) => {
       if (statement.includes("from enrollments")) {
@@ -111,7 +110,6 @@ describe("certificate lifecycle reasons", () => {
               completed_at: completedAt,
               course_title: "Curso",
               issuer_cnpj: "00.000.000/0001-00",
-              issuer_course_free_statement: "Curso livre.",
               issuer_display_name: "Emissora",
               issuer_legal_name: "Emissora LTDA",
               signature_key: null,
@@ -124,7 +122,7 @@ describe("certificate lifecycle reasons", () => {
               student_name: "Aluna",
               template_id: renderSnapshot.template.id,
               template_version: 1,
-              workload_hours: 8,
+              workload_hours: 24,
             },
           ],
         };
@@ -152,11 +150,14 @@ describe("certificate lifecycle reasons", () => {
     const values = certificateInsert?.[1] as unknown[] | undefined;
     const snapshot = JSON.parse(String(values?.[9])) as {
       completion: { completedAt: string };
+      course: { workloadHours: number };
     };
 
     expect(values?.[3]).toMatch(CERTIFICATE_CODE_PATTERN);
     expect(values?.[2]).toBe("publication-origin");
+    expect(values?.[6]).toBe(24);
     expect(snapshot.completion.completedAt).toBe(completedAt.toISOString());
+    expect(snapshot.course.workloadHours).toBe(24);
   });
 
   it("retries a manual code collision inside the existing transaction", async () => {
@@ -201,7 +202,6 @@ describe("certificate lifecycle reasons", () => {
               completed_at: new Date("2026-06-10T15:30:00.000Z"),
               course_title: "Curso",
               issuer_cnpj: "00.000.000/0001-00",
-              issuer_course_free_statement: "Curso livre.",
               issuer_display_name: "Emissora",
               issuer_legal_name: "Emissora LTDA",
               signature_key: null,
@@ -333,7 +333,6 @@ describe("certificate lifecycle reasons", () => {
               completed_at: new Date("2026-06-10T15:30:00.000Z"),
               course_title: "Curso",
               issuer_cnpj: "00.000.000/0001-00",
-              issuer_course_free_statement: "Curso livre.",
               issuer_display_name: "Emissora",
               issuer_legal_name: "Emissora LTDA",
               signature_key: null,
@@ -389,7 +388,7 @@ describe("certificate lifecycle reasons", () => {
 
   it("rejects reissue of an older certificate after a newer history entry exists", async () => {
     const release = vi.fn();
-    const query = vi.fn((statement: string) => {
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
       if (statement === "begin" || statement === "rollback") {
         return { rows: [] };
       }
@@ -535,6 +534,60 @@ describe("certificate lifecycle reasons", () => {
 });
 
 describe("automatic completion certificate retries", () => {
+  it("snapshots the effective course workload when issuing automatically", async () => {
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
+      if (statement.includes("join certificate_templates")) {
+        return {
+          rows: [
+            {
+              background_key: renderSnapshot.template.backgroundKey,
+              id: renderSnapshot.template.id,
+              issuer_cnpj: renderSnapshot.issuer.cnpj,
+              issuer_display_name: renderSnapshot.issuer.displayName,
+              issuer_legal_name: renderSnapshot.issuer.legalName,
+              signature_key: renderSnapshot.template.signatureKey,
+              signer_name: renderSnapshot.template.signerName,
+              signer_role: renderSnapshot.template.signerRole,
+              spec: {
+                backgroundKey: renderSnapshot.template.backgroundKey,
+                fields: renderSnapshot.template.fields,
+              },
+              version: renderSnapshot.template.version,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        return { rows: [{ code: "PRT-OVERRIDE" }] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      tryIssueAutomaticCompletionCertificate({
+        client: { query } as never,
+        courseId: "course-1",
+        coursePublicationId: "publication-1",
+        courseTitle: "Curso",
+        completedAt: new Date("2026-07-22T12:00:00.000Z"),
+        studentName: "Aluna",
+        userId: "student-1",
+        workloadHours: 8,
+      })
+    ).resolves.toBe("PRT-OVERRIDE");
+
+    const insert = query.mock.calls.find(([statement]) =>
+      statement.includes("insert into certificates")
+    );
+    const values = insert?.[1] as unknown[] | undefined;
+    const snapshot = JSON.parse(String(values?.[8])) as {
+      course: { workloadHours: number };
+    };
+
+    expect(values?.[6]).toBe(8);
+    expect(snapshot.course.workloadHours).toBe(8);
+  });
+
   it("retries a public code collision without aborting the surrounding transaction", async () => {
     let insertAttempts = 0;
     const duplicateCodeError = Object.assign(
@@ -549,8 +602,6 @@ describe("automatic completion certificate retries", () => {
               background_key: "templates/background.webp",
               id: renderSnapshot.template.id,
               issuer_cnpj: renderSnapshot.issuer.cnpj,
-              issuer_course_free_statement:
-                renderSnapshot.issuer.courseFreeStatement,
               issuer_display_name: renderSnapshot.issuer.displayName,
               issuer_legal_name: renderSnapshot.issuer.legalName,
               signature_key: null,
@@ -609,8 +660,6 @@ describe("automatic completion certificate retries", () => {
               background_key: "templates/background.webp",
               id: renderSnapshot.template.id,
               issuer_cnpj: renderSnapshot.issuer.cnpj,
-              issuer_course_free_statement:
-                renderSnapshot.issuer.courseFreeStatement,
               issuer_display_name: renderSnapshot.issuer.displayName,
               issuer_legal_name: renderSnapshot.issuer.legalName,
               signature_key: null,
@@ -672,7 +721,6 @@ describe("automatic completion certificate retries", () => {
               background_key: "templates/background.webp",
               id: "2c5c41a6-29c1-4a42-8474-f1f7021d5137",
               issuer_cnpj: "00.000.000/0001-00",
-              issuer_course_free_statement: "Curso livre.",
               issuer_display_name: "Emissora",
               issuer_legal_name: "Emissora LTDA",
               signature_key: null,

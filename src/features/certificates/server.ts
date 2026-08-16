@@ -104,18 +104,16 @@ export const tryIssueAutomaticCompletionCertificate = async ({
     signature_key: string | null;
     spec: unknown;
     issuer_cnpj: string;
-    issuer_course_free_statement: string;
     issuer_display_name: string;
     issuer_legal_name: string;
   }>(
     `
-      select ct.id, ct.version, ct.background_key, ct.spec,
-             coalesce(ct.signer_name, settings.certificate_signer_name) as signer_name,
+       select ct.id, ct.version, ct.background_key, ct.spec,
+              coalesce(ct.signer_name, settings.certificate_signer_name) as signer_name,
              coalesce(ct.signer_role, settings.certificate_signer_role) as signer_role,
              ct.signature_key,
-             issuer.cnpj as issuer_cnpj, issuer.legal_name as issuer_legal_name,
-             issuer.display_name as issuer_display_name,
-             issuer.course_free_statement as issuer_course_free_statement
+              issuer.cnpj as issuer_cnpj, issuer.legal_name as issuer_legal_name,
+              issuer.display_name as issuer_display_name
       from courses c
       join certificate_templates ct on ct.course_id = c.id and ct.status = 'published'
       join certificate_issuer_profiles issuer on issuer.id = 'global'
@@ -145,7 +143,6 @@ export const tryIssueAutomaticCompletionCertificate = async ({
       course: { title: courseTitle, workloadHours },
       issuer: {
         cnpj: templateSnapshot.issuer_cnpj,
-        courseFreeStatement: templateSnapshot.issuer_course_free_statement,
         displayName: templateSnapshot.issuer_display_name,
         legalName: templateSnapshot.issuer_legal_name,
       },
@@ -172,8 +169,9 @@ export const tryIssueAutomaticCompletionCertificate = async ({
             code,
             student_name_snapshot,
             course_title_snapshot,
-            workload_hours_snapshot
-            , certificate_template_id, render_snapshot
+            workload_hours_snapshot,
+            certificate_template_id,
+            render_snapshot
           )
           values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
           on conflict (user_id, course_id) where status = 'valid' do nothing
@@ -368,7 +366,6 @@ const issueCertificate = async ({
     signature_key: string | null;
     spec: unknown;
     issuer_cnpj: string;
-    issuer_course_free_statement: string;
     issuer_display_name: string;
     issuer_legal_name: string;
   }>(
@@ -377,7 +374,7 @@ const issueCertificate = async ({
         u.name as student_name,
         cc.completed_at,
         cp.title_snapshot as course_title,
-        cp.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         ct.id as template_id,
         ct.version as template_version,
         ct.background_key,
@@ -387,8 +384,7 @@ const issueCertificate = async ({
         ct.signature_key,
         issuer.cnpj as issuer_cnpj,
         issuer.legal_name as issuer_legal_name,
-        issuer.display_name as issuer_display_name,
-        issuer.course_free_statement as issuer_course_free_statement
+        issuer.display_name as issuer_display_name
       from users u
       join course_publications cp on cp.course_id = $2 and cp.id = $3
       join courses c on c.id = cp.course_id and c.certificate_enabled = true
@@ -427,7 +423,6 @@ const issueCertificate = async ({
       },
       issuer: {
         cnpj: source.issuer_cnpj,
-        courseFreeStatement: source.issuer_course_free_statement,
         displayName: source.issuer_display_name,
         legalName: source.issuer_legal_name,
       },

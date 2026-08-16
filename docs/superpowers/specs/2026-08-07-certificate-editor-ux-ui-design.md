@@ -34,7 +34,7 @@ Permitir que administradores salvem e publiquem templates de certificado mesmo q
 
 ## Não objetivos
 
-- Não criar um editor drag-and-drop nesta mudança.
+- O adendo [2026-08-08: manipulação direta no preview](2026-08-08-certificate-editor-direct-manipulation-design.md) substitui o item anterior que excluía drag-and-drop. A primeira fase agora inclui seleção e movimento DOM-first dentro da área imprimível, sem substituir o renderer por canvas.
 - Não alterar o formato persistido do template nem a geometria percentual.
 - Não remover as validações de segurança/consistência que não sejam sobreposição.
 - Não publicar automaticamente nem exigir uma confirmação extra para uma decisão intencional do administrador.

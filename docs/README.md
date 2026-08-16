@@ -75,6 +75,10 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Plano do runtime Staging e manutenção](superpowers/plans/2026-08-01-staging-runtime-and-maintenance.md)
 - [Plano de provisionamento e release do Staging](superpowers/plans/2026-08-01-staging-provisioning-and-release.md)
 - [Plano de robustecimento do modulo de pagamentos](superpowers/plans/2026-08-03-payments-module-hardening.md)
+- [Editor de certificado: manipulação direta no preview](superpowers/specs/2026-08-08-certificate-editor-direct-manipulation-design.md)
+- [Plano do editor de certificado com manipulação direta](superpowers/plans/2026-08-08-certificate-editor-direct-manipulation.md)
+- [Editor de certificado: refinamento premium](superpowers/specs/2026-08-08-certificate-editor-premium-refinement-design.md)
+- [Plano do refinamento premium do editor de certificado](superpowers/plans/2026-08-08-certificate-editor-premium-refinement.md)
 
 ## Contrato de manutenção
 

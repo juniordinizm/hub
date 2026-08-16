@@ -120,14 +120,13 @@ const createFixture = async (): Promise<{
   await testPool.query(
     `
       insert into certificate_issuer_profiles (
-        id, legal_name, cnpj, display_name, course_free_statement
+        id, legal_name, cnpj, display_name
       )
       values (
         'global',
         'Emissora de teste LTDA',
         '00.000.000/0001-00',
-        'Emissora de teste',
-        'Curso de livre oferta.'
+        'Emissora de teste'
       )
       on conflict (id) do nothing
     `

@@ -19,7 +19,6 @@ const snapshot: CertificateRenderSnapshot = {
   course: { title: "Curso", workloadHours: 8 },
   issuer: {
     cnpj: "12.345.678/0001-90",
-    courseFreeStatement: "Curso livre.",
     displayName: "Hub",
     legalName: "Hub Educacao LTDA",
   },

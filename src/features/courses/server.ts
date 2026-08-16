@@ -10,6 +10,7 @@ import {
 } from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { isPreviewRole } from "@/features/courses/preview";
+import { resolveCourseWorkloadHours } from "@/features/courses/workload";
 import {
   resolveCourseAccess,
   resolveLessonAccess,
@@ -339,7 +340,7 @@ export const getStudentCourses = async (
         cp.title_snapshot as title,
         c.subtitle,
         c.description as course_description,
-        cp.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         m.id as module_id,
@@ -499,7 +500,7 @@ export const getStudentCourseCatalog = async (
         c.title,
         c.subtitle,
         c.description as course_description,
-        c.workload_hours,
+        coalesce(c.workload_hours_override, c.workload_hours) as workload_hours,
         c.price_in_cents,
         c.cover_image_json,
         c.thumbnail_url,
@@ -631,12 +632,19 @@ export const getStudentCourseAccessStatus = async ({
 export const recalculateCourseWorkloadHours = async (
   courseId: string
 ): Promise<number> => {
-  const publication = await getPool().query<{
+  const course = await getPool().query<{
+    workload_hours_override: number | null;
+  }>("select workload_hours_override from courses where id = $1 limit 1", [
+    courseId,
+  ]);
+  const workloadOverride = course.rows[0]?.workload_hours_override ?? null;
+  const publications = await getPool().query<{
     id: string;
+    workload_hours_snapshot: number;
     status: "draft" | "published";
   }>(
     `
-      select id, status
+      select id, status, workload_hours_snapshot
       from course_publications
       where course_id = $1 and status in ('draft', 'published')
       order by case status when 'draft' then 0 else 1 end, publication_number desc
@@ -644,10 +652,18 @@ export const recalculateCourseWorkloadHours = async (
     `,
     [courseId]
   );
-  const coursePublication = publication.rows[0];
+  const coursePublication = publications.rows[0];
 
   if (!coursePublication) {
-    return 0;
+    const effectiveWorkloadHours = resolveCourseWorkloadHours(
+      0,
+      workloadOverride
+    );
+    await getPool().query(
+      "update courses set workload_hours = $1, updated_at = now() where id = $2",
+      [effectiveWorkloadHours, courseId]
+    );
+    return effectiveWorkloadHours;
   }
 
   const { rows } = await getPool().query<{ duration_seconds: number }>(
@@ -661,7 +677,7 @@ export const recalculateCourseWorkloadHours = async (
     `,
     [coursePublication.id]
   );
-  const workloadHours = deriveCourseWorkloadHours(
+  const derivedWorkloadHours = deriveCourseWorkloadHours(
     rows.map((row) => row.duration_seconds)
   );
 
@@ -672,22 +688,29 @@ export const recalculateCourseWorkloadHours = async (
           updated_at = now()
       where id = $2
     `,
-    [workloadHours, coursePublication.id]
+    [derivedWorkloadHours, coursePublication.id]
   );
 
-  if (coursePublication.status === "published") {
-    await getPool().query(
-      `
-        update courses
-        set workload_hours = $1,
-            updated_at = now()
-        where id = $2
-      `,
-      [workloadHours, courseId]
-    );
-  }
+  const publishedPublication = publications.rows.find(
+    (item) => item.status === "published"
+  );
+  const effectiveWorkloadHours = resolveCourseWorkloadHours(
+    coursePublication.status === "published"
+      ? derivedWorkloadHours
+      : (publishedPublication?.workload_hours_snapshot ?? derivedWorkloadHours),
+    workloadOverride
+  );
+  await getPool().query(
+    `
+      update courses
+      set workload_hours = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [effectiveWorkloadHours, courseId]
+  );
 
-  return workloadHours;
+  return effectiveWorkloadHours;
 };
 
 const getEnrolledCourseOverview = async ({
@@ -705,7 +728,7 @@ const getEnrolledCourseOverview = async ({
         cp.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        cp.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         u.name as student_name,
@@ -858,7 +881,7 @@ const getPreviewCourseOverview = async ({
         cv.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        cv.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cv.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         m.id as module_id,
         m.title as module_title,
@@ -1324,7 +1347,7 @@ export const completeLesson = async ({
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
           max(cp.title_snapshot) as course_title,
-          max(cp.workload_hours_snapshot)::int as workload_hours
+          max(coalesce(c.workload_hours_override, cp.workload_hours_snapshot))::int as workload_hours
         from courses c
         join enrollments e on e.course_id = c.id and e.user_id = $1
         join course_publications cp on cp.course_id = c.id and cp.status = 'published'

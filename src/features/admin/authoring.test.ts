@@ -204,7 +204,7 @@ describe("admin authoring", () => {
     formData.set("price", "R$ 129,90");
     formData.set("accessDurationMonths", "6");
     formData.set("status", "active");
-    formData.set("workloadHours", "999");
+    formData.set("workloadHoursOverride", "18");
 
     const result = await saveCourse({ actorUserId: "admin-1", formData });
 
@@ -218,6 +218,8 @@ describe("admin authoring", () => {
       "Curso novo",
       "Subtitulo",
       "Descricao",
+      18,
+      18,
       12_990,
       true,
       true,
@@ -304,10 +306,11 @@ describe("admin authoring", () => {
     const updateCourseCall = query.mock.calls.find(([sql]) =>
       String(sql).includes("update courses")
     );
-    expect(updateCourseCall?.[0]).toContain("price_in_cents = $4");
-    expect(updateCourseCall?.[0]).toContain("where id = $12");
+    expect(updateCourseCall?.[0]).toContain("price_in_cents = $5");
+    expect(updateCourseCall?.[0]).toContain("where id = $13");
     expect(updateCourseCall?.[1]).toEqual([
       "Curso existente",
+      null,
       null,
       null,
       1000,

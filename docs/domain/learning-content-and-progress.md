@@ -34,6 +34,16 @@ Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos M
 
 `CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão.
 
+### REG-LEA-004A Carga horária exibida
+
+O valor exibido no catálogo, na experiência da Aluna e no certificado é a
+carga horária efetiva do Curso. Sem override, ela é derivada pela soma das
+durações das Aulas da publicação e atualizada quando o conteúdo muda. Um
+administrador pode informar `courses.workload_hours_override` nas
+configurações do Curso para exibir outro total inteiro não negativo. Remover o
+valor manual retorna ao cálculo automático. Certificados já emitidos preservam
+o snapshot anterior.
+
 ### REG-LEA-005 Mídia e histórico
 
 Vídeo usa JMVStream; capa, banner e materiais usam R2. Um ativo só pode ser removido quando nenhuma publicação publicada o referencia. Ver [JMVStream](../integrations/jmvstream.md) e [R2](../integrations/r2.md).
