@@ -57,6 +57,10 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 `getPool` cria um `pg.Pool`; `getDb` expõe Drizzle sobre o mesmo pool. `withVerifiedSslMode`, em `src/db/connection-url.ts`, normaliza conexões para `sslmode=verify-full` quando necessário.
 
+O topo local é `0060_course_availability_and_interest`. A migration separa
+entrega, vitrine e vendas, preserva o comportamento dos Cursos existentes e
+adiciona Interesse de venda sem duplicar nome ou e-mail.
+
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
 O schema possui 41 tabelas exportadas em `src/db/schema.ts`. SQL e journal
@@ -92,6 +96,7 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
    e outbox; webhook e conciliação chamam esse mesmo módulo profundo. A transação
    persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe Matrícula.
 7. Conflitos ambíguos não escolhem Pedido e geram alerta durável sem payload ou PII.
+8. `availability-server.ts` fecha novas vendas antes de enfileirar cancelamento dos Checkouts ativos; acesso continua derivado de Matrícula e estado de entrega.
 
 O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
 Asaas a cada minuto sob autenticação compartilhada, kill switch, lease e deadline. Isso

@@ -231,6 +231,20 @@ APIs é juros por atraso e não pode ser reutilizado para essa finalidade.
 Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
 
+### REG-COM-010 Disponibilidade comercial não decide acesso adquirido
+
+Estado de entrega, visibilidade de catálogo e estado de vendas são dimensões
+independentes. Matrícula efetiva continua acessível quando vendas estão pausadas,
+mesmo com o Curso oculto. Rascunho e Arquivado bloqueiam entrega; somente
+Arquivado representa retirada histórica.
+
+“Em breve” é visível, não vende e aceita Interesse de venda autenticado. Abrir
+vendas enfileira um aviso por Interesse; fechar vendas bloqueia novos checkouts e
+enfileira cancelamento dos Checkouts Asaas ativos. Pagamento confirmado antes do
+cancelamento preserva a precedência financeira e concede acesso.
+
+Ver [ADR-0009](../adr/0009-course-availability-and-sale-interest.md).
+
 ## Evidências
 
 - schema: `orders`, `webhookEvents`, `paymentReviews`, `refundRequests`, `enrollmentGrants`, `enrollments`, `enrollmentExpirationAdjustments`, `enrollmentEvents`;

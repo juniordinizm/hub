@@ -19,13 +19,18 @@ import type { AppSession } from "@/lib/session";
 import { getPurchaseHandoffView } from "./purchase-handoff";
 
 const ACTIVE_COURSE = {
+  catalog_visibility: "listed",
   course_id: "11111111-1111-4111-8111-111111111111",
   course_slug: "curso-publico",
   course_title: "Curso publico",
   enrollment_status: null,
   has_effective_access: false,
   has_published_publication: true,
+  is_interested: false,
+  launch_date: null,
+  launch_landing_url: null,
   price_in_cents: 10_000,
+  sales_status: "open",
   status: "active",
 };
 
@@ -54,8 +59,18 @@ beforeEach(() => {
 describe("getPurchaseHandoffView", () => {
   it.each([
     ["curso inexistente", null],
-    ["Curso draft", { status: "draft" }],
-    ["Curso archived", { status: "archived" }],
+    [
+      "Curso draft",
+      { catalog_visibility: "hidden", sales_status: "closed", status: "draft" },
+    ],
+    [
+      "Curso archived",
+      {
+        catalog_visibility: "hidden",
+        sales_status: "closed",
+        status: "archived",
+      },
+    ],
     ["Curso gratuito", { price_in_cents: 0 }],
     ["Curso sem publicacao", { has_published_publication: false }],
   ])("torna %s indisponivel", async (_label, rowOverride) => {
@@ -138,6 +153,111 @@ describe("getPurchaseHandoffView", () => {
       courseTitle: ACTIVE_COURSE.course_title,
       href: `/app/cursos/${ACTIVE_COURSE.course_id}`,
       kind: "access",
+    });
+  });
+
+  it("prioritizes effective access while sales are paused", async () => {
+    dependencies.query.mockResolvedValue({
+      rows: [
+        {
+          ...ACTIVE_COURSE,
+          enrollment_status: "active",
+          has_effective_access: true,
+          sales_status: "closed",
+        },
+      ],
+    });
+
+    await expect(
+      getPurchaseHandoffView({
+        session: createSession(),
+        slug: "curso-publico",
+      })
+    ).resolves.toMatchObject({ kind: "access" });
+  });
+
+  it("shows closed enrollment with interest outside an effective enrollment", async () => {
+    dependencies.query.mockResolvedValue({
+      rows: [{ ...ACTIVE_COURSE, is_interested: true, sales_status: "closed" }],
+    });
+
+    await expect(
+      getPurchaseHandoffView({
+        session: createSession(),
+        slug: "curso-publico",
+      })
+    ).resolves.toEqual({
+      acceptsInterest: true,
+      courseId: ACTIVE_COURSE.course_id,
+      courseTitle: ACTIVE_COURSE.course_title,
+      isInterested: true,
+      kind: "sales_closed",
+    });
+  });
+
+  it("redirects a non-enrolled visitor to the paused course landing", async () => {
+    dependencies.query.mockResolvedValue({
+      rows: [
+        {
+          ...ACTIVE_COURSE,
+          launch_landing_url: "https://landing.example/curso-pausado",
+          sales_status: "closed",
+        },
+      ],
+    });
+
+    await expect(
+      getPurchaseHandoffView({
+        session: createSession(),
+        slug: "curso-publico",
+      })
+    ).resolves.toEqual({
+      href: "https://landing.example/curso-pausado",
+      kind: "external_redirect",
+    });
+  });
+
+  it("shows the standard coming-soon page when no external landing is configured", async () => {
+    dependencies.query.mockResolvedValue({
+      rows: [
+        {
+          ...ACTIVE_COURSE,
+          launch_date: "2026-10-01",
+          sales_status: "closed",
+          status: "draft",
+        },
+      ],
+    });
+
+    await expect(
+      getPurchaseHandoffView({ session: null, slug: "curso-publico" })
+    ).resolves.toEqual({
+      acceptsInterest: true,
+      courseId: ACTIVE_COURSE.course_id,
+      courseTitle: ACTIVE_COURSE.course_title,
+      isInterested: false,
+      kind: "coming_soon",
+      launchDate: "2026-10-01",
+    });
+  });
+
+  it("redirects coming soon to its configured external landing", async () => {
+    dependencies.query.mockResolvedValue({
+      rows: [
+        {
+          ...ACTIVE_COURSE,
+          launch_landing_url: "https://landing.example/curso",
+          sales_status: "closed",
+          status: "draft",
+        },
+      ],
+    });
+
+    await expect(
+      getPurchaseHandoffView({ session: null, slug: "curso-publico" })
+    ).resolves.toEqual({
+      href: "https://landing.example/curso",
+      kind: "external_redirect",
     });
   });
 

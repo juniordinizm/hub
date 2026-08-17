@@ -69,7 +69,6 @@ interface CourseFormValues {
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
   priceInCents: number;
-  status: ContentStatus;
   subtitle: string | null;
   title: string;
   workloadHoursOverride: number | null;
@@ -185,7 +184,6 @@ const readCourseFormValues = (formData: FormData): CourseFormValues => {
     paymentAllowPix: paymentOffer.allowPix,
     paymentMaxInstallmentCount: paymentOffer.maxInstallmentCount,
     priceInCents: parseCoursePriceToCents(readString(formData, "price")),
-    status: readContentStatus(formData),
     subtitle: readString(formData, "subtitle") || null,
     title: readString(formData, "title"),
   };
@@ -437,8 +435,7 @@ export const publishCoursePublication = async ({
     await client.query(
       `
         update courses
-        set status = 'active',
-            workload_hours = coalesce(
+        set workload_hours = coalesce(
               (
                 select workload_hours_override
                 from courses
@@ -961,7 +958,18 @@ const updateExistingCourse = async ({
     uploadedCoverImage = coverFile ? coverImage : null;
     const thumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
 
-    if (values.status === PUBLISHED_CONTENT_STATUS) {
+    const publicationState = await getPool().query<{
+      should_publish: boolean;
+    }>(
+      `
+        select (status = 'active' or catalog_visibility = 'listed') as should_publish
+        from courses
+        where id = $1
+        limit 1
+      `,
+      [courseId]
+    );
+    if (publicationState.rows[0]?.should_publish) {
       await publishCourseCover(coverImage);
     } else {
       await cleanupPublishedCourseCover(coverImage);
@@ -981,9 +989,8 @@ const updateExistingCourse = async ({
              thumbnail_url = $9,
              cover_image_json = $10::jsonb,
              access_duration_months = $11,
-             status = $12,
              updated_at = now()
-         where id = $13
+         where id = $12
       `,
       [
         values.title,
@@ -997,7 +1004,6 @@ const updateExistingCourse = async ({
         thumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,
-        values.status,
         courseId,
       ]
     );

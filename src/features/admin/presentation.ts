@@ -241,6 +241,18 @@ export const getAdminCourseOperationalState = ({
     };
   }
 
+  if (purchaseIssue === "sales_closed") {
+    return {
+      actionLabel: "Revisar disponibilidade",
+      actionTab: "settings",
+      description:
+        "O Curso preserva os acessos atuais, mas não aceita novas compras.",
+      key: "course_inactive",
+      label: "Vendas pausadas",
+      tone: "watch",
+    };
+  }
+
   if (purchaseIssue !== null) {
     return assertNever(purchaseIssue);
   }

@@ -28,6 +28,7 @@ vi.mock("@/features/jmvstream/asset-persistence", () => ({
 }));
 
 import {
+  getStudentCourseCatalog,
   getStudentCourseOverview,
   getStudentLessonWorkspace,
   recalculateCourseWorkloadHours,
@@ -109,6 +110,51 @@ beforeEach(() => {
 });
 
 describe("student experience reads", () => {
+  it("lists catalog-visible Courses and preserves hidden Courses with effective access", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          access_status: "none",
+          catalog_visibility: "listed",
+          completed_at: null,
+          cover_image_json: null,
+          course_description: "Description",
+          course_id: "course-1",
+          course_status: "draft",
+          duration_seconds: 0,
+          expires_at: null,
+          is_enrolled: false,
+          is_interested: true,
+          launch_date: "2026-10-01",
+          launch_landing_url: null,
+          lesson_id: null,
+          price_in_cents: 10_000,
+          revoked_reason: null,
+          sales_status: "closed",
+          slug: "course-one",
+          subtitle: "Subtitle",
+          thumbnail_url: null,
+          title: "Course one",
+          workload_hours: 0,
+        },
+      ],
+    });
+
+    await expect(getStudentCourseCatalog("student-1")).resolves.toEqual([
+      expect.objectContaining({
+        availabilityPreset: "coming_soon",
+        isInterested: true,
+        launchDate: "2026-10-01",
+      }),
+    ]);
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "c.catalog_visibility = 'listed'"
+    );
+    expect(query.mock.calls[0]?.[0]).toContain("or (");
+    expect(query.mock.calls[0]?.[0]).toContain("e.status = 'active'");
+    expect(query.mock.calls[0]?.[0]).not.toContain("where c.status = 'active'");
+  });
+
   it("stores workload on the editable publication without summing retired content", async () => {
     query.mockImplementation((sql: string) => {
       if (sql.includes("from course_publications")) {

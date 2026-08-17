@@ -47,7 +47,10 @@ describe("CoursePurchaseLink", () => {
   const renderAvailableLink = (): void => {
     act(() => {
       root.render(
-        <CoursePurchaseLink link={{ available: true, url: publicUrl }} />
+        <CoursePurchaseLink
+          link={{ available: true, url: publicUrl }}
+          publicUrl={publicUrl}
+        />
       );
     });
   };
@@ -116,11 +119,12 @@ describe("CoursePurchaseLink", () => {
     );
   });
 
-  it("explains an unavailable link without rendering a false URL", () => {
+  it("keeps the stable public link copyable while explaining closed checkout", () => {
     act(() => {
       root.render(
         <CoursePurchaseLink
           link={{ available: false, reason: "course_unpublished" }}
+          publicUrl={publicUrl}
         />
       );
     });
@@ -128,7 +132,11 @@ describe("CoursePurchaseLink", () => {
     expect(container.textContent).toContain("Checkout público indisponível");
     expect(container.textContent).toContain("course_unpublished");
     expect(container.textContent).toContain("publicação publicada");
-    expect(container.querySelector("input")).toBeNull();
-    expect(container.querySelector("button")).toBeNull();
+    expect(container.querySelector("input")?.getAttribute("value")).toBe(
+      publicUrl
+    );
+    expect(container.querySelector("button")?.textContent).toContain(
+      "Link público"
+    );
   });
 });

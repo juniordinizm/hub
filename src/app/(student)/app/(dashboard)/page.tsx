@@ -25,6 +25,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { getActiveBannersData } from "@/features/banners/server";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
+import { CourseInterestButton } from "@/features/courses/course-interest-button";
 import {
   formatCourseWorkload,
   getStudentCatalogAccessPresentation,
@@ -73,11 +74,11 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex-1 space-y-1">
               <h1 className="font-bold text-3xl tracking-tight">
-                Biblioteca de cursos
+                Seu espaço de aprendizagem
               </h1>
               <p className="text-muted-foreground text-sm">
-                Acompanhe suas trilhas, retome a próxima aula e veja quais
-                cursos estão disponíveis.
+                Continue seus cursos, descubra novas possibilidades e acompanhe
+                o que está chegando.
               </p>
             </div>
           </div>
@@ -91,23 +92,35 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
               {groups.active.length > 0 ? (
                 <CourseSection
                   courses={groups.active}
-                  description="Cursos com acesso ativo e aulas ainda pendentes."
-                  title="Continue de onde parou"
+                  description="Retome sua jornada no ponto em que parou."
+                  title="Continue aprendendo"
                 />
               ) : null}
 
               {groups.completed.length > 0 ? (
                 <CourseSection
                   courses={groups.completed}
-                  description="Cursos finalizados ficam aqui para revisão e certificado."
-                  title="Trilhas concluídas"
+                  description="Suas conquistas seguem disponíveis para revisar quando quiser."
+                  title="Cursos concluídos"
                 />
               ) : null}
 
               <CourseSection
                 courses={groups.locked}
-                description="Explore todos os cursos disponíveis na plataforma."
-                title="Catálogo de cursos"
+                description="Escolha sua próxima experiência de aprendizagem."
+                title="Encontre seu próximo curso"
+              />
+
+              <CourseSection
+                courses={groups.comingSoon}
+                description="Novas experiências estão sendo preparadas para você."
+                title="Chegando em breve"
+              />
+
+              <CourseSection
+                courses={groups.salesPaused}
+                description="Este Curso pode voltar em breve. Ative o aviso e fique por perto."
+                title="Inscrições em pausa"
               />
             </>
           )}
@@ -124,10 +137,9 @@ function EmptyCoursesState(): React.JSX.Element {
         <EmptyMedia variant="icon">
           <HugeiconsIcon icon={BookOpen01Icon} />
         </EmptyMedia>
-        <EmptyTitle>Nenhum curso publicado ainda</EmptyTitle>
+        <EmptyTitle>Novas experiências estão a caminho</EmptyTitle>
         <EmptyDescription>
-          Quando a equipe liberar o primeiro curso, ele aparecerá aqui com
-          preço, carga horária e status de acesso.
+          Assim que houver um curso para você, ele aparecerá aqui.
         </EmptyDescription>
       </EmptyHeader>
     </Empty>
@@ -203,25 +215,42 @@ function _InfoPill({
   );
 }
 
+const getCatalogCardLabel = (
+  course: StudentCatalogCourseCard,
+  hasActiveAccess: boolean
+) => {
+  if (course.availabilityPreset === "coming_soon" && !hasActiveAccess) {
+    return "Em breve";
+  }
+  if (course.availabilityPreset === "sales_paused" && !hasActiveAccess) {
+    return "Inscrições fechadas";
+  }
+  return getStudentCatalogAccessPresentation({
+    accessStatus: course.accessStatus,
+    expiresAt: course.expiresAt ?? new Date(),
+    progressPercent: course.progressPercent,
+    revokedReason: course.revokedReason,
+  }).label;
+};
+
 function CourseCard({
   course,
 }: {
   course: StudentCatalogCourseCard;
 }): React.JSX.Element {
   const hasActiveAccess = course.accessStatus === "active";
-  const access = getStudentCatalogAccessPresentation({
-    accessStatus: course.accessStatus,
-    expiresAt: course.expiresAt ?? new Date(),
-    progressPercent: course.progressPercent,
-    revokedReason: course.revokedReason,
-  });
+  const accessLabel = getCatalogCardLabel(course, hasActiveAccess);
   const primaryHref = route(
     getStudentCoursePrimaryHref({
       courseId: course.courseId,
       nextLessonId: course.nextLessonId,
     })
   );
-  const cardHref = route(`/app/cursos/${course.courseId}`);
+  const cardHref = route(
+    hasActiveAccess
+      ? `/app/cursos/${course.courseId}`
+      : `/comprar/${course.slug}`
+  );
 
   return (
     <article className="group relative flex aspect-[24/25] w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
@@ -270,7 +299,7 @@ function CourseCard({
             {hasActiveAccess && (
               <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} />
             )}
-            {access.label}
+            {accessLabel}
           </Badge>
         </div>
 
@@ -284,7 +313,7 @@ function CourseCard({
             <div className="flex-1">
               {course.subtitle || course.description ? (
                 <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
-                  {course.subtitle ?? course.description}
+                  {course.description ?? course.subtitle}
                 </p>
               ) : null}
             </div>
@@ -314,11 +343,7 @@ function CourseCard({
                 value={course.progressPercent}
               />
             </div>
-          ) : (
-            <p className="text-sidebar-foreground/60 text-sm leading-6">
-              {access.helper}
-            </p>
-          )}
+          ) : null}
 
           <CourseAccessControls
             cardHref={cardHref}
@@ -380,6 +405,19 @@ function CourseAccessControls({
         courseTitle={course.title}
         triggerClassName="w-full"
         triggerSize="sm"
+      />
+    );
+  }
+
+  if (
+    course.availabilityPreset === "coming_soon" ||
+    course.availabilityPreset === "sales_paused"
+  ) {
+    return (
+      <CourseInterestButton
+        className="relative z-20 w-full"
+        courseId={course.courseId}
+        isInterested={course.isInterested}
       />
     );
   }

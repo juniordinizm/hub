@@ -33,6 +33,7 @@ import {
   type AdminCourse,
   getAdminCourseCatalogData,
 } from "@/features/admin/server";
+import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
@@ -45,8 +46,8 @@ export const revalidate = 0;
 type CourseData = AdminCourse;
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
-  active: {
-    label: "Ativo",
+  available: {
+    label: "Disponível",
     color:
       "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   },
@@ -57,6 +58,15 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   },
   archived: {
     label: "Arquivado",
+    color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+  },
+  coming_soon: {
+    label: "Em breve",
+    color:
+      "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  sales_paused: {
+    label: "Vendas pausadas",
     color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
   },
 };
@@ -143,8 +153,16 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                   (moduleData) => moduleData.id === lesson.moduleId
                 )
               ).length;
-              const statusInfo = STATUS_MAP[course.status] ?? {
-                label: course.status,
+              const availability = resolveCourseAvailability({
+                catalogVisibility: course.catalogVisibility,
+                deliveryStatus: course.status as
+                  | "active"
+                  | "archived"
+                  | "draft",
+                salesStatus: course.salesStatus,
+              });
+              const statusInfo = STATUS_MAP[availability.preset] ?? {
+                label: availability.preset,
                 color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
               };
 

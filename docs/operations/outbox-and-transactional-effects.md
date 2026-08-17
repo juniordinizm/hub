@@ -29,6 +29,8 @@ Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o cer
 - `auth.account-activation`: intenção emitida pelo processor Asaas quando a Conta
   vinculada ao Pedido pago ainda não possui credential; agregado `order`; chave
   `auth.account-activation/<order-id>/v1`; payload exatamente `userId` e `orderId`.
+- `email.course-sales-opened`: emitido ao abrir vendas; agregado `course_interest`; chave por Interesse; payload somente `interestId`. Vendas novamente fechadas adiam sem consumir tentativa.
+- `payments.checkout-cancel`: emitido ao fechar vendas; agregado `order`; chave por Pedido; payload somente `orderId`. Pedido já pago ou Checkout já terminal conclui como no-op.
 
 O payload nunca contém nome, e-mail, token de redefinição, senha, chave de API ou URL secreta. O adaptador consulta os dados atuais somente no momento da entrega.
 

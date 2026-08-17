@@ -17,6 +17,7 @@ import {
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
 import {
+  type AdminCourse,
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
@@ -25,10 +26,12 @@ import {
   getCertificateTemplatesForCourse,
   hasCertificateIssuerProfile,
 } from "@/features/certificates/templates";
+import { resolveCourseAvailability } from "@/features/courses/availability";
 import { getCoursePurchaseLink } from "@/features/payments/course-purchase-link";
 import { getServerEnv } from "@/lib/env";
 import { route } from "@/lib/routes";
 import { CertificateTemplateEditor } from "./certificate-template-editor";
+import { CourseAvailabilityForm } from "./course-availability-form";
 import { CourseContentPanel } from "./course-content-panel";
 import { CourseSettingsForm } from "./course-dialogs-client";
 import { CourseEnrollmentsTable } from "./course-enrollments-table";
@@ -41,13 +44,21 @@ export const dynamic = "force-dynamic";
 const SECONDS_PER_HOUR = 3600;
 
 const COURSE_STATUS_LABELS: Readonly<Record<string, string>> = {
-  active: "Ativo",
   archived: "Arquivado",
+  available: "Disponível",
+  coming_soon: "Em breve",
   draft: "Rascunho",
+  sales_paused: "Vendas pausadas",
 };
 
-const getCourseStatusLabel = (status: string): string =>
-  COURSE_STATUS_LABELS[status] ?? status;
+const getCourseStatusLabel = (course: AdminCourse): string => {
+  const preset = resolveCourseAvailability({
+    catalogVisibility: course.catalogVisibility,
+    deliveryStatus: course.status as "active" | "archived" | "draft",
+    salesStatus: course.salesStatus,
+  }).preset;
+  return COURSE_STATUS_LABELS[preset] ?? preset;
+};
 
 export default async function AdminCourseDetailPage({
   params,
@@ -74,6 +85,11 @@ export default async function AdminCourseDetailPage({
   }
 
   const { course, enrollments, lessons, modules } = data;
+  const courseAvailability = resolveCourseAvailability({
+    catalogVisibility: course.catalogVisibility,
+    deliveryStatus: course.status as "active" | "archived" | "draft",
+    salesStatus: course.salesStatus,
+  });
   const serverEnv = getServerEnv();
   const purchaseLink = getCoursePurchaseLink({
     appUrl: serverEnv.NEXT_PUBLIC_APP_URL,
@@ -81,10 +97,15 @@ export default async function AdminCourseDetailPage({
     course: {
       hasPublishedPublication: publicationState.hasPublished,
       priceInCents: course.priceInCents,
+      salesStatus: course.salesStatus,
       slug: course.slug,
       status: course.status,
     },
   });
+  const publicCourseUrl = new URL(
+    `/comprar/${encodeURIComponent(course.slug)}`,
+    serverEnv.NEXT_PUBLIC_APP_URL
+  ).toString();
   modules.sort((a, b) => a.sortOrder - b.sortOrder);
   const contentSummary = summarizeAdminCourseContent({ lessons, modules });
   const contentSignal = getAdminCourseContentSignal(contentSummary);
@@ -112,9 +133,13 @@ export default async function AdminCourseDetailPage({
                   {course.title}
                 </h1>
                 <Badge
-                  variant={course.status === "active" ? "default" : "outline"}
+                  variant={
+                    courseAvailability.preset === "available"
+                      ? "default"
+                      : "outline"
+                  }
                 >
-                  {getCourseStatusLabel(course.status)}
+                  {getCourseStatusLabel(course)}
                 </Badge>
               </div>
               <p className="text-muted-foreground text-sm sm:text-base">
@@ -171,25 +196,44 @@ export default async function AdminCourseDetailPage({
             />
           }
           settings={
-            <Card>
-              <CardHeader className="border-b">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="max-w-2xl space-y-1">
-                    <CardTitle as="h2" className="text-xl">
-                      Configurações do curso
-                    </CardTitle>
-                    <CardDescription>
-                      Dados que aparecem para o aluno e conectam o curso ao
-                      checkout externo.
-                    </CardDescription>
+            <div className="flex flex-col gap-6">
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="max-w-2xl space-y-1">
+                      <CardTitle as="h2" className="text-xl">
+                        Configurações do curso
+                      </CardTitle>
+                      <CardDescription>
+                        Dados que aparecem para a aluna e conectam o Curso ao
+                        checkout externo.
+                      </CardDescription>
+                    </div>
+                    <CoursePurchaseLink
+                      link={purchaseLink}
+                      publicUrl={publicCourseUrl}
+                    />
                   </div>
-                  <CoursePurchaseLink link={purchaseLink} />
-                </div>
-              </CardHeader>
-              <CardContent className="py-2 sm:py-4">
-                <CourseSettingsForm course={course} />
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent className="py-2 sm:py-4">
+                  <CourseSettingsForm course={course} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="border-b py-4">
+                  <CardTitle as="h2" className="text-lg">
+                    Disponibilidade
+                  </CardTitle>
+                  <CardDescription>
+                    Controle vitrine e novas vendas. Matrículas existentes não
+                    são alteradas.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="py-4">
+                  <CourseAvailabilityForm course={course} />
+                </CardContent>
+              </Card>
+            </div>
           }
           students={
             <section className="rounded-lg border bg-card">

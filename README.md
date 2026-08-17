@@ -17,7 +17,7 @@ Pré-requisitos:
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
 O histórico local de migrations está reconciliado até
-`0053_course_payment_offers`, incluindo outbox transacional,
+`0060_course_availability_and_interest`, incluindo outbox transacional,
 publicações de Curso, artefatos imutáveis de Certificado, perfil automático
 para cadastro público, leases dos jobs serverless e consumo único de uploads
 administrativos. As migrations Asaas `0044` a `0052` estão aplicadas em

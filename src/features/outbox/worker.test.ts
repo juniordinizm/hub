@@ -28,6 +28,7 @@ describe("outbox worker", () => {
       processClaimedOutboxMessage({
         deliver,
         markDeadLetter: vi.fn(),
+        markDeferred: vi.fn(),
         markDelivered,
         markRetry: vi.fn(),
         message: claimedMessage(),
@@ -49,6 +50,7 @@ describe("outbox worker", () => {
             new OutboxDeliveryError("resend_unavailable", { retryable: true })
           ),
         markDeadLetter: vi.fn(),
+        markDeferred: vi.fn(),
         markDelivered: vi.fn(),
         markRetry,
         message: claimedMessage({ attempts: 2 }),
@@ -74,6 +76,7 @@ describe("outbox worker", () => {
           })
         ),
         markDeadLetter,
+        markDeferred: vi.fn(),
         markDelivered: vi.fn(),
         markRetry: vi.fn(),
         message: claimedMessage({ attempts: 5 }),
@@ -84,5 +87,32 @@ describe("outbox worker", () => {
       errorCode: "unknown_payload_version",
       id: "outbox-1",
     });
+  });
+
+  it("defers a temporarily ineligible aggregate without consuming attempts", async () => {
+    const markDeferred = vi.fn().mockResolvedValue(undefined);
+    const markRetry = vi.fn();
+
+    await expect(
+      processClaimedOutboxMessage({
+        deliver: vi.fn().mockRejectedValue(
+          new OutboxDeliveryError("course_sales_closed", {
+            deferred: true,
+            retryable: true,
+          })
+        ),
+        markDeadLetter: vi.fn(),
+        markDeferred,
+        markDelivered: vi.fn(),
+        markRetry,
+        message: claimedMessage({ attempts: 5 }),
+      })
+    ).resolves.toBe("deferred");
+
+    expect(markDeferred).toHaveBeenCalledWith({
+      errorCode: "course_sales_closed",
+      id: "outbox-1",
+    });
+    expect(markRetry).not.toHaveBeenCalled();
   });
 });

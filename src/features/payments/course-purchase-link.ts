@@ -9,12 +9,14 @@ export type CoursePurchaseLink =
         | "checkout_disabled"
         | "course_inactive"
         | "course_unpublished"
-        | "invalid_price";
+        | "invalid_price"
+        | "sales_closed";
     };
 
 interface CoursePurchaseLinkCourse {
   hasPublishedPublication: boolean;
   priceInCents: number;
+  salesStatus: string;
   slug: string;
   status: string;
 }
@@ -34,6 +36,10 @@ export const getCoursePurchaseLink = ({
 
   if (course.status !== "active") {
     return { available: false, reason: "course_inactive" };
+  }
+
+  if (course.salesStatus !== "open") {
+    return { available: false, reason: "sales_closed" };
   }
 
   if (!course.hasPublishedPublication) {

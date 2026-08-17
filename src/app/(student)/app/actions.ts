@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
+import { setCourseSaleInterest } from "@/features/courses/availability-server";
 import { canMutateStudentExperience } from "@/features/courses/preview";
 import {
   completeLesson,
@@ -113,6 +114,27 @@ export const setLearningAnalyticsPreferenceAction = async (
     enabled: formData.get("enabled") === "true",
     userId: session.user.id,
   });
+};
+
+export const setCourseSaleInterestAction = async (
+  formData: FormData
+): Promise<{ interested: boolean }> => {
+  const session = await requireSession();
+  if (session.role !== "student") {
+    throw new Error("Apenas alunas podem demonstrar interesse.");
+  }
+  const courseId = readString(formData, "courseId");
+  if (!courseId) {
+    throw new Error("Curso inválido.");
+  }
+  const result = await setCourseSaleInterest({
+    courseId,
+    interested: readString(formData, "interested") === "true",
+    userId: session.user.id,
+  });
+  revalidatePath("/app");
+  revalidatePath("/comprar/[slug]", "page");
+  return result;
 };
 
 export const updateCertificateNameAction = async (

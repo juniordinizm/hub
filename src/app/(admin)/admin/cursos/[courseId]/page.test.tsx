@@ -169,16 +169,30 @@ vi.mock("./course-purchase-link", () => ({
     />
   ),
 }));
+vi.mock("./course-availability-form", () => ({
+  CourseAvailabilityForm: () => <div data-availability-form />,
+}));
 
 import AdminCourseDetailPage from "./page";
 
 const course = {
   accessDurationMonths: 12,
+  catalogVisibility: "listed",
   certificateEnabled: false,
   coverImage: null,
   description: "Descricao",
   id: "course-1",
+  interestCount: 0,
+  interestNotificationsSent: 0,
+  launchDate: null,
+  launchLandingUrl: null,
+  paymentAllowCreditCard: true,
+  paymentAllowPix: true,
+  paymentMaxInstallmentCount: 3,
+  pendingCheckoutCancellations: 0,
+  pendingInterestNotifications: 0,
   priceInCents: 10_000,
+  salesStatus: "open",
   slug: "curso-publico",
   status: "active",
   subtitle: "Subtitulo",
@@ -290,12 +304,27 @@ describe("AdminCourseDetailPage overview", () => {
 
 describe("AdminCourseDetailPage header", () => {
   it.each([
-    ["active", "Ativo"],
-    ["draft", "Rascunho"],
-    ["archived", "Arquivado"],
-  ])("localizes the %s course status as %s", async (status, label) => {
+    [{ status: "active" }, "Disponível"],
+    [
+      { catalogVisibility: "listed", salesStatus: "closed", status: "draft" },
+      "Em breve",
+    ],
+    [{ salesStatus: "closed", status: "active" }, "Vendas pausadas"],
+    [
+      { catalogVisibility: "hidden", salesStatus: "closed", status: "draft" },
+      "Rascunho",
+    ],
+    [
+      {
+        catalogVisibility: "hidden",
+        salesStatus: "closed",
+        status: "archived",
+      },
+      "Arquivado",
+    ],
+  ])("localizes Course availability as %s", async (overrides, label) => {
     dependencies.getAdminCourseDetailData.mockResolvedValue({
-      course: { ...course, status },
+      course: { ...course, ...overrides },
       enrollments: [],
       lessons: [],
       modules: [],
@@ -388,7 +417,8 @@ describe("AdminCourseDetailPage purchase link", () => {
     expect(markup).toContain(
       'data-purchase-link="https://hub.example/comprar/curso-publico"'
     );
-    expect(markup.match(/data-slot="card"/g)).toHaveLength(1);
+    expect(markup.match(/data-slot="card"/g)).toHaveLength(2);
+    expect(markup).toContain("Disponibilidade");
     expect(markup).toContain("Configurações do curso");
   });
 

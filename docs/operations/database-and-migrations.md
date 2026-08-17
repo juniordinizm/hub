@@ -8,6 +8,10 @@ last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 
 ## Estado atual
 
+O topo local é `0060_course_availability_and_interest`. Ela é aditiva, faz
+backfill `active => listed/open` e `draft|archived => hidden/closed`, e não
+reescreve Pedido, Concessão, Matrícula ou progresso.
+
 O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
 `0000` a `0053` está aplicada à branch `production`
 (`br-dark-boat-ac5ju6m4`) do projeto Neon definitivo

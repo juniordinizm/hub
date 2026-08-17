@@ -6,6 +6,7 @@ vi.mock("server-only", () => ({}));
 import {
   claimOutboxMessages,
   enqueueOutboxMessage,
+  markOutboxMessageDeferred,
   requeueDeadLetterMessage,
 } from "./server";
 
@@ -45,6 +46,26 @@ describe("outbox persistence", () => {
     expect(query).toHaveBeenCalledWith(
       expect.stringMatching(SKIP_LOCKED_PATTERN),
       ["worker-a", 10]
+    );
+  });
+
+  it("defers a message without consuming a delivery attempt", async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+
+    await markOutboxMessageDeferred({
+      client: { query } as never,
+      errorCode: "course_sales_closed",
+      id: "outbox-1",
+      workerId: "worker-a",
+    });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("attempts = greatest(attempts - 1, 0)"),
+      ["outbox-1", "worker-a", "course_sales_closed"]
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("interval '24 hours'"),
+      ["outbox-1", "worker-a", "course_sales_closed"]
     );
   });
 

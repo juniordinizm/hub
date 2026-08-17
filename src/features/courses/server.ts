@@ -5,6 +5,13 @@ import {
   issueCompletionCertificateIfEligible,
 } from "@/features/certificates/server";
 import {
+  type CourseAvailabilityPreset,
+  type CourseCatalogVisibility,
+  type CourseDeliveryStatus,
+  type CourseSalesStatus,
+  resolveCourseAvailability,
+} from "@/features/courses/availability";
+import {
   type LessonContent,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
@@ -49,12 +56,16 @@ export interface StudentCourseCard {
 
 export interface StudentCatalogCourseCard {
   accessStatus: "active" | "expired" | "none" | "revoked";
+  availabilityPreset: CourseAvailabilityPreset;
   completedCount: number;
   courseId: string;
   coverBlurDataUrl: string | null;
   description: string | null;
   expiresAt: Date | null;
   isEnrolled: boolean;
+  isInterested: boolean;
+  launchDate: string | null;
+  launchLandingUrl: string | null;
   nextLessonId: string | null;
   priceInCents: number;
   progressPercent: number;
@@ -477,16 +488,22 @@ export const getStudentCourseCatalog = async (
 ): Promise<StudentCatalogCourseCard[]> => {
   const { rows } = await getPool().query<{
     access_status: "active" | "expired" | "none" | "revoked";
+    catalog_visibility: CourseCatalogVisibility;
     completed_at: Date | null;
     cover_image_json: unknown;
     course_description: string | null;
     course_id: string;
+    course_status: CourseDeliveryStatus;
     duration_seconds: number;
     expires_at: Date | null;
     is_enrolled: boolean;
+    is_interested: boolean;
+    launch_date: string | null;
+    launch_landing_url: string | null;
     lesson_id: string | null;
     price_in_cents: number;
     revoked_reason: string | null;
+    sales_status: CourseSalesStatus;
     slug: string;
     subtitle: string | null;
     thumbnail_url: string | null;
@@ -500,6 +517,11 @@ export const getStudentCourseCatalog = async (
         c.title,
         c.subtitle,
         c.description as course_description,
+        c.status as course_status,
+        c.catalog_visibility,
+        c.sales_status,
+        c.launch_date,
+        c.launch_landing_url,
         coalesce(c.workload_hours_override, c.workload_hours) as workload_hours,
         c.price_in_cents,
         c.cover_image_json,
@@ -518,6 +540,11 @@ export const getStudentCourseCatalog = async (
           and e.starts_at <= now()
           and e.expires_at >= now()
         ) as is_enrolled,
+        exists (
+          select 1
+          from course_sale_interests csi
+          where csi.course_id = c.id and csi.user_id = $1
+        ) as is_interested,
         l.id as lesson_id,
         coalesce(l.duration_seconds, 0) as duration_seconds,
         lp.completed_at
@@ -541,7 +568,13 @@ export const getStudentCourseCatalog = async (
         where lp.user_id = $1
           and completed_lesson.curriculum_key = l.curriculum_key
       ) lp on true
-      where c.status = 'active'
+      where c.catalog_visibility = 'listed'
+         or (
+           c.status = 'active'
+           and e.status = 'active'
+           and e.starts_at <= now()
+           and e.expires_at >= now()
+         )
       order by c.created_at desc, m.sort_order asc, l.sort_order asc
     `,
     [userId]
@@ -549,7 +582,16 @@ export const getStudentCourseCatalog = async (
   const byCourse = new Map<string, StudentCatalogCourseAggregate>();
 
   for (const row of rows) {
+    const availability = resolveCourseAvailability({
+      catalogVisibility: row.catalog_visibility,
+      deliveryStatus: row.course_status,
+      salesStatus: row.sales_status,
+    });
+    if (availability.preset === "archived") {
+      continue;
+    }
     const course = byCourse.get(row.course_id) ?? {
+      availabilityPreset: availability.preset,
       courseId: row.course_id,
       slug: row.slug,
       title: row.title,
@@ -561,6 +603,9 @@ export const getStudentCourseCatalog = async (
       thumbnailUrl: row.thumbnail_url,
       expiresAt: row.expires_at,
       isEnrolled: row.is_enrolled,
+      isInterested: row.is_interested,
+      launchDate: row.launch_date,
+      launchLandingUrl: row.launch_landing_url,
       accessStatus: row.access_status,
       revokedReason: row.revoked_reason,
       progressPercent: 0,
@@ -601,6 +646,10 @@ export const getStudentCourseCatalog = async (
       thumbnailUrl: course.thumbnailUrl,
       expiresAt: course.expiresAt,
       isEnrolled: course.isEnrolled,
+      isInterested: course.isInterested,
+      launchDate: course.launchDate,
+      launchLandingUrl: course.launchLandingUrl,
+      availabilityPreset: course.availabilityPreset,
       accessStatus: course.accessStatus,
       revokedReason: course.revokedReason,
       progressPercent: progress.percent,

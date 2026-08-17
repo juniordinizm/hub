@@ -259,8 +259,9 @@ describe("course payment settings", () => {
     expect(markup.indexOf("Carga horária")).toBeLessThan(
       markup.indexOf("Meses de acesso")
     );
+    expect(markup).not.toContain('id="course-settings-status"');
     expect(markup.indexOf("Meses de acesso")).toBeLessThan(
-      markup.indexOf("Status")
+      markup.indexOf("Oferta de pagamento")
     );
   });
 

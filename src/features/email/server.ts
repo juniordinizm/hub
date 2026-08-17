@@ -6,6 +6,7 @@ import {
   AccessExpiryWarningEmail,
   AccessReleasedEmail,
   CertificateIssuedEmail,
+  CourseSalesOpenedEmail,
   PasswordResetEmail,
   SupportRequestEmail,
 } from "@/features/email/templates";
@@ -141,6 +142,30 @@ export const sendAccessExpiryWarningEmail = async ({
       name: userName,
     }),
     subject: `Seu acesso vence em ${daysRemaining} ${daysRemaining === 1 ? "dia" : "dias"}`,
+    to,
+  });
+
+export const sendCourseSalesOpenedEmail = async ({
+  courseSlug,
+  courseTitle,
+  idempotencyKey,
+  to,
+  userName,
+}: {
+  courseSlug: string;
+  courseTitle: string;
+  idempotencyKey: string;
+  to: string;
+  userName: string;
+}): Promise<void> =>
+  sendTransactionalEmail({
+    idempotencyKey,
+    react: CourseSalesOpenedEmail({
+      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/comprar/${encodeURIComponent(courseSlug)}`,
+      courseTitle,
+      name: userName,
+    }),
+    subject: `Inscrições abertas: ${courseTitle}`,
     to,
   });
 

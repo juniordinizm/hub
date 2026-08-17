@@ -32,6 +32,14 @@ export const courseStatusEnum = pgEnum("course_status", [
   "active",
   "archived",
 ]);
+export const courseCatalogVisibilityEnum = pgEnum("course_catalog_visibility", [
+  "listed",
+  "hidden",
+]);
+export const courseSalesStatusEnum = pgEnum("course_sales_status", [
+  "open",
+  "closed",
+]);
 export const coursePublicationStatusEnum = pgEnum("course_publication_status", [
   "draft",
   "published",
@@ -280,6 +288,17 @@ export const courses = pgTable(
       .default(12)
       .notNull(),
     status: courseStatusEnum("status").default("draft").notNull(),
+    catalogVisibility: courseCatalogVisibilityEnum("catalog_visibility")
+      .default("hidden")
+      .notNull(),
+    salesStatus: courseSalesStatusEnum("sales_status")
+      .default("closed")
+      .notNull(),
+    launchDate: date("launch_date"),
+    launchLandingUrl: text("launch_landing_url"),
+    interestNotificationsSent: integer("interest_notifications_sent")
+      .default(0)
+      .notNull(),
     certificateEnabled: boolean("certificate_enabled").default(false).notNull(),
     ...timestamps,
   },
@@ -311,6 +330,64 @@ export const courses = pgTable(
     check(
       "courses_payment_installment_requires_card",
       sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
+    ),
+    check(
+      "courses_availability_combination_valid",
+      sql`(
+        ${table.salesStatus} = 'open'
+        and ${table.status} = 'active'
+        and ${table.catalogVisibility} = 'listed'
+      ) or (
+        ${table.salesStatus} = 'closed'
+        and ${table.status} in ('draft', 'active')
+      ) or (
+        ${table.salesStatus} = 'closed'
+        and ${table.status} = 'archived'
+        and ${table.catalogVisibility} = 'hidden'
+      )`
+    ),
+    check(
+      "courses_interest_notifications_sent_non_negative",
+      sql`${table.interestNotificationsSent} >= 0`
+    ),
+    check(
+      "courses_launch_fields_only_for_coming_soon",
+      sql`(
+        ${table.launchDate} is null and ${table.launchLandingUrl} is null
+      ) or (
+        ${table.status} = 'draft'
+        and ${table.catalogVisibility} = 'listed'
+        and ${table.salesStatus} = 'closed'
+      ) or (
+        ${table.launchDate} is null
+        and ${table.status} = 'active'
+        and ${table.salesStatus} = 'closed'
+      )`
+    ),
+  ]
+);
+
+export const courseSaleInterests = pgTable(
+  "course_sale_interests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseId: uuid("course_id")
+      .notNull()
+      .references(() => courses.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    notificationEnqueuedAt: timestamp("notification_enqueued_at", tz),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("course_sale_interests_course_user_unique_idx").on(
+      table.courseId,
+      table.userId
+    ),
+    index("course_sale_interests_notification_idx").on(
+      table.courseId,
+      table.notificationEnqueuedAt
     ),
   ]
 );

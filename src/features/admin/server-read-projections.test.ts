@@ -30,10 +30,19 @@ const limitKeywordPattern = /\blimit\b/;
 
 const courseRow = {
   access_duration_months: 12,
+  catalog_visibility: "listed",
   cover_image_json: { key: "cover" },
   description: "Course description",
   id: courseId,
+  has_commercial_history: true,
+  interest_count: 3,
+  interest_notifications_sent: 5,
+  launch_date: "2026-10-01",
+  launch_landing_url: null,
+  pending_checkout_cancellations: 1,
+  pending_interest_notifications: 2,
   price_in_cents: 12_900,
+  sales_status: "closed",
   slug: "course-one",
   status: "active",
   subtitle: "Course subtitle",
@@ -253,7 +262,17 @@ describe("admin read projections", () => {
       )?.[0]
     ).not.toContain("payment_provider_product_id");
     expect(detail).toMatchObject({
-      course: { id: courseId, title: "Course one" },
+      course: {
+        catalogVisibility: "listed",
+        hasCommercialHistory: true,
+        id: courseId,
+        interestCount: 3,
+        interestNotificationsSent: 5,
+        pendingCheckoutCancellations: 1,
+        pendingInterestNotifications: 2,
+        salesStatus: "closed",
+        title: "Course one",
+      },
       enrollments: [{ courseId, id: "enrollment-1" }],
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
