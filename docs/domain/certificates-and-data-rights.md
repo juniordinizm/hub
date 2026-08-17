@@ -51,11 +51,11 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001 Emissão exige conclusão e unicidade válida
 
-`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir e somente quando não há Certificado anterior para a Aluna no Curso. `completeLesson` cria a primeira conclusão e pode emitir automaticamente quando todas as Aulas obrigatórias da publicação vigente estão concluídas. Depois de uma revogação, somente `reissueCertificate` pode criar nova evidência, sempre na publicação de origem.
+`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir e somente quando não há Certificado anterior para a Aluna no Curso. `completeLesson` cria a primeira conclusão quando todas as Aulas obrigatórias da publicação vigente estão concluídas. Somente a transação que insere essa primeira `CourseCompletion` pode iniciar a emissão automática; conflito com uma conclusão já existente encerra o caminho sem tentar Certificado ou outbox. Depois de uma revogação, somente `reissueCertificate` pode criar nova evidência, sempre na publicação de origem.
 
 **Invariantes:** `CourseCompletion` é única por Conta e Curso; o código público é único; não há segundo Certificado válido para a mesma Conta e Curso sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots e a publicação de origem preservam o texto emitido. Publicação posterior não reabre a conclusão nem gera novo certificado automaticamente.
 
-**Concorrência:** `tryIssueAutomaticCompletionCertificate` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora solicita e-mail, gravando `email.certificate-issued` na outbox sem PII. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
+**Concorrência:** `lockCourseCertificateLifecycleInTransaction` exige uma transação aberta e usa advisory lock transacional por Conta e Curso. `completeLesson` o adquire antes de gravar `lesson_progress` e antes de calcular o resumo de conclusão; emissão automática, emissão manual e reemissão usam a mesma interface para suas decisões de lifecycle. A criação de `CourseCompletion` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING`; somente a inserção vencedora chama a emissão automática. A criação do Certificado também usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora grava a mensagem de renderização na outbox; o e-mail continua condicionado à renderização pronta e sem PII na mensagem. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
 
 ### REG-DAT-001A Renderização e arquivo imutáveis
 

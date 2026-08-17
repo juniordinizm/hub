@@ -40,7 +40,8 @@ const isCertificateCodeCollision = (error: unknown): boolean => {
   );
 };
 
-const lockCertificatePair = async (
+/** Requires an open transaction and holds the pair lock until it ends. */
+export const lockCourseCertificateLifecycleInTransaction = async (
   client: PoolClient,
   userId: string,
   courseId: string
@@ -94,7 +95,7 @@ export const tryIssueAutomaticCompletionCertificate = async ({
   userId: string;
   workloadHours: number;
 }): Promise<string | null> => {
-  await lockCertificatePair(client, userId, courseId);
+  await lockCourseCertificateLifecycleInTransaction(client, userId, courseId);
   const template = await client.query<{
     id: string;
     version: number;
@@ -238,13 +239,12 @@ export const issueCompletionCertificateIfEligible = async ({
     return false;
   }
 
-  await lockCertificatePair(client, userId, courseId);
+  await lockCourseCertificateLifecycleInTransaction(client, userId, courseId);
   const completion = await client.query<{ completed_at: Date; id: string }>(
     `
-      insert into course_completions as completion (user_id, course_id, course_publication_id)
+      insert into course_completions (user_id, course_id, course_publication_id)
       values ($1, $2, $3)
-      on conflict (user_id, course_id) do update
-      set completed_at = completion.completed_at
+      on conflict (user_id, course_id) do nothing
       returning id, completed_at
     `,
     [userId, courseId, coursePublicationId]
@@ -530,7 +530,7 @@ export const issueManualCertificate = async ({
   const client = await pool.connect();
   try {
     await client.query("begin");
-    await lockCertificatePair(client, userId, courseId);
+    await lockCourseCertificateLifecycleInTransaction(client, userId, courseId);
     const enrollment = await client.query<{ id: string }>(
       `
         select id
@@ -713,7 +713,7 @@ export const reissueCertificate = async ({
       throw new CertificateDomainError("Certificado nao localizado.");
     }
 
-    await lockCertificatePair(
+    await lockCourseCertificateLifecycleInTransaction(
       client,
       previousCertificate.user_id,
       previousCertificate.course_id

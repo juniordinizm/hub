@@ -3,6 +3,7 @@ import { getPool } from "@/db";
 import {
   type CompletionCertificateSummary,
   issueCompletionCertificateIfEligible,
+  lockCourseCertificateLifecycleInTransaction,
 } from "@/features/certificates/server";
 import {
   type CourseAvailabilityPreset,
@@ -1370,6 +1371,11 @@ export const completeLesson = async ({
 
   try {
     await client.query("begin");
+    await lockCourseCertificateLifecycleInTransaction(
+      client,
+      userId,
+      data.course.id
+    );
     const progressInsert = await client.query(
       `
         insert into lesson_progress (user_id, lesson_id)

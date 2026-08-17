@@ -700,10 +700,10 @@ describe("automatic completion certificate retries", () => {
     );
   });
 
-  it("reuses an existing completion, issues from the available template, and enqueues rendering", async () => {
+  it("issues from a newly created completion and enqueues rendering", async () => {
     const query = vi.fn((sql: string) => {
       if (sql.includes("insert into course_completions")) {
-        return sql.includes("do update")
+        return sql.includes("do nothing")
           ? {
               rows: [
                 {
@@ -795,6 +795,56 @@ describe("automatic completion certificate retries", () => {
         }),
       ]
     );
+  });
+
+  it("stops automatic issuance when another transaction created the completion", async () => {
+    const query = vi.fn((sql: string) => {
+      if (sql.includes("insert into course_completions")) {
+        return sql.includes("do nothing")
+          ? { rows: [] }
+          : {
+              rows: [
+                {
+                  completed_at: new Date("2026-07-22T12:00:00.000Z"),
+                  id: "completion-existing",
+                },
+              ],
+            };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      issueCompletionCertificateIfEligible({
+        client: { query } as never,
+        courseId: "course-1",
+        coursePublicationId: "publication-1",
+        summary: {
+          certificateId: null,
+          completedLessons: 1,
+          courseTitle: "Curso",
+          studentName: "Aluna",
+          totalLessons: 1,
+          workloadHours: 8,
+        },
+        userId: "student-1",
+      })
+    ).resolves.toBe(false);
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("on conflict (user_id, course_id) do nothing"),
+      ["student-1", "course-1", "publication-1"]
+    );
+    expect(
+      query.mock.calls.some(([sql]) =>
+        sql.includes("join certificate_templates")
+      )
+    ).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        sql.includes("insert into outbox_messages")
+      )
+    ).toBe(false);
   });
 });
 

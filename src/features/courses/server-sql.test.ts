@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  clientQuery,
+  connect,
   query,
+  release,
   resolveCourseAccess,
   resolveLessonAccess,
   syncJmvstreamLessonPlayer,
   getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
+  clientQuery: vi.fn(),
+  connect: vi.fn(),
   query: vi.fn(),
+  release: vi.fn(),
   resolveCourseAccess: vi.fn(),
   resolveLessonAccess: vi.fn(),
   syncJmvstreamLessonPlayer: vi.fn(),
@@ -15,7 +21,7 @@ const {
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
+vi.mock("@/db", () => ({ getPool: () => ({ connect, query }) }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveCourseAccess,
   resolveLessonAccess,
@@ -28,6 +34,7 @@ vi.mock("@/features/jmvstream/asset-persistence", () => ({
 }));
 
 import {
+  completeLesson,
   getStudentCourseCatalog,
   getStudentCourseOverview,
   getStudentLessonWorkspace,
@@ -103,6 +110,7 @@ const createLessonRow = ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  connect.mockResolvedValue({ query: clientQuery, release });
   resolveCourseAccess.mockResolvedValue(true);
   resolveLessonAccess.mockResolvedValue(true);
   syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
@@ -365,5 +373,53 @@ describe("student experience reads", () => {
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: true },
     ]);
+  });
+});
+
+describe("course completion writes", () => {
+  it("locks the certificate lifecycle before progress and completion summary writes", async () => {
+    query.mockResolvedValue({
+      rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
+    });
+    clientQuery.mockImplementation((sql: string) => {
+      if (sql.includes("count(l.id) filter")) {
+        return {
+          rows: [
+            {
+              certificate_id: null,
+              completed_lessons: 0,
+              course_publication_id: "publication-1",
+              course_title: "Course one",
+              student_name: "Aluna Teste",
+              total_lessons: 0,
+              workload_hours: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes("insert into lesson_progress")) {
+        return { rowCount: 0, rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      completeLesson({ userId: "student-1", lessonId: "lesson-1" })
+    ).resolves.toMatchObject({ certificateIssued: false });
+
+    const statements = clientQuery.mock.calls.map(([sql]) => sql as string);
+    const lockIndex = statements.findIndex((sql) =>
+      sql.includes("pg_advisory_xact_lock")
+    );
+    const progressIndex = statements.findIndex((sql) =>
+      sql.includes("insert into lesson_progress")
+    );
+    const summaryIndex = statements.findIndex((sql) =>
+      sql.includes("count(l.id) filter")
+    );
+
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(progressIndex).toBeGreaterThan(lockIndex);
+    expect(summaryIndex).toBeGreaterThan(progressIndex);
   });
 });

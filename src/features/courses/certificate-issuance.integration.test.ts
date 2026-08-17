@@ -81,10 +81,16 @@ const fetchCertificateAsset = (url: string): Response => {
 
 const getTestPool = (): Pool => pool;
 
-const createFixture = async (): Promise<{
+const createFixture = async ({
+  withSecondRequiredLesson = false,
+}: {
+  withSecondRequiredLesson?: boolean;
+} = {}): Promise<{
   courseId: string;
   coursePublicationId: string;
   lessonId: string;
+  secondLessonId: string | null;
+  sequenceUnlockLessonId: string | null;
   userId: string;
 }> => {
   const testPool = getTestPool();
@@ -185,6 +191,41 @@ const createFixture = async (): Promise<{
     throw new Error("Nao foi possivel criar a aula de teste.");
   }
 
+  let secondLessonId: string | null = null;
+  let sequenceUnlockLessonId: string | null = null;
+  if (withSecondRequiredLesson) {
+    const { rows: finalLessonRows } = await testPool.query<{
+      id: string;
+      is_required: boolean;
+    }>(
+      `
+        insert into lessons (
+          module_id,
+          course_publication_id,
+          title,
+          duration_seconds,
+          video_duration_seconds,
+          sort_order,
+          status,
+          video_provider,
+          is_required
+        )
+        values
+          ($1, $2, 'Segunda aula final', 120, 120, 2, 'active', 'jmvstream', true),
+          ($1, $2, 'Aula opcional posterior', 120, 120, 3, 'active', 'jmvstream', false)
+        returning id, is_required
+      `,
+      [moduleId, coursePublicationId]
+    );
+    secondLessonId =
+      finalLessonRows.find((lesson) => lesson.is_required)?.id ?? null;
+    sequenceUnlockLessonId =
+      finalLessonRows.find((lesson) => !lesson.is_required)?.id ?? null;
+    if (!(secondLessonId && sequenceUnlockLessonId)) {
+      throw new Error("Nao foi possivel criar as aulas finais de teste.");
+    }
+  }
+
   await testPool.query(
     `
       insert into users (id, name, email, email_verified)
@@ -200,7 +241,56 @@ const createFixture = async (): Promise<{
     [userId, courseId]
   );
 
-  return { courseId, coursePublicationId, lessonId, userId };
+  return {
+    courseId,
+    coursePublicationId,
+    lessonId,
+    secondLessonId,
+    sequenceUnlockLessonId,
+    userId,
+  };
+};
+
+const countLessonProgress = async (userId: string, lessonIds: string[]) => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    `
+      select count(*)
+      from lesson_progress
+      where user_id = $1 and lesson_id = any($2::uuid[])
+    `,
+    [userId, lessonIds]
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+const countWaitingAdvisoryLocks = async ({
+  committingOnly = false,
+}: {
+  committingOnly?: boolean;
+} = {}): Promise<number> => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    `
+      select count(*)
+      from pg_stat_activity
+      where datname = current_database()
+        and wait_event_type = 'Lock'
+        and wait_event = 'advisory'
+        and ($1::boolean = false or lower(btrim(query)) = 'commit')
+    `,
+    [committingOnly]
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+const toSqlLiteral = (value: string): string =>
+  `'${value.replaceAll("'", "''")}'`;
+
+const countCourseCompletions = async (courseId: string, userId: string) => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    "select count(*) from course_completions where course_id = $1 and user_id = $2",
+    [courseId, userId]
+  );
+  return Number(rows[0]?.count ?? 0);
 };
 
 const countCertificates = async (courseId: string, userId: string) => {
@@ -252,16 +342,159 @@ describe("emissao concorrente de certificado", () => {
     vi.unstubAllGlobals();
   });
 
-  it("emite e registra uma unica renderizacao duravel sob duas conclusoes simultaneas", async () => {
-    const fixture = await createFixture();
+  it("serializa duas aulas finais distintas antes da decisao de conclusao e emissao", async () => {
+    const fixture = await createFixture({ withSecondRequiredLesson: true });
 
-    const results = await Promise.all([
-      completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-      completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-    ]);
+    if (!(fixture.secondLessonId && fixture.sequenceUnlockLessonId)) {
+      throw new Error("Fixture concorrente sem as aulas finais esperadas.");
+    }
+    const pendingLessonIds = [fixture.lessonId, fixture.secondLessonId];
+    await getTestPool().query(
+      "insert into lesson_progress (user_id, lesson_id) values ($1, $2)",
+      [fixture.userId, fixture.sequenceUnlockLessonId]
+    );
+    expect(await countLessonProgress(fixture.userId, pendingLessonIds)).toBe(0);
+    expect(
+      await countLessonProgress(fixture.userId, [
+        fixture.sequenceUnlockLessonId,
+      ])
+    ).toBe(1);
+    const suffix = randomUUID().replaceAll("-", "_");
+    const gateFunction = `certificate_progress_gate_${suffix}`;
+    const firstGateTrigger = `certificate_progress_first_${suffix}`;
+    const secondGateTrigger = `certificate_progress_second_${suffix}`;
+    const firstGateKey = `certificate-progress-first/${suffix}`;
+    const secondGateKey = `certificate-progress-second/${suffix}`;
+    const coordinator = await getTestPool().connect();
+    let firstCompletion: ReturnType<typeof completeLesson> | null = null;
+    let secondCompletion: ReturnType<typeof completeLesson> | null = null;
+    try {
+      await coordinator.query(
+        `
+          create function ${gateFunction}() returns trigger
+          language plpgsql
+          as $gate$
+          begin
+            perform pg_advisory_xact_lock_shared(hashtextextended(TG_ARGV[0], 0));
+            return new;
+          end;
+          $gate$
+        `
+      );
+      await coordinator.query(
+        `
+          create trigger ${firstGateTrigger}
+          after insert on lesson_progress
+          for each row
+          when (
+            new.user_id = ${toSqlLiteral(fixture.userId)}
+            and new.lesson_id = ${toSqlLiteral(fixture.lessonId)}::uuid
+          )
+          execute function ${gateFunction}(${toSqlLiteral(firstGateKey)})
+        `
+      );
+      await coordinator.query(
+        `
+          create constraint trigger ${secondGateTrigger}
+          after insert on lesson_progress
+          deferrable initially deferred
+          for each row
+          when (
+            new.user_id = ${toSqlLiteral(fixture.userId)}
+            and new.lesson_id = ${toSqlLiteral(fixture.secondLessonId)}::uuid
+          )
+          execute function ${gateFunction}(${toSqlLiteral(secondGateKey)})
+        `
+      );
+      await coordinator.query(
+        "select pg_advisory_lock(hashtextextended($1, 0))",
+        [firstGateKey]
+      );
+      await coordinator.query(
+        "select pg_advisory_lock(hashtextextended($1, 0))",
+        [secondGateKey]
+      );
 
-    const issued = results.filter((result) => result.certificateIssued);
-    expect(issued).toHaveLength(1);
+      const waitingBaseline = await countWaitingAdvisoryLocks();
+      const committingBaseline = await countWaitingAdvisoryLocks({
+        committingOnly: true,
+      });
+      firstCompletion = completeLesson({
+        lessonId: fixture.lessonId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 1);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+
+      secondCompletion = completeLesson({
+        lessonId: fixture.secondLessonId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 2);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+
+      await coordinator.query(
+        "select pg_advisory_unlock(hashtextextended($1, 0))",
+        [firstGateKey]
+      );
+      await expect(firstCompletion).resolves.toMatchObject({
+        certificateIssued: false,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(
+            await countWaitingAdvisoryLocks({ committingOnly: true })
+          ).toBe(committingBaseline + 1);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+      await coordinator.query(
+        "select pg_advisory_unlock(hashtextextended($1, 0))",
+        [secondGateKey]
+      );
+      await expect(secondCompletion).resolves.toMatchObject({
+        certificateIssued: true,
+      });
+    } finally {
+      await coordinator
+        .query("select pg_advisory_unlock(hashtextextended($1, 0))", [
+          firstGateKey,
+        ])
+        .catch(() => undefined);
+      await coordinator
+        .query("select pg_advisory_unlock(hashtextextended($1, 0))", [
+          secondGateKey,
+        ])
+        .catch(() => undefined);
+      await Promise.allSettled(
+        [firstCompletion, secondCompletion].filter(
+          (completion): completion is ReturnType<typeof completeLesson> =>
+            completion !== null
+        )
+      );
+      await coordinator
+        .query(`drop trigger if exists ${firstGateTrigger} on lesson_progress`)
+        .catch(() => undefined);
+      await coordinator
+        .query(`drop trigger if exists ${secondGateTrigger} on lesson_progress`)
+        .catch(() => undefined);
+      await coordinator
+        .query(`drop function if exists ${gateFunction}()`)
+        .catch(() => undefined);
+      coordinator.release();
+    }
+
+    expect(await countCourseCompletions(fixture.courseId, fixture.userId)).toBe(
+      1
+    );
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
 
     const { rows } = await getTestPool().query<{ id: string }>(
