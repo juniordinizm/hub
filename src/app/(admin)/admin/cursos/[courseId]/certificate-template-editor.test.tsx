@@ -6,18 +6,24 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { actionMocks, navigationMocks, stagedUploadMock, toastMocks } =
-  vi.hoisted(() => ({
-    actionMocks: {
-      disable: vi.fn(),
-      enable: vi.fn(),
-      publish: vi.fn(),
-      save: vi.fn(),
-    },
-    navigationMocks: { refresh: vi.fn() },
-    stagedUploadMock: vi.fn(),
-    toastMocks: { error: vi.fn(), success: vi.fn() },
-  }));
+const {
+  actionMocks,
+  mediaQueryMocks,
+  navigationMocks,
+  stagedUploadMock,
+  toastMocks,
+} = vi.hoisted(() => ({
+  actionMocks: {
+    disable: vi.fn(),
+    enable: vi.fn(),
+    publish: vi.fn(),
+    save: vi.fn(),
+  },
+  mediaQueryMocks: { matches: false },
+  navigationMocks: { refresh: vi.fn() },
+  stagedUploadMock: vi.fn(),
+  toastMocks: { error: vi.fn(), success: vi.fn() },
+}));
 
 vi.mock("sonner", () => ({ toast: toastMocks }));
 vi.mock("next/navigation", () => ({
@@ -39,6 +45,9 @@ vi.mock("@/features/admin/certificate-template-action-state", () => ({
 }));
 vi.mock("@/features/storage/staged-image-upload-client", () => ({
   uploadStagedAdminImage: stagedUploadMock,
+}));
+vi.mock("@/hooks/use-media-query", () => ({
+  useMediaQuery: () => mediaQueryMocks.matches,
 }));
 vi.mock("@/features/certificates/template-crop-dialog", () => ({
   CertificateTemplateCropDialog: ({
@@ -183,6 +192,7 @@ describe("CertificateTemplateEditor", () => {
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     globalThis.ResizeObserver = ResizeObserverMock;
+    mediaQueryMocks.matches = false;
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     actionMocks.save.mockResolvedValue({ status: "idle" });
@@ -208,6 +218,58 @@ describe("CertificateTemplateEditor", () => {
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
+  });
+
+  it("moves the selected inspector into a persistent bottom sheet on compact screens", () => {
+    mediaQueryMocks.matches = true;
+    act(() => {
+      root.render(
+        <CertificateTemplateEditor
+          certificateEnabled
+          courseId="course-1"
+          issuerConfigured
+          templates={[draftTemplate]}
+        />
+      );
+    });
+
+    selectField(container, "studentName");
+
+    const mobileSheet = document.body.querySelector(
+      '[data-mobile-properties-sheet="true"]'
+    );
+    expect(mobileSheet).not.toBeNull();
+    expect(
+      mobileSheet?.querySelector('[data-field-inspector="studentName"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-properties-panel="true"]')
+    ).toBeNull();
+    expect(
+      new FormData(container.querySelector("form") ?? undefined).get(
+        "signerName"
+      )
+    ).toBe(draftTemplate.signerName);
+
+    const specBefore =
+      container.querySelector<HTMLInputElement>('input[name="spec"]')?.value;
+    const close = mobileSheet?.querySelector<HTMLButtonElement>(
+      '[data-slot="sheet-close"]'
+    );
+    act(() => close?.click());
+    expect(
+      document.body.querySelector('[data-mobile-properties-sheet="true"]')
+    ).toBeNull();
+
+    selectField(container, "studentName");
+    expect(
+      document.body.querySelector(
+        '[data-mobile-properties-sheet="true"] [data-field-inspector="studentName"]'
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLInputElement>('input[name="spec"]')?.value
+    ).toBe(specBefore);
   });
 
   afterEach(() => {

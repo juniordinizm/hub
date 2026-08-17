@@ -337,7 +337,7 @@ const assertLessonTargetPublicationIsEditable = async ({
   throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
 };
 
-const assertLessonPublicationIsEditable = async (
+export const assertLessonPublicationIsEditable = async (
   lessonId: string
 ): Promise<void> => {
   const { rows } = await getPool().query<{ id: string }>(
@@ -354,6 +354,16 @@ const assertLessonPublicationIsEditable = async (
   if (!rows[0]) {
     throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
   }
+};
+
+const assertExistingLessonPublicationIsEditable = async (
+  lessonId: string
+): Promise<void> => {
+  if (!lessonId) {
+    return;
+  }
+
+  await assertLessonPublicationIsEditable(lessonId);
 };
 
 export const publishCoursePublication = async ({
@@ -1310,6 +1320,8 @@ export const saveLesson = async ({
   lessonId: string;
 }> => {
   const existingLessonId = readString(formData, "lessonId");
+  await assertExistingLessonPublicationIsEditable(existingLessonId);
+
   let savedLessonId = existingLessonId;
   const contentJson = normalizeLessonContentFromForm({
     formData,

@@ -17,6 +17,7 @@ vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
   getAdminCourseDetailData,
+  getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
   getAdminFinancialData,
   getAdminLessonEditorData,
@@ -25,6 +26,7 @@ import {
 
 const courseId = "course-1";
 const lessonId = "lesson-1";
+const limitKeywordPattern = /\blimit\b/;
 
 const courseRow = {
   access_duration_months: 12,
@@ -168,6 +170,52 @@ describe("admin read projections", () => {
     expect(String(query.mock.calls[0]?.[0])).toContain("status = 'published'");
   });
 
+  it("returns exact course overview counts from one aggregate query", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          active_enrollment_count: 57,
+          paid_order_count: 83,
+          valid_certificate_count: 41,
+        },
+      ],
+    });
+
+    await expect(getAdminCourseOverviewSummary(courseId)).resolves.toEqual({
+      activeEnrollmentCount: 57,
+      paidOrderCount: 83,
+      validCertificateCount: 41,
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[1]).toEqual([courseId]);
+    const sql = String(query.mock.calls[0]?.[0])
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    expect(sql).toContain(
+      "count(*)::int from enrollments where course_id = $1 and status = 'active'"
+    );
+    expect(sql).toContain(
+      "count(*)::int from orders where course_id = $1 and status = 'paid'"
+    );
+    expect(sql).toContain(
+      "count(*)::int from certificates where course_id = $1 and status = 'valid'"
+    );
+    expect(sql).not.toMatch(limitKeywordPattern);
+  });
+
+  it("normalizes a missing course overview aggregate row to zero", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await expect(getAdminCourseOverviewSummary(courseId)).resolves.toEqual({
+      activeEnrollmentCount: 0,
+      paidOrderCount: 0,
+      validCertificateCount: 0,
+    });
+  });
+
   it("returns one course detail from records scoped to that course", async () => {
     const rows = [
       [courseRow],
@@ -189,28 +237,6 @@ describe("admin read projections", () => {
           user_id: "user-1",
         },
       ],
-      [
-        {
-          amount_in_cents: 12_900,
-          course_id: courseId,
-          course_title: "Course one",
-          customer_email: "student@example.test",
-          customer_name: "Student",
-          id: "order-1",
-          paid_at: new Date("2026-01-02T00:00:00.000Z"),
-          provider_checkout_id: "provider-order-1",
-          status: "paid",
-        },
-      ],
-      [
-        {
-          code: "CERT-1",
-          course_id: courseId,
-          course_title_snapshot: "Course one",
-          issued_at: new Date("2026-01-03T00:00:00.000Z"),
-          student_name_snapshot: "Student",
-        },
-      ],
     ];
     query.mockImplementation((_sql: string, values: unknown[]) => {
       expect(values).toEqual([courseId]);
@@ -220,29 +246,18 @@ describe("admin read projections", () => {
     const detail = await getAdminCourseDetailData(courseId);
 
     expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
-    expect(query).toHaveBeenCalledTimes(6);
+    expect(query).toHaveBeenCalledTimes(4);
     expect(
       query.mock.calls.find(([sql]) =>
         String(sql).includes("from courses")
       )?.[0]
     ).not.toContain("payment_provider_product_id");
     expect(detail).toMatchObject({
-      certificates: [{ code: "CERT-1", courseId }],
       course: { id: courseId, title: "Course one" },
       enrollments: [{ courseId, id: "enrollment-1" }],
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
-      orders: [
-        {
-          courseId,
-          id: "order-1",
-          providerCheckoutId: "provider-order-1",
-        },
-      ],
     });
-    expect(detail?.orders[0]).not.toHaveProperty(
-      ["providerOrder", "Id"].join("")
-    );
   });
 
   it("returns the failed JMVStream deletion asset for the requested lesson", async () => {
@@ -273,6 +288,10 @@ describe("admin read projections", () => {
     expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
     expect(query).toHaveBeenCalledTimes(2);
     expect(getJmvstreamAssetsForLesson).toHaveBeenCalledWith(lessonId);
+    const lessonEditorSql = String(
+      query.mock.calls.find(([, values]) => values?.length === 2)?.[0]
+    );
+    expect(lessonEditorSql).toContain("cp.status = 'draft'");
     expect(editor).toMatchObject({
       asset: { id: "asset-1" },
       course: { id: courseId },

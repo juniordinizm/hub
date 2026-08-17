@@ -51,6 +51,7 @@ interface CertificateTemplateFieldsProps {
   backgroundPreviewUrl: string | null;
   backgroundSelected: boolean;
   fields: CertificateTemplateField[];
+  formId: string;
   onBackgroundFileSelect: (file: File | null) => void;
   onFieldChange: CertificateFieldChange;
   onFieldInteractionEnd: ((committed: boolean) => void) | undefined;
@@ -251,10 +252,10 @@ const GeometryControl = ({
     <Field className="gap-1.5" data-geometry-control={id}>
       <div className="flex items-center justify-between gap-2">
         <FieldLabel htmlFor={id}>{geometryLabels[keyName]}</FieldLabel>
-        <div className="flex h-7 items-center rounded-md border border-input bg-background px-1">
+        <div className="flex h-10 items-center rounded-md border border-input bg-background px-1 lg:h-7">
           <NumericDraftInput
             aria-label={`${geometryLabels[keyName]} em porcentagem da página A4`}
-            className="h-6 w-12 border-0 bg-transparent px-1 text-right font-mono text-xs shadow-none focus-visible:ring-0"
+            className="h-9 w-12 border-0 bg-transparent px-1 text-right font-mono text-base shadow-none focus-visible:ring-0 lg:h-6 lg:text-xs"
             id={id}
             max={bounds.max}
             min={bounds.min}
@@ -346,6 +347,7 @@ const AlignmentToggle = ({
                 <Button
                   aria-label={option.label}
                   aria-pressed={value === option.value}
+                  className="size-11 lg:size-6"
                   data-alignment-option={option.value}
                   onClick={() => onChange(option.value)}
                   size="icon-xs"
@@ -368,6 +370,7 @@ const AlignmentToggle = ({
 
 const CertificateFieldInspector = ({
   field,
+  formId,
   onFieldChange,
   onFieldInteractionEnd,
   onFieldInteractionStart,
@@ -420,7 +423,8 @@ const CertificateFieldInspector = ({
         >
           <Input
             autoComplete="name"
-            className="h-7 text-xs"
+            className="h-10 text-base lg:h-7 lg:text-xs"
+            form={formId}
             id="certificate-signer-name"
             name="signerName"
             onChange={(event) => onSignerNameChange(event.target.value)}
@@ -433,7 +437,8 @@ const CertificateFieldInspector = ({
         <InlinePropertyRow htmlFor="certificate-signer-role" label="Cargo">
           <Input
             autoComplete="organization-title"
-            className="h-7 text-xs"
+            className="h-10 text-base lg:h-7 lg:text-xs"
+            form={formId}
             id="certificate-signer-role"
             name="signerRole"
             onChange={(event) => onSignerRoleChange(event.target.value)}
@@ -449,6 +454,7 @@ const CertificateFieldInspector = ({
         >
           <CertificateImageUploadField
             compactWhenImage
+            form={formId}
             id="certificate-signature"
             imageName={signatureImageName}
             imageUrl={signaturePreviewUrl}
@@ -511,7 +517,7 @@ const CertificateFieldInspector = ({
               label="Tamanho da fonte"
             >
               <NumericDraftInput
-                className="h-7 text-xs"
+                className="h-10 text-base lg:h-7 lg:text-xs"
                 id={`${field.field}-font-size`}
                 max={72}
                 min={6}
@@ -622,12 +628,14 @@ const CertificateTemplateBackgroundInspector = ({
   backgroundFile,
   backgroundImageName,
   backgroundPreviewUrl,
+  formId,
   onBackgroundFileSelect,
 }: Pick<
   CertificateTemplateFieldsProps,
   | "backgroundFile"
   | "backgroundImageName"
   | "backgroundPreviewUrl"
+  | "formId"
   | "onBackgroundFileSelect"
 >): React.JSX.Element => (
   <section
@@ -649,6 +657,7 @@ const CertificateTemplateBackgroundInspector = ({
     <CertificateImageUploadField
       compact
       compactWhenImage
+      form={formId}
       id="certificate-background"
       imageName={backgroundImageName}
       imageUrl={backgroundPreviewUrl}
@@ -668,6 +677,7 @@ export const CertificateTemplateFields = memo(
     backgroundPreviewUrl,
     backgroundSelected,
     fields,
+    formId,
     onFieldChange,
     onFieldInteractionEnd,
     onFieldInteractionStart,
@@ -689,6 +699,7 @@ export const CertificateTemplateFields = memo(
       inspector = (
         <CertificateFieldInspector
           field={selected}
+          formId={formId}
           onFieldChange={onFieldChange}
           onFieldInteractionEnd={onFieldInteractionEnd}
           onFieldInteractionStart={onFieldInteractionStart}
@@ -709,6 +720,7 @@ export const CertificateTemplateFields = memo(
           backgroundFile={backgroundFile}
           backgroundImageName={backgroundImageName}
           backgroundPreviewUrl={backgroundPreviewUrl}
+          formId={formId}
           onBackgroundFileSelect={onBackgroundFileSelect}
         />
       );
@@ -726,6 +738,7 @@ export const CertificateTemplateFields = memo(
         {backgroundSelected ? null : (
           <div className="hidden">
             <CertificateImageUploadField
+              form={formId}
               id="certificate-background"
               imageUrl={backgroundPreviewUrl}
               kind="background"
@@ -736,10 +749,20 @@ export const CertificateTemplateFields = memo(
           </div>
         )}
         {selectedField === "signerName" ? null : (
-          <input name="signerName" type="hidden" value={signerName} />
+          <input
+            form={formId}
+            name="signerName"
+            type="hidden"
+            value={signerName}
+          />
         )}
         {selectedField === "signerRole" ? null : (
-          <input name="signerRole" type="hidden" value={signerRole} />
+          <input
+            form={formId}
+            name="signerRole"
+            type="hidden"
+            value={signerRole}
+          />
         )}
         {inspector}
       </section>

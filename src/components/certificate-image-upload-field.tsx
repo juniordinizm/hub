@@ -16,6 +16,7 @@ interface CertificateImageUploadFieldProps {
   className?: string;
   compact?: boolean;
   compactWhenImage?: boolean;
+  form?: string;
   id?: string;
   imageName?: string | null | undefined;
   imageUrl: string | null;
@@ -30,6 +31,7 @@ export function CertificateImageUploadField({
   className,
   compact = false,
   compactWhenImage = false,
+  form,
   id,
   imageUrl,
   imageName,
@@ -83,6 +85,7 @@ export function CertificateImageUploadField({
         }
         className="sr-only"
         data-upload-kind={kind}
+        form={form}
         id={id}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];

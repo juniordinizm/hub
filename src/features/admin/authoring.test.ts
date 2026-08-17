@@ -713,6 +713,34 @@ describe("admin authoring", () => {
     ).rejects.toThrow("Prepare alteracoes");
   });
 
+  it("rejects an existing published lesson before processing media or moving it into a draft module", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes(
+          "join course_publications cp on cp.id = l.course_publication_id"
+        )
+      ) {
+        return { rows: [] };
+      }
+
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "published-lesson");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula publicada");
+    formData.set("textDocument", JSON.stringify(textDocument));
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Prepare alteracoes");
+
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("update lessons"))
+    ).toBe(false);
+  });
+
   it("rejects a compatible correction that changes published lesson structure", async () => {
     query.mockImplementation((sql: string) => {
       if (

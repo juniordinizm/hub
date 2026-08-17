@@ -23,6 +23,12 @@ import { Button } from "@/components/ui/button";
 import { CardHeader, CardTitle } from "@/components/ui/card";
 import { FieldError } from "@/components/ui/field";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -47,7 +53,9 @@ import {
 } from "@/features/certificates/template-rules";
 import type { StagedAdminImageReference } from "@/features/storage/staged-image-upload";
 import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useOwnedObjectUrl } from "@/hooks/use-owned-object-url";
+import { certificateTemplateFieldLabels } from "./certificate-template-field-labels";
 import {
   type CertificateFieldChange,
   CertificateTemplateFields,
@@ -70,6 +78,18 @@ const isFittableCertificateField = (
   config: CertificateTemplateField | undefined
 ): boolean =>
   Boolean(config?.visible && field !== "qrCode" && field !== "signatureImage");
+
+const getCertificateInspectorTitle = (
+  backgroundSelected: boolean,
+  selectedField: CertificateField | null
+): string => {
+  if (backgroundSelected) {
+    return "Arte de fundo";
+  }
+  return selectedField
+    ? certificateTemplateFieldLabels[selectedField]
+    : "Propriedades";
+};
 
 export interface CertificateTemplateEditorTemplate {
   backgroundUrl: string;
@@ -266,6 +286,35 @@ const NoPublishableChangesHint = ({
   );
 };
 
+const CertificateTemplateInspector = ({
+  children,
+  disabled,
+  hasPublishableChanges,
+  overlaps,
+  templateFieldError,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  hasPublishableChanges: boolean;
+  overlaps: ReturnType<typeof findCertificateTemplateOverlaps>;
+  templateFieldError: string | undefined;
+}): React.JSX.Element => (
+  <>
+    {overlaps.length > 0 || templateFieldError || !hasPublishableChanges ? (
+      <div className="mb-3 space-y-1.5" data-properties-diagnostics="true">
+        <CertificateTemplateOverlapNotice overlaps={overlaps} />
+        <FieldError>{templateFieldError}</FieldError>
+        <NoPublishableChangesHint
+          hasPublishableChanges={hasPublishableChanges}
+        />
+      </div>
+    ) : null}
+    <fieldset className="flex min-w-0 flex-col gap-3" disabled={disabled}>
+      {children}
+    </fieldset>
+  </>
+);
+
 const selectBackgroundFile = ({
   file,
   setBackgroundFile,
@@ -340,6 +389,7 @@ export function CertificateTemplateForm({
   template: CertificateTemplateEditorTemplate | undefined;
 }): React.JSX.Element {
   const router = useRouter();
+  const isCompact = useMediaQuery("(max-width: 1023px)");
   const backgroundUploadRequestIdRef = useRef(0);
   const signatureUploadRequestIdRef = useRef(0);
   const [fields, setFields] = useState<CertificateTemplateField[]>(() =>
@@ -352,6 +402,7 @@ export function CertificateTemplateForm({
     null
   );
   const [backgroundSelected, setBackgroundSelected] = useState(false);
+  const [propertiesSheetOpen, setPropertiesSheetOpen] = useState(false);
   const fieldInteractionSnapshotRef = useRef<CertificateTemplateField[] | null>(
     null
   );
@@ -399,14 +450,23 @@ export function CertificateTemplateForm({
     id: number;
   } | null>(null);
 
-  const selectField = useCallback((field: CertificateField | null): void => {
-    setBackgroundSelected(false);
-    setSelectedField(field);
-  }, []);
+  const selectField = useCallback(
+    (field: CertificateField | null): void => {
+      setBackgroundSelected(false);
+      setSelectedField(field);
+      if (field && isCompact) {
+        setPropertiesSheetOpen(true);
+      }
+    },
+    [isCompact]
+  );
   const selectBackground = useCallback((): void => {
     setSelectedField(null);
     setBackgroundSelected(true);
-  }, []);
+    if (isCompact) {
+      setPropertiesSheetOpen(true);
+    }
+  }, [isCompact]);
 
   const [saveState, saveAction, isSaving] = useActionState(
     saveCertificateTemplateDraftFormAction,
@@ -749,6 +809,41 @@ export function CertificateTemplateForm({
       updateFieldGeometry,
     ]
   );
+  const inspectorTitle = getCertificateInspectorTitle(
+    backgroundSelected,
+    selectedField
+  );
+  const inspector = (
+    <CertificateTemplateInspector
+      disabled={isBusy}
+      hasPublishableChanges={hasPublishableChanges}
+      overlaps={overlaps}
+      templateFieldError={templateFieldError}
+    >
+      <CertificateTemplateFields
+        backgroundFile={backgroundFile}
+        backgroundImageName={backgroundImageName}
+        backgroundPreviewUrl={backgroundPreviewUrl}
+        backgroundSelected={backgroundSelected}
+        fields={fields}
+        formId={CERTIFICATE_TEMPLATE_FORM_ID}
+        onBackgroundFileSelect={handleBackgroundFileSelect}
+        onFieldChange={updateField}
+        onFieldInteractionEnd={endFieldInteraction}
+        onFieldInteractionStart={beginFieldInteraction}
+        onFieldSelect={selectField}
+        onSignatureFileSelect={handleSignatureFileSelect}
+        onSignerNameChange={handleSignerNameChange}
+        onSignerRoleChange={handleSignerRoleChange}
+        selectedField={selectedField}
+        signatureFile={signatureFile}
+        signatureImageName={signatureImageName}
+        signaturePreviewUrl={signaturePreviewUrl}
+        signerName={signerName}
+        signerRole={signerRole}
+      />
+    </CertificateTemplateInspector>
+  );
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -852,6 +947,7 @@ export function CertificateTemplateForm({
                     <PreviewToolbarTooltip label="Desfazer">
                       <Button
                         aria-label="Desfazer última alteração"
+                        className="size-11 lg:size-6"
                         disabled={undoCount === 0 || isBusy}
                         onClick={undoLastFieldInteraction}
                         size="icon-xs"
@@ -865,6 +961,7 @@ export function CertificateTemplateForm({
                     <PreviewToolbarTooltip label="Centralizar horizontalmente no A4">
                       <Button
                         aria-label="Centralizar horizontalmente no A4"
+                        className="size-11 lg:size-6"
                         disabled={!selectedField || isBusy}
                         onClick={() => {
                           if (!selectedField) {
@@ -894,6 +991,7 @@ export function CertificateTemplateForm({
                     <PreviewToolbarTooltip label="Centralizar verticalmente no A4">
                       <Button
                         aria-label="Centralizar verticalmente no A4"
+                        className="size-11 lg:size-6"
                         disabled={!selectedField || isBusy}
                         onClick={() => {
                           if (!selectedField) {
@@ -923,6 +1021,7 @@ export function CertificateTemplateForm({
                     <PreviewToolbarTooltip label="Ajustar ao conteúdo">
                       <Button
                         aria-label="Ajustar tamanho ao conteúdo"
+                        className="size-11 lg:size-6"
                         disabled={!canFitSelectedField || isBusy}
                         onClick={requestFitContent}
                         size="icon-xs"
@@ -947,6 +1046,7 @@ export function CertificateTemplateForm({
                   />
                   <Button
                     aria-pressed={previewVariant === "long"}
+                    className="h-11 lg:h-6"
                     data-preview-sample-toggle="true"
                     onClick={() =>
                       setPreviewVariant((current) =>
@@ -984,56 +1084,37 @@ export function CertificateTemplateForm({
               </div>
             </section>
 
-            <section
-              className="flex min-h-0 min-w-0 flex-col"
-              data-properties-panel="true"
-            >
-              <header className="flex h-9 shrink-0 items-center border-b px-3">
-                <h3 className="font-semibold text-sm">Propriedades</h3>
-              </header>
-              <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2">
-                {overlaps.length > 0 ||
-                templateFieldError ||
-                !hasPublishableChanges ? (
-                  <div
-                    className="mb-3 space-y-1.5"
-                    data-properties-diagnostics="true"
-                  >
-                    <CertificateTemplateOverlapNotice overlaps={overlaps} />
-                    <FieldError>{templateFieldError}</FieldError>
-                    <NoPublishableChangesHint
-                      hasPublishableChanges={hasPublishableChanges}
-                    />
-                  </div>
-                ) : null}
-                <fieldset
-                  className="flex min-w-0 flex-col gap-3"
-                  disabled={isBusy}
+            {isCompact ? (
+              <Sheet
+                onOpenChange={setPropertiesSheetOpen}
+                open={propertiesSheetOpen}
+              >
+                <SheetContent
+                  className="max-h-[85dvh] [&_[data-slot=sheet-close]]:size-11"
+                  data-mobile-properties-sheet="true"
+                  side="bottom"
                 >
-                  <CertificateTemplateFields
-                    backgroundFile={backgroundFile}
-                    backgroundImageName={backgroundImageName}
-                    backgroundPreviewUrl={backgroundPreviewUrl}
-                    backgroundSelected={backgroundSelected}
-                    fields={fields}
-                    onBackgroundFileSelect={handleBackgroundFileSelect}
-                    onFieldChange={updateField}
-                    onFieldInteractionEnd={endFieldInteraction}
-                    onFieldInteractionStart={beginFieldInteraction}
-                    onFieldSelect={selectField}
-                    onSignatureFileSelect={handleSignatureFileSelect}
-                    onSignerNameChange={handleSignerNameChange}
-                    onSignerRoleChange={handleSignerRoleChange}
-                    selectedField={selectedField}
-                    signatureFile={signatureFile}
-                    signatureImageName={signatureImageName}
-                    signaturePreviewUrl={signaturePreviewUrl}
-                    signerName={signerName}
-                    signerRole={signerRole}
-                  />
-                </fieldset>
-              </div>
-            </section>
+                  <SheetHeader className="border-b px-4 py-4 pr-14">
+                    <SheetTitle>{inspectorTitle}</SheetTitle>
+                  </SheetHeader>
+                  <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4">
+                    {inspector}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            ) : (
+              <section
+                className="flex min-h-0 min-w-0 flex-col"
+                data-properties-panel="true"
+              >
+                <header className="flex h-9 shrink-0 items-center border-b px-3">
+                  <h3 className="font-semibold text-sm">Propriedades</h3>
+                </header>
+                <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-2">
+                  {inspector}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </form>

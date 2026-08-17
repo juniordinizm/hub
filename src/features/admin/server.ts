@@ -128,6 +128,12 @@ export interface AdminCourse {
   workloadHoursOverride: number | null;
 }
 
+export interface AdminCourseOverviewSummary {
+  activeEnrollmentCount: number;
+  paidOrderCount: number;
+  validCertificateCount: number;
+}
+
 export interface AdminEnrollment {
   courseId: string;
   courseTitle: string;
@@ -491,7 +497,7 @@ const readLessonEditor = async ({
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
       join course_publications cp on cp.id = l.course_publication_id
-      where m.course_id = $1 and l.id = $2
+      where m.course_id = $1 and l.id = $2 and cp.status = 'draft'
       limit 1
     `,
     [courseId, lessonId]
@@ -995,26 +1001,47 @@ export const getAdminFinancialData = async (
   return { certificates, coursesRevenue, orders, paymentReviews };
 };
 
+export const getAdminCourseOverviewSummary = async (
+  courseId: string
+): Promise<AdminCourseOverviewSummary> => {
+  await requireAdminReadAccess();
+  const { rows } = await getPool().query<{
+    active_enrollment_count: number;
+    paid_order_count: number;
+    valid_certificate_count: number;
+  }>(
+    `
+      select
+        (select count(*)::int from enrollments where course_id = $1 and status = 'active') as active_enrollment_count,
+        (select count(*)::int from orders where course_id = $1 and status = 'paid') as paid_order_count,
+        (select count(*)::int from certificates where course_id = $1 and status = 'valid') as valid_certificate_count
+    `,
+    [courseId]
+  );
+  const row = rows[0];
+
+  return {
+    activeEnrollmentCount: row?.active_enrollment_count ?? 0,
+    paidOrderCount: row?.paid_order_count ?? 0,
+    validCertificateCount: row?.valid_certificate_count ?? 0,
+  };
+};
+
 export const getAdminCourseDetailData = async (
   courseId: string
 ): Promise<{
-  certificates: AdminCertificate[];
   course: AdminCourse;
   enrollments: AdminEnrollment[];
   lessons: AdminLesson[];
   modules: AdminModule[];
-  orders: AdminOrder[];
 } | null> => {
   await requireAdminReadAccess();
-  const [courses, modules, lessons, enrollments, orders, certificates] =
-    await Promise.all([
-      readCourses(courseId),
-      readModules(courseId),
-      readLessons(courseId),
-      readEnrollments(courseId),
-      readOrders(courseId),
-      readCertificates(courseId),
-    ]);
+  const [courses, modules, lessons, enrollments] = await Promise.all([
+    readCourses(courseId),
+    readModules(courseId),
+    readLessons(courseId),
+    readEnrollments(courseId),
+  ]);
   const course = courses[0];
 
   if (!course) {
@@ -1022,12 +1049,10 @@ export const getAdminCourseDetailData = async (
   }
 
   return {
-    certificates,
     course,
     enrollments,
     lessons,
     modules,
-    orders,
   };
 };
 

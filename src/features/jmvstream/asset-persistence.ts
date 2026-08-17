@@ -80,7 +80,8 @@ export const getJmvstreamLessonContext = async (
       from lessons l
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
-      where l.id = $1
+      join course_publications cp on cp.id = l.course_publication_id
+      where l.id = $1 and cp.status = 'draft'
       limit 1
     `,
     [lessonId]
@@ -338,7 +339,8 @@ export const getJmvstreamLessonVideo = async (
       select m.course_id, l.video_external_id
       from lessons l
       join modules m on m.id = l.module_id
-      where l.id = $1
+      join course_publications cp on cp.id = l.course_publication_id
+      where l.id = $1 and cp.status = 'draft'
       limit 1
     `,
     [lessonId]

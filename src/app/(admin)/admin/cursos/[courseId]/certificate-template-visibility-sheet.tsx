@@ -54,6 +54,7 @@ export function CertificateTemplateVisibilitySheet({
   const triggerButton = (
     <Button
       aria-label={`Campos visíveis: ${visibleCount} de ${fields.length}`}
+      className={compact ? "size-11 lg:size-6" : undefined}
       data-visibility-trigger="true"
       size={compact ? "icon-xs" : "xs"}
       type="button"

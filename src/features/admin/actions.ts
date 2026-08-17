@@ -190,26 +190,62 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
+export type CoursePublicationActionResult =
+  | { ok: true }
+  | { message: string; ok: false };
+
+const getCoursePublicationActionError = (
+  error: unknown,
+  fallback: string
+): CoursePublicationActionResult => ({
+  message: error instanceof Error ? error.message : fallback,
+  ok: false,
+});
+
 export const createCoursePublicationDraftAction = async (
   courseId: string
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  await createCoursePublicationDraft({
-    actorUserId: session.user.id,
-    courseId,
-  });
-  revalidateAdmin();
+): Promise<CoursePublicationActionResult> => {
+  try {
+    const session = await requireRole(["admin"]);
+    await createCoursePublicationDraft({
+      actorUserId: session.user.id,
+      courseId,
+    });
+    revalidateAdmin();
+    return { ok: true };
+  } catch (error) {
+    return getCoursePublicationActionError(
+      error,
+      "Não foi possível preparar as alterações. Tente novamente."
+    );
+  }
 };
 
 export const publishCoursePublicationAction = async (
   courseId: string
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  await publishCoursePublication({
-    actorUserId: session.user.id,
-    courseId,
-  });
-  revalidateAdmin();
+): Promise<CoursePublicationActionResult> => {
+  try {
+    const session = await requireRole(["admin"]);
+    const result = await publishCoursePublication({
+      actorUserId: session.user.id,
+      courseId,
+    });
+
+    if (result === "no_draft") {
+      return {
+        message: "Não há alterações em preparo para publicar.",
+        ok: false,
+      };
+    }
+
+    revalidateAdmin();
+    return { ok: true };
+  } catch (error) {
+    return getCoursePublicationActionError(
+      error,
+      "Não foi possível publicar as alterações. Tente novamente."
+    );
+  }
 };
 
 export const saveModuleAction = async (formData: FormData): Promise<void> => {
