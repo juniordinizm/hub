@@ -109,7 +109,7 @@ export const getAdminCourseOverviewSummary = async (
 
 - [x] **Step 6: Verify GREEN.** Re-run both focused tests. Expected: projection and page tests pass without any count depending on a 40-row limit.
 
-- [ ] **Step 7: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 7: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/features/admin/server.ts" "src/features/admin/server-read-projections.test.ts" "src/app/(admin)/admin/cursos/[courseId]/page.test.tsx"
@@ -190,7 +190,7 @@ The function receives the already-derived `CoursePurchaseLink`, so price and env
 
 - [x] **Step 4: Verify state priority and copy.** Re-run the focused presentation test; expected all previous content-signal tests and new operational-state tests pass.
 
-- [ ] **Step 5: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 5: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/features/admin/presentation.ts" "src/features/admin/presentation.test.ts"
@@ -269,7 +269,7 @@ Use `value={normalizeCourseTab(searchParams.get("tab"))}` on Tabs. Give the list
 
 - [x] **Step 6: Verify GREEN.** Run shell and page tests. Expected: URL state, default fallback, back/forward, five panel labels, and mounted hidden Certificate all pass.
 
-- [ ] **Step 7: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 7: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/app/(admin)/admin/cursos/[courseId]/course-management-tabs.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-management-tabs.test.tsx" "src/app/(admin)/admin/cursos/[courseId]/page.tsx" "src/app/(admin)/admin/cursos/[courseId]/page.test.tsx"
@@ -314,7 +314,7 @@ Expected: `CourseOverview` does not exist.
 
 - [x] **Step 6: Verify GREEN.** Re-run Overview and page tests; expected semantic `h2`, one actionable state, three exact metrics, and no capped list-derived counts.
 
-- [ ] **Step 7: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 7: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/app/(admin)/admin/cursos/[courseId]/course-overview.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-overview.test.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx" "src/app/(admin)/admin/cursos/[courseId]/page.tsx"
@@ -356,7 +356,7 @@ Expected: `CourseContentPanel` does not exist.
 
 - [x] **Step 6: Verify GREEN.** Re-run content panel and page tests; expected publication actions exist only inside Content and empty states always offer one valid next step.
 
-- [ ] **Step 7: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 7: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/app/(admin)/admin/cursos/[courseId]/course-content-panel.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-content-panel.test.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx" "src/app/(admin)/admin/cursos/[courseId]/page.tsx"
@@ -406,7 +406,7 @@ Expected: Modules are always open and Lessons still render as table cells.
 
 - [x] **Step 9: Verify GREEN.** Run component, reorder, and content panel tests. Expected: no Course Lesson table, accessible expansion and drag controls, unchanged reorder payloads, rollback on failure, and no fixed-width overflow contract.
 
-- [ ] **Step 10: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 10: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.test.tsx" "src/components/course-builder-dnd.tsx" "src/components/sortable-list.tsx" "src/components/course-builder-reorder.test.ts"
@@ -470,7 +470,7 @@ Expected: no media-query hook and no compact properties Sheet.
 
 - [x] **Step 8: Verify GREEN and regression behavior.** Re-run the full Certificate editor test. Expected: compact Sheet tests and all current save, publish, upload, overlap, keyboard, and beforeunload tests pass.
 
-- [ ] **Step 9: Checkpoint commit only after explicit user authorization.**
+- [x] **Step 9: Checkpoint commit only after explicit user authorization.**
 
 ```powershell
 git add -- "src/hooks/use-media-query.ts" "src/hooks/use-media-query.test.tsx" "src/app/(admin)/admin/cursos/[courseId]/certificate-template-form.tsx" "src/app/(admin)/admin/cursos/[courseId]/certificate-template-fields.tsx" "src/app/(admin)/admin/cursos/[courseId]/certificate-template-editor.test.tsx"
@@ -484,7 +484,7 @@ git commit -m "refactor(admin): adapt certificate inspector for mobile"
 - Modify: `docs/superpowers/plans/2026-08-16-course-management-tabs-refactor.md`
 - Verify all files changed in Tasks 1–7
 
-- [ ] **Step 1: Update implementation evidence.** Set the specification's `last_verified_commit` only after the final implementation commit exists. Check completed plan boxes only after their decisive commands pass.
+- [x] **Step 1: Update implementation evidence.** Set the specification's `last_verified_commit` only after the final implementation commit exists. Check completed plan boxes only after their decisive commands pass.
 
 - [x] **Step 2: Run formatting and static checks.**
 

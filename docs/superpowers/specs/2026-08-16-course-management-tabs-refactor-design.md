@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 4b5be00
+last_verified_commit: b7df5b6
 ---
 
 # Refinamento das abas de gerenciamento de Curso
