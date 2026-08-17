@@ -21,8 +21,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,14 +33,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import {
   getEffectiveMaxInstallmentCount,
   MAX_INSTALLMENT_COUNT,
+  MIN_INSTALLMENT_COUNT,
 } from "@/features/payments/course-payment-offer";
 import { parseCoursePriceToCents } from "@/features/payments/course-price";
 import { formatCurrencyInCents } from "@/lib/formatters";
+import { CourseWorkloadDialog } from "./course-workload-dialog";
 
 export interface CourseData {
   accessDurationMonths: number;
@@ -64,6 +68,11 @@ interface PendingPriceChange {
   priceInCents: number;
 }
 
+const INSTALLMENT_OPTIONS = Array.from(
+  { length: MAX_INSTALLMENT_COUNT },
+  (_, index) => index + MIN_INSTALLMENT_COUNT
+);
+
 export function CourseSettingsForm({
   course,
 }: {
@@ -72,20 +81,53 @@ export function CourseSettingsForm({
   const [isPending, startTransition] = useTransition();
   const [pendingPriceChange, setPendingPriceChange] =
     useState<PendingPriceChange | null>(null);
-  const effectiveMaxInstallmentCount = getEffectiveMaxInstallmentCount({
-    configuredMaxInstallmentCount: course.paymentMaxInstallmentCount,
-    priceInCents: course.priceInCents,
+  const [priceValue, setPriceValue] = useState(() =>
+    formatCurrencyInCents(course.priceInCents)
+  );
+  const [workloadHoursOverride, setWorkloadHoursOverride] = useState(
+    course.workloadHoursOverride?.toString() ?? ""
+  );
+  const [paymentAllowPix, setPaymentAllowPix] = useState(
+    course.paymentAllowPix
+  );
+  const [paymentAllowCreditCard, setPaymentAllowCreditCard] = useState(
+    course.paymentAllowCreditCard
+  );
+  const [paymentMaxInstallmentCount, setPaymentMaxInstallmentCount] = useState(
+    course.paymentMaxInstallmentCount.toString()
+  );
+  const manualWorkloadHours = workloadHoursOverride
+    ? Number(workloadHoursOverride)
+    : null;
+  const configuredInstallmentCount = Number(paymentMaxInstallmentCount);
+  const validInstallmentCount = Number.isFinite(configuredInstallmentCount)
+    ? configuredInstallmentCount
+    : MIN_INSTALLMENT_COUNT;
+  const priceInCentsForInstallments = (() => {
+    try {
+      return parseCoursePriceToCents(priceValue);
+    } catch {
+      return course.priceInCents;
+    }
+  })();
+  const maxInstallmentsAllowedByPrice = getEffectiveMaxInstallmentCount({
+    configuredMaxInstallmentCount: MAX_INSTALLMENT_COUNT,
+    priceInCents: priceInCentsForInstallments,
   });
+  const effectiveMaxInstallmentCount = Math.min(
+    validInstallmentCount,
+    maxInstallmentsAllowedByPrice
+  );
 
   const saveCourseSettings = (formData: FormData): void => {
-    const toastId = toast.loading("Salvando configuracoes...");
+    const toastId = toast.loading("Salvando configurações…");
 
     startTransition(async () => {
       try {
         await saveCourseAction(formData);
-        toast.success("Configuracoes salvas com sucesso!", { id: toastId });
+        toast.success("Configurações salvas com sucesso!", { id: toastId });
       } catch {
-        toast.error("Nao foi possivel salvar o curso.", { id: toastId });
+        toast.error("Não foi possível salvar o curso.", { id: toastId });
       }
     });
   };
@@ -112,169 +154,223 @@ export function CourseSettingsForm({
 
   return (
     <>
-      <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+      <form className="flex flex-col gap-8" onSubmit={handleSubmit}>
         <fieldset className="contents" disabled={isPending}>
-          <FieldGroup>
-            <input name="courseId" type="hidden" value={course.id} />
+          <input name="courseId" type="hidden" value={course.id} />
+          <input
+            name="workloadHoursOverride"
+            type="hidden"
+            value={workloadHoursOverride}
+          />
 
-            <div className="grid gap-x-8 gap-y-5 sm:grid-cols-[auto_1fr]">
-              <Field className="row-span-2">
-                <CourseCoverUploadField
-                  aggregateId={course.id}
-                  defaultCoverImage={course.coverImage}
-                  defaultThumbnailUrl={course.thumbnailUrl}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Titulo</FieldLabel>
-                <Input defaultValue={course.title} name="title" required />
-              </Field>
-              <Field>
-                <FieldLabel>Subtitulo</FieldLabel>
-                <Input defaultValue={course.subtitle ?? ""} name="subtitle" />
-              </Field>
-            </div>
-
-            <Field>
-              <FieldLabel>Descricao</FieldLabel>
-              <Textarea
-                className="min-h-24 resize-y"
-                defaultValue={course.description ?? ""}
-                name="description"
-              />
-            </Field>
-
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <div className="mb-3">
-                <h3 className="font-medium text-sm">Carga horária exibida</h3>
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Deixe vazio para calcular automaticamente pela soma das aulas.
-                  O valor definido aqui aparece para os alunos e nos próximos
-                  certificados.
-                </p>
-              </div>
-              <Field className="max-w-xs gap-2">
-                <FieldLabel htmlFor="course-settings-workload-hours">
-                  Horas do curso
-                </FieldLabel>
-                <Input
-                  defaultValue={course.workloadHoursOverride ?? ""}
-                  id="course-settings-workload-hours"
-                  inputMode="numeric"
-                  min={0}
-                  name="workloadHoursOverride"
-                  placeholder={`Automática: ${course.workloadHours} horas`}
-                  type="number"
-                />
-                <FieldDescription>
-                  Cálculo atual: {course.workloadHours}{" "}
-                  {course.workloadHours === 1 ? "hora" : "horas"}.
-                </FieldDescription>
-              </Field>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-3">
-              <Field>
-                <FieldLabel htmlFor="course-settings-price">
-                  Preco do curso
-                </FieldLabel>
-                <Input
-                  defaultValue={formatCurrencyInCents(course.priceInCents)}
-                  id="course-settings-price"
-                  name="price"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Meses de acesso</FieldLabel>
-                <Input
-                  defaultValue={course.accessDurationMonths ?? 12}
-                  min={1}
-                  name="accessDurationMonths"
-                  type="number"
-                />
-              </Field>
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <Select defaultValue={course.status ?? "draft"} name="status">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Rascunho</SelectItem>
-                    <SelectItem value="active">Publicado</SelectItem>
-                    <SelectItem value="archived">Arquivado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-
-            <div className="rounded-lg border p-4">
-              <input name="paymentOfferPresent" type="hidden" value="on" />
-              <div>
-                <h3 className="font-medium">Oferta de pagamento</h3>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  O Checkout Asaas aplica estas opcoes somente às novas compras.
-                </p>
-              </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <Field orientation="horizontal">
-                  <Checkbox
-                    defaultChecked={course.paymentAllowPix}
-                    id="course-payment-pix"
-                    name="paymentAllowPix"
+          <div className="flex flex-col gap-8">
+            <section className="space-y-5">
+              <h3 className="font-medium text-base">Identidade do curso</h3>
+              <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
+                <Field>
+                  <CourseCoverUploadField
+                    aggregateId={course.id}
+                    defaultCoverImage={course.coverImage}
+                    defaultThumbnailUrl={course.thumbnailUrl}
                   />
-                  <FieldLabel htmlFor="course-payment-pix">
-                    Aceitar Pix
-                  </FieldLabel>
                 </Field>
-                <Field orientation="horizontal">
-                  <Checkbox
-                    defaultChecked={course.paymentAllowCreditCard}
-                    id="course-payment-card"
-                    name="paymentAllowCreditCard"
-                  />
-                  <FieldLabel htmlFor="course-payment-card">
-                    Aceitar cartao
+                <div className="grid gap-5">
+                  <Field>
+                    <FieldLabel htmlFor="course-settings-title">
+                      Título
+                    </FieldLabel>
+                    <Input
+                      defaultValue={course.title}
+                      id="course-settings-title"
+                      name="title"
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="course-settings-subtitle">
+                      Subtítulo
+                    </FieldLabel>
+                    <Input
+                      defaultValue={course.subtitle ?? ""}
+                      id="course-settings-subtitle"
+                      name="subtitle"
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="course-settings-description">
+                      Descrição
+                    </FieldLabel>
+                    <Textarea
+                      className="min-h-24 resize-y"
+                      defaultValue={course.description ?? ""}
+                      id="course-settings-description"
+                      name="description"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-5">
+              <h3 className="font-medium text-base">Acesso e publicação</h3>
+              <div className="grid max-w-2xl gap-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="course-settings-workload">
+                    Carga horária
                   </FieldLabel>
+                  <CourseWorkloadDialog
+                    calculatedHours={course.workloadHours}
+                    compact
+                    onValueChange={(value) => {
+                      setWorkloadHoursOverride(value?.toString() ?? "");
+                    }}
+                    triggerId="course-settings-workload"
+                    value={manualWorkloadHours}
+                  />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="course-payment-installments">
-                    Maximo de parcelas
+                  <FieldLabel htmlFor="course-settings-access-duration">
+                    Meses de acesso
                   </FieldLabel>
                   <Input
-                    defaultValue={course.paymentMaxInstallmentCount}
-                    id="course-payment-installments"
-                    max={MAX_INSTALLMENT_COUNT}
+                    defaultValue={course.accessDurationMonths ?? 12}
+                    id="course-settings-access-duration"
                     min={1}
-                    name="paymentMaxInstallmentCount"
-                    required
+                    name="accessDurationMonths"
                     type="number"
                   />
                 </Field>
               </div>
-              <p className="mt-3 text-muted-foreground text-xs">
-                O Checkout hospedado nao permite definir, por compra, quem paga
-                os juros do parcelamento. Taxas e recebimento seguem o contrato
-                da conta Asaas.
+            </section>
+
+            <Separator />
+
+            <section className="space-y-5">
+              <h3 className="font-medium text-base">Oferta de pagamento</h3>
+              <input name="paymentOfferPresent" type="hidden" value="on" />
+              <Field className="max-w-sm">
+                <FieldLabel htmlFor="course-settings-price">
+                  Preço do curso
+                </FieldLabel>
+                <Input
+                  id="course-settings-price"
+                  inputMode="decimal"
+                  name="price"
+                  onChange={(event) => {
+                    setPriceValue(event.currentTarget.value);
+                  }}
+                  required
+                  value={priceValue}
+                />
+              </Field>
+              <FieldSet className="max-w-2xl gap-3">
+                <FieldLegend variant="label">Formas de pagamento</FieldLegend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      checked={paymentAllowPix}
+                      disabled={!paymentAllowCreditCard}
+                      id="course-payment-pix"
+                      name="paymentAllowPix"
+                      onCheckedChange={(checked) => {
+                        if (checked === false && !paymentAllowCreditCard) {
+                          return;
+                        }
+                        setPaymentAllowPix(checked === true);
+                      }}
+                    />
+                    <FieldLabel htmlFor="course-payment-pix">
+                      Aceitar Pix
+                    </FieldLabel>
+                  </Field>
+                  <Field orientation="horizontal">
+                    <Checkbox
+                      checked={paymentAllowCreditCard}
+                      disabled={!paymentAllowPix}
+                      id="course-payment-card"
+                      name="paymentAllowCreditCard"
+                      onCheckedChange={(checked) => {
+                        if (checked === false && !paymentAllowPix) {
+                          return;
+                        }
+                        setPaymentAllowCreditCard(checked === true);
+                      }}
+                    />
+                    <FieldLabel htmlFor="course-payment-card">
+                      Aceitar cartão
+                    </FieldLabel>
+                  </Field>
+                </div>
+              </FieldSet>
+              <Field className="max-w-sm">
+                <FieldLabel htmlFor="course-payment-installments">
+                  Máximo de parcelas
+                </FieldLabel>
+                <Select
+                  disabled={!paymentAllowCreditCard}
+                  name="paymentMaxInstallmentCount"
+                  onValueChange={setPaymentMaxInstallmentCount}
+                  required={paymentAllowCreditCard}
+                  value={paymentMaxInstallmentCount}
+                >
+                  <SelectTrigger id="course-payment-installments">
+                    <SelectValue placeholder="Selecione o limite" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INSTALLMENT_OPTIONS.map((installmentCount) => (
+                      <SelectItem
+                        disabled={
+                          installmentCount > maxInstallmentsAllowedByPrice
+                        }
+                        key={installmentCount}
+                        value={installmentCount.toString()}
+                      >
+                        {installmentCount}x
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {paymentAllowCreditCard
+                    ? `O preço atual permite até ${maxInstallmentsAllowedByPrice}x por causa do valor mínimo por parcela.`
+                    : "Ative o cartão para configurar o limite de parcelas."}
+                </FieldDescription>
+              </Field>
+              <p className="max-w-2xl text-muted-foreground text-sm">
+                O Checkout Asaas aplica estas opções somente às novas compras.
+                Taxas e recebimento seguem o contrato da conta Asaas.
               </p>
-              {course.paymentAllowCreditCard &&
-              effectiveMaxInstallmentCount <
-                course.paymentMaxInstallmentCount ? (
-                <p className="mt-2 text-amber-700 text-xs">
-                  Pelo preco atual, o Checkout sera limitado a{" "}
-                  {effectiveMaxInstallmentCount}x. A configuracao de{" "}
-                  {course.paymentMaxInstallmentCount}x continua salva para
-                  futuros reajustes de preco.
+              {paymentAllowCreditCard &&
+              effectiveMaxInstallmentCount < validInstallmentCount ? (
+                <p className="max-w-2xl text-amber-700 text-sm">
+                  Pelo preço atual, o Checkout será limitado a{" "}
+                  {effectiveMaxInstallmentCount}x. A configuração de{" "}
+                  {validInstallmentCount}x continua salva para futuros reajustes
+                  de preço.
                 </p>
               ) : null}
-            </div>
-          </FieldGroup>
+            </section>
+          </div>
 
-          <div className="mt-2 flex justify-end">
+          <div className="flex flex-col gap-5 border-t pt-6 sm:flex-row sm:items-end sm:justify-between">
+            <Field className="w-full sm:max-w-xs">
+              <FieldLabel htmlFor="course-settings-status">Status</FieldLabel>
+              <Select defaultValue={course.status ?? "draft"} name="status">
+                <SelectTrigger id="course-settings-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Rascunho</SelectItem>
+                  <SelectItem value="active">Publicado</SelectItem>
+                  <SelectItem value="archived">Arquivado</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <Button disabled={isPending} type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-              {isPending ? "Salvando..." : "Salvar configuracoes"}
+              {isPending ? "Salvando…" : "Salvar configurações"}
             </Button>
           </div>
         </fieldset>

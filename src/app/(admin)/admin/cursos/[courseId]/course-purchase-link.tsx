@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { CopyLinkIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CoursePurchaseLink as CoursePurchaseLinkValue } from "@/features/payments/course-purchase-link";
@@ -9,10 +12,10 @@ const unavailableMessages: Record<
   Extract<CoursePurchaseLinkValue, { available: false }>["reason"],
   string
 > = {
-  checkout_disabled: "o checkout publico esta desativado",
-  course_inactive: "o curso nao esta ativo",
-  course_unpublished: "o curso ainda nao possui uma publicacao publicada",
-  invalid_price: "o preco nao atende ao minimo do checkout",
+  checkout_disabled: "o checkout público está desativado",
+  course_inactive: "o curso não está ativo",
+  course_unpublished: "o curso ainda não possui uma publicação publicada",
+  invalid_price: "o preço não atende ao mínimo do checkout",
 };
 
 export function CoursePurchaseLink({
@@ -22,8 +25,6 @@ export function CoursePurchaseLink({
 }): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(false);
-  const [feedback, setFeedback] = useState("");
-
   useEffect(() => {
     mountedRef.current = true;
 
@@ -34,8 +35,8 @@ export function CoursePurchaseLink({
 
   if (!link.available) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Link publico indisponivel: {unavailableMessages[link.reason]} (
+      <p className="max-w-xs text-right text-muted-foreground text-xs">
+        Checkout público indisponível: {unavailableMessages[link.reason]} (
         <code>{link.reason}</code>).
       </p>
     );
@@ -48,8 +49,8 @@ export function CoursePurchaseLink({
 
     inputRef.current?.focus();
     inputRef.current?.select();
-    setFeedback(
-      "Nao foi possivel copiar automaticamente. O link foi selecionado; pressione Ctrl+C para copiar."
+    toast.error(
+      "Não foi possível copiar automaticamente. O link foi selecionado; pressione Ctrl+C para copiar."
     );
   };
 
@@ -62,7 +63,7 @@ export function CoursePurchaseLink({
     try {
       await navigator.clipboard.writeText(link.url);
       if (mountedRef.current) {
-        setFeedback("Link copiado.");
+        toast.success("Link público copiado.");
       }
     } catch {
       selectLinkForManualCopy();
@@ -70,25 +71,30 @@ export function CoursePurchaseLink({
   };
 
   return (
-    <div className="space-y-2">
-      <label className="font-medium text-sm" htmlFor="course-purchase-link">
-        Link publico de compra
-      </label>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Input
-          className="font-mono text-xs"
-          id="course-purchase-link"
-          readOnly
-          ref={inputRef}
-          value={link.url}
+    <div className="flex flex-col items-start gap-1.5 sm:items-end">
+      <Button
+        aria-label="Copiar link público"
+        onClick={handleCopy}
+        size="sm"
+        type="button"
+        variant="outline"
+      >
+        <HugeiconsIcon
+          aria-hidden="true"
+          icon={CopyLinkIcon}
+          size={16}
+          strokeWidth={2}
         />
-        <Button onClick={handleCopy} type="button" variant="outline">
-          Copiar link
-        </Button>
-      </div>
-      <p aria-live="polite" className="text-muted-foreground text-sm">
-        {feedback}
-      </p>
+        Link público
+      </Button>
+      <Input
+        aria-label="Link público de compra"
+        className="sr-only"
+        id="course-purchase-link"
+        readOnly
+        ref={inputRef}
+        value={link.url}
+      />
     </div>
   );
 }

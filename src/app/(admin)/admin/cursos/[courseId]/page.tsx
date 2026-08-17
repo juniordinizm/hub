@@ -10,6 +10,13 @@ import { notFound } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -311,22 +318,26 @@ export default async function AdminCourseDetailPage({
             </section>
           </TabsContent>
 
-          <TabsContent className="space-y-5" value="settings">
-            <section className="rounded-lg border bg-card p-5">
-              <div className="mb-6 border-b pb-4">
-                <h2 className="font-semibold text-xl">
-                  Configurações do curso
-                </h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  Dados que aparecem para o aluno e conectam o curso ao checkout
-                  externo.
-                </p>
-              </div>
-              <div className="mb-6 border-b pb-6">
-                <CoursePurchaseLink link={purchaseLink} />
-              </div>
-              <CourseSettingsForm course={course} />
-            </section>
+          <TabsContent className="space-y-6" value="settings">
+            <Card>
+              <CardHeader className="border-b">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="max-w-2xl space-y-1">
+                    <CardTitle as="h2" className="text-xl">
+                      Configurações do curso
+                    </CardTitle>
+                    <CardDescription>
+                      Dados que aparecem para o aluno e conectam o curso ao
+                      checkout externo.
+                    </CardDescription>
+                  </div>
+                  <CoursePurchaseLink link={purchaseLink} />
+                </div>
+              </CardHeader>
+              <CardContent className="py-2 sm:py-4">
+                <CourseSettingsForm course={course} />
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent className="space-y-5" value="certificate">
             <CertificateTemplateEditor

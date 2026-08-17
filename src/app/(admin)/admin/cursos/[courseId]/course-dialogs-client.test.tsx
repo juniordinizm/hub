@@ -73,12 +73,12 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const renderCourseSettingsForm = (): void => {
+const renderCourseSettingsForm = (courseToRender = course): void => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
   act(() => {
-    root?.render(<CourseSettingsForm course={course} />);
+    root?.render(<CourseSettingsForm course={courseToRender} />);
   });
 };
 
@@ -89,7 +89,14 @@ const setPrice = (value: string): void => {
   if (!input) {
     throw new Error("Expected price input.");
   }
-  input.value = value;
+  act(() => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set?.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 };
 
 const submitSettingsForm = async (): Promise<void> => {
@@ -132,11 +139,24 @@ const clickButtonAsync = async (label: string): Promise<void> => {
   });
 };
 
+const togglePaymentMethod = (method: "card" | "pix"): void => {
+  const checkbox = container?.querySelector<HTMLButtonElement>(
+    `#course-payment-${method}`
+  );
+  if (!checkbox) {
+    throw new Error(`Expected ${method} payment method checkbox.`);
+  }
+
+  act(() => {
+    checkbox.click();
+  });
+};
+
 describe("course payment settings", () => {
   it("explains when price reduces the effective installment maximum", () => {
     const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
 
-    expect(markup).toContain("Checkout sera limitado a");
+    expect(markup).toContain("Checkout será limitado a");
     expect(markup).toContain("1x");
     expect(markup).toContain("3x continua salva");
   });
@@ -146,17 +166,70 @@ describe("course payment settings", () => {
       <CourseSettingsForm course={{ ...course, priceInCents: 9900 }} />
     );
 
-    expect(markup).not.toContain("Checkout sera limitado a");
+    expect(markup).not.toContain("Checkout será limitado a");
   });
 
   it("limits the admin configuration to twelve installments", () => {
-    const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
+    renderCourseSettingsForm({ ...course, priceInCents: 12_000 });
+    act(() => {
+      container
+        ?.querySelector<HTMLButtonElement>("#course-payment-installments")
+        ?.click();
+    });
 
-    expect(markup).toContain('name="paymentMaxInstallmentCount"');
-    expect(markup).toContain('max="12"');
+    const options = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"]')
+    );
+    expect(options).toHaveLength(12);
+    expect(options.at(-1)?.textContent).toBe("12x");
+    expect(options.at(-1)?.getAttribute("data-disabled")).toBeNull();
   });
 
-  it("exposes the automatic workload calculation and manual course override", () => {
+  it("keeps installments visible but disabled when card is disabled", async () => {
+    renderCourseSettingsForm();
+
+    togglePaymentMethod("card");
+
+    const installments = container?.querySelector<HTMLButtonElement>(
+      "#course-payment-installments"
+    );
+    expect(installments).not.toBeNull();
+    expect(installments?.disabled).toBe(true);
+
+    await submitSettingsForm();
+
+    const submittedFormData = saveCourseActionMock.mock.calls[0]?.[0];
+    expect(submittedFormData.get("paymentAllowCreditCard")).toBeNull();
+    expect(submittedFormData.get("paymentMaxInstallmentCount")).toBeNull();
+  });
+
+  it("restores the previous installment ceiling when card is enabled again", () => {
+    renderCourseSettingsForm();
+
+    togglePaymentMethod("card");
+    togglePaymentMethod("card");
+
+    const installments = container?.querySelector<HTMLButtonElement>(
+      "#course-payment-installments"
+    );
+
+    expect(installments?.textContent).toContain("3x");
+  });
+
+  it("keeps the final enabled payment method selected", () => {
+    renderCourseSettingsForm();
+
+    togglePaymentMethod("card");
+    togglePaymentMethod("pix");
+
+    expect(
+      container
+        ?.querySelector<HTMLButtonElement>("#course-payment-pix")
+        ?.getAttribute("aria-checked")
+    ).toBe("true");
+  });
+
+  it("exposes a compact workload trigger and preserves the manual override", () => {
     const automaticMarkup = renderToStaticMarkup(
       <CourseSettingsForm course={course} />
     );
@@ -165,11 +238,48 @@ describe("course payment settings", () => {
     );
 
     expect(automaticMarkup).toContain('name="workloadHoursOverride"');
-    expect(automaticMarkup).toContain("Automática: 10 horas");
+    expect(automaticMarkup).toContain('id="course-settings-workload"');
+    expect(automaticMarkup).toContain('aria-label="Editar carga horária"');
+    expect(automaticMarkup).toContain("10 horas");
     expect(manualMarkup).toContain('value="18"');
-    expect(automaticMarkup).toContain(
-      "Deixe vazio para calcular automaticamente pela soma das aulas."
+    expect(manualMarkup).toContain("18 horas");
+    expect(automaticMarkup).not.toContain(
+      'id="course-settings-workload-hours"'
     );
+  });
+
+  it("organizes settings into spacious domain sections", () => {
+    const markup = renderToStaticMarkup(<CourseSettingsForm course={course} />);
+
+    expect(markup).toContain("Identidade do curso");
+    expect(markup).toContain("Acesso e publicação");
+    expect(markup).toContain("Oferta de pagamento");
+    expect(markup).toContain("Editar carga horária");
+    expect(markup).toContain('name="workloadHoursOverride"');
+    expect(markup.indexOf("Carga horária")).toBeLessThan(
+      markup.indexOf("Meses de acesso")
+    );
+    expect(markup.indexOf("Meses de acesso")).toBeLessThan(
+      markup.indexOf("Status")
+    );
+  });
+
+  it("updates the available installment options as the price changes", () => {
+    renderCourseSettingsForm({ ...course, priceInCents: 12_000 });
+    setPrice("99,00");
+    act(() => {
+      container
+        ?.querySelector<HTMLButtonElement>("#course-payment-installments")
+        ?.click();
+    });
+
+    const options = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="option"]')
+    );
+
+    expect(options.at(8)?.textContent).toBe("9x");
+    expect(options.at(8)?.getAttribute("data-disabled")).toBeNull();
+    expect(options.at(9)?.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("saves an equivalent price without opening confirmation", async () => {

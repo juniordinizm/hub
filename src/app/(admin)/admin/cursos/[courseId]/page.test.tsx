@@ -147,6 +147,8 @@ describe("AdminCourseDetailPage purchase link", () => {
     expect(markup).toContain(
       'data-purchase-link="https://hub.example/comprar/curso-publico"'
     );
+    expect(markup.match(/data-slot="card"/g)).toHaveLength(1);
+    expect(markup).toContain("Configurações do curso");
   });
 
   it("passes an unavailable state instead of a false link for an unpublished course", async () => {
