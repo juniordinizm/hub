@@ -81,6 +81,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Editor de certificado: refinamento premium](superpowers/specs/2026-08-08-certificate-editor-premium-refinement-design.md)
 - [Plano do refinamento premium do editor de certificado](superpowers/plans/2026-08-08-certificate-editor-premium-refinement.md)
 - [Disponibilidade comercial e interesse em Cursos](superpowers/specs/2026-08-17-course-availability-and-interest-design.md)
+- [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
 
 ## Contrato de manutenção
 
