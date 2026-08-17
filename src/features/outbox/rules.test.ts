@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   createAccountActivationMessage,
   createCertificateIssuedMessage,
+  createCheckoutCancellationMessage,
+  createCourseSalesOpenedMessage,
   createEnrollmentExpiryWarningMessage,
   createPaidAccessReleasedMessage,
   getRetryDelayMs,
@@ -109,6 +111,39 @@ describe("outbox message contracts", () => {
       idempotencyKey: "email.access-expiry-warning/enrollment-1/7d/v1",
       payload: { enrollmentId: "enrollment-1", warningKind: "7d" },
     });
+  });
+
+  it("keeps a course sales notification bound to one interest activation", () => {
+    const message = createCourseSalesOpenedMessage({
+      interestId: "interest-1",
+    });
+
+    expect(message).toEqual({
+      aggregateId: "interest-1",
+      aggregateType: "course_interest",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      payload: { interestId: "interest-1" },
+      payloadVersion: 1,
+      topic: "email.course-sales-opened",
+    });
+    expect(parseOutboxPayload(message)).toEqual({ interestId: "interest-1" });
+    expect(JSON.stringify(message.payload)).not.toMatch(
+      FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
+  });
+
+  it("cancels one external checkout through a durable order intent", () => {
+    const message = createCheckoutCancellationMessage({ orderId: "order-1" });
+
+    expect(message).toEqual({
+      aggregateId: "order-1",
+      aggregateType: "order",
+      idempotencyKey: "payments.checkout-cancel/order-1/v1",
+      payload: { orderId: "order-1" },
+      payloadVersion: 1,
+      topic: "payments.checkout-cancel",
+    });
+    expect(parseOutboxPayload(message)).toEqual({ orderId: "order-1" });
   });
 
   it("rejects an unknown payload version without attempting delivery", () => {

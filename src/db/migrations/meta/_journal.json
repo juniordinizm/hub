@@ -421,6 +421,20 @@
       "when": 1786750745848,
       "tag": "0059_material_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1786975800476,
+      "tag": "0060_course_availability_and_interest",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1787004243086,
+      "tag": "0061_paused_course_landing_url",
+      "breakpoints": true
     }
   ]
 }

@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DatePickerField } from "@/components/date-picker-field";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import {
   confirmRefundPasswordAction,
   importAsaasStatementAction,
@@ -218,24 +220,24 @@ export function ImportStatementOperation(): React.JSX.Element {
   };
   return (
     <form action={importStatement} className="grid gap-3 sm:grid-cols-3">
-      <label className="grid gap-1 text-xs">
-        Data inicial
-        <input
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+      <Field>
+        <FieldLabel htmlFor="statement-start-date">Data inicial</FieldLabel>
+        <DatePickerField
+          defaultValue=""
+          id="statement-start-date"
           name="startDate"
-          required
-          type="date"
+          placeholder="Selecionar data"
         />
-      </label>
-      <label className="grid gap-1 text-xs">
-        Data final
-        <input
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="statement-finish-date">Data final</FieldLabel>
+        <DatePickerField
+          defaultValue=""
+          id="statement-finish-date"
           name="finishDate"
-          required
-          type="date"
+          placeholder="Selecionar data"
         />
-      </label>
+      </Field>
       <Button className="self-end" disabled={pending} type="submit">
         {pending ? "Importando..." : "Importar extrato"}
       </Button>

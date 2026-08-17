@@ -16,6 +16,18 @@ import { cn } from "@/lib/utils";
 
 const DATE_FORMAT = "yyyy-MM-dd";
 
+const normalizeDateValue = (value: string | Date): string => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return "";
+    }
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    return `${value.getUTCFullYear()}-${month}-${day}`;
+  }
+  return value;
+};
+
 const parseDateValue = (value: string): Date | undefined => {
   const parsed = parse(value, DATE_FORMAT, new Date());
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
@@ -23,16 +35,18 @@ const parseDateValue = (value: string): Date | undefined => {
 
 export function DatePickerField({
   defaultValue,
+  id,
   minDate,
   name,
   placeholder = "Selecionar data",
 }: {
-  defaultValue: string;
+  defaultValue: string | Date;
+  id?: string;
   minDate?: string;
   name: string;
   placeholder?: string;
 }): React.JSX.Element {
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState(() => normalizeDateValue(defaultValue));
   const selected = useMemo(() => parseDateValue(value), [value]);
   const isDateDisabled = (date: Date): boolean =>
     Boolean(minDate && format(date, DATE_FORMAT) < minDate);
@@ -46,6 +60,7 @@ export function DatePickerField({
             "w-full justify-start text-left font-normal active:scale-100",
             !selected && "text-muted-foreground"
           )}
+          id={id}
           type="button"
           variant="outline"
         >

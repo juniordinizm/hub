@@ -5,6 +5,7 @@ import { getCoursePurchaseLink } from "./course-purchase-link";
 const eligibleCourse = {
   hasPublishedPublication: true,
   priceInCents: ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS,
+  salesStatus: "open",
   slug: "curso",
   status: "active",
 };
@@ -40,6 +41,13 @@ describe("getCoursePurchaseLink", () => {
       {
         checkoutMode: "public" as const,
         course: { ...eligibleCourse, hasPublishedPublication: false },
+      },
+    ],
+    [
+      "sales_closed",
+      {
+        checkoutMode: "public" as const,
+        course: { ...eligibleCourse, salesStatus: "closed" },
       },
     ],
     [

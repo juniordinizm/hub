@@ -5,6 +5,7 @@ const dependencies = vi.hoisted(() => ({
   deliverOutboxMessage: vi.fn(),
   getPool: vi.fn(),
   markOutboxMessageDeadLetter: vi.fn(),
+  markOutboxMessageDeferred: vi.fn(),
   markOutboxMessageDelivered: vi.fn(),
   markOutboxMessageForRetry: vi.fn(),
   pruneOutboxRecords: vi.fn(),
@@ -18,12 +19,14 @@ vi.mock("./delivery", () => ({
 vi.mock("./server", () => ({
   claimOutboxMessages: dependencies.claimOutboxMessages,
   markOutboxMessageDeadLetter: dependencies.markOutboxMessageDeadLetter,
+  markOutboxMessageDeferred: dependencies.markOutboxMessageDeferred,
   markOutboxMessageDelivered: dependencies.markOutboxMessageDelivered,
   markOutboxMessageForRetry: dependencies.markOutboxMessageForRetry,
   pruneOutboxRecords: dependencies.pruneOutboxRecords,
 }));
 
 import { runOutboxWorker } from "./runner";
+import { OutboxDeliveryError } from "./worker";
 
 describe("outbox runner", () => {
   beforeEach(() => {
@@ -61,6 +64,7 @@ describe("outbox runner", () => {
     ).resolves.toEqual({
       deadLettered: 0,
       deadlineReached: false,
+      deferred: 0,
       delivered: 1,
       leaseLost: false,
       prunedDeadLetters: 0,
@@ -76,6 +80,46 @@ describe("outbox runner", () => {
     });
     expect(dependencies.markOutboxMessageDelivered).toHaveBeenCalledWith({
       client,
+      id: "outbox-1",
+      workerId: "worker-a",
+    });
+  });
+
+  it("reports a deferred message separately from provider retries", async () => {
+    const client = { query: vi.fn() };
+    const message = {
+      aggregateId: "interest-1",
+      aggregateType: "course_interest",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      payload: { interestId: "interest-1" },
+      payloadVersion: 1,
+      topic: "email.course-sales-opened" as const,
+    };
+    dependencies.getPool.mockReturnValue(client);
+    dependencies.claimOutboxMessages
+      .mockResolvedValueOnce([message])
+      .mockResolvedValue([]);
+    dependencies.deliverOutboxMessage.mockRejectedValue(
+      new OutboxDeliveryError("course_sales_closed", {
+        deferred: true,
+        retryable: true,
+      })
+    );
+    dependencies.markOutboxMessageDeferred.mockResolvedValue(undefined);
+    dependencies.pruneOutboxRecords.mockResolvedValue({
+      deadLetters: 0,
+      delivered: 0,
+      reprocessAudits: 0,
+    });
+
+    await expect(
+      runOutboxWorker({ limit: 1, workerId: "worker-a" })
+    ).resolves.toMatchObject({ deferred: 1, retried: 0 });
+    expect(dependencies.markOutboxMessageDeferred).toHaveBeenCalledWith({
+      client,
+      errorCode: "course_sales_closed",
       id: "outbox-1",
       workerId: "worker-a",
     });

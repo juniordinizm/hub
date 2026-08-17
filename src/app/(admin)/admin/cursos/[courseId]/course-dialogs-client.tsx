@@ -354,20 +354,7 @@ export function CourseSettingsForm({
             </section>
           </div>
 
-          <div className="flex flex-col gap-5 border-t pt-6 sm:flex-row sm:items-end sm:justify-between">
-            <Field className="w-full sm:max-w-xs">
-              <FieldLabel htmlFor="course-settings-status">Status</FieldLabel>
-              <Select defaultValue={course.status ?? "draft"} name="status">
-                <SelectTrigger id="course-settings-status">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Rascunho</SelectItem>
-                  <SelectItem value="active">Publicado</SelectItem>
-                  <SelectItem value="archived">Arquivado</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
+          <div className="flex justify-end border-t pt-6">
             <Button disabled={isPending} type="submit">
               <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
               {isPending ? "Salvando…" : "Salvar configurações"}

@@ -48,6 +48,18 @@ Suspensão da Conta na experiência da Aluna, mais ampla que bloqueio de Matríc
 **Revisão financeira**  
 Fila humana quando o sistema não pode aplicar evento financeiro com segurança, como conflito entre estados terminais ou valor divergente.
 
+**Estado de entrega do Curso**
+Define se o conteúdo pode ser entregue: rascunho, ativo ou arquivado. Não define vitrine nem novas vendas.
+
+**Visibilidade de catálogo**
+Define se pessoas sem Matrícula descobrem o Curso na vitrine. Ocultar não revoga acesso adquirido.
+
+**Estado de vendas**
+Define se o Hub aceita novas compras do Curso. Fechar vendas não altera Concessões ou Matrículas existentes.
+
+**Interesse de venda**
+Manifestação reversível de uma Conta Student para receber um único aviso na próxima abertura de vendas. Não é Pedido, Concessão ou Matrícula.
+
 ## Aprendizagem e conteúdo
 
 **Curso**  

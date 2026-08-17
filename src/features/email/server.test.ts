@@ -16,7 +16,11 @@ vi.mock("server-only", () => ({}));
 vi.mock("resend", () => ({ Resend }));
 
 import { deriveAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
-import { sendPasswordResetEmail, sendTransactionalEmail } from "./server";
+import {
+  sendCourseSalesOpenedEmail,
+  sendPasswordResetEmail,
+  sendTransactionalEmail,
+} from "./server";
 
 const ORIGINAL_ENV = { ...process.env };
 const VALID_ACTIVATION_IDEMPOTENCY_KEY =
@@ -165,6 +169,35 @@ describe("transactional email", () => {
     );
     expect(email.html).toContain("Student");
     expect(email).not.toHaveProperty("react");
+  });
+
+  it("sends the fixed course sales-opened template with the stable purchase link", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.NEXT_PUBLIC_APP_URL = "https://hub.example";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendCourseSalesOpenedEmail({
+      courseSlug: "curso-publico",
+      courseTitle: "Curso público",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      to: "student@example.com",
+      userName: "Student",
+    });
+
+    const [email, options] = send.mock.calls[0] ?? [];
+    expect(email).toEqual(
+      expect.objectContaining({
+        html: expect.stringContaining(
+          "https://hub.example/comprar/curso-publico"
+        ),
+        subject: "Inscrições abertas: Curso público",
+        to: "student@example.com",
+      })
+    );
+    expect(email.html).toContain("Student");
+    expect(options).toEqual({
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+    });
   });
 
   it("treats an activation payload conflict as an already accepted email", async () => {

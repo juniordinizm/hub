@@ -16,12 +16,15 @@ const unavailableMessages: Record<
   course_inactive: "o curso não está ativo",
   course_unpublished: "o curso ainda não possui uma publicação publicada",
   invalid_price: "o preço não atende ao mínimo do checkout",
+  sales_closed: "as vendas estão pausadas",
 };
 
 export function CoursePurchaseLink({
   link,
+  publicUrl,
 }: {
   link: CoursePurchaseLinkValue;
+  publicUrl: string;
 }): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const mountedRef = useRef(false);
@@ -32,15 +35,6 @@ export function CoursePurchaseLink({
       mountedRef.current = false;
     };
   }, []);
-
-  if (!link.available) {
-    return (
-      <p className="max-w-xs text-right text-muted-foreground text-xs">
-        Checkout público indisponível: {unavailableMessages[link.reason]} (
-        <code>{link.reason}</code>).
-      </p>
-    );
-  }
 
   const selectLinkForManualCopy = (): void => {
     if (!mountedRef.current) {
@@ -61,7 +55,7 @@ export function CoursePurchaseLink({
     }
 
     try {
-      await navigator.clipboard.writeText(link.url);
+      await navigator.clipboard.writeText(publicUrl);
       if (mountedRef.current) {
         toast.success("Link público copiado.");
       }
@@ -93,8 +87,14 @@ export function CoursePurchaseLink({
         id="course-purchase-link"
         readOnly
         ref={inputRef}
-        value={link.url}
+        value={publicUrl}
       />
+      {link.available ? null : (
+        <p className="max-w-xs text-muted-foreground text-xs sm:text-right">
+          Checkout público indisponível: {unavailableMessages[link.reason]} (
+          <code>{link.reason}</code>).
+        </p>
+      )}
     </div>
   );
 }

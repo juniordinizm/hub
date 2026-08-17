@@ -6,6 +6,7 @@ import { deliverOutboxMessage } from "./delivery";
 import {
   claimOutboxMessages,
   markOutboxMessageDeadLetter,
+  markOutboxMessageDeferred,
   markOutboxMessageDelivered,
   markOutboxMessageForRetry,
   pruneOutboxRecords,
@@ -17,6 +18,7 @@ const DEFAULT_BATCH_LIMIT = 20;
 export interface OutboxWorkerResult {
   deadLettered: number;
   deadlineReached: boolean;
+  deferred: number;
   delivered: number;
   leaseLost: boolean;
   prunedDeadLetters: number;
@@ -37,11 +39,13 @@ export const runOutboxWorker = async ({
   now?: () => number;
   shouldContinue?: () => Promise<boolean>;
   workerId?: string;
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keeps deadline, lease and four durable outcomes explicit at the worker seam.
 } = {}): Promise<OutboxWorkerResult> => {
   const client = getPool();
   const result: OutboxWorkerResult = {
     deadLettered: 0,
     deadlineReached: false,
+    deferred: 0,
     delivered: 0,
     leaseLost: false,
     prunedDeadLetters: 0,
@@ -80,6 +84,13 @@ export const runOutboxWorker = async ({
           id,
           workerId,
         }),
+      markDeferred: ({ errorCode, id }) =>
+        markOutboxMessageDeferred({
+          client,
+          errorCode,
+          id,
+          workerId,
+        }),
       markDelivered: (id) =>
         markOutboxMessageDelivered({ client, id, workerId }),
       markRetry: ({ errorCode, id, retryDelayMs }) =>
@@ -94,6 +105,8 @@ export const runOutboxWorker = async ({
     });
     if (outcome === "delivered") {
       result.delivered += 1;
+    } else if (outcome === "deferred") {
+      result.deferred += 1;
     } else if (outcome === "retrying") {
       result.retried += 1;
     } else {

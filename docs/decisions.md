@@ -175,6 +175,16 @@ impedir novos valores fora do teto comercial, sem reescrever snapshots históric
 Ver a
 [pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).
 
+## DEC-DISC-012
+
+**Tema:** disponibilidade comercial e interesse de venda.
+**Estado:** aprovado e implementado em código.
+
+Entrega, vitrine e novas vendas são dimensões independentes. Vendas pausadas
+preservam Matrículas efetivas e podem ser ocultadas. “Em breve” coleta interesse
+autenticado sem Pedido ou acesso. Abrir vendas avisa pela outbox; fechar vendas
+cancela Checkouts ativos. Ver [ADR-0009](adr/0009-course-availability-and-sale-interest.md).
+
 ## Outras ratificações necessárias
 
 - escopo definitivo de `support` e capacidades financeiras mutáveis;

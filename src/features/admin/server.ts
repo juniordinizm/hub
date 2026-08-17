@@ -111,14 +111,23 @@ export interface AdminCertificate {
 
 export interface AdminCourse {
   accessDurationMonths: number;
+  catalogVisibility: "hidden" | "listed";
   certificateEnabled: boolean;
   coverImage: unknown;
   description: string | null;
+  hasCommercialHistory: boolean;
   id: string;
+  interestCount: number;
+  interestNotificationsSent: number;
+  launchDate: string | null;
+  launchLandingUrl: string | null;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
+  pendingCheckoutCancellations: number;
+  pendingInterestNotifications: number;
   priceInCents: number;
+  salesStatus: "closed" | "open";
   slug: string;
   status: string;
   subtitle: string | null;
@@ -283,13 +292,22 @@ const requireAdminReadAccess = (): Promise<void> =>
 const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
   const { rows } = await getPool().query<{
     access_duration_months: number;
+    catalog_visibility: "hidden" | "listed";
     certificate_enabled: boolean;
     description: string | null;
+    has_commercial_history: boolean;
     id: string;
+    interest_count: number;
+    interest_notifications_sent: number;
+    launch_date: string | null;
+    launch_landing_url: string | null;
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
     payment_max_installment_count: number;
     price_in_cents: number;
+    pending_checkout_cancellations: number;
+    pending_interest_notifications: number;
+    sales_status: "closed" | "open";
     slug: string;
     status: string;
     subtitle: string | null;
@@ -299,21 +317,59 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     workload_hours: number;
     workload_hours_override: number | null;
   }>(
-    courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, workload_hours_override, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, workload_hours_override, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
+    `
+      select courses.*,
+        (
+          exists (
+            select 1 from orders o
+            where o.course_id = courses.id and o.status = 'paid'
+          ) or exists (
+            select 1 from enrollment_grants eg where eg.course_id = courses.id
+          ) or exists (
+            select 1 from enrollments e where e.course_id = courses.id
+          )
+        ) as has_commercial_history,
+        (
+          select count(*)::int from course_sale_interests csi
+          where csi.course_id = courses.id
+        ) as interest_count,
+        (
+          select count(*)::int from course_sale_interests csi
+          where csi.course_id = courses.id
+            and csi.notification_enqueued_at is not null
+        ) as pending_interest_notifications,
+        (
+          select count(*)::int
+          from outbox_messages om
+          join orders o on o.id = (om.payload ->> 'orderId')::uuid
+          where om.topic = 'payments.checkout-cancel'
+            and om.status in ('pending', 'retrying', 'processing')
+            and o.course_id = courses.id
+        ) as pending_checkout_cancellations
+      from courses
+      ${courseId ? "where courses.id = $1" : "order by courses.created_at desc"}
+    `,
     courseId ? [courseId] : undefined
   );
 
   return rows.map((row) => ({
     accessDurationMonths: row.access_duration_months,
+    catalogVisibility: row.catalog_visibility,
     certificateEnabled: row.certificate_enabled,
     description: row.description,
+    hasCommercialHistory: row.has_commercial_history,
     id: row.id,
+    interestCount: row.interest_count,
+    interestNotificationsSent: row.interest_notifications_sent,
+    launchDate: row.launch_date,
+    launchLandingUrl: row.launch_landing_url,
     paymentAllowCreditCard: row.payment_allow_credit_card,
     paymentAllowPix: row.payment_allow_pix,
     paymentMaxInstallmentCount: row.payment_max_installment_count,
     priceInCents: row.price_in_cents,
+    pendingCheckoutCancellations: row.pending_checkout_cancellations,
+    pendingInterestNotifications: row.pending_interest_notifications,
+    salesStatus: row.sales_status,
     slug: row.slug,
     status: row.status,
     subtitle: row.subtitle,

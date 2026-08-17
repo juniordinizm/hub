@@ -4,11 +4,13 @@ const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
   getAuth: vi.fn(),
   getApplicationUrl: vi.fn(),
+  getAsaasProviderClient: vi.fn(),
   getServerEnv: vi.fn(),
   renderPendingCertificate: vi.fn(),
   sendAccessExpiryWarningEmail: vi.fn(),
   sendAccessReleasedEmail: vi.fn(),
   sendCertificateIssuedEmail: vi.fn(),
+  sendCourseSalesOpenedEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
 }));
 
@@ -18,6 +20,7 @@ vi.mock("@/lib/auth", () => ({ getAuth: dependencies.getAuth }));
 vi.mock("@/lib/env", () => ({ getServerEnv: dependencies.getServerEnv }));
 vi.mock("@/features/payments/provider", () => ({
   getApplicationUrl: dependencies.getApplicationUrl,
+  getAsaasProviderClient: dependencies.getAsaasProviderClient,
 }));
 vi.mock("@/features/certificates/server", () => ({
   renderPendingCertificate: dependencies.renderPendingCertificate,
@@ -26,6 +29,7 @@ vi.mock("@/features/email/server", () => ({
   sendAccessExpiryWarningEmail: dependencies.sendAccessExpiryWarningEmail,
   sendAccessReleasedEmail: dependencies.sendAccessReleasedEmail,
   sendCertificateIssuedEmail: dependencies.sendCertificateIssuedEmail,
+  sendCourseSalesOpenedEmail: dependencies.sendCourseSalesOpenedEmail,
   sendPasswordResetEmail: dependencies.sendPasswordResetEmail,
 }));
 
@@ -74,6 +78,9 @@ describe("outbox email delivery", () => {
     dependencies.getServerEnv.mockReturnValue({
       BETTER_AUTH_SECRET: "auth-secret",
       BETTER_AUTH_URL: "https://auth.example.test",
+    });
+    dependencies.getAsaasProviderClient.mockReturnValue({
+      cancelCheckout: vi.fn(),
     });
   });
 
@@ -532,6 +539,163 @@ describe("outbox email delivery", () => {
       to: "student@example.test",
       userName: "Aluna Teste",
     });
+  });
+
+  it("delivers a sales-opened email and removes the consumed nominal interest", async () => {
+    const transactionQuery = vi.fn(async (sql: string) => ({
+      rows: sql.includes("delete from course_sale_interests")
+        ? [{ id: "interest-1" }]
+        : [],
+    }));
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          course_id: "course-1",
+          course_slug: "curso-publico",
+          course_title: "Curso público",
+          sales_status: "open",
+          student_email: "student@example.test",
+          student_name: "Aluna Teste",
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({
+        query: transactionQuery,
+        release: vi.fn(),
+      }),
+      query,
+    });
+    dependencies.sendCourseSalesOpenedEmail.mockResolvedValue(undefined);
+
+    await deliverOutboxMessage({
+      aggregateId: "interest-1",
+      aggregateType: "course_interest",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      payload: { interestId: "interest-1" },
+      payloadVersion: 1,
+      topic: "email.course-sales-opened",
+    });
+
+    expect(dependencies.sendCourseSalesOpenedEmail).toHaveBeenCalledWith({
+      courseSlug: "curso-publico",
+      courseTitle: "Curso público",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      to: "student@example.test",
+      userName: "Aluna Teste",
+    });
+    expect(transactionQuery).toHaveBeenCalledWith(
+      expect.stringContaining("delete from course_sale_interests"),
+      ["interest-1"]
+    );
+    expect(transactionQuery).toHaveBeenCalledWith(
+      expect.stringContaining("interest_notifications_sent + 1"),
+      ["course-1"]
+    );
+  });
+
+  it("defers a sales-opened email while the course sales are closed", async () => {
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            course_id: "course-1",
+            course_slug: "curso-publico",
+            course_title: "Curso público",
+            sales_status: "closed",
+            student_email: "student@example.test",
+            student_name: "Aluna Teste",
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      deliverOutboxMessage({
+        aggregateId: "interest-1",
+        aggregateType: "course_interest",
+        attempts: 1,
+        id: "outbox-1",
+        idempotencyKey: "email.course-sales-opened/interest-1/v1",
+        payload: { interestId: "interest-1" },
+        payloadVersion: 1,
+        topic: "email.course-sales-opened",
+      })
+    ).rejects.toMatchObject({
+      code: "course_sales_closed",
+      deferred: true,
+    });
+    expect(dependencies.sendCourseSalesOpenedEmail).not.toHaveBeenCalled();
+  });
+
+  it("cancels an active unpaid Asaas checkout without changing a paid order", async () => {
+    const cancelCheckout = vi.fn().mockResolvedValue({
+      id: "checkout-1",
+      link: "https://asaas.example/checkout-1",
+      status: "CANCELED",
+    });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            checkout_status: "active",
+            order_status: "pending",
+            provider_checkout_id: "checkout-1",
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] });
+    dependencies.getPool.mockReturnValue({ query });
+    dependencies.getAsaasProviderClient.mockReturnValue({ cancelCheckout });
+
+    await deliverOutboxMessage({
+      aggregateId: "order-1",
+      aggregateType: "order",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "payments.checkout-cancel/order-1/v1",
+      payload: { orderId: "order-1" },
+      payloadVersion: 1,
+      topic: "payments.checkout-cancel",
+    });
+
+    expect(cancelCheckout).toHaveBeenCalledWith("checkout-1");
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining("and status = 'pending'"),
+      ["order-1", "CANCELED"]
+    );
+  });
+
+  it("treats checkout cancellation as a no-op after payment wins the race", async () => {
+    const cancelCheckout = vi.fn();
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            checkout_status: "active",
+            order_status: "paid",
+            provider_checkout_id: "checkout-1",
+          },
+        ],
+      }),
+    });
+    dependencies.getAsaasProviderClient.mockReturnValue({ cancelCheckout });
+
+    await deliverOutboxMessage({
+      aggregateId: "order-1",
+      aggregateType: "order",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "payments.checkout-cancel/order-1/v1",
+      payload: { orderId: "order-1" },
+      payloadVersion: 1,
+      topic: "payments.checkout-cancel",
+    });
+
+    expect(cancelCheckout).not.toHaveBeenCalled();
   });
 
   it("does not try delivery for an unsupported payload version", async () => {

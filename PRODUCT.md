@@ -60,6 +60,7 @@ corte controlado de Production permanece pendente.
 3. Admin/Suporte consulta Alunas, acessos, financeiro, Certificados e auditoria conforme permissão.
 4. Exceções usam ajustes, bloqueios, revisões, reembolso e revogação/reemissão; pedidos de dados são tratados excepcionalmente, não por inbox permanente.
 5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Publicação; não há acompanhamento individual por inatividade.
+6. Admin controla separadamente entrega, presença na vitrine e novas vendas. Pausar vendas preserva o acesso vigente; “Em breve” aceita interesse sem cobrança ou Matrícula.
 
 ## Escopo implementado
 
@@ -77,6 +78,7 @@ corte controlado de Production permanece pendente.
 - oferta comercial por Curso com Pix, cartão ou ambos, preço único entre os métodos e
   teto de parcelamento; a Vendedora absorve as taxas, conforme homologado no Checkout
   Sandbox com pagamento e reembolso reais em 3x;
+- disponibilidade comercial por Curso, pré-lançamento com interesse autenticado e cancelamento durável de Checkouts ao fechar vendas;
 - Certificados públicos, PDF, revogação e reemissão;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.

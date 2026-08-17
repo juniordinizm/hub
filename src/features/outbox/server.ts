@@ -141,6 +141,34 @@ export const markOutboxMessageForRetry = async ({
   );
 };
 
+export const markOutboxMessageDeferred = async ({
+  client,
+  errorCode,
+  id,
+  workerId,
+}: {
+  client: OutboxQueryClient;
+  errorCode: string;
+  id: string;
+  workerId: string;
+}): Promise<void> => {
+  await client.query(
+    `
+      update outbox_messages
+      set status = 'retrying',
+          attempts = greatest(attempts - 1, 0),
+          available_at = now() + interval '24 hours',
+          locked_at = null,
+          locked_by = null,
+          last_error_code = $3,
+          last_error_at = now(),
+          updated_at = now()
+      where id = $1 and status = 'processing' and locked_by = $2
+    `,
+    [id, workerId, errorCode]
+  );
+};
+
 export const markOutboxMessageDeadLetter = async ({
   client,
   errorCode,

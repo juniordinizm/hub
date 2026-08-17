@@ -165,6 +165,28 @@ export const AccessReleasedEmail = ({
   </EmailShell>
 );
 
+export const CourseSalesOpenedEmail = ({
+  actionUrl,
+  courseTitle,
+  name,
+}: CourseEmailProps): React.JSX.Element => (
+  <EmailShell preview="As inscrições do Curso que você acompanha estão abertas.">
+    <Heading>Inscrições abertas</Heading>
+    <Text style={styles.text}>Olá, {name}.</Text>
+    <Text style={styles.text}>
+      As inscrições para {courseTitle ?? "o Curso"} estão abertas. Você pediu
+      para receber este aviso quando fosse possível comprar.
+    </Text>
+    {actionUrl ? (
+      <Section>
+        <Button href={actionUrl} style={styles.button}>
+          Conhecer o Curso
+        </Button>
+      </Section>
+    ) : null}
+  </EmailShell>
+);
+
 export const AccessExpiryWarningEmail = ({
   actionUrl,
   courseTitle,

@@ -63,6 +63,9 @@ import {
   saveModule,
 } from "./authoring";
 
+const COURSE_ACTIVATION_UPDATE_PATTERN =
+  /update courses\s+set status = 'active'/i;
+
 const coverImage = {
   original: {
     contentType: "image/png",
@@ -187,6 +190,11 @@ describe("admin authoring", () => {
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.original.key);
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.card.key);
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.thumb.key);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        COURSE_ACTIVATION_UPDATE_PATTERN.test(String(sql))
+      )
+    ).toBe(false);
   });
 
   it("creates a draft course, records it, then syncs its JMVStream folder", async () => {
@@ -293,7 +301,7 @@ describe("admin authoring", () => {
     expect(ensureJmvstreamCourseFolder).not.toHaveBeenCalled();
   });
 
-  it("archives an existing course through the save lifecycle", async () => {
+  it("does not change Course availability through the generic save lifecycle", async () => {
     const formData = new FormData();
     formData.set("courseId", "course-1");
     formData.set("title", "Curso existente");
@@ -307,7 +315,8 @@ describe("admin authoring", () => {
       String(sql).includes("update courses")
     );
     expect(updateCourseCall?.[0]).toContain("price_in_cents = $5");
-    expect(updateCourseCall?.[0]).toContain("where id = $13");
+    expect(updateCourseCall?.[0]).not.toContain("status =");
+    expect(updateCourseCall?.[0]).toContain("where id = $12");
     expect(updateCourseCall?.[1]).toEqual([
       "Curso existente",
       null,
@@ -320,7 +329,6 @@ describe("admin authoring", () => {
       null,
       null,
       12,
-      "archived",
       "course-1",
     ]);
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith("course-1");

@@ -18,6 +18,10 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 `createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` bloqueia o rascunho, rejeita vídeo JMVStream sem player, aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log na mesma transação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
 
+Publicar uma `CoursePublication` não altera visibilidade nem abre vendas. A
+disponibilidade comercial é uma decisão administrativa separada, conforme
+[ADR-0009](../adr/0009-course-availability-and-sale-interest.md).
+
 Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aula também tem uma chave curricular estável: ao clonar uma Aula para uma nova publicação, a chave é preservada e o `lesson_progress` anterior continua valendo; remover a Aula ou criar outra gera efeito no currículo vivo sem apagar histórico. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
 
 Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos Módulos afetados na mesma publicação em rascunho. Mover uma Aula entre Módulos renumera origem e destino em uma única transação; IDs de outra publicação ou Curso são rejeitados.
