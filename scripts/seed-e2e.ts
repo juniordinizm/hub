@@ -398,9 +398,13 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     const { rows: courses } = await client.query<{ id: string }>(
       `
         insert into courses (
-          slug, title, price_in_cents, workload_hours, status, certificate_enabled
+          slug, title, price_in_cents, workload_hours, status, certificate_enabled,
+          catalog_visibility, sales_status
         )
-        values ($1, 'Curso E2E', 1000, 2, 'active', false)
+        values (
+          $1, 'Curso E2E', 1000, 2, 'active', false,
+          'listed'::course_catalog_visibility, 'open'::course_sales_status
+        )
         returning id
       `,
       [courseSlug]
