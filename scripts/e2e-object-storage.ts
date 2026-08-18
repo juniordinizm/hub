@@ -4,6 +4,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { getE2eObjectStorageCorsHeaders } from "../src/features/storage/e2e-object-storage-cors";
+import { getE2eObjectStorageMetadataHeaders } from "../src/features/storage/e2e-object-storage-metadata";
 
 const PORT = 4568;
 const LEADING_SLASH_PATTERN = /^\/+/;
@@ -12,6 +13,7 @@ const XML_KEY_PATTERN = /<Key>(.*?)<\/Key>/g;
 interface StoredObject {
   body: Buffer;
   contentType: string;
+  metadataHeaders: Record<string, string>;
 }
 
 const objects = new Map<string, StoredObject>();
@@ -109,6 +111,7 @@ const handleRequest = async (
       body: await readRequestBody(request),
       contentType:
         request.headers["content-type"] ?? "application/octet-stream",
+      metadataHeaders: getE2eObjectStorageMetadataHeaders(request.headers),
     });
     response.writeHead(200, { etag: '"e2e-object"' }).end();
     return;
@@ -127,6 +130,12 @@ const handleRequest = async (
   response.setHeader("content-length", object.body.byteLength);
   response.setHeader("content-type", object.contentType);
   response.setHeader("etag", '"e2e-object"');
+  const metadataHeaders = getE2eObjectStorageMetadataHeaders(
+    object.metadataHeaders
+  );
+  for (const [headerName, headerValue] of Object.entries(metadataHeaders)) {
+    response.setHeader(headerName, headerValue);
+  }
   if (request.method === "HEAD") {
     response.end();
     return;
