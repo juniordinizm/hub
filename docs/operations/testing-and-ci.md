@@ -194,9 +194,11 @@ As jornadas atuais verificam:
   minimizada e página pública canônica com preview/download mediado do PDF;
 - Curso como entrada contextual e lista autenticada como arquivo global de Certificados,
   com estados `pending`, `ready`, `failed` e revogado;
-- rota pública do PDF limitada antes do lookup, redirect curto somente para `valid` e `ready`,
+- rotas públicas de preview PNG e PDF limitadas antes do lookup, com redirect inline curto somente para `valid` e `ready`,
   verificação SHA-256, `X-Robots-Tag` e ausência de URL assinada para os demais estados;
 - fronteira Admin/Aluna;
+- gestão de Alunas pelo `StudentManagementSheet` na lista geral e no contexto do Curso,
+  incluindo aluno sem Matrícula, escopos de leitura e retorno 404 da rota individual removida;
 - erro seguro de checkout sem provedor configurado;
 - handoff público sem formulário, checkout Asaas fake, identidade pós-evento, idempotência,
   callbacks e bloqueios de Conta ativa, revogada, bloqueada ou de equipe;

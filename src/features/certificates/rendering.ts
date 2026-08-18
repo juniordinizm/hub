@@ -8,7 +8,6 @@ import { getCertificateValidationPath } from "./rules";
 import { CERTIFICATE_PAGE } from "./template-rules";
 
 const pointsPerMillimeter = 72 / 25.4;
-const CERTIFICATE_FIELD_OVERFLOW_TOLERANCE = 0.5;
 
 const fieldValues = (
   snapshot: CertificateRenderSnapshot
@@ -125,16 +124,12 @@ export const renderCertificatePdf = async ({
     const value = values[field.field];
     if (value) {
       document.font(field.font ?? "Helvetica").fontSize(field.fontSize);
-      const measuredHeight = document.heightOfString(value, {
-        align: field.align,
-        width,
-      });
-      if (measuredHeight > height + CERTIFICATE_FIELD_OVERFLOW_TOLERANCE) {
-        throw new Error(`certificate_field_overflow:${field.field}`);
-      }
       const verticalOffset = getVerticalTextOffset({
         height,
-        measuredHeight,
+        measuredHeight: document.heightOfString(value, {
+          align: field.align,
+          width,
+        }),
         verticalAlign: field.verticalAlign,
       });
       document.fillColor(field.color).text(value, x, y + verticalOffset, {

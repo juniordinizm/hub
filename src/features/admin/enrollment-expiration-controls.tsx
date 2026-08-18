@@ -6,14 +6,10 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
+import { useState } from "react";
+import { AdminMutationForm } from "@/components/admin-mutation-form";
 import { DatePickerField } from "@/components/date-picker-field";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +23,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   adjustEnrollmentExpirationAction,
   blockEnrollmentAccessAction,
@@ -51,228 +49,342 @@ export const statusLabels: Record<string, string> = {
   revoked: "Bloqueado",
 };
 
+type EnrollmentControl = "adjust" | "block" | "restore";
+
 export function EnrollmentExpirationControls({
   enrollment,
+  onSuccess,
 }: {
   enrollment: EnrollmentExpirationControlData;
+  onSuccess?: () => void | Promise<void>;
 }): React.JSX.Element {
-  const today = formatDateInput(new Date());
+  const [activeControl, setActiveControl] = useState<EnrollmentControl | null>(
+    null
+  );
   const isBlocked = enrollment.status === "revoked";
   const isManuallyBlocked =
     isBlocked && enrollment.revokedReason === "manual_access_block";
   const canChangeExpiration = !isBlocked;
   const canBlockAccess =
     enrollment.status === "active" || enrollment.status === "expired";
+  const closeAfterSuccess = async (): Promise<void> => {
+    setActiveControl(null);
+    await onSuccess?.();
+  };
 
   return (
-    <>
-      {isBlocked && !isManuallyBlocked ? (
-        <div className="rounded-md border border-destructive/20 bg-destructive/5 p-4 text-destructive text-sm">
-          Este acesso está bloqueado pelo status atual do pagamento na
-          plataforma.
+    <div className="flex flex-col gap-3" data-enrollment-controls>
+      {isBlocked && !isManuallyBlocked ? <PaymentBlockNotice /> : null}
+      <EnrollmentControlButtons
+        activeControl={activeControl}
+        canBlockAccess={canBlockAccess}
+        canChangeExpiration={canChangeExpiration}
+        isManuallyBlocked={isManuallyBlocked}
+        onSelect={setActiveControl}
+      />
+      {activeControl === "adjust" ? (
+        <EnrollmentAdjustmentForm
+          enrollment={enrollment}
+          onCancel={() => setActiveControl(null)}
+          onSuccess={closeAfterSuccess}
+        />
+      ) : null}
+      {activeControl === "block" ? (
+        <EnrollmentBlockForm
+          enrollment={enrollment}
+          onCancel={() => setActiveControl(null)}
+          onSuccess={closeAfterSuccess}
+        />
+      ) : null}
+      {activeControl === "restore" ? (
+        <EnrollmentRestoreForm
+          enrollment={enrollment}
+          onCancel={() => setActiveControl(null)}
+          onSuccess={closeAfterSuccess}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PaymentBlockNotice(): React.JSX.Element {
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Acesso bloqueado pelo pagamento</AlertTitle>
+      <AlertDescription>
+        Este acesso não pode ser restaurado manualmente enquanto o estado
+        financeiro permanecer adverso.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function EnrollmentControlButtons({
+  activeControl,
+  canBlockAccess,
+  canChangeExpiration,
+  isManuallyBlocked,
+  onSelect,
+}: {
+  activeControl: EnrollmentControl | null;
+  canBlockAccess: boolean;
+  canChangeExpiration: boolean;
+  isManuallyBlocked: boolean;
+  onSelect: (control: EnrollmentControl) => void;
+}): React.JSX.Element | null {
+  if (!(canChangeExpiration || canBlockAccess || isManuallyBlocked)) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {canChangeExpiration ? (
+        <Button
+          onClick={() => onSelect("adjust")}
+          size="sm"
+          type="button"
+          variant={activeControl === "adjust" ? "secondary" : "outline"}
+        >
+          <HugeiconsIcon
+            data-icon="inline-start"
+            icon={FloppyDiskIcon}
+            size={16}
+            strokeWidth={2}
+          />
+          Ajustar validade
+        </Button>
+      ) : null}
+      {canBlockAccess ? (
+        <Button
+          onClick={() => onSelect("block")}
+          size="sm"
+          type="button"
+          variant={activeControl === "block" ? "destructive" : "outline"}
+        >
+          <HugeiconsIcon
+            data-icon="inline-start"
+            icon={SquareLock02Icon}
+            size={16}
+            strokeWidth={2}
+          />
+          Bloquear acesso
+        </Button>
+      ) : null}
+      {isManuallyBlocked ? (
+        <Button
+          onClick={() => onSelect("restore")}
+          size="sm"
+          type="button"
+          variant={activeControl === "restore" ? "secondary" : "outline"}
+        >
+          <HugeiconsIcon
+            data-icon="inline-start"
+            icon={UndoIcon}
+            size={16}
+            strokeWidth={2}
+          />
+          Restaurar acesso
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function EnrollmentAdjustmentForm({
+  enrollment,
+  onCancel,
+  onSuccess,
+}: {
+  enrollment: EnrollmentExpirationControlData;
+  onCancel: () => void;
+  onSuccess: () => void | Promise<void>;
+}): React.JSX.Element {
+  const controlId = `enrollment-${enrollment.id}`;
+  return (
+    <AdminMutationForm
+      action={adjustEnrollmentExpirationAction}
+      className="flex flex-col gap-4 border-t pt-4"
+      onSuccess={onSuccess}
+    >
+      <input name="enrollmentId" type="hidden" value={enrollment.id} />
+      <input name="userId" type="hidden" value={enrollment.userId} />
+      <input name="adjustment" type="hidden" value="set_exact" />
+      <dl className="grid gap-3 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-muted-foreground text-xs">Expiração original</dt>
+          <dd className="mt-1 font-medium">
+            {formatDateTime(enrollment.originalExpiresAt)}
+          </dd>
         </div>
-      ) : null}
+        <div>
+          <dt className="text-muted-foreground text-xs">Expiração atual</dt>
+          <dd className="mt-1 font-medium">
+            {formatDateTime(enrollment.expiresAt)}
+          </dd>
+        </div>
+      </dl>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={`${controlId}-expires`}>
+            Nova data de expiração
+          </FieldLabel>
+          <DatePickerField
+            defaultValue={formatDateInput(enrollment.expiresAt)}
+            id={`${controlId}-expires`}
+            minDate={formatDateInput(new Date())}
+            name="newExpiresAt"
+            placeholder="Selecionar data"
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor={`${controlId}-reason`}>
+            Motivo do ajuste
+          </FieldLabel>
+          <Input
+            id={`${controlId}-reason`}
+            name="reason"
+            placeholder="Ex.: compensação por instabilidade no acesso"
+            required
+          />
+        </Field>
+      </FieldGroup>
+      <ControlFormActions onCancel={onCancel} submitLabel="Salvar ajuste" />
+    </AdminMutationForm>
+  );
+}
 
-      {canChangeExpiration || canBlockAccess || isManuallyBlocked ? (
-        <Accordion className="w-full" collapsible type="single">
-          {canChangeExpiration ? (
-            <AccordionItem className="border-none" value="adjust-expiration">
-              <AccordionTrigger className="rounded-md px-4 py-3 text-sm hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/30">
-                Ajustar validade do acesso
-              </AccordionTrigger>
-              <AccordionContent className="border-t bg-muted/10 px-4 pt-4 pb-4">
-                <AutoCloseDialogForm
-                  action={adjustEnrollmentExpirationAction}
-                  className="grid gap-5"
-                >
-                  <input
-                    name="enrollmentId"
-                    type="hidden"
-                    value={enrollment.id}
-                  />
-                  <input
-                    name="userId"
-                    type="hidden"
-                    value={enrollment.userId}
-                  />
-                  <input name="adjustment" type="hidden" value="set_exact" />
+function EnrollmentBlockForm({
+  enrollment,
+  onCancel,
+  onSuccess,
+}: {
+  enrollment: EnrollmentExpirationControlData;
+  onCancel: () => void;
+  onSuccess: () => void | Promise<void>;
+}): React.JSX.Element {
+  const controlId = `enrollment-${enrollment.id}`;
+  const formId = `${controlId}-block-form`;
+  return (
+    <AdminMutationForm
+      action={blockEnrollmentAccessAction}
+      className="flex flex-col gap-4 border-t pt-4"
+      id={formId}
+      onSuccess={onSuccess}
+    >
+      <input name="enrollmentId" type="hidden" value={enrollment.id} />
+      <input name="userId" type="hidden" value={enrollment.userId} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel
+            className="text-destructive"
+            htmlFor={`${controlId}-block-reason`}
+          >
+            Motivo do bloqueio
+          </FieldLabel>
+          <Input
+            className="border-destructive/30"
+            id={`${controlId}-block-reason`}
+            name="reason"
+            placeholder="Ex.: reembolso confirmado fora do webhook"
+            required
+          />
+        </Field>
+      </FieldGroup>
+      <div className="flex justify-end gap-2">
+        <Button onClick={onCancel} type="button" variant="ghost">
+          Cancelar
+        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button type="button" variant="destructive">
+              Bloquear acesso
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                <HugeiconsIcon icon={SquareLock02Icon} />
+              </AlertDialogMedia>
+              <AlertDialogTitle>Confirmar bloqueio do Curso</AlertDialogTitle>
+              <AlertDialogDescription>
+                A aluna perderá o acesso imediato a este Curso. Deseja
+                confirmar?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                form={formId}
+                type="submit"
+              >
+                Confirmar bloqueio
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </AdminMutationForm>
+  );
+}
 
-                  <dl className="grid gap-3 rounded-md border bg-background/60 p-3 text-sm sm:grid-cols-2">
-                    <div className="grid gap-1">
-                      <dt className="font-medium text-muted-foreground">
-                        Expiracao original
-                      </dt>
-                      <dd>{formatDateTime(enrollment.originalExpiresAt)}</dd>
-                    </div>
-                    <div className="grid gap-1">
-                      <dt className="font-medium text-muted-foreground">
-                        Expiracao atual
-                      </dt>
-                      <dd>{formatDateTime(enrollment.expiresAt)}</dd>
-                    </div>
-                  </dl>
+function EnrollmentRestoreForm({
+  enrollment,
+  onCancel,
+  onSuccess,
+}: {
+  enrollment: EnrollmentExpirationControlData;
+  onCancel: () => void;
+  onSuccess: () => void | Promise<void>;
+}): React.JSX.Element {
+  const controlId = `enrollment-${enrollment.id}`;
+  return (
+    <AdminMutationForm
+      action={restoreEnrollmentAccessAction}
+      className="flex flex-col gap-4 border-t pt-4"
+      onSuccess={onSuccess}
+    >
+      <input name="enrollmentId" type="hidden" value={enrollment.id} />
+      <input name="userId" type="hidden" value={enrollment.userId} />
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={`${controlId}-restore-reason`}>
+            Motivo da restauração
+          </FieldLabel>
+          <Input
+            id={`${controlId}-restore-reason`}
+            name="reason"
+            placeholder="Ex.: bloqueio aplicado por engano"
+            required
+          />
+        </Field>
+      </FieldGroup>
+      <ControlFormActions
+        onCancel={onCancel}
+        submitLabel="Restaurar acesso"
+        variant="outline"
+      />
+    </AdminMutationForm>
+  );
+}
 
-                  <div className="grid gap-1.5">
-                    <span className="font-medium text-sm">
-                      Nova data de expiração
-                    </span>
-                    <DatePickerField
-                      defaultValue={formatDateInput(enrollment.expiresAt)}
-                      minDate={today}
-                      name="newExpiresAt"
-                      placeholder="Selecionar data"
-                    />
-                  </div>
-
-                  <label className="grid gap-1.5">
-                    <span className="font-medium text-sm">
-                      Motivo do ajuste
-                    </span>
-                    <input
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      name="reason"
-                      placeholder="Ex.: compensação por instabilidade no acesso"
-                      required
-                    />
-                  </label>
-
-                  <div className="flex justify-end pt-2">
-                    <Button type="submit">
-                      <HugeiconsIcon
-                        icon={FloppyDiskIcon}
-                        size={16}
-                        strokeWidth={2}
-                      />
-                      Salvar ajuste
-                    </Button>
-                  </div>
-                </AutoCloseDialogForm>
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {canBlockAccess ? (
-            <AccordionItem className="border-none" value="block-access">
-              <AccordionTrigger className="rounded-md px-4 py-3 text-sm hover:bg-destructive/5 hover:text-destructive hover:no-underline data-[state=open]:bg-destructive/5 data-[state=open]:text-destructive">
-                Bloquear acesso
-              </AccordionTrigger>
-              <AccordionContent className="border-destructive/10 border-t bg-destructive/5 px-4 pt-4 pb-4">
-                <AutoCloseDialogForm
-                  action={blockEnrollmentAccessAction}
-                  className="grid gap-5"
-                  id={`block-course-${enrollment.id}`}
-                >
-                  <input
-                    name="enrollmentId"
-                    type="hidden"
-                    value={enrollment.id}
-                  />
-                  <input
-                    name="userId"
-                    type="hidden"
-                    value={enrollment.userId}
-                  />
-                  <label className="grid gap-1.5">
-                    <span className="font-medium text-destructive text-sm">
-                      Motivo do bloqueio
-                    </span>
-                    <input
-                      className="rounded-md border-destructive/30 bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-destructive"
-                      name="reason"
-                      placeholder="Ex.: reembolso confirmado fora do webhook"
-                      required
-                    />
-                  </label>
-                  <div className="flex justify-end pt-2">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button type="button" variant="destructive">
-                          <HugeiconsIcon
-                            icon={SquareLock02Icon}
-                            size={16}
-                            strokeWidth={2}
-                          />
-                          Bloquear acesso
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogMedia className="bg-destructive/10 text-destructive">
-                            <HugeiconsIcon icon={SquareLock02Icon} />
-                          </AlertDialogMedia>
-                          <AlertDialogTitle>
-                            Confirmar bloqueio do curso
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            O aluno perderá o acesso imediato a este curso e
-                            seus materiais. Deseja confirmar o bloqueio?
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            form={`block-course-${enrollment.id}`}
-                            type="submit"
-                          >
-                            Confirmar bloqueio
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                </AutoCloseDialogForm>
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-
-          {isManuallyBlocked ? (
-            <AccordionItem className="border-none" value="restore-access">
-              <AccordionTrigger className="rounded-md px-4 py-3 text-sm hover:bg-muted/50 hover:no-underline data-[state=open]:bg-muted/30">
-                Restaurar acesso
-              </AccordionTrigger>
-              <AccordionContent className="border-t bg-muted/10 px-4 pt-4 pb-4">
-                <AutoCloseDialogForm
-                  action={restoreEnrollmentAccessAction}
-                  className="grid gap-5"
-                >
-                  <input
-                    name="enrollmentId"
-                    type="hidden"
-                    value={enrollment.id}
-                  />
-                  <input
-                    name="userId"
-                    type="hidden"
-                    value={enrollment.userId}
-                  />
-                  <label className="grid gap-1.5">
-                    <span className="font-medium text-sm">
-                      Motivo da restauração
-                    </span>
-                    <input
-                      className="rounded-md border bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                      name="reason"
-                      placeholder="Ex.: bloqueio aplicado por engano"
-                      required
-                    />
-                  </label>
-                  <div className="flex justify-end pt-2">
-                    <Button type="submit" variant="outline">
-                      <HugeiconsIcon
-                        icon={UndoIcon}
-                        size={16}
-                        strokeWidth={2}
-                      />
-                      Restaurar acesso
-                    </Button>
-                  </div>
-                </AutoCloseDialogForm>
-              </AccordionContent>
-            </AccordionItem>
-          ) : null}
-        </Accordion>
-      ) : null}
-    </>
+function ControlFormActions({
+  onCancel,
+  submitLabel,
+  variant = "default",
+}: {
+  onCancel: () => void;
+  submitLabel: string;
+  variant?: "default" | "outline";
+}): React.JSX.Element {
+  return (
+    <div className="flex justify-end gap-2">
+      <Button onClick={onCancel} type="button" variant="ghost">
+        Cancelar
+      </Button>
+      <Button type="submit" variant={variant}>
+        {submitLabel}
+      </Button>
+    </div>
   );
 }

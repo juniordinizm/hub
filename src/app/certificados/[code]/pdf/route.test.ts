@@ -77,12 +77,17 @@ describe("GET /certificados/[code]/pdf", () => {
       "https://private-r2.example.test/signed"
     );
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(response.headers.get("content-security-policy")).toBe(
+      "frame-ancestors 'self'"
+    );
+    expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
     expect(dependencies.verifyPrivateR2ObjectSha256).toHaveBeenCalledWith({
       expectedSha256: "a".repeat(64),
       key: "certificates/cert-ready/certificate.pdf",
     });
     expect(dependencies.createR2ObjectReadUrl).toHaveBeenCalledWith({
       key: "certificates/cert-ready/certificate.pdf",
+      responseContentDisposition: "inline",
     });
   });
 

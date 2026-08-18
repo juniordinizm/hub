@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 type CopyStatus = "idle" | "success" | "error";
@@ -34,14 +35,16 @@ export function CertificatePublicActions({
         new URL(certificateHref, window.location.origin).toString()
       );
       setCopyStatus("success");
+      toast.success("Link copiado.");
     } catch {
       setCopyStatus("error");
+      toast.error("Não foi possível copiar o link.");
     }
   };
 
   return (
     <div className="mt-4 flex flex-wrap items-center gap-3">
-      <Button asChild size="lg">
+      <Button asChild>
         <a download href={pdfHref}>
           Baixar PDF
         </a>
@@ -50,12 +53,16 @@ export function CertificatePublicActions({
         onClick={() => {
           copyCertificateLink().catch(() => setCopyStatus("error"));
         }}
-        size="lg"
         variant="outline"
       >
-        {copyStatus === "success" ? "Link copiado" : "Copiar link"}
+        Copiar link
       </Button>
-      <p aria-atomic="true" aria-live="polite" role="status">
+      <p
+        aria-atomic="true"
+        aria-live="polite"
+        className="sr-only"
+        role="status"
+      >
         {getCopyStatusMessage(copyStatus)}
       </p>
     </div>

@@ -13,5 +13,7 @@ describe("CertificatePublicActions", () => {
 
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('role="status"');
+    expect(markup).toContain('class="sr-only"');
+    expect(markup).not.toContain("Link copiado");
   });
 });

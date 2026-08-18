@@ -185,6 +185,22 @@ preservam Matrículas efetivas e podem ser ocultadas. “Em breve” coleta inte
 autenticado sem Pedido ou acesso. Abrir vendas avisa pela outbox; fechar vendas
 cancela Checkouts ativos. Ver [ADR-0009](adr/0009-course-availability-and-sale-interest.md).
 
+## DEC-DISC-013
+
+**Tema:** gestão contextual de Alunas no painel Admin.
+**Estado:** aprovado e implementado em código.
+
+`/admin/alunos` permanece como lista canônica. A ficha de uma Aluna abre em um
+`StudentManagementSheet` lateral, sem estado de seleção na URL, e carrega os dados sob
+demanda por GET administrativo protegido. O mesmo Sheet é usado pela aba de Alunos do
+Curso: a lista geral mostra plataforma, todas as Matrículas e todos os Certificados;
+o contexto do Curso mostra somente a Matrícula e os Certificados daquele Curso.
+
+Os dialogs anteriores de Aluna e Matrícula são substituídos pelo Sheet compartilhado.
+Mutação mantém o Sheet aberto, refaz a leitura e mostra confirmação. A rota individual
+`/admin/alunos/[userId]` é removida e acessos antigos retornam 404; autorização das
+actions e regras de domínio não mudam.
+
 ## Outras ratificações necessárias
 
 - escopo definitivo de `support` e capacidades financeiras mutáveis;

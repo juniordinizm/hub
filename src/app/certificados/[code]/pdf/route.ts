@@ -56,11 +56,15 @@ export const GET = async (
 
     const signedUrl = await createR2ObjectReadUrl({
       key: certificate.pdfStorageKey,
+      responseContentDisposition: "inline",
     });
     return new Response(null, {
       headers: {
+        "content-security-policy": "frame-ancestors 'self'",
+        "content-type": "application/pdf",
         location: signedUrl,
         "x-robots-tag": PUBLIC_PDF_ROBOTS_HEADER,
+        "x-frame-options": "SAMEORIGIN",
       },
       status: 307,
     });

@@ -18,6 +18,16 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +72,7 @@ import {
 } from "./certificate-template-fields";
 import { applyCertificateTemplateUploads } from "./certificate-template-form-data";
 import { resizeCertificateFieldGeometry } from "./certificate-template-geometry";
+import { CertificateTemplateOverflowNotice } from "./certificate-template-overflow-notice";
 import { CertificateTemplateOverlapNotice } from "./certificate-template-overlap-notice";
 import { CertificateTemplatePreview } from "./certificate-template-preview";
 import { CertificateTemplateVisibilitySheet } from "./certificate-template-visibility-sheet";
@@ -123,12 +134,14 @@ const TemplateFormNotices = ({
   hasPublishedTemplate,
   lastAction,
   issuerConfigured,
+  overflowFields,
   publishState,
   saveState,
 }: {
   hasPublishedTemplate: boolean;
   lastAction: "save" | "publish" | null;
   issuerConfigured: boolean;
+  overflowFields: readonly CertificateField[];
   publishState: CertificateTemplateActionState;
   saveState: CertificateTemplateActionState;
 }): React.JSX.Element => {
@@ -164,6 +177,7 @@ const TemplateFormNotices = ({
           <AlertDescription>{actionError.message}</AlertDescription>
         </Alert>
       ) : null}
+      <CertificateTemplateOverflowNotice fields={overflowFields} />
     </>
   );
 };
@@ -397,6 +411,7 @@ export function CertificateTemplateForm({
       ? ensureCertificateTemplateFields(template.spec.fields)
       : createDefaultCertificateTemplateFields()
   );
+  const [overflowFields, setOverflowFields] = useState<CertificateField[]>([]);
   const fieldsRef = useRef(fields);
   const [selectedField, setSelectedField] = useState<CertificateField | null>(
     null
@@ -449,6 +464,8 @@ export function CertificateTemplateForm({
     field: CertificateField;
     id: number;
   } | null>(null);
+  const [publishConfirmationOpen, setPublishConfirmationOpen] = useState(false);
+  const pendingPublishFormDataRef = useRef<FormData | null>(null);
 
   const selectField = useCallback(
     (field: CertificateField | null): void => {
@@ -486,10 +503,30 @@ export function CertificateTemplateForm({
     setLastAction("save");
     saveAction(formData);
   };
-  const publishTemplate = (formData: FormData): void => {
-    prepareSubmission(formData);
+  const submitPublish = (formData: FormData): void => {
     setLastAction("publish");
     publishAction(formData);
+  };
+  const publishTemplate = (formData: FormData): void => {
+    prepareSubmission(formData);
+    if (overflowFields.length > 0) {
+      pendingPublishFormDataRef.current = formData;
+      setPublishConfirmationOpen(true);
+      return;
+    }
+    submitPublish(formData);
+  };
+  const confirmPublish = (): void => {
+    const formData = pendingPublishFormDataRef.current;
+    pendingPublishFormDataRef.current = null;
+    setPublishConfirmationOpen(false);
+    if (formData) {
+      submitPublish(formData);
+    }
+  };
+  const cancelPublish = (): void => {
+    pendingPublishFormDataRef.current = null;
+    setPublishConfirmationOpen(false);
   };
   const clearFieldHistory = useCallback((): void => {
     fieldHistoryRef.current = [];
@@ -923,6 +960,7 @@ export function CertificateTemplateForm({
               hasPublishedTemplate={hasPublishedTemplate}
               issuerConfigured={issuerConfigured}
               lastAction={lastAction}
+              overflowFields={overflowFields}
               publishState={publishState}
               saveState={saveState}
             />
@@ -1074,6 +1112,7 @@ export function CertificateTemplateForm({
                   onFieldInteractionStart={beginFieldInteraction}
                   onFieldPositionChange={updateFieldPosition}
                   onFieldSelect={selectField}
+                  onOverflowFieldsChange={setOverflowFields}
                   overlapFields={overlapFields}
                   selectedField={selectedField}
                   signatureUrl={signaturePreviewUrl}
@@ -1118,6 +1157,35 @@ export function CertificateTemplateForm({
           </div>
         </div>
       </form>
+      <AlertDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            cancelPublish();
+          }
+        }}
+        open={publishConfirmationOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publicar com conteúdo cortado?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {overflowFields
+                .map((field) => certificateTemplateFieldLabels[field])
+                .join(", ")}{" "}
+              excede a área configurada. O PDF futuro manterá exatamente esse
+              recorte; certificados já emitidos não serão alterados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelPublish}>
+              Voltar e ajustar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmPublish}>
+              Publicar mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

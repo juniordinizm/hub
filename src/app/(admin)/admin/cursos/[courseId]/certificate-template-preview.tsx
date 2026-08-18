@@ -192,6 +192,7 @@ export function CertificateTemplatePreview({
   onFieldPositionChange,
   onFieldSelect,
   onBackgroundSelect,
+  onOverflowFieldsChange,
   overlapFields,
   signatureUrl,
   signerName,
@@ -219,6 +220,7 @@ export function CertificateTemplatePreview({
   ) => void;
   onFieldSelect?: (field: CertificateTemplateField["field"] | null) => void;
   onBackgroundSelect?: () => void;
+  onOverflowFieldsChange?: (fields: CertificateField[]) => void;
   overlapFields: ReadonlySet<CertificateTemplateField["field"]>;
   signatureUrl: string | null;
   signerName: string;
@@ -229,9 +231,9 @@ export function CertificateTemplatePreview({
 }): React.JSX.Element {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [renderedWidth, setRenderedWidth] = useState(0);
-  const [overflowFields, setOverflowFields] = useState<
-    Set<CertificateTemplateField["field"]>
-  >(() => new Set());
+  const overflowFieldsRef = useRef<Set<CertificateTemplateField["field"]>>(
+    new Set()
+  );
   const pageRef = useRef<HTMLDivElement>(null);
   const values = useMemo(
     () => ({
@@ -284,16 +286,16 @@ export function CertificateTemplatePreview({
       }
     }
 
-    setOverflowFields((current) => {
-      if (
-        current.size === nextOverflowFields.size &&
-        [...current].every((field) => nextOverflowFields.has(field))
-      ) {
-        return current;
-      }
-      return nextOverflowFields;
-    });
-  }, [renderedWidth, values, fields]);
+    const currentOverflowFields = overflowFieldsRef.current;
+    if (
+      currentOverflowFields.size === nextOverflowFields.size &&
+      [...currentOverflowFields].every((field) => nextOverflowFields.has(field))
+    ) {
+      return;
+    }
+    overflowFieldsRef.current = nextOverflowFields;
+    onOverflowFieldsChange?.([...nextOverflowFields]);
+  }, [fields, onOverflowFieldsChange, renderedWidth, values]);
 
   useEffect(() => {
     const page = pageRef.current;
@@ -367,12 +369,8 @@ export function CertificateTemplatePreview({
     () => fields.filter((field) => field.visible),
     [fields]
   );
-  const overflowFieldLabels = useMemo(
-    () =>
-      visibleFields
-        .filter((field) => overflowFields.has(field.field))
-        .map((field) => certificateTemplateFieldLabels[field.field]),
-    [overflowFields, visibleFields]
+  const overflowFieldLabels = [...overflowFieldsRef.current].map(
+    (field) => certificateTemplateFieldLabels[field]
   );
   const dragRef = useRef<{
     field: CertificateTemplateField["field"];
@@ -672,11 +670,11 @@ export function CertificateTemplatePreview({
       {overflowFieldLabels.length > 0 ? (
         <p
           aria-live="polite"
-          className="pointer-events-none absolute right-2 bottom-2 left-2 rounded-md bg-amber-500/90 px-2 py-1 text-center font-medium text-black text-xs"
+          className="pointer-events-none absolute right-2 bottom-2 left-2 rounded-md bg-accent/90 px-2 py-1 text-center font-medium text-accent-foreground text-xs"
           role="status"
         >
-          Texto cortado: {overflowFieldLabels.join(", ")}. Ajuste a altura ou
-          reduza a fonte.
+          Texto fora da área: {overflowFieldLabels.join(", ")}. O PDF manterá o
+          recorte configurado.
         </p>
       ) : null}
     </div>

@@ -3,21 +3,10 @@
 import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { StudentManagementSheet } from "@/components/admin/student-management-sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTriggerButton,
-} from "@/components/ui/dialog";
-import {
-  EnrollmentExpirationControls,
-  statusLabels,
-} from "@/features/admin/enrollment-expiration-controls";
 import type { AdminEnrollment } from "@/features/admin/server";
 import { formatDateTime as formatAppDateTime } from "@/lib/formatters";
 
@@ -60,7 +49,23 @@ const columns: ColumnDef<CourseEnrollmentRow>[] = [
   {
     id: "actions",
     header: "Acoes",
-    cell: ({ row }) => <EnrollmentEditDialog enrollment={row.original} />,
+    cell: ({ row }) => (
+      <StudentManagementSheet
+        courseId={row.original.courseId}
+        trigger={
+          <Button size="sm" variant="outline">
+            <HugeiconsIcon
+              data-icon="inline-start"
+              icon={ViewIcon}
+              size={16}
+              strokeWidth={2}
+            />
+            Gerenciar
+          </Button>
+        }
+        userId={row.original.userId}
+      />
+    ),
   },
 ];
 
@@ -77,81 +82,5 @@ export function CourseEnrollmentsTable({
       emptyTitle="Nenhuma matricula encontrada"
       searchPlaceholder="Buscar por nome ou email"
     />
-  );
-}
-
-function EnrollmentEditDialog({
-  enrollment,
-}: {
-  enrollment: CourseEnrollmentRow;
-}): React.JSX.Element {
-  let badgeVariant: "default" | "destructive" | "secondary" = "default";
-  if (enrollment.status === "revoked") {
-    badgeVariant = "destructive";
-  } else if (enrollment.status === "expired") {
-    badgeVariant = "secondary";
-  }
-
-  return (
-    <Dialog>
-      <DialogTriggerButton size="sm" variant="outline">
-        <HugeiconsIcon icon={ViewIcon} size={16} strokeWidth={2} />
-        Ver
-      </DialogTriggerButton>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader className="border-b pb-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <DialogTitle className="text-xl">{enrollment.name}</DialogTitle>
-              <DialogDescription className="mt-1">
-                {enrollment.email} - Matrícula em {enrollment.courseTitle}
-              </DialogDescription>
-            </div>
-            <Badge variant={badgeVariant}>
-              {statusLabels[enrollment.status] ?? enrollment.status}
-            </Badge>
-          </div>
-
-          <div className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-xs">Início</span>
-              <span className="font-medium">
-                {formatAppDateTime(enrollment.startsAt)}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-xs">
-                Expiração original
-              </span>
-              <span className="font-medium">
-                {formatAppDateTime(enrollment.originalExpiresAt)}
-              </span>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-xs">
-                Expiração atual
-              </span>
-              <span className="font-medium">
-                {formatAppDateTime(enrollment.expiresAt)}
-              </span>
-            </div>
-          </div>
-        </DialogHeader>
-        <DialogBody>
-          <EnrollmentExpirationControls
-            enrollment={{
-              courseTitle: enrollment.courseTitle,
-              expiresAt: enrollment.expiresAt,
-              id: enrollment.id,
-              originalExpiresAt: enrollment.originalExpiresAt,
-              revokedReason: enrollment.revokedReason,
-              startedAt: enrollment.startsAt,
-              status: enrollment.status,
-              userId: enrollment.userId,
-            }}
-          />
-        </DialogBody>
-      </DialogContent>
-    </Dialog>
   );
 }

@@ -1084,6 +1084,7 @@ export const getCertificatesForUser = async (
 
 export interface CertificateOperationRecord extends CertificateRecord {
   canReissue: boolean;
+  courseId: string;
   id: string;
 }
 
@@ -1130,6 +1131,7 @@ export const getCertificateOperationsForUser = async (
   return rows.map((row) => ({
     canReissue: row.can_reissue,
     code: row.code,
+    courseId: row.course_id,
     courseTitle: row.course_title_snapshot,
     id: row.id,
     issuedAt: row.issued_at,

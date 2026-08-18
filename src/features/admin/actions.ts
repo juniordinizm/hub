@@ -176,12 +176,8 @@ const auditEnrollmentExpirationChange = async ({
   });
 };
 
-const revalidateEnrollmentAdminPaths = (userId: string): void => {
+const revalidateEnrollmentAdminPaths = (): void => {
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
@@ -410,7 +406,7 @@ export const extendEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { days, enrollmentId, months, reason, userId } =
+  const { days, enrollmentId, months, reason } =
     parseExtendEnrollmentExpirationInput(formData);
   const { extendEnrollmentExpiration } = await import(
     "@/features/enrollments/server"
@@ -430,10 +426,6 @@ export const extendEnrollmentExpirationAction = async (
     targetType: "enrollment",
   });
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const setEnrollmentExpirationAction = async (
@@ -442,7 +434,7 @@ export const setEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, newExpiresAt, reason, userId } =
+  const { enrollmentId, newExpiresAt, reason } =
     parseSetEnrollmentExpirationInput(formData);
   const { setEnrollmentExpiration } = await import(
     "@/features/enrollments/server"
@@ -460,10 +452,6 @@ export const setEnrollmentExpirationAction = async (
     result,
   });
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const adjustEnrollmentExpirationAction = async (
@@ -472,7 +460,7 @@ export const adjustEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { adjustment, enrollmentId, newExpiresAtValue, reason, userId } =
+  const { adjustment, enrollmentId, newExpiresAtValue, reason } =
     parseAdjustEnrollmentExpirationInput(formData);
 
   if (adjustment === "set_exact") {
@@ -491,7 +479,7 @@ export const adjustEnrollmentExpirationAction = async (
       enrollmentId,
       result,
     });
-    revalidateEnrollmentAdminPaths(userId);
+    revalidateEnrollmentAdminPaths();
     return;
   }
 
@@ -504,7 +492,7 @@ export const blockEnrollmentAccessAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, reason, userId } = parseEnrollmentAccessInput(formData);
+  const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { blockEnrollmentAccess } = await import(
     "@/features/enrollments/server"
@@ -520,7 +508,7 @@ export const blockEnrollmentAccessAction = async (
     targetId: enrollmentId,
     targetType: "enrollment",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const restoreEnrollmentAccessAction = async (
@@ -529,7 +517,7 @@ export const restoreEnrollmentAccessAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, reason, userId } = parseEnrollmentAccessInput(formData);
+  const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { restoreEnrollmentAccess } = await import(
     "@/features/enrollments/server"
@@ -545,7 +533,7 @@ export const restoreEnrollmentAccessAction = async (
     targetId: enrollmentId,
     targetType: "enrollment",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const blockStudentPlatformAccessAction = async (
@@ -576,7 +564,7 @@ export const blockStudentPlatformAccessAction = async (
     targetId: userId,
     targetType: "student",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const restoreStudentPlatformAccessAction = async (
@@ -607,7 +595,7 @@ export const restoreStudentPlatformAccessAction = async (
     targetId: userId,
     targetType: "student",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const saveFaqAction = async (formData: FormData): Promise<void> => {

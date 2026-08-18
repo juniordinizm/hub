@@ -20,7 +20,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 - `src/app/(student)`: área autenticada da Aluna.
 - `src/app/(admin)`: painel de Admin/Suporte.
 - `src/app/api`: Better Auth, checkout, webhooks, mídia, crons e health check.
-- `src/app/certificados/[code]`: página pública canônica de validação, preview e compartilhamento; a subrota `pdf` medeia o artefato sem publicar a chave do R2.
+- `src/app/certificados/[code]`: página pública canônica de validação, preview e compartilhamento; as subrotas `preview` e `pdf` mediam artefatos privados sem publicar chaves do R2.
 
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
 Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
@@ -219,9 +219,10 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 #### Administração
 
-- **Símbolos:** `getAdmin*Data`, `getAdminOverview`, `getAdminStudentDetail` e editores de curso/aula; actions nomeadas por comando.
-- **Consumidores:** páginas e componentes Admin. `authoring.ts` é chamado por actions, nunca por JSX.
-- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunas/acesso, financeiro, auditoria e configurações; a action chama o caso de uso e revalida as rotas afetadas.
+- **Símbolos:** `getAdmin*Data`, `getAdminOverview`, `getAdminStudentSheetData` e editores de curso/aula; actions nomeadas por comando.
+- **Consumidores:** páginas, tabelas e Sheets Admin. `authoring.ts` é chamado por actions, nunca por JSX.
+- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunas/acesso, financeiro, auditoria e configurações; a ficha de Aluna é carregada sob demanda por GET protegido, sem estado de seleção na URL. A action chama o caso de uso e revalida as superfícies administrativas afetadas.
+- **Ficha contextual de Aluna:** `/admin/alunos` e a aba de alunos do Curso usam o mesmo `StudentManagementSheet`. A lista geral mostra plataforma, todas as Matrículas e Certificados; o contexto de Curso mostra somente a Matrícula e os Certificados daquele Curso. A antiga rota `/admin/alunos/[userId]` não faz parte do produto e retorna 404.
 
 #### Acesso e comércio
 

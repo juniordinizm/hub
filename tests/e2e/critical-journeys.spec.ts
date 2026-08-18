@@ -621,12 +621,11 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
   await expect(page.getByText("Aluna para conclusao")).toBeVisible();
   await expect(page.getByText(certificateCode)).toBeVisible();
-  await expect(page.getByText("Escola E2E", { exact: true })).toBeVisible();
-  await expect(page.getByText("12.345.678/0001-90")).toBeVisible();
   const publicPdfPath = `/certificados/${certificateCode}/pdf`;
-  await expect(page.getByTitle("Prévia do certificado")).toHaveAttribute(
+  const publicPreviewPath = `/certificados/${certificateCode}/preview`;
+  await expect(page.getByAltText("Prévia do certificado")).toHaveAttribute(
     "src",
-    publicPdfPath
+    publicPreviewPath
   );
   await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveAttribute(
     "href",
@@ -644,6 +643,22 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   expect(pdfResponse.status()).toBe(200);
   expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
   expect((await pdfResponse.body()).subarray(0, 4).toString()).toBe("%PDF");
+
+  const previewResponse = await request.get(publicPreviewPath, {
+    maxRedirects: 0,
+  });
+  expect(previewResponse.status()).toBe(307);
+  expect(previewResponse.headers()["content-type"]).toContain("image/png");
+  const previewLocation = previewResponse.headers().location;
+  expect(previewLocation).toContain("X-Amz-Signature");
+  const previewArtifactResponse = await request.get(previewLocation ?? "");
+  expect(previewArtifactResponse.status()).toBe(200);
+  expect(previewArtifactResponse.headers()["content-type"]).toContain(
+    "image/png"
+  );
+  expect(
+    (await previewArtifactResponse.body()).subarray(0, 8).toString("hex")
+  ).toBe("89504e470d0a1a0a");
 
   const sinkResponse = await request.get("/api/e2e/email-deliveries");
   expect(sinkResponse.status()).toBe(200);
@@ -751,9 +766,9 @@ test("public certificates distinguish valid and revoked records", async ({
   await expect(page.getByText(fixture.studentWithGrant.name)).toBeVisible();
   await expect(page.getByText(fixture.certificate.validCode)).toBeVisible();
   await expect(page.getByText("CPF", { exact: false })).toHaveCount(0);
-  await expect(page.getByTitle("Prévia do certificado")).toHaveAttribute(
+  await expect(page.getByAltText("Prévia do certificado")).toHaveAttribute(
     "src",
-    `/certificados/${fixture.certificate.validCode}/pdf`
+    `/certificados/${fixture.certificate.validCode}/preview`
   );
   await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveAttribute(
     "href",
@@ -779,7 +794,7 @@ test("public certificates distinguish valid and revoked records", async ({
     await expect(
       page.getByText(certificateState.certificate.code)
     ).toBeVisible();
-    await expect(page.getByTitle("Prévia do certificado")).toHaveCount(0);
+    await expect(page.getByAltText("Prévia do certificado")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveCount(0);
   }
 
@@ -793,7 +808,7 @@ test("public certificates distinguish valid and revoked records", async ({
   await expect(
     page.getByText(fixture.certificate.sensitiveSentinel, { exact: false })
   ).toHaveCount(0);
-  await expect(page.getByTitle("Prévia do certificado")).toHaveCount(0);
+  await expect(page.getByAltText("Prévia do certificado")).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveCount(0);
 });
 
@@ -931,22 +946,61 @@ test("certificate PDF is public only for valid ready records", async ({
   }
 });
 
-test("admin sees certificate lifecycle controls with mandatory confirmation", async ({
+test("admin sees certificate lifecycle controls in the student Sheet", async ({
   page,
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
-  await page.goto(`/admin/alunos/${fixture.studentWithGrant.id}`);
+  await page.goto("/admin/alunos");
+
+  const studentRow = page
+    .locator("tbody tr")
+    .filter({ hasText: fixture.studentWithGrant.email });
+  await studentRow.getByRole("button", { name: "Gerenciar" }).click();
+
+  const studentSheet = page.getByRole("dialog");
   await expect(
-    page.getByRole("heading", { name: "Certificados" })
+    studentSheet.getByRole("heading", { name: "Gerenciar aluna" })
   ).toBeVisible();
-  await page.getByText("Emitir certificado manual").click();
-  const manualIssuance = page
-    .locator("details")
-    .filter({ hasText: "Emitir certificado manual" });
   await expect(
-    manualIssuance.getByText("Confirmo que revisei os dados")
+    studentSheet.getByRole("heading", { name: "Certificados" })
   ).toBeVisible();
+  await studentSheet.getByText("Emitir certificado manual").click();
+  await expect(
+    studentSheet.getByText("Confirmo que revisei os dados")
+  ).toBeVisible();
+});
+
+test("the removed student detail route is not available", async ({ page }) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+
+  const response = await page.request.get(
+    `/admin/alunos/${fixture.studentWithGrant.id}`
+  );
+
+  expect(response.status()).toBe(404);
+});
+
+test("admin manages a student from the course context Sheet", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto(`/admin/cursos/${fixture.course.id}?tab=students`);
+
+  const enrollmentRow = page
+    .locator("tbody tr")
+    .filter({ hasText: fixture.studentWithGrant.email });
+  await enrollmentRow.getByRole("button", { name: "Gerenciar" }).click();
+
+  const studentSheet = page.getByRole("dialog");
+  await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
+  await expect(
+    studentSheet.getByText("Curso E2E", { exact: true })
+  ).toBeVisible();
+  await expect(studentSheet.getByText("Acesso ao Curso")).toBeVisible();
+  await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
 });
 
 test("keyboard reaches the login form and student sidebar", async ({

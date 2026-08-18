@@ -33,6 +33,7 @@ describe("E2E object cleanup ownership", () => {
     ).toEqual([
       "e2e/run/fixture.pdf",
       "certificates/generated/certificate.pdf",
+      "certificates/generated/certificate-preview.png",
       "certificates/templates/course-a/background.png",
     ]);
   });
