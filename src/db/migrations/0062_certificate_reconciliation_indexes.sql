@@ -1,0 +1,2 @@
+CREATE INDEX "certificates_user_course_history_idx" ON "certificates" USING btree ("user_id","course_id");--> statement-breakpoint
+CREATE INDEX "course_completions_course_reconciliation_idx" ON "course_completions" USING btree ("course_id","completed_at","id","user_id");

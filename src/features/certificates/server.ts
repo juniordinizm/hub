@@ -25,6 +25,7 @@ import { getServerEnv } from "@/lib/env";
 import { CertificateDomainError } from "./errors";
 
 const MAX_CERTIFICATE_CODE_ATTEMPTS = 3;
+const CERTIFICATE_RECONCILIATION_BATCH_SIZE = 100;
 const CERTIFICATE_CODE_GENERATION_ERROR =
   "Nao foi possivel gerar um codigo publico unico.";
 
@@ -336,6 +337,7 @@ const requireCertificateReason = ({
 
 const issueCertificate = async ({
   actorUserId,
+  auditMetadata,
   client,
   courseId,
   coursePublicationId,
@@ -343,8 +345,10 @@ const issueCertificate = async ({
   reasonDetail,
   replacesCertificateId,
   userId,
+  workloadSource = "effective",
 }: {
   actorUserId: string;
+  auditMetadata?: Record<string, string>;
   client: PoolClient;
   courseId: string;
   coursePublicationId: string;
@@ -352,6 +356,7 @@ const issueCertificate = async ({
   reasonDetail?: string;
   replacesCertificateId?: string;
   userId: string;
+  workloadSource?: "effective" | "publication";
 }): Promise<{ id: string }> => {
   const snapshot = await client.query<{
     completed_at: Date;
@@ -368,12 +373,14 @@ const issueCertificate = async ({
     issuer_cnpj: string;
     issuer_display_name: string;
     issuer_legal_name: string;
+    publication_workload_hours: number;
   }>(
     `
       select
         u.name as student_name,
         cc.completed_at,
         cp.title_snapshot as course_title,
+        cp.workload_hours_snapshot as publication_workload_hours,
         coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         ct.id as template_id,
         ct.version as template_version,
@@ -408,6 +415,10 @@ const issueCertificate = async ({
 
   const issuedAt = new Date().toISOString();
   const templateFields = parseCertificateTemplateDraft(source.spec).fields;
+  const workloadHours =
+    workloadSource === "publication"
+      ? source.publication_workload_hours
+      : source.workload_hours;
   let certificateId: string | undefined;
 
   for (let attempt = 0; attempt < MAX_CERTIFICATE_CODE_ATTEMPTS; attempt += 1) {
@@ -419,7 +430,7 @@ const issueCertificate = async ({
       completion: { completedAt: source.completed_at.toISOString() },
       course: {
         title: source.course_title,
-        workloadHours: source.workload_hours,
+        workloadHours,
       },
       issuer: {
         cnpj: source.issuer_cnpj,
@@ -464,7 +475,7 @@ const issueCertificate = async ({
           certificateCode,
           source.student_name,
           source.course_title,
-          source.workload_hours,
+          workloadHours,
           replacesCertificateId ?? null,
           source.template_id,
           JSON.stringify(renderSnapshot),
@@ -497,18 +508,154 @@ const issueCertificate = async ({
     actorUserId,
     certificateId,
     client,
-    metadata: reasonCategory
-      ? {
-          reasonCategory,
-          reasonDetail: reasonDetail ?? "",
-        }
-      : {},
+    metadata: {
+      ...auditMetadata,
+      ...(reasonCategory
+        ? {
+            reasonCategory,
+            reasonDetail: reasonDetail ?? "",
+          }
+        : {}),
+    },
   });
   await enqueueOutboxMessage({
     client,
     message: createCertificateRenderMessage({ certificateId }),
   });
   return { id: certificateId };
+};
+
+export interface CertificateReconciliationResult {
+  issued: number;
+  remaining: number;
+}
+
+export const reconcileHistoricalCourseCertificates = async ({
+  actorUserId,
+  courseId,
+}: {
+  actorUserId: string;
+  courseId: string;
+}): Promise<CertificateReconciliationResult> => {
+  const pool = getPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [courseId]
+    );
+    const candidates = await client.query<{
+      completed_at: Date;
+      course_publication_id: string;
+      id: string;
+      user_id: string;
+    }>(
+      `
+        select completion.id, completion.user_id,
+               completion.course_publication_id, completion.completed_at
+        from course_completions completion
+        join courses course
+          on course.id = completion.course_id
+         and course.certificate_enabled = true
+        join course_publications publication
+          on publication.id = completion.course_publication_id
+         and publication.course_id = completion.course_id
+        where completion.course_id = $1
+          and exists (
+            select 1
+            from certificate_templates template
+            where template.course_id = completion.course_id
+              and template.status = 'published'
+          )
+          and exists (
+            select 1
+            from certificate_issuer_profiles issuer
+            where issuer.id = 'global'
+          )
+          and not exists (
+            select 1
+            from certificates certificate
+            where certificate.user_id = completion.user_id
+              and certificate.course_id = completion.course_id
+          )
+        order by completion.completed_at, completion.id
+        limit $2
+        for update of completion
+      `,
+      [courseId, CERTIFICATE_RECONCILIATION_BATCH_SIZE]
+    );
+
+    let issued = 0;
+    for (const candidate of candidates.rows) {
+      await lockCourseCertificateLifecycleInTransaction(
+        client,
+        candidate.user_id,
+        courseId
+      );
+      const existingCertificate = await client.query<{ id: string }>(
+        `
+          select id
+          from certificates
+          where user_id = $1 and course_id = $2
+          limit 1
+        `,
+        [candidate.user_id, courseId]
+      );
+      if (existingCertificate.rows[0]) {
+        continue;
+      }
+
+      await issueCertificate({
+        actorUserId,
+        auditMetadata: { origin: "admin_reconciliation" },
+        client,
+        courseId,
+        coursePublicationId: candidate.course_publication_id,
+        userId: candidate.user_id,
+        workloadSource: "publication",
+      });
+      issued += 1;
+    }
+
+    const remainingResult = await client.query<{ remaining: number }>(
+      `
+        select count(*)::int as remaining
+        from course_completions completion
+        join courses course
+          on course.id = completion.course_id
+         and course.certificate_enabled = true
+        where completion.course_id = $1
+          and exists (
+            select 1
+            from certificate_templates template
+            where template.course_id = completion.course_id
+              and template.status = 'published'
+          )
+          and exists (
+            select 1
+            from certificate_issuer_profiles issuer
+            where issuer.id = 'global'
+          )
+          and not exists (
+            select 1
+            from certificates certificate
+            where certificate.user_id = completion.user_id
+              and certificate.course_id = completion.course_id
+          )
+      `,
+      [courseId]
+    );
+    const remaining = remainingResult.rows[0]?.remaining ?? 0;
+    await client.query("commit");
+    return { issued, remaining };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const issueManualCertificate = async ({

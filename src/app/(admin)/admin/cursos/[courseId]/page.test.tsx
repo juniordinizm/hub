@@ -54,7 +54,17 @@ vi.mock("@/features/certificates/templates", () => ({
 }));
 vi.mock("@/lib/env", () => ({ getServerEnv: dependencies.getServerEnv }));
 vi.mock("./certificate-template-editor", () => ({
-  CertificateTemplateEditor: () => null,
+  CertificateTemplateEditor: ({
+    pendingCertificateReconciliationCount,
+  }: {
+    pendingCertificateReconciliationCount: number;
+  }) => (
+    <div
+      data-pending-certificate-reconciliation={
+        pendingCertificateReconciliationCount
+      }
+    />
+  ),
 }));
 vi.mock("./course-builder-components", () => ({
   CourseBuilderWrapper: () => null,
@@ -190,6 +200,7 @@ const course = {
   paymentAllowPix: true,
   paymentMaxInstallmentCount: 3,
   pendingCheckoutCancellations: 0,
+  pendingCertificateReconciliationCount: 7,
   pendingInterestNotifications: 0,
   priceInCents: 10_000,
   salesStatus: "open",
@@ -256,6 +267,7 @@ describe("AdminCourseDetailPage overview", () => {
     expect(markup).toContain('data-active-enrollments="57"');
     expect(markup).toContain('data-paid-orders="83"');
     expect(markup).toContain('data-valid-certificates="41"');
+    expect(markup).toContain('data-pending-certificate-reconciliation="7"');
     expect(markup).toContain('data-module-count="0"');
     expect(markup).toContain('data-total-lessons="6"');
     expect(markup).toContain('data-duration-seconds="7200"');

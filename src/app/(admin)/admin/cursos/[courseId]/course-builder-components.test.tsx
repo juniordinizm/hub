@@ -119,6 +119,7 @@ const course: AdminCourse = {
   paymentAllowCreditCard: true,
   paymentAllowPix: true,
   paymentMaxInstallmentCount: 3,
+  pendingCertificateReconciliationCount: 0,
   priceInCents: 10_000,
   pendingCheckoutCancellations: 0,
   pendingInterestNotifications: 0,

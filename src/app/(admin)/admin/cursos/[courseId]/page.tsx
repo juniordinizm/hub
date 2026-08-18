@@ -171,6 +171,9 @@ export default async function AdminCourseDetailPage({
               courseId={course.id}
               courseWorkloadHours={course.workloadHours}
               issuerConfigured={issuerConfigured}
+              pendingCertificateReconciliationCount={
+                course.pendingCertificateReconciliationCount
+              }
               templates={certificateTemplates}
             />
           }

@@ -31,6 +31,7 @@ const limitKeywordPattern = /\blimit\b/;
 const courseRow = {
   access_duration_months: 12,
   catalog_visibility: "listed",
+  certificate_enabled: true,
   cover_image_json: { key: "cover" },
   description: "Course description",
   id: courseId,
@@ -41,6 +42,7 @@ const courseRow = {
   launch_landing_url: null,
   pending_checkout_cancellations: 1,
   pending_interest_notifications: 2,
+  pending_certificate_reconciliation_count: 7,
   price_in_cents: 12_900,
   sales_status: "closed",
   slug: "course-one",
@@ -269,6 +271,7 @@ describe("admin read projections", () => {
         interestCount: 3,
         interestNotificationsSent: 5,
         pendingCheckoutCancellations: 1,
+        pendingCertificateReconciliationCount: 7,
         pendingInterestNotifications: 2,
         salesStatus: "closed",
         title: "Course one",
@@ -277,6 +280,15 @@ describe("admin read projections", () => {
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
     });
+    const courseSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("from courses")
+      )?.[0]
+    ).toLowerCase();
+    expect(courseSql).toContain("from course_completions");
+    expect(courseSql).toContain("not exists");
+    expect(courseSql).not.toContain("certificate.status = 'valid'");
+    expect(courseSql).not.toContain("users");
   });
 
   it("returns the failed JMVStream deletion asset for the requested lesson", async () => {

@@ -2,6 +2,9 @@
 
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +44,7 @@ import {
   disableCertificateForCourseAction,
   enableCertificateForCourseAction,
 } from "@/features/admin/actions";
+import { reconcileHistoricalCertificatesAction } from "@/features/certificates/actions";
 import type { CertificateTemplateSpec } from "@/features/certificates/template-rules";
 import {
   type CertificateTemplateEditorTemplate,
@@ -96,17 +100,86 @@ const CertificateActivationMenuItem = ({
   );
 };
 
+const PendingCertificateReconciliation = ({
+  count,
+  courseId,
+}: {
+  count: number;
+  courseId: string;
+}): React.JSX.Element | null => {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  if (count <= 0) {
+    return null;
+  }
+
+  const batchSize = Math.min(count, 100);
+  const reconcile = (): void => {
+    const formData = new FormData();
+    formData.set("confirmed", "yes");
+    formData.set("courseId", courseId);
+    startTransition(async () => {
+      const result = await reconcileHistoricalCertificatesAction(formData);
+      if (result.status === "error") {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <p className="font-medium text-sm">
+          {count} conclusoes aguardam certificado
+        </p>
+        <p className="text-muted-foreground text-xs">
+          A emissao ocorre em lotes de ate 100.
+        </p>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button disabled={isPending} size="sm" variant="outline">
+            Emitir certificados pendentes
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Emitir certificados pendentes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acao inicia a geracao do PDF e o envio do e-mail para cada
+              aluna elegivel. Certificados com qualquer historico, inclusive
+              revogados, nao serao duplicados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={isPending} onClick={reconcile}>
+              Emitir {batchSize} certificados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
 export function CertificateTemplateEditor({
   certificateEnabled,
   courseId,
   courseWorkloadHours = 0,
   issuerConfigured,
+  pendingCertificateReconciliationCount = 0,
   templates,
 }: {
   certificateEnabled: boolean;
   courseId: string;
   courseWorkloadHours?: number;
   issuerConfigured: boolean;
+  pendingCertificateReconciliationCount?: number;
   templates: Array<
     CertificateTemplateEditorTemplate & { spec: CertificateTemplateSpec }
   >;
@@ -123,6 +196,10 @@ export function CertificateTemplateEditor({
 
   return (
     <Card density="compact">
+      <PendingCertificateReconciliation
+        count={pendingCertificateReconciliationCount}
+        courseId={courseId}
+      />
       <CertificateTemplateForm
         courseId={courseId}
         courseWorkloadHours={courseWorkloadHours}

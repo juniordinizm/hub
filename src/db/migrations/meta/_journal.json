@@ -435,6 +435,13 @@
       "when": 1787004243086,
       "tag": "0061_paused_course_landing_url",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787012301824,
+      "tag": "0062_certificate_reconciliation_indexes",
+      "breakpoints": true
     }
   ]
 }

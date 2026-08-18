@@ -1268,6 +1268,10 @@ export const certificates = pgTable(
     uniqueIndex("certificates_user_course_active_unique_idx")
       .on(table.userId, table.courseId)
       .where(sql`${table.status} = 'valid'`),
+    index("certificates_user_course_history_idx").on(
+      table.userId,
+      table.courseId
+    ),
     index("certificates_status_idx").on(table.status),
     index("certificates_course_publication_idx").on(table.coursePublicationId),
     check(
@@ -1359,6 +1363,12 @@ export const courseCompletions = pgTable(
     ),
     index("course_completions_course_publication_idx").on(
       table.coursePublicationId
+    ),
+    index("course_completions_course_reconciliation_idx").on(
+      table.courseId,
+      table.completedAt,
+      table.id,
+      table.userId
     ),
   ]
 );

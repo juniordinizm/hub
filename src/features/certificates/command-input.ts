@@ -20,6 +20,13 @@ const changeCertificateSchema = z.object({
   reasonDetail: requiredString("Informe o detalhe interno do motivo."),
 });
 
+const reconcileHistoricalCertificatesSchema = z.object({
+  confirmed: z.literal("yes", {
+    error: "Confirme a emissao dos certificados pendentes.",
+  }),
+  courseId: requiredString("Informe o curso."),
+});
+
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "");
 
@@ -36,4 +43,10 @@ export const parseChangeCertificateInput = (formData: FormData) =>
     certificateId: readString(formData, "certificateId"),
     reasonCategory: readString(formData, "reasonCategory"),
     reasonDetail: readString(formData, "reasonDetail"),
+  });
+
+export const parseReconcileHistoricalCertificatesInput = (formData: FormData) =>
+  reconcileHistoricalCertificatesSchema.parse({
+    confirmed: readString(formData, "confirmed"),
+    courseId: readString(formData, "courseId"),
   });

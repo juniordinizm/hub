@@ -8,9 +8,9 @@ last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
 
 ## Estado atual
 
-O topo local é `0060_course_availability_and_interest`. Ela é aditiva, faz
-backfill `active => listed/open` e `draft|archived => hidden/closed`, e não
-reescreve Pedido, Concessão, Matrícula ou progresso.
+O topo local é `0062_certificate_reconciliation_indexes`. Ela adiciona índices
+para selecionar Conclusões históricas por Curso em ordem estável e consultar
+qualquer histórico de Certificado por Conta e Curso, sem reescrever dados.
 
 O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
 `0000` a `0053` está aplicada à branch `production`
@@ -129,7 +129,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0058_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia, `0062_snapshot.json`. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -172,6 +172,14 @@ com o hash `8479636c6c4b8843b752d076dce75217a72765b7b91c579492cdd1b9e7d997e8`;
 o postflight confirmou `courses.workload_hours_override`, a constraint de não
 negatividade e a remoção das duas colunas aposentadas. Staging e Production
 permaneceram intocados nesta etapa.
+
+`0061_paused_course_landing_url` permite manter uma landing opcional quando as
+vendas estão fechadas. `0062_certificate_reconciliation_indexes` adiciona
+`course_completions_course_reconciliation_idx` em
+`(course_id, completed_at, id, user_id)` e o índice não parcial
+`certificates_user_course_history_idx` em `(user_id, course_id)`. A migration é
+somente aditiva e não altera linhas existentes; sua promoção continua sujeita
+ao fluxo controlado deste runbook.
 
 ## Conexões
 

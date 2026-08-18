@@ -25,6 +25,7 @@ import {
   getCertificateByCode,
   issueCompletionCertificateIfEligible,
   issueManualCertificate,
+  reconcileHistoricalCourseCertificates,
   reissueCertificate,
   renderPendingCertificate,
   revokeCertificate,
@@ -845,6 +846,170 @@ describe("automatic completion certificate retries", () => {
         sql.includes("insert into outbox_messages")
       )
     ).toBe(false);
+  });
+
+  it("reconciles one stable batch and retries without duplicating certificates", async () => {
+    const completedAt = new Date("2026-05-01T12:00:00.000Z");
+    let reconciliationRuns = 0;
+    let certificateInsertions = 0;
+    const renderOutboxMessages: unknown[][] = [];
+    const query = vi.fn((statement: string, _values?: unknown[]) => {
+      if (statement === "begin") {
+        reconciliationRuns += 1;
+        return { rows: [] };
+      }
+      if (
+        statement.includes("from course_completions completion") &&
+        statement.includes("order by completion.completed_at")
+      ) {
+        return {
+          rows:
+            reconciliationRuns === 1
+              ? [
+                  {
+                    completed_at: completedAt,
+                    course_publication_id: "publication-origin-1",
+                    id: "completion-1",
+                    user_id: "student-1",
+                  },
+                  {
+                    completed_at: completedAt,
+                    course_publication_id: "publication-origin-2",
+                    id: "completion-2",
+                    user_id: "student-2",
+                  },
+                ]
+              : [],
+        };
+      }
+      if (
+        statement.includes("from certificates") &&
+        statement.includes("user_id = $1") &&
+        statement.includes("course_id = $2")
+      ) {
+        return { rows: [] };
+      }
+      if (
+        statement.includes("from users u") &&
+        statement.includes("join certificate_templates")
+      ) {
+        return {
+          rows: [
+            {
+              background_key: "templates/background.webp",
+              completed_at: completedAt,
+              course_title: "Publicacao historica",
+              issuer_cnpj: "00.000.000/0001-00",
+              issuer_display_name: "Emissora atual",
+              issuer_legal_name: "Emissora Atual LTDA",
+              publication_workload_hours: 12,
+              signature_key: null,
+              signer_name: null,
+              signer_role: null,
+              spec: {
+                backgroundKey: "templates/background.webp",
+                fields: renderSnapshot.template.fields,
+              },
+              student_name:
+                _values?.[0] === "student-2"
+                  ? "Outro nome atual"
+                  : "Nome atual",
+              template_id: renderSnapshot.template.id,
+              template_version: 3,
+              workload_hours: 24,
+            },
+          ],
+        };
+      }
+      if (statement.includes("insert into certificates")) {
+        certificateInsertions += 1;
+        return { rows: [{ id: `certificate-${certificateInsertions}` }] };
+      }
+      if (statement.includes("insert into outbox_messages")) {
+        renderOutboxMessages.push(_values ?? []);
+        return { rows: [{ id: `outbox-${renderOutboxMessages.length}` }] };
+      }
+      if (statement.includes("count(*)::int as remaining")) {
+        return { rows: [{ remaining: 0 }] };
+      }
+      return { rows: [] };
+    });
+    const release = vi.fn();
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue({ query, release }),
+    });
+
+    await expect(
+      reconcileHistoricalCourseCertificates({
+        actorUserId: "admin-1",
+        courseId: "course-1",
+      })
+    ).resolves.toEqual({ issued: 2, remaining: 0 });
+    const outboxCountAfterFirstRun = renderOutboxMessages.length;
+    expect(outboxCountAfterFirstRun).toBe(2);
+    await expect(
+      reconcileHistoricalCourseCertificates({
+        actorUserId: "admin-1",
+        courseId: "course-1",
+      })
+    ).resolves.toEqual({ issued: 0, remaining: 0 });
+
+    expect(certificateInsertions).toBe(2);
+    expect(renderOutboxMessages).toHaveLength(outboxCountAfterFirstRun);
+    expect(renderOutboxMessages).toEqual([
+      [
+        "certificate.render",
+        "certificate",
+        "certificate-1",
+        "certificate.render/certificate-1/v1",
+        1,
+        JSON.stringify({ certificateId: "certificate-1" }),
+      ],
+      [
+        "certificate.render",
+        "certificate",
+        "certificate-2",
+        "certificate.render/certificate-2/v1",
+        1,
+        JSON.stringify({ certificateId: "certificate-2" }),
+      ],
+    ]);
+    const candidateCall = query.mock.calls.find(([statement]) =>
+      statement.includes("from course_completions completion")
+    );
+    expect(candidateCall?.[1]).toEqual(["course-1", 100]);
+    expect(candidateCall?.[0]).toContain(
+      "order by completion.completed_at, completion.id"
+    );
+    expect(candidateCall?.[0]).toContain("not exists");
+    expect(candidateCall?.[0]).not.toContain("status = 'valid'");
+    const certificateInsert = query.mock.calls.find(([statement]) =>
+      statement.includes("insert into certificates")
+    );
+    const insertedSnapshot = JSON.parse(
+      String((certificateInsert?.[1] as unknown[] | undefined)?.[9])
+    ) as {
+      completion: { completedAt: string };
+      course: { title: string; workloadHours: number };
+      issuer: { displayName: string };
+      student: { name: string };
+    };
+    expect(insertedSnapshot).toMatchObject({
+      completion: { completedAt: completedAt.toISOString() },
+      course: { title: "Publicacao historica", workloadHours: 12 },
+      issuer: { displayName: "Emissora atual" },
+      student: { name: "Nome atual" },
+    });
+    const auditCall = query.mock.calls.find(([statement]) =>
+      statement.includes("insert into audit_logs")
+    );
+    expect(auditCall?.[1]).toEqual([
+      "admin-1",
+      "certificate.issued",
+      "certificate-1",
+      JSON.stringify({ origin: "admin_reconciliation" }),
+    ]);
+    expect(release).toHaveBeenCalledTimes(2);
   });
 });
 

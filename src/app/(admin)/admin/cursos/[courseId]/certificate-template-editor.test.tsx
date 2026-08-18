@@ -17,6 +17,7 @@ const {
     disable: vi.fn(),
     enable: vi.fn(),
     publish: vi.fn(),
+    reconcile: vi.fn(),
     save: vi.fn(),
   },
   mediaQueryMocks: { matches: false },
@@ -39,6 +40,9 @@ vi.mock("@/features/admin/actions", () => ({
   enableCertificateForCourseAction: actionMocks.enable,
   publishCertificateTemplateFormAction: actionMocks.publish,
   saveCertificateTemplateDraftFormAction: actionMocks.save,
+}));
+vi.mock("@/features/certificates/actions", () => ({
+  reconcileHistoricalCertificatesAction: actionMocks.reconcile,
 }));
 vi.mock("@/features/admin/certificate-template-action-state", () => ({
   certificateTemplateInitialActionState: { status: "idle" },
@@ -197,6 +201,12 @@ describe("CertificateTemplateEditor", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
     actionMocks.save.mockResolvedValue({ status: "idle" });
     actionMocks.publish.mockResolvedValue({ status: "idle" });
+    actionMocks.reconcile.mockResolvedValue({
+      issued: 3,
+      message: "3 certificados enviados para geracao. Restam 0.",
+      remaining: 0,
+      status: "success",
+    });
     stagedUploadMock.mockImplementation(
       ({
         aggregateId,
@@ -277,6 +287,58 @@ describe("CertificateTemplateEditor", () => {
     container.remove();
     Reflect.deleteProperty(globalThis, "DataTransfer");
     vi.clearAllMocks();
+  });
+
+  it("shows reconciliation only when pending completions exist and confirms PDF plus email", async () => {
+    act(() => {
+      root.render(
+        <CertificateTemplateEditor
+          certificateEnabled
+          courseId="course-1"
+          issuerConfigured
+          pendingCertificateReconciliationCount={3}
+          templates={[draftTemplate]}
+        />
+      );
+    });
+
+    const trigger = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Emitir certificados pendentes")
+    );
+    expect(trigger).toBeDefined();
+    act(() => trigger?.click());
+    expect(document.body.textContent).toContain(
+      "geracao do PDF e o envio do e-mail"
+    );
+
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent === "Emitir 3 certificados"
+    );
+    await act(async () => confirm?.click());
+
+    expect(actionMocks.reconcile).toHaveBeenCalledOnce();
+    const submitted = actionMocks.reconcile.mock.calls[0]?.[0] as FormData;
+    expect(submitted.get("confirmed")).toBe("yes");
+    expect(submitted.get("courseId")).toBe("course-1");
+    expect(toastMocks.success).toHaveBeenCalledWith(
+      "3 certificados enviados para geracao. Restam 0."
+    );
+    expect(navigationMocks.refresh).toHaveBeenCalledOnce();
+
+    act(() => {
+      root.render(
+        <CertificateTemplateEditor
+          certificateEnabled
+          courseId="course-1"
+          issuerConfigured
+          pendingCertificateReconciliationCount={0}
+          templates={[draftTemplate]}
+        />
+      );
+    });
+    expect(container.textContent).not.toContain(
+      "Emitir certificados pendentes"
+    );
   });
 
   it("explains the issuer prerequisite and prevents premature publication", () => {

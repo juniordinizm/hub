@@ -124,6 +124,7 @@ export interface AdminCourse {
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
+  pendingCertificateReconciliationCount: number;
   pendingCheckoutCancellations: number;
   pendingInterestNotifications: number;
   priceInCents: number;
@@ -304,6 +305,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
     payment_max_installment_count: number;
+    pending_certificate_reconciliation_count: number;
     price_in_cents: number;
     pending_checkout_cancellations: number;
     pending_interest_notifications: number;
@@ -340,6 +342,29 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
         ) as pending_interest_notifications,
         (
           select count(*)::int
+          from course_completions completion
+          where completion.course_id = courses.id
+            and courses.certificate_enabled = true
+            and exists (
+              select 1
+              from certificate_templates template
+              where template.course_id = courses.id
+                and template.status = 'published'
+            )
+            and exists (
+              select 1
+              from certificate_issuer_profiles issuer
+              where issuer.id = 'global'
+            )
+            and not exists (
+              select 1
+              from certificates certificate
+              where certificate.user_id = completion.user_id
+                and certificate.course_id = completion.course_id
+            )
+        ) as pending_certificate_reconciliation_count,
+        (
+          select count(*)::int
           from outbox_messages om
           join orders o on o.id = (om.payload ->> 'orderId')::uuid
           where om.topic = 'payments.checkout-cancel'
@@ -367,6 +392,8 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     paymentAllowPix: row.payment_allow_pix,
     paymentMaxInstallmentCount: row.payment_max_installment_count,
     priceInCents: row.price_in_cents,
+    pendingCertificateReconciliationCount:
+      row.pending_certificate_reconciliation_count,
     pendingCheckoutCancellations: row.pending_checkout_cancellations,
     pendingInterestNotifications: row.pending_interest_notifications,
     salesStatus: row.sales_status,

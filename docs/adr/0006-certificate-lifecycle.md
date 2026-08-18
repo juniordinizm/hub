@@ -16,6 +16,10 @@ O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte
 
 Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação na interface.
 
+Conclusões históricas podem ser reconciliadas somente por Admin, após confirmação explícita, em lotes de até 100. São elegíveis apenas conclusões de Curso com Certificado habilitado, template publicado, perfil emissor global e nenhum Certificado anterior para a combinação de Conta e Curso. Um Certificado revogado também conta como histórico e exige o fluxo de reemissão, portanto nunca volta à fila automática.
+
+A reconciliação preserva a publicação e a data da Conclusão, usa título e carga horária daquela publicação, nome atual da Conta e template/emissor publicados no momento do lote. Cada emissão registra `origin: admin_reconciliation` na auditoria e enfileira `certificate.render` na mesma transação; geração de PDF, acesso ao R2 e envio de e-mail permanecem fora dela.
+
 O motivo usa uma categoria padronizada e um detalhe interno. Na consulta pública de um certificado revogado, mostrar somente o estado, a data e a categoria legível; não expor o detalhe, que pode conter dados pessoais ou uma apuração sensível.
 
 ## Alternativas
@@ -31,10 +35,12 @@ O motivo usa uma categoria padronizada e um detalhe interno. Na consulta públic
 - UI precisa explicar revogação e reemissão;
 - download já realizado não pode ser recolhido; a revogação passa a ser verificável pelo código público;
 - o detalhe do motivo fica restrito à operação e à auditoria.
+- lotes podem exigir execuções sucessivas; o resultado informa quantos foram emitidos e quantos ainda restam;
+- retries são idempotentes porque qualquer histórico de Certificado remove a conclusão da elegibilidade.
 
 ## Estado
 
-Implementado por `issueManualCertificate`, `revokeCertificate` e `reissueCertificate`. A política
+Implementado por `issueManualCertificate`, `revokeCertificate`, `reissueCertificate` e `reconcileHistoricalCourseCertificates`. A política
 de que revogação bloqueia nova emissão automática, exigindo reemissão manual, foi ratificada em
 2026-07-20. Autoridade, motivos e informação pública foram ratificados em 2026-07-21; veja
 [DEC-DISC-006](../decisions.md#dec-disc-006).

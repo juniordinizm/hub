@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseChangeCertificateInput,
   parseIssueManualCertificateInput,
+  parseReconcileHistoricalCertificatesInput,
 } from "./command-input";
 
 describe("certificate command inputs", () => {
@@ -27,5 +28,21 @@ describe("certificate command inputs", () => {
     formData.set("reasonDetail", "");
 
     expect(() => parseChangeCertificateInput(formData)).toThrow();
+  });
+
+  it("requires explicit confirmation before historical reconciliation", () => {
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+
+    expect(() => parseReconcileHistoricalCertificatesInput(formData)).toThrow(
+      "Confirme a emissao dos certificados pendentes."
+    );
+
+    formData.set("confirmed", "yes");
+
+    expect(parseReconcileHistoricalCertificatesInput(formData)).toEqual({
+      courseId: "course-1",
+      confirmed: "yes",
+    });
   });
 });
