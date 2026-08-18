@@ -185,7 +185,7 @@ export const sendCertificateIssuedEmail = async ({
   sendTransactionalEmail({
     ...(idempotencyKey ? { idempotencyKey } : {}),
     react: CertificateIssuedEmail({
-      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/certificados/${certificateCode}`,
+      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/certificados`,
       certificateCode,
       courseTitle,
       name: userName,

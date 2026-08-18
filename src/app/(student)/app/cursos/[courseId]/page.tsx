@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
+import { SupportRequestDialog } from "@/components/support-request-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -49,9 +51,13 @@ function getCertificateHelper({
   totalCount: number;
 }): string {
   if (certificateCode) {
-    return certificateRenderStatus === "ready"
-      ? "Seu certificado esta disponivel para download em Meus certificados."
-      : "Voce concluiu o curso. Estamos preparando seu PDF.";
+    if (certificateRenderStatus === "ready") {
+      return "Seu certificado está disponível para download em Meus certificados.";
+    }
+    if (certificateRenderStatus === "failed") {
+      return "Falha no preparo do PDF. Fale com o suporte para receber ajuda.";
+    }
+    return "Você concluiu o curso. Estamos preparando seu PDF.";
   }
   const remainingLessons = Math.max(0, totalCount - completedCount);
   const expectedName = studentName
@@ -66,9 +72,12 @@ export default async function StudentCourseOverviewPage({
   searchParams,
 }: {
   params: Promise<{ courseId: string }>;
-  searchParams: Promise<{ preview?: string | string[] }>;
+  searchParams: Promise<{
+    certificate?: string | string[];
+    preview?: string | string[];
+  }>;
 }): Promise<React.JSX.Element> {
-  const [{ courseId }, { preview }, session] = await Promise.all([
+  const [{ courseId }, { certificate, preview }, session] = await Promise.all([
     params,
     searchParams,
     requireSession(),
@@ -120,6 +129,16 @@ export default async function StudentCourseOverviewPage({
         <div className="flex flex-col gap-8">
           {previewMode ? (
             <RegisterPreviewCourseId courseId={data.course.id} />
+          ) : null}
+
+          {certificate === "issued" ? (
+            <Alert className="border-emerald-600/40 bg-emerald-500/10">
+              <AlertTitle>Curso concluído</AlertTitle>
+              <AlertDescription>
+                Seu certificado foi emitido. A preparação do PDF pode levar
+                alguns instantes.
+              </AlertDescription>
+            </Alert>
           ) : null}
 
           <header className="border-b pb-6">
@@ -198,6 +217,15 @@ export default async function StudentCourseOverviewPage({
               >
                 Conferir nome no perfil
               </Link>
+              {data.certificateCode &&
+              data.certificateRenderStatus === "failed" ? (
+                <SupportRequestDialog
+                  courseTitle={data.course.title}
+                  triggerClassName="mt-3"
+                  triggerLabel="Falar com suporte"
+                  triggerSize="sm"
+                />
+              ) : null}
             </section>
           ) : null}
         </div>

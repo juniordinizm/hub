@@ -39,7 +39,13 @@ export const completeLessonAction = async (formData: FormData) => {
     redirect(route(`/app/aulas/${result.nextLessonId}`));
   }
 
-  redirect(route(`/app/cursos/${result.courseId}`));
+  redirect(
+    route(
+      `/app/cursos/${result.courseId}${
+        result.certificateIssued ? "?certificate=issued" : ""
+      }`
+    )
+  );
 };
 
 export const recordLessonWatchProgressAction = async ({

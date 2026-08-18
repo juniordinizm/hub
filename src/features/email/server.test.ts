@@ -17,6 +17,7 @@ vi.mock("resend", () => ({ Resend }));
 
 import { deriveAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
 import {
+  sendCertificateIssuedEmail,
   sendCourseSalesOpenedEmail,
   sendPasswordResetEmail,
   sendTransactionalEmail,
@@ -198,6 +199,26 @@ describe("transactional email", () => {
     expect(options).toEqual({
       idempotencyKey: "email.course-sales-opened/interest-1/v1",
     });
+  });
+
+  it("links certificate email to the authenticated certificate list", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.NEXT_PUBLIC_APP_URL = "https://hub.example";
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await sendCertificateIssuedEmail({
+      certificateCode: "CERT-001",
+      courseTitle: "Curso de teste",
+      to: "student@example.com",
+      userName: "Student",
+    });
+
+    const [email] = send.mock.calls[0] ?? [];
+    expect(email.html).toContain("https://hub.example/app/certificados");
+    expect(email.html).toContain("CERT-001");
+    expect(email.html).not.toContain(
+      "https://hub.example/certificados/CERT-001"
+    );
   });
 
   it("treats an activation payload conflict as an already accepted email", async () => {

@@ -14,6 +14,7 @@ import { canMutateStudentExperience } from "@/features/courses/preview";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { CertificateCard } from "./certificate-card";
+import { PendingCertificateRefresh } from "./pending-certificate-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -25,9 +26,14 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
   }
 
   const certificates = await getCertificatesForUser(session.user.id);
+  const hasPendingCertificate = certificates.some(
+    (certificate) =>
+      certificate.status === "valid" && certificate.renderStatus === "pending"
+  );
 
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
+      {hasPendingCertificate ? <PendingCertificateRefresh enabled /> : null}
       <div className="flex flex-col gap-8">
         <header className="border-b pb-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

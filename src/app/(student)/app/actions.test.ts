@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
+  completeLesson: vi.fn(),
+  redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireSession: vi.fn(),
   setCourseSaleInterest: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: dependencies.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: dependencies.redirect }));
 vi.mock("@/db", () => ({ getPool: vi.fn() }));
 vi.mock("@/features/courses/availability-server", () => ({
   setCourseSaleInterest: dependencies.setCourseSaleInterest,
@@ -16,7 +18,7 @@ vi.mock("@/features/courses/preview", () => ({
   canMutateStudentExperience: () => true,
 }));
 vi.mock("@/features/courses/server", () => ({
-  completeLesson: vi.fn(),
+  completeLesson: dependencies.completeLesson,
   recordLessonWatchProgress: vi.fn(),
 }));
 vi.mock("@/features/email/server", () => ({
@@ -29,7 +31,72 @@ vi.mock("@/lib/session", () => ({
   requireSession: dependencies.requireSession,
 }));
 
-import { setCourseSaleInterestAction } from "./actions";
+import { completeLessonAction, setCourseSaleInterestAction } from "./actions";
+
+describe("completeLessonAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.redirect.mockImplementation(() => {
+      throw new Error("NEXT_REDIRECT");
+    });
+    dependencies.requireSession.mockResolvedValue({
+      role: "student",
+      user: { id: "student-1" },
+    });
+  });
+
+  it("signals an issued certificate after the final lesson", async () => {
+    dependencies.completeLesson.mockResolvedValue({
+      certificateIssued: true,
+      courseId: "course-1",
+      nextLessonId: null,
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-final");
+
+    await expect(completeLessonAction(formData)).rejects.toThrow(
+      "NEXT_REDIRECT"
+    );
+
+    expect(dependencies.redirect).toHaveBeenCalledWith(
+      "/app/cursos/course-1?certificate=issued"
+    );
+  });
+
+  it("keeps the course URL clean when no certificate was issued", async () => {
+    dependencies.completeLesson.mockResolvedValue({
+      certificateIssued: false,
+      courseId: "course-1",
+      nextLessonId: null,
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-final");
+
+    await expect(completeLessonAction(formData)).rejects.toThrow(
+      "NEXT_REDIRECT"
+    );
+
+    expect(dependencies.redirect).toHaveBeenCalledWith("/app/cursos/course-1");
+  });
+
+  it("keeps next-lesson navigation unchanged", async () => {
+    dependencies.completeLesson.mockResolvedValue({
+      certificateIssued: true,
+      courseId: "course-1",
+      nextLessonId: "lesson-next",
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-current");
+
+    await expect(completeLessonAction(formData)).rejects.toThrow(
+      "NEXT_REDIRECT"
+    );
+
+    expect(dependencies.redirect).toHaveBeenCalledWith(
+      "/app/aulas/lesson-next"
+    );
+  });
+});
 
 describe("setCourseSaleInterestAction", () => {
   beforeEach(() => {
