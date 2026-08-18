@@ -7,7 +7,12 @@ const certificateReasonSchema = z.enum(CERTIFICATE_REASON_CODES, {
   error: "Informe uma categoria de motivo valida.",
 });
 
+const certificateOperationConfirmationSchema = z.literal("yes", {
+  error: "Confirme esta operacao de certificado.",
+});
+
 const issueCertificateSchema = z.object({
+  confirmed: certificateOperationConfirmationSchema,
   courseId: requiredString("Informe o curso."),
   reasonCategory: certificateReasonSchema,
   reasonDetail: requiredString("Informe o detalhe interno do motivo."),
@@ -16,6 +21,7 @@ const issueCertificateSchema = z.object({
 
 const changeCertificateSchema = z.object({
   certificateId: requiredString("Informe o certificado."),
+  confirmed: certificateOperationConfirmationSchema,
   reasonCategory: certificateReasonSchema,
   reasonDetail: requiredString("Informe o detalhe interno do motivo."),
 });
@@ -32,6 +38,7 @@ const readString = (formData: FormData, key: string): string =>
 
 export const parseIssueManualCertificateInput = (formData: FormData) =>
   issueCertificateSchema.parse({
+    confirmed: readString(formData, "confirmed"),
     courseId: readString(formData, "courseId"),
     reasonCategory: readString(formData, "reasonCategory"),
     reasonDetail: readString(formData, "reasonDetail"),
@@ -41,6 +48,7 @@ export const parseIssueManualCertificateInput = (formData: FormData) =>
 export const parseChangeCertificateInput = (formData: FormData) =>
   changeCertificateSchema.parse({
     certificateId: readString(formData, "certificateId"),
+    confirmed: readString(formData, "confirmed"),
     reasonCategory: readString(formData, "reasonCategory"),
     reasonDetail: readString(formData, "reasonDetail"),
   });

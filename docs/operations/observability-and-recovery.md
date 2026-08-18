@@ -32,7 +32,7 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Não inclua esses dados nos valores de outros campos.
 
-`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
+`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
 As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
 
@@ -46,6 +46,8 @@ RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `duration
 
 O snapshot emite códigos operacionais sem PII, com limiares internos nomeados:
 
+- `outbox_dead_letter`: existe ao menos uma mensagem em `dead_letter`, severidade crítica;
+- `outbox_pending_stale`: mensagem pendente há pelo menos 15 minutos, severidade `warning`, ou há pelo menos 60 minutos, severidade `critical`;
 - `webhook_ready_stale`: evento `received`/`processing` há pelo menos 15 minutos;
 - `webhook_retry_stale`: evento `retryable` há pelo menos 6 horas;
 - `webhook_failed_stale`: evento `failed` há pelo menos 24 horas;

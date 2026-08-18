@@ -29,11 +29,13 @@ export interface OperationalBacklogSnapshot {
 
 export interface OperationalAlert {
   code:
+    | "outbox_dead_letter"
+    | "outbox_pending_stale"
     | "webhook_failed_stale"
     | "webhook_payload_retention_risk"
     | "webhook_ready_stale"
     | "webhook_retry_stale";
-  severity: "critical" | "high";
+  severity: "critical" | "high" | "warning";
 }
 
 interface OperationalBacklogRow {
@@ -57,6 +59,8 @@ const BACKLOG_STATUSES = "'pending', 'retrying', 'processing'";
 const PENDING_VIDEO_STATUSES = "'uploading', 'processing'";
 
 export const OPERATIONAL_BACKLOG_THRESHOLDS_MS = {
+  outboxCritical: 60 * 60 * 1000,
+  outboxWarning: 15 * 60 * 1000,
   webhookFailed: 24 * 60 * 60 * 1000,
   webhookPayloadRetentionWarning: 25 * 24 * 60 * 60 * 1000,
   webhookReady: 15 * 60 * 1000,
@@ -134,6 +138,39 @@ const getWebhookAlerts = ({
   return alerts;
 };
 
+const getOutboxAlerts = ({
+  now,
+  outbox,
+}: {
+  now: Date;
+  outbox: OperationalBacklogSnapshot["outbox"];
+}): OperationalAlert[] => {
+  const alerts: OperationalAlert[] = [];
+  if (outbox.deadLetters > 0) {
+    alerts.push({ code: "outbox_dead_letter", severity: "critical" });
+  }
+  if (
+    outbox.ready > 0 &&
+    isAtLeastAge({
+      date: outbox.oldestReadyAt,
+      now,
+      thresholdMs: OPERATIONAL_BACKLOG_THRESHOLDS_MS.outboxCritical,
+    })
+  ) {
+    alerts.push({ code: "outbox_pending_stale", severity: "critical" });
+  } else if (
+    outbox.ready > 0 &&
+    isAtLeastAge({
+      date: outbox.oldestReadyAt,
+      now,
+      thresholdMs: OPERATIONAL_BACKLOG_THRESHOLDS_MS.outboxWarning,
+    })
+  ) {
+    alerts.push({ code: "outbox_pending_stale", severity: "warning" });
+  }
+  return alerts;
+};
+
 export const getOperationalBacklogSnapshot = async ({
   now = () => new Date(),
 }: {
@@ -166,14 +203,19 @@ export const getOperationalBacklogSnapshot = async ({
     ready: Number(row?.webhooks_ready ?? 0),
     retryable: Number(row?.webhooks_retryable ?? 0),
   };
+  const outbox: OperationalBacklogSnapshot["outbox"] = {
+    deadLetters: Number(row?.dead_letters ?? 0),
+    oldestReadyAt: row?.oldest_outbox_at ?? null,
+    ready: Number(row?.outbox_ready ?? 0),
+  };
+  const currentTime = now();
 
   return {
-    alerts: getWebhookAlerts({ now: now(), webhooks }),
-    outbox: {
-      deadLetters: Number(row?.dead_letters ?? 0),
-      oldestReadyAt: row?.oldest_outbox_at ?? null,
-      ready: Number(row?.outbox_ready ?? 0),
-    },
+    alerts: [
+      ...getOutboxAlerts({ now: currentTime, outbox }),
+      ...getWebhookAlerts({ now: currentTime, webhooks }),
+    ],
+    outbox,
     videos: {
       oldestPendingAt: row?.oldest_video_at ?? null,
       pending: Number(row?.videos_pending ?? 0),

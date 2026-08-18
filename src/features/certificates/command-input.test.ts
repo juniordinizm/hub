@@ -12,12 +12,46 @@ describe("certificate command inputs", () => {
     formData.set("userId", " student-1 ");
     formData.set("reasonCategory", "identity_correction");
     formData.set("reasonDetail", " Nome corrigido ");
+    formData.set("confirmed", "yes");
 
     expect(parseIssueManualCertificateInput(formData)).toEqual({
       courseId: "course-1",
+      confirmed: "yes",
       reasonCategory: "identity_correction",
       reasonDetail: "Nome corrigido",
       userId: "student-1",
+    });
+  });
+
+  it("requires explicit confirmation for manual issuance", () => {
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("userId", "student-1");
+    formData.set("reasonCategory", "eligibility_correction");
+    formData.set("reasonDetail", "Ajuste operacional");
+
+    expect(() => parseIssueManualCertificateInput(formData)).toThrow(
+      "Confirme esta operacao de certificado."
+    );
+  });
+
+  it("requires explicit confirmation for revocation and reissuance", () => {
+    const formData = new FormData();
+    formData.set("certificateId", "certificate-1");
+    formData.set("reasonCategory", "identity_correction");
+    formData.set("reasonDetail", "Nome corrigido");
+
+    expect(() => parseChangeCertificateInput(formData)).toThrow(
+      "Confirme esta operacao de certificado."
+    );
+
+    formData.set("confirmed", "yes");
+
+    expect(parseChangeCertificateInput(formData)).toEqual({
+      certificateId: "certificate-1",
+      confirmed: "yes",
+      reasonCategory: "identity_correction",
+      reasonDetail: "Nome corrigido",
     });
   });
 

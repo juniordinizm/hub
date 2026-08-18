@@ -54,7 +54,8 @@ export const issueManualCertificateAction = async (
   runCertificateAction({
     operation: async () => {
       const session = await requirePermission("manageCertificates");
-      const input = parseIssueManualCertificateInput(formData);
+      const { confirmed: _confirmed, ...input } =
+        parseIssueManualCertificateInput(formData);
       await issueManualCertificate({
         actorUserId: session.user.id,
         ...input,
@@ -70,7 +71,8 @@ export const revokeCertificateAction = async (
   runCertificateAction({
     operation: async () => {
       const session = await requirePermission("manageCertificates");
-      const input = parseChangeCertificateInput(formData);
+      const { confirmed: _confirmed, ...input } =
+        parseChangeCertificateInput(formData);
       await revokeCertificate({
         actorUserId: session.user.id,
         ...input,
@@ -86,7 +88,8 @@ export const reissueCertificateAction = async (
   runCertificateAction({
     operation: async () => {
       const session = await requirePermission("manageCertificates");
-      const input = parseChangeCertificateInput(formData);
+      const { confirmed: _confirmed, ...input } =
+        parseChangeCertificateInput(formData);
       await reissueCertificate({
         actorUserId: session.user.id,
         ...input,

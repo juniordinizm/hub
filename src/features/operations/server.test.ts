@@ -41,6 +41,8 @@ describe("operational backlog snapshot", () => {
       })
     ).resolves.toEqual({
       alerts: [
+        { code: "outbox_dead_letter", severity: "critical" },
+        { code: "outbox_pending_stale", severity: "critical" },
         { code: "webhook_ready_stale", severity: "high" },
         { code: "webhook_retry_stale", severity: "high" },
         { code: "webhook_failed_stale", severity: "high" },
@@ -68,6 +70,42 @@ describe("operational backlog snapshot", () => {
         retryable: 3,
       },
     });
+  });
+
+  it("alerts whenever the outbox contains a dead letter", async () => {
+    const pool = dependencies.getPool();
+    pool.query.mockResolvedValueOnce({
+      rows: [{ dead_letters: "1", outbox_ready: "0" }],
+    });
+
+    const snapshot = await getOperationalBacklogSnapshot();
+
+    expect(snapshot.alerts).toEqual([
+      { code: "outbox_dead_letter", severity: "critical" },
+    ]);
+  });
+
+  it.each([
+    [14, []],
+    [15, [{ code: "outbox_pending_stale", severity: "warning" }]],
+    [59, [{ code: "outbox_pending_stale", severity: "warning" }]],
+    [60, [{ code: "outbox_pending_stale", severity: "critical" }]],
+  ])("classifies an outbox item pending for %i minutes", async (minutes, alerts) => {
+    const now = new Date("2026-07-21T12:00:00.000Z");
+    const pool = dependencies.getPool();
+    pool.query.mockResolvedValueOnce({
+      rows: [
+        {
+          dead_letters: "0",
+          oldest_outbox_at: new Date(now.getTime() - minutes * 60 * 1000),
+          outbox_ready: "1",
+        },
+      ],
+    });
+
+    const snapshot = await getOperationalBacklogSnapshot({ now: () => now });
+
+    expect(snapshot.alerts).toEqual(alerts);
   });
 
   it("counts retryable Asaas webhooks separately from the ready backlog", async () => {

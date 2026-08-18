@@ -1,4 +1,6 @@
 import { PageContainer } from "@/components/page-container";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -9,11 +11,76 @@ import {
 } from "@/components/ui/table";
 
 import { getAdminAuditData } from "@/features/admin/server";
+import type { OperationalAlert } from "@/features/operations/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { formatDate } from "@/lib/formatters";
 import { OutboxDeadLetterReprocess } from "./outbox-dead-letters";
 
 export const dynamic = "force-dynamic";
+
+const OPERATIONAL_ALERT_PRESENTATION = {
+  outbox_dead_letter: {
+    description:
+      "Há mensagens que esgotaram as tentativas e exigem revisão manual.",
+    title: "Mensagens em dead letter",
+  },
+  outbox_pending_stale: {
+    description:
+      "A mensagem pendente mais antiga ultrapassou o limite operacional.",
+    title: "Outbox com atraso",
+  },
+  webhook_failed_stale: {
+    description:
+      "Há webhooks falhos aguardando investigação além do limite operacional.",
+    title: "Falhas persistentes de webhook",
+  },
+  webhook_payload_retention_risk: {
+    description:
+      "Há payloads de webhook próximos da remoção obrigatória por retenção.",
+    title: "Risco de retenção de webhook",
+  },
+  webhook_ready_stale: {
+    description:
+      "Há webhooks aguardando processamento além do limite operacional.",
+    title: "Webhooks aguardando processamento",
+  },
+  webhook_retry_stale: {
+    description: "Há webhooks em nova tentativa além do limite operacional.",
+    title: "Novas tentativas de webhook atrasadas",
+  },
+} satisfies Record<
+  OperationalAlert["code"],
+  { description: string; title: string }
+>;
+
+const OPERATIONAL_ALERT_SEVERITY = {
+  critical: {
+    alertClassName: "border-destructive/30 bg-destructive/10",
+    alertVariant: "destructive",
+    badgeVariant: "destructive",
+    label: "Crítico",
+  },
+  high: {
+    alertClassName: "border-destructive/20",
+    alertVariant: "destructive",
+    badgeVariant: "destructive",
+    label: "Alta prioridade",
+  },
+  warning: {
+    alertClassName: "bg-muted/30",
+    alertVariant: "default",
+    badgeVariant: "outline",
+    label: "Atenção",
+  },
+} satisfies Record<
+  OperationalAlert["severity"],
+  {
+    alertClassName: string;
+    alertVariant: "default" | "destructive";
+    badgeVariant: "destructive" | "outline";
+    label: string;
+  }
+>;
 
 function formatAuditMessage(log: {
   action: string;
@@ -125,12 +192,30 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
             </p>
           </div>
           {data.operationalBacklog.alerts.length > 0 ? (
-            <ul className="border-b bg-destructive/5 p-5 text-sm">
-              {data.operationalBacklog.alerts.map((alert) => (
-                <li key={alert.code}>
-                  <code>{alert.code}</code> ({alert.severity})
-                </li>
-              ))}
+            <ul className="grid gap-3 border-b p-5 text-sm">
+              {data.operationalBacklog.alerts.map((alert) => {
+                const presentation = OPERATIONAL_ALERT_PRESENTATION[alert.code];
+                const severity = OPERATIONAL_ALERT_SEVERITY[alert.severity];
+
+                return (
+                  <li key={alert.code}>
+                    <Alert
+                      className={severity.alertClassName}
+                      variant={severity.alertVariant}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <AlertTitle>{presentation.title}</AlertTitle>
+                        <Badge variant={severity.badgeVariant}>
+                          {severity.label}
+                        </Badge>
+                      </div>
+                      <AlertDescription>
+                        {presentation.description}
+                      </AlertDescription>
+                    </Alert>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
           <dl className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
