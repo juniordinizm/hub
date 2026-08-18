@@ -962,6 +962,7 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
   await expect(
     studentSheet.getByRole("heading", { name: "Gerenciar aluna" })
   ).toBeVisible();
+  await studentSheet.getByRole("tab", { name: "Certificados" }).click();
   await expect(
     studentSheet.getByRole("heading", { name: "Certificados" })
   ).toBeVisible();
@@ -997,7 +998,10 @@ test("admin manages a student from the course context Sheet", async ({
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
   await expect(
-    studentSheet.getByText("Curso E2E", { exact: true })
+    studentSheet
+      .getByText("Curso em contexto")
+      .locator("..")
+      .getByText("Curso E2E", { exact: true })
   ).toBeVisible();
   await expect(studentSheet.getByText("Acesso ao Curso")).toBeVisible();
   await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
