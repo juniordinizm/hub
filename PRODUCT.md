@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: f67551f
+last_verified_commit: acb1d0b
 ---
 
 # Produto PROTEA-R Hub

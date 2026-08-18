@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: f67551f
+last_verified_commit: acb1d0b
 ---
 
 # ADR-0006 Snapshots, revogação e reemissão de Certificados

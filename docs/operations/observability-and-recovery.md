@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: f67551f
+last_verified_commit: acb1d0b
 ---
 
 # Observabilidade e recuperação
