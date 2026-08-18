@@ -7,6 +7,21 @@ vi.mock("@/components/support-request-dialog", () => ({
     <button type="button">{triggerLabel}</button>
   ),
 }));
+vi.mock("./pending-certificate-refresh", () => ({
+  PendingCertificateRefresh: ({
+    showManualRefresh,
+  }: {
+    showManualRefresh?: boolean;
+  }) =>
+    showManualRefresh ? <button type="button">Atualizar status</button> : null,
+}));
+vi.mock("./certificate-copy-link-button", () => ({
+  CertificateCopyLinkButton: ({ publicUrl }: { publicUrl: string }) => (
+    <button data-public-url={publicUrl} type="button">
+      Copiar link
+    </button>
+  ),
+}));
 
 import { CertificateCard } from "./certificate-card";
 
@@ -26,10 +41,14 @@ const certificate = (
 });
 
 const renderCertificate = (
-  overrides: Partial<CertificateRecord> = {}
+  overrides: Partial<CertificateRecord> = {},
+  publicUrl = "https://certificados.example/certificados/CERT-001"
 ): string =>
   renderToStaticMarkup(
-    <CertificateCard certificate={certificate(overrides)} />
+    <CertificateCard
+      certificate={certificate(overrides)}
+      publicUrl={publicUrl}
+    />
   );
 
 describe("CertificateCard", () => {
@@ -39,9 +58,10 @@ describe("CertificateCard", () => {
     expect(markup).toContain('role="article"');
     expect(markup).toContain('aria-label="Status: Disponível"');
     expect(markup).toContain('aria-label="Baixar PDF de Curso de teste"');
-    expect(markup).toContain(
-      'aria-label="Validar certificado de Curso de teste"'
-    );
+    expect(markup).toContain('href="/certificados/CERT-001"');
+    expect(markup).toContain(">Curso de teste</a>");
+    expect(markup).toContain("Copiar link");
+    expect(markup).not.toContain(">Validar</a>");
     expect(markup).not.toContain('role="alert"');
   });
 
@@ -58,7 +78,9 @@ describe("CertificateCard", () => {
     expect(markup).toContain("Revogado em 22 de jul. de 2026");
     expect(markup).toContain("Revisao de integridade");
     expect(markup).not.toContain("Baixar PDF");
-    expect(markup).toContain("Validar");
+    expect(markup).toContain('href="/certificados/CERT-001"');
+    expect(markup).toContain("Copiar link");
+    expect(markup).not.toContain(">Validar</a>");
   });
 
   it("presents a failed render as an actionable error", () => {
@@ -80,5 +102,19 @@ describe("CertificateCard", () => {
     expect(markup).not.toContain('role="alert"');
     expect(markup).not.toContain("Falar com suporte");
     expect(markup).not.toContain("Baixar PDF");
+    expect(markup).toContain("Atualizar status");
+  });
+
+  it("encodes reserved certificate code characters in every destination", () => {
+    const markup = renderCertificate(
+      { code: "CERT/A B?#", renderStatus: "ready" },
+      "https://certificados.example/certificados/CERT%2FA%20B%3F%23"
+    );
+
+    expect(markup).toContain('href="/certificados/CERT%2FA%20B%3F%23"');
+    expect(markup).toContain('href="/app/certificados/CERT%2FA%20B%3F%23/pdf"');
+    expect(markup).toContain(
+      'data-public-url="https://certificados.example/certificados/CERT%2FA%20B%3F%23"'
+    );
   });
 });

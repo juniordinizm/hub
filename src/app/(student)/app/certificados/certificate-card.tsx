@@ -1,4 +1,4 @@
-import { Download01Icon, FileValidationIcon } from "@hugeicons/core-free-icons";
+import { Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
@@ -15,16 +15,24 @@ import {
 } from "@/components/ui/card";
 import type { CertificateRecord } from "@/features/certificates/server";
 import { formatDate } from "@/lib/formatters";
-import { route } from "@/lib/routes";
+import { CertificateCopyLinkButton } from "./certificate-copy-link-button";
+import { getCertificateLinks } from "./certificate-links";
 import { getCertificateListViewModel } from "./certificate-list-view-model";
+import { PendingCertificateRefresh } from "./pending-certificate-refresh";
 
 export function CertificateCard({
   certificate,
+  publicUrl,
 }: {
   certificate: CertificateRecord;
+  publicUrl: string;
 }): React.JSX.Element {
   const viewModel = getCertificateListViewModel(certificate);
   const titleId = `certificate-${certificate.code}-title`;
+  const certificateLinks = getCertificateLinks({
+    code: certificate.code,
+    publicUrl,
+  });
 
   return (
     <Card aria-labelledby={titleId} role="article">
@@ -40,7 +48,11 @@ export function CertificateCard({
             Emitido em {formatDate(certificate.issuedAt)}
           </CardDescription>
         </div>
-        <CardTitle id={titleId}>{certificate.courseTitle}</CardTitle>
+        <CardTitle as="h2" id={titleId}>
+          <Link href={certificateLinks.publicHref}>
+            {certificate.courseTitle}
+          </Link>
+        </CardTitle>
         <CardDescription
           aria-label={`Código do certificado: ${certificate.code}`}
           className="font-mono text-xs"
@@ -77,7 +89,7 @@ export function CertificateCard({
           <Button asChild>
             <Link
               aria-label={`Baixar PDF de ${certificate.courseTitle}`}
-              href={route(`/app/certificados/${certificate.code}/pdf`)}
+              href={certificateLinks.privatePdfHref}
             >
               <HugeiconsIcon data-icon="inline-start" icon={Download01Icon} />
               Baixar PDF
@@ -90,15 +102,10 @@ export function CertificateCard({
             triggerLabel="Falar com suporte"
           />
         ) : null}
-        <Button asChild variant="outline">
-          <Link
-            aria-label={`Validar certificado de ${certificate.courseTitle}`}
-            href={route(`/certificados/${certificate.code}`)}
-          >
-            <HugeiconsIcon data-icon="inline-start" icon={FileValidationIcon} />
-            Validar
-          </Link>
-        </Button>
+        {viewModel.kind === "preparing" ? (
+          <PendingCertificateRefresh enabled={false} showManualRefresh />
+        ) : null}
+        <CertificateCopyLinkButton publicUrl={certificateLinks.publicUrl} />
       </CardFooter>
     </Card>
   );
