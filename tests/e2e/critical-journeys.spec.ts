@@ -552,6 +552,20 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   await expect(completionAlert).toContainText(
     "A preparação do PDF pode levar alguns instantes."
   );
+  const certificateLink = page.getByRole("link", {
+    name: "Ver certificado",
+  });
+  await expect(certificateLink).toBeVisible();
+  const certificateHref = await certificateLink.getAttribute("href");
+  const certificateCode = certificateHref?.split("/").at(-1);
+  expect(certificateCode).toMatch(CERTIFICATE_CODE_PATTERN);
+  if (!certificateCode) {
+    throw new Error("Issued certificate link did not expose its public code.");
+  }
+  await expect(certificateLink).toHaveAttribute(
+    "href",
+    `/certificados/${certificateCode}`
+  );
 
   await page.goto("/app/certificados");
   const issuedCard = page
@@ -560,13 +574,9 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   await expect(
     issuedCard.getByLabel("Status: Preparando", { exact: true })
   ).toBeVisible();
-  const certificateCode = (
-    await issuedCard.getByLabel(CERTIFICATE_CODE_LABEL_PATTERN).textContent()
-  )?.trim();
-  expect(certificateCode).toMatch(CERTIFICATE_CODE_PATTERN);
-  if (!certificateCode) {
-    throw new Error("Issued certificate code was not visible.");
-  }
+  await expect(
+    issuedCard.getByLabel(CERTIFICATE_CODE_LABEL_PATTERN)
+  ).toHaveText(certificateCode);
   const expectedRecipientKey = `sha256:${createHash("sha256")
     .update(fixture.studentForCompletion.email.toLowerCase())
     .digest("hex")}`;
@@ -605,25 +615,50 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
     .toBe(true);
   await expect(readyStatus).toBeVisible();
 
-  const downloadResponse = await page
-    .context()
-    .request.get(`/app/certificados/${certificateCode}/pdf`, {
-      maxRedirects: 0,
-    });
+  await page.context().clearCookies();
+  await page.goto(`/certificados/${certificateCode}`);
+  await expect(page.getByText("Certificado válido")).toBeVisible();
+  await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
+  await expect(page.getByText("Aluna para conclusao")).toBeVisible();
+  await expect(page.getByText(certificateCode)).toBeVisible();
+  const publicPdfPath = `/certificados/${certificateCode}/pdf`;
+  const publicPreviewPath = `/certificados/${certificateCode}/preview`;
+  await expect(page.getByAltText("Prévia do certificado")).toHaveAttribute(
+    "src",
+    publicPreviewPath
+  );
+  await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveAttribute(
+    "href",
+    publicPdfPath
+  );
+
+  const downloadResponse = await request.get(publicPdfPath, {
+    maxRedirects: 0,
+  });
   expect(downloadResponse.status()).toBe(307);
+  expect(downloadResponse.headers()["x-robots-tag"]).toBe("noindex, nofollow");
   const signedLocation = downloadResponse.headers().location;
   expect(signedLocation).toContain("X-Amz-Signature");
   const pdfResponse = await request.get(signedLocation ?? "");
   expect(pdfResponse.status()).toBe(200);
+  expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
   expect((await pdfResponse.body()).subarray(0, 4).toString()).toBe("%PDF");
 
-  await page.context().clearCookies();
-  await page.goto(`/certificados/${certificateCode}`);
-  await expect(page.getByText("Certificado valido")).toBeVisible();
-  await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
-  await expect(page.getByText("Aluna para conclusao")).toBeVisible();
-  await expect(page.getByText(certificateCode)).toBeVisible();
-  await expect(page.locator('a[href*="/pdf"]')).toHaveCount(0);
+  const previewResponse = await request.get(publicPreviewPath, {
+    maxRedirects: 0,
+  });
+  expect(previewResponse.status()).toBe(307);
+  expect(previewResponse.headers()["content-type"]).toContain("image/png");
+  const previewLocation = previewResponse.headers().location;
+  expect(previewLocation).toContain("X-Amz-Signature");
+  const previewArtifactResponse = await request.get(previewLocation ?? "");
+  expect(previewArtifactResponse.status()).toBe(200);
+  expect(previewArtifactResponse.headers()["content-type"]).toContain(
+    "image/png"
+  );
+  expect(
+    (await previewArtifactResponse.body()).subarray(0, 8).toString("hex")
+  ).toBe("89504e470d0a1a0a");
 
   const sinkResponse = await request.get("/api/e2e/email-deliveries");
   expect(sinkResponse.status()).toBe(200);
@@ -724,22 +759,60 @@ test("public certificates distinguish valid and revoked records", async ({
 }) => {
   const fixture = await readFixture();
   await page.goto(`/certificados/${fixture.certificate.validCode}`);
-  await expect(page.getByText("Certificado valido")).toBeVisible();
+  await expect(page.getByText("Certificado válido")).toBeVisible();
   await expect(
     page.getByText(fixture.certificate.ready.courseTitle)
   ).toBeVisible();
   await expect(page.getByText(fixture.studentWithGrant.name)).toBeVisible();
   await expect(page.getByText(fixture.certificate.validCode)).toBeVisible();
   await expect(page.getByText("CPF", { exact: false })).toHaveCount(0);
-  await expect(page.locator('a[href*="/pdf"]')).toHaveCount(0);
+  await expect(page.getByAltText("Prévia do certificado")).toHaveAttribute(
+    "src",
+    `/certificados/${fixture.certificate.validCode}/preview`
+  );
+  await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveAttribute(
+    "href",
+    `/certificados/${fixture.certificate.validCode}/pdf`
+  );
+  await expect(page.getByRole("button", { name: "Copiar link" })).toBeVisible();
+
+  for (const certificateState of [
+    {
+      certificate: fixture.certificate.pending,
+      statusLabel: "Certificado em preparação",
+    },
+    {
+      certificate: fixture.certificate.failed,
+      statusLabel: "Certificado indisponível",
+    },
+  ]) {
+    await page.goto(`/certificados/${certificateState.certificate.code}`);
+    await expect(page.getByText(certificateState.statusLabel)).toBeVisible();
+    await expect(
+      page.getByText(certificateState.certificate.courseTitle)
+    ).toBeVisible();
+    await expect(
+      page.getByText(certificateState.certificate.code)
+    ).toBeVisible();
+    await expect(page.getByAltText("Prévia do certificado")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveCount(0);
+  }
+
   await page.goto(`/certificados/${fixture.certificate.revokedCode}`);
   await expect(page.getByText("Certificado revogado")).toBeVisible();
   await expect(
+    page.getByText(fixture.certificate.revoked.courseTitle)
+  ).toBeVisible();
+  await expect(page.getByText(fixture.studentWithGrant.name)).toBeVisible();
+  await expect(page.getByText(fixture.certificate.revokedCode)).toBeVisible();
+  await expect(
     page.getByText(fixture.certificate.sensitiveSentinel, { exact: false })
   ).toHaveCount(0);
+  await expect(page.getByAltText("Prévia do certificado")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveCount(0);
 });
 
-test("student certificates expose pending, ready, and revoked states safely", async ({
+test("student certificates expose canonical links and lifecycle states safely", async ({
   page,
 }) => {
   const fixture = await readFixture();
@@ -755,6 +828,17 @@ test("student certificates expose pending, ready, and revoked states safely", as
   await expect(
     pendingCard.getByRole("link", { name: DOWNLOAD_PDF_PATTERN })
   ).toHaveCount(0);
+  await expect(
+    pendingCard.getByRole("link", {
+      name: fixture.certificate.pending.courseTitle,
+    })
+  ).toHaveAttribute(
+    "href",
+    `/certificados/${fixture.certificate.pending.code}`
+  );
+  await expect(
+    pendingCard.getByRole("button", { name: "Copiar link" })
+  ).toBeVisible();
 
   const readyCard = page
     .getByRole("article")
@@ -766,6 +850,36 @@ test("student certificates expose pending, ready, and revoked states safely", as
     readyCard.getByRole("link", {
       name: `Baixar PDF de ${fixture.certificate.ready.courseTitle}`,
     })
+  ).toHaveAttribute(
+    "href",
+    `/certificados/${fixture.certificate.ready.code}/pdf`
+  );
+  await expect(
+    readyCard.getByRole("link", {
+      exact: true,
+      name: fixture.certificate.ready.courseTitle,
+    })
+  ).toHaveAttribute("href", `/certificados/${fixture.certificate.ready.code}`);
+  await expect(
+    readyCard.getByRole("button", { name: "Copiar link" })
+  ).toBeVisible();
+
+  const failedCard = page
+    .getByRole("article")
+    .filter({ hasText: fixture.certificate.failed.code });
+  await expect(
+    failedCard.getByLabel("Status: Falha no preparo", { exact: true })
+  ).toBeVisible();
+  await expect(
+    failedCard.getByRole("link", { name: DOWNLOAD_PDF_PATTERN })
+  ).toHaveCount(0);
+  await expect(
+    failedCard.getByRole("link", {
+      name: fixture.certificate.failed.courseTitle,
+    })
+  ).toHaveAttribute("href", `/certificados/${fixture.certificate.failed.code}`);
+  await expect(
+    failedCard.getByRole("button", { name: "Copiar link" })
   ).toBeVisible();
 
   const revokedCard = page
@@ -777,6 +891,17 @@ test("student certificates expose pending, ready, and revoked states safely", as
   await expect(
     revokedCard.getByRole("link", { name: DOWNLOAD_PDF_PATTERN })
   ).toHaveCount(0);
+  await expect(
+    revokedCard.getByRole("link", {
+      name: fixture.certificate.revoked.courseTitle,
+    })
+  ).toHaveAttribute(
+    "href",
+    `/certificados/${fixture.certificate.revoked.code}`
+  );
+  await expect(
+    revokedCard.getByRole("button", { name: "Copiar link" })
+  ).toBeVisible();
 
   const results = await new AxeBuilder({ page }).analyze();
   const blockingViolations = results.violations.filter(
@@ -786,61 +911,96 @@ test("student certificates expose pending, ready, and revoked states safely", as
   expect(blockingViolations).toEqual([]);
 });
 
-test("certificate PDF is private to its owner", async ({ page, request }) => {
+test("certificate PDF is public only for valid ready records", async ({
+  request,
+}) => {
   const fixture = await readFixture();
-  const downloadPath = `/app/certificados/${fixture.certificate.ready.code}/pdf`;
+  const downloadPath = `/certificados/${fixture.certificate.ready.code}/pdf`;
 
   const publicResponse = await request.get(downloadPath, {
     maxRedirects: 0,
   });
   expect(publicResponse.status()).toBe(307);
-  expect(publicResponse.headers().location).toContain("/entrar");
-  expect(publicResponse.headers()["content-type"] ?? "").not.toContain(
-    "application/pdf"
-  );
-  expect((await publicResponse.body()).subarray(0, 4).toString()).not.toBe(
-    "%PDF"
-  );
-
-  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
-  const ownerResponse = await page.context().request.get(downloadPath, {
-    maxRedirects: 0,
-  });
-  expect(ownerResponse.status()).toBe(307);
-  const signedLocation = ownerResponse.headers().location;
+  expect(publicResponse.headers()["x-robots-tag"]).toBe("noindex, nofollow");
+  const signedLocation = publicResponse.headers().location;
   expect(signedLocation).toContain("X-Amz-Signature");
   const pdfResponse = await request.get(signedLocation ?? "");
   expect(pdfResponse.status()).toBe(200);
   expect(pdfResponse.headers()["content-type"]).toContain("application/pdf");
   expect((await pdfResponse.body()).subarray(0, 4).toString()).toBe("%PDF");
 
-  await page.context().clearCookies();
-  await signIn(page, fixture.studentWithoutGrant, APP_URL_PATTERN);
-  const thirdPartyResponse = await page.context().request.get(downloadPath, {
-    maxRedirects: 0,
-  });
-  expect(thirdPartyResponse.status()).toBe(404);
-  expect(thirdPartyResponse.headers().location ?? "").not.toContain(
-    "X-Amz-Signature"
-  );
+  for (const certificate of [
+    fixture.certificate.pending,
+    fixture.certificate.failed,
+    fixture.certificate.revoked,
+  ]) {
+    const blockedResponse = await request.get(
+      `/certificados/${certificate.code}/pdf`,
+      { maxRedirects: 0 }
+    );
+    expect(blockedResponse.status()).toBe(404);
+    expect(blockedResponse.headers().location ?? "").not.toContain(
+      "X-Amz-Signature"
+    );
+    expect(blockedResponse.headers()["x-robots-tag"]).toBeUndefined();
+  }
 });
 
-test("admin sees certificate lifecycle controls with mandatory confirmation", async ({
+test("admin sees certificate lifecycle controls in the student Sheet", async ({
   page,
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
-  await page.goto(`/admin/alunos/${fixture.studentWithGrant.id}`);
+  await page.goto("/admin/alunos");
+
+  const studentRow = page
+    .locator("tbody tr")
+    .filter({ hasText: fixture.studentWithGrant.email });
+  await studentRow.getByRole("button", { name: "Gerenciar" }).click();
+
+  const studentSheet = page.getByRole("dialog");
   await expect(
-    page.getByRole("heading", { name: "Certificados" })
+    studentSheet.getByRole("heading", { name: "Gerenciar aluna" })
   ).toBeVisible();
-  await page.getByText("Emitir certificado manual").click();
-  const manualIssuance = page
-    .locator("details")
-    .filter({ hasText: "Emitir certificado manual" });
   await expect(
-    manualIssuance.getByText("Confirmo que revisei os dados")
+    studentSheet.getByRole("heading", { name: "Certificados" })
   ).toBeVisible();
+  await studentSheet.getByText("Emitir certificado manual").click();
+  await expect(
+    studentSheet.getByText("Confirmo que revisei os dados")
+  ).toBeVisible();
+});
+
+test("the removed student detail route is not available", async ({ page }) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+
+  const response = await page.request.get(
+    `/admin/alunos/${fixture.studentWithGrant.id}`
+  );
+
+  expect(response.status()).toBe(404);
+});
+
+test("admin manages a student from the course context Sheet", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
+  await page.goto(`/admin/cursos/${fixture.course.id}?tab=students`);
+
+  const enrollmentRow = page
+    .locator("tbody tr")
+    .filter({ hasText: fixture.studentWithGrant.email });
+  await enrollmentRow.getByRole("button", { name: "Gerenciar" }).click();
+
+  const studentSheet = page.getByRole("dialog");
+  await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
+  await expect(
+    studentSheet.getByText("Curso E2E", { exact: true })
+  ).toBeVisible();
+  await expect(studentSheet.getByText("Acesso ao Curso")).toBeVisible();
+  await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
 });
 
 test("keyboard reaches the login form and student sidebar", async ({

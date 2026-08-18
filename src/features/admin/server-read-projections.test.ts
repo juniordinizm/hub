@@ -21,6 +21,7 @@ import {
   getAdminCoursePublicationState,
   getAdminFinancialData,
   getAdminLessonEditorData,
+  getAdminStudentDetail,
   getAdminStudentsData,
 } from "./server";
 
@@ -369,5 +370,41 @@ describe("admin read projections", () => {
     expect(data.enrollments).toHaveLength(studentCount * enrollmentsPerStudent);
     expect(data.students).toHaveLength(studentCount);
     expect(payloadBytes).toBeLessThan(512 * 1024);
+  });
+
+  it("keeps a student detail available when the profile has no enrollment", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          course_id: null,
+          course_title: null,
+          email: "student@example.test",
+          expires_at: null,
+          id: null,
+          name: "Student",
+          original_expires_at: null,
+          platform_blocked_at: null,
+          platform_blocked_reason: null,
+          revoked_reason: null,
+          starts_at: null,
+          status: null,
+          user_id: "student-without-enrollment",
+        },
+      ],
+    });
+
+    await expect(
+      getAdminStudentDetail("student-without-enrollment")
+    ).resolves.toEqual({
+      email: "student@example.test",
+      enrollments: [],
+      name: "Student",
+      platformBlockedAt: null,
+      platformBlockedReason: null,
+      userId: "student-without-enrollment",
+    });
+
+    const sql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(sql).toContain("left join enrollments");
   });
 });

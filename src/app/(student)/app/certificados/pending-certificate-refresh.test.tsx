@@ -75,4 +75,17 @@ describe("PendingCertificateRefresh", () => {
 
     expect(dependencies.router.refresh).not.toHaveBeenCalled();
   });
+
+  it("offers an immediate manual refresh when requested", () => {
+    setVisibility("visible");
+    act(() =>
+      root.render(<PendingCertificateRefresh enabled showManualRefresh />)
+    );
+
+    const refreshButton = container.querySelector("button");
+
+    expect(refreshButton?.textContent).toBe("Atualizar status");
+    act(() => refreshButton?.click());
+    expect(dependencies.router.refresh).toHaveBeenCalledOnce();
+  });
 });

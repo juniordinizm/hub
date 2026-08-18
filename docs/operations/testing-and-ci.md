@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: acb1d0b
 ---
 
 # Testes e CI
@@ -191,10 +191,14 @@ As jornadas atuais verificam:
 - bloqueio de sequência, conclusão persistida e avanço;
 - jornada completa da última Aula: primeira Conclusão, Certificado `pending`, cron real
   da outbox, renderização em storage S3 loopback, transição `ready`, uma entrega de e-mail
-  minimizada, download privado do PDF e validação pública sem link para o arquivo;
-- lista autenticada de Certificados com estados `pending`, `ready` e revogado, além de
-  download negado sem sessão e para outra Conta;
+  minimizada e página pública canônica com preview/download mediado do PDF;
+- Curso como entrada contextual e lista autenticada como arquivo global de Certificados,
+  com estados `pending`, `ready`, `failed` e revogado;
+- rotas públicas de preview PNG e PDF limitadas antes do lookup, com redirect inline curto somente para `valid` e `ready`,
+  verificação SHA-256, `X-Robots-Tag` e ausência de URL assinada para os demais estados;
 - fronteira Admin/Aluna;
+- gestão de Alunas pelo `StudentManagementSheet` na lista geral e no contexto do Curso,
+  incluindo aluno sem Matrícula, escopos de leitura e retorno 404 da rota individual removida;
 - erro seguro de checkout sem provedor configurado;
 - handoff público sem formulário, checkout Asaas fake, identidade pós-evento, idempotência,
   callbacks e bloqueios de Conta ativa, revogada, bloqueada ou de equipe;
@@ -252,7 +256,7 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Pagamento e webhook | `asaas*.test.ts`, `public-checkout.test.ts`, E2E checkout seguro |
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
-| Certificado | `certificates/rules.test.ts`, integração concorrente, E2E full-story de conclusão, renderização, e-mail, download privado e validação pública |
+| Certificado | `certificates/rules.test.ts`, integração concorrente, testes da página/rota pública e E2E full-story de conclusão, renderização, e-mail, preview, download mediado e validação pública |
 | Efeitos transacionais | `outbox/*.test.ts`, worker da inbox Asaas e integração PostgreSQL de locks, rollback e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
@@ -286,7 +290,7 @@ interação.
 | Acesso expirado ou revogado | Alto: entrar com projeção `expired` ou `revoked`. | Dashboard informa o estado e oferece renovação ou suporte. `critical-journeys.spec.ts`. |
 | Concluir e avançar | Alto: concluir a primeira Aula. | Progresso persiste e a próxima Aula é aberta. `critical-journeys.spec.ts`. |
 | Comentário e resposta | Médio: criar comentário, responder e moderar. | Ações autorizadas, limites e visibilidade são validados em `src/features/comments/actions.test.ts` e `server-sql.test.ts`. |
-| Certificado | Alto: concluir a última Aula e acompanhar `pending` até `ready`; baixar como titular, negar terceiro e validar o código publicamente. | Uma única Conclusão/emissão/e-mail, PDF privado íntegro, estados seguros e validação pública sem link ao arquivo. `critical-journeys.spec.ts`. |
+| Certificado | Alto: concluir a última Aula, acompanhar `pending` até `ready` e abrir a página canônica a partir do Curso, do arquivo global ou do e-mail. | Uma única Conclusão/emissão/e-mail; preview e download público apenas para `valid`/`ready`, com hash íntegro, rate limit, URL assinada curta e não indexação; nenhum download para `pending`/`failed`/`revoked`. `critical-journeys.spec.ts` e testes de `src/app/certificados/[code]`. |
 
 `knip.jsonc` inclui uma baseline explícita para arquivos e exports já desconectados por rotas ou
 ações dinâmicas do Next.js. Ela existe para que `bun run knip` bloqueie novos achados sem apagar

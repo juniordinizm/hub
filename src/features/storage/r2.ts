@@ -362,8 +362,10 @@ export const uploadCourseCoverFile = async ({
 
 export const createR2ObjectReadUrl = async ({
   key,
+  responseContentDisposition,
 }: {
   key: string;
+  responseContentDisposition?: "attachment" | "inline";
 }): Promise<string> => {
   const config = getR2Config();
 
@@ -372,6 +374,9 @@ export const createR2ObjectReadUrl = async ({
     new GetObjectCommand({
       Bucket: config.bucketName,
       Key: config.namespace.toPhysicalKey(key),
+      ...(responseContentDisposition
+        ? { ResponseContentDisposition: responseContentDisposition }
+        : {}),
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
   );

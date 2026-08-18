@@ -185,7 +185,7 @@ describe("certificate rendering field values", () => {
     );
   });
 
-  it("rejects text that cannot fit its configured field height", async () => {
+  it("keeps configured typography and bounds when text exceeds the field", async () => {
     const document = createMockDocument();
     document.heightOfString = vi.fn(() => 100);
     dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);
@@ -194,15 +194,42 @@ describe("certificate rendering field values", () => {
     })
       .webp()
       .toBuffer();
+    const sourceField = snapshot.template.fields[0];
+    if (!sourceField) {
+      throw new Error("Fixture de campo ausente.");
+    }
+    const studentNameSnapshot: CertificateRenderSnapshot = {
+      ...snapshot,
+      student: { name: "Aluna com nome comprido" },
+      template: {
+        ...snapshot.template,
+        fields: [
+          {
+            ...sourceField,
+            field: "studentName",
+            fontSize: 30,
+            height: 5,
+          },
+        ],
+      },
+    };
 
     await expect(
       renderCertificatePdf({
         background,
         publicBaseUrl: "https://hub.example.test",
         signature: null,
-        snapshot,
+        snapshot: studentNameSnapshot,
       })
-    ).rejects.toThrow("certificate_field_overflow:signerRole");
+    ).resolves.toMatchObject({ sha256: expect.any(String) });
+
+    expect(document.fontSize).toHaveBeenCalledWith(30);
+    expect(document.text).toHaveBeenCalledWith(
+      "Aluna com nome comprido",
+      expect.any(Number),
+      expect.any(Number),
+      expect.objectContaining({ height: expect.any(Number) })
+    );
   });
 
   it("centers text vertically inside its configured field box", async () => {

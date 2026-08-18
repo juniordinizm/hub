@@ -4,6 +4,10 @@ import {
   type AdminStudentSummary,
   summarizeAdminStudents,
 } from "@/features/admin/students";
+import {
+  type CertificateOperationRecord,
+  getCertificateOperationsForUser,
+} from "@/features/certificates/server";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
   getOperationalBacklogSnapshot,
@@ -285,6 +289,15 @@ export interface AdminStudentDetail {
   platformBlockedAt: Date | null;
   platformBlockedReason: string | null;
   userId: string;
+}
+
+export interface AdminStudentSheetData {
+  certificates: CertificateOperationRecord[];
+  context: {
+    courseId: string | null;
+    courseTitle: string | null;
+  };
+  student: AdminStudentDetail;
 }
 
 const requireAdminReadAccess = (): Promise<void> =>
@@ -1209,18 +1222,18 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
-    course_id: string;
-    course_title: string;
+    course_id: string | null;
+    course_title: string | null;
     email: string;
-    expires_at: Date;
-    id: string;
+    expires_at: Date | null;
+    id: string | null;
     name: string;
-    original_expires_at: Date;
+    original_expires_at: Date | null;
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     revoked_reason: string | null;
-    starts_at: Date;
-    status: string;
+    starts_at: Date | null;
+    status: string | null;
     user_id: string;
   }>(
     `
@@ -1228,20 +1241,20 @@ export const getAdminStudentDetail = async (
              e.status, e.starts_at, e.expires_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
              e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
-      from enrollments e
-      join users u on u.id = e.user_id
-      left join profiles p on p.user_id = u.id
-      join courses c on c.id = e.course_id
+      from users u
+      join profiles p on p.user_id = u.id and p.role = 'student'
+      left join enrollments e on e.user_id = u.id
+      left join courses c on c.id = e.course_id
       left join lateral (
         select eg.base_expires_at
         from enrollment_grants eg
-        where eg.user_id = e.user_id
+        where eg.user_id = u.id
           and eg.course_id = e.course_id
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      where e.user_id = $1
-      order by c.title
+      where u.id = $1
+      order by c.title nulls last
     `,
     [userId]
   );
@@ -1254,20 +1267,80 @@ export const getAdminStudentDetail = async (
 
   return {
     email: firstRow.email,
-    enrollments: result.rows.map((row) => ({
-      courseId: row.course_id,
-      courseTitle: row.course_title,
-      expiresAt: row.expires_at,
-      id: row.id,
-      originalExpiresAt: row.original_expires_at,
-      revokedReason: row.revoked_reason,
-      startedAt: row.starts_at,
-      status: row.status,
-    })),
+    enrollments: result.rows.flatMap((row) => {
+      if (
+        !(
+          row.course_id &&
+          row.course_title &&
+          row.expires_at &&
+          row.id &&
+          row.original_expires_at &&
+          row.starts_at &&
+          row.status
+        )
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          courseId: row.course_id,
+          courseTitle: row.course_title,
+          expiresAt: row.expires_at,
+          id: row.id,
+          originalExpiresAt: row.original_expires_at,
+          revokedReason: row.revoked_reason,
+          startedAt: row.starts_at,
+          status: row.status,
+        },
+      ];
+    }),
     name: firstRow.name,
     platformBlockedAt: firstRow.platform_blocked_at,
     platformBlockedReason: firstRow.platform_blocked_reason,
     userId: firstRow.user_id,
+  };
+};
+
+export const getAdminStudentSheetData = async ({
+  courseId,
+  userId,
+}: {
+  courseId?: string;
+  userId: string;
+}): Promise<AdminStudentSheetData | null> => {
+  await requireAdminReadAccess();
+  const [student, certificates] = await Promise.all([
+    getAdminStudentDetail(userId),
+    getCertificateOperationsForUser(userId),
+  ]);
+
+  if (!student) {
+    return null;
+  }
+
+  if (!courseId) {
+    return {
+      certificates,
+      context: { courseId: null, courseTitle: null },
+      student,
+    };
+  }
+
+  const enrollment = student.enrollments.find(
+    (candidate) => candidate.courseId === courseId
+  );
+
+  if (!enrollment) {
+    return null;
+  }
+
+  return {
+    certificates: certificates.filter(
+      (certificate) => certificate.courseId === courseId
+    ),
+    context: { courseId, courseTitle: enrollment.courseTitle },
+    student: { ...student, enrollments: [enrollment] },
   };
 };
 

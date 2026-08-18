@@ -356,7 +356,7 @@ git add src/features/certificates/command-input.ts src/features/certificates/com
 git commit -m "fix: harden certificate operations and observability"
 ```
 
-### Task 6: Refine the student completion and certificate experience
+### Task 6: Refine the student completion and public certificate experience
 
 **Files:**
 - Modify: `src/app/(student)/app/actions.ts`
@@ -366,6 +366,12 @@ git commit -m "fix: harden certificate operations and observability"
 - Modify: `src/app/(student)/app/certificados/page.tsx`
 - Create: `src/app/(student)/app/certificados/pending-certificate-refresh.tsx`
 - Create: `src/app/(student)/app/certificados/pending-certificate-refresh.test.tsx`
+- Modify: `src/app/certificados/[code]/page.tsx`
+- Modify: `src/app/certificados/[code]/page.test.tsx`
+- Create: `src/app/certificados/[code]/certificate-public-actions.tsx`
+- Create: `src/app/certificados/[code]/certificate-public-actions.test.tsx`
+- Create: `src/app/certificados/[code]/pdf/route.ts`
+- Create: `src/app/certificados/[code]/pdf/route.test.ts`
 - Modify: `src/features/email/server.ts`
 - Modify: `src/features/email/server.test.ts`
 
@@ -377,26 +383,30 @@ Assert final manual completion redirects to:
 /app/cursos/<courseId>?certificate=issued
 ```
 
-only when `certificateIssued=true`. Assert the Course page renders an accessible completion status and that `renderStatus=failed` says the PDF failed and directs the Aluna to support.
+only when `certificateIssued=true`. Assert the Course page renders an accessible completion status, points a ready/revoked record to `/certificados/[code]` and never diverts that contextual action to `/app/certificados`. `renderStatus=failed` says the PDF failed and directs the Aluna to support. The authenticated list remains the global archive.
 
-- [ ] **Step 2: Write RED polling and email-link tests**
+- [ ] **Step 2: Write RED polling, public page, PDF route and email-link tests**
 
-The refresh component receives `hasPendingCertificates`. With `true`, fake timers advance ten seconds and `router.refresh()` runs only while `document.visibilityState === "visible"`. With `false`, no timer is created. Assert the certificate e-mail action URL ends in `/app/certificados`.
+The refresh component receives `hasPendingCertificates`. With `true`, fake timers advance ten seconds and `router.refresh()` runs only while `document.visibilityState === "visible"`. With `false`, no timer is created. Assert the certificate e-mail action URL ends in `/certificados/<encoded-code>`.
+
+For `/certificados/[code]`, assert `valid`/`ready` renders immutable claims, preview, download and copy-link actions; `pending`, `failed` and `revoked` render a safe status without preview or download. For `/certificados/[code]/pdf`, assert rate limiting happens before lookup, only `valid`/`ready` with key and digest can pass, SHA-256 is verified before signing, the signed URL is short-lived and the redirect sends `X-Robots-Tag: noindex, nofollow`.
 
 - [ ] **Step 3: Implement minimal UX behavior**
 
-Use a query parameter only as a redirect handoff; the page displays a semantic `Alert` and its links do not persist the parameter. In `getCertificateHelper`, branch explicitly for `failed`, `pending` and `ready`.
+Use a query parameter only as a redirect handoff; the Course page displays a semantic `Alert` and its links do not persist the parameter. In `getCertificateHelper`, branch explicitly for `failed`, `pending` and `ready`. Keep the Course as the contextual entry and `/app/certificados` as the global archive; both link to the public canonical page.
 
 Mount `PendingCertificateRefresh` only when at least one valid pending record exists. Use a ten-second interval, clean it up on unmount, skip refresh while hidden and stop when refreshed data has no pending records.
+
+Keep the PDF object in private R2. The public route must reuse `consumePublicCertificateLookup`, reject non-ready/non-valid states before storage access, verify private SHA-256 metadata and issue only a five-minute signed redirect. The page uses `noindex,nofollow`; the redirect uses `X-Robots-Tag`. Revocation blocks future route access without claiming to recall copies already downloaded.
 
 - [ ] **Step 4: Run focused tests GREEN and commit**
 
 ```powershell
-bun run test -- 'src/app/(student)/app/actions.test.ts' 'src/app/(student)/app/cursos/[courseId]/page.test.tsx' 'src/app/(student)/app/certificados' src/features/email/server.test.ts
+bun run test -- 'src/app/(student)/app/actions.test.ts' 'src/app/(student)/app/cursos/[courseId]/page.test.tsx' 'src/app/(student)/app/certificados' 'src/app/certificados/[code]' src/features/email/server.test.ts
 ```
 
 ```powershell
-git add 'src/app/(student)/app' src/features/email/server.ts src/features/email/server.test.ts
+git add 'src/app/(student)/app' 'src/app/certificados/[code]' src/features/email/server.ts src/features/email/server.test.ts
 git commit -m "feat: clarify certificate completion feedback"
 ```
 
@@ -446,7 +456,7 @@ Preserve separate pending/ready/revoked fixtures for state-specific tests.
 
 - [ ] **Step 4: Add the complete Playwright journey**
 
-Drive the final lesson through the UI, assert the issued feedback, open `/app/certificados`, invoke `/api/cron/outbox` with the E2E cron secret until the card is ready, download and check `%PDF`, open public validation, then query the guarded sink and assert one certificate e-mail delivery.
+Drive the final lesson through the UI, assert the issued feedback and the contextual Course link, inspect `/app/certificados` as the global archive, then invoke `/api/cron/outbox` with the E2E cron secret until the record is ready. Open `/certificados/[code]`, compare the claims, assert preview/download, follow the mediated public PDF route and check `%PDF`. Confirm `pending`, `failed` and `revoked` never expose the action, then query the guarded sink and assert one certificate e-mail delivery pointing to the canonical page.
 
 - [ ] **Step 5: Add lifecycle integration cases**
 
@@ -485,7 +495,7 @@ git commit -m "test: verify certificate issuance end to end"
 
 - [ ] **Step 1: Reconcile canonical documentation**
 
-Document the Admin-confirmed reconciliation, first-completion-only trigger, completion lock, fenced dead letter, E2E sink boundaries, student status flow and operational alerts. Correct the migration-chain top wherever touched.
+Document the Admin-confirmed reconciliation, first-completion-only trigger, completion lock, fenced dead letter, E2E sink boundaries, student status flow, canonical public certificate page, mediated PDF access, Course/global-archive roles and operational alerts. Correct the migration-chain top wherever touched.
 
 - [ ] **Step 2: Run formatting and focused verification**
 

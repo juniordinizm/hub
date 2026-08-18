@@ -205,27 +205,30 @@ describe("transactional email", () => {
     });
   });
 
-  it("links certificate email to the authenticated certificate list", async () => {
+  it("links certificate email to the public certificate validation page", async () => {
     process.env.RESEND_API_KEY = "re_test";
+    process.env.CERTIFICATE_PUBLIC_BASE_URL = "https://certificates.example/";
     process.env.NEXT_PUBLIC_APP_URL = "https://hub.example";
     send.mockResolvedValue({ data: { id: "email_123" }, error: null });
 
     await sendCertificateIssuedEmail({
-      certificateCode: "CERT-001",
+      certificateCode: "CERT/001 2026",
       courseTitle: "Curso de teste",
       to: "student@example.com",
       userName: "Student",
     });
 
     const [email] = send.mock.calls[0] ?? [];
-    expect(email.html).toContain("https://hub.example/app/certificados");
-    expect(email.html).toContain("CERT-001");
+    expect(email.html).toContain(
+      "https://certificates.example/certificados/CERT%2F001%202026"
+    );
+    expect(email.html).toContain("Ver e validar certificado");
+    expect(email.html).not.toContain("/app/certificados");
+    expect(email.html).not.toContain("/pdf");
+    expect(email.html).toContain("CERT/001 2026");
     expect(email.html).toContain("Curso de teste");
     expect(email.html).toContain("Student");
     expect(email.to).toBe("student@example.com");
-    expect(email.html).not.toContain(
-      "https://hub.example/certificados/CERT-001"
-    );
     expect(Resend).toHaveBeenCalledWith("re_test");
     expect(send).toHaveBeenCalledTimes(1);
   });

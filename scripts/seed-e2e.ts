@@ -9,7 +9,11 @@ import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
 import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
-import { deleteR2Objects, uploadPrivateR2Object } from "@/features/storage/r2";
+import {
+  deleteR2Objects,
+  uploadPrivateR2Object,
+  uploadPrivateR2ObjectIfAbsent,
+} from "@/features/storage/r2";
 import { getAuth } from "@/lib/auth";
 
 const E2E_PASSWORD = "E2E-password-123!";
@@ -26,6 +30,7 @@ export interface E2eFixture {
     title: string;
   };
   certificate: {
+    failed: CertificateE2eRecord;
     pending: CertificateE2eRecord;
     ready: CertificateE2eRecord & { pdfStorageKey: string };
     revoked: CertificateE2eRecord;
@@ -82,7 +87,7 @@ interface CertificateE2eRecord {
 
 interface CertificateE2eSeed {
   code: string;
-  kind: "pending" | "ready" | "revoked";
+  kind: "failed" | "pending" | "ready" | "revoked";
   title: string;
 }
 
@@ -202,7 +207,9 @@ const seedCertificateRecord = async ({
   }
 
   const isPending = seed.kind === "pending";
+  const isFailed = seed.kind === "failed";
   const isRevoked = seed.kind === "revoked";
+  const renderStatus = isRevoked ? "ready" : seed.kind;
   let pdfStorageKey: string | null = null;
   if (seed.kind === "ready") {
     pdfStorageKey = `e2e/${suffix}/courses/${courseId}/certificate.pdf`;
@@ -232,10 +239,10 @@ const seedCertificateRecord = async ({
       publicationId,
       seed.title,
       isRevoked ? "revoked" : "valid",
-      isPending ? "pending" : "ready",
+      renderStatus,
       pdfStorageKey,
-      isPending ? null : pdfSha256,
-      isPending ? null : new Date(),
+      isPending || isFailed ? null : pdfSha256,
+      isPending || isFailed ? null : new Date(),
       isRevoked ? new Date() : null,
       isRevoked ? sensitiveSentinel : null,
       isRevoked ? "other" : null,
@@ -267,11 +274,17 @@ const seedCertificateLifecycle = async ({
   studentId: string;
   suffix: string;
 }): Promise<{
+  failed: CertificateE2eRecord;
   pending: CertificateE2eRecord;
   ready: CertificateE2eRecord & { pdfStorageKey: string };
   revoked: CertificateE2eRecord;
 }> => {
   const certificateSeeds = [
+    {
+      code: `E2E-FAILED-${suffix}`,
+      kind: "failed",
+      title: "Certificado E2E indisponivel",
+    },
     {
       code: `E2E-PENDING-${suffix}`,
       kind: "pending",
@@ -306,14 +319,15 @@ const seedCertificateLifecycle = async ({
     });
   }
 
-  const { pending, ready, revoked } = certificateRecords;
-  if (!(pending && ready && revoked)) {
+  const { failed, pending, ready, revoked } = certificateRecords;
+  if (!(failed && pending && ready && revoked)) {
     throw new Error("Could not create the complete E2E certificate lifecycle.");
   }
   if (!ready.pdfStorageKey) {
     throw new Error("Could not create the ready E2E certificate artifact.");
   }
   return {
+    failed,
     pending,
     ready: { ...ready, pdfStorageKey: ready.pdfStorageKey },
     revoked,
@@ -646,10 +660,11 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       studentId,
       suffix,
     });
-    await uploadPrivateR2Object({
+    await uploadPrivateR2ObjectIfAbsent({
       body: pdfBody,
       contentType: "application/pdf",
       key: certificateRecords.ready.pdfStorageKey,
+      metadata: { sha256: pdfSha256 },
     });
     uploadedObjectKeys.push(certificateRecords.ready.pdfStorageKey);
     await client.query("commit");
@@ -663,6 +678,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     const fixture: E2eFixture = {
       admin: { email: adminEmail, password: E2E_PASSWORD },
       certificate: {
+        failed: certificateRecords.failed,
         pending: certificateRecords.pending,
         ready: certificateRecords.ready,
         revoked: certificateRecords.revoked,
@@ -674,6 +690,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         courseIds: [
           courseId,
           certifiableCourseId,
+          certificateRecords.failed.courseId,
           certificateRecords.pending.courseId,
           certificateRecords.ready.courseId,
           certificateRecords.revoked.courseId,

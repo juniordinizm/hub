@@ -599,6 +599,104 @@ describe("CertificateTemplateEditor", () => {
     );
   });
 
+  it("warns about clipped content without blocking draft save and confirms publication", async () => {
+    const descriptors = {
+      clientHeight: Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientHeight"
+      ),
+      clientWidth: Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "clientWidth"
+      ),
+      scrollHeight: Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollHeight"
+      ),
+      scrollWidth: Object.getOwnPropertyDescriptor(
+        HTMLElement.prototype,
+        "scrollWidth"
+      ),
+    };
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get() {
+        return this.dataset.certificatePage === "true" ? 1000 : 100;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get() {
+        return this.dataset.previewTextField === "studentName" ? 10 : 100;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get() {
+        return this.dataset.previewTextField === "studentName"
+          ? 100
+          : this.clientHeight;
+      },
+    });
+    Object.defineProperty(HTMLElement.prototype, "scrollWidth", {
+      configurable: true,
+      get() {
+        return this.clientWidth;
+      },
+    });
+
+    try {
+      act(() => {
+        root.render(
+          <CertificateTemplateEditor
+            certificateEnabled
+            courseId="course-1"
+            issuerConfigured
+            templates={[draftTemplate]}
+          />
+        );
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(
+        container.querySelector('[data-certificate-overflow-warning="true"]')
+      ).not.toBeNull();
+      expect(container.textContent).toContain("Nome no certificado");
+      expect(container.textContent).toContain("manterá o recorte");
+
+      toggleFieldVisibility(container, "signerRole");
+      const save = [...container.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Salvar rascunho")
+      );
+      expect(save?.disabled).toBe(false);
+
+      const publish = [...container.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Salvar e publicar")
+      );
+      act(() => publish?.click());
+      expect(actionMocks.publish).not.toHaveBeenCalled();
+      expect(document.body.textContent).toContain(
+        "Publicar com conteúdo cortado?"
+      );
+
+      const confirm = [...document.body.querySelectorAll("button")].find(
+        (button) => button.textContent === "Publicar mesmo assim"
+      );
+      await act(async () => confirm?.click());
+      expect(actionMocks.publish).toHaveBeenCalledOnce();
+    } finally {
+      for (const [name, descriptor] of Object.entries(descriptors)) {
+        if (descriptor) {
+          Object.defineProperty(HTMLElement.prototype, name, descriptor);
+        } else {
+          Reflect.deleteProperty(HTMLElement.prototype, name);
+        }
+      }
+    }
+  });
+
   it("selects a field directly on the preview and opens its inspector", () => {
     act(() => {
       root.render(

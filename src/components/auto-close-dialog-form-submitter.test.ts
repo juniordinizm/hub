@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendSubmitterValue } from "./auto-close-dialog-form";
+import { appendSubmitterValue } from "./admin-mutation-form";
 
 describe("AutoCloseDialogForm submitter handling", () => {
   it("includes the clicked submit button name and value in server action form data", () => {

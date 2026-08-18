@@ -60,6 +60,8 @@ export interface CertificateRecord {
   issuedAt: Date;
   issuerCnpj?: string | null;
   issuerName?: string | null;
+  pdfSha256?: string | null;
+  pdfStorageKey?: string | null;
   renderStatus: "failed" | "pending" | "ready";
   revokedAt: Date | null;
   revokedReasonCategory: CertificateReasonCode | null;
@@ -978,6 +980,8 @@ export const getCertificateByCode = async (
     issued_at: Date;
     issuer_cnpj_snapshot: string | null;
     issuer_name_snapshot: string | null;
+    pdf_sha256: string | null;
+    pdf_storage_key: string | null;
     revoked_at: Date | null;
     revoked_reason_category: string | null;
     status: "revoked" | "valid";
@@ -993,6 +997,8 @@ export const getCertificateByCode = async (
         issued_at,
         render_snapshot->'issuer'->>'cnpj' as issuer_cnpj_snapshot,
         render_snapshot->'issuer'->>'displayName' as issuer_name_snapshot,
+        pdf_sha256,
+        pdf_storage_key,
         revoked_at,
         revoked_reason_category,
         render_status,
@@ -1018,6 +1024,8 @@ export const getCertificateByCode = async (
     issuedAt: row.issued_at,
     issuerCnpj: row.issuer_cnpj_snapshot,
     issuerName: row.issuer_name_snapshot,
+    pdfSha256: row.pdf_sha256,
+    pdfStorageKey: row.pdf_storage_key,
     revokedAt: row.revoked_at,
     revokedReasonCategory:
       parseCertificateReasonCode(row.revoked_reason_category) ??
@@ -1076,6 +1084,7 @@ export const getCertificatesForUser = async (
 
 export interface CertificateOperationRecord extends CertificateRecord {
   canReissue: boolean;
+  courseId: string;
   id: string;
 }
 
@@ -1122,6 +1131,7 @@ export const getCertificateOperationsForUser = async (
   return rows.map((row) => ({
     canReissue: row.can_reissue,
     code: row.code,
+    courseId: row.course_id,
     courseTitle: row.course_title_snapshot,
     id: row.id,
     issuedAt: row.issued_at,

@@ -82,6 +82,9 @@ export const collectOwnedE2eObjectKeys = ({
     ...new Set([
       ...cleanup.pdfObjectKeys,
       ...certificatePdfRows.map((row) => row.pdf_storage_key),
+      ...certificatePdfRows.map(
+        (row) => `certificates/${row.id}/certificate-preview.png`
+      ),
       ...templateKeys,
     ]),
   ];

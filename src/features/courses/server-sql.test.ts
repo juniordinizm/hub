@@ -53,6 +53,9 @@ const createCourseOverviewRow = ({
   lessonSortOrder: number;
 }) => ({
   certificate_code: "CERT-1",
+  certificate_enabled: true,
+  certificate_render_status: "ready",
+  certificate_status: "valid",
   completed_at: completedAt,
   course_description: "Description",
   course_id: "course-1",
@@ -210,6 +213,7 @@ describe("student experience reads", () => {
     ]);
     expect(overview).toMatchObject({
       certificateCode: "CERT-1",
+      certificateStatus: "valid",
       completedCount: 1,
       course: { expiresAt, id: "course-1" },
       isPreview: false,
@@ -228,6 +232,57 @@ describe("student experience reads", () => {
     );
   });
 
+  it("projects the latest revoked certificate when no valid reissue exists", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...createCourseOverviewRow({
+            completedAt: new Date("2026-01-01T00:00:00.000Z"),
+            lessonId: "lesson-1",
+            lessonSortOrder: 1,
+          }),
+          certificate_code: "CERT-REVOKED",
+          certificate_status: "revoked",
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(overview).toMatchObject({
+      certificateCode: "CERT-REVOKED",
+      certificateStatus: "revoked",
+    });
+  });
+
+  it("selects a valid reissue before revoked certificate history", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createCourseOverviewRow({
+          completedAt: new Date("2026-01-01T00:00:00.000Z"),
+          lessonId: "lesson-1",
+          lessonSortOrder: 1,
+        }),
+      ],
+    });
+
+    await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    const sql = query.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("left join lateral");
+    expect(sql).toContain(
+      "case when certificate.status = 'valid' then 0 else 1 end"
+    );
+    expect(sql).toContain("certificate.issued_at desc");
+    expect(sql).not.toContain("and cert.status = 'valid'");
+  });
+
   it("assembles the same Course overview intent as an unrestricted admin preview", async () => {
     query.mockResolvedValue({
       rows: [
@@ -244,6 +299,7 @@ describe("student experience reads", () => {
     expect(query).toHaveBeenCalledWith(expect.any(String), ["course-1"]);
     expect(overview).toMatchObject({
       certificateCode: null,
+      certificateStatus: null,
       completedCount: 0,
       isPreview: true,
       nextLessonId: "lesson-1",
