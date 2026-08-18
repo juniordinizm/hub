@@ -11,6 +11,12 @@ const cronRoutes = [
 ] as const;
 
 describe("Vercel cron configuration", () => {
+  it("loads PDFKit natively so its standard font assets remain addressable", async () => {
+    const source = await readFile("next.config.ts", "utf8");
+
+    expect(source).toContain('serverExternalPackages: ["pdfkit"]');
+  });
+
   it("traces Sharp and its native runtime assets into server functions", async () => {
     const source = await readFile("next.config.ts", "utf8");
 

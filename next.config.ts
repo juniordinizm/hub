@@ -101,6 +101,7 @@ const nextConfig: NextConfig = {
   ],
   ...(isVercel ? {} : { output: "standalone" }),
   reactCompiler: true,
+  serverExternalPackages: ["pdfkit"],
 };
 
 export default withSentryConfig(nextConfig, {
