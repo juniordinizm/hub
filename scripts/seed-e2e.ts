@@ -9,7 +9,11 @@ import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
 import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
-import { deleteR2Objects, uploadPrivateR2Object } from "@/features/storage/r2";
+import {
+  deleteR2Objects,
+  uploadPrivateR2Object,
+  uploadPrivateR2ObjectIfAbsent,
+} from "@/features/storage/r2";
 import { getAuth } from "@/lib/auth";
 
 const E2E_PASSWORD = "E2E-password-123!";
@@ -656,10 +660,11 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       studentId,
       suffix,
     });
-    await uploadPrivateR2Object({
+    await uploadPrivateR2ObjectIfAbsent({
       body: pdfBody,
       contentType: "application/pdf",
       key: certificateRecords.ready.pdfStorageKey,
+      metadata: { sha256: pdfSha256 },
     });
     uploadedObjectKeys.push(certificateRecords.ready.pdfStorageKey);
     await client.query("commit");

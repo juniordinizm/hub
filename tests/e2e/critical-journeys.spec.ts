@@ -841,6 +841,7 @@ test("student certificates expose canonical links and lifecycle states safely", 
   );
   await expect(
     readyCard.getByRole("link", {
+      exact: true,
       name: fixture.certificate.ready.courseTitle,
     })
   ).toHaveAttribute("href", `/certificados/${fixture.certificate.ready.code}`);
