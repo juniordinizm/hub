@@ -2,6 +2,9 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { renderCertificatePdf } from "./rendering";
+import { createDefaultCertificateTemplateFields } from "./template-rules";
+
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 const snapshot: CertificateRenderSnapshot = {
   certificate: { code: "CERT-123", issuedAt: "2026-07-22T12:00:00.000Z" },
@@ -99,5 +102,37 @@ describe("renderCertificatePdf", () => {
 
     expect(second.sha256).toBe(first.sha256);
     expect(second.pdf.equals(first.pdf)).toBe(true);
+  });
+
+  it("renders representative certificate data with the published default fields", async () => {
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 849, width: 1200 },
+    })
+      .png()
+      .toBuffer();
+    const defaultSnapshot: CertificateRenderSnapshot = {
+      ...snapshot,
+      certificate: {
+        code: "PRT-E55E66C1C8484442AAA93AABCD489AB8",
+        issuedAt: snapshot.certificate.issuedAt,
+      },
+      course: { title: "Curso E2E certificável", workloadHours: 1 },
+      student: { name: "Aluna para conclusao" },
+      template: {
+        ...snapshot.template,
+        fields: createDefaultCertificateTemplateFields(),
+      },
+    };
+
+    await expect(
+      renderCertificatePdf({
+        background,
+        publicBaseUrl: "http://127.0.0.1:3100",
+        signature: null,
+        snapshot: defaultSnapshot,
+      })
+    ).resolves.toMatchObject({
+      sha256: expect.stringMatching(SHA256_PATTERN),
+    });
   });
 });

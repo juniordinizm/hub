@@ -48,7 +48,7 @@ export const createDefaultCertificateTemplateFields =
       color: "#17292b",
       field,
       font: field === "studentName" ? "Helvetica-Bold" : "Helvetica",
-      fontSize: field === "studentName" ? 30 : 10,
+      fontSize: field === "studentName" ? 24 : 10,
       height: field === "qrCode" ? 12 : 5,
       visible: !(
         field === "signatureImage" ||
