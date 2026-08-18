@@ -347,6 +347,7 @@ describe("emissao concorrente de certificado", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
+    await pool.query("truncate table outbox_messages");
     await pool.query("truncate table users cascade");
   });
 
@@ -940,6 +941,7 @@ describe("claim persistido de renderizacao", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
+    await pool.query("truncate table outbox_messages");
     await pool.query("truncate table users cascade");
   });
 

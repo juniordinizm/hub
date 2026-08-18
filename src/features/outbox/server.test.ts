@@ -188,5 +188,6 @@ describe("outbox persistence", () => {
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "outbox-1", "Falha transitória confirmada."]
     );
+    expect(String(query.mock.calls[2]?.[0])).toContain("$3::text");
   });
 });

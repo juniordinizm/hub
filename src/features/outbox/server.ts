@@ -272,7 +272,7 @@ export const requeueDeadLetterMessage = async ({
   await client.query(
     `
       insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-      values ($1, 'outbox.requeued', 'outbox_message', $2, jsonb_build_object('reason', $3))
+      values ($1, 'outbox.requeued', 'outbox_message', $2, jsonb_build_object('reason', $3::text))
     `,
     [actorUserId, messageId, reason]
   );
