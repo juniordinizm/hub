@@ -114,6 +114,7 @@ export interface StudentCourseOverviewData {
   certificateCode: string | null;
   certificateEnabled: boolean;
   certificateRenderStatus: "failed" | "pending" | "ready" | null;
+  certificateStatus: "revoked" | "valid" | null;
   completedCount: number;
   course: {
     description: string | null;
@@ -244,6 +245,7 @@ interface CourseOverviewRow {
   certificate_code: string | null;
   certificate_enabled: boolean;
   certificate_render_status: "failed" | "pending" | "ready" | null;
+  certificate_status: "revoked" | "valid" | null;
   completed_at: Date | null;
   course_description: string | null;
   course_id: string;
@@ -785,6 +787,7 @@ const getEnrolledCourseOverview = async ({
         cert.code as certificate_code,
         c.certificate_enabled,
         cert.render_status as certificate_render_status,
+        cert.status as certificate_status,
         m.id as module_id,
         m.title as module_title,
         m.description as module_description,
@@ -804,9 +807,17 @@ const getEnrolledCourseOverview = async ({
       join users u on u.id = e.user_id
       join courses c on c.id = e.course_id
       join course_publications cp on cp.course_id = c.id and cp.status = 'published'
-      left join certificates cert on cert.course_id = c.id
-        and cert.user_id = e.user_id
-        and cert.status = 'valid'
+      left join lateral (
+        select certificate.code, certificate.render_status, certificate.status
+        from certificates certificate
+        where certificate.course_id = c.id
+          and certificate.user_id = e.user_id
+        order by
+          case when certificate.status = 'valid' then 0 else 1 end,
+          certificate.issued_at desc,
+          certificate.id desc
+        limit 1
+      ) cert on true
       left join modules m on m.course_publication_id = cp.id and m.status = 'active'
       left join lessons l on l.module_id = m.id
         and l.course_publication_id = cp.id
@@ -898,6 +909,7 @@ const getEnrolledCourseOverview = async ({
     certificateCode: firstRow.certificate_code,
     certificateEnabled: firstRow.certificate_enabled,
     certificateRenderStatus: firstRow.certificate_render_status,
+    certificateStatus: firstRow.certificate_status,
     completedCount: progress.completedCount,
     course: {
       id: firstRow.course_id,
@@ -1012,6 +1024,7 @@ const getPreviewCourseOverview = async ({
     certificateCode: null,
     certificateEnabled: false,
     certificateRenderStatus: null,
+    certificateStatus: null,
     completedCount: 0,
     course: {
       id: firstRow.course_id,

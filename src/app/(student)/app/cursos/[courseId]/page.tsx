@@ -7,6 +7,13 @@ import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   formatCourseWorkload,
@@ -20,6 +27,7 @@ import {
 import { getStudentCourseOverview } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+import { PendingCertificateRefresh } from "../../certificados/pending-certificate-refresh";
 import { CourseOverviewClient } from "./course-overview-client";
 
 export const dynamic = "force-dynamic";
@@ -37,34 +45,25 @@ function getCourseButtonLabel(
   return "Rever trilha";
 }
 
-function getCertificateHelper({
-  certificateCode,
-  certificateRenderStatus,
+function getIncompleteCertificateDescription({
   completedCount,
   studentName,
   totalCount,
 }: {
-  certificateCode: string | null;
-  certificateRenderStatus: "failed" | "pending" | "ready" | null;
   completedCount: number;
   studentName: string | null;
   totalCount: number;
 }): string {
-  if (certificateCode) {
-    if (certificateRenderStatus === "ready") {
-      return "Seu certificado está disponível para download em Meus certificados.";
-    }
-    if (certificateRenderStatus === "failed") {
-      return "Falha no preparo do PDF. Fale com o suporte para receber ajuda.";
-    }
-    return "Você concluiu o curso. Estamos preparando seu PDF.";
-  }
   const remainingLessons = Math.max(0, totalCount - completedCount);
+  const lessonLabel =
+    remainingLessons === 1
+      ? "Falta 1 aula obrigatória."
+      : `Faltam ${remainingLessons} aulas obrigatórias.`;
   const expectedName = studentName
     ? ` O nome previsto é ${studentName}.`
     : " O certificado usará o nome do perfil da Aluna.";
 
-  return `Faltam ${remainingLessons} aulas obrigatórias.${expectedName}`;
+  return `${lessonLabel}${expectedName}`;
 }
 
 export default async function StudentCourseOverviewPage({
@@ -177,14 +176,16 @@ export default async function StudentCourseOverviewPage({
                 </div>
 
                 <div className="flex shrink-0">
-                  {data.progressPercent === 100 && data.certificateCode ? (
+                  {data.certificateCode ? (
                     <Button
                       asChild
                       className="h-full w-full px-6 sm:w-auto"
                       size="sm"
                     >
-                      <Link href={route("/app/certificados")}>
-                        Ver em Meus certificados
+                      <Link
+                        href={route(`/certificados/${data.certificateCode}`)}
+                      >
+                        Ver certificado
                       </Link>
                     </Button>
                   ) : (
@@ -206,27 +207,15 @@ export default async function StudentCourseOverviewPage({
             </div>
           </header>
           {data.certificateEnabled ? (
-            <section className="rounded-lg border bg-card p-4">
-              <h2 className="font-semibold">Certificado de conclusão</h2>
-              <p className="mt-1 text-muted-foreground text-sm">
-                {getCertificateHelper(data)}
-              </p>
-              <Link
-                className="mt-2 inline-block text-sm underline"
-                href={route("/app/configuracoes")}
-              >
-                Conferir nome no perfil
-              </Link>
-              {data.certificateCode &&
-              data.certificateRenderStatus === "failed" ? (
-                <SupportRequestDialog
-                  courseTitle={data.course.title}
-                  triggerClassName="mt-3"
-                  triggerLabel="Falar com suporte"
-                  triggerSize="sm"
-                />
-              ) : null}
-            </section>
+            <CourseCertificatePanel
+              certificateCode={data.certificateCode}
+              certificateRenderStatus={data.certificateRenderStatus}
+              certificateStatus={data.certificateStatus}
+              completedCount={data.completedCount}
+              courseTitle={data.course.title}
+              studentName={data.studentName}
+              totalCount={data.totalCount}
+            />
           ) : null}
         </div>
       </div>
@@ -237,6 +226,159 @@ export default async function StudentCourseOverviewPage({
         previewMode={previewMode}
       />
     </PageContainer>
+  );
+}
+
+function CourseCertificatePanel({
+  certificateCode,
+  certificateRenderStatus,
+  certificateStatus,
+  completedCount,
+  courseTitle,
+  studentName,
+  totalCount,
+}: {
+  certificateCode: string | null;
+  certificateRenderStatus: "failed" | "pending" | "ready" | null;
+  certificateStatus: "revoked" | "valid" | null;
+  completedCount: number;
+  courseTitle: string;
+  studentName: string | null;
+  totalCount: number;
+}): React.JSX.Element {
+  const titleId = "course-certificate-title";
+
+  if (!certificateCode) {
+    return (
+      <Card aria-labelledby={titleId} role="region">
+        <CardHeader>
+          <CardTitle as="h2" id={titleId}>
+            Certificado de conclusão
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="max-w-2xl text-muted-foreground leading-6">
+            {getIncompleteCertificateDescription({
+              completedCount,
+              studentName,
+              totalCount,
+            })}
+          </p>
+        </CardContent>
+        <CardFooter>
+          <Button asChild size="sm" variant="outline">
+            <Link href={route("/app/configuracoes")}>
+              Conferir nome no perfil
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (certificateStatus === "revoked") {
+    return (
+      <Card aria-labelledby={titleId} role="region">
+        <CardHeader>
+          <CardTitle as="h2" id={titleId}>
+            Certificado revogado
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTitle>Este certificado não está mais válido</AlertTitle>
+            <AlertDescription>
+              Consulte o registro público para ver o status atual deste
+              certificado.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter>
+          <Button asChild variant="outline">
+            <Link href={route(`/certificados/${certificateCode}`)}>
+              Ver certificado
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (certificateRenderStatus === "ready") {
+    return (
+      <Card aria-labelledby={titleId} role="region">
+        <CardHeader>
+          <CardTitle as="h2" id={titleId}>
+            Seu certificado está pronto
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert aria-live="polite" role="status">
+            <AlertTitle>Conquista concluída</AlertTitle>
+            <AlertDescription>
+              Seu certificado já pode ser consultado e compartilhado.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter>
+          <Button asChild>
+            <Link href={route(`/certificados/${certificateCode}`)}>
+              Ver certificado
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  if (certificateRenderStatus === "failed") {
+    return (
+      <Card aria-labelledby={titleId} role="region">
+        <CardHeader>
+          <CardTitle as="h2" id={titleId}>
+            Certificado precisa de suporte
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTitle>Falha no preparo do PDF</AlertTitle>
+            <AlertDescription>
+              Seu curso continua concluído. Fale com o suporte para receber
+              ajuda com o certificado.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+        <CardFooter>
+          <SupportRequestDialog
+            courseTitle={courseTitle}
+            triggerLabel="Falar com suporte"
+            triggerSize="sm"
+          />
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  return (
+    <Card aria-labelledby={titleId} role="region">
+      <CardHeader>
+        <CardTitle as="h2" id={titleId}>
+          Certificado em preparação
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Alert aria-live="polite" role="status">
+          <AlertTitle>Conclusão registrada</AlertTitle>
+          <AlertDescription>
+            Estamos preparando o PDF do seu certificado. Esta página atualiza o
+            status automaticamente enquanto estiver visível.
+          </AlertDescription>
+        </Alert>
+      </CardContent>
+      <CardFooter>
+        <PendingCertificateRefresh enabled showManualRefresh />
+      </CardFooter>
+    </Card>
   );
 }
 
