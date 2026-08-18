@@ -530,7 +530,16 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
     page.getByRole("heading", { name: fixture.certifiableCourse.title })
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Concluir aula e avançar" }).click();
+  const completionButton = page.getByRole("button", {
+    name: "Concluir aula e avançar",
+  });
+  if (await completionButton.isVisible()) {
+    await completionButton.click();
+  } else {
+    await page
+      .getByRole("button", { name: "Concluir aula no cabeçalho" })
+      .click();
+  }
   await expect(page).toHaveURL(
     new RegExp(
       `/app/cursos/${fixture.certifiableCourse.id}\\?certificate=issued$`

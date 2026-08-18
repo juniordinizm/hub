@@ -77,7 +77,7 @@ html {
   --muted-foreground: #7fa8aa;
   --accent: #d97b34;
   --accent-foreground: #ffffff;
-  --destructive: #e07070;
+  --destructive: #e98686;
   --border: rgba(50, 108, 113, 0.24);
   --input: rgba(50, 108, 113, 0.3);
   --ring: #326c71;
@@ -123,7 +123,7 @@ body {
   --muted-foreground: #7fa8aa;
   --accent: #d97b34;
   --accent-foreground: #ffffff;
-  --destructive: #e07070;
+  --destructive: #e98686;
   --border: rgba(50, 108, 113, 0.24);
   --input: rgba(50, 108, 113, 0.3);
   --ring: #326c71;
