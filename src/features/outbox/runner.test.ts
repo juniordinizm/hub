@@ -31,6 +31,10 @@ import { OutboxDeliveryError } from "./worker";
 describe("outbox runner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dependencies.markOutboxMessageDeadLetter.mockResolvedValue(true);
+    dependencies.markOutboxMessageDeferred.mockResolvedValue(true);
+    dependencies.markOutboxMessageDelivered.mockResolvedValue(true);
+    dependencies.markOutboxMessageForRetry.mockResolvedValue(true);
   });
 
   it("delivers each claimed message and reports its terminal result", async () => {
@@ -52,7 +56,6 @@ describe("outbox runner", () => {
       .mockResolvedValueOnce([message])
       .mockResolvedValue([]);
     dependencies.deliverOutboxMessage.mockResolvedValue(undefined);
-    dependencies.markOutboxMessageDelivered.mockResolvedValue(undefined);
     dependencies.pruneOutboxRecords.mockResolvedValue({
       deadLetters: 0,
       delivered: 0,
@@ -107,7 +110,7 @@ describe("outbox runner", () => {
         retryable: true,
       })
     );
-    dependencies.markOutboxMessageDeferred.mockResolvedValue(undefined);
+    dependencies.markOutboxMessageDeferred.mockResolvedValue(true);
     dependencies.pruneOutboxRecords.mockResolvedValue({
       deadLetters: 0,
       delivered: 0,
@@ -163,6 +166,37 @@ describe("outbox runner", () => {
     });
 
     expect(dependencies.claimOutboxMessages).not.toHaveBeenCalled();
+    expect(dependencies.pruneOutboxRecords).not.toHaveBeenCalled();
+  });
+
+  it("stops without counting an outcome when its message lease is lost", async () => {
+    const client = { query: vi.fn() };
+    const message = {
+      aggregateId: "certificate-1",
+      aggregateType: "certificate",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "email.certificate-issued/certificate-1/v1",
+      payload: { certificateId: "certificate-1" },
+      payloadVersion: 1,
+      topic: "email.certificate-issued" as const,
+    };
+    dependencies.getPool.mockReturnValue(client);
+    dependencies.claimOutboxMessages.mockResolvedValue([message]);
+    dependencies.deliverOutboxMessage.mockResolvedValue(undefined);
+    dependencies.markOutboxMessageDelivered.mockResolvedValue(false);
+
+    await expect(
+      runOutboxWorker({ limit: 10, workerId: "worker-a" })
+    ).resolves.toMatchObject({
+      deadLettered: 0,
+      deferred: 0,
+      delivered: 0,
+      leaseLost: true,
+      retried: 0,
+    });
+
+    expect(dependencies.claimOutboxMessages).toHaveBeenCalledOnce();
     expect(dependencies.pruneOutboxRecords).not.toHaveBeenCalled();
   });
 });

@@ -96,8 +96,8 @@ export const markOutboxMessageDelivered = async ({
   client: OutboxQueryClient;
   id: string;
   workerId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<boolean> => {
+  const result = await client.query(
     `
       update outbox_messages
       set status = 'delivered',
@@ -110,6 +110,7 @@ export const markOutboxMessageDelivered = async ({
     `,
     [id, workerId]
   );
+  return result.rowCount === 1;
 };
 
 export const markOutboxMessageForRetry = async ({
@@ -124,8 +125,8 @@ export const markOutboxMessageForRetry = async ({
   id: string;
   retryDelayMs: number;
   workerId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<boolean> => {
+  const result = await client.query(
     `
       update outbox_messages
       set status = 'retrying',
@@ -139,6 +140,7 @@ export const markOutboxMessageForRetry = async ({
     `,
     [id, workerId, retryDelayMs, errorCode]
   );
+  return result.rowCount === 1;
 };
 
 export const markOutboxMessageDeferred = async ({
@@ -151,8 +153,8 @@ export const markOutboxMessageDeferred = async ({
   errorCode: string;
   id: string;
   workerId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<boolean> => {
+  const result = await client.query(
     `
       update outbox_messages
       set status = 'retrying',
@@ -167,6 +169,7 @@ export const markOutboxMessageDeferred = async ({
     `,
     [id, workerId, errorCode]
   );
+  return result.rowCount === 1;
 };
 
 export const markOutboxMessageDeadLetter = async ({
@@ -179,20 +182,41 @@ export const markOutboxMessageDeadLetter = async ({
   errorCode: string;
   id: string;
   workerId: string;
-}): Promise<void> => {
-  await client.query(
+}): Promise<boolean> => {
+  const result = await client.query<{ transitioned: boolean }>(
     `
-      update outbox_messages
-      set status = 'dead_letter',
-          locked_at = null,
-          locked_by = null,
-          last_error_code = $3,
-          last_error_at = now(),
-          updated_at = now()
-      where id = $1 and status = 'processing' and locked_by = $2
+      with transitioned as (
+        update outbox_messages as message
+        set status = 'dead_letter',
+            locked_at = null,
+            locked_by = null,
+            last_error_code = $3,
+            last_error_at = now(),
+            updated_at = now()
+        where message.id = $1
+          and message.status = 'processing'
+          and message.locked_by = $2
+        returning message.topic, message.payload
+      ), failed_certificate as (
+        update certificates as certificate
+        set render_status = 'failed',
+            render_claim_token = null,
+            render_claimed_at = null,
+            updated_at = now()
+        from transitioned as message
+        where message.topic = 'certificate.render'
+          and jsonb_typeof(message.payload) = 'object'
+          and jsonb_typeof(message.payload -> 'certificateId') = 'string'
+          and certificate.id::text = message.payload ->> 'certificateId'
+          and certificate.render_status = 'pending'
+          and certificate.render_claim_token is null
+        returning certificate.id
+      )
+      select exists(select 1 from transitioned) as transitioned
     `,
     [id, workerId, errorCode]
   );
+  return result.rows[0]?.transitioned === true;
 };
 
 export const requeueDeadLetterMessage = async ({
@@ -238,7 +262,9 @@ export const requeueDeadLetterMessage = async ({
      from outbox_messages as message
      where message.id = $1
        and message.topic = 'certificate.render'
-       and certificate.id = (message.payload ->> 'certificateId')::uuid
+       and jsonb_typeof(message.payload) = 'object'
+       and jsonb_typeof(message.payload -> 'certificateId') = 'string'
+       and certificate.id::text = message.payload ->> 'certificateId'
        and certificate.render_status = 'failed'`,
     [messageId]
   );

@@ -1,7 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
-import { markCertificateRenderFailed } from "@/features/certificates/server";
 import { deliverOutboxMessage } from "./delivery";
 import {
   claimOutboxMessages,
@@ -39,7 +38,6 @@ export const runOutboxWorker = async ({
   now?: () => number;
   shouldContinue?: () => Promise<boolean>;
   workerId?: string;
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: keeps deadline, lease and four durable outcomes explicit at the worker seam.
 } = {}): Promise<OutboxWorkerResult> => {
   const client = getPool();
   const result: OutboxWorkerResult = {
@@ -103,6 +101,10 @@ export const runOutboxWorker = async ({
         }),
       message,
     });
+    if (outcome === "lease_lost") {
+      result.leaseLost = true;
+      break;
+    }
     if (outcome === "delivered") {
       result.delivered += 1;
     } else if (outcome === "deferred") {
@@ -110,9 +112,6 @@ export const runOutboxWorker = async ({
     } else if (outcome === "retrying") {
       result.retried += 1;
     } else {
-      if (message.topic === "certificate.render") {
-        await markCertificateRenderFailed(message.aggregateId);
-      }
       result.deadLettered += 1;
     }
   }

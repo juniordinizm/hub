@@ -1312,19 +1312,3 @@ export const renderPendingCertificate = async (
     throw error;
   }
 };
-
-export const markCertificateRenderFailed = async (
-  certificateId: string
-): Promise<void> => {
-  await getPool().query(
-    `update certificates
-     set render_status = 'failed',
-         render_claim_token = null,
-         render_claimed_at = null,
-         updated_at = now()
-     where id = $1
-       and render_status = 'pending'
-       and render_claim_token is null`,
-    [certificateId]
-  );
-};

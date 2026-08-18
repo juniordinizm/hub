@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 84ac4a4501f4ccb3fe3661223ec09a1807b3d994
 ---
 
 # Outbox e efeitos transacionais
@@ -18,7 +18,11 @@ O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/feat
 
 Falhas inesperadas de `certificate.render` usam o código operacional `certificate_render_failed`; `resend_delivery_failed` fica restrito às entregas que realmente chamam o provedor de e-mail. Ambos são recuperáveis enquanto houver tentativas.
 
-Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o certificado fica `failed`; o reprocessamento manual autorizado devolve o certificado a `pending` antes de reentregar a mesma mensagem.
+Se a renderização esgota tentativas, uma única instrução transacional e fenced move a
+mensagem para `dead_letter` e muda o Certificado ainda `pending`, sem claim ativo, para
+`failed`. Se a mensagem já pertence a outro consumidor, nenhuma das duas transições
+ocorre. Outros tópicos alteram somente a mensagem. O reprocessamento manual autorizado
+devolve o certificado a `pending` antes de reentregar a mesma mensagem.
 
 - `certificate.render`: emitido na transação de emissão; agregado `certificate`; chave `certificate.render/<certificate-id>/v1`; payload somente `certificateId`. Ele é o único evento que pode criar o PDF.
 - `email.certificate-issued`: emitido somente pela entrega bem-sucedida de `certificate.render`, depois que o Certificado está `ready`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
@@ -79,6 +83,10 @@ O worker da inbox Asaas é separado da outbox e roda por
 - O claim é uma atualização atômica com `FOR UPDATE SKIP LOCKED`.
 - Cada mensagem recebe lease de dez minutos com `locked_at` e `locked_by`.
 - Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
+- Toda transição para `delivered`, `retrying` ou `dead_letter` confirma
+  `status = processing` e `locked_by` do consumidor. Se a ownership foi perdida, o
+  consumidor encerra o lote sem contabilizar a mensagem como entregue, adiada,
+  repetida ou morta.
 - Nenhuma conexão do pool permanece reservada durante PDFKit, R2 ou Resend.
 - Uma mensagem é `delivered` somente depois de o adaptador confirmar a chamada ao Resend.
 - Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
