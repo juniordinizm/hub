@@ -32,4 +32,30 @@ describe("resolveRuntimeEnvironment", () => {
       "development"
     );
   });
+
+  it.each([
+    [
+      "Production",
+      { NODE_ENV: "production", VERCEL_ENV: "production" },
+      "production",
+    ],
+    ["Preview", { NODE_ENV: "production", VERCEL_ENV: "preview" }, "preview"],
+    [
+      "Staging",
+      {
+        NODE_ENV: "production",
+        VERCEL_ENV: "preview",
+        VERCEL_TARGET_ENV: "staging",
+      },
+      "staging",
+    ],
+  ] as const)("gives Vercel %s precedence over E2E flags", (_name, environment, expected) => {
+    expect(
+      resolveRuntimeEnvironment({
+        ...environment,
+        CI: "true",
+        E2E_TEST_MODE: "true",
+      })
+    ).toBe(expected);
+  });
 });

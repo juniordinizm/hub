@@ -190,8 +190,9 @@ for testado. Consulte [Resend e e-mail institucional](../integrations/resend.md)
 O runtime E2E compilado pela CI usa `next start`, mas não representa um deploy
 de produção. A dispensa das credenciais de providers só é aceita com
 `E2E_TEST_MODE=true`, `CI=true` e as três URLs canônicas na mesma origem
-loopback. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
-proibidas nesse processo web.
+explícita `127.0.0.1`. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
+proibidas nesse processo web. Metadados `VERCEL_ENV` de Production/Preview e
+`VERCEL_TARGET_ENV=staging` têm precedência e impedem o modo E2E.
 
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
 fora da Cloudflare. Na Vercel, use o default `x-forwarded-for`; a aplicação

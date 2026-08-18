@@ -2,6 +2,7 @@ import "server-only";
 import { render } from "@react-email/components";
 import { Resend } from "resend";
 import { assertDevelopmentEmailRecipientAllowed } from "@/features/email/development-recipient";
+import { recordE2eCertificateEmailDelivery } from "@/features/email/e2e-delivery-sink";
 import {
   AccessExpiryWarningEmail,
   AccessReleasedEmail,
@@ -11,7 +12,7 @@ import {
   SupportRequestEmail,
 } from "@/features/email/templates";
 import { isAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, isIsolatedE2eRuntime } from "@/lib/env";
 
 interface SendEmailInput {
   idempotencyKey?: string;
@@ -181,8 +182,16 @@ export const sendCertificateIssuedEmail = async ({
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> =>
-  sendTransactionalEmail({
+}): Promise<void> => {
+  if (isIsolatedE2eRuntime(process.env)) {
+    recordE2eCertificateEmailDelivery({
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+      recipient: to,
+    });
+    return;
+  }
+
+  await sendTransactionalEmail({
     ...(idempotencyKey ? { idempotencyKey } : {}),
     react: CertificateIssuedEmail({
       actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/certificados`,
@@ -193,6 +202,7 @@ export const sendCertificateIssuedEmail = async ({
     subject: "Seu certificado PROTEA-R Hub foi emitido",
     to,
   });
+};
 
 export const sendSupportRequestEmail = async ({
   courseTitle,

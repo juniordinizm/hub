@@ -17,6 +17,10 @@ vi.mock("resend", () => ({ Resend }));
 
 import { deriveAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
 import {
+  getE2eCertificateEmailDeliveries,
+  resetE2eCertificateEmailDeliveries,
+} from "./e2e-delivery-sink";
+import {
   sendCertificateIssuedEmail,
   sendCourseSalesOpenedEmail,
   sendPasswordResetEmail,
@@ -216,9 +220,47 @@ describe("transactional email", () => {
     const [email] = send.mock.calls[0] ?? [];
     expect(email.html).toContain("https://hub.example/app/certificados");
     expect(email.html).toContain("CERT-001");
+    expect(email.html).toContain("Curso de teste");
+    expect(email.html).toContain("Student");
+    expect(email.to).toBe("student@example.com");
     expect(email.html).not.toContain(
       "https://hub.example/certificados/CERT-001"
     );
+    expect(Resend).toHaveBeenCalledWith("re_test");
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a minimized certificate delivery without contacting Resend in strict E2E mode", async () => {
+    process.env.BETTER_AUTH_URL = "http://127.0.0.1:3100";
+    process.env.CERTIFICATE_PUBLIC_BASE_URL = "http://127.0.0.1:3100";
+    process.env.CI = "true";
+    process.env.E2E_TEST_MODE = "true";
+    process.env.NEXT_PUBLIC_APP_URL = "http://127.0.0.1:3100";
+    process.env.RESEND_API_KEY = "re_must_not_be_used";
+    resetE2eCertificateEmailDeliveries();
+
+    await sendCertificateIssuedEmail({
+      certificateCode: "CERT-001",
+      courseTitle: "Curso secreto que nao deve ser armazenado",
+      idempotencyKey: "email.certificate-issued/certificate-1/v1",
+      to: "student@example.com",
+      userName: "Nome secreto que nao deve ser armazenado",
+    });
+
+    expect(getE2eCertificateEmailDeliveries()).toEqual([
+      {
+        idempotencyKey: "email.certificate-issued/certificate-1/v1",
+        recipientKey:
+          "sha256:616bb35d31d0a6840d2d5adfeacde5979ea99a18ab5fa7bb633460029e20717e",
+        topic: "email.certificate-issued",
+      },
+    ]);
+    expect(JSON.stringify(getE2eCertificateEmailDeliveries())).not.toContain(
+      "CERT-001"
+    );
+    expect(Resend).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+    resetE2eCertificateEmailDeliveries();
   });
 
   it("treats an activation payload conflict as an already accepted email", async () => {

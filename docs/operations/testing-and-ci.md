@@ -141,7 +141,10 @@ Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, co
 `playwright.config.ts`. O processo web recebe somente a URL pooled da branch
 efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
-E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
+E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend. Emissões de
+Certificado registram somente tópico, chave SHA-256 normalizada do destinatário e chave
+de idempotência em memória; `/api/e2e/email-deliveries` expõe esses registros somente
+sob a mesma guarda.
 As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
 quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
 `E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.

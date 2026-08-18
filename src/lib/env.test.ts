@@ -1,9 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getServerEnv } from "./env";
+import { getServerEnv, isIsolatedE2eRuntime } from "./env";
 
 const DATABASE_URL_ERROR_PATTERN = /DATABASE_URL/;
 
 const ORIGINAL_ENV = { ...process.env };
+
+const STRICT_E2E_ENVIRONMENT = {
+  BETTER_AUTH_URL: "http://127.0.0.1:3100",
+  CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+  CI: "true",
+  E2E_TEST_MODE: "true",
+  NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+} as const;
 
 const setEnv = (name: string, value: string | undefined) => {
   if (value === undefined) {
@@ -209,6 +217,28 @@ describe("server environment", () => {
     expect(getServerEnv().E2E_TEST_MODE).toBe(true);
   });
 
+  it.each([
+    ["Production", { VERCEL_ENV: "production" }],
+    ["Preview", { VERCEL_ENV: "preview" }],
+    ["Staging", { VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "staging" }],
+  ] as const)("rejects E2E mode in Vercel %s", (_name, vercelEnvironment) => {
+    process.env = {
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
+      BETTER_AUTH_URL: "http://127.0.0.1:3100",
+      CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+      CI: "true",
+      DATABASE_URL: "postgresql://e2e.example/db",
+      E2E_TEST_MODE: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      NODE_ENV: "production",
+      ...vercelEnvironment,
+    };
+
+    expect(() => getServerEnv()).toThrow(
+      "E2E_TEST_MODE must not be enabled in a Vercel runtime."
+    );
+  });
+
   it("does not let E2E mode bypass production checks outside loopback", () => {
     process.env = {
       BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
@@ -253,5 +283,29 @@ describe("server environment", () => {
     setEnv("DATABASE_URL", undefined);
 
     expect(() => getServerEnv()).toThrow(DATABASE_URL_ERROR_PATTERN);
+  });
+});
+
+describe("isolated E2E runtime guard", () => {
+  it("accepts only the explicitly configured shared 127.0.0.1 origin", () => {
+    expect(isIsolatedE2eRuntime(STRICT_E2E_ENVIRONMENT)).toBe(true);
+  });
+
+  it.each([
+    ["CI", "false"],
+    ["E2E_TEST_MODE", "false"],
+    ["BETTER_AUTH_URL", undefined],
+    ["CERTIFICATE_PUBLIC_BASE_URL", "http://localhost:3100"],
+    ["NEXT_PUBLIC_APP_URL", "http://127.0.0.1:3200"],
+    ["VERCEL_ENV", "production"],
+    ["VERCEL_ENV", "preview"],
+    ["VERCEL_TARGET_ENV", "staging"],
+  ] as const)("rejects an invalid %s dimension", (key, value) => {
+    expect(
+      isIsolatedE2eRuntime({
+        ...STRICT_E2E_ENVIRONMENT,
+        [key]: value,
+      })
+    ).toBe(false);
   });
 });
