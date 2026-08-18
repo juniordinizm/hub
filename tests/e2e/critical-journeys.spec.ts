@@ -545,8 +545,11 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
       `/app/cursos/${fixture.certifiableCourse.id}\\?certificate=issued$`
     )
   );
-  await expect(page.getByRole("alert")).toContainText("Curso concluído");
-  await expect(page.getByRole("alert")).toContainText(
+  const completionAlert = page
+    .getByRole("alert")
+    .filter({ hasText: "Curso concluído" });
+  await expect(completionAlert).toContainText("Curso concluído");
+  await expect(completionAlert).toContainText(
     "A preparação do PDF pode levar alguns instantes."
   );
 
