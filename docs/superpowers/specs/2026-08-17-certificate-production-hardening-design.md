@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: f8da69a78d382408d90f33545469d71be237f5e3
+last_verified_commit: f67551f
 ---
 
 # Hardening de conclusão e Certificados para Production
@@ -10,7 +10,7 @@ last_verified_commit: f8da69a78d382408d90f33545469d71be237f5e3
 
 Tornar determinístico, recuperável e verificável o fluxo que começa na conclusão
 da última Aula obrigatória e termina com Certificado pronto, e-mail entregue,
-download privado e validação pública. O sprint também restaura a CI quebrada pela
+preview, download público mediado e validação pública. O sprint também restaura a CI quebrada pela
 separação entre entrega, vitrine e vendas.
 
 ## Decisões de produto
@@ -22,7 +22,8 @@ separação entre entrega, vitrine e vendas.
   mantém a contagem restante até não haver pendências.
 - Revogação continua bloqueando qualquer nova emissão automática. Uma substituição
   exige `reissueCertificate`.
-- O PDF permanece privado. A consulta pública nunca entrega o artefato.
+- O objeto PDF permanece no R2 privado. A página pública canônica entrega preview e download somente para Certificado `valid` e `ready`, por rota rate-limited que verifica o hash e redireciona para URL assinada curta.
+- `pending`, `failed` e `revoked` não expõem preview, download nem URL assinada. Revogar bloqueia novos downloads, mas não recolhe cópias já obtidas.
 
 ## Fluxo de conclusão consistente
 
@@ -91,10 +92,17 @@ Ao criar Certificado na conclusão manual, o redirect inclui um sinal descartáv
 para que a página do Curso apresente confirmação acessível de conclusão e emissão.
 O estado `failed` informa falha e aponta para suporte; não usa texto de preparo.
 
-Enquanto houver Certificado `pending`, a lista atualiza os dados em intervalo
-moderado somente quando a aba estiver visível e encerra o polling quando não houver
-pendências. O e-mail direciona à área autenticada `/app/certificados`, onde o PDF
-fica disponível, mantendo o código no corpo para validação pública.
+Enquanto houver Certificado `pending`, as superfícies autenticadas atualizam os dados em intervalo
+moderado somente quando a aba estiver visível e encerram o polling quando não houver
+pendências. A página do Curso é a entrada contextual do Certificado; `/app/certificados`
+é o arquivo global autenticado. Ambas apontam para `/certificados/[code]`, página canônica
+de validação, preview, download e compartilhamento. O e-mail aponta para essa mesma página,
+nunca diretamente para o arquivo global ou para a URL assinada.
+
+A rota `/certificados/[code]/pdf` repete o rate limit e a validação `valid`/`ready`,
+exige chave e digest, verifica SHA-256 e só então emite redirect para URL assinada de
+cinco minutos. A página usa `noindex,nofollow`, e o redirect envia
+`X-Robots-Tag: noindex, nofollow`.
 
 ## E2E e ambiente de teste
 
@@ -107,9 +115,9 @@ emissor e Certificado habilitado. A jornada:
 1. conclui a última Aula pela interface;
 2. confirma estado `pending`;
 3. chama o cron autenticado da outbox;
-4. confirma estado `ready` em `/app/certificados`;
-5. baixa o PDF privado como proprietária;
-6. valida o código na página pública;
+4. confirma estado `ready` no Curso e no arquivo global `/app/certificados`;
+5. abre `/certificados/[code]`, valida os claims e visualiza a prévia;
+6. baixa o PDF pela rota pública mediada e confere o artefato;
 7. confirma que `email.certificate-issued` foi entregue.
 
 O transporte de e-mail E2E é um sink em memória, habilitado somente quando
@@ -150,7 +158,8 @@ homologação e autorização explícita de release.
 ## Fora de escopo
 
 - emissão pública sem autenticação;
-- download público do PDF;
+- publicação direta do objeto R2 ou URL assinada como link canônico;
+- preview/download para Certificado `pending`, `failed` ou `revoked`;
 - editor de campanhas de e-mail;
 - alteração de snapshots já emitidos;
 - emissão silenciosa em massa ao publicar template;

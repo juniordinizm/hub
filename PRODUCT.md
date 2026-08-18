@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 2ede052
+last_verified_commit: f67551f
 ---
 
 # Produto PROTEA-R Hub
@@ -50,7 +50,7 @@ corte controlado de Production permanece pendente.
 2. Acesso depende de Conta e Matrícula efetivas.
 3. Aulas são liberadas sequencialmente pelo progresso da publicação vigente do Curso para toda Matrícula ativa.
 4. Vídeo, texto, materiais e comentários formam a experiência.
-5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; a Aluna acompanha preparo, disponibilidade ou falha e baixa o PDF somente quando pronto.
+5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; a Aluna acompanha preparo, disponibilidade ou falha. O Curso oferece a entrada contextual, `/app/certificados` mantém o arquivo global e `/certificados/[code]` é a página canônica de validação, preview, download e compartilhamento quando o documento está válido e pronto.
 6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; a Aluna pode desligá-lo em Configurações sem afetar a jornada pedagógica.
 
 ### Operação
@@ -80,7 +80,7 @@ corte controlado de Production permanece pendente.
   teto de parcelamento; a Vendedora absorve as taxas, conforme homologado no Checkout
   Sandbox com pagamento e reembolso reais em 3x;
 - disponibilidade comercial por Curso, pré-lançamento com interesse autenticado e cancelamento durável de Checkouts ao fechar vendas;
-- Certificados públicos, PDF privado, revogação, reemissão e reconciliação administrativa limitada de Conclusões históricas;
+- Certificados com objeto PDF em storage privado e acesso público mediado, rate-limited e não indexável somente no estado válido/pronto; revogação, reemissão e reconciliação administrativa limitada de Conclusões históricas;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.
 

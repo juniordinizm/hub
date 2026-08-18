@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 2ede052
+last_verified_commit: f67551f
 ---
 
 # ADR-0006 Snapshots, revogação e reemissão de Certificados
@@ -12,7 +12,7 @@ Certificado é evidência histórica. Nome, Curso e carga horária podem mudar; 
 
 ## Proposta
 
-O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte A4 horizontal privada e campos padronizados posicionados manualmente; HTML/CSS livre não é uma opção. A emissão cria um registro pendente e uma mensagem `certificate.render`; a worker usa somente o snapshot para gerar o PDF com PDFKit e o grava no R2 privado. A validação pública por QR/código não expõe o arquivo.
+O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte A4 horizontal privada e campos padronizados posicionados manualmente; HTML/CSS livre não é uma opção. A emissão cria um registro pendente e uma mensagem `certificate.render`; a worker usa somente o snapshot para gerar o PDF com PDFKit e o grava no R2 privado. `/certificados/[code]` é a página pública canônica de validação, preview e compartilhamento. Para Certificado `valid` e `ready`, `/certificados/[code]/pdf` aplica rate limit, verifica o digest SHA-256 e redireciona para uma URL assinada curta do objeto privado. Os demais estados não expõem preview, download, chave ou URL assinada. Página e redirect são não indexáveis.
 
 Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor.
 
@@ -23,6 +23,8 @@ Conclusões históricas podem ser reconciliadas somente por Admin, após confirm
 A reconciliação preserva a publicação e a data da Conclusão, usa título e carga horária daquela publicação, nome atual da Conta e template/emissor publicados no momento do lote. Cada emissão registra `origin: admin_reconciliation` na auditoria e enfileira `certificate.render` na mesma transação; geração de PDF, acesso ao R2 e envio de e-mail permanecem fora dela.
 
 O motivo usa uma categoria padronizada e um detalhe interno. Na consulta pública de um certificado revogado, mostrar somente o estado, a data e a categoria legível; não expor o detalhe, que pode conter dados pessoais ou uma apuração sensível.
+
+O e-mail de emissão aponta para a página pública canônica, não para o arquivo global autenticado nem para a URL assinada. A página do Curso oferece a entrada contextual do Certificado daquela conclusão; `/app/certificados` permanece como arquivo global autenticado de todos os registros da Aluna.
 
 ## Alternativas
 
@@ -35,7 +37,7 @@ O motivo usa uma categoria padronizada e um detalhe interno. Na consulta públic
 - histórico é recuperável;
 - dados pessoais permanecem em snapshots e entram na política de retenção;
 - UI precisa explicar revogação e reemissão;
-- download já realizado não pode ser recolhido; a revogação passa a ser verificável pelo código público;
+- revogação bloqueia novos previews e downloads pelo Hub, mas um download já realizado não pode ser recolhido nem uma cópia anterior desfeita; a invalidação passa a ser verificável pelo código público;
 - o detalhe do motivo fica restrito à operação e à auditoria.
 - lotes podem exigir execuções sucessivas; o resultado informa quantos foram emitidos e quantos ainda restam;
 - retries são idempotentes porque qualquer histórico de Certificado remove a conclusão da elegibilidade.

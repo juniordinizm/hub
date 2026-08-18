@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: f67551f
 ---
 
 # Arquitetura
@@ -20,7 +20,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 - `src/app/(student)`: área autenticada da Aluna.
 - `src/app/(admin)`: painel de Admin/Suporte.
 - `src/app/api`: Better Auth, checkout, webhooks, mídia, crons e health check.
-- `src/app/certificados/[code]`: validação pública por código/QR, sem acesso ao PDF.
+- `src/app/certificados/[code]`: página pública canônica de validação, preview e compartilhamento; a subrota `pdf` medeia o artefato sem publicar a chave do R2.
 
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
 Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
@@ -122,10 +122,10 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 - cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados da Aluna, Curso e emissão em `render_snapshot`;
 - `completeLesson` usa lock transacional por Conta e Curso antes do progresso e do resumo; somente a transação que insere a primeira `CourseCompletion` pode criar o Certificado automático `pending` e a mensagem `certificate.render`;
-- o worker obtém claim persistido, grava o artefato privado no R2 e só então enfileira o e-mail que aponta para a lista autenticada. A área da Aluna distingue `pending`, `ready` e `failed`, atualiza o estado pendente e só oferece download quando pronto;
+- o worker obtém claim persistido, grava o artefato privado no R2 e só então enfileira o e-mail que aponta para `/certificados/[code]`. A página do Curso é a entrada contextual do Certificado; `/app/certificados` é o arquivo global autenticado. Ambas distinguem `pending`, `ready`, `failed` e revogado sem transformar a lista autenticada no destino canônico de compartilhamento;
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle com confirmação validada no servidor; reemissão cria nova evidência e preserva a anterior revogada;
 - `reconcileHistoricalCourseCertificates` é uma ação confirmada exclusiva de Admin, limitada a 100 Conclusões elegíveis por lote e sem Certificado histórico; migrations e leituras nunca fazem backfill silencioso;
-- download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
+- `/certificados/[code]` e `/certificados/[code]/pdf` chamam `consumePublicCertificateLookup` antes da consulta. Somente Certificado `valid` e `ready`, com chave e digest presentes, recebe preview/download: a rota verifica o SHA-256 no R2 e redireciona para URL assinada de cinco minutos com `X-Robots-Tag: noindex, nofollow`. A página usa metadata `noindex,nofollow`; `pending`, `failed` e `revoked` não recebem URL assinada. A revogação bloqueia novos downloads, sem recolher cópias anteriores. CPF nunca é exposto.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
   limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
   inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas

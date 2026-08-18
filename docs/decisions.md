@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 5bc18b1dc3eb0e56e86a6f11144a1371d9dd026d
+last_verified_commit: f67551f
 ---
 
 # Registro de decisões de produto
@@ -78,7 +78,7 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 **Tema:** ciclo de Certificados.
 **Estado:** aprovado e implementado.
 
-Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. O verificador público mostra status, data e categoria legível; não expõe detalhes internos. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
+Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 ## DEC-DISC-007
 

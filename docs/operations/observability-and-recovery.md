@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 2ede052
+last_verified_commit: f67551f
 ---
 
 # Observabilidade e recuperação
@@ -20,7 +20,7 @@ Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos.
 | Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração Asaas e Pedido sem PII |
 | Webhook e concessão | `webhook.asaas`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
 | Player e upload | `cron.jmvstream`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) |
-| Certificado e e-mail | outbox, dead letter e exceção | Operações | alta se emissão não notifica | conferir agregado, outbox e Resend; não editar snapshot |
+| Certificado e e-mail | outbox, dead letter, rota pública, verificação de hash e exceção | Operações | alta se emissão não notifica ou PDF válido/pronto fica indisponível | conferir agregado, outbox, R2 e Resend; não editar snapshot nem divulgar URL assinada |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
 | Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
 
@@ -107,6 +107,14 @@ Até haver baseline e aprovação de produto/operações, excedente gera investi
 1. Para JMVStream, confira `videoHash`, estado local, cron e etapa: parte, complete, processamento, sync ou delete.
 2. Preserve sessão, ETags e IDs. A divergência `gallery` permanece bloqueio no guia de [JMVStream](../integrations/jmvstream.md).
 3. Para R2, registre somente bucket/chave; teste HEAD privado e GET público conforme publicação. Não limpe objetos sem reconciliar referência.
+
+### Certificado público
+
+1. Comece pela página canônica `/certificados/[code]` e registre apenas estado, `render_status` e `correlationId`; nunca copie código completo, chave do objeto ou URL assinada para logs e tickets.
+2. Preview/download só é esperado para `valid` e `ready`. `pending`, `failed`, `revoked`, chave/digest ausente e rate limit bloqueiam o redirecionamento; não contorne a rota com acesso direto ao R2.
+3. Se `/certificados/[code]/pdf` retornar indisponibilidade para um registro elegível, confira a metadata SHA-256 por HEAD privado. Divergência bloqueia a URL assinada e exige investigação do artefato; não altere o snapshot nem o digest para forçar o download.
+4. Confirme `noindex,nofollow` na página e `X-Robots-Tag: noindex, nofollow` no redirect. A URL do R2 expira em cinco minutos e não deve ser tratada como link canônico.
+5. Revogação deve impedir novos previews/downloads imediatamente. PDFs já baixados ou copiados fora do Hub não podem ser recolhidos; use a página pública para comunicar a invalidação.
 
 ### Resend
 

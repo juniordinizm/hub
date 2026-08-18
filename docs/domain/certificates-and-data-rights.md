@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: f67551f
 ---
 
 # Certificados e dados técnicos
@@ -59,15 +59,15 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001A Renderização e arquivo imutáveis
 
-A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico persistido por Certificado antes de renderizar; o token e o instante do claim formam um lease de dez minutos. Claim ativo impede outro renderizador, lease abandonado pode ser retomado e falha recuperável libera somente o token pertencente à tentativa. Nenhuma conexão Postgres permanece reservada durante leitura do R2, Sharp, PDFKit ou upload. A worker lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. O fencing não promete computação única: quando o lease expira durante uma operação lenta, duas workers podem executar IO, mas somente a dona do token vigente pode concluir o único artefato persistido. A conclusão também exige que o Certificado continue `valid`; revogação durante o IO impede `ready` e o e-mail. Somente depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
+A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico persistido por Certificado antes de renderizar; o token e o instante do claim formam um lease de dez minutos. Claim ativo impede outro renderizador, lease abandonado pode ser retomado e falha recuperável libera somente o token pertencente à tentativa. Nenhuma conexão Postgres permanece reservada durante leitura do R2, Sharp, PDFKit ou upload. A worker lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. O fencing não promete computação única: quando o lease expira durante uma operação lenta, duas workers podem executar IO, mas somente a dona do token vigente pode concluir o único artefato persistido. A conclusão também exige que o Certificado continue `valid`; revogação durante o IO impede `ready` e o e-mail. Somente depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. O objeto permanece no R2 privado, mas Certificado `valid` e `ready` pode ser visualizado e baixado publicamente pela página canônica `/certificados/[code]`; a rota mediadora `/certificados/[code]/pdf` nunca publica a chave do objeto.
 
-O upload de novos PDFs também grava o digest SHA-256 como metadata privada do objeto R2; o download confere a metadata antes de emitir a URL assinada. Objetos legados sem metadata permanecem explicitamente não verificáveis até backfill/reconciliação.
+O upload de novos PDFs também grava o digest SHA-256 como metadata privada do objeto R2. A rota pública confere essa metadata antes de emitir uma URL assinada de cinco minutos. Digest ausente não libera o arquivo; divergência ou falha de verificação retorna indisponibilidade sem redirecionar. Objetos legados sem metadata permanecem explicitamente não verificáveis até backfill/reconciliação.
 
-Na área autenticada, Certificado `pending` aparece como “Preparando” e atualiza a lista enquanto houver preparo; `ready` libera o download privado; `failed` bloqueia o download e oferece contato com Suporte. O e-mail só nasce depois de `ready` e leva à lista autenticada `/app/certificados`, nunca a uma URL pública de PDF.
+Na área autenticada, Certificado `pending` aparece como “Preparando” e atualiza a lista enquanto houver preparo; `ready` aponta para a página pública canônica; `failed` bloqueia preview/download e oferece contato com Suporte. A página do Curso é a entrada contextual do Certificado daquela conclusão. `/app/certificados` é o arquivo global autenticado para acompanhar todos os registros, não o destino canônico de compartilhamento. O e-mail só nasce depois de `ready` e aponta para `/certificados/[code]`, nunca diretamente para a URL assinada do R2.
 
 ### REG-DAT-002 Revogação preserva histórico
 
-`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências.
+`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências. A revogação bloqueia imediatamente novos previews e downloads nas rotas do Hub, mas não consegue recolher PDFs já baixados nem desfazer cópias compartilhadas anteriormente.
 
 ### REG-DAT-003 Reemissão cria nova evidência
 
@@ -104,12 +104,9 @@ deve seguir o workflow protegido após preflight e backup.
 
 ### REG-DAT-004 Consulta pública é limitada
 
-`consumePublicCertificateLookup`, em `src/features/certificates/public-rate-limit.ts`, aplica limite antes de `getCertificateByCode`. Código inexistente não revela outros Certificados da pessoa.
+`/certificados/[code]` é a página canônica de validação, preview e compartilhamento. `consumePublicCertificateLookup`, em `src/features/certificates/public-rate-limit.ts`, aplica limite antes de `getCertificateByCode`; a mesma barreira antecede a leitura da rota `/certificados/[code]/pdf`. Código inexistente não revela outros Certificados da pessoa.
 
-A página pública compara nome, Curso, carga horária, emissor, CNPJ, conclusão e
-data de emissão com os claims do snapshot e publica `noindex,nofollow`. Códigos
-de certificado são redigidos no pathname enviado ao Sentry; cache/CDN e
-sitemap ainda exigem verificação no ambiente-alvo.
+A página compara nome, Curso, carga horária, emissor, CNPJ, conclusão e data de emissão com os claims do snapshot. Somente `status = valid` e `render_status = ready` mostra o preview e a ação de download. `pending`, `failed` e `revoked` permanecem consultáveis com seu estado seguro, sem preview, download ou URL assinada. A rota do PDF repete a validação de estado, exige chave e digest, verifica o SHA-256 no R2 e só então responde com redirect temporário para uma URL assinada curta. A página publica `noindex,nofollow`; a resposta de redirect publica `X-Robots-Tag: noindex, nofollow`. Códigos de Certificado são redigidos no pathname enviado ao Sentry, e respostas de erro não incluem detalhes do provider.
 
 ## Dados técnicos e manutenção
 
