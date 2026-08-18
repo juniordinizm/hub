@@ -130,7 +130,7 @@ export const CertificateIssuedEmail = ({
     {actionUrl ? (
       <Section>
         <Button href={actionUrl} style={styles.button}>
-          Ver certificado
+          Ver e validar certificado
         </Button>
       </Section>
     ) : null}
