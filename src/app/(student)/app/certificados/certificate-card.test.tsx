@@ -112,7 +112,7 @@ describe("CertificateCard", () => {
     );
 
     expect(markup).toContain('href="/certificados/CERT%2FA%20B%3F%23"');
-    expect(markup).toContain('href="/app/certificados/CERT%2FA%20B%3F%23/pdf"');
+    expect(markup).toContain('href="/certificados/CERT%2FA%20B%3F%23/pdf"');
     expect(markup).toContain(
       'data-public-url="https://certificados.example/certificados/CERT%2FA%20B%3F%23"'
     );
