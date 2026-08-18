@@ -31,6 +31,62 @@ const isTemplateKeyOwnedByFixture = (
     key.startsWith(`certificates/templates/${courseId}/`)
   );
 
+interface CertificatePdfRow {
+  id: string;
+  pdf_storage_key: string;
+}
+
+interface CertificateTemplateRow {
+  background_key: string;
+  signature_key: string | null;
+}
+
+export const collectOwnedE2eObjectKeys = ({
+  certificatePdfRows,
+  cleanup,
+  templateRows,
+}: {
+  certificatePdfRows: CertificatePdfRow[];
+  cleanup: E2eFixture["cleanup"];
+  templateRows: CertificateTemplateRow[];
+}): string[] => {
+  const templateKeys = templateRows.flatMap((row) =>
+    row.signature_key
+      ? [row.background_key, row.signature_key]
+      : [row.background_key]
+  );
+  const invalidTemplateKey = templateKeys.find(
+    (key) => !isTemplateKeyOwnedByFixture(key, cleanup.courseIds)
+  );
+  if (invalidTemplateKey) {
+    throw new Error("Refusing to delete a template outside E2E course IDs.");
+  }
+
+  const invalidFixturePdfKey = cleanup.pdfObjectKeys.find(
+    (key) => !key.startsWith(cleanup.runPrefix)
+  );
+  if (invalidFixturePdfKey) {
+    throw new Error("Refusing to delete a PDF outside the E2E run prefix.");
+  }
+
+  const invalidGeneratedPdf = certificatePdfRows.find(
+    (row) => row.pdf_storage_key !== `certificates/${row.id}/certificate.pdf`
+  );
+  if (invalidGeneratedPdf) {
+    throw new Error(
+      "Refusing to delete a certificate PDF outside its owned E2E certificate."
+    );
+  }
+
+  return [
+    ...new Set([
+      ...cleanup.pdfObjectKeys,
+      ...certificatePdfRows.map((row) => row.pdf_storage_key),
+      ...templateKeys,
+    ]),
+  ];
+};
+
 export const teardownE2e = async (): Promise<void> => {
   requireE2eMode();
   requireIsolatedE2eR2Bucket(process.env);
@@ -38,36 +94,32 @@ export const teardownE2e = async (): Promise<void> => {
   const pool = getPool();
 
   try {
-    const { rows } = await pool.query<{
-      background_key: string;
-      signature_key: string | null;
-    }>(
-      `
-        select background_key, signature_key
-        from certificate_templates
-        where course_id = any($1::uuid[])
-      `,
-      [fixture.cleanup.courseIds]
-    );
-    const templateKeys = rows.flatMap((row) =>
-      row.signature_key
-        ? [row.background_key, row.signature_key]
-        : [row.background_key]
-    );
-    const invalidTemplateKey = templateKeys.find(
-      (key) => !isTemplateKeyOwnedByFixture(key, fixture.cleanup.courseIds)
-    );
-    if (invalidTemplateKey) {
-      throw new Error("Refusing to delete a template outside E2E course IDs.");
-    }
-    const invalidPdfKey = fixture.cleanup.pdfObjectKeys.find(
-      (key) => !key.startsWith(fixture.cleanup.runPrefix)
-    );
-    if (invalidPdfKey) {
-      throw new Error("Refusing to delete a PDF outside the E2E run prefix.");
-    }
+    const [templateResult, certificatePdfResult] = await Promise.all([
+      pool.query<CertificateTemplateRow>(
+        `
+          select background_key, signature_key
+          from certificate_templates
+          where course_id = any($1::uuid[])
+        `,
+        [fixture.cleanup.courseIds]
+      ),
+      pool.query<CertificatePdfRow>(
+        `
+          select id, pdf_storage_key
+          from certificates
+          where course_id = any($1::uuid[])
+            and pdf_storage_key is not null
+        `,
+        [[fixture.certifiableCourse.id]]
+      ),
+    ]);
+    const ownedObjectKeys = collectOwnedE2eObjectKeys({
+      certificatePdfRows: certificatePdfResult.rows,
+      cleanup: fixture.cleanup,
+      templateRows: templateResult.rows,
+    });
 
-    await deleteR2Objects([...fixture.cleanup.pdfObjectKeys, ...templateKeys]);
+    await deleteR2Objects(ownedObjectKeys);
   } finally {
     await pool.end();
   }

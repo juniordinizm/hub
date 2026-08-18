@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
@@ -28,6 +29,10 @@ const SENSITIVE_ERROR_PATTERN = /key|token|secret|postgres|database/i;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CHECKOUT_ID_PREFIX_PATTERN = /^chk_/;
+const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
+  /^email\.certificate-issued\/([0-9a-f-]{36})\/v1$/;
+const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
+const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -511,6 +516,127 @@ test("completion persists and advances to the next lesson", async ({
   await expect(page.getByRole("heading", { name: "Segunda aula" })).toBeVisible(
     { timeout: 15_000 }
   );
+});
+
+test("final lesson issues, renders, delivers, and validates a certificate", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(60_000);
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentForCompletion, APP_URL_PATTERN);
+  await page.goto(`/app/aulas/${fixture.certifiableCourse.lessonId}`);
+  await expect(
+    page.getByRole("heading", { name: fixture.certifiableCourse.title })
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Concluir aula e avançar" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/app/cursos/${fixture.certifiableCourse.id}\\?certificate=issued$`
+    )
+  );
+  await expect(page.getByRole("alert")).toContainText("Curso concluído");
+  await expect(page.getByRole("alert")).toContainText(
+    "A preparação do PDF pode levar alguns instantes."
+  );
+
+  await page.goto("/app/certificados");
+  const issuedCard = page
+    .getByRole("article")
+    .filter({ hasText: fixture.certifiableCourse.title });
+  await expect(
+    issuedCard.getByLabel("Status: Preparando", { exact: true })
+  ).toBeVisible();
+  const certificateCode = (
+    await issuedCard.getByLabel(CERTIFICATE_CODE_LABEL_PATTERN).textContent()
+  )?.trim();
+  expect(certificateCode).toMatch(CERTIFICATE_CODE_PATTERN);
+  if (!certificateCode) {
+    throw new Error("Issued certificate code was not visible.");
+  }
+  const expectedRecipientKey = `sha256:${createHash("sha256")
+    .update(fixture.studentForCompletion.email.toLowerCase())
+    .digest("hex")}`;
+  const isJourneyDelivery = (delivery: Record<string, unknown>): boolean =>
+    delivery.recipientKey === expectedRecipientKey &&
+    delivery.topic === "email.certificate-issued" &&
+    typeof delivery.idempotencyKey === "string" &&
+    CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN.test(delivery.idempotencyKey);
+
+  const readyStatus = issuedCard.getByLabel("Status: Disponível", {
+    exact: true,
+  });
+  await expect
+    .poll(
+      async () => {
+        const cronResponse = await request.get("/api/cron/outbox", {
+          headers: { Authorization: "Bearer e2e-cron-secret" },
+        });
+        expect(cronResponse.status()).toBe(200);
+        const sinkResponse = await request.get("/api/e2e/email-deliveries");
+        expect(sinkResponse.status()).toBe(200);
+        const sinkState = (await sinkResponse.json()) as {
+          deliveries: Record<string, unknown>[];
+        };
+        return (
+          (await readyStatus.isVisible()) &&
+          sinkState.deliveries.filter(isJourneyDelivery).length === 1
+        );
+      },
+      {
+        intervals: [250, 500, 1000, 2000],
+        message: "certificate render and email delivery should complete",
+        timeout: 25_000,
+      }
+    )
+    .toBe(true);
+  await expect(readyStatus).toBeVisible();
+
+  const downloadResponse = await page
+    .context()
+    .request.get(`/app/certificados/${certificateCode}/pdf`, {
+      maxRedirects: 0,
+    });
+  expect(downloadResponse.status()).toBe(307);
+  const signedLocation = downloadResponse.headers().location;
+  expect(signedLocation).toContain("X-Amz-Signature");
+  const pdfResponse = await request.get(signedLocation ?? "");
+  expect(pdfResponse.status()).toBe(200);
+  expect((await pdfResponse.body()).subarray(0, 4).toString()).toBe("%PDF");
+
+  await page.context().clearCookies();
+  await page.goto(`/certificados/${certificateCode}`);
+  await expect(page.getByText("Certificado valido")).toBeVisible();
+  await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
+  await expect(page.getByText("Aluna para conclusao")).toBeVisible();
+  await expect(page.getByText(certificateCode)).toBeVisible();
+  await expect(page.locator('a[href*="/pdf"]')).toHaveCount(0);
+
+  const sinkResponse = await request.get("/api/e2e/email-deliveries");
+  expect(sinkResponse.status()).toBe(200);
+  const sinkPayload = (await sinkResponse.json()) as {
+    deliveries: Record<string, unknown>[];
+  };
+  const matchingDeliveries = sinkPayload.deliveries.filter(isJourneyDelivery);
+  expect(matchingDeliveries).toHaveLength(1);
+  const [delivery] = matchingDeliveries;
+  expect(delivery).toEqual({
+    idempotencyKey: expect.stringMatching(
+      CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN
+    ),
+    recipientKey: expectedRecipientKey,
+    topic: "email.certificate-issued",
+  });
+  expect(Object.keys(delivery ?? {}).sort()).toEqual([
+    "idempotencyKey",
+    "recipientKey",
+    "topic",
+  ]);
+  expect(JSON.stringify(delivery)).not.toContain(
+    fixture.studentForCompletion.email
+  );
+  expect(JSON.stringify(delivery)).not.toContain("Aluna para conclusao");
 });
 
 test("admin is authorized and a student is redirected away from admin", async ({

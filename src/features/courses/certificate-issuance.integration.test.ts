@@ -18,7 +18,7 @@ if (!databaseUrl) {
     "CERTIFICATE_CONCURRENCY_DATABASE_URL is required for integration tests."
   );
 }
-const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
+const AUTOMATIC_CERTIFICATE_CODE = /^PRT-[0-9A-F]{32}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CONSECUTIVE_ISSUANCE_RUNS = 20;
 const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 120_000;
@@ -48,10 +48,22 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import {
+  reconcileHistoricalCourseCertificates,
+  reissueCertificate,
   renderPendingCertificate,
+  revokeCertificate,
   tryIssueAutomaticCompletionCertificate,
 } from "../certificates/server";
 import { deliverOutboxMessage } from "../outbox/delivery";
+import {
+  claimOutboxMessages,
+  markOutboxMessageDeadLetter,
+  markOutboxMessageDeferred,
+  markOutboxMessageDelivered,
+  markOutboxMessageForRetry,
+  requeueDeadLetterMessage,
+} from "../outbox/server";
+import { processClaimedOutboxMessage } from "../outbox/worker";
 import { completeLesson, recordLessonWatchProgress } from "./server";
 
 const pool = new Pool({ connectionString: withVerifiedSslMode(databaseUrl) });
@@ -626,6 +638,243 @@ describe("emissao concorrente de certificado", () => {
     expect(
       await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
     ).toBe(1);
+  });
+
+  it("reconcilia conclusao historica uma vez sob chamadas concorrentes e repetidas", async () => {
+    const fixture = await createFixture();
+    await getTestPool().query(
+      `
+        insert into course_completions (
+          user_id, course_id, course_publication_id, completed_at
+        )
+        values ($1, $2, $3, now() - interval '1 day')
+      `,
+      [fixture.userId, fixture.courseId, fixture.coursePublicationId]
+    );
+
+    const concurrentResults = await Promise.all([
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      }),
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      }),
+    ]);
+    expect(
+      concurrentResults.reduce((total, result) => total + result.issued, 0)
+    ).toBe(1);
+    expect(concurrentResults.every((result) => result.remaining === 0)).toBe(
+      true
+    );
+    await expect(
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      })
+    ).resolves.toEqual({ issued: 0, remaining: 0 });
+
+    expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    expect(
+      await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
+    ).toBe(1);
+  });
+
+  it("preserva o predecessor ao revogar e reemitir com um unico certificado valido", async () => {
+    const fixture = await createFixture();
+    await completeLesson({
+      lessonId: fixture.lessonId,
+      userId: fixture.userId,
+    });
+    const initial = await getTestPool().query<{
+      code: string;
+      id: string;
+      render_snapshot: unknown;
+    }>(
+      `select id, code, render_snapshot
+       from certificates
+       where course_id = $1 and user_id = $2`,
+      [fixture.courseId, fixture.userId]
+    );
+    const predecessor = initial.rows[0];
+    if (!predecessor) {
+      throw new Error("Certificado predecessor nao foi emitido.");
+    }
+
+    await revokeCertificate({
+      actorUserId: fixture.userId,
+      certificateId: predecessor.id,
+      reasonCategory: "identity_correction",
+      reasonDetail: "Correcao controlada de identidade.",
+    });
+    const replacement = await reissueCertificate({
+      actorUserId: fixture.userId,
+      certificateId: predecessor.id,
+      reasonCategory: "identity_correction",
+      reasonDetail: "Reemissao controlada de identidade.",
+    });
+
+    const history = await getTestPool().query<{
+      code: string;
+      id: string;
+      render_snapshot: unknown;
+      replaces_certificate_id: string | null;
+      status: "revoked" | "valid";
+    }>(
+      `select id, code, render_snapshot, replaces_certificate_id, status
+       from certificates
+       where course_id = $1 and user_id = $2
+       order by issued_at, id`,
+      [fixture.courseId, fixture.userId]
+    );
+    expect(history.rows).toHaveLength(2);
+    expect(history.rows.filter((row) => row.status === "valid")).toHaveLength(
+      1
+    );
+    expect(history.rows.find((row) => row.id === predecessor.id)).toMatchObject(
+      {
+        code: predecessor.code,
+        render_snapshot: predecessor.render_snapshot,
+        replaces_certificate_id: null,
+        status: "revoked",
+      }
+    );
+    expect(history.rows.find((row) => row.id === replacement.id)).toMatchObject(
+      {
+        replaces_certificate_id: predecessor.id,
+        status: "valid",
+      }
+    );
+    expect(await countCertificateRenderMessages(predecessor.id)).toBe(1);
+    expect(await countCertificateRenderMessages(replacement.id)).toBe(1);
+  });
+
+  it("reprocessa renderizacao falha de pending ate ready", async () => {
+    const fixture = await createFixture();
+    await completeLesson({
+      lessonId: fixture.lessonId,
+      userId: fixture.userId,
+    });
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    const certificateId = certificate.rows[0]?.id;
+    if (!certificateId) {
+      throw new Error("Certificado pendente nao foi emitido.");
+    }
+    const worker = await getTestPool().connect();
+    try {
+      const [firstClaim] = await claimOutboxMessages({
+        client: worker,
+        limit: 1,
+        workerId: "render-failure-worker",
+      });
+      expect(firstClaim?.aggregateId).toBe(certificateId);
+      await expect(
+        markOutboxMessageDeadLetter({
+          client: worker,
+          errorCode: "certificate_render_failed",
+          id: String(firstClaim?.id),
+          workerId: "render-failure-worker",
+        })
+      ).resolves.toBe(true);
+      await expect(
+        getTestPool().query<{ render_status: string }>(
+          "select render_status from certificates where id = $1",
+          [certificateId]
+        )
+      ).resolves.toMatchObject({ rows: [{ render_status: "failed" }] });
+
+      await requeueDeadLetterMessage({
+        actorUserId: fixture.userId,
+        client: worker,
+        messageId: String(firstClaim?.id),
+        reason: "Recuperacao controlada da renderizacao.",
+      });
+      await expect(
+        getTestPool().query<{ render_status: string }>(
+          "select render_status from certificates where id = $1",
+          [certificateId]
+        )
+      ).resolves.toMatchObject({ rows: [{ render_status: "pending" }] });
+
+      const [retryClaim] = await claimOutboxMessages({
+        client: worker,
+        limit: 1,
+        workerId: "render-retry-worker",
+      });
+      if (!retryClaim) {
+        throw new Error(
+          "Mensagem de renderizacao nao foi reclamada novamente."
+        );
+      }
+      const retryWorkerId = "render-retry-worker";
+      await expect(
+        processClaimedOutboxMessage({
+          deliver: deliverOutboxMessage,
+          markDeadLetter: ({ errorCode, id }) =>
+            markOutboxMessageDeadLetter({
+              client: worker,
+              errorCode,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markDeferred: ({ errorCode, id }) =>
+            markOutboxMessageDeferred({
+              client: worker,
+              errorCode,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markDelivered: (id) =>
+            markOutboxMessageDelivered({
+              client: worker,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markRetry: ({ errorCode, id, retryDelayMs }) =>
+            markOutboxMessageForRetry({
+              client: worker,
+              errorCode,
+              id,
+              retryDelayMs,
+              workerId: retryWorkerId,
+            }),
+          message: retryClaim,
+        })
+      ).resolves.toBe("delivered");
+      await expect(
+        getTestPool().query<{
+          message_status: string;
+          pdf_sha256: string | null;
+          render_status: string;
+        }>(
+          `select certificate.pdf_sha256,
+                  certificate.render_status,
+                  message.status as message_status
+           from certificates as certificate
+           join outbox_messages as message on message.id = $2
+           where certificate.id = $1`,
+          [certificateId, retryClaim.id]
+        )
+      ).resolves.toMatchObject({
+        rows: [
+          {
+            message_status: "delivered",
+            pdf_sha256: expect.stringMatching(SHA256_PATTERN),
+            render_status: "ready",
+          },
+        ],
+      });
+    } finally {
+      worker.release();
+    }
   });
 
   it(

@@ -3,20 +3,28 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import PDFDocument from "pdfkit";
 import type { PoolClient } from "pg";
+import sharp from "sharp";
 import { getPool } from "@/db";
 import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
+import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
 import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
 import { deleteR2Objects, uploadPrivateR2Object } from "@/features/storage/r2";
 import { getAuth } from "@/lib/auth";
 
 const E2E_PASSWORD = "E2E-password-123!";
+const CERTIFIABLE_COURSE_TITLE = "Curso E2E certificável";
 const FIXTURE_PATH = resolve(
   process.env.E2E_FIXTURE_PATH ?? ".e2e-fixture.json"
 );
 
 export interface E2eFixture {
   admin: { email: string; password: string };
+  certifiableCourse: {
+    id: string;
+    lessonId: string;
+    title: string;
+  };
   certificate: {
     pending: CertificateE2eRecord;
     ready: CertificateE2eRecord & { pdfStorageKey: string };
@@ -135,6 +143,18 @@ const createMinimalCertificatePdf = async (): Promise<Buffer> =>
     document.fontSize(10).text("Fixture privada para teste de download.");
     document.end();
   });
+
+const createCertificateBackground = async (): Promise<Buffer> =>
+  await sharp({
+    create: {
+      background: { alpha: 1, b: 244, g: 241, r: 236 },
+      channels: 4,
+      height: 849,
+      width: 1200,
+    },
+  })
+    .png()
+    .toBuffer();
 
 const seedCertificateRecord = async ({
   client,
@@ -308,6 +328,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   const courseSlug = `course-e2e-${suffix}`;
   const sensitiveSentinel = `E2E-INTERNAL-SENSITIVE-CPF-FICTICIO-${suffix}`;
   const pdfBody = await createMinimalCertificatePdf();
+  const certificateBackgroundBody = await createCertificateBackground();
   const pdfSha256 = createHash("sha256").update(pdfBody).digest("hex");
   const studentEmail = `sg${suffix}@example.com`;
   const completionStudentEmail = `sc${suffix}@example.com`;
@@ -371,7 +392,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   ]);
   const pool = getPool();
   const client = await pool.connect();
-  let uploadedPdfStorageKey: string | null = null;
+  const uploadedObjectKeys: string[] = [];
   try {
     await client.query("begin");
     await client.query(
@@ -456,6 +477,94 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       lessonIds.push(lessonId);
     }
 
+    const { rows: certifiableCourses } = await client.query<{ id: string }>(
+      `
+        insert into courses (
+          slug, title, price_in_cents, workload_hours, status,
+          certificate_enabled, catalog_visibility, sales_status
+        )
+        values (
+          $1, $2, 0, 1, 'active', true,
+          'hidden'::course_catalog_visibility, 'closed'::course_sales_status
+        )
+        returning id
+      `,
+      [`certificate-lifecycle-e2e-${suffix}`, CERTIFIABLE_COURSE_TITLE]
+    );
+    const certifiableCourseId = certifiableCourses[0]?.id;
+    if (!certifiableCourseId) {
+      throw new Error("Could not create certifiable E2E course.");
+    }
+    const { rows: certifiablePublications } = await client.query<{
+      id: string;
+    }>(
+      `
+        insert into course_publications (
+          course_id, publication_number, status, title_snapshot,
+          workload_hours_snapshot, published_at
+        )
+        values ($1, 1, 'published', $2, 1, now())
+        returning id
+      `,
+      [certifiableCourseId, CERTIFIABLE_COURSE_TITLE]
+    );
+    const certifiablePublicationId = certifiablePublications[0]?.id;
+    if (!certifiablePublicationId) {
+      throw new Error("Could not create certifiable E2E publication.");
+    }
+    const { rows: certifiableModules } = await client.query<{ id: string }>(
+      `
+        insert into modules (
+          course_id, course_publication_id, title, sort_order, status
+        )
+        values ($1, $2, 'Módulo final E2E', 1, 'active')
+        returning id
+      `,
+      [certifiableCourseId, certifiablePublicationId]
+    );
+    const certifiableModuleId = certifiableModules[0]?.id;
+    if (!certifiableModuleId) {
+      throw new Error("Could not create certifiable E2E module.");
+    }
+    const { rows: certifiableLessons } = await client.query<{ id: string }>(
+      `
+        insert into lessons (
+          module_id, course_publication_id, title, duration_seconds,
+          sort_order, status, is_required
+        )
+        values ($1, $2, $3, 60, 1, 'active', true)
+        returning id
+      `,
+      [certifiableModuleId, certifiablePublicationId, CERTIFIABLE_COURSE_TITLE]
+    );
+    const certifiableLessonId = certifiableLessons[0]?.id;
+    if (!certifiableLessonId) {
+      throw new Error("Could not create certifiable E2E lesson.");
+    }
+    const certificateBackgroundKey = `certificates/templates/${certifiableCourseId}/background-v1.png`;
+    await client.query(
+      `
+        insert into certificate_templates (
+          course_id, version, status, background_key, spec, published_at
+        )
+        values ($1, 1, 'published', $2, $3::jsonb, now())
+      `,
+      [
+        certifiableCourseId,
+        certificateBackgroundKey,
+        JSON.stringify({
+          backgroundKey: certificateBackgroundKey,
+          fields: createDefaultCertificateTemplateFields(),
+        }),
+      ]
+    );
+    await uploadPrivateR2Object({
+      body: certificateBackgroundBody,
+      contentType: "image/png",
+      key: certificateBackgroundKey,
+    });
+    uploadedObjectKeys.push(certificateBackgroundKey);
+
     await client.query(
       `
         insert into enrollment_grants (
@@ -480,6 +589,21 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     await rebuildEnrollmentProjection({
       client,
       courseId,
+      userId: completionStudentId,
+    });
+    await client.query(
+      `
+        insert into enrollment_grants (
+          user_id, course_id, source_type, manual_reference, status,
+          starts_at, base_expires_at, effective_expires_at
+        ) values ($1, $2, 'manual', $3, 'active', now() - interval '1 minute',
+                  now() + interval '30 days', now() + interval '30 days')
+      `,
+      [completionStudentId, certifiableCourseId, `e2e-certifiable-${suffix}`]
+    );
+    await rebuildEnrollmentProjection({
+      client,
+      courseId: certifiableCourseId,
       userId: completionStudentId,
     });
 
@@ -527,7 +651,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       contentType: "application/pdf",
       key: certificateRecords.ready.pdfStorageKey,
     });
-    uploadedPdfStorageKey = certificateRecords.ready.pdfStorageKey;
+    uploadedObjectKeys.push(certificateRecords.ready.pdfStorageKey);
     await client.query("commit");
 
     const lessonOneId = lessonIds[0];
@@ -549,12 +673,18 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       cleanup: {
         courseIds: [
           courseId,
+          certifiableCourseId,
           certificateRecords.pending.courseId,
           certificateRecords.ready.courseId,
           certificateRecords.revoked.courseId,
         ],
         pdfObjectKeys: [certificateRecords.ready.pdfStorageKey],
         runPrefix: `e2e/${suffix}/`,
+      },
+      certifiableCourse: {
+        id: certifiableCourseId,
+        lessonId: certifiableLessonId,
+        title: CERTIFIABLE_COURSE_TITLE,
       },
       course: { id: courseId, lessonOneId, lessonTwoId, slug: courseSlug },
       paymentCustomers: {
@@ -608,8 +738,8 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     return fixture;
   } catch (error) {
     await client.query("rollback");
-    if (uploadedPdfStorageKey) {
-      await deleteR2Objects([uploadedPdfStorageKey]).catch(() => undefined);
+    if (uploadedObjectKeys.length > 0) {
+      await deleteR2Objects(uploadedObjectKeys).catch(() => undefined);
     }
     throw error;
   } finally {
