@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Conteúdo, aprendizagem e progresso
@@ -36,7 +36,7 @@ Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos M
 
 ### REG-LEA-004 Conclusão do Curso é histórica
 
-`CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. `completeLesson` serializa por Conta e Curso, antes de gravar progresso e calcular o resumo; somente a transação que insere a primeira `CourseCompletion` pode disparar a emissão automática. Uma tentativa concorrente que encontra a conclusão existente não atualiza a linha e não tenta emitir Certificado ou gravar outbox. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão. A regra de reconciliação permanece inalterada.
+`CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. `completeLesson` serializa por Conta e Curso, antes de gravar progresso e calcular o resumo; somente a transação que insere a primeira `CourseCompletion` pode disparar a emissão automática. Uma tentativa concorrente que encontra a conclusão existente não atualiza a linha e não tenta emitir Certificado ou gravar outbox. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão. Conclusões históricas sem Certificado só entram no fluxo por reconciliação confirmada de Admin, em lote limitado; não há backfill silencioso.
 
 ### REG-LEA-004A Carga horária exibida
 

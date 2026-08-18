@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 84ac4a4501f4ccb3fe3661223ec09a1807b3d994
+last_verified_commit: 2ede052
 ---
 
 # Outbox e efeitos transacionais
@@ -85,10 +85,12 @@ O worker da inbox Asaas é separado da outbox e roda por
 - Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
 - Toda transição para `delivered`, `retrying` ou `dead_letter` confirma
   `status = processing` e `locked_by` do consumidor. Se a ownership foi perdida, o
-  consumidor encerra o lote sem contabilizar a mensagem como entregue, adiada,
-  repetida ou morta.
+  worker retorna `lease_lost` e o runner encerra o lote sem contabilizar a mensagem
+  como entregue, adiada, repetida ou morta.
 - Nenhuma conexão do pool permanece reservada durante PDFKit, R2 ou Resend.
 - Uma mensagem é `delivered` somente depois de o adaptador confirmar a chamada ao Resend.
+- `email.certificate-issued` só é criado após o Certificado ficar `ready`; sua mensagem
+  aponta para `/app/certificados`, que exige sessão, e não contém URL assinada de PDF.
 - Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
 - Versão desconhecida de payload ou agregado não entregável vai para `dead_letter`.
 

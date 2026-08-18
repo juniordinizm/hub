@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 2df4996ac4875bf48f425a7e3456f3c8ac1fc3aa
+last_verified_commit: 2ede052
 ---
 
 # ADR-0006 Snapshots, revogação e reemissão de Certificados
@@ -14,9 +14,11 @@ Certificado é evidência histórica. Nome, Curso e carga horária podem mudar; 
 
 O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte A4 horizontal privada e campos padronizados posicionados manualmente; HTML/CSS livre não é uma opção. A emissão cria um registro pendente e uma mensagem `certificate.render`; a worker usa somente o snapshot para gerar o PDF com PDFKit e o grava no R2 privado. A validação pública por QR/código não expõe o arquivo.
 
-Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação na interface.
+Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor.
 
-Conclusões históricas podem ser reconciliadas somente por Admin, após confirmação explícita, em lotes de até 100. São elegíveis apenas conclusões de Curso com Certificado habilitado, template publicado, perfil emissor global e nenhum Certificado anterior para a combinação de Conta e Curso. Um Certificado revogado também conta como histórico e exige o fluxo de reemissão, portanto nunca volta à fila automática.
+A emissão automática pertence exclusivamente à transação que insere a primeira `CourseCompletion`. Emissão, reemissão e progresso final compartilham lock transacional por Conta e Curso; encontrar uma Conclusão existente não tenta Certificado nem outbox.
+
+Conclusões históricas podem ser reconciliadas somente por Admin, após confirmação explícita validada no servidor, em lotes de até 100. São elegíveis apenas conclusões de Curso com Certificado habilitado, template publicado, perfil emissor global e nenhum Certificado anterior para a combinação de Conta e Curso. Um Certificado revogado também conta como histórico e exige o fluxo de reemissão, portanto nunca volta à fila automática. Migration, deploy e leitura não executam backfill silencioso.
 
 A reconciliação preserva a publicação e a data da Conclusão, usa título e carga horária daquela publicação, nome atual da Conta e template/emissor publicados no momento do lote. Cada emissão registra `origin: admin_reconciliation` na auditoria e enfileira `certificate.render` na mesma transação; geração de PDF, acesso ao R2 e envio de e-mail permanecem fora dela.
 

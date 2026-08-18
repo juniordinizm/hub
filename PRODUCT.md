@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 2ede052
 ---
 
 # Produto PROTEA-R Hub
@@ -50,7 +50,7 @@ corte controlado de Production permanece pendente.
 2. Acesso depende de Conta e Matrícula efetivas.
 3. Aulas são liberadas sequencialmente pelo progresso da publicação vigente do Curso para toda Matrícula ativa.
 4. Vídeo, texto, materiais e comentários formam a experiência.
-5. Conclusão do Curso habilita emissão de Certificado conforme regra vigente.
+5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; a Aluna acompanha preparo, disponibilidade ou falha e baixa o PDF somente quando pronto.
 6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; a Aluna pode desligá-lo em Configurações sem afetar a jornada pedagógica.
 
 ### Operação
@@ -61,6 +61,7 @@ corte controlado de Production permanece pendente.
 4. Exceções usam ajustes, bloqueios, revisões, reembolso e revogação/reemissão; pedidos de dados são tratados excepcionalmente, não por inbox permanente.
 5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Publicação; não há acompanhamento individual por inatividade.
 6. Admin controla separadamente entrega, presença na vitrine e novas vendas. Pausar vendas preserva o acesso vigente; “Em breve” aceita interesse sem cobrança ou Matrícula.
+7. Admin pode reconciliar Conclusões históricas sem Certificado, somente após confirmação explícita e em lotes limitados; não existe backfill silencioso em migration, deploy ou leitura.
 
 ## Escopo implementado
 
@@ -79,7 +80,7 @@ corte controlado de Production permanece pendente.
   teto de parcelamento; a Vendedora absorve as taxas, conforme homologado no Checkout
   Sandbox com pagamento e reembolso reais em 3x;
 - disponibilidade comercial por Curso, pré-lançamento com interesse autenticado e cancelamento durável de Checkouts ao fechar vendas;
-- Certificados públicos, PDF, revogação e reemissão;
+- Certificados públicos, PDF privado, revogação, reemissão e reconciliação administrativa limitada de Conclusões históricas;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.
 

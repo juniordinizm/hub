@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 2ede052
 ---
 
 # Banco e migrations
@@ -179,7 +179,9 @@ vendas estão fechadas. `0062_certificate_reconciliation_indexes` adiciona
 `(course_id, completed_at, id, user_id)` e o índice não parcial
 `certificates_user_course_history_idx` em `(user_id, course_id)`. A migration é
 somente aditiva e não altera linhas existentes; sua promoção continua sujeita
-ao fluxo controlado deste runbook.
+ao fluxo controlado deste runbook e ao advisory lock global do migrador. Ela não
+emite Certificados nem reconcilia Conclusões; o lote permanece uma ação confirmada
+de Admin depois da promoção.
 
 ## Conexões
 

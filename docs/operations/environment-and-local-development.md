@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 2ede052
 ---
 
 # Ambiente e desenvolvimento local
@@ -193,6 +193,11 @@ de produção. A dispensa das credenciais de providers só é aceita com
 explícita `127.0.0.1`. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
 proibidas nesse processo web. Metadados `VERCEL_ENV` de Production/Preview e
 `VERCEL_TARGET_ENV=staging` têm precedência e impedem o modo E2E.
+
+O sink de e-mail de Certificado e `/api/e2e/email-deliveries` obedecem à mesma
+classificação fail-closed: fora desse runtime isolado, o módulo recusa acesso e a rota
+responde `404`. O registro em memória contém somente tópico, hash SHA-256 do destinatário
+normalizado e chave de idempotência; não guarda e-mail, nome, código ou conteúdo da mensagem.
 
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
 fora da Cloudflare. Na Vercel, use o default `x-forwarded-for`; a aplicação

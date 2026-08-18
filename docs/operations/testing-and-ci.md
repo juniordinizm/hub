@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
+last_verified_commit: 2ede052
 ---
 
 # Testes e CI
@@ -143,8 +143,10 @@ efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass da
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend. Emissões de
 Certificado registram somente tópico, chave SHA-256 normalizada do destinatário e chave
-de idempotência em memória; `/api/e2e/email-deliveries` expõe esses registros somente
-sob a mesma guarda.
+de idempotência em memória; não registram e-mail, nome, código público nem corpo.
+`/api/e2e/email-deliveries` expõe esses registros somente sob a mesma guarda isolada e
+responde `404` fora dela. `VERCEL_ENV` de Production/Preview ou
+`VERCEL_TARGET_ENV=staging` anulam o modo mesmo com flags E2E presentes.
 As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
 quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
 `E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
@@ -187,6 +189,11 @@ As jornadas atuais verificam:
 - login e recuperação sem enumeração de Conta;
 - acesso da Aluna com Concessão e negação sem Concessão;
 - bloqueio de sequência, conclusão persistida e avanço;
+- jornada completa da última Aula: primeira Conclusão, Certificado `pending`, cron real
+  da outbox, renderização em storage S3 loopback, transição `ready`, uma entrega de e-mail
+  minimizada, download privado do PDF e validação pública sem link para o arquivo;
+- lista autenticada de Certificados com estados `pending`, `ready` e revogado, além de
+  download negado sem sessão e para outra Conta;
 - fronteira Admin/Aluna;
 - erro seguro de checkout sem provedor configurado;
 - handoff público sem formulário, checkout Asaas fake, identidade pós-evento, idempotência,
@@ -199,6 +206,10 @@ As jornadas atuais verificam:
   o índice de Aula expansível no mobile;
 - acesso expirado e acesso revogado, com ação de renovação ou suporte;
 - axe-core sem violações `critical` ou `serious` na Biblioteca e Aula da Aluna.
+
+Essa cobertura full-story está implementada em `critical-journeys.spec.ts` e integrada à
+job Playwright; a execução da CI para este commit permanece pendente. Não trate a presença
+do teste como resultado verde nem como evidência de promoção.
 
 A negação sem Concessão renderiza a página segura “Página indisponível”, sem revelar a Aula nem
 seu material. O teste protege esse resultado visível; o status HTTP de um `notFound()` renderizado
@@ -241,7 +252,7 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Pagamento e webhook | `asaas*.test.ts`, `public-checkout.test.ts`, E2E checkout seguro |
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
-| Certificado | `certificates/rules.test.ts`, integração concorrente, E2E público |
+| Certificado | `certificates/rules.test.ts`, integração concorrente, E2E full-story de conclusão, renderização, e-mail, download privado e validação pública |
 | Efeitos transacionais | `outbox/*.test.ts`, worker da inbox Asaas e integração PostgreSQL de locks, rollback e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
@@ -275,7 +286,7 @@ interação.
 | Acesso expirado ou revogado | Alto: entrar com projeção `expired` ou `revoked`. | Dashboard informa o estado e oferece renovação ou suporte. `critical-journeys.spec.ts`. |
 | Concluir e avançar | Alto: concluir a primeira Aula. | Progresso persiste e a próxima Aula é aberta. `critical-journeys.spec.ts`. |
 | Comentário e resposta | Médio: criar comentário, responder e moderar. | Ações autorizadas, limites e visibilidade são validados em `src/features/comments/actions.test.ts` e `server-sql.test.ts`. |
-| Certificado | Alto: consultar código válido e revogado. | Estado público é distinto e não expõe dados internos. `critical-journeys.spec.ts`. |
+| Certificado | Alto: concluir a última Aula e acompanhar `pending` até `ready`; baixar como titular, negar terceiro e validar o código publicamente. | Uma única Conclusão/emissão/e-mail, PDF privado íntegro, estados seguros e validação pública sem link ao arquivo. `critical-journeys.spec.ts`. |
 
 `knip.jsonc` inclui uma baseline explícita para arquivos e exports já desconectados por rotas ou
 ações dinâmicas do Next.js. Ela existe para que `bun run knip` bloqueie novos achados sem apagar

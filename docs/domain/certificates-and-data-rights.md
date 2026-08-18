@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Certificados e dados técnicos
@@ -63,9 +63,11 @@ A transação vencedora de emissão grava `certificate.render`. A worker obtém 
 
 O upload de novos PDFs também grava o digest SHA-256 como metadata privada do objeto R2; o download confere a metadata antes de emitir a URL assinada. Objetos legados sem metadata permanecem explicitamente não verificáveis até backfill/reconciliação.
 
+Na área autenticada, Certificado `pending` aparece como “Preparando” e atualiza a lista enquanto houver preparo; `ready` libera o download privado; `failed` bloqueia o download e oferece contato com Suporte. O e-mail só nasce depois de `ready` e leva à lista autenticada `/app/certificados`, nunca a uma URL pública de PDF.
+
 ### REG-DAT-002 Revogação preserva histórico
 
-`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências.
+`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências.
 
 ### REG-DAT-003 Reemissão cria nova evidência
 
@@ -87,6 +89,12 @@ o default global é resolvido na emissão e congelado no `render_snapshot`.
 Salvar rascunho, publicar, habilitar e desabilitar template registram ator,
 alvo e metadados em `audit_logs` na mesma transação da mutação; o rascunho
 inclui o digest SHA-256 do spec e a publicação inclui o template publicado.
+
+`reconcileHistoricalCourseCertificates` é exclusivo de Admin e exige confirmação
+server-side. Cada execução seleciona em ordem estável no máximo 100 Conclusões do Curso
+que ainda não possuem nenhum Certificado, preserva publicação/data/carga histórica e
+enfileira a renderização na mesma transação. Certificado revogado também conta como
+histórico; migrations, deploy e leitura não disparam backfill silencioso.
 
 A migration `0056_certificate_state_invariants` normaliza registros legados,
 restringe exclusão física do Curso e valida a coerência entre `status`, campos

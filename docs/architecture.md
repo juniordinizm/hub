@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 2ede052
 ---
 
 # Arquitetura
@@ -48,7 +48,7 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Progresso e interação => `src/features/progress/rules.ts`, `src/features/comments`, tabelas `lesson_progress`, `lesson_watch_progress`, `lesson_comments`.
 - Comércio => `src/features/payments`, tabelas `orders`, `webhook_events`, `payment_reviews`, `refund_requests`.
 - Acesso => `src/features/enrollments`, tabelas `enrollment_grants`, `enrollments`, `enrollment_expiration_adjustments`, `enrollment_events`.
-- Certificados => `src/features/certificates`, tabelas `certificate_issuer_profiles`, `certificate_templates`, `certificates` e `public_certificate_rate_limits`.
+- Certificados => `src/features/certificates`, tabelas `course_completions`, `certificate_issuer_profiles`, `certificate_templates`, `certificates`, `outbox_messages` e `public_certificate_rate_limits`.
 - Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
 - Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
@@ -57,19 +57,19 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 `getPool` cria um `pg.Pool`; `getDb` expõe Drizzle sobre o mesmo pool. `withVerifiedSslMode`, em `src/db/connection-url.ts`, normaliza conexões para `sslmode=verify-full` quando necessário.
 
-O topo local é `0060_course_availability_and_interest`. A migration separa
-entrega, vitrine e vendas, preserva o comportamento dos Cursos existentes e
-adiciona Interesse de venda sem duplicar nome ou e-mail.
+O topo local é `0062_certificate_reconciliation_indexes`. Essa migration é
+aditiva e cria índices para a reconciliação administrativa de Conclusões; não
+emite Certificados nem executa backfill. Sua promoção usa o fluxo controlado e o
+advisory lock global do migrador.
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 41 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 55 entradas alinhadas, com topo local `0054_payments_hardening`;
+O schema possui 42 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 63 entradas alinhadas, com topo local `0062_certificate_reconciliation_indexes`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
-migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0053` estão aplicadas em Production e Staging, enquanto `0054` permanece somente no
-repositório até promoção controlada. Na Vercel, cada instância limita o pool
+migration `0049` garante uma Revisão por Webhook; o estado aplicado de cada ambiente
+deve ser conferido no catálogo antes da promoção controlada. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -121,8 +121,10 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 ### Certificado, analytics e manutenção
 
 - cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados da Aluna, Curso e emissão em `render_snapshot`;
-- a conclusão elegível ou emissão manual cria o Certificado `pending` e uma mensagem `certificate.render`; o worker obtém claim persistido, gera o PDF uma vez, grava o artefato privado no R2 e só então enfileira o e-mail;
-- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
+- `completeLesson` usa lock transacional por Conta e Curso antes do progresso e do resumo; somente a transação que insere a primeira `CourseCompletion` pode criar o Certificado automático `pending` e a mensagem `certificate.render`;
+- o worker obtém claim persistido, grava o artefato privado no R2 e só então enfileira o e-mail que aponta para a lista autenticada. A área da Aluna distingue `pending`, `ready` e `failed`, atualiza o estado pendente e só oferece download quando pronto;
+- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle com confirmação validada no servidor; reemissão cria nova evidência e preserva a anterior revogada;
+- `reconcileHistoricalCourseCertificates` é uma ação confirmada exclusiva de Admin, limitada a 100 Conclusões elegíveis por lote e sem Certificado histórico; migrations e leituras nunca fazem backfill silencioso;
 - download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
   limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
@@ -132,7 +134,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ## Observabilidade
 
-`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
+`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; requests, breadcrumbs, transações e spans perdem query strings e códigos públicos de Certificado antes do envio. `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
 
 `GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Auditoria** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
 
@@ -148,6 +150,9 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e
   dead letter; `auth.account-activation` persiste apenas IDs locais e cria token no
   callback Better Auth. Recuperação pública e ativação legada continuam fora da outbox;
+- transições terminais da outbox são fenced por `locked_by`; perda do lease encerra o
+  lote sem contabilizar sucesso/falha, e `certificate.render` terminaliza mensagem e
+  Certificado de forma atômica;
 - `scheduled_job_leases` impede sobreposição de uma mesma rotina entre
   instâncias serverless sem depender de sessão Postgres;
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
@@ -210,7 +215,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 - **Símbolos:** `getStudentCourses`, `getStudentCourseCatalog`, `getStudentCourseAccessStatus`, `getStudentCourseOverview`, `getStudentLessonWorkspace`, `recordLessonWatchProgress`, `completeLesson` e `recalculateCourseWorkloadHours`; `issueCompletionCertificateIfEligible` para a conclusão.
 - **Consumidores:** páginas/actions de `/app`, handlers de recurso de aula, autoria administrativa e testes de SQL/concorrência.
-- **Invariante, queries e efeitos:** acesso exige Matrícula elegível e conteúdo publicado. `completeLesson` preserva a transação de progresso e delega apenas o resumo persistido ao serviço de certificado, que emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
+- **Invariante, queries e efeitos:** acesso exige Matrícula elegível e conteúdo publicado. `completeLesson` preserva a transação de progresso, adquire o lock por Conta e Curso antes da mutação e delega apenas o resumo persistido ao serviço de certificado. Somente a inserção vencedora da primeira Conclusão emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
 
 #### Administração
 

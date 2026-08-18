@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 1281924625070c4ca2c7a5ff3fb0bc170149e3ec
+last_verified_commit: 2ede052
 ---
 
 # Documentação do Hub

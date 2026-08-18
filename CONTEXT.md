@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Glossário do Hub
@@ -69,7 +69,7 @@ Produto educacional vendável e publicável, composto por Módulos e Aulas.
 Revisão interna materializada de Módulos e Aulas, com estados rascunho, publicada e aposentada. A publicação vigente define o currículo vivo de todas as Matrículas ativas do Curso; não é produto nem direito comercial individual.
 
 **Conclusão de Curso (`CourseCompletion`)**
-Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
+Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Somente a transação que cria essa primeira evidência pode iniciar a emissão automática de Certificado. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
 
 **Módulo**  
 Agrupamento ordenado de Aulas dentro de Curso.
@@ -84,7 +84,7 @@ Evidência de consumo de Aulas e Curso. Não é direito de acesso.
 Estado em que Aula ou Curso satisfaz a regra vigente de completude. É independente de expiração.
 
 **Certificado**  
-Documento para uma Aluna e Curso, com snapshots exibidos. Pode ser válido, revogado ou reemitido.
+Documento para uma Aluna e Curso, com snapshots exibidos. O lifecycle é serializado por Conta e Curso; o preparo do PDF pode estar pendente, pronto ou falho. Pode ser válido, revogado ou reemitido.
 
 **Evento de aprendizagem**
 Registro técnico minimizado e idempotente de início, checkpoint, conclusão ou falha. É analytics, não autoridade de Progresso, acesso ou Certificado.
