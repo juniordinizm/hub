@@ -240,6 +240,10 @@ jobs:
           BETTER_AUTH_SECRET: ci-build-placeholder-not-for-deployment
           BETTER_AUTH_URL: https://ci-build.invalid
           CERTIFICATE_PUBLIC_BASE_URL: https://ci-build.invalid
+          E2E_DATABASE_URL: postgresql://verification:verification@e2e-verification.invalid/hub
           NEXT_PUBLIC_APP_URL: https://ci-build.invalid
         run: bun run build
-      - run: bun run knip
+      - name: Run Knip
+        env:
+          E2E_DATABASE_URL: postgresql://verification:verification@e2e-verification.invalid/hub
+        run: bun run knip

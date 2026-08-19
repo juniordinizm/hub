@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${{ inputs.mode }}" == "execute" ]]; then
-            bun scripts/cleanup-ci-neon-branches.ts --execute
+            bun run ops:cleanup:ci-neon -- --execute
           else
-            bun scripts/cleanup-ci-neon-branches.ts --dry-run
+            bun run ops:cleanup:ci-neon -- --dry-run
           fi
