@@ -72,7 +72,7 @@ podem alterar justamente o código de uma action de terceiros. Por isso,
 `integration-db` e `e2e` são explicitamente ignoradas quando
 `github.actor == 'dependabot[bot]'`; os gates sem provider continuam rodando e
 as integrações completas são obrigatoriamente exercitadas no push confiável
-após o merge. Não copie `NEON_API_KEY` para Dependabot secrets apenas para
+após o merge. Não copie `NEON_CI_API_KEY` para Dependabot secrets apenas para
 forçar essas jobs.
 
 `quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
@@ -90,7 +90,7 @@ para cancelamentos que interrompam o runner antes do cleanup explícito.
 
 Antes da primeira execução remota, configure no repositório GitHub:
 
-- secret `NEON_API_KEY`: chave de API limitada ao projeto/organização de CI;
+- secret `NEON_CI_API_KEY`: chave de API limitada exclusivamente ao projeto de CI;
 - variable `NEON_CI_PROJECT_ID`: ID do projeto Neon dedicado exclusivamente à CI.
 - variable `NEON_CI_PARENT_BRANCH_ID`: branch do projeto CI sem dados de Production,
   com journal aceito pelo preparador (limpo, `0052`, `0053`, `0054` ou `0062`),
@@ -139,7 +139,7 @@ substitutos dessa prova transacional.
 
 O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
 `production` (`br-dark-boat-ac5ju6m4`) é o banco definitivo da aplicação. As
-jobs usam somente `NEON_CI_PROJECT_ID` e a chave project-scoped `NEON_API_KEY`
+jobs usam somente `NEON_CI_PROJECT_ID` e a chave project-scoped `NEON_CI_API_KEY`
 configurados no GitHub; elas não recebem uma URL persistente. Cada job cria uma
 branch temporária isolada a partir de `production` e deve removê-la ao terminar.
 Nenhuma etapa de CI pode executar migrations, integração ou E2E diretamente na

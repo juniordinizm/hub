@@ -209,7 +209,7 @@ export const runCiNeonBranchCleanup = async ({
   writeOutput?: (value: string) => void;
 }): Promise<CiNeonCleanupResult> => {
   const mode = parseMode(argv);
-  const apiKey = requiredEnvironmentValue(environment, "NEON_API_KEY");
+  const apiKey = requiredEnvironmentValue(environment, "NEON_CI_API_KEY");
   const projectId = requiredEnvironmentValue(environment, "NEON_CI_PROJECT_ID");
   if (
     mode === "execute" &&

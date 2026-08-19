@@ -105,6 +105,8 @@ describe("CI workflow", () => {
     const neonAction = readAction("actions/create-neon-branch/action.yml");
 
     expect(workflow).toContain("NEON_CI_PROJECT_ID");
+    expect(workflow).toContain("NEON_CI_API_KEY");
+    expect(workflow).not.toContain("secrets.NEON_API_KEY");
     expect(workflow).not.toContain("vars.NEON_PROJECT_ID");
     expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
     expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
