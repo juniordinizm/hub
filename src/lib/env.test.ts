@@ -162,6 +162,8 @@ describe("server environment", () => {
       SCHEDULED_JOBS_ENABLED: "true",
       SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
       STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
+      STAGING_EMAIL_RECIPIENT_ALLOWLIST:
+        "staging-recipient@example.com,staging-ops@example.com",
       STAGING_JMVSTREAM_USES_PRODUCTION: "true",
       STAGING_R2_USES_DEVELOPMENT: "true",
       STAGING_RESEND_USES_PRODUCTION: "true",
@@ -179,6 +181,9 @@ describe("server environment", () => {
     );
     expect(env.PAYMENTS_CHECKOUT_MODE).toBe("public");
     expect(env.ASAAS_WEBHOOK_ENABLED).toBe(true);
+    expect(env.STAGING_EMAIL_RECIPIENT_ALLOWLIST).toBe(
+      "staging-recipient@example.com,staging-ops@example.com"
+    );
   });
 
   it("keeps public sign-up disabled by default", () => {

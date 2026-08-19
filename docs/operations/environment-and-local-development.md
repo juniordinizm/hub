@@ -37,8 +37,9 @@ Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
 `VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
 Sentry de Development. Compartilha os buckets R2 de Development sob o namespace
 físico `staging/`, o plano JMVStream de Production e a estrutura Resend já
-aprovada. Essas exceções exigem confirmações explícitas e não oferecem
-isolamento completo nos três providers compartilhados.
+aprovada, mas o preflight exige `STAGING_EMAIL_RECIPIENT_ALLOWLIST`; sem essa
+variável, o runtime é bloqueado. Essas exceções exigem confirmações explícitas
+e não oferecem isolamento completo nos três providers compartilhados.
 
 Production em `APPLICATION_MAINTENANCE_MODE=full` exige cadastro, checkout,
 webhook Asaas e jobs desligados. O Proxy responde `503` para páginas, APIs,
@@ -94,6 +95,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
 | `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
+| `STAGING_EMAIL_RECIPIENT_ALLOWLIST` | obrigatória em Staging no preflight | preflight de Staging | dado interno |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
 | `SUPPORT_EMAIL` | caixa real e `Reply-To` padrão; `suporte@neurocapacitar.com.br` em Production | e-mail de suporte | dado operacional |
 | `ASAAS_API_KEY` | checkout Asaas server-only | adapter Asaas | sim |

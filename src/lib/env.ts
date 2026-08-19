@@ -73,6 +73,7 @@ const serverEnvSchema = z.object({
     .transform((value) => value === "true"),
   SUPPORT_EMAIL: optionalNonEmptyString,
   STAGING_DATABASE_HOST: optionalNonEmptyString,
+  STAGING_EMAIL_RECIPIENT_ALLOWLIST: optionalNonEmptyString,
   STAGING_JMVSTREAM_USES_PRODUCTION: optionalNonEmptyString,
   STAGING_R2_USES_DEVELOPMENT: optionalNonEmptyString,
   STAGING_RESEND_USES_PRODUCTION: optionalNonEmptyString,
@@ -249,6 +250,8 @@ export const getServerEnv = () => {
     SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     STAGING_DATABASE_HOST: process.env.STAGING_DATABASE_HOST,
+    STAGING_EMAIL_RECIPIENT_ALLOWLIST:
+      process.env.STAGING_EMAIL_RECIPIENT_ALLOWLIST,
     STAGING_JMVSTREAM_USES_PRODUCTION:
       process.env.STAGING_JMVSTREAM_USES_PRODUCTION,
     STAGING_R2_USES_DEVELOPMENT: process.env.STAGING_R2_USES_DEVELOPMENT,

@@ -35,6 +35,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [JMVStream](integrations/jmvstream.md)
 - [Cloudflare R2](integrations/r2.md)
 - [Resend e e-mail institucional](integrations/resend.md)
+- [Catálogo de templates do Resend](integrations/resend-templates.md)
 
 ### Operação
 

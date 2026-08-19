@@ -35,6 +35,8 @@ const COMPLETE_STAGING_ENVIRONMENT: Record<string, string> = {
   SCHEDULED_JOBS_ENABLED: "true",
   SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
   STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
+  STAGING_EMAIL_RECIPIENT_ALLOWLIST:
+    "staging-recipient@example.com,staging-ops@example.com",
   STAGING_JMVSTREAM_USES_PRODUCTION: "true",
   STAGING_R2_USES_DEVELOPMENT: "true",
   STAGING_RESEND_USES_PRODUCTION: "true",
@@ -179,6 +181,22 @@ describe("Staging environment contract", () => {
         "STAGING_JMVSTREAM_USES_PRODUCTION must equal true",
         "STAGING_RESEND_USES_PRODUCTION must equal true",
       ])
+    );
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["empty", ""],
+    ["placeholder", "<staging-recipient@example.com>"],
+  ] as const)("requires a configured Staging email recipient allowlist for %s without exposing values", (_case, allowlist) => {
+    const problems = getStagingEnvironmentProblems({
+      ...COMPLETE_STAGING_ENVIRONMENT,
+      STAGING_EMAIL_RECIPIENT_ALLOWLIST: allowlist,
+    });
+
+    expect(problems).toEqual(["STAGING_EMAIL_RECIPIENT_ALLOWLIST is required"]);
+    expect(problems.join(" ")).not.toContain(
+      COMPLETE_STAGING_ENVIRONMENT.STAGING_EMAIL_RECIPIENT_ALLOWLIST
     );
   });
 

@@ -370,5 +370,27 @@ Knip também recebe `DATABASE_URL` e `E2E_DATABASE_URL` iguais, sintéticas e so
 host `.invalid`, apenas para carregar `playwright.config.ts`; ele não abre conexão
 nem reutiliza banco real.
 
+### Checker manual de templates do Resend
+
+O checker de templates não pertence aos gates automáticos de build, `check` ou
+`typecheck`, porque sua execução consulta a API do Resend e exige a chave
+administrativa `RESEND_TEMPLATES_ADMIN_API_KEY` somente no momento da operação.
+Depois de configurar essa variável no shell, execute explicitamente:
+
+```bash
+bun run check:resend-templates -- --environment=production
+```
+
+A suíte sem rede do checker é executada explicitamente por:
+
+```bash
+bun run test -- src/tooling/check-resend-templates.test.ts
+```
+
+`development`, `staging` e `production` usam os mesmos aliases. Falhas de fetch
+ou de contrato retornam exit code `1`; drafts adicionais geram warning e não
+falham quando a versão publicada é válida. O checker não publica templates e
+sanitiza sua saída, sem HTML, variáveis, chave ou PII.
+
 E2E e integração requerem uma branch Neon ou banco descartável já migrado, nunca um banco
 compartilhado. A CI é o caminho recomendado até existir um procedimento local isolado equivalente.

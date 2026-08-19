@@ -82,6 +82,7 @@
     "test:e2e:seed": "bun --conditions=react-server scripts/seed-e2e.ts",
     "test:e2e:teardown": "bun --conditions=react-server scripts/teardown-e2e.ts",
     "docs:check": "bun scripts/check-docs.ts",
+    "check:resend-templates": "bun scripts/check-resend-templates.ts",
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",
     "fix": "ultracite fix",
