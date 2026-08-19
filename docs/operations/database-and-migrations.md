@@ -6,6 +6,11 @@ last_verified_commit: 2ede052
 
 # Banco e migrations
 
+O registro factual de qual commit e qual migration estão implantados fica em
+[Estado de release](release-state.md). Os parágrafos históricos abaixo preservam
+evidência de ensaios anteriores; quando divergirem do registro atual, não devem
+ser usados como autorização de promoção.
+
 ## Estado atual
 
 O topo local é `0062_certificate_reconciliation_indexes`. Ela adiciona índices
@@ -33,8 +38,9 @@ descendente de Staging com `0053`; depois, Development, Staging e Production rec
 `95468fdf6ece0c5873406d9de4e2a5aeee20511d0ebf226d67f1f921a9f673b1`, a tabela de
 cursor do extrato e as seis constraints financeiras esperadas. Development também
 recebeu a `0053` que ainda estava pendente e uma segunda execução do migrador confirmou
-idempotência. Production teve zero violações no preflight e recebeu antes a branch de
-backup `payments-hardening-backup-20260803` (`br-bitter-pond-acl5x8se`). O perfil
+idempotência. Production teve zero violações no preflight e recebeu antes uma branch de
+backup `payments-hardening-backup-20260803`. O identificador da branch temporária foi
+removido após a retenção operacional; não reutilize esse ID. O perfil
 persistente `vercel-preview` continua dormente e, por contrato, não recebe migrations.
 
 O repositório também possui `0055_limit_course_installments`, que reduz para 12 o teto

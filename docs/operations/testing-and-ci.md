@@ -56,7 +56,7 @@ evidência de gate, não ambiente compartilhado para revisão manual.
 
 O workflow `.github/workflows/cleanup-ci-neon-branches.yml` executa a cada hora
 e também pode ser disparado manualmente. Ele consulta o projeto definido por
-`NEON_PROJECT_ID` e só considera nomes com os prefixos `ci-integration-` e
+`NEON_CI_PROJECT_ID` e só considera nomes com os prefixos `ci-integration-` e
 `ci-e2e-`. Branches expiradas são removidas; uma branch sem `expires_at` só é
 considerada órfã quando tem pelo menos 26 horas. Branches protegidas,
 Production, `vercel-preview` e `staging-release-*` ficam fora da allowlist.
@@ -91,15 +91,18 @@ para cancelamentos que interrompam o runner antes do cleanup explícito.
 Antes da primeira execução remota, configure no repositório GitHub:
 
 - secret `NEON_API_KEY`: chave de API limitada ao projeto/organização de CI;
-- variable `NEON_PROJECT_ID`: ID do projeto Neon dedicado de CI.
-- variable `NEON_CI_PARENT_BRANCH_ID`: branch vazia e sem dados de Production
-  usada como origem das branches efêmeras.
+- variable `NEON_CI_PROJECT_ID`: ID do projeto Neon dedicado exclusivamente à CI.
+- variable `NEON_CI_PARENT_BRANCH_ID`: branch do projeto CI sem dados de Production,
+  com journal aceito pelo preparador (limpo, `0052`, `0053`, `0054` ou `0062`),
+  usada como origem das branches efêmeras. Em um projeto CI novo, o journal limpo
+  significa que o schema `drizzle.__drizzle_migrations` existe sem linhas; cada
+  job aplica a cadeia completa em sua branch descartável.
 
 Não use o projeto Neon de produção, sua URL de conexão ou uma chave com escopo de produção.
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
 mascarados, usadas pelos migradores, integração e E2E.
 
-Antes de disparar uma execução, confirme também que `NEON_PROJECT_ID` aponta para
+Antes de disparar uma execução, confirme também que `NEON_CI_PROJECT_ID` aponta para
 o projeto CI dedicado e que a action cria a branch a partir de uma origem sem
 dados de Production. Sem `parent_branch` explícito, o Neon usa a branch padrão
 do projeto; nesse caso, a execução deve ser interrompida em vez de copiar dados
@@ -136,7 +139,7 @@ substitutos dessa prova transacional.
 
 O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
 `production` (`br-dark-boat-ac5ju6m4`) é o banco definitivo da aplicação. As
-jobs usam somente `NEON_PROJECT_ID` e a chave project-scoped `NEON_API_KEY`
+jobs usam somente `NEON_CI_PROJECT_ID` e a chave project-scoped `NEON_API_KEY`
 configurados no GitHub; elas não recebem uma URL persistente. Cada job cria uma
 branch temporária isolada a partir de `production` e deve removê-la ao terminar.
 Nenhuma etapa de CI pode executar migrations, integração ou E2E diretamente na

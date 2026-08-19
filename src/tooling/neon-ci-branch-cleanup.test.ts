@@ -92,7 +92,10 @@ describe("runCiNeonBranchCleanup", () => {
 
     const dryRun = await runCiNeonBranchCleanup({
       argv: ["--dry-run"],
-      environment: { NEON_API_KEY: "secret", NEON_PROJECT_ID: "ci-project" },
+      environment: {
+        NEON_API_KEY: "secret",
+        NEON_CI_PROJECT_ID: "ci-project",
+      },
       fetchImpl,
       now: NOW,
       writeOutput: (value) => output.push(value),
@@ -107,7 +110,7 @@ describe("runCiNeonBranchCleanup", () => {
         argv: ["--execute"],
         environment: {
           NEON_API_KEY: "secret",
-          NEON_PROJECT_ID: "ci-project",
+          NEON_CI_PROJECT_ID: "ci-project",
         },
         fetchImpl,
         now: NOW,
@@ -136,7 +139,7 @@ describe("runCiNeonBranchCleanup", () => {
       environment: {
         CI_NEON_CLEANUP_CONFIRMATION: "cleanup-ci-neon",
         NEON_API_KEY: "secret",
-        NEON_PROJECT_ID: "ci-project",
+        NEON_CI_PROJECT_ID: "ci-project",
       },
       fetchImpl,
       now: NOW,
@@ -144,5 +147,58 @@ describe("runCiNeonBranchCleanup", () => {
 
     expect(result).toEqual({ deleted: ["br-default"], wouldDelete: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows Neon branch cursors before selecting stale branches", async () => {
+    const fetchImpl = vi.fn<typeof fetch>((input, init) => {
+      if (init?.method === "DELETE") {
+        expect(String(input)).toContain("br-page-two");
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+
+      const url = new URL(String(input));
+      if (!url.searchParams.has("cursor")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              branches: [branch({ id: "br-page-one" })],
+              pagination: { next: "cursor-page-two" },
+            }),
+            { status: 200 }
+          )
+        );
+      }
+
+      expect(url.searchParams.get("cursor")).toBe("cursor-page-two");
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            branches: [
+              branch({
+                id: "br-page-two",
+                expires_at: "2026-08-19T11:00:00.000Z",
+              }),
+            ],
+            pagination: { next: null },
+          }),
+          { status: 200 }
+        )
+      );
+    });
+
+    await expect(
+      runCiNeonBranchCleanup({
+        argv: ["--execute"],
+        environment: {
+          CI_NEON_CLEANUP_CONFIRMATION: "cleanup-ci-neon",
+          NEON_API_KEY: "secret",
+          NEON_CI_PROJECT_ID: "ci-project",
+        },
+        fetchImpl,
+        now: NOW,
+      })
+    ).resolves.toEqual({ deleted: ["br-page-two"], wouldDelete: [] });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 });

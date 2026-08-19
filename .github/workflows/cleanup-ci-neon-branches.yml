@@ -34,7 +34,7 @@ jobs:
       CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"
       CI_NEON_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && 'cleanup-ci-neon' || inputs.confirmation }}
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      NEON_CI_PROJECT_ID: ${{ vars.NEON_CI_PROJECT_ID }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${{ inputs.mode }}" == "execute" ]]; then
-            bun scripts/cleanup-ci-neon-branches.ts --execute
+            bun run ops:cleanup:ci-neon -- --execute
           else
-            bun scripts/cleanup-ci-neon-branches.ts --dry-run
+            bun run ops:cleanup:ci-neon -- --dry-run
           fi

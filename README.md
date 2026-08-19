@@ -32,6 +32,10 @@ host remoto e exigem confirmação quando destrutivos.
 consultar histórico de Certificados. Ainda exige promoção controlada com o lock
 global do migrador; não executa reconciliação nem backfill de Certificados.
 
+O estado de deployment, verificação e documentação é mantido separadamente em
+[Estado de release](docs/operations/release-state.md). Um commit verificado localmente
+não é tratado como implantado até passar o workflow e o smoke test do ambiente.
+
 ## Desenvolvimento local com banco existente
 
 1. Instale dependências:

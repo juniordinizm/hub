@@ -16,6 +16,7 @@ vi.mock("@/features/jmvstream/server", () => ({
 vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
+  getAdminCourseCatalogData,
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
@@ -96,6 +97,55 @@ beforeEach(() => {
 });
 
 describe("admin read projections", () => {
+  it("keeps the course catalog projection bounded without loading lesson content", async () => {
+    query.mockResolvedValue({ rows: [courseRow] });
+
+    await expect(getAdminCourseCatalogData()).resolves.toMatchObject({
+      courses: [expect.objectContaining({ id: courseId })],
+      lessons: [],
+      modules: [],
+    });
+
+    expect(query).toHaveBeenCalledTimes(1);
+    const sql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(sql).toContain("limit $1 offset $2");
+    expect(sql).not.toContain("l.content_json");
+    expect(sql).not.toContain("select l.*");
+  });
+
+  it("bounds the student projection and returns pagination metadata", async () => {
+    query.mockImplementation((sql: string) => ({
+      rows: sql.includes("from profiles")
+        ? [
+            {
+              email: "student@example.test",
+              last_access_at: null,
+              name: "Student",
+              platform_blocked_at: null,
+              platform_blocked_reason: null,
+              user_id: "student-1",
+            },
+          ]
+        : [],
+    }));
+
+    await expect(
+      getAdminStudentsData({ search: "student", page: 2 })
+    ).resolves.toMatchObject({
+      hasNextPage: false,
+      page: 2,
+      pageSize: 100,
+      search: "student",
+    });
+
+    const profileCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from profiles")
+    );
+    expect(String(profileCall?.[0])).toContain("limit $3");
+    expect(String(profileCall?.[0])).toContain("offset $4");
+    expect(profileCall?.[1]).toEqual(["student", "%student%", 101, 100]);
+  });
+
   it("projects buyer identity payment reviews with their order in the financial read", async () => {
     query.mockImplementation((sql: string) => {
       if (sql.includes("from payment_reviews")) {
@@ -363,7 +413,7 @@ describe("admin read projections", () => {
       rows: sql.includes("from profiles") ? profiles : enrollments,
     }));
 
-    const data = await getAdminStudentsData();
+    const data = await getAdminStudentsData({ pageSize: studentCount });
     const payloadBytes = Buffer.byteLength(JSON.stringify(data));
 
     expect(query).toHaveBeenCalledTimes(2);

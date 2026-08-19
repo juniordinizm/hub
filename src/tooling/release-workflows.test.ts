@@ -104,6 +104,8 @@ describe("CI workflow", () => {
     const workflow = readWorkflow("ci.yml");
     const neonAction = readAction("actions/create-neon-branch/action.yml");
 
+    expect(workflow).toContain("NEON_CI_PROJECT_ID");
+    expect(workflow).not.toContain("vars.NEON_PROJECT_ID");
     expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
     expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
     expect(
@@ -185,6 +187,18 @@ describe("CI workflow", () => {
       "https://preview.neurocapacitar.com.br/api/health/ready"
     );
   });
+
+  it("gives Knip a synthetic E2E database and declares the CI cleanup script", () => {
+    const workflow = readWorkflow("ci.yml");
+    const cleanupWorkflow = readWorkflow("cleanup-ci-neon-branches.yml");
+
+    expect(workflow).toContain(
+      "E2E_DATABASE_URL: postgresql://verification:verification@e2e-verification.invalid/hub"
+    );
+    expect(cleanupWorkflow).toContain(
+      "bun run ops:cleanup:ci-neon -- --execute"
+    );
+  });
 });
 
 describe("CI Neon branch cleanup workflow", () => {
@@ -195,12 +209,8 @@ describe("CI Neon branch cleanup workflow", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("default: dry-run");
     expect(workflow).toContain("cleanup-ci-neon");
-    expect(workflow).toContain(
-      "bun scripts/cleanup-ci-neon-branches.ts --execute"
-    );
-    expect(workflow).toContain(
-      "bun scripts/cleanup-ci-neon-branches.ts --dry-run"
-    );
+    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --execute");
+    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --dry-run");
     expect(workflow).toContain('CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"');
     expect(workflow).not.toContain("staging-release-");
   });
