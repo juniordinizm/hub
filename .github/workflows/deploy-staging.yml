@@ -86,13 +86,25 @@ jobs:
               --arg expires_at "${NEON_BACKUP_EXPIRES_AT}" \
               '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]}'
           )"
-          response="$(
-            curl --fail-with-body --silent --show-error \
+          response_file="$(mktemp)"
+          trap 'rm -f "${response_file}"' EXIT
+          http_status="$(
+            curl --silent --show-error \
+              --output "${response_file}" \
+              --write-out "%{http_code}" \
               --request POST \
               --header "Authorization: Bearer ${NEON_API_KEY}" \
               --header "Content-Type: application/json" \
               --data "${payload}" \
               "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches"
+          )"
+          if [[ "${http_status}" != 2* ]]; then
+            echo "Neon branch backup request failed with HTTP ${http_status}." >&2
+            jq -c . "${response_file}" >&2 || cat "${response_file}" >&2
+            exit 1
+          fi
+          response="$(
+            cat "${response_file}"
           )"
           branch_id="$(jq -er '.branch.id' <<< "${response}")"
           echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"

@@ -173,6 +173,10 @@ describe("CI workflow", () => {
       "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]"
     );
     expect(stagingWorkflow).toContain(branchOutputExpression);
+    expect(stagingWorkflow).toContain('--write-out "%{http_code}"');
+    expect(stagingWorkflow).toContain(
+      "Neon branch backup request failed with HTTP"
+    );
     expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");
     expect(stagingWorkflow).not.toContain(
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
