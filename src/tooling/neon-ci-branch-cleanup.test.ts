@@ -93,7 +93,7 @@ describe("runCiNeonBranchCleanup", () => {
     const dryRun = await runCiNeonBranchCleanup({
       argv: ["--dry-run"],
       environment: {
-        NEON_API_KEY: "secret",
+        NEON_CI_API_KEY: "secret",
         NEON_CI_PROJECT_ID: "ci-project",
       },
       fetchImpl,
@@ -109,7 +109,7 @@ describe("runCiNeonBranchCleanup", () => {
       runCiNeonBranchCleanup({
         argv: ["--execute"],
         environment: {
-          NEON_API_KEY: "secret",
+          NEON_CI_API_KEY: "secret",
           NEON_CI_PROJECT_ID: "ci-project",
         },
         fetchImpl,
@@ -138,7 +138,7 @@ describe("runCiNeonBranchCleanup", () => {
       argv: ["--execute"],
       environment: {
         CI_NEON_CLEANUP_CONFIRMATION: "cleanup-ci-neon",
-        NEON_API_KEY: "secret",
+        NEON_CI_API_KEY: "secret",
         NEON_CI_PROJECT_ID: "ci-project",
       },
       fetchImpl,
@@ -191,7 +191,7 @@ describe("runCiNeonBranchCleanup", () => {
         argv: ["--execute"],
         environment: {
           CI_NEON_CLEANUP_CONFIRMATION: "cleanup-ci-neon",
-          NEON_API_KEY: "secret",
+          NEON_CI_API_KEY: "secret",
           NEON_CI_PROJECT_ID: "ci-project",
         },
         fetchImpl,
