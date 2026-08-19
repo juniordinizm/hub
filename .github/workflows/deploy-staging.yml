@@ -72,15 +72,30 @@ jobs:
           done
       - name: Set backup expiry
         run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+7 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
-      - name: Create Staging Neon backup
+      - name: Create Staging Neon backup without compute
         id: backup
-        uses: neondatabase/create-branch-action@fb620d43d4c565abaf088b848a4e28e5c4ea4d9c # v6.3.1
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
-          branch_name: staging-release-${{ github.run_id }}-${{ github.run_attempt }}
-          expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
-          parent_branch: ${{ vars.STAGING_NEON_BRANCH_ID }}
-          project_id: ${{ vars.STAGING_NEON_PROJECT_ID }}
+        env:
+          BACKUP_BRANCH_NAME: staging-release-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          payload="$(
+            jq -cn \
+              --arg branch_name "${BACKUP_BRANCH_NAME}" \
+              --arg parent_branch "${STAGING_NEON_BRANCH_ID}" \
+              --arg expires_at "${NEON_BACKUP_EXPIRES_AT}" \
+              '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at}}'
+          )"
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${NEON_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "${payload}" \
+              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches"
+          )"
+          branch_id="$(jq -er '.branch.id' <<< "${response}")"
+          echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"
       - name: Verify Staging Neon backup ancestry
         env:
           BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}

@@ -158,10 +158,22 @@ describe("CI workflow", () => {
     );
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
+    const neonProjectExpression = ["$", "{STAGING_NEON_PROJECT_ID}"].join("");
+    const branchOutputExpression = [
+      'echo "branch_id=',
+      "$",
+      '{branch_id}" >> "',
+      "$",
+      '{GITHUB_OUTPUT}"',
+    ].join("");
     expect(stagingWorkflow).toContain(
-      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
+      `https://console.neon.tech/api/v2/projects/${neonProjectExpression}/branches`
     );
-    expect(stagingWorkflow).not.toContain("\n          parent:");
+    expect(stagingWorkflow).toContain(
+      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at}"
+    );
+    expect(stagingWorkflow).toContain(branchOutputExpression);
+    expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");
     expect(stagingWorkflow).not.toContain(
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
     );
