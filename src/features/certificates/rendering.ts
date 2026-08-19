@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { formatDate } from "@/lib/formatters";
 import { createCertificatePdfDocument } from "./pdf-document";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { getCertificateValidationPath } from "./rules";
@@ -8,25 +9,39 @@ import { CERTIFICATE_PAGE } from "./template-rules";
 
 const pointsPerMillimeter = 72 / 25.4;
 
-const formatCertificateDate = (value: string): string =>
-  new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  }).format(new Date(value));
-
 const fieldValues = (
   snapshot: CertificateRenderSnapshot
 ): Record<string, string> => ({
-  completedAt: formatCertificateDate(snapshot.completion.completedAt),
-  courseFreeStatement: snapshot.issuer.courseFreeStatement,
+  completedAt: formatDate(snapshot.completion.completedAt),
   courseTitle: snapshot.course.title,
-  issuedAt: formatCertificateDate(snapshot.certificate.issuedAt),
+  issuedAt: formatDate(snapshot.certificate.issuedAt),
   issuerCnpj: snapshot.issuer.cnpj,
   issuerName: snapshot.issuer.displayName,
+  courseFreeStatement: snapshot.issuer.courseFreeStatement ?? "",
   signerName: snapshot.template.signerName ?? "",
+  signerRole: snapshot.template.signerRole ?? "",
   studentName: snapshot.student.name,
   validationCode: snapshot.certificate.code,
   workloadHours: `${snapshot.course.workloadHours} horas`,
 });
+
+const getVerticalTextOffset = ({
+  height,
+  measuredHeight,
+  verticalAlign,
+}: {
+  height: number;
+  measuredHeight: number;
+  verticalAlign: "top" | "middle" | "bottom" | undefined;
+}): number => {
+  if (verticalAlign === "top") {
+    return 0;
+  }
+  if (verticalAlign === "bottom") {
+    return Math.max(0, height - measuredHeight);
+  }
+  return Math.max(0, (height - measuredHeight) / 2);
+};
 
 export const renderCertificatePdf = async ({
   background,
@@ -52,8 +67,12 @@ export const renderCertificatePdf = async ({
   const pageHeight = CERTIFICATE_PAGE.height * pointsPerMillimeter;
   const document = createCertificatePdfDocument({
     info: {
+      Author: snapshot.issuer.displayName,
       CreationDate: new Date(snapshot.certificate.issuedAt),
+      Creator: "Hub",
+      Keywords: `certificado,verificacao,${snapshot.certificate.code}`,
       ModDate: new Date(snapshot.certificate.issuedAt),
+      Subject: `Certificado de conclusao: ${snapshot.course.title}`,
       Title: `Certificado ${snapshot.certificate.code}`,
     },
     layout: "landscape",
@@ -104,11 +123,20 @@ export const renderCertificatePdf = async ({
 
     const value = values[field.field];
     if (value) {
-      document
-        .font(field.font ?? "Helvetica")
-        .fillColor(field.color)
-        .fontSize(field.fontSize)
-        .text(value, x, y, { align: field.align, height, width });
+      document.font(field.font ?? "Helvetica").fontSize(field.fontSize);
+      const verticalOffset = getVerticalTextOffset({
+        height,
+        measuredHeight: document.heightOfString(value, {
+          align: field.align,
+          width,
+        }),
+        verticalAlign: field.verticalAlign,
+      });
+      document.fillColor(field.color).text(value, x, y + verticalOffset, {
+        align: field.align,
+        height,
+        width,
+      });
     }
   }
 

@@ -12,6 +12,7 @@ import {
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
+import { parseCourseWorkloadOverride } from "@/features/courses/workload";
 import {
   deleteJmvstreamAssetsForLesson,
   ensureJmvstreamCourseFolder,
@@ -68,9 +69,9 @@ interface CourseFormValues {
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
   priceInCents: number;
-  status: ContentStatus;
   subtitle: string | null;
   title: string;
+  workloadHoursOverride: number | null;
 }
 
 const readString = (formData: FormData, key: string): string =>
@@ -176,11 +177,13 @@ const readCourseFormValues = (formData: FormData): CourseFormValues => {
   return {
     accessDurationMonths: readNumber(formData, "accessDurationMonths", 12),
     description: readString(formData, "description") || null,
+    workloadHoursOverride: parseCourseWorkloadOverride(
+      readString(formData, "workloadHoursOverride")
+    ),
     paymentAllowCreditCard: paymentOffer.allowCreditCard,
     paymentAllowPix: paymentOffer.allowPix,
     paymentMaxInstallmentCount: paymentOffer.maxInstallmentCount,
     priceInCents: parseCoursePriceToCents(readString(formData, "price")),
-    status: readContentStatus(formData),
     subtitle: readString(formData, "subtitle") || null,
     title: readString(formData, "title"),
   };
@@ -332,7 +335,7 @@ const assertLessonTargetPublicationIsEditable = async ({
   throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
 };
 
-const assertLessonPublicationIsEditable = async (
+export const assertLessonPublicationIsEditable = async (
   lessonId: string
 ): Promise<void> => {
   const { rows } = await getPool().query<{ id: string }>(
@@ -349,6 +352,16 @@ const assertLessonPublicationIsEditable = async (
   if (!rows[0]) {
     throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
   }
+};
+
+const assertExistingLessonPublicationIsEditable = async (
+  lessonId: string
+): Promise<void> => {
+  if (!lessonId) {
+    return;
+  }
+
+  await assertLessonPublicationIsEditable(lessonId);
 };
 
 export const publishCoursePublication = async ({
@@ -422,11 +435,17 @@ export const publishCoursePublication = async ({
     await client.query(
       `
         update courses
-        set status = 'active',
-            workload_hours = (
-              select workload_hours_snapshot
-              from course_publications
-              where id = $1
+        set workload_hours = coalesce(
+              (
+                select workload_hours_override
+                from courses
+                where id = $2
+              ),
+              (
+                select workload_hours_snapshot
+                from course_publications
+                where id = $1
+              )
             ),
             updated_at = now()
         where id = $2
@@ -939,7 +958,18 @@ const updateExistingCourse = async ({
     uploadedCoverImage = coverFile ? coverImage : null;
     const thumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
 
-    if (values.status === PUBLISHED_CONTENT_STATUS) {
+    const publicationState = await getPool().query<{
+      should_publish: boolean;
+    }>(
+      `
+        select (status = 'active' or catalog_visibility = 'listed') as should_publish
+        from courses
+        where id = $1
+        limit 1
+      `,
+      [courseId]
+    );
+    if (publicationState.rows[0]?.should_publish) {
       await publishCourseCover(coverImage);
     } else {
       await cleanupPublishedCourseCover(coverImage);
@@ -947,25 +977,26 @@ const updateExistingCourse = async ({
 
     await getPool().query(
       `
-        update courses
-        set title = $1,
-            subtitle = $2,
-            description = $3,
-            price_in_cents = $4,
-            payment_allow_pix = $5,
-            payment_allow_credit_card = $6,
-            payment_max_installment_count = $7,
-            thumbnail_url = $8,
-            cover_image_json = $9::jsonb,
-            access_duration_months = $10,
-            status = $11,
-            updated_at = now()
-        where id = $12
+         update courses
+         set title = $1,
+             subtitle = $2,
+             description = $3,
+             workload_hours_override = $4,
+             price_in_cents = $5,
+             payment_allow_pix = $6,
+             payment_allow_credit_card = $7,
+             payment_max_installment_count = $8,
+             thumbnail_url = $9,
+             cover_image_json = $10::jsonb,
+             access_duration_months = $11,
+             updated_at = now()
+         where id = $12
       `,
       [
         values.title,
         values.subtitle,
         values.description,
+        values.workloadHoursOverride,
         values.priceInCents,
         values.paymentAllowPix,
         values.paymentAllowCreditCard,
@@ -973,7 +1004,6 @@ const updateExistingCourse = async ({
         thumbnailUrl,
         coverImage ? JSON.stringify(coverImage) : null,
         values.accessDurationMonths,
-        values.status,
         courseId,
       ]
     );
@@ -1033,10 +1063,12 @@ const createNewCourse = async ({
         insert into courses (
           id,
           slug,
-          title,
-          subtitle,
-          description,
-          price_in_cents,
+           title,
+           subtitle,
+           description,
+           workload_hours,
+           workload_hours_override,
+           price_in_cents,
           payment_allow_pix,
           payment_allow_credit_card,
           payment_max_installment_count,
@@ -1045,7 +1077,7 @@ const createNewCourse = async ({
           access_duration_months,
           status
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $12)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
         returning id
       `,
       [
@@ -1054,6 +1086,8 @@ const createNewCourse = async ({
         values.title,
         values.subtitle,
         values.description,
+        values.workloadHoursOverride ?? 0,
+        values.workloadHoursOverride,
         values.priceInCents,
         values.paymentAllowPix,
         values.paymentAllowCreditCard,
@@ -1073,9 +1107,9 @@ const createNewCourse = async ({
           title_snapshot,
           workload_hours_snapshot
         )
-        values ($1, 1, 'draft', $2, 0)
+         values ($1, 1, 'draft', $2, $3)
       `,
-      [inserted.rows[0]?.id, values.title]
+      [inserted.rows[0]?.id, values.title, values.workloadHoursOverride ?? 0]
     );
     await audit({
       action: "course.created",
@@ -1149,6 +1183,8 @@ export const saveCourse = async ({
   } else {
     await persistCourse(null);
   }
+
+  await recalculateCourseWorkloadHours(savedCourseId);
 
   await ensureJmvstreamCourseFolder(savedCourseId);
 
@@ -1290,6 +1326,8 @@ export const saveLesson = async ({
   lessonId: string;
 }> => {
   const existingLessonId = readString(formData, "lessonId");
+  await assertExistingLessonPublicationIsEditable(existingLessonId);
+
   let savedLessonId = existingLessonId;
   const contentJson = normalizeLessonContentFromForm({
     formData,

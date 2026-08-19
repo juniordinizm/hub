@@ -42,6 +42,7 @@ interface DataTableProps<TData, TValue> {
   emptyDescription?: string;
   emptyTitle?: string;
   searchPlaceholder?: string;
+  showSearch?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -49,6 +50,7 @@ export function DataTable<TData, TValue>({
   data,
   emptyTitle = "Nenhum resultado encontrado",
   emptyDescription = "Nenhum registro disponível.",
+  showSearch = true,
   searchPlaceholder = "Buscar...",
 }: DataTableProps<TData, TValue>): React.JSX.Element {
   const [globalFilter, setGlobalFilter] = useState("");
@@ -100,12 +102,16 @@ export function DataTable<TData, TValue>({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 px-5 pt-4 md:flex-row md:items-center md:justify-between">
-        <Input
-          className="max-w-sm"
-          onChange={(event) => setGlobalFilter(event.target.value)}
-          placeholder={searchPlaceholder}
-          value={globalFilter}
-        />
+        {showSearch ? (
+          <Input
+            className="max-w-sm"
+            onChange={(event) => setGlobalFilter(event.target.value)}
+            placeholder={searchPlaceholder}
+            value={globalFilter}
+          />
+        ) : (
+          <div />
+        )}
         <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <span>{filteredRowsCount} registro(s)</span>
           <Select

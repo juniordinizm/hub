@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Conteúdo, aprendizagem e progresso
@@ -18,6 +18,10 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 `createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` bloqueia o rascunho, rejeita vídeo JMVStream sem player, aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log na mesma transação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
 
+Publicar uma `CoursePublication` não altera visibilidade nem abre vendas. A
+disponibilidade comercial é uma decisão administrativa separada, conforme
+[ADR-0009](../adr/0009-course-availability-and-sale-interest.md).
+
 Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aula também tem uma chave curricular estável: ao clonar uma Aula para uma nova publicação, a chave é preservada e o `lesson_progress` anterior continua valendo; remover a Aula ou criar outra gera efeito no currículo vivo sem apagar histórico. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
 
 Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos Módulos afetados na mesma publicação em rascunho. Mover uma Aula entre Módulos renumera origem e destino em uma única transação; IDs de outra publicação ou Curso são rejeitados.
@@ -32,7 +36,17 @@ Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos M
 
 ### REG-LEA-004 Conclusão do Curso é histórica
 
-`CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão.
+`CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. `completeLesson` serializa por Conta e Curso, antes de gravar progresso e calcular o resumo; somente a transação que insere a primeira `CourseCompletion` pode disparar a emissão automática. Uma tentativa concorrente que encontra a conclusão existente não atualiza a linha e não tenta emitir Certificado ou gravar outbox. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão. Conclusões históricas sem Certificado só entram no fluxo por reconciliação confirmada de Admin, em lote limitado; não há backfill silencioso.
+
+### REG-LEA-004A Carga horária exibida
+
+O valor exibido no catálogo, na experiência da Aluna e no certificado é a
+carga horária efetiva do Curso. Sem override, ela é derivada pela soma das
+durações das Aulas da publicação e atualizada quando o conteúdo muda. Um
+administrador pode informar `courses.workload_hours_override` nas
+configurações do Curso para exibir outro total inteiro não negativo. Remover o
+valor manual retorna ao cálculo automático. Certificados já emitidos preservam
+o snapshot anterior.
 
 ### REG-LEA-005 Mídia e histórico
 

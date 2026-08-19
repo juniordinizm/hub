@@ -31,8 +31,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
 import {
   type AdminCourse,
+  type AdminCourseCatalogQuery,
   getAdminCourseCatalogData,
 } from "@/features/admin/server";
+import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
 import { formatCurrencyInCents } from "@/lib/formatters";
@@ -45,8 +47,8 @@ export const revalidate = 0;
 type CourseData = AdminCourse;
 
 const STATUS_MAP: Record<string, { color: string; label: string }> = {
-  active: {
-    label: "Ativo",
+  available: {
+    label: "Disponível",
     color:
       "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
   },
@@ -57,6 +59,15 @@ const STATUS_MAP: Record<string, { color: string; label: string }> = {
   },
   archived: {
     label: "Arquivado",
+    color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
+  },
+  coming_soon: {
+    label: "Em breve",
+    color:
+      "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  },
+  sales_paused: {
+    label: "Vendas pausadas",
     color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
   },
 };
@@ -71,8 +82,32 @@ const getInitials = (title: string): string =>
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
 
-export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
-  const data = await getAdminCourseCatalogData();
+interface AdminCoursesPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+const firstSearchParam = (
+  value: string | string[] | undefined
+): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+export default async function AdminCoursesPage({
+  searchParams,
+}: AdminCoursesPageProps): Promise<React.JSX.Element> {
+  const params = (await searchParams) ?? {};
+  const rawPage = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
+  const options: AdminCourseCatalogQuery = {
+    page: Number.isFinite(rawPage) ? rawPage : 1,
+    search: firstSearchParam(params.q),
+  };
+  const data = await getAdminCourseCatalogData(options);
+  const pageHref = (targetPage: number): string => {
+    const query = new URLSearchParams();
+    if (data.search) {
+      query.set("q", data.search);
+    }
+    query.set("page", String(targetPage));
+    return `/admin/cursos?${query.toString()}`;
+  };
 
   return (
     <PageContainer>
@@ -100,6 +135,22 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
             </DiscardAwareDialog>
           </div>
         </header>
+
+        <form
+          action="/admin/cursos"
+          className="flex max-w-xl gap-2"
+          method="get"
+        >
+          <input name="page" type="hidden" value="1" />
+          <Input
+            aria-label="Buscar cursos"
+            className="min-w-0 flex-1"
+            defaultValue={data.search}
+            name="q"
+            placeholder="Buscar por título, subtítulo ou slug"
+          />
+          <Button type="submit">Buscar</Button>
+        </form>
 
         <section className="flex flex-wrap gap-5">
           {data.courses.length === 0 ? (
@@ -135,22 +186,22 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
             </Empty>
           ) : (
             data.courses.map((course) => {
-              const courseModules = data.modules.filter(
-                (moduleData) => moduleData.courseId === course.id
-              );
-              const lessonsCount = data.lessons.filter((lesson) =>
-                courseModules.some(
-                  (moduleData) => moduleData.id === lesson.moduleId
-                )
-              ).length;
-              const statusInfo = STATUS_MAP[course.status] ?? {
-                label: course.status,
+              const availability = resolveCourseAvailability({
+                catalogVisibility: course.catalogVisibility,
+                deliveryStatus: course.status as
+                  | "active"
+                  | "archived"
+                  | "draft",
+                salesStatus: course.salesStatus,
+              });
+              const statusInfo = STATUS_MAP[availability.preset] ?? {
+                label: availability.preset,
                 color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
               };
 
               return (
                 <article
-                  className="group relative flex w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
+                  className="group relative flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
                   key={course.id}
                 >
                   <div className="absolute inset-0 z-0">
@@ -177,7 +228,7 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                     <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
                   </div>
 
-                  <div className="relative z-10 flex min-h-[260px] flex-col p-5 sm:p-6">
+                  <div className="relative z-10 flex min-h-0 flex-1 flex-col p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
                       <Badge className={statusInfo.color} variant="outline">
                         {statusInfo.label}
@@ -202,13 +253,14 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
                           ) : null}
                         </div>
                         <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
-                          {courseModules.length} módulos • {lessonsCount} aulas
+                          {course.moduleCount ?? 0} módulos •{" "}
+                          {course.lessonCount ?? 0} aulas
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="relative z-10 flex flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
+                  <div className="relative z-10 flex shrink-0 flex-col gap-5 p-5 pt-0 sm:p-6 sm:pt-0">
                     <div className="flex items-center justify-between text-muted-foreground text-xs">
                       <span>{course.accessDurationMonths}m acesso</span>
                       <span className="font-semibold text-foreground">
@@ -232,6 +284,20 @@ export default async function AdminCoursesPage(): Promise<React.JSX.Element> {
             })
           )}
         </section>
+
+        <div className="flex items-center justify-between border-t pt-4">
+          <span className="text-muted-foreground text-sm">
+            Página {data.page}
+          </span>
+          <div className="flex gap-2">
+            <Button asChild disabled={data.page <= 1} variant="outline">
+              <Link href={pageHref(Math.max(1, data.page - 1))}>Anterior</Link>
+            </Button>
+            <Button asChild disabled={!data.hasNextPage} variant="outline">
+              <Link href={pageHref(data.page + 1)}>Próxima</Link>
+            </Button>
+          </div>
+        </div>
       </div>
     </PageContainer>
   );

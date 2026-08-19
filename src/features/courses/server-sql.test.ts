@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  clientQuery,
+  connect,
   query,
+  release,
   resolveCourseAccess,
   resolveLessonAccess,
   syncJmvstreamLessonPlayer,
   getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
+  clientQuery: vi.fn(),
+  connect: vi.fn(),
   query: vi.fn(),
+  release: vi.fn(),
   resolveCourseAccess: vi.fn(),
   resolveLessonAccess: vi.fn(),
   syncJmvstreamLessonPlayer: vi.fn(),
@@ -15,7 +21,7 @@ const {
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
+vi.mock("@/db", () => ({ getPool: () => ({ connect, query }) }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveCourseAccess,
   resolveLessonAccess,
@@ -28,6 +34,8 @@ vi.mock("@/features/jmvstream/asset-persistence", () => ({
 }));
 
 import {
+  completeLesson,
+  getStudentCourseCatalog,
   getStudentCourseOverview,
   getStudentLessonWorkspace,
   recalculateCourseWorkloadHours,
@@ -45,6 +53,9 @@ const createCourseOverviewRow = ({
   lessonSortOrder: number;
 }) => ({
   certificate_code: "CERT-1",
+  certificate_enabled: true,
+  certificate_render_status: "ready",
+  certificate_status: "valid",
   completed_at: completedAt,
   course_description: "Description",
   course_id: "course-1",
@@ -102,6 +113,7 @@ const createLessonRow = ({
 
 beforeEach(() => {
   vi.resetAllMocks();
+  connect.mockResolvedValue({ query: clientQuery, release });
   resolveCourseAccess.mockResolvedValue(true);
   resolveLessonAccess.mockResolvedValue(true);
   syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
@@ -109,6 +121,51 @@ beforeEach(() => {
 });
 
 describe("student experience reads", () => {
+  it("lists catalog-visible Courses and preserves hidden Courses with effective access", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          access_status: "none",
+          catalog_visibility: "listed",
+          completed_at: null,
+          cover_image_json: null,
+          course_description: "Description",
+          course_id: "course-1",
+          course_status: "draft",
+          duration_seconds: 0,
+          expires_at: null,
+          is_enrolled: false,
+          is_interested: true,
+          launch_date: "2026-10-01",
+          launch_landing_url: null,
+          lesson_id: null,
+          price_in_cents: 10_000,
+          revoked_reason: null,
+          sales_status: "closed",
+          slug: "course-one",
+          subtitle: "Subtitle",
+          thumbnail_url: null,
+          title: "Course one",
+          workload_hours: 0,
+        },
+      ],
+    });
+
+    await expect(getStudentCourseCatalog("student-1")).resolves.toEqual([
+      expect.objectContaining({
+        availabilityPreset: "coming_soon",
+        isInterested: true,
+        launchDate: "2026-10-01",
+      }),
+    ]);
+    expect(query.mock.calls[0]?.[0]).toContain(
+      "c.catalog_visibility = 'listed'"
+    );
+    expect(query.mock.calls[0]?.[0]).toContain("or (");
+    expect(query.mock.calls[0]?.[0]).toContain("e.status = 'active'");
+    expect(query.mock.calls[0]?.[0]).not.toContain("where c.status = 'active'");
+  });
+
   it("stores workload on the editable publication without summing retired content", async () => {
     query.mockImplementation((sql: string) => {
       if (sql.includes("from course_publications")) {
@@ -156,6 +213,7 @@ describe("student experience reads", () => {
     ]);
     expect(overview).toMatchObject({
       certificateCode: "CERT-1",
+      certificateStatus: "valid",
       completedCount: 1,
       course: { expiresAt, id: "course-1" },
       isPreview: false,
@@ -174,6 +232,57 @@ describe("student experience reads", () => {
     );
   });
 
+  it("projects the latest revoked certificate when no valid reissue exists", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...createCourseOverviewRow({
+            completedAt: new Date("2026-01-01T00:00:00.000Z"),
+            lessonId: "lesson-1",
+            lessonSortOrder: 1,
+          }),
+          certificate_code: "CERT-REVOKED",
+          certificate_status: "revoked",
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(overview).toMatchObject({
+      certificateCode: "CERT-REVOKED",
+      certificateStatus: "revoked",
+    });
+  });
+
+  it("selects a valid reissue before revoked certificate history", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createCourseOverviewRow({
+          completedAt: new Date("2026-01-01T00:00:00.000Z"),
+          lessonId: "lesson-1",
+          lessonSortOrder: 1,
+        }),
+      ],
+    });
+
+    await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    const sql = query.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("left join lateral");
+    expect(sql).toContain(
+      "case when certificate.status = 'valid' then 0 else 1 end"
+    );
+    expect(sql).toContain("certificate.issued_at desc");
+    expect(sql).not.toContain("and cert.status = 'valid'");
+  });
+
   it("assembles the same Course overview intent as an unrestricted admin preview", async () => {
     query.mockResolvedValue({
       rows: [
@@ -190,6 +299,7 @@ describe("student experience reads", () => {
     expect(query).toHaveBeenCalledWith(expect.any(String), ["course-1"]);
     expect(overview).toMatchObject({
       certificateCode: null,
+      certificateStatus: null,
       completedCount: 0,
       isPreview: true,
       nextLessonId: "lesson-1",
@@ -218,6 +328,26 @@ describe("student experience reads", () => {
     ).resolves.toBeNull();
 
     expect(syncJmvstreamLessonPlayer).not.toHaveBeenCalled();
+  });
+
+  it("marks the immediate next lesson as unavailable until the current lesson is completed", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 }),
+        createLessonRow({ lessonId: "lesson-2", lessonSortOrder: 2 }),
+      ],
+    });
+
+    const workspace = await getStudentLessonWorkspace({
+      lessonId: "lesson-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(workspace).toMatchObject({ nextLessonId: "lesson-2" });
+    expect(workspace?.modules[0]?.lessons).toMatchObject([
+      { id: "lesson-1", isAvailable: true },
+      { id: "lesson-2", isAvailable: false },
+    ]);
   });
 
   it("resolves JMVStream video through the lesson workspace interface", async () => {
@@ -299,5 +429,53 @@ describe("student experience reads", () => {
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: true },
     ]);
+  });
+});
+
+describe("course completion writes", () => {
+  it("locks the certificate lifecycle before progress and completion summary writes", async () => {
+    query.mockResolvedValue({
+      rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
+    });
+    clientQuery.mockImplementation((sql: string) => {
+      if (sql.includes("count(l.id) filter")) {
+        return {
+          rows: [
+            {
+              certificate_id: null,
+              completed_lessons: 0,
+              course_publication_id: "publication-1",
+              course_title: "Course one",
+              student_name: "Aluna Teste",
+              total_lessons: 0,
+              workload_hours: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes("insert into lesson_progress")) {
+        return { rowCount: 0, rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      completeLesson({ userId: "student-1", lessonId: "lesson-1" })
+    ).resolves.toMatchObject({ certificateIssued: false });
+
+    const statements = clientQuery.mock.calls.map(([sql]) => sql as string);
+    const lockIndex = statements.findIndex((sql) =>
+      sql.includes("pg_advisory_xact_lock")
+    );
+    const progressIndex = statements.findIndex((sql) =>
+      sql.includes("insert into lesson_progress")
+    );
+    const summaryIndex = statements.findIndex((sql) =>
+      sql.includes("count(l.id) filter")
+    );
+
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(progressIndex).toBeGreaterThan(lockIndex);
+    expect(summaryIndex).toBeGreaterThan(progressIndex);
   });
 });

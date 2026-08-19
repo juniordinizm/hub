@@ -1,4 +1,37 @@
 import { getLessonContentReadiness } from "@/features/courses/lesson-content";
+import type { CoursePurchaseLink } from "@/features/payments/course-purchase-link";
+
+export type AdminCourseActionTab = "content" | "settings";
+
+export type AdminCourseOperationalStateKey =
+  | "identity_incomplete"
+  | "content_incomplete"
+  | "publication_missing"
+  | "commercial_incomplete"
+  | "course_inactive"
+  | "checkout_unavailable"
+  | "changes_pending"
+  | "ready";
+
+export interface AdminCourseOperationalState {
+  actionLabel: string | null;
+  actionTab: AdminCourseActionTab | null;
+  description: string;
+  key: AdminCourseOperationalStateKey;
+  label: string;
+  tone: "attention" | "healthy" | "watch";
+}
+
+interface AdminCourseOperationalStateInput {
+  hasDescription: boolean;
+  hasDraft: boolean;
+  hasPublished: boolean;
+  hasReadyLesson: boolean;
+  hasThumbnail: boolean;
+  moduleCount: number;
+  purchaseLink: CoursePurchaseLink;
+  status: string;
+}
 
 export interface AdminCourseHealthInput {
   hasDescription: boolean;
@@ -101,6 +134,149 @@ export interface AdminCourseContentSignal {
   label: string;
   tone: "attention" | "healthy" | "watch";
 }
+
+const getMissingIdentityDescription = ({
+  hasDescription,
+  hasThumbnail,
+}: Pick<
+  AdminCourseOperationalStateInput,
+  "hasDescription" | "hasThumbnail"
+>): string => {
+  if (!(hasDescription || hasThumbnail)) {
+    return "Adicione a descrição e a capa do Curso.";
+  }
+
+  if (!hasDescription) {
+    return "Adicione a descrição do Curso.";
+  }
+
+  return "Adicione a capa do Curso.";
+};
+
+const assertNever = (value: never): never => {
+  throw new Error(`Unhandled Course purchase issue: ${value}`);
+};
+
+export const getAdminCourseOperationalState = ({
+  hasDescription,
+  hasDraft,
+  hasPublished,
+  hasReadyLesson,
+  hasThumbnail,
+  moduleCount,
+  purchaseLink,
+  status,
+}: AdminCourseOperationalStateInput): AdminCourseOperationalState => {
+  const purchaseIssue = purchaseLink.available ? null : purchaseLink.reason;
+
+  if (!(hasDescription && hasThumbnail)) {
+    return {
+      actionLabel: "Completar configurações",
+      actionTab: "settings",
+      description: getMissingIdentityDescription({
+        hasDescription,
+        hasThumbnail,
+      }),
+      key: "identity_incomplete",
+      label: "Identidade incompleta",
+      tone: "attention",
+    };
+  }
+
+  if (moduleCount <= 0 || !hasReadyLesson) {
+    return {
+      actionLabel: "Organizar conteúdo",
+      actionTab: "content",
+      description:
+        moduleCount <= 0
+          ? "Crie um Módulo para organizar o conteúdo do Curso."
+          : "Prepare ao menos uma Aula com conteúdo para publicação.",
+      key: "content_incomplete",
+      label: "Conteúdo incompleto",
+      tone: "attention",
+    };
+  }
+
+  if (!hasPublished || purchaseIssue === "course_unpublished") {
+    return {
+      actionLabel: "Publicar conteúdo",
+      actionTab: "content",
+      description: "Publique o conteúdo do Curso para disponibilizá-lo.",
+      key: "publication_missing",
+      label: "Publicação pendente",
+      tone: "attention",
+    };
+  }
+
+  if (purchaseIssue === "invalid_price") {
+    return {
+      actionLabel: "Revisar oferta",
+      actionTab: "settings",
+      description: "Revise o preço do Curso para liberar a oferta.",
+      key: "commercial_incomplete",
+      label: "Oferta incompleta",
+      tone: "attention",
+    };
+  }
+
+  if (status !== "active" || purchaseIssue === "course_inactive") {
+    return {
+      actionLabel: "Revisar publicação",
+      actionTab: "settings",
+      description: "Ative o Curso para disponibilizar sua publicação e oferta.",
+      key: "course_inactive",
+      label: "Curso inativo",
+      tone: "attention",
+    };
+  }
+
+  if (purchaseIssue === "checkout_disabled") {
+    return {
+      actionLabel: null,
+      actionTab: null,
+      description: "O checkout não está disponível no ambiente atual.",
+      key: "checkout_unavailable",
+      label: "Checkout indisponível",
+      tone: "watch",
+    };
+  }
+
+  if (purchaseIssue === "sales_closed") {
+    return {
+      actionLabel: "Revisar disponibilidade",
+      actionTab: "settings",
+      description:
+        "O Curso preserva os acessos atuais, mas não aceita novas compras.",
+      key: "course_inactive",
+      label: "Vendas pausadas",
+      tone: "watch",
+    };
+  }
+
+  if (purchaseIssue !== null) {
+    return assertNever(purchaseIssue);
+  }
+
+  if (hasDraft) {
+    return {
+      actionLabel: "Revisar alterações",
+      actionTab: "content",
+      description: "O Curso está disponível, mas há alterações em preparo.",
+      key: "changes_pending",
+      label: "Alterações em preparo",
+      tone: "watch",
+    };
+  }
+
+  return {
+    actionLabel: null,
+    actionTab: null,
+    description: "O Curso está disponível e não possui alterações pendentes.",
+    key: "ready",
+    label: "Curso publicado",
+    tone: "healthy",
+  };
+};
 
 const COURSE_HEALTH_CHECK_COUNT = 4;
 const EXPIRING_ACCESS_DAYS = 30;
@@ -360,19 +536,19 @@ export const getAdminCourseContentSignal = ({
     return {
       tone: "attention",
       label: "Sem aulas",
-      helper: "Crie a primeira aula antes de colocar este curso a venda.",
+      helper: "Crie a primeira aula antes de colocar este Curso à venda.",
     };
   }
 
   if (withoutContentLessons > 0) {
     return {
       tone: "attention",
-      label: "Aulas sem conteudo",
+      label: "Aulas sem conteúdo",
       helper: `${withoutContentLessons} aula${
         withoutContentLessons === 1 ? "" : "s"
       } publicada${
         withoutContentLessons === 1 ? "" : "s"
-      } ainda precisa de conteudo.`,
+      } ainda precisa de conteúdo.`,
     };
   }
 
@@ -382,15 +558,15 @@ export const getAdminCourseContentSignal = ({
       label: "Rascunhos pendentes",
       helper: `${draftLessons} aula${
         draftLessons === 1 ? "" : "s"
-      } ainda nao aparece para alunos.`,
+      } ainda não aparece para alunos.`,
     };
   }
 
   if (emptyModules > 0) {
     return {
       tone: "watch",
-      label: "Modulos vazios",
-      helper: `${emptyModules} modulo${
+      label: "Módulos vazios",
+      helper: `${emptyModules} módulo${
         emptyModules === 1 ? "" : "s"
       } sem aulas pode confundir a estrutura do curso.`,
     };
@@ -398,7 +574,7 @@ export const getAdminCourseContentSignal = ({
 
   return {
     tone: "healthy",
-    label: "Conteudo pronto",
-    helper: "Aulas publicadas, com video e organizadas em modulos.",
+    label: "Conteúdo pronto",
+    helper: "Aulas publicadas, com vídeo e organizadas em módulos.",
   };
 };

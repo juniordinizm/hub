@@ -4,6 +4,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1073.0",
     "@better-auth/infra": "0.3.4",
     "@better-auth/utils": "0.4.2",
+    "@date-fns/tz": "^1.5.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -81,6 +82,7 @@
     "test:e2e:seed": "bun --conditions=react-server scripts/seed-e2e.ts",
     "test:e2e:teardown": "bun --conditions=react-server scripts/teardown-e2e.ts",
     "docs:check": "bun scripts/check-docs.ts",
+    "check:resend-templates": "bun scripts/check-resend-templates.ts",
     "typecheck": "tsc --noEmit",
     "check": "ultracite check",
     "fix": "ultracite fix",
@@ -108,6 +110,9 @@
     "db:smoke:empty": "bun scripts/smoke-empty-database.ts",
     "storage:publish-active-course-covers": "bun --conditions=react-server scripts/publish-active-course-covers.ts",
     "db:studio": "drizzle-kit studio",
+    "ops:recovery:evidence": "bun scripts/observability-recovery-drill.ts --dry-run",
+    "ops:audit:buyer-identities": "bun scripts/audit-buyer-identities.ts --summary",
+    "ops:cleanup:ci-neon": "bun scripts/cleanup-ci-neon-branches.ts",
     "prepare": "bun scripts/install-git-hooks.ts"
   },
   "version": "0.1.0",
@@ -118,13 +123,17 @@
     "unrs-resolver"
   ],
   "overrides": {
-    "brace-expansion": "5.0.8",
+    "@hono/node-server": "2.1.0",
+    "brace-expansion": "5.0.9",
     "esbuild": "0.28.1",
-    "fast-uri": "3.1.4",
-    "hono": "4.12.27",
-    "postcss": "8.5.23",
+    "fast-uri": "3.1.5",
+    "hono": "4.13.1",
+    "ip-address": "10.4.0",
+    "js-yaml": "4.3.1",
+    "nanoid": "3.3.18",
+    "postcss": "8.5.26",
     "sharp": "0.35.3",
-    "undici": "7.28.0"
+    "undici": "7.29.0"
   },
   "trustedDependencies": [
     "esbuild",

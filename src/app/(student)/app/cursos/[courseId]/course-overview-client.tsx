@@ -114,7 +114,7 @@ export function CourseOverviewClient({
   return (
     <>
       {continueWatchingLessons.length > 0 && (
-        <section className="mt-8 rounded-xl border border-border/50 bg-muted/20 px-6 py-6 sm:px-8">
+        <section className="mt-8 rounded-xl border border-border/50 bg-muted/20 px-6 pt-4">
           <div>
             <h2 className="font-bold text-xl tracking-tight">
               {previewMode ? "Preview da trilha" : "Continuar assistindo"}
@@ -160,10 +160,7 @@ export function CourseOverviewClient({
               <div className="flex flex-col" key={moduleData.id}>
                 <div className="mb-4 flex flex-col justify-between gap-4 md:flex-row md:items-end">
                   <div>
-                    <h3 className="font-semibold text-muted-foreground text-sm uppercase">
-                      Módulo {moduleData.sortOrder}
-                    </h3>
-                    <h4 className="font-bold text-xl">{moduleData.title}</h4>
+                    <h3 className="font-bold text-xl">{moduleData.title}</h3>
                     {moduleData.description && (
                       <p className="mt-2 max-w-2xl text-muted-foreground text-sm">
                         {moduleData.description}

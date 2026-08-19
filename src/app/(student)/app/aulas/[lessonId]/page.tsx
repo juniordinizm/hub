@@ -11,6 +11,7 @@ import {
   FileImageIcon,
   FileLinkIcon,
   Pdf01Icon,
+  SquareLock02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Route } from "next";
@@ -26,6 +27,7 @@ import {
 import { LessonRichTextRenderer } from "@/components/lesson-rich-text-renderer";
 import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { LessonVideoProcessing } from "@/components/lesson-video-processing";
+import { LockedNavigationCard } from "@/components/locked-lesson-tooltip";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,6 +78,7 @@ interface LessonSearchParams {
 }
 interface LessonWithModule {
   id: string;
+  isAvailable: boolean;
   moduleTitle: string;
   title: string;
 }
@@ -211,6 +214,7 @@ function getLessonsWithModule(data: LessonPageData): LessonWithModule[] {
   return data.modules.flatMap((module) =>
     module.lessons.map((lesson) => ({
       id: lesson.id,
+      isAvailable: lesson.isAvailable,
       moduleTitle: module.title,
       title: lesson.title,
     }))
@@ -288,7 +292,9 @@ function LessonMainContent({
           {data.lesson.contentJson ? (
             <LessonContentFrame lesson={data.lesson} />
           ) : null}
-          <div className="mx-auto w-full max-w-5xl py-7">{footer}</div>
+          <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-0">
+            {footer}
+          </div>
         </LessonVideoPlayer>
         {commentsSection}
       </div>
@@ -301,14 +307,14 @@ function LessonMainContent({
         {header}
         {materialUnavailableAlert}
         {mobileCourseNavigation}
-        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
+        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:px-0">
           <LessonVideoProcessing
             courseTitle={data.course.title}
             state={data.lesson.videoProcessingState ?? "processing"}
           />
         </div>
         <LessonContentFrame lesson={data.lesson} />
-        <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
+        <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-0">
           {footer}
         </div>
         {commentsSection}
@@ -322,7 +328,7 @@ function LessonMainContent({
       {materialUnavailableAlert}
       {mobileCourseNavigation}
       <LessonContentFrame lesson={data.lesson} />
-      <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-10">
+      <div className="mx-auto w-full max-w-5xl px-5 py-7 sm:px-8 lg:px-0">
         {footer}
       </div>
       {commentsSection}
@@ -332,7 +338,7 @@ function LessonMainContent({
 
 function LessonMaterialUnavailableAlert(): React.JSX.Element {
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 sm:px-8 lg:px-10">
+    <div className="mx-auto w-full max-w-5xl px-5 sm:px-8 lg:px-0">
       <div
         className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm"
         role="alert"
@@ -352,38 +358,39 @@ function LessonHeader({
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
   return (
-    <div className="mx-auto w-full max-w-5xl py-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-medium text-foreground text-lg tracking-normal">
+    <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-8 lg:px-0">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
+          <h1 className="min-w-0 flex-1 break-words font-medium text-foreground text-lg leading-snug tracking-normal">
             {data.lesson.title}
           </h1>
-          {data.lesson.description ? (
-            <p className="mt-1 truncate font-light text-muted-foreground text-sm">
-              {data.lesson.description}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <LessonFocusToggle />
-          {data.lesson.isCompleted ? (
-            <Button className="gap-2" disabled size="sm" variant="secondary">
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                size={16}
-                strokeWidth={2}
+          <div className="flex shrink-0 items-center justify-end gap-2">
+            <LessonFocusToggle />
+            {data.lesson.isCompleted ? (
+              <Button className="gap-2" disabled size="sm" variant="secondary">
+                <HugeiconsIcon
+                  icon={CheckmarkCircle02Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
+                Aula concluída
+              </Button>
+            ) : (
+              <CompleteLessonButton
+                accessibleLabel="Concluir aula no cabeçalho"
+                isPreview={Boolean(previewMode)}
+                lessonId={data.lesson.id}
+                size="sm"
               />
-              Aula concluída
-            </Button>
-          ) : (
-            <CompleteLessonButton
-              accessibleLabel="Concluir aula no cabeçalho"
-              isPreview={Boolean(previewMode)}
-              lessonId={data.lesson.id}
-              size="sm"
-            />
-          )}
+            )}
+          </div>
         </div>
+
+        {data.lesson.description ? (
+          <p className="w-full break-words font-light text-muted-foreground text-sm leading-normal">
+            {data.lesson.description}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -398,18 +405,22 @@ function LessonFooter({
   lessonView: ReturnType<typeof getLessonViewState>;
   previewMode: StudentPreviewMode | null;
 }): React.JSX.Element {
+  const hasContent = Boolean(data.lesson.contentJson);
+
   return (
     <div className="flex flex-col gap-6">
-      <LessonNextStepCard
-        courseHref={lessonView.courseHref}
-        isCompleted={data.lesson.isCompleted}
-        isPreview={Boolean(previewMode)}
-        lessonId={data.lesson.id}
-        nextLessonId={data.nextLessonId}
-        previewMode={previewMode}
-      />
+      {hasContent || data.lesson.isCompleted ? (
+        <LessonNextStepCard
+          courseHref={lessonView.courseHref}
+          isCompleted={data.lesson.isCompleted}
+          isPreview={Boolean(previewMode)}
+          lessonId={data.lesson.id}
+          nextLessonId={data.nextLessonId}
+          previewMode={previewMode}
+        />
+      ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
         <NavigationCard
           lesson={lessonView.previousLesson}
           previewMode={previewMode}
@@ -436,7 +447,7 @@ function LessonContentFrame({
     const { document } = lesson.contentJson;
 
     return (
-      <article className="px-5 py-8 sm:px-8 lg:px-10">
+      <article className="px-5 py-8 sm:px-8 lg:px-0">
         <div className="mx-auto flex max-w-5xl flex-col gap-8">
           <div className="text-base leading-8">
             <LessonRichTextRenderer document={document} />
@@ -448,7 +459,7 @@ function LessonContentFrame({
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-8 lg:px-10">
+    <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-8 lg:px-0">
       Conteudo em configuracao.
     </div>
   );
@@ -744,7 +755,7 @@ function LessonCourseSidebar({
   progressPercent: number;
 }): React.JSX.Element {
   return (
-    <aside aria-label="Conteúdo do curso">
+    <aside aria-label="Conteúdo do curso" className="h-full">
       <Sidebar
         className="hidden h-full w-[340px] shrink-0 border-l-0 lg:flex"
         collapsible="none"
@@ -829,10 +840,10 @@ function LessonCourseOutline({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-2 py-2">
+    <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
       {modules.map((module) => (
         <SidebarGroup key={module.id}>
-          <SidebarGroupLabel>Módulo {module.sortOrder}</SidebarGroupLabel>
+          <SidebarGroupLabel>{module.title}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {module.lessons.map((lesson) => (
@@ -903,19 +914,19 @@ function NavigationCard({
     return (
       <div
         className={cn(
-          "flex flex-col rounded-xl border bg-card p-4 text-foreground",
+          "flex min-w-0 select-none flex-col rounded-xl border border-border bg-muted/30 p-3 text-muted-foreground sm:p-4",
           type === "previous" ? "items-start text-left" : "items-end text-right"
         )}
       >
         <span
           className={cn(
-            "flex min-w-0 flex-col",
+            "flex w-full min-w-0 flex-col",
             type === "previous"
               ? "items-start text-left"
               : "items-end text-right"
           )}
         >
-          <span className="flex items-center gap-1.5 text-foreground text-xs">
+          <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
             {type === "previous" && (
               <HugeiconsIcon
                 className="shrink-0"
@@ -924,7 +935,7 @@ function NavigationCard({
                 strokeWidth={2}
               />
             )}
-            {label}
+            <span className="truncate">{label}</span>
             {type === "next" && (
               <HugeiconsIcon
                 className="shrink-0"
@@ -934,7 +945,7 @@ function NavigationCard({
               />
             )}
           </span>
-          <span className="mt-1 block font-medium text-sm">
+          <span className="mt-1 block w-full truncate font-semibold text-muted-foreground text-sm">
             {type === "previous" ? "Você está no início" : "Fim da trilha"}
           </span>
         </span>
@@ -942,11 +953,15 @@ function NavigationCard({
     );
   }
 
+  if (type === "next" && !lesson.isAvailable) {
+    return <LockedNavigationCard label={label} title={lesson.title} />;
+  }
+
   return (
     <Button
       asChild
       className={cn(
-        "h-auto rounded-xl p-4",
+        "h-auto min-w-0 rounded-xl p-3 sm:p-4",
         type === "previous"
           ? "justify-start text-left"
           : "justify-end text-right"
@@ -954,19 +969,20 @@ function NavigationCard({
       variant="outline"
     >
       <Link
+        className="min-w-0"
         href={route(
           getPreviewAwareHref(`/app/aulas/${lesson.id}`, previewMode)
         )}
       >
         <span
           className={cn(
-            "flex min-w-0 flex-1 flex-col",
+            "flex w-full min-w-0 flex-1 flex-col",
             type === "previous"
               ? "items-start text-left"
               : "items-end text-right"
           )}
         >
-          <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
+          <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
             {type === "previous" && (
               <HugeiconsIcon
                 className="shrink-0"
@@ -975,7 +991,7 @@ function NavigationCard({
                 strokeWidth={2}
               />
             )}
-            {label}
+            <span className="truncate">{label}</span>
             {type === "next" && (
               <HugeiconsIcon
                 className="shrink-0"
@@ -985,7 +1001,7 @@ function NavigationCard({
               />
             )}
           </span>
-          <span className="mt-1 block w-full truncate font-semibold">
+          <span className="mt-1 block w-full truncate font-semibold text-foreground text-sm">
             {lesson.title}
           </span>
         </span>
@@ -1006,19 +1022,21 @@ function LessonSidebarItem({
   const marker = getLessonMarker(lesson);
   const content = (
     <>
-      <span className="w-4 text-sidebar-foreground text-xs">{marker}</span>
+      <span className="flex size-4 shrink-0 items-center justify-center text-xs">
+        {marker}
+      </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate">
           {lesson.isCompleted ? "Concluída · " : ""}
           {lesson.title}
         </span>
         {lesson.isAvailable ? null : (
-          <span className="block text-sidebar-foreground text-xs">
+          <span className="block text-sidebar-foreground/70 text-xs">
             Libere concluindo a aula anterior
           </span>
         )}
       </span>
-      <span className="ml-auto text-sidebar-foreground text-xs">
+      <span className="ml-auto text-xs">
         {formatLessonDuration(lesson.durationSeconds)}
       </span>
     </>
@@ -1027,7 +1045,7 @@ function LessonSidebarItem({
   if (!lesson.isAvailable) {
     return (
       <SidebarMenuItem>
-        <div className="flex min-h-9 items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground text-sm">
+        <div className="flex min-h-9 select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/70 text-sm">
           {content}
         </div>
       </SidebarMenuItem>
@@ -1053,7 +1071,7 @@ function getLessonMarker({
 }: {
   isAvailable: boolean;
   isCompleted: boolean;
-}): string {
+}): React.ReactNode {
   if (isCompleted) {
     return "✓";
   }
@@ -1062,5 +1080,5 @@ function getLessonMarker({
     return "•";
   }
 
-  return "–";
+  return <HugeiconsIcon icon={SquareLock02Icon} size={14} strokeWidth={2} />;
 }

@@ -209,6 +209,10 @@ export default async function AdminFinancePage({
     session.role,
     "manageFinancialOperations"
   );
+  const canManageFinancialReviews = canPerform(
+    session.role,
+    "manageFinancialReviews"
+  );
   const recentOrders = data.orders;
   const recentCertificates = data.certificates.slice(0, 6);
   const pendingBuyerIdentityReviewOrderIds = new Set(
@@ -559,7 +563,7 @@ export default async function AdminFinancePage({
             {data.paymentReviews.length ? (
               data.paymentReviews.map((review) => (
                 <PaymentReviewOperation
-                  canResolveTerminalConflicts={session.role === "admin"}
+                  canManageFinancialReviews={canManageFinancialReviews}
                   key={review.id}
                   review={review}
                 />

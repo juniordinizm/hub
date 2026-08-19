@@ -13,6 +13,7 @@ const dependencies = vi.hoisted(() => ({
   reconcileAsaasPayment: vi.fn(),
   requirePermission: vi.fn(),
   requireSession: vi.fn(),
+  resolvePaymentReview: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({ redirect: dependencies.redirect }));
@@ -37,7 +38,7 @@ vi.mock("@/features/payments/asaas-webhook-worker", () => ({
   requeueFailedAsaasWebhook: vi.fn(),
 }));
 vi.mock("@/features/payments/payment-reviews", () => ({
-  resolvePaymentReview: vi.fn(),
+  resolvePaymentReview: dependencies.resolvePaymentReview,
 }));
 vi.mock("@/lib/auth-permissions", () => ({
   requirePermission: dependencies.requirePermission,
@@ -52,6 +53,7 @@ vi.mock("@/lib/session", () => ({
 import {
   importAsaasStatementAction,
   reconcileAsaasPaymentAction,
+  resolvePaymentReviewAction,
   startCourseCheckoutAction,
 } from "./actions";
 
@@ -212,14 +214,20 @@ describe("financial mutation actions", () => {
 
   it("requires mutable financial access to import a statement", async () => {
     dependencies.importAsaasFinancialStatement.mockResolvedValue({
-      imported: 2,
+      completed: true,
+      inserted: 2,
+      resumedFromOffset: 0,
+      updated: 1,
     });
     const form = new FormData();
     form.set("startDate", "2026-07-01");
     form.set("finishDate", "2026-07-30");
 
     await expect(importAsaasStatementAction(form)).resolves.toEqual({
-      imported: 2,
+      completed: true,
+      inserted: 2,
+      resumedFromOffset: 0,
+      updated: 1,
     });
     expect(dependencies.requirePermission).toHaveBeenCalledWith(
       "manageFinancialOperations"
@@ -228,6 +236,25 @@ describe("financial mutation actions", () => {
       actorUserId: "admin-user",
       finishDate: "2026-07-30",
       startDate: "2026-07-01",
+    });
+  });
+
+  it("requires mutable review access to resolve a payment review", async () => {
+    const form = new FormData();
+    form.set("reviewId", ATTEMPT_ID);
+    form.set("decision", "rejected");
+    form.set("decisionReason", "evidencia insuficiente");
+
+    await resolvePaymentReviewAction(form);
+
+    expect(dependencies.requirePermission).toHaveBeenCalledWith(
+      "manageFinancialReviews"
+    );
+    expect(dependencies.resolvePaymentReview).toHaveBeenCalledWith({
+      actorUserId: "admin-user",
+      decision: "rejected",
+      decisionReason: "evidencia insuficiente",
+      reviewId: ATTEMPT_ID,
     });
   });
 });

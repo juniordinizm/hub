@@ -41,7 +41,6 @@ export const GET = async (request: Request): Promise<Response> => {
     },
     failureErrorCode: "outbox_worker_failed",
     operation: "cron.outbox",
-    provider: "resend",
   });
 
   return NextResponse.json({ ok: true, ...result });

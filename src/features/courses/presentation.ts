@@ -55,6 +55,7 @@ export interface CoursePublicationReadiness {
 
 export interface StudentCatalogCourseGroupingInput {
   accessStatus: StudentCatalogAccessStatus;
+  availabilityPreset: CourseAvailabilityPreset;
   progressPercent: number;
 }
 
@@ -62,8 +63,10 @@ export interface StudentCatalogCourseGroups<
   TCourse extends StudentCatalogCourseGroupingInput,
 > {
   active: TCourse[];
+  comingSoon: TCourse[];
   completed: TCourse[];
   locked: TCourse[];
+  salesPaused: TCourse[];
 }
 
 const getDaysUntil = (date: Date, now: Date): number =>
@@ -162,21 +165,33 @@ export const groupStudentCatalogCourses = <
   const groups: StudentCatalogCourseGroups<TCourse> = {
     active: [],
     completed: [],
+    comingSoon: [],
     locked: [],
+    salesPaused: [],
   };
 
   for (const course of courses) {
-    if (course.accessStatus !== "active") {
-      groups.locked.push(course);
+    if (course.accessStatus === "active") {
+      if (course.progressPercent >= 100) {
+        groups.completed.push(course);
+        continue;
+      }
+
+      groups.active.push(course);
       continue;
     }
 
-    if (course.progressPercent >= 100) {
-      groups.completed.push(course);
+    if (course.availabilityPreset === "coming_soon") {
+      groups.comingSoon.push(course);
       continue;
     }
 
-    groups.active.push(course);
+    if (course.availabilityPreset === "sales_paused") {
+      groups.salesPaused.push(course);
+      continue;
+    }
+
+    groups.locked.push(course);
   }
 
   return groups;
@@ -257,3 +272,5 @@ export const formatCourseWorkload = (totalSeconds: number): string => {
 
   return `${totalMinutes}min`;
 };
+
+import type { CourseAvailabilityPreset } from "./availability";

@@ -26,16 +26,13 @@ export function SupportSidebarItem(): React.JSX.Element {
   return (
     <>
       <SidebarMenuItem>
-        <SidebarMenuButton
-          onClick={() => setOpen(true)}
-          tooltip="Suporte ao aluno"
-        >
+        <SidebarMenuButton onClick={() => setOpen(true)} tooltip="Suporte">
           <HugeiconsIcon
             icon={CustomerService01Icon}
             size={18}
             strokeWidth={1.5}
           />
-          <span>Suporte ao aluno</span>
+          <span>Suporte</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
 

@@ -1,7 +1,13 @@
+import { after } from "next/server";
 import { sendPasswordResetEmail } from "@/features/email/server";
 import { getAccountActivationDeliveryContext } from "@/lib/account-activation-delivery-context";
 import { getServerEnv } from "@/lib/env";
 import { getAccountActivationEmailIdempotencyKey } from "./account-activation-idempotency";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+  logOperationalEvent,
+} from "./observability";
 
 interface BetterAuthPasswordResetInput {
   url: string;
@@ -13,6 +19,36 @@ interface BetterAuthPasswordResetInput {
 
 const ACCOUNT_ACTIVATION_EMAIL_DELIVERY_FAILED =
   "account_activation_email_delivery_failed";
+const PASSWORD_RESET_EMAIL_DELIVERY_FAILED =
+  "password_reset_email_delivery_failed";
+
+const sendPublicPasswordResetEmail = async ({
+  correlationId,
+  resetUrl,
+  to,
+  userName,
+}: {
+  correlationId: string;
+  resetUrl: string;
+  to: string;
+  userName: string;
+}): Promise<void> => {
+  try {
+    await sendPasswordResetEmail({
+      resetUrl,
+      to,
+      userName,
+    });
+  } catch {
+    logOperationalEvent({
+      correlationId,
+      errorCode: PASSWORD_RESET_EMAIL_DELIVERY_FAILED,
+      operation: "auth.password_reset",
+      outcome: "failure",
+      provider: "resend",
+    });
+  }
+};
 
 export const sendBetterAuthPasswordResetEmail = async (
   { url, user }: BetterAuthPasswordResetInput,
@@ -25,6 +61,22 @@ export const sendBetterAuthPasswordResetEmail = async (
   const deliveryContext = idempotencyKey
     ? getAccountActivationDeliveryContext(idempotencyKey)
     : undefined;
+
+  if (request && !deliveryContext) {
+    const correlationId = createCorrelationId(
+      request.headers.get(CORRELATION_ID_HEADER)
+    );
+    after(async () => {
+      await sendPublicPasswordResetEmail({
+        correlationId,
+        resetUrl: url,
+        to: user.email,
+        userName: user.name,
+      });
+    });
+    return;
+  }
+
   try {
     await sendPasswordResetEmail({
       ...(deliveryContext && idempotencyKey ? { idempotencyKey } : {}),

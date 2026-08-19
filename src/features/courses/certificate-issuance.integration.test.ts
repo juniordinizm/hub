@@ -18,7 +18,7 @@ if (!databaseUrl) {
     "CERTIFICATE_CONCURRENCY_DATABASE_URL is required for integration tests."
   );
 }
-const AUTOMATIC_CERTIFICATE_CODE = /^PRT-/;
+const AUTOMATIC_CERTIFICATE_CODE = /^PRT-[0-9A-F]{32}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CONSECUTIVE_ISSUANCE_RUNS = 20;
 const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 120_000;
@@ -48,10 +48,22 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import {
+  reconcileHistoricalCourseCertificates,
+  reissueCertificate,
   renderPendingCertificate,
+  revokeCertificate,
   tryIssueAutomaticCompletionCertificate,
 } from "../certificates/server";
 import { deliverOutboxMessage } from "../outbox/delivery";
+import {
+  claimOutboxMessages,
+  markOutboxMessageDeadLetter,
+  markOutboxMessageDeferred,
+  markOutboxMessageDelivered,
+  markOutboxMessageForRetry,
+  requeueDeadLetterMessage,
+} from "../outbox/server";
+import { processClaimedOutboxMessage } from "../outbox/worker";
 import { completeLesson, recordLessonWatchProgress } from "./server";
 
 const pool = new Pool({ connectionString: withVerifiedSslMode(databaseUrl) });
@@ -81,10 +93,16 @@ const fetchCertificateAsset = (url: string): Response => {
 
 const getTestPool = (): Pool => pool;
 
-const createFixture = async (): Promise<{
+const createFixture = async ({
+  withSecondRequiredLesson = false,
+}: {
+  withSecondRequiredLesson?: boolean;
+} = {}): Promise<{
   courseId: string;
   coursePublicationId: string;
   lessonId: string;
+  secondLessonId: string | null;
+  sequenceUnlockLessonId: string | null;
   userId: string;
 }> => {
   const testPool = getTestPool();
@@ -120,14 +138,13 @@ const createFixture = async (): Promise<{
   await testPool.query(
     `
       insert into certificate_issuer_profiles (
-        id, legal_name, cnpj, display_name, course_free_statement
+        id, legal_name, cnpj, display_name
       )
       values (
         'global',
         'Emissora de teste LTDA',
         '00.000.000/0001-00',
-        'Emissora de teste',
-        'Curso de livre oferta.'
+        'Emissora de teste'
       )
       on conflict (id) do nothing
     `
@@ -186,6 +203,41 @@ const createFixture = async (): Promise<{
     throw new Error("Nao foi possivel criar a aula de teste.");
   }
 
+  let secondLessonId: string | null = null;
+  let sequenceUnlockLessonId: string | null = null;
+  if (withSecondRequiredLesson) {
+    const { rows: finalLessonRows } = await testPool.query<{
+      id: string;
+      is_required: boolean;
+    }>(
+      `
+        insert into lessons (
+          module_id,
+          course_publication_id,
+          title,
+          duration_seconds,
+          video_duration_seconds,
+          sort_order,
+          status,
+          video_provider,
+          is_required
+        )
+        values
+          ($1, $2, 'Segunda aula final', 120, 120, 2, 'active', 'jmvstream', true),
+          ($1, $2, 'Aula opcional posterior', 120, 120, 3, 'active', 'jmvstream', false)
+        returning id, is_required
+      `,
+      [moduleId, coursePublicationId]
+    );
+    secondLessonId =
+      finalLessonRows.find((lesson) => lesson.is_required)?.id ?? null;
+    sequenceUnlockLessonId =
+      finalLessonRows.find((lesson) => !lesson.is_required)?.id ?? null;
+    if (!(secondLessonId && sequenceUnlockLessonId)) {
+      throw new Error("Nao foi possivel criar as aulas finais de teste.");
+    }
+  }
+
   await testPool.query(
     `
       insert into users (id, name, email, email_verified)
@@ -201,7 +253,56 @@ const createFixture = async (): Promise<{
     [userId, courseId]
   );
 
-  return { courseId, coursePublicationId, lessonId, userId };
+  return {
+    courseId,
+    coursePublicationId,
+    lessonId,
+    secondLessonId,
+    sequenceUnlockLessonId,
+    userId,
+  };
+};
+
+const countLessonProgress = async (userId: string, lessonIds: string[]) => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    `
+      select count(*)
+      from lesson_progress
+      where user_id = $1 and lesson_id = any($2::uuid[])
+    `,
+    [userId, lessonIds]
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+const countWaitingAdvisoryLocks = async ({
+  committingOnly = false,
+}: {
+  committingOnly?: boolean;
+} = {}): Promise<number> => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    `
+      select count(*)
+      from pg_stat_activity
+      where datname = current_database()
+        and wait_event_type = 'Lock'
+        and wait_event = 'advisory'
+        and ($1::boolean = false or lower(btrim(query)) = 'commit')
+    `,
+    [committingOnly]
+  );
+  return Number(rows[0]?.count ?? 0);
+};
+
+const toSqlLiteral = (value: string): string =>
+  `'${value.replaceAll("'", "''")}'`;
+
+const countCourseCompletions = async (courseId: string, userId: string) => {
+  const { rows } = await getTestPool().query<{ count: string }>(
+    "select count(*) from course_completions where course_id = $1 and user_id = $2",
+    [courseId, userId]
+  );
+  return Number(rows[0]?.count ?? 0);
 };
 
 const countCertificates = async (courseId: string, userId: string) => {
@@ -246,6 +347,7 @@ describe("emissao concorrente de certificado", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
+    await pool.query("truncate table outbox_messages");
     await pool.query("truncate table users cascade");
   });
 
@@ -253,16 +355,159 @@ describe("emissao concorrente de certificado", () => {
     vi.unstubAllGlobals();
   });
 
-  it("emite e registra uma unica renderizacao duravel sob duas conclusoes simultaneas", async () => {
-    const fixture = await createFixture();
+  it("serializa duas aulas finais distintas antes da decisao de conclusao e emissao", async () => {
+    const fixture = await createFixture({ withSecondRequiredLesson: true });
 
-    const results = await Promise.all([
-      completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-      completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId }),
-    ]);
+    if (!(fixture.secondLessonId && fixture.sequenceUnlockLessonId)) {
+      throw new Error("Fixture concorrente sem as aulas finais esperadas.");
+    }
+    const pendingLessonIds = [fixture.lessonId, fixture.secondLessonId];
+    await getTestPool().query(
+      "insert into lesson_progress (user_id, lesson_id) values ($1, $2)",
+      [fixture.userId, fixture.sequenceUnlockLessonId]
+    );
+    expect(await countLessonProgress(fixture.userId, pendingLessonIds)).toBe(0);
+    expect(
+      await countLessonProgress(fixture.userId, [
+        fixture.sequenceUnlockLessonId,
+      ])
+    ).toBe(1);
+    const suffix = randomUUID().replaceAll("-", "_");
+    const gateFunction = `certificate_progress_gate_${suffix}`;
+    const firstGateTrigger = `certificate_progress_first_${suffix}`;
+    const secondGateTrigger = `certificate_progress_second_${suffix}`;
+    const firstGateKey = `certificate-progress-first/${suffix}`;
+    const secondGateKey = `certificate-progress-second/${suffix}`;
+    const coordinator = await getTestPool().connect();
+    let firstCompletion: ReturnType<typeof completeLesson> | null = null;
+    let secondCompletion: ReturnType<typeof completeLesson> | null = null;
+    try {
+      await coordinator.query(
+        `
+          create function ${gateFunction}() returns trigger
+          language plpgsql
+          as $gate$
+          begin
+            perform pg_advisory_xact_lock_shared(hashtextextended(TG_ARGV[0], 0));
+            return new;
+          end;
+          $gate$
+        `
+      );
+      await coordinator.query(
+        `
+          create trigger ${firstGateTrigger}
+          after insert on lesson_progress
+          for each row
+          when (
+            new.user_id = ${toSqlLiteral(fixture.userId)}
+            and new.lesson_id = ${toSqlLiteral(fixture.lessonId)}::uuid
+          )
+          execute function ${gateFunction}(${toSqlLiteral(firstGateKey)})
+        `
+      );
+      await coordinator.query(
+        `
+          create constraint trigger ${secondGateTrigger}
+          after insert on lesson_progress
+          deferrable initially deferred
+          for each row
+          when (
+            new.user_id = ${toSqlLiteral(fixture.userId)}
+            and new.lesson_id = ${toSqlLiteral(fixture.secondLessonId)}::uuid
+          )
+          execute function ${gateFunction}(${toSqlLiteral(secondGateKey)})
+        `
+      );
+      await coordinator.query(
+        "select pg_advisory_lock(hashtextextended($1, 0))",
+        [firstGateKey]
+      );
+      await coordinator.query(
+        "select pg_advisory_lock(hashtextextended($1, 0))",
+        [secondGateKey]
+      );
 
-    const issued = results.filter((result) => result.certificateIssued);
-    expect(issued).toHaveLength(1);
+      const waitingBaseline = await countWaitingAdvisoryLocks();
+      const committingBaseline = await countWaitingAdvisoryLocks({
+        committingOnly: true,
+      });
+      firstCompletion = completeLesson({
+        lessonId: fixture.lessonId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 1);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+
+      secondCompletion = completeLesson({
+        lessonId: fixture.secondLessonId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 2);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+
+      await coordinator.query(
+        "select pg_advisory_unlock(hashtextextended($1, 0))",
+        [firstGateKey]
+      );
+      await expect(firstCompletion).resolves.toMatchObject({
+        certificateIssued: false,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(
+            await countWaitingAdvisoryLocks({ committingOnly: true })
+          ).toBe(committingBaseline + 1);
+        },
+        { interval: 20, timeout: 5000 }
+      );
+      await coordinator.query(
+        "select pg_advisory_unlock(hashtextextended($1, 0))",
+        [secondGateKey]
+      );
+      await expect(secondCompletion).resolves.toMatchObject({
+        certificateIssued: true,
+      });
+    } finally {
+      await coordinator
+        .query("select pg_advisory_unlock(hashtextextended($1, 0))", [
+          firstGateKey,
+        ])
+        .catch(() => undefined);
+      await coordinator
+        .query("select pg_advisory_unlock(hashtextextended($1, 0))", [
+          secondGateKey,
+        ])
+        .catch(() => undefined);
+      await Promise.allSettled(
+        [firstCompletion, secondCompletion].filter(
+          (completion): completion is ReturnType<typeof completeLesson> =>
+            completion !== null
+        )
+      );
+      await coordinator
+        .query(`drop trigger if exists ${firstGateTrigger} on lesson_progress`)
+        .catch(() => undefined);
+      await coordinator
+        .query(`drop trigger if exists ${secondGateTrigger} on lesson_progress`)
+        .catch(() => undefined);
+      await coordinator
+        .query(`drop function if exists ${gateFunction}()`)
+        .catch(() => undefined);
+      coordinator.release();
+    }
+
+    expect(await countCourseCompletions(fixture.courseId, fixture.userId)).toBe(
+      1
+    );
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
 
     const { rows } = await getTestPool().query<{ id: string }>(
@@ -371,7 +616,9 @@ describe("emissao concorrente de certificado", () => {
     ).resolves.toMatchObject({ certificateIssued: false });
     expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
 
-    await getTestPool().query("update certificates set status = 'revoked'");
+    await getTestPool().query(
+      "update certificates set status = 'revoked', revoked_at = now(), revoked_reason_category = 'other'"
+    );
     await expect(
       completeLesson({ userId: fixture.userId, lessonId: fixture.lessonId })
     ).resolves.toMatchObject({ certificateIssued: false });
@@ -392,6 +639,243 @@ describe("emissao concorrente de certificado", () => {
     expect(
       await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
     ).toBe(1);
+  });
+
+  it("reconcilia conclusao historica uma vez sob chamadas concorrentes e repetidas", async () => {
+    const fixture = await createFixture();
+    await getTestPool().query(
+      `
+        insert into course_completions (
+          user_id, course_id, course_publication_id, completed_at
+        )
+        values ($1, $2, $3, now() - interval '1 day')
+      `,
+      [fixture.userId, fixture.courseId, fixture.coursePublicationId]
+    );
+
+    const concurrentResults = await Promise.all([
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      }),
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      }),
+    ]);
+    expect(
+      concurrentResults.reduce((total, result) => total + result.issued, 0)
+    ).toBe(1);
+    expect(concurrentResults.every((result) => result.remaining === 0)).toBe(
+      true
+    );
+    await expect(
+      reconcileHistoricalCourseCertificates({
+        actorUserId: fixture.userId,
+        courseId: fixture.courseId,
+      })
+    ).resolves.toEqual({ issued: 0, remaining: 0 });
+
+    expect(await countCertificates(fixture.courseId, fixture.userId)).toBe(1);
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    expect(
+      await countCertificateRenderMessages(certificate.rows[0]?.id ?? "")
+    ).toBe(1);
+  });
+
+  it("preserva o predecessor ao revogar e reemitir com um unico certificado valido", async () => {
+    const fixture = await createFixture();
+    await completeLesson({
+      lessonId: fixture.lessonId,
+      userId: fixture.userId,
+    });
+    const initial = await getTestPool().query<{
+      code: string;
+      id: string;
+      render_snapshot: unknown;
+    }>(
+      `select id, code, render_snapshot
+       from certificates
+       where course_id = $1 and user_id = $2`,
+      [fixture.courseId, fixture.userId]
+    );
+    const predecessor = initial.rows[0];
+    if (!predecessor) {
+      throw new Error("Certificado predecessor nao foi emitido.");
+    }
+
+    await revokeCertificate({
+      actorUserId: fixture.userId,
+      certificateId: predecessor.id,
+      reasonCategory: "identity_correction",
+      reasonDetail: "Correcao controlada de identidade.",
+    });
+    const replacement = await reissueCertificate({
+      actorUserId: fixture.userId,
+      certificateId: predecessor.id,
+      reasonCategory: "identity_correction",
+      reasonDetail: "Reemissao controlada de identidade.",
+    });
+
+    const history = await getTestPool().query<{
+      code: string;
+      id: string;
+      render_snapshot: unknown;
+      replaces_certificate_id: string | null;
+      status: "revoked" | "valid";
+    }>(
+      `select id, code, render_snapshot, replaces_certificate_id, status
+       from certificates
+       where course_id = $1 and user_id = $2
+       order by issued_at, id`,
+      [fixture.courseId, fixture.userId]
+    );
+    expect(history.rows).toHaveLength(2);
+    expect(history.rows.filter((row) => row.status === "valid")).toHaveLength(
+      1
+    );
+    expect(history.rows.find((row) => row.id === predecessor.id)).toMatchObject(
+      {
+        code: predecessor.code,
+        render_snapshot: predecessor.render_snapshot,
+        replaces_certificate_id: null,
+        status: "revoked",
+      }
+    );
+    expect(history.rows.find((row) => row.id === replacement.id)).toMatchObject(
+      {
+        replaces_certificate_id: predecessor.id,
+        status: "valid",
+      }
+    );
+    expect(await countCertificateRenderMessages(predecessor.id)).toBe(1);
+    expect(await countCertificateRenderMessages(replacement.id)).toBe(1);
+  });
+
+  it("reprocessa renderizacao falha de pending ate ready", async () => {
+    const fixture = await createFixture();
+    await completeLesson({
+      lessonId: fixture.lessonId,
+      userId: fixture.userId,
+    });
+    const certificate = await getTestPool().query<{ id: string }>(
+      "select id from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    const certificateId = certificate.rows[0]?.id;
+    if (!certificateId) {
+      throw new Error("Certificado pendente nao foi emitido.");
+    }
+    const worker = await getTestPool().connect();
+    try {
+      const [firstClaim] = await claimOutboxMessages({
+        client: worker,
+        limit: 1,
+        workerId: "render-failure-worker",
+      });
+      expect(firstClaim?.aggregateId).toBe(certificateId);
+      await expect(
+        markOutboxMessageDeadLetter({
+          client: worker,
+          errorCode: "certificate_render_failed",
+          id: String(firstClaim?.id),
+          workerId: "render-failure-worker",
+        })
+      ).resolves.toBe(true);
+      await expect(
+        getTestPool().query<{ render_status: string }>(
+          "select render_status from certificates where id = $1",
+          [certificateId]
+        )
+      ).resolves.toMatchObject({ rows: [{ render_status: "failed" }] });
+
+      await requeueDeadLetterMessage({
+        actorUserId: fixture.userId,
+        client: worker,
+        messageId: String(firstClaim?.id),
+        reason: "Recuperacao controlada da renderizacao.",
+      });
+      await expect(
+        getTestPool().query<{ render_status: string }>(
+          "select render_status from certificates where id = $1",
+          [certificateId]
+        )
+      ).resolves.toMatchObject({ rows: [{ render_status: "pending" }] });
+
+      const [retryClaim] = await claimOutboxMessages({
+        client: worker,
+        limit: 1,
+        workerId: "render-retry-worker",
+      });
+      if (!retryClaim) {
+        throw new Error(
+          "Mensagem de renderizacao nao foi reclamada novamente."
+        );
+      }
+      const retryWorkerId = "render-retry-worker";
+      await expect(
+        processClaimedOutboxMessage({
+          deliver: deliverOutboxMessage,
+          markDeadLetter: ({ errorCode, id }) =>
+            markOutboxMessageDeadLetter({
+              client: worker,
+              errorCode,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markDeferred: ({ errorCode, id }) =>
+            markOutboxMessageDeferred({
+              client: worker,
+              errorCode,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markDelivered: (id) =>
+            markOutboxMessageDelivered({
+              client: worker,
+              id,
+              workerId: retryWorkerId,
+            }),
+          markRetry: ({ errorCode, id, retryDelayMs }) =>
+            markOutboxMessageForRetry({
+              client: worker,
+              errorCode,
+              id,
+              retryDelayMs,
+              workerId: retryWorkerId,
+            }),
+          message: retryClaim,
+        })
+      ).resolves.toBe("delivered");
+      await expect(
+        getTestPool().query<{
+          message_status: string;
+          pdf_sha256: string | null;
+          render_status: string;
+        }>(
+          `select certificate.pdf_sha256,
+                  certificate.render_status,
+                  message.status as message_status
+           from certificates as certificate
+           join outbox_messages as message on message.id = $2
+           where certificate.id = $1`,
+          [certificateId, retryClaim.id]
+        )
+      ).resolves.toMatchObject({
+        rows: [
+          {
+            message_status: "delivered",
+            pdf_sha256: expect.stringMatching(SHA256_PATTERN),
+            render_status: "ready",
+          },
+        ],
+      });
+    } finally {
+      worker.release();
+    }
   });
 
   it(
@@ -457,6 +941,7 @@ describe("claim persistido de renderizacao", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
+    await pool.query("truncate table outbox_messages");
     await pool.query("truncate table users cascade");
   });
 
@@ -581,7 +1066,7 @@ describe("claim persistido de renderizacao", () => {
       expect(dependencies.renderCertificatePdf).toHaveBeenCalledOnce();
     });
     await pool.query(
-      "update certificates set status = 'revoked', revoked_at = now() where id = $1",
+      "update certificates set status = 'revoked', revoked_at = now(), revoked_reason_category = 'other' where id = $1",
       [certificateId]
     );
 

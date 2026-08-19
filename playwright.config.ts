@@ -65,7 +65,7 @@ export default defineConfig({
         ["html", { open: "never" }],
       ]
     : "list",
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   testDir: "./tests/e2e",
   timeout: 30_000,
   use: {

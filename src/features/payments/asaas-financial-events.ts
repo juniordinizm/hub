@@ -83,6 +83,9 @@ const disputeEvents = new Set([
   "PAYMENT_CHARGEBACK_DISPUTE",
   "PAYMENT_CHARGEBACK_REQUESTED",
 ]);
+
+export const isAsaasAccessRevokingEvent = (event: string): boolean =>
+  event === "PAYMENT_REFUNDED" || disputeEvents.has(event);
 const refundEvidenceEvents = new Set([
   "PAYMENT_REFUND_DENIED",
   "PAYMENT_REFUND_IN_PROGRESS",
@@ -97,6 +100,7 @@ const knownPaymentWebhookEvents = new Set([
   ...refundEvidenceEvents,
   ...riskEvents,
   "PAYMENT_CONFIRMED",
+  "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED",
   "PAYMENT_DELETED",
   "PAYMENT_OVERDUE",
   "PAYMENT_PARTIALLY_REFUNDED",
@@ -173,6 +177,17 @@ interface ParsedPaymentEvent {
   netValueInCents: number | null;
   paymentStatus: string;
   valueInCents: number | null;
+}
+
+export interface QueriedAsaasPaymentEvidence {
+  billingType: string;
+  checkoutSession: string | null;
+  externalReference: string | null;
+  installmentId: string | null;
+  netValueInCents: number;
+  paymentId: string;
+  status: string;
+  valueInCents: number;
 }
 
 const getCheckoutStatus = (
@@ -447,6 +462,29 @@ const decidePartialRefund = ({
   },
 });
 
+const decideCaptureRefused = ({
+  correlation,
+  payment,
+  snapshot,
+}: {
+  correlation: AsaasFinancialCorrelation;
+  payment: ParsedPaymentEvent;
+  snapshot: AsaasFinancialOrderSnapshot;
+}): AsaasFinancialEventDecision => ({
+  action: "apply",
+  alertReason: "event_anomaly",
+  correlation,
+  effect: "none",
+  reviewReason: "event_anomaly",
+  updates: {
+    ...(payment.billingType ? { paymentMethod: payment.billingType } : {}),
+    ...(snapshot.orderStatus === "pending" &&
+    snapshot.providerPaymentStatus === null
+      ? { providerPaymentStatus: payment.paymentStatus }
+      : {}),
+  },
+});
+
 type KnownCardRiskStatus =
   | "APPROVED_BY_RISK_ANALYSIS"
   | "AWAITING_RISK_ANALYSIS"
@@ -657,37 +695,19 @@ const decideRegularPayment = ({
   };
 };
 
-const decidePaymentEvent = ({
+const decideParsedPaymentEvent = ({
   correlation,
-  event,
-  paymentRecord,
+  payment,
   snapshot,
 }: {
   correlation: AsaasFinancialCorrelation;
-  event: string;
-  paymentRecord: Record<string, unknown> | null;
+  payment: ParsedPaymentEvent;
   snapshot: AsaasFinancialOrderSnapshot;
 }): AsaasFinancialEventDecision => {
-  const paymentId = getString(paymentRecord, "id");
-  const paymentStatus = getString(paymentRecord, "status");
-  if (!(paymentRecord && paymentId && paymentStatus)) {
-    return {
-      action: "apply",
-      alertReason: "event_anomaly",
-      correlation,
-      effect: "none",
-      reviewReason: "event_anomaly",
-      updates: {},
-    };
+  const { event } = payment;
+  if (event === "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED") {
+    return decideCaptureRefused({ correlation, payment, snapshot });
   }
-
-  const payment: ParsedPaymentEvent = {
-    billingType: getString(paymentRecord, "billingType"),
-    event,
-    netValueInCents: parseAsaasDecimalToCents(paymentRecord.netValue),
-    paymentStatus,
-    valueInCents: parseAsaasDecimalToCents(paymentRecord.value),
-  };
   const amountReview = getAmountReview({
     expectedAmountInCents: snapshot.amountInCents,
     valueInCents: payment.valueInCents,
@@ -719,6 +739,97 @@ const decidePaymentEvent = ({
     snapshot,
   });
 };
+
+const decidePaymentEvent = ({
+  correlation,
+  event,
+  paymentRecord,
+  snapshot,
+}: {
+  correlation: AsaasFinancialCorrelation;
+  event: string;
+  paymentRecord: Record<string, unknown> | null;
+  snapshot: AsaasFinancialOrderSnapshot;
+}): AsaasFinancialEventDecision => {
+  const paymentId = getString(paymentRecord, "id");
+  const paymentStatus = getString(paymentRecord, "status");
+  if (!(paymentRecord && paymentId && paymentStatus)) {
+    return {
+      action: "apply",
+      alertReason: "event_anomaly",
+      correlation,
+      effect: "none",
+      reviewReason: "event_anomaly",
+      updates: {},
+    };
+  }
+
+  const payment: ParsedPaymentEvent = {
+    billingType: getString(paymentRecord, "billingType"),
+    event,
+    netValueInCents: parseAsaasDecimalToCents(paymentRecord.netValue),
+    paymentStatus,
+    valueInCents: parseAsaasDecimalToCents(paymentRecord.value),
+  };
+  return decideParsedPaymentEvent({ correlation, payment, snapshot });
+};
+
+const getQueriedPaymentEvent = (
+  evidence: QueriedAsaasPaymentEvidence
+): string => {
+  if (evidence.status === "REFUNDED") {
+    return "PAYMENT_REFUNDED";
+  }
+  if (
+    evidence.billingType === "CREDIT_CARD" &&
+    evidence.status === "RECEIVED"
+  ) {
+    return "PAYMENT_CONFIRMED";
+  }
+  if (evidence.status === "RECEIVED") {
+    return "PAYMENT_RECEIVED";
+  }
+  if (evidence.status === "CONFIRMED") {
+    return "PAYMENT_CONFIRMED";
+  }
+  if (evidence.status === "OVERDUE") {
+    return "PAYMENT_OVERDUE";
+  }
+  if (evidence.status === "DELETED") {
+    return "PAYMENT_DELETED";
+  }
+  return "PAYMENT_RECONCILED";
+};
+
+export const decideQueriedAsaasPayment = ({
+  evidence,
+  snapshot,
+}: {
+  evidence: QueriedAsaasPaymentEvidence;
+  snapshot: AsaasFinancialOrderSnapshot;
+}): AsaasFinancialEventDecision =>
+  decideParsedPaymentEvent({
+    correlation: {
+      checkoutExternalReference: null,
+      checkoutId: null,
+      hasConflictingExternalReferences: false,
+      localOrderId: null,
+      paymentCheckoutSession: evidence.checkoutSession,
+      paymentExternalReference: evidence.externalReference,
+      paymentId: evidence.paymentId,
+      ...(evidence.installmentId
+        ? { paymentInstallmentId: evidence.installmentId }
+        : {}),
+    },
+    payment: {
+      billingType: evidence.billingType,
+      event: getQueriedPaymentEvent(evidence),
+      netValueInCents: evidence.netValueInCents,
+      paymentStatus: evidence.status,
+      valueInCents: evidence.valueInCents,
+    },
+    snapshot,
+  });
 
 export const decideAsaasFinancialEvent = ({
   payload,
@@ -768,6 +879,44 @@ export const decideAsaasFinancialEvent = ({
     effect: "none",
     reviewReason: null,
     updates: {},
+  };
+};
+
+export const decideAsaasAdverseEventWithoutInstallment = ({
+  payload,
+  snapshot,
+}: {
+  payload: unknown;
+  snapshot: AsaasFinancialOrderSnapshot;
+}): AsaasFinancialEventDecision => {
+  const decision = decideAsaasFinancialEvent({ payload, snapshot });
+  if (
+    decision.effect !== "revoke" ||
+    !decision.correlation.paymentInstallmentId
+  ) {
+    return {
+      ...decision,
+      effect: "none",
+      reviewReason: "event_anomaly",
+      updates: {},
+    };
+  }
+
+  return {
+    ...decision,
+    alertReason: "event_anomaly",
+    reviewReason: null,
+    updates: {
+      ...(decision.updates.paymentMethod
+        ? { paymentMethod: decision.updates.paymentMethod }
+        : {}),
+      ...(decision.updates.providerDisputeStatus
+        ? { providerDisputeStatus: decision.updates.providerDisputeStatus }
+        : {}),
+      ...(decision.updates.providerRefundStatus
+        ? { providerRefundStatus: decision.updates.providerRefundStatus }
+        : {}),
+    },
   };
 };
 

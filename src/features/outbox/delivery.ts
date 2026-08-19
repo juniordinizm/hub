@@ -5,8 +5,12 @@ import {
   sendAccessExpiryWarningEmail,
   sendAccessReleasedEmail,
   sendCertificateIssuedEmail,
+  sendCourseSalesOpenedEmail,
 } from "@/features/email/server";
-import { getApplicationUrl } from "@/features/payments/provider";
+import {
+  getApplicationUrl,
+  getAsaasProviderClient,
+} from "@/features/payments/provider";
 import { runWithAccountActivationDeliveryContext } from "@/lib/account-activation-delivery-context";
 import {
   ACCOUNT_ACTIVATION_IDEMPOTENCY_HEADER,
@@ -35,12 +39,24 @@ const certificateRenderFailure = (): OutboxDeliveryError =>
 const accountActivationFailure = (): OutboxDeliveryError =>
   new OutboxDeliveryError("account_activation_failed", { retryable: true });
 
+const checkoutCancellationFailure = (): OutboxDeliveryError =>
+  new OutboxDeliveryError("checkout_cancellation_failed", { retryable: true });
+
+const courseSalesClosed = (): OutboxDeliveryError =>
+  new OutboxDeliveryError("course_sales_closed", {
+    deferred: true,
+    retryable: true,
+  });
+
 const unexpectedDeliveryFailure = (topic: string): OutboxDeliveryError => {
   if (topic === OUTBOX_TOPICS.certificateRender) {
     return certificateRenderFailure();
   }
   if (topic === OUTBOX_TOPICS.accountActivation) {
     return accountActivationFailure();
+  }
+  if (topic === OUTBOX_TOPICS.checkoutCancellation) {
+    return checkoutCancellationFailure();
   }
   return deliveryFailure();
 };
@@ -228,6 +244,175 @@ const getExpiryWarningDeliveryData = async (enrollmentId: string) => {
   return result.rows[0] ?? null;
 };
 
+const getCourseSalesOpenedDeliveryData = async (interestId: string) => {
+  const result = await getPool().query<{
+    course_id: string;
+    course_slug: string;
+    course_title: string;
+    sales_status: "closed" | "open";
+    student_email: string;
+    student_name: string;
+  }>(
+    `
+      select
+        courses.id as course_id,
+        courses.slug as course_slug,
+        courses.title as course_title,
+        courses.sales_status,
+        users.email as student_email,
+        users.name as student_name
+      from course_sale_interests
+      join courses on courses.id = course_sale_interests.course_id
+      join users on users.id = course_sale_interests.user_id
+      where course_sale_interests.id = $1
+        and course_sale_interests.notification_enqueued_at is not null
+      limit 1
+    `,
+    [interestId]
+  );
+  return result.rows[0] ?? null;
+};
+
+const consumeDeliveredCourseSaleInterest = async ({
+  courseId,
+  interestId,
+}: {
+  courseId: string;
+  interestId: string;
+}): Promise<void> => {
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const deleted = await client.query<{ id: string }>(
+      `
+        delete from course_sale_interests
+        where id = $1 and notification_enqueued_at is not null
+        returning id
+      `,
+      [interestId]
+    );
+    if (deleted.rows[0]) {
+      await client.query(
+        `
+          update courses
+          set interest_notifications_sent = interest_notifications_sent + 1,
+              updated_at = now()
+          where id = $1
+        `,
+        [courseId]
+      );
+    }
+    await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const deliverCourseSalesOpened = async ({
+  message,
+  payload,
+}: {
+  message: ClaimedOutboxMessage;
+  payload: OutboxPayload;
+}): Promise<boolean> => {
+  if (
+    message.topic !== OUTBOX_TOPICS.courseSalesOpened ||
+    !("interestId" in payload)
+  ) {
+    return false;
+  }
+  if (message.aggregateId !== payload.interestId) {
+    throw unavailableAggregate();
+  }
+  const data = await getCourseSalesOpenedDeliveryData(payload.interestId);
+  if (!data) {
+    return true;
+  }
+  if (data.sales_status !== "open") {
+    throw courseSalesClosed();
+  }
+  await sendCourseSalesOpenedEmail({
+    courseSlug: data.course_slug,
+    courseTitle: data.course_title,
+    idempotencyKey: message.idempotencyKey,
+    to: data.student_email,
+    userName: data.student_name,
+  });
+  await consumeDeliveredCourseSaleInterest({
+    courseId: data.course_id,
+    interestId: payload.interestId,
+  });
+  return true;
+};
+
+const deliverCheckoutCancellation = async ({
+  message,
+  payload,
+}: {
+  message: ClaimedOutboxMessage;
+  payload: OutboxPayload;
+}): Promise<boolean> => {
+  if (
+    message.topic !== OUTBOX_TOPICS.checkoutCancellation ||
+    !("orderId" in payload) ||
+    "userId" in payload
+  ) {
+    return false;
+  }
+  if (message.aggregateId !== payload.orderId) {
+    throw unavailableAggregate();
+  }
+  const result = await getPool().query<{
+    checkout_status: string;
+    order_status: string;
+    provider_checkout_id: string | null;
+  }>(
+    `
+      select
+        status as order_status,
+        checkout_status,
+        provider_checkout_id
+      from orders
+      where id = $1 and provider = 'asaas'
+      limit 1
+    `,
+    [payload.orderId]
+  );
+  const order = result.rows[0];
+  if (
+    order?.order_status !== "pending" ||
+    order.checkout_status !== "active" ||
+    !order.provider_checkout_id
+  ) {
+    return true;
+  }
+  const checkout = await getAsaasProviderClient().cancelCheckout(
+    order.provider_checkout_id
+  );
+  if (checkout.status !== "CANCELED" && checkout.status !== "EXPIRED") {
+    throw checkoutCancellationFailure();
+  }
+  await getPool().query(
+    `
+      update orders
+      set checkout_status = case
+            when $2 = 'CANCELED' then 'cancelled'::checkout_status
+            else 'expired'::checkout_status
+          end,
+          provider_checkout_status = $2,
+          updated_at = now()
+      where id = $1
+        and status = 'pending'
+        and checkout_status = 'active'
+    `,
+    [payload.orderId, checkout.status]
+  );
+  return true;
+};
+
 const deliverCertificateRender = async (
   certificateId: string
 ): Promise<void> => {
@@ -265,11 +450,20 @@ const parseClaimedOutboxPayload = (
 
 export const deliverOutboxMessage = async (
   message: ClaimedOutboxMessage
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: one explicit dispatcher keeps every outbox topic and error class visible in a single audited seam.
 ): Promise<void> => {
   const payload = parseClaimedOutboxPayload(message);
 
   try {
     if (await deliverAccountActivation({ message, payload })) {
+      return;
+    }
+
+    if (await deliverCourseSalesOpened({ message, payload })) {
+      return;
+    }
+
+    if (await deliverCheckoutCancellation({ message, payload })) {
       return;
     }
 

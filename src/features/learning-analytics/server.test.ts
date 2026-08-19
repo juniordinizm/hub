@@ -29,6 +29,10 @@ describe("learning analytics preference persistence", () => {
     expect(metricsQuery).toContain(
       "current_lesson.curriculum_key = completed_lesson.curriculum_key"
     );
+    expect(metricsQuery).toContain(
+      "date_trunc('day', current_timestamp at time zone 'America/Sao_Paulo')"
+    );
+    expect(metricsQuery).not.toContain("where occurred_at >= current_date");
   });
 
   it("records a raw event only through the opt-out-aware enrollment query", async () => {

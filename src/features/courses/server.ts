@@ -3,13 +3,22 @@ import { getPool } from "@/db";
 import {
   type CompletionCertificateSummary,
   issueCompletionCertificateIfEligible,
+  lockCourseCertificateLifecycleInTransaction,
 } from "@/features/certificates/server";
+import {
+  type CourseAvailabilityPreset,
+  type CourseCatalogVisibility,
+  type CourseDeliveryStatus,
+  type CourseSalesStatus,
+  resolveCourseAvailability,
+} from "@/features/courses/availability";
 import {
   type LessonContent,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { isPreviewRole } from "@/features/courses/preview";
+import { resolveCourseWorkloadHours } from "@/features/courses/workload";
 import {
   resolveCourseAccess,
   resolveLessonAccess,
@@ -48,12 +57,16 @@ export interface StudentCourseCard {
 
 export interface StudentCatalogCourseCard {
   accessStatus: "active" | "expired" | "none" | "revoked";
+  availabilityPreset: CourseAvailabilityPreset;
   completedCount: number;
   courseId: string;
   coverBlurDataUrl: string | null;
   description: string | null;
   expiresAt: Date | null;
   isEnrolled: boolean;
+  isInterested: boolean;
+  launchDate: string | null;
+  launchLandingUrl: string | null;
   nextLessonId: string | null;
   priceInCents: number;
   progressPercent: number;
@@ -101,6 +114,7 @@ export interface StudentCourseOverviewData {
   certificateCode: string | null;
   certificateEnabled: boolean;
   certificateRenderStatus: "failed" | "pending" | "ready" | null;
+  certificateStatus: "revoked" | "valid" | null;
   completedCount: number;
   course: {
     description: string | null;
@@ -231,6 +245,7 @@ interface CourseOverviewRow {
   certificate_code: string | null;
   certificate_enabled: boolean;
   certificate_render_status: "failed" | "pending" | "ready" | null;
+  certificate_status: "revoked" | "valid" | null;
   completed_at: Date | null;
   course_description: string | null;
   course_id: string;
@@ -339,7 +354,7 @@ export const getStudentCourses = async (
         cp.title_snapshot as title,
         c.subtitle,
         c.description as course_description,
-        cp.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         m.id as module_id,
@@ -476,16 +491,22 @@ export const getStudentCourseCatalog = async (
 ): Promise<StudentCatalogCourseCard[]> => {
   const { rows } = await getPool().query<{
     access_status: "active" | "expired" | "none" | "revoked";
+    catalog_visibility: CourseCatalogVisibility;
     completed_at: Date | null;
     cover_image_json: unknown;
     course_description: string | null;
     course_id: string;
+    course_status: CourseDeliveryStatus;
     duration_seconds: number;
     expires_at: Date | null;
     is_enrolled: boolean;
+    is_interested: boolean;
+    launch_date: string | null;
+    launch_landing_url: string | null;
     lesson_id: string | null;
     price_in_cents: number;
     revoked_reason: string | null;
+    sales_status: CourseSalesStatus;
     slug: string;
     subtitle: string | null;
     thumbnail_url: string | null;
@@ -499,7 +520,12 @@ export const getStudentCourseCatalog = async (
         c.title,
         c.subtitle,
         c.description as course_description,
-        c.workload_hours,
+        c.status as course_status,
+        c.catalog_visibility,
+        c.sales_status,
+        c.launch_date,
+        c.launch_landing_url,
+        coalesce(c.workload_hours_override, c.workload_hours) as workload_hours,
         c.price_in_cents,
         c.cover_image_json,
         c.thumbnail_url,
@@ -517,6 +543,11 @@ export const getStudentCourseCatalog = async (
           and e.starts_at <= now()
           and e.expires_at >= now()
         ) as is_enrolled,
+        exists (
+          select 1
+          from course_sale_interests csi
+          where csi.course_id = c.id and csi.user_id = $1
+        ) as is_interested,
         l.id as lesson_id,
         coalesce(l.duration_seconds, 0) as duration_seconds,
         lp.completed_at
@@ -540,7 +571,13 @@ export const getStudentCourseCatalog = async (
         where lp.user_id = $1
           and completed_lesson.curriculum_key = l.curriculum_key
       ) lp on true
-      where c.status = 'active'
+      where c.catalog_visibility = 'listed'
+         or (
+           c.status = 'active'
+           and e.status = 'active'
+           and e.starts_at <= now()
+           and e.expires_at >= now()
+         )
       order by c.created_at desc, m.sort_order asc, l.sort_order asc
     `,
     [userId]
@@ -548,7 +585,16 @@ export const getStudentCourseCatalog = async (
   const byCourse = new Map<string, StudentCatalogCourseAggregate>();
 
   for (const row of rows) {
+    const availability = resolveCourseAvailability({
+      catalogVisibility: row.catalog_visibility,
+      deliveryStatus: row.course_status,
+      salesStatus: row.sales_status,
+    });
+    if (availability.preset === "archived") {
+      continue;
+    }
     const course = byCourse.get(row.course_id) ?? {
+      availabilityPreset: availability.preset,
       courseId: row.course_id,
       slug: row.slug,
       title: row.title,
@@ -560,6 +606,9 @@ export const getStudentCourseCatalog = async (
       thumbnailUrl: row.thumbnail_url,
       expiresAt: row.expires_at,
       isEnrolled: row.is_enrolled,
+      isInterested: row.is_interested,
+      launchDate: row.launch_date,
+      launchLandingUrl: row.launch_landing_url,
       accessStatus: row.access_status,
       revokedReason: row.revoked_reason,
       progressPercent: 0,
@@ -600,6 +649,10 @@ export const getStudentCourseCatalog = async (
       thumbnailUrl: course.thumbnailUrl,
       expiresAt: course.expiresAt,
       isEnrolled: course.isEnrolled,
+      isInterested: course.isInterested,
+      launchDate: course.launchDate,
+      launchLandingUrl: course.launchLandingUrl,
+      availabilityPreset: course.availabilityPreset,
       accessStatus: course.accessStatus,
       revokedReason: course.revokedReason,
       progressPercent: progress.percent,
@@ -631,12 +684,19 @@ export const getStudentCourseAccessStatus = async ({
 export const recalculateCourseWorkloadHours = async (
   courseId: string
 ): Promise<number> => {
-  const publication = await getPool().query<{
+  const course = await getPool().query<{
+    workload_hours_override: number | null;
+  }>("select workload_hours_override from courses where id = $1 limit 1", [
+    courseId,
+  ]);
+  const workloadOverride = course.rows[0]?.workload_hours_override ?? null;
+  const publications = await getPool().query<{
     id: string;
+    workload_hours_snapshot: number;
     status: "draft" | "published";
   }>(
     `
-      select id, status
+      select id, status, workload_hours_snapshot
       from course_publications
       where course_id = $1 and status in ('draft', 'published')
       order by case status when 'draft' then 0 else 1 end, publication_number desc
@@ -644,10 +704,18 @@ export const recalculateCourseWorkloadHours = async (
     `,
     [courseId]
   );
-  const coursePublication = publication.rows[0];
+  const coursePublication = publications.rows[0];
 
   if (!coursePublication) {
-    return 0;
+    const effectiveWorkloadHours = resolveCourseWorkloadHours(
+      0,
+      workloadOverride
+    );
+    await getPool().query(
+      "update courses set workload_hours = $1, updated_at = now() where id = $2",
+      [effectiveWorkloadHours, courseId]
+    );
+    return effectiveWorkloadHours;
   }
 
   const { rows } = await getPool().query<{ duration_seconds: number }>(
@@ -661,7 +729,7 @@ export const recalculateCourseWorkloadHours = async (
     `,
     [coursePublication.id]
   );
-  const workloadHours = deriveCourseWorkloadHours(
+  const derivedWorkloadHours = deriveCourseWorkloadHours(
     rows.map((row) => row.duration_seconds)
   );
 
@@ -672,22 +740,29 @@ export const recalculateCourseWorkloadHours = async (
           updated_at = now()
       where id = $2
     `,
-    [workloadHours, coursePublication.id]
+    [derivedWorkloadHours, coursePublication.id]
   );
 
-  if (coursePublication.status === "published") {
-    await getPool().query(
-      `
-        update courses
-        set workload_hours = $1,
-            updated_at = now()
-        where id = $2
-      `,
-      [workloadHours, courseId]
-    );
-  }
+  const publishedPublication = publications.rows.find(
+    (item) => item.status === "published"
+  );
+  const effectiveWorkloadHours = resolveCourseWorkloadHours(
+    coursePublication.status === "published"
+      ? derivedWorkloadHours
+      : (publishedPublication?.workload_hours_snapshot ?? derivedWorkloadHours),
+    workloadOverride
+  );
+  await getPool().query(
+    `
+      update courses
+      set workload_hours = $1,
+          updated_at = now()
+      where id = $2
+    `,
+    [effectiveWorkloadHours, courseId]
+  );
 
-  return workloadHours;
+  return effectiveWorkloadHours;
 };
 
 const getEnrolledCourseOverview = async ({
@@ -705,13 +780,14 @@ const getEnrolledCourseOverview = async ({
         cp.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        cp.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         e.expires_at,
         u.name as student_name,
         cert.code as certificate_code,
         c.certificate_enabled,
         cert.render_status as certificate_render_status,
+        cert.status as certificate_status,
         m.id as module_id,
         m.title as module_title,
         m.description as module_description,
@@ -731,9 +807,17 @@ const getEnrolledCourseOverview = async ({
       join users u on u.id = e.user_id
       join courses c on c.id = e.course_id
       join course_publications cp on cp.course_id = c.id and cp.status = 'published'
-      left join certificates cert on cert.course_id = c.id
-        and cert.user_id = e.user_id
-        and cert.status = 'valid'
+      left join lateral (
+        select certificate.code, certificate.render_status, certificate.status
+        from certificates certificate
+        where certificate.course_id = c.id
+          and certificate.user_id = e.user_id
+        order by
+          case when certificate.status = 'valid' then 0 else 1 end,
+          certificate.issued_at desc,
+          certificate.id desc
+        limit 1
+      ) cert on true
       left join modules m on m.course_publication_id = cp.id and m.status = 'active'
       left join lessons l on l.module_id = m.id
         and l.course_publication_id = cp.id
@@ -825,6 +909,7 @@ const getEnrolledCourseOverview = async ({
     certificateCode: firstRow.certificate_code,
     certificateEnabled: firstRow.certificate_enabled,
     certificateRenderStatus: firstRow.certificate_render_status,
+    certificateStatus: firstRow.certificate_status,
     completedCount: progress.completedCount,
     course: {
       id: firstRow.course_id,
@@ -858,7 +943,7 @@ const getPreviewCourseOverview = async ({
         cv.title_snapshot as course_title,
         c.subtitle as course_subtitle,
         c.description as course_description,
-        cv.workload_hours_snapshot as workload_hours,
+        coalesce(c.workload_hours_override, cv.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         m.id as module_id,
         m.title as module_title,
@@ -939,6 +1024,7 @@ const getPreviewCourseOverview = async ({
     certificateCode: null,
     certificateEnabled: false,
     certificateRenderStatus: null,
+    certificateStatus: null,
     completedCount: 0,
     course: {
       id: firstRow.course_id,
@@ -1298,6 +1384,11 @@ export const completeLesson = async ({
 
   try {
     await client.query("begin");
+    await lockCourseCertificateLifecycleInTransaction(
+      client,
+      userId,
+      data.course.id
+    );
     const progressInsert = await client.query(
       `
         insert into lesson_progress (user_id, lesson_id)
@@ -1324,7 +1415,7 @@ export const completeLesson = async ({
           max(cert.id::text) as certificate_id,
           max(u.name) as student_name,
           max(cp.title_snapshot) as course_title,
-          max(cp.workload_hours_snapshot)::int as workload_hours
+          max(coalesce(c.workload_hours_override, cp.workload_hours_snapshot))::int as workload_hours
         from courses c
         join enrollments e on e.course_id = c.id and e.user_id = $1
         join course_publications cp on cp.course_id = c.id and cp.status = 'published'

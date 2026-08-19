@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 2ede052
 ---
 
 # PROTEA-R Hub
@@ -17,7 +17,7 @@ Pré-requisitos:
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
 O histórico local de migrations está reconciliado até
-`0053_course_payment_offers`, incluindo outbox transacional,
+`0062_certificate_reconciliation_indexes`, incluindo outbox transacional,
 publicações de Curso, artefatos imutáveis de Certificado, perfil automático
 para cadastro público, leases dos jobs serverless e consumo único de uploads
 administrativos. As migrations Asaas `0044` a `0052` estão aplicadas em
@@ -27,6 +27,14 @@ descartável,
 use os comandos de reset, seed e smoke somente conforme o
 [runbook de banco](docs/operations/database-and-migrations.md): eles recusam
 host remoto e exigem confirmação quando destrutivos.
+
+`0062` é aditiva: cria somente índices para selecionar Conclusões históricas e
+consultar histórico de Certificados. Ainda exige promoção controlada com o lock
+global do migrador; não executa reconciliação nem backfill de Certificados.
+
+O estado de deployment, verificação e documentação é mantido separadamente em
+[Estado de release](docs/operations/release-state.md). Um commit verificado localmente
+não é tratado como implantado até passar o workflow e o smoke test do ambiente.
 
 ## Desenvolvimento local com banco existente
 
@@ -93,3 +101,7 @@ Para publicar qualquer mudança, siga o
 [tutorial de alteração até Production](docs/operations/production-release-guide.md).
 O [status Vercel-first](docs/operations/vercel-migration-status.md) é registro
 histórico da migração concluída, não o procedimento diário.
+
+A jornada E2E completa de conclusão, emissão, renderização, e-mail absorvido,
+download privado e validação pública está implementada no repositório. A execução
+da CI para este commit permanece pendente; não é evidência de promoção ou deploy.

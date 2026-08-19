@@ -1,0 +1,2 @@
+ALTER TABLE "certificate_templates" ADD COLUMN "certificate_workload_hours" integer;--> statement-breakpoint
+ALTER TABLE "certificate_templates" ADD CONSTRAINT "certificate_templates_workload_hours_check" CHECK ("certificate_templates"."certificate_workload_hours" is null or "certificate_templates"."certificate_workload_hours" >= 0);

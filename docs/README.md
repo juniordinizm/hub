@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 2ede052
 ---
 
 # Documentação do Hub
@@ -35,6 +35,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [JMVStream](integrations/jmvstream.md)
 - [Cloudflare R2](integrations/r2.md)
 - [Resend e e-mail institucional](integrations/resend.md)
+- [Catálogo de templates do Resend](integrations/resend-templates.md)
 
 ### Operação
 
@@ -46,6 +47,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Configuração inicial Vercel-first, concluída](operations/vercel-first-launch-checklist.md)
 - [Registro histórico da migração Vercel-first](operations/vercel-migration-status.md)
 - [Testes e CI](operations/testing-and-ci.md)
+- [Estado de release](operations/release-state.md)
 - [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
 - [Observabilidade e recuperaÃ§Ã£o](operations/observability-and-recovery.md)
 
@@ -60,11 +62,13 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [ADR-0006: ciclo de certificados](adr/0006-certificate-lifecycle.md)
 - [ADR-0007: versionamento curricular](adr/0007-course-versioning-and-enrollment-curriculum.md)
 - [ADR-0008: analytics opcional de aprendizagem](adr/0008-optional-learning-analytics.md)
+- [ADR-0009: disponibilidade comercial e interesse](adr/0009-course-availability-and-sale-interest.md)
 
 ### Revisões
 
 - [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
 - [Pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md)
+- [Pesquisa do repasse do custo do parcelamento](reviews/2026-08-03-asaas-installment-interest-research.md)
 
 ### Especificações aceitas em implementação
 
@@ -73,6 +77,14 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Staging persistente e manutenção integral de Production](superpowers/specs/2026-07-31-staging-environment-and-production-maintenance-design.md)
 - [Plano do runtime Staging e manutenção](superpowers/plans/2026-08-01-staging-runtime-and-maintenance.md)
 - [Plano de provisionamento e release do Staging](superpowers/plans/2026-08-01-staging-provisioning-and-release.md)
+- [Plano de robustecimento do modulo de pagamentos](superpowers/plans/2026-08-03-payments-module-hardening.md)
+- [Editor de certificado: manipulação direta no preview](superpowers/specs/2026-08-08-certificate-editor-direct-manipulation-design.md)
+- [Plano do editor de certificado com manipulação direta](superpowers/plans/2026-08-08-certificate-editor-direct-manipulation.md)
+- [Editor de certificado: refinamento premium](superpowers/specs/2026-08-08-certificate-editor-premium-refinement-design.md)
+- [Plano do refinamento premium do editor de certificado](superpowers/plans/2026-08-08-certificate-editor-premium-refinement.md)
+- [Disponibilidade comercial e interesse em Cursos](superpowers/specs/2026-08-17-course-availability-and-interest-design.md)
+- [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
+- [Plano do hardening de conclusão e Certificados](superpowers/plans/2026-08-17-certificate-production-hardening.md)
 
 ## Contrato de manutenção
 

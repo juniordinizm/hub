@@ -8,8 +8,8 @@ export const CERTIFICATE_FIELDS = [
   "issuedAt",
   "issuerName",
   "issuerCnpj",
-  "courseFreeStatement",
   "signerName",
+  "signerRole",
   "signatureImage",
   "validationCode",
   "qrCode",
@@ -24,6 +24,8 @@ export interface CertificateTemplateField {
   font?: "Helvetica" | "Helvetica-Bold";
   fontSize: number;
   height: number;
+  /** Optional in the TypeScript boundary so legacy drafts can be normalized. */
+  verticalAlign?: "top" | "middle" | "bottom";
   visible: boolean;
   width: number;
   x: number;
@@ -35,6 +37,10 @@ export interface CertificateTemplateSpec {
   fields: CertificateTemplateField[];
 }
 
+export interface CertificateTemplateOverlap {
+  fields: [CertificateField, CertificateField];
+}
+
 export const createDefaultCertificateTemplateFields =
   (): CertificateTemplateField[] =>
     CERTIFICATE_FIELDS.map((field, index) => ({
@@ -42,25 +48,53 @@ export const createDefaultCertificateTemplateFields =
       color: "#17292b",
       field,
       font: field === "studentName" ? "Helvetica-Bold" : "Helvetica",
-      fontSize: field === "studentName" ? 30 : 10,
+      fontSize: field === "studentName" ? 24 : 10,
       height: field === "qrCode" ? 12 : 5,
       visible: !(
-        field === "courseFreeStatement" ||
         field === "signatureImage" ||
-        field === "signerName"
+        field === "signerName" ||
+        field === "signerRole"
       ),
       width: field === "qrCode" ? 12 : 70,
       x: field === "qrCode" ? 82 : 15,
-      y: Math.min(90, 8 + index * 7),
+      // Keep every default field inside the printable area, including the
+      // 12%-high QR field at the bottom of the page.
+      y: 8 + index * 6,
+      verticalAlign: "middle",
     }));
 
-const requiredFields = new Set<CertificateField>([
+/**
+ * Keeps older editable templates compatible when a new canonical field is
+ * introduced. Existing field settings and order are preserved; only missing
+ * canonical fields are appended with their safe defaults. An empty legacy
+ * draft is recovered with the complete default field set.
+ */
+export const ensureCertificateTemplateFields = (
+  fields: CertificateTemplateField[]
+): CertificateTemplateField[] => {
+  if (fields.length === 0) {
+    return createDefaultCertificateTemplateFields();
+  }
+
+  const existingFields = new Set(fields.map((field) => field.field));
+  const missingFields = createDefaultCertificateTemplateFields().filter(
+    (field) => !existingFields.has(field.field)
+  );
+  return missingFields.length > 0 ? [...fields, ...missingFields] : fields;
+};
+
+export const CERTIFICATE_REQUIRED_FIELDS = [
   "studentName",
   "courseTitle",
   "issuerName",
   "validationCode",
   "qrCode",
-]);
+] as const satisfies readonly CertificateField[];
+
+const requiredFields = new Set<CertificateField>(CERTIFICATE_REQUIRED_FIELDS);
+
+export const isRequiredCertificateField = (field: CertificateField): boolean =>
+  requiredFields.has(field);
 
 const hexColorPattern = /^#[0-9a-f]{6}$/i;
 
@@ -91,25 +125,28 @@ const validateField = (item: CertificateTemplateField): string[] => {
   return errors;
 };
 
-const findOverlaps = (fields: CertificateTemplateField[]): string[] => {
-  const errors: string[] = [];
-  for (let index = 0; index < fields.length; index += 1) {
-    const left = fields[index];
+export const findCertificateTemplateOverlaps = (
+  fields: CertificateTemplateField[]
+): CertificateTemplateOverlap[] => {
+  const overlaps: CertificateTemplateOverlap[] = [];
+  const visibleFields = fields.filter((item) => item.visible);
+  for (let index = 0; index < visibleFields.length; index += 1) {
+    const left = visibleFields[index];
     if (!left) {
       continue;
     }
-    for (const right of fields.slice(index + 1)) {
-      const overlaps =
+    for (const right of visibleFields.slice(index + 1)) {
+      const overlapsFound =
         left.x < right.x + right.width &&
         left.x + left.width > right.x &&
         left.y < right.y + right.height &&
         left.y + left.height > right.y;
-      if (overlaps) {
-        errors.push(`Os campos ${left.field} e ${right.field} se sobrepoem.`);
+      if (overlapsFound) {
+        overlaps.push({ fields: [left.field, right.field] });
       }
     }
   }
-  return errors;
+  return overlaps;
 };
 
 export const validateCertificateTemplate = (
@@ -132,6 +169,5 @@ export const validateCertificateTemplate = (
       errors.push(`O campo ${field} e obrigatorio.`);
     }
   }
-  errors.push(...findOverlaps(spec.fields.filter((item) => item.visible)));
   return errors;
 };

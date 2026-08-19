@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateCertificateTemplate } from "./template-rules";
+import {
+  createDefaultCertificateTemplateFields,
+  findCertificateTemplateOverlaps,
+  validateCertificateTemplate,
+} from "./template-rules";
 
 const required = [
   "studentName",
@@ -9,7 +13,49 @@ const required = [
   "qrCode",
 ] as const;
 
+const makeRequiredFields = (
+  overrides: Partial<
+    Record<
+      (typeof required)[number],
+      Partial<{
+        height: number;
+        visible: boolean;
+        width: number;
+        x: number;
+        y: number;
+      }>
+    >
+  > = {}
+) =>
+  required.map((field, index) => ({
+    align: "left" as const,
+    color: "#000000",
+    field,
+    font: "Helvetica" as const,
+    fontSize: 12,
+    height: 4,
+    visible: true,
+    width: 15,
+    x: index * 16,
+    y: 20,
+    ...overrides[field],
+  }));
+
 describe("certificate template rules", () => {
+  it("creates a valid default template", () => {
+    expect(
+      createDefaultCertificateTemplateFields().every(
+        (field) => field.verticalAlign === "middle"
+      )
+    ).toBe(true);
+    expect(
+      validateCertificateTemplate({
+        backgroundKey: "certificates/a4.png",
+        fields: createDefaultCertificateTemplateFields(),
+      })
+    ).toEqual([]);
+  });
+
   it("rejects a field outside the printable page", () => {
     expect(
       validateCertificateTemplate({
@@ -28,24 +74,31 @@ describe("certificate template rules", () => {
       })
     ).toContain("O campo studentName esta fora da area imprimivel.");
   });
-  it("rejects overlapping visible fields", () => {
-    const fields = required.map((field) => ({
-      align: "left" as const,
-      color: "#000",
-      field,
-      fontSize: 12,
-      height: 10,
-      visible: true,
-      width: 30,
-      x: 0,
-      y: 0,
-    }));
-    expect(
-      validateCertificateTemplate({
-        backgroundKey: "certificates/a4.png",
-        fields,
-      })
-    ).toContain("Os campos studentName e courseTitle se sobrepoem.");
+  it("reports overlapping visible fields without blocking validation", () => {
+    const fields = makeRequiredFields({
+      studentName: { height: 10, width: 40, x: 0, y: 0 },
+      courseTitle: { height: 10, width: 40, x: 20, y: 0 },
+    });
+    const spec = {
+      backgroundKey: "certificates/a4.png",
+      fields,
+    };
+
+    expect(findCertificateTemplateOverlaps(fields)).toEqual([
+      { fields: ["studentName", "courseTitle"] },
+    ]);
+    expect(validateCertificateTemplate(spec)).not.toContain(
+      "Os campos studentName e courseTitle se sobrepoem."
+    );
+  });
+
+  it("ignores hidden fields when reporting overlaps", () => {
+    const fields = makeRequiredFields({
+      studentName: { height: 10, width: 40, x: 0, y: 0 },
+      courseTitle: { height: 10, visible: false, width: 40, x: 20, y: 0 },
+    });
+
+    expect(findCertificateTemplateOverlaps(fields)).toEqual([]);
   });
 
   it("requires every standard field needed to validate a certificate", () => {

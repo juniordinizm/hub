@@ -1,5 +1,5 @@
 const CERTIFICATE_PREFIX = "PRT";
-const CODE_LENGTH = 8;
+const CODE_LENGTH = 32;
 export const CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES = 10;
 
 export const canIssueCertificate = ({

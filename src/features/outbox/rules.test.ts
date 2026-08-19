@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   createAccountActivationMessage,
   createCertificateIssuedMessage,
+  createCheckoutCancellationMessage,
+  createCourseSalesOpenedMessage,
   createEnrollmentExpiryWarningMessage,
   createPaidAccessReleasedMessage,
   getRetryDelayMs,
@@ -32,19 +34,27 @@ describe("outbox message contracts", () => {
   });
 
   it("derives a unique paid-access notification from the order", () => {
-    expect(
-      createPaidAccessReleasedMessage({
-        courseId: "course-1",
-        orderId: "order-1",
-        userId: "user-1",
-      })
-    ).toMatchObject({
+    const message = createPaidAccessReleasedMessage({
+      courseId: "course-1",
+      orderId: "order-1",
+      userId: "user-1",
+    });
+
+    expect(message).toEqual({
       aggregateId: "order-1",
       aggregateType: "order",
       idempotencyKey: "email.access-released/order-1/v1",
       payload: { courseId: "course-1", userId: "user-1" },
+      payloadVersion: 1,
       topic: "email.access-released",
     });
+    expect(parseOutboxPayload(message)).toEqual({
+      courseId: "course-1",
+      userId: "user-1",
+    });
+    expect(Object.keys(message.payload).join(",")).not.toMatch(
+      FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
   });
 
   it("stores an activation intent with exactly the local account and order ids", () => {
@@ -99,16 +109,63 @@ describe("outbox message contracts", () => {
     ).toThrow("Versao de payload nao suportada");
   });
 
-  it("keeps the enrollment warning idempotent per warning window", () => {
-    expect(
-      createEnrollmentExpiryWarningMessage({
-        enrollmentId: "enrollment-1",
-        warningKind: "7d",
-      })
-    ).toMatchObject({
-      idempotencyKey: "email.access-expiry-warning/enrollment-1/7d/v1",
-      payload: { enrollmentId: "enrollment-1", warningKind: "7d" },
+  it.each([
+    "1d",
+    "7d",
+  ] as const)("keeps the enrollment warning idempotent per %s warning window", (warningKind) => {
+    const message = createEnrollmentExpiryWarningMessage({
+      enrollmentId: "enrollment-1",
+      warningKind,
     });
+
+    expect(message).toEqual({
+      aggregateId: "enrollment-1",
+      aggregateType: "enrollment",
+      idempotencyKey: `email.access-expiry-warning/enrollment-1/${warningKind}/v1`,
+      payload: { enrollmentId: "enrollment-1", warningKind },
+      payloadVersion: 1,
+      topic: "email.access-expiry-warning",
+    });
+    expect(parseOutboxPayload(message)).toEqual({
+      enrollmentId: "enrollment-1",
+      warningKind,
+    });
+    expect(Object.keys(message.payload).join(",")).not.toMatch(
+      FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
+  });
+
+  it("keeps a course sales notification bound to one interest activation", () => {
+    const message = createCourseSalesOpenedMessage({
+      interestId: "interest-1",
+    });
+
+    expect(message).toEqual({
+      aggregateId: "interest-1",
+      aggregateType: "course_interest",
+      idempotencyKey: "email.course-sales-opened/interest-1/v1",
+      payload: { interestId: "interest-1" },
+      payloadVersion: 1,
+      topic: "email.course-sales-opened",
+    });
+    expect(parseOutboxPayload(message)).toEqual({ interestId: "interest-1" });
+    expect(JSON.stringify(message.payload)).not.toMatch(
+      FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
+  });
+
+  it("cancels one external checkout through a durable order intent", () => {
+    const message = createCheckoutCancellationMessage({ orderId: "order-1" });
+
+    expect(message).toEqual({
+      aggregateId: "order-1",
+      aggregateType: "order",
+      idempotencyKey: "payments.checkout-cancel/order-1/v1",
+      payload: { orderId: "order-1" },
+      payloadVersion: 1,
+      topic: "payments.checkout-cancel",
+    });
+    expect(parseOutboxPayload(message)).toEqual({ orderId: "order-1" });
   });
 
   it("rejects an unknown payload version without attempting delivery", () => {

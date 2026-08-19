@@ -5,11 +5,8 @@ import {
   applyPaidWebhookAccess,
   applyPaymentRevocation,
 } from "@/features/enrollments/server";
-import {
-  createAccountActivationMessage,
-  createPaidAccessReleasedMessage,
-} from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
+import { applyConfirmedPaymentAccess } from "./apply-authoritative-financial-evidence";
 import type { AsaasGateway, AsaasRefundEvidence } from "./asaas";
 import {
   type AsaasBuyerIdentityPreparation,
@@ -20,7 +17,9 @@ import {
   type AsaasFinancialEventDecision,
   type AsaasFinancialOrderSnapshot,
   type AsaasFinancialReviewReason,
+  decideAsaasAdverseEventWithoutInstallment,
   decideAsaasFinancialEvent,
+  isAsaasAccessRevokingEvent,
 } from "./asaas-financial-events";
 import {
   getAsaasPaymentInstallmentId,
@@ -33,10 +32,7 @@ import {
   type AsaasWebhookProcessor,
 } from "./asaas-webhook-worker";
 import { closeRefundedBuyerIdentityReview } from "./buyer-identity-review";
-import {
-  LocalOrderIdentityError,
-  resolveLocalOrderIdentity,
-} from "./order-identity";
+import { resolveLocalOrderIdentity } from "./order-identity";
 import { getAsaasProviderClient } from "./provider";
 
 interface CorrelationRow {
@@ -514,7 +510,7 @@ const insertReview = async ({
   client: PoolClient;
   eventId: string;
   orderId: string;
-  reason: AsaasFinancialReviewReason | BuyerIdentityReviewReason;
+  reason: ProcessorReviewReason;
   type?: AsaasFinancialReviewReason | "buyer_identity";
 }): Promise<void> => {
   const reviewType: AsaasFinancialReviewReason | "buyer_identity" =
@@ -534,6 +530,45 @@ const insertReview = async ({
   );
 };
 
+const reconcileInstallmentEnrichmentReview = async ({
+  client,
+  eventId,
+  now,
+  reviewReason,
+}: {
+  client: PoolClient;
+  eventId: string;
+  now: Date;
+  reviewReason: AsaasFinancialReviewReason | null;
+}): Promise<void> => {
+  if (reviewReason) {
+    await client.query(
+      `update payment_reviews
+       set type = $2::payment_review_type,
+           reason = $2,
+           updated_at = now()
+       where webhook_event_id = $1
+         and status = 'pending'
+         and reason = 'installment_enrichment_pending'`,
+      [eventId, reviewReason]
+    );
+    return;
+  }
+
+  await client.query(
+    `update payment_reviews
+     set status = 'approved',
+         decision_reason = 'installment_enrichment_succeeded',
+         resolved_by_user_id = null,
+         resolved_at = coalesce(resolved_at, $2),
+         updated_at = now()
+     where webhook_event_id = $1
+       and status = 'pending'
+       and reason = 'installment_enrichment_pending'`,
+    [eventId, now]
+  );
+};
+
 type BuyerIdentityReviewReason =
   | "buyer_identity_conflict"
   | "buyer_identity_course_revoked"
@@ -542,17 +577,10 @@ type BuyerIdentityReviewReason =
   | "buyer_identity_platform_blocked"
   | "buyer_identity_team_account";
 
-const localIdentityReviewReasons: Record<
-  LocalOrderIdentityError["code"],
-  BuyerIdentityReviewReason
-> = {
-  buyer_identity_course_revoked: "buyer_identity_course_revoked",
-  buyer_identity_platform_blocked: "buyer_identity_platform_blocked",
-  buyer_identity_team_account: "buyer_identity_team_account",
-  order_identity_conflict: "buyer_identity_conflict",
-  order_identity_incomplete: "buyer_identity_invalid",
-  order_user_not_found: "buyer_identity_invalid",
-};
+type ProcessorReviewReason =
+  | AsaasFinancialReviewReason
+  | BuyerIdentityReviewReason
+  | "installment_enrichment_pending";
 
 const openBuyerIdentityReview = async ({
   client,
@@ -807,126 +835,6 @@ type DecisionEffectOutcome =
   | "local_anomaly"
   | "none";
 
-const consumeResolvedPreparation = async ({
-  client,
-  order,
-  preparation,
-}: {
-  client: PoolClient;
-  order: LockedOrderRow;
-  preparation: Extract<AsaasBuyerIdentityPreparation, { kind: "resolved" }>;
-}): Promise<LockedOrderRow | null> => {
-  const persisted = await client.query(
-    `update orders
-     set provider_customer_id = $2,
-         customer_name = $3,
-         customer_email = $4,
-         updated_at = now()
-     where id = $1
-       and user_id is null
-       and buyer_identity_status = 'pending'
-       and provider_customer_id is null
-       and customer_name is null
-       and customer_email is null
-     returning id`,
-    [
-      order.id,
-      preparation.customerId,
-      preparation.identity.name,
-      preparation.identity.email,
-    ]
-  );
-  if (getString(persisted.rows[0], "id")) {
-    return {
-      ...order,
-      customerEmail: preparation.identity.email,
-      customerName: preparation.identity.name,
-      providerCustomerId: preparation.customerId,
-    };
-  }
-
-  const current = await loadLockedOrder({ client, orderId: order.id });
-  return current.buyerIdentityStatus === "pending" &&
-    current.userId === null &&
-    current.providerCustomerId === preparation.customerId &&
-    current.customerName === preparation.identity.name &&
-    current.customerEmail === preparation.identity.email
-    ? current
-    : null;
-};
-
-const prepareGrantIdentity = async ({
-  client,
-  eventId,
-  order,
-  preparation,
-}: {
-  client: PoolClient;
-  eventId: string;
-  order: LockedOrderRow;
-  preparation: AsaasBuyerIdentityPreparation;
-}): Promise<LockedOrderRow | null> => {
-  if (order.buyerIdentityStatus === "review_required") {
-    return null;
-  }
-  if (order.buyerIdentityStatus === "resolved") {
-    if (preparation.kind === "not_required" && order.userId) {
-      return order;
-    }
-    await openBuyerIdentityReview({
-      client,
-      eventId,
-      orderId: order.id,
-      reason: "buyer_identity_conflict",
-    });
-    return null;
-  }
-
-  if (preparation.kind === "not_required") {
-    await openBuyerIdentityReview({
-      client,
-      eventId,
-      orderId: order.id,
-      reason: "buyer_identity_missing",
-    });
-    return null;
-  }
-  if (preparation.orderId !== order.id) {
-    await openBuyerIdentityReview({
-      client,
-      eventId,
-      orderId: order.id,
-      reason: "buyer_identity_conflict",
-    });
-    return null;
-  }
-  if (preparation.kind === "review_required") {
-    await openBuyerIdentityReview({
-      client,
-      eventId,
-      orderId: order.id,
-      reason: preparation.reason,
-    });
-    return null;
-  }
-
-  const preparedOrder = await consumeResolvedPreparation({
-    client,
-    order,
-    preparation,
-  });
-  if (preparedOrder) {
-    return preparedOrder;
-  }
-  await openBuyerIdentityReview({
-    client,
-    eventId,
-    orderId: order.id,
-    reason: "buyer_identity_conflict",
-  });
-  return null;
-};
-
 const getRevocationReason = ({
   decision,
   order,
@@ -966,61 +874,34 @@ const applyDecisionEffect = async ({
     if (!grantOrder) {
       return "local_anomaly";
     }
-    const preparedOrder = await prepareGrantIdentity({
+    const applied = await applyConfirmedPaymentAccess({
+      applyPaidAccess: dependencies.applyPaidAccess,
       client,
-      eventId,
-      order,
-      preparation,
-    });
-    if (!preparedOrder) {
-      return "identity_review";
-    }
-    let identity: Awaited<ReturnType<typeof resolveLocalOrderIdentity>>;
-    try {
-      identity = await dependencies.resolveIdentity({
-        client,
-        order: {
-          buyerIdentityStatus: preparedOrder.buyerIdentityStatus,
-          courseId: preparedOrder.courseId,
-          customerEmail: preparedOrder.customerEmail,
-          customerName: preparedOrder.customerName,
-          orderId: preparedOrder.id,
-          userId: preparedOrder.userId,
-        },
-      });
-    } catch (error) {
-      if (error instanceof LocalOrderIdentityError) {
+      enqueueMessage: dependencies.enqueueMessage,
+      now: dependencies.now(),
+      onIdentityReview: async (reason) => {
         await openBuyerIdentityReview({
           client,
           eventId,
           orderId: order.id,
-          reason: localIdentityReviewReasons[error.code],
+          reason,
         });
-        return "identity_review";
-      }
-      throw error;
-    }
-    const now = dependencies.now();
-    await dependencies.applyPaidAccess({
-      accessDurationMonths: grantOrder.accessDurationMonths,
-      client,
-      courseId: grantOrder.courseId,
-      now,
-      orderId: order.id,
-      userId: identity.userId,
+      },
+      order: {
+        accessDurationMonths: grantOrder.accessDurationMonths,
+        buyerIdentityStatus: order.buyerIdentityStatus,
+        courseId: grantOrder.courseId,
+        customerEmail: order.customerEmail,
+        customerName: order.customerName,
+        id: order.id,
+        providerCustomerId: order.providerCustomerId,
+        status: order.orderStatus,
+        userId: order.userId,
+      },
+      preparation,
+      resolveIdentity: dependencies.resolveIdentity,
     });
-    const message = identity.activationRequired
-      ? createAccountActivationMessage({
-          orderId: order.id,
-          userId: identity.userId,
-        })
-      : createPaidAccessReleasedMessage({
-          courseId: grantOrder.courseId,
-          orderId: order.id,
-          userId: identity.userId,
-        });
-    await dependencies.enqueueMessage({ client, message });
-    return "applied";
+    return applied ? "applied" : "identity_review";
   }
 
   if (decision.effect === "revoke") {
@@ -1171,6 +1052,199 @@ const confirmRefundAndCloseBuyerIdentityReview = async ({
   });
 };
 
+type ProcessorEvent = Parameters<AsaasWebhookProcessor["process"]>[0];
+type ProcessorContext = Parameters<AsaasWebhookProcessor["process"]>[1];
+
+const reviewIdentifierConflict = async ({
+  client,
+  eventId,
+  orderId,
+}: {
+  client: PoolClient;
+  eventId: string;
+  orderId: string;
+}): Promise<void> => {
+  await insertReview({
+    client,
+    eventId,
+    orderId,
+    reason: "event_anomaly",
+  });
+  await insertSafeAlert({
+    client,
+    eventId,
+    reason: "identifier_conflict",
+  });
+};
+
+const correlateAndLockOrder = async ({
+  context,
+  correlation,
+  event,
+}: {
+  context: ProcessorContext;
+  correlation: AsaasFinancialCorrelation;
+  event: ProcessorEvent;
+}): Promise<
+  | { kind: "ignored" }
+  | { kind: "ready"; order: LockedOrderRow; orderId: string }
+> => {
+  const correlationRows = await findCorrelationRows({
+    client: context.client,
+    correlation,
+    existingOrderId: event.orderId,
+  });
+  const candidateIds = [...new Set(correlationRows.map(({ id }) => id))];
+  if (candidateIds.length === 0) {
+    await insertSafeAlert({
+      client: context.client,
+      eventId: event.id,
+      reason: "no_correlation",
+    });
+    return { kind: "ignored" };
+  }
+  if (candidateIds.length > 1) {
+    await insertSafeAlert({
+      client: context.client,
+      eventId: event.id,
+      reason: "ambiguous_identifiers",
+    });
+    return { kind: "ignored" };
+  }
+
+  const orderId = candidateIds[0];
+  if (!orderId) {
+    throw new AsaasWebhookProcessingError("correlation_failed", {
+      retryable: false,
+    });
+  }
+  await context.lockOrder(orderId);
+  const order = await loadLockedOrder({ client: context.client, orderId });
+  await associateWebhookEvent({
+    client: context.client,
+    eventId: event.id,
+    orderId,
+  });
+  return { kind: "ready", order, orderId };
+};
+
+const validatePreparedOrder = async ({
+  context,
+  correlation,
+  event,
+  order,
+  preparation,
+}: {
+  context: ProcessorContext;
+  correlation: AsaasFinancialCorrelation;
+  event: ProcessorEvent;
+  order: LockedOrderRow;
+  preparation: AsaasBuyerIdentityPreparation;
+}): Promise<"processed" | "retry" | null> => {
+  if (
+    hasIdentifierConflict({ correlation, order }) ||
+    hasInvalidInstallmentOffer({ order, preparation })
+  ) {
+    await reviewIdentifierConflict({
+      client: context.client,
+      eventId: event.id,
+      orderId: order.id,
+    });
+    return "processed";
+  }
+
+  const enrichmentFailure = preparation.installmentEnrichmentFailure;
+  if (
+    enrichmentFailure &&
+    order.providerInstallmentId !== enrichmentFailure.installmentId
+  ) {
+    await reviewIdentifierConflict({
+      client: context.client,
+      eventId: event.id,
+      orderId: order.id,
+    });
+    return "retry";
+  }
+  return null;
+};
+
+const decidePreparedEvent = ({
+  order,
+  payload,
+  preparation,
+}: {
+  order: LockedOrderRow;
+  payload: unknown;
+  preparation: AsaasBuyerIdentityPreparation;
+}): AsaasFinancialEventDecision => {
+  const snapshot: AsaasFinancialOrderSnapshot = {
+    amountInCents: order.amountInCents,
+    checkoutStatus: order.checkoutStatus,
+    orderStatus: order.orderStatus,
+    providerPaymentStatus: order.providerPaymentStatus,
+    providerRiskStatus: order.providerRiskStatus,
+  };
+  return preparation.installmentEnrichmentFailure
+    ? decideAsaasAdverseEventWithoutInstallment({ payload, snapshot })
+    : decideAsaasFinancialEvent({ payload, snapshot });
+};
+
+const applyConservativeEnrichmentFailure = async ({
+  context,
+  decision,
+  dependencies,
+  event,
+  order,
+  preparation,
+}: {
+  context: ProcessorContext;
+  decision: AsaasFinancialEventDecision;
+  dependencies: ProcessorDependencies;
+  event: ProcessorEvent;
+  order: LockedOrderRow;
+  preparation: AsaasBuyerIdentityPreparation;
+}): Promise<boolean> => {
+  if (!preparation.installmentEnrichmentFailure) {
+    return false;
+  }
+  await insertReview({
+    client: context.client,
+    eventId: event.id,
+    orderId: order.id,
+    reason: "installment_enrichment_pending",
+    type: "event_anomaly",
+  });
+  const effectOutcome = await applyDecisionEffect({
+    client: context.client,
+    decision,
+    dependencies,
+    eventId: event.id,
+    order,
+    preparation,
+  });
+  await reviewLocalEffectAnomaly({
+    client: context.client,
+    eventId: event.id,
+    orderId: order.id,
+    outcome: effectOutcome,
+  });
+  return true;
+};
+
+const getPreparedFinancialPayload = ({
+  payload,
+  preparation,
+}: {
+  payload: unknown;
+  preparation: AsaasBuyerIdentityPreparation;
+}): unknown =>
+  preparation.installment
+    ? materializeAsaasInstallmentPayload({
+        installment: preparation.installment,
+        payload,
+      })
+    : payload;
+
 export const createAsaasWebhookProcessor = (
   overrides: Partial<ProcessorDependencies> = {}
 ): AsaasWebhookProcessor => {
@@ -1180,12 +1254,10 @@ export const createAsaasWebhookProcessor = (
     context,
     preparation
   ) => {
-    const financialPayload = preparation.installment
-      ? materializeAsaasInstallmentPayload({
-          installment: preparation.installment,
-          payload: event.payload,
-        })
-      : event.payload;
+    const financialPayload = getPreparedFinancialPayload({
+      payload: event.payload,
+      preparation,
+    });
     const preliminaryDecision = decideAsaasFinancialEvent({
       payload: financialPayload,
       snapshot: emptySnapshot,
@@ -1199,76 +1271,36 @@ export const createAsaasWebhookProcessor = (
       return { outcome: "ignored" };
     }
 
-    const correlationRows = await findCorrelationRows({
-      client: context.client,
+    const correlated = await correlateAndLockOrder({
+      context,
       correlation: preliminaryDecision.correlation,
-      existingOrderId: event.orderId,
+      event,
     });
-    const candidateIds = [...new Set(correlationRows.map(({ id }) => id))];
-    if (candidateIds.length === 0) {
-      await insertSafeAlert({
-        client: context.client,
-        eventId: event.id,
-        reason: "no_correlation",
-      });
+    if (correlated.kind === "ignored") {
       return { outcome: "ignored" };
     }
-    if (candidateIds.length > 1) {
-      await insertSafeAlert({
-        client: context.client,
-        eventId: event.id,
-        reason: "ambiguous_identifiers",
-      });
-      return { outcome: "ignored" };
-    }
-
-    const orderId = candidateIds[0];
-    if (!orderId) {
-      throw new AsaasWebhookProcessingError("correlation_failed", {
-        retryable: false,
-      });
-    }
-    await context.lockOrder(orderId);
-    const order = await loadLockedOrder({
-      client: context.client,
-      orderId,
+    const { order, orderId } = correlated;
+    const invalidPreparation = await validatePreparedOrder({
+      context,
+      correlation: preliminaryDecision.correlation,
+      event,
+      order,
+      preparation,
     });
-    await associateWebhookEvent({
-      client: context.client,
-      eventId: event.id,
-      orderId,
-    });
-
-    if (
-      hasIdentifierConflict({
-        correlation: preliminaryDecision.correlation,
-        order,
-      }) ||
-      hasInvalidInstallmentOffer({ order, preparation })
-    ) {
-      await insertReview({
-        client: context.client,
-        eventId: event.id,
-        orderId,
-        reason: "event_anomaly",
-      });
-      await insertSafeAlert({
-        client: context.client,
-        eventId: event.id,
-        reason: "identifier_conflict",
-      });
+    if (invalidPreparation === "processed") {
       return { outcome: "processed" };
     }
+    if (invalidPreparation === "retry") {
+      return {
+        errorCode: "installment_enrichment_failed",
+        outcome: "retry",
+      };
+    }
 
-    const matrixDecision = decideAsaasFinancialEvent({
+    const matrixDecision = decidePreparedEvent({
+      order,
       payload: financialPayload,
-      snapshot: {
-        amountInCents: order.amountInCents,
-        checkoutStatus: order.checkoutStatus,
-        orderStatus: order.orderStatus,
-        providerPaymentStatus: order.providerPaymentStatus,
-        providerRiskStatus: order.providerRiskStatus,
-      },
+      preparation,
     });
     const decision = await blockGrantUnderPendingReview({
       client: context.client,
@@ -1294,6 +1326,28 @@ export const createAsaasWebhookProcessor = (
         reason: "identifier_conflict",
       });
       return { outcome: "processed" };
+    }
+    const appliedConservatively = await applyConservativeEnrichmentFailure({
+      context,
+      decision,
+      dependencies,
+      event,
+      order,
+      preparation,
+    });
+    if (appliedConservatively) {
+      return {
+        errorCode: "installment_enrichment_failed",
+        outcome: "retry",
+      };
+    }
+    if (preparation.installment) {
+      await reconcileInstallmentEnrichmentReview({
+        client: context.client,
+        eventId: event.id,
+        now: dependencies.now(),
+        reviewReason: decision.reviewReason,
+      });
     }
     if (decision.reviewReason) {
       await insertReview({
@@ -1333,13 +1387,25 @@ export const createAsaasWebhookProcessor = (
   return {
     prepare: async (event) => {
       const installmentId = getAsaasPaymentInstallmentId(event.payload);
-      const [identity, installment] = await Promise.all([
+      const [identity, installmentPreparation] = await Promise.all([
         dependencies.prepareIdentity(event, dependencies.gateway),
         installmentId
-          ? dependencies.getInstallment(installmentId)
+          ? dependencies
+              .getInstallment(installmentId)
+              .catch((error: unknown) => {
+                if (!isAsaasAccessRevokingEvent(event.eventName)) {
+                  throw error;
+                }
+                return { installmentEnrichmentFailure: { installmentId } };
+              })
           : Promise.resolve(undefined),
       ]);
-      return installment ? { ...identity, installment } : identity;
+      if (!installmentPreparation) {
+        return identity;
+      }
+      return "installmentEnrichmentFailure" in installmentPreparation
+        ? { ...identity, ...installmentPreparation }
+        : { ...identity, installment: installmentPreparation };
     },
     process,
   };

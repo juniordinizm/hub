@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Outbox e efeitos transacionais
@@ -18,7 +18,11 @@ O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/feat
 
 Falhas inesperadas de `certificate.render` usam o código operacional `certificate_render_failed`; `resend_delivery_failed` fica restrito às entregas que realmente chamam o provedor de e-mail. Ambos são recuperáveis enquanto houver tentativas.
 
-Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o certificado fica `failed`; o reprocessamento manual autorizado devolve o certificado a `pending` antes de reentregar a mesma mensagem.
+Se a renderização esgota tentativas, uma única instrução transacional e fenced move a
+mensagem para `dead_letter` e muda o Certificado ainda `pending`, sem claim ativo, para
+`failed`. Se a mensagem já pertence a outro consumidor, nenhuma das duas transições
+ocorre. Outros tópicos alteram somente a mensagem. O reprocessamento manual autorizado
+devolve o certificado a `pending` antes de reentregar a mesma mensagem.
 
 - `certificate.render`: emitido na transação de emissão; agregado `certificate`; chave `certificate.render/<certificate-id>/v1`; payload somente `certificateId`. Ele é o único evento que pode criar o PDF.
 - `email.certificate-issued`: emitido somente pela entrega bem-sucedida de `certificate.render`, depois que o Certificado está `ready`; agregado `certificate`; chave `email.certificate-issued/<certificate-id>/v1`; payload somente `certificateId`.
@@ -29,6 +33,8 @@ Se a renderização esgota tentativas, a mensagem vai para `dead_letter` e o cer
 - `auth.account-activation`: intenção emitida pelo processor Asaas quando a Conta
   vinculada ao Pedido pago ainda não possui credential; agregado `order`; chave
   `auth.account-activation/<order-id>/v1`; payload exatamente `userId` e `orderId`.
+- `email.course-sales-opened`: emitido ao abrir vendas; agregado `course_interest`; chave por Interesse; payload somente `interestId`. Vendas novamente fechadas adiam sem consumir tentativa.
+- `payments.checkout-cancel`: emitido ao fechar vendas; agregado `order`; chave por Pedido; payload somente `orderId`. Pedido já pago ou Checkout já terminal conclui como no-op.
 
 O payload nunca contém nome, e-mail, token de redefinição, senha, chave de API ou URL secreta. O adaptador consulta os dados atuais somente no momento da entrega.
 
@@ -77,8 +83,14 @@ O worker da inbox Asaas é separado da outbox e roda por
 - O claim é uma atualização atômica com `FOR UPDATE SKIP LOCKED`.
 - Cada mensagem recebe lease de dez minutos com `locked_at` e `locked_by`.
 - Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
+- Toda transição para `delivered`, `retrying` ou `dead_letter` confirma
+  `status = processing` e `locked_by` do consumidor. Se a ownership foi perdida, o
+  worker retorna `lease_lost` e o runner encerra o lote sem contabilizar a mensagem
+  como entregue, adiada, repetida ou morta.
 - Nenhuma conexão do pool permanece reservada durante PDFKit, R2 ou Resend.
 - Uma mensagem é `delivered` somente depois de o adaptador confirmar a chamada ao Resend.
+- `email.certificate-issued` só é criado após o Certificado ficar `ready`; sua mensagem
+  aponta para `/app/certificados`, que exige sessão, e não contém URL assinada de PDF.
 - Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
 - Versão desconhecida de payload ou agregado não entregável vai para `dead_letter`.
 

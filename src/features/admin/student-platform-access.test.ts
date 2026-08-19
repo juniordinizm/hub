@@ -3,25 +3,7 @@ import { describe, expect, it } from "vitest";
 
 describe("student platform access management", () => {
   it("adds global platform controls to the general students table", async () => {
-    const source = await readFile(
-      new URL(
-        "../../app/(admin)/admin/alunos/students-table.tsx",
-        import.meta.url
-      ),
-      "utf8"
-    );
-
-    expect(source).toContain("StudentPlatformAccessControls");
-    expect(source).toContain("Bloquear na plataforma");
-    expect(source).toContain("Restaurar na plataforma");
-    expect(source).toContain("StudentCoursesSummary");
-    expect(source).toContain("blockStudentPlatformAccessAction");
-    expect(source).toContain("restoreStudentPlatformAccessAction");
-    expect(source).not.toContain("EnrollmentExpirationControls");
-  });
-
-  it("keeps course-level access controls only inside course enrollment management", async () => {
-    const [studentsTableSource, studentDetailSource, courseTableSource] =
+    const [studentsTableSource, sheetSource, platformSource] =
       await Promise.all([
         readFile(
           new URL(
@@ -32,7 +14,43 @@ describe("student platform access management", () => {
         ),
         readFile(
           new URL(
-            "../../app/(admin)/admin/alunos/[userId]/page.tsx",
+            "../../components/admin/student-management-sheet.tsx",
+            import.meta.url
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "../../components/admin/student-platform-access-controls.tsx",
+            import.meta.url
+          ),
+          "utf8"
+        ),
+      ]);
+
+    expect(studentsTableSource).toContain("StudentManagementSheet");
+    expect(studentsTableSource).toContain("Gerenciar");
+    expect(sheetSource).toContain("StudentPlatformAccessControls");
+    expect(platformSource).toContain("Bloquear acesso");
+    expect(platformSource).toContain("Restaurar acesso");
+    expect(platformSource).toContain("blockStudentPlatformAccessAction");
+    expect(platformSource).toContain("restoreStudentPlatformAccessAction");
+    expect(studentsTableSource).not.toContain("StudentCoursesSummary");
+  });
+
+  it("keeps course-level access controls only inside course enrollment management", async () => {
+    const [studentsTableSource, sheetSource, courseTableSource] =
+      await Promise.all([
+        readFile(
+          new URL(
+            "../../app/(admin)/admin/alunos/students-table.tsx",
+            import.meta.url
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "../../components/admin/student-management-sheet.tsx",
             import.meta.url
           ),
           "utf8"
@@ -47,8 +65,8 @@ describe("student platform access management", () => {
       ]);
 
     expect(studentsTableSource).not.toContain("EnrollmentExpirationControls");
-    expect(studentDetailSource).not.toContain("EnrollmentExpirationControls");
-    expect(courseTableSource).toContain("EnrollmentExpirationControls");
+    expect(sheetSource).toContain("StudentEnrollmentList");
+    expect(courseTableSource).toContain("StudentManagementSheet");
   });
 
   it("persists global platform blocks on the student profile and audits them", async () => {

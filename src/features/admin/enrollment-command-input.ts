@@ -1,4 +1,6 @@
+import { TZDate } from "@date-fns/tz";
 import { z } from "zod";
+import { APP_TIME_ZONE } from "@/lib/timezone";
 
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -34,16 +36,33 @@ const createStudentPlatformAccessSchema = (reasonErrorMessage: string) =>
   });
 
 const getStartOfToday = (): Date => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
+  const today = new TZDate(Date.now(), APP_TIME_ZONE);
+  return new TZDate(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate(),
+    0,
+    0,
+    0,
+    0,
+    APP_TIME_ZONE
+  );
 };
 
 const assertExpirationDateIsNotInPast = (date: Date): void => {
-  const selectedDayStart = new Date(date);
-  selectedDayStart.setHours(0, 0, 0, 0);
+  const selectedDate = new TZDate(date, APP_TIME_ZONE);
+  const selectedDayStart = new TZDate(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    selectedDate.getDate(),
+    0,
+    0,
+    0,
+    0,
+    APP_TIME_ZONE
+  );
 
-  if (selectedDayStart < getStartOfToday()) {
+  if (selectedDayStart.getTime() < getStartOfToday().getTime()) {
     throw new Error("A data de expiracao nao pode ser anterior a hoje.");
   }
 };
@@ -65,7 +84,16 @@ export const parseExpirationDateSelection = (value: string): Date => {
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const selectedDayStart = new Date(year, month - 1, day);
+  const selectedDayStart = new TZDate(
+    year,
+    month - 1,
+    day,
+    0,
+    0,
+    0,
+    0,
+    APP_TIME_ZONE
+  );
 
   if (
     selectedDayStart.getFullYear() !== year ||
@@ -77,7 +105,7 @@ export const parseExpirationDateSelection = (value: string): Date => {
 
   assertExpirationDateIsNotInPast(selectedDayStart);
 
-  return new Date(year, month - 1, day, 23, 59, 59, 999);
+  return new TZDate(year, month - 1, day, 23, 59, 59, 999, APP_TIME_ZONE);
 };
 
 export const parseExtendEnrollmentExpirationInput = (formData: FormData) => ({

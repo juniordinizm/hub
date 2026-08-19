@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 9419c09b9c7f4a4f3f977e896f51374548080dd8
 ---
 
 # ADR-0004 Concessão como fonte e Matrícula como projeção

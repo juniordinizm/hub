@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DatePickerField } from "@/components/date-picker-field";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import {
   confirmRefundPasswordAction,
   importAsaasStatementAction,
@@ -202,7 +204,13 @@ export function ImportStatementOperation(): React.JSX.Element {
     setPending(true);
     try {
       const result = await importAsaasStatementAction(formData);
-      setMessage(`${result.imported} movimentações importadas.`);
+      const resumedMessage =
+        result.resumedFromOffset > 0
+          ? ` Retomado do cursor ${result.resumedFromOffset}.`
+          : "";
+      setMessage(
+        `${result.inserted} movimentações inseridas e ${result.updated} atualizadas.${resumedMessage}`
+      );
       router.refresh();
     } catch (caught) {
       setMessage(getErrorMessage(caught));
@@ -212,24 +220,24 @@ export function ImportStatementOperation(): React.JSX.Element {
   };
   return (
     <form action={importStatement} className="grid gap-3 sm:grid-cols-3">
-      <label className="grid gap-1 text-xs">
-        Data inicial
-        <input
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+      <Field>
+        <FieldLabel htmlFor="statement-start-date">Data inicial</FieldLabel>
+        <DatePickerField
+          defaultValue=""
+          id="statement-start-date"
           name="startDate"
-          required
-          type="date"
+          placeholder="Selecionar data"
         />
-      </label>
-      <label className="grid gap-1 text-xs">
-        Data final
-        <input
-          className="rounded-md border bg-background px-3 py-2 text-sm"
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="statement-finish-date">Data final</FieldLabel>
+        <DatePickerField
+          defaultValue=""
+          id="statement-finish-date"
           name="finishDate"
-          required
-          type="date"
+          placeholder="Selecionar data"
         />
-      </label>
+      </Field>
       <Button className="self-end" disabled={pending} type="submit">
         {pending ? "Importando..." : "Importar extrato"}
       </Button>
@@ -246,10 +254,10 @@ export function ImportStatementOperation(): React.JSX.Element {
 }
 
 export function PaymentReviewOperation({
-  canResolveTerminalConflicts,
+  canManageFinancialReviews,
   review,
 }: {
-  canResolveTerminalConflicts: boolean;
+  canManageFinancialReviews: boolean;
   review: {
     id: string;
     orderId: string;
@@ -300,9 +308,9 @@ export function PaymentReviewOperation({
       <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
       <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
       {review.status === "pending" &&
+      canManageFinancialReviews &&
       (review.type === "amount_mismatch" ||
-        (review.type === "terminal_conflict" &&
-          canResolveTerminalConflicts)) ? (
+        review.type === "terminal_conflict") ? (
         <form action={resolve} className="mt-3 grid gap-3">
           <input name="reviewId" type="hidden" value={review.id} />
           <div className="grid gap-1.5">

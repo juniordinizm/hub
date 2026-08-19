@@ -7,6 +7,7 @@ import {
   restoreLessonCommentAction,
 } from "@/features/comments/actions";
 import type { LessonCommentView } from "@/features/comments/rules";
+import { formatDateTime } from "@/lib/formatters";
 import type { AppRole } from "@/lib/session";
 import { LessonCommentsSubmitButton } from "./lesson-comments-submit-button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -14,11 +15,6 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { VerifiedBadge } from "./ui/verified-badge";
-
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  dateStyle: "short",
-  timeStyle: "short",
-});
 
 export function LessonCommentsSection({
   canComment,
@@ -36,7 +32,7 @@ export function LessonCommentsSection({
   totalCount: number;
 }): React.JSX.Element {
   return (
-    <section className="px-5 py-8 sm:px-0">
+    <section className="px-5 py-8 sm:px-8 lg:px-0">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-3">
@@ -174,7 +170,7 @@ function CommentBody({
         </span>
         <RoleBadge role={comment.author.role} />
         <span className="text-muted-foreground text-xs">
-          {dateFormatter.format(comment.createdAt)}
+          {formatDateTime(comment.createdAt)}
         </span>
       </div>
 

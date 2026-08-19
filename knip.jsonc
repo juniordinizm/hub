@@ -31,10 +31,12 @@
     "src/app/(admin)/admin/cursos/[courseId]/course-actions-dropdown.tsx",
     "src/features/certificates/actions.ts",
     "src/features/privacy/actions.ts",
+    // Kept as the rollback renderer until Sprint 11 removes React Email.
+    "src/features/email/templates.tsx",
     "test-availability.ts",
     "tools/**"
   ],
-  "ignoreBinaries": ["lefthook"],
+  "ignoreBinaries": ["lefthook", "scripts/cleanup-ci-neon-branches.ts"],
   "ignoreDependencies": [
     "@biomejs/biome",
     "@types/*",

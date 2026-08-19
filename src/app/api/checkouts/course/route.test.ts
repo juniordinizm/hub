@@ -5,6 +5,7 @@ const dependencies = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
   getServerEnv: vi.fn(),
   observeOperation: vi.fn(),
+  readPublicCheckoutStatus: vi.fn(),
 }));
 
 vi.mock("@/features/payments/public-checkout", async (importOriginal) => {
@@ -26,11 +27,14 @@ vi.mock("@/lib/observe-operation", () => ({
 vi.mock("@/lib/session", () => ({
   getCurrentSession: dependencies.getCurrentSession,
 }));
+vi.mock("@/features/payments/checkout-recovery", () => ({
+  readPublicCheckoutStatus: dependencies.readPublicCheckoutStatus,
+}));
 vi.mock("server-only", () => ({}));
 
 import { CheckoutIntentError } from "@/features/payments/checkout";
 import { PublicCheckoutRateLimitError } from "@/features/payments/public-checkout";
-import { dynamic, POST } from "./route";
+import { dynamic, GET, POST } from "./route";
 
 const validBody = {
   checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
@@ -323,5 +327,75 @@ describe("POST /api/checkouts/course", () => {
     expect(dependencies.getServerEnv).toHaveBeenCalledOnce();
     expect(dependencies.getCurrentSession).not.toHaveBeenCalled();
     expect(dependencies.createPublicCourseCheckout).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/checkouts/course", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.getCurrentSession.mockResolvedValue(null);
+    dependencies.getServerEnv.mockReturnValue({
+      CLIENT_IP_SOURCE: "x-forwarded-for",
+      PAYMENTS_CHECKOUT_MODE: "public",
+    });
+  });
+
+  it("returns only the safe state for the exact attempt and slug pair", async () => {
+    dependencies.readPublicCheckoutStatus.mockResolvedValue({
+      orderId: validBody.checkoutAttemptId,
+      redirectUrl: "https://sandbox.asaas.com/c/checkout",
+      retryAllowed: false,
+      status: "ready",
+    });
+    const response = await GET(
+      new Request(
+        `https://hub.example/api/checkouts/course?checkoutAttemptId=${validBody.checkoutAttemptId}&courseSlug=course`
+      )
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      orderId: validBody.checkoutAttemptId,
+      redirectUrl: "https://sandbox.asaas.com/c/checkout",
+      retryAllowed: false,
+      status: "ready",
+    });
+    expect(dependencies.readPublicCheckoutStatus).toHaveBeenCalledWith(
+      validBody
+    );
+  });
+
+  it.each([
+    "",
+    `?checkoutAttemptId=${validBody.checkoutAttemptId}`,
+    `?checkoutAttemptId=${validBody.checkoutAttemptId}&courseSlug=course&orderId=probe`,
+  ])("rejects an invalid status query without reading orders: %s", async (query) => {
+    const response = await GET(
+      new Request(`https://hub.example/api/checkouts/course${query}`)
+    );
+
+    expect(response.status).toBe(400);
+    expect(dependencies.readPublicCheckoutStatus).not.toHaveBeenCalled();
+  });
+
+  it("does not reveal whether a mismatched attempt exists", async () => {
+    dependencies.readPublicCheckoutStatus.mockResolvedValue({
+      error: "Checkout indisponivel.",
+      retryAllowed: false,
+      status: "unavailable",
+    });
+    const response = await GET(
+      new Request(
+        `https://hub.example/api/checkouts/course?checkoutAttemptId=${validBody.checkoutAttemptId}&courseSlug=other-course`
+      )
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({
+      error: "Checkout indisponivel.",
+      retryAllowed: false,
+      status: "unavailable",
+    });
   });
 });

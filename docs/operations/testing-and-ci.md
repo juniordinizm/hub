@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
+last_verified_commit: acb1d0b
 ---
 
 # Testes e CI
@@ -31,8 +31,9 @@ O workflow versionado em `.github/workflows/ci.yml` executa, nesta ordem:
 `quality` contém os gates sem banco e roda em todo push e pull request. `integration-db` e
 `e2e` só executam para branches internas ou push: o GitHub não fornece secrets a pull requests
 de forks. Essa restrição é intencional; os gates que exigem Neon não devem receber segredos de
-contribuidores externos. As duas jobs partem de `quality` e executam em paralelo, cada uma com sua
-própria branch Neon; `build-and-knip` só inicia após as duas terminarem e
+contribuidores externos. `integration-db` cria sua branch Neon e a remove no cleanup; somente
+depois disso `e2e` cria a própria branch. A serialização evita exceder a cota finita de branches
+do projeto Neon de CI. `build-and-knip` só inicia após as duas terminarem e
 `vercel-preview` só inicia depois de todos esses gates, com uma terceira branch Neon.
 
 O perfil Preview permanece dormente e fail-closed: não recebe R2, Resend, Asaas
@@ -51,12 +52,27 @@ commit sem exigir escrita em Preview, Development ou Production. O deployment
 de candidato deixa de funcionar quando sua branch descartável é removida; ele é
 evidência de gate, não ambiente compartilhado para revisão manual.
 
+### Limpeza automática das branches de CI
+
+O workflow `.github/workflows/cleanup-ci-neon-branches.yml` executa a cada hora
+e também pode ser disparado manualmente. Ele consulta o projeto definido por
+`NEON_CI_PROJECT_ID` e só considera nomes com os prefixos `ci-integration-` e
+`ci-e2e-`. Branches expiradas são removidas; uma branch sem `expires_at` só é
+considerada órfã quando tem pelo menos 26 horas. Branches protegidas,
+Production, `vercel-preview` e `staging-release-*` ficam fora da allowlist.
+
+O modo manual padrão é `dry-run`. A exclusão exige `--execute` e a confirmação
+`cleanup-ci-neon`; o job limita cada execução a 50 branches. Os passos
+`always()` dos jobs continuam sendo a limpeza imediata; o janitor cobre
+cancelamentos, falhas de runner e branches cujo ID não voltou como output da
+action de criação. Backups de release não são apagados por esse workflow.
+
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
 `integration-db` e `e2e` são explicitamente ignoradas quando
 `github.actor == 'dependabot[bot]'`; os gates sem provider continuam rodando e
 as integrações completas são obrigatoriamente exercitadas no push confiável
-após o merge. Não copie `NEON_API_KEY` para Dependabot secrets apenas para
+após o merge. Não copie `NEON_CI_API_KEY` para Dependabot secrets apenas para
 forçar essas jobs.
 
 `quality` usa `fetch-depth: 0`: `docs:check` confirma que cada
@@ -68,18 +84,29 @@ continua passando pelos mesmos gates.
 
 ## Banco efêmero da CI
 
-As jobs que precisam de Postgres criam branches distintas no projeto Neon exclusivo de CI. Cada
-branch recebe expiração de 24 horas e é removida em um passo `always()`. A expiração é a contenção
+As jobs que precisam de Postgres criam branches distintas, em sequência, no projeto Neon exclusivo
+de CI. Cada branch recebe expiração de 24 horas e é removida em um passo `always()`. A expiração é a contenção
 para cancelamentos que interrompam o runner antes do cleanup explícito.
 
 Antes da primeira execução remota, configure no repositório GitHub:
 
-- secret `NEON_API_KEY`: chave de API limitada ao projeto/organização de CI;
-- variable `NEON_PROJECT_ID`: ID do projeto Neon dedicado de CI.
+- secret `NEON_CI_API_KEY`: chave de API limitada exclusivamente ao projeto de CI;
+- variable `NEON_CI_PROJECT_ID`: ID do projeto Neon dedicado exclusivamente à CI.
+- variable `NEON_CI_PARENT_BRANCH_ID`: branch do projeto CI sem dados de Production,
+  com journal aceito pelo preparador (limpo, `0052`, `0053`, `0054` ou `0062`),
+  usada como origem das branches efêmeras. Em um projeto CI novo, o journal limpo
+  significa que o schema `drizzle.__drizzle_migrations` existe sem linhas; cada
+  job aplica a cadeia completa em sua branch descartável.
 
 Não use o projeto Neon de produção, sua URL de conexão ou uma chave com escopo de produção.
 O workflow nunca escreve URLs em logs. `create-branch-action` retorna URLs apenas como outputs
 mascarados, usadas pelos migradores, integração e E2E.
+
+Antes de disparar uma execução, confirme também que `NEON_CI_PROJECT_ID` aponta para
+o projeto CI dedicado e que a action cria a branch a partir de uma origem sem
+dados de Production. Sem `parent_branch` explícito, o Neon usa a branch padrão
+do projeto; nesse caso, a execução deve ser interrompida em vez de copiar dados
+reais para uma branch efêmera.
 
 Antes de rodar integração ou E2E, cada job tenta seu migrador até cinco vezes,
 com espera limitada entre tentativas. Integração usa `db:migrate`; E2E usa
@@ -95,10 +122,11 @@ pela action Neon, URLs direta e runtime idênticas, host Neon diferente do compu
 Production conhecido e journal exatamente com 44 entradas até `0043`. Somente então
 executa `truncate table public.orders cascade` em transação e sob advisory lock. Esse
 passo existe exclusivamente para clones efêmeros; não é um comando de limpeza de
-Development ou Production. Se a branch-pai já estiver exatamente em `0052` ou `0053`,
+Development ou Production. Se a branch-pai já estiver exatamente em `0052`, `0053` ou `0054`,
 o comando não altera dados; qualquer journal intermediário, anterior ou posterior aos
-estados reconhecidos falha fechado. A aceitação explícita de `0053` evita que branches
-efêmeras herdadas de Production falhem após a promoção da oferta de pagamento por Curso.
+estados reconhecidos falha fechado. A aceitação explícita do topo atual evita que branches
+efêmeras herdadas de Production falhem depois de uma promoção autorizada, mantendo a
+validação fechada para journals desconhecidos.
 
 O teste PostgreSQL real do worker Asaas depende de
 `CERTIFICATE_CONCURRENCY_DATABASE_URL`. Em 2026-07-29, a Etapa 9 executou essa prova na
@@ -111,11 +139,17 @@ substitutos dessa prova transacional.
 
 O projeto `damp-snow-22911188` usa PostgreSQL 18 em `sa-east-1`. Sua branch
 `production` (`br-dark-boat-ac5ju6m4`) é o banco definitivo da aplicação. As
-jobs usam somente `NEON_PROJECT_ID` e a chave project-scoped `NEON_API_KEY`
+jobs usam somente `NEON_CI_PROJECT_ID` e a chave project-scoped `NEON_CI_API_KEY`
 configurados no GitHub; elas não recebem uma URL persistente. Cada job cria uma
 branch temporária isolada a partir de `production` e deve removê-la ao terminar.
 Nenhuma etapa de CI pode executar migrations, integração ou E2E diretamente na
 branch `production`.
+
+O provisionamento passa por `.github/actions/create-neon-branch`, que tenta criar ou reutilizar a
+mesma branch até três vezes, com espera de 5 e 10 segundos. A action reutiliza o mesmo nome em cada
+tentativa para absorver respostas transitórias da API Neon sem criar branches duplicadas. Somente
+uma tentativa bem-sucedida libera as URLs e o ID usados pelos migradores; depois das três falhas a
+execução termina sem executar migrations ou testes.
 
 ## E2E
 
@@ -125,7 +159,12 @@ Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, co
 `playwright.config.ts`. O processo web recebe somente a URL pooled da branch
 efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
-E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend.
+E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend. Emissões de
+Certificado registram somente tópico, chave SHA-256 normalizada do destinatário e chave
+de idempotência em memória; não registram e-mail, nome, código público nem corpo.
+`/api/e2e/email-deliveries` expõe esses registros somente sob a mesma guarda isolada e
+responde `404` fora dela. `VERCEL_ENV` de Production/Preview ou
+`VERCEL_TARGET_ENV=staging` anulam o modo mesmo com flags E2E presentes.
 As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
 quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
 `E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
@@ -168,7 +207,16 @@ As jornadas atuais verificam:
 - login e recuperação sem enumeração de Conta;
 - acesso da Aluna com Concessão e negação sem Concessão;
 - bloqueio de sequência, conclusão persistida e avanço;
+- jornada completa da última Aula: primeira Conclusão, Certificado `pending`, cron real
+  da outbox, renderização em storage S3 loopback, transição `ready`, uma entrega de e-mail
+  minimizada e página pública canônica com preview/download mediado do PDF;
+- Curso como entrada contextual e lista autenticada como arquivo global de Certificados,
+  com estados `pending`, `ready`, `failed` e revogado;
+- rotas públicas de preview PNG e PDF limitadas antes do lookup, com redirect inline curto somente para `valid` e `ready`,
+  verificação SHA-256, `X-Robots-Tag` e ausência de URL assinada para os demais estados;
 - fronteira Admin/Aluna;
+- gestão de Alunas pelo `StudentManagementSheet` na lista geral e no contexto do Curso,
+  incluindo aluno sem Matrícula, escopos de leitura e retorno 404 da rota individual removida;
 - erro seguro de checkout sem provedor configurado;
 - handoff público sem formulário, checkout Asaas fake, identidade pós-evento, idempotência,
   callbacks e bloqueios de Conta ativa, revogada, bloqueada ou de equipe;
@@ -180,6 +228,10 @@ As jornadas atuais verificam:
   o índice de Aula expansível no mobile;
 - acesso expirado e acesso revogado, com ação de renovação ou suporte;
 - axe-core sem violações `critical` ou `serious` na Biblioteca e Aula da Aluna.
+
+Essa cobertura full-story está implementada em `critical-journeys.spec.ts` e integrada à
+job Playwright; a execução da CI para este commit permanece pendente. Não trate a presença
+do teste como resultado verde nem como evidência de promoção.
 
 A negação sem Concessão renderiza a página segura “Página indisponível”, sem revelar a Aula nem
 seu material. O teste protege esse resultado visível; o status HTTP de um `notFound()` renderizado
@@ -222,7 +274,7 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 | Pagamento e webhook | `asaas*.test.ts`, `public-checkout.test.ts`, E2E checkout seguro |
 | Concessão e Matrícula | `enrollments/rules.test.ts`, `server-sql.test.ts`, E2E acesso |
 | Progresso e conclusão | `progress/rules.test.ts`, integração de certificado, E2E sequência/conclusão |
-| Certificado | `certificates/rules.test.ts`, integração concorrente, E2E público |
+| Certificado | `certificates/rules.test.ts`, integração concorrente, testes da página/rota pública e E2E full-story de conclusão, renderização, e-mail, preview, download mediado e validação pública |
 | Efeitos transacionais | `outbox/*.test.ts`, worker da inbox Asaas e integração PostgreSQL de locks, rollback e emissão de certificado |
 | Privacidade | testes de ações de Admin e guia de direitos de dados |
 | Storage e mídia | testes R2/JMVStream e contratos de upload |
@@ -256,7 +308,7 @@ interação.
 | Acesso expirado ou revogado | Alto: entrar com projeção `expired` ou `revoked`. | Dashboard informa o estado e oferece renovação ou suporte. `critical-journeys.spec.ts`. |
 | Concluir e avançar | Alto: concluir a primeira Aula. | Progresso persiste e a próxima Aula é aberta. `critical-journeys.spec.ts`. |
 | Comentário e resposta | Médio: criar comentário, responder e moderar. | Ações autorizadas, limites e visibilidade são validados em `src/features/comments/actions.test.ts` e `server-sql.test.ts`. |
-| Certificado | Alto: consultar código válido e revogado. | Estado público é distinto e não expõe dados internos. `critical-journeys.spec.ts`. |
+| Certificado | Alto: concluir a última Aula, acompanhar `pending` até `ready` e abrir a página canônica a partir do Curso, do arquivo global ou do e-mail. | Uma única Conclusão/emissão/e-mail; preview e download público apenas para `valid`/`ready`, com hash íntegro, rate limit, URL assinada curta e não indexação; nenhum download para `pending`/`failed`/`revoked`. `critical-journeys.spec.ts` e testes de `src/app/certificados/[code]`. |
 
 `knip.jsonc` inclui uma baseline explícita para arquivos e exports já desconectados por rotas ou
 ações dinâmicas do Next.js. Ela existe para que `bun run knip` bloqueie novos achados sem apagar
@@ -317,6 +369,28 @@ segredo descartável para as variáveis mínimas exigidas pela compilação. O g
 Knip também recebe `DATABASE_URL` e `E2E_DATABASE_URL` iguais, sintéticas e sob
 host `.invalid`, apenas para carregar `playwright.config.ts`; ele não abre conexão
 nem reutiliza banco real.
+
+### Checker manual de templates do Resend
+
+O checker de templates não pertence aos gates automáticos de build, `check` ou
+`typecheck`, porque sua execução consulta a API do Resend e exige a chave
+administrativa `RESEND_TEMPLATES_ADMIN_API_KEY` somente no momento da operação.
+Depois de configurar essa variável no shell, execute explicitamente:
+
+```bash
+bun run check:resend-templates -- --environment=production
+```
+
+A suíte sem rede do checker é executada explicitamente por:
+
+```bash
+bun run test -- src/tooling/check-resend-templates.test.ts
+```
+
+`development`, `staging` e `production` usam os mesmos aliases. Falhas de fetch
+ou de contrato retornam exit code `1`; drafts adicionais geram warning e não
+falham quando a versão publicada é válida. O checker não publica templates e
+sanitiza sua saída, sem HTML, variáveis, chave ou PII.
 
 E2E e integração requerem uma branch Neon ou banco descartável já migrado, nunca um banco
 compartilhado. A CI é o caminho recomendado até existir um procedimento local isolado equivalente.

@@ -30,6 +30,10 @@ const contentSecurityPolicy = buildContentSecurityPolicy({
     : [],
   isProduction,
 });
+const publicCertificatePdfContentSecurityPolicy = contentSecurityPolicy.replace(
+  "frame-ancestors 'none'",
+  "frame-ancestors 'self'"
+);
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -98,9 +102,20 @@ const nextConfig: NextConfig = {
       headers: securityHeaders,
       source: "/(.*)",
     },
+    {
+      headers: [
+        {
+          key: "Content-Security-Policy",
+          value: publicCertificatePdfContentSecurityPolicy,
+        },
+        { key: "X-Frame-Options", value: "SAMEORIGIN" },
+      ],
+      source: "/certificados/:code/pdf",
+    },
   ],
   ...(isVercel ? {} : { output: "standalone" }),
   reactCompiler: true,
+  serverExternalPackages: ["pdfkit"],
 };
 
 export default withSentryConfig(nextConfig, {

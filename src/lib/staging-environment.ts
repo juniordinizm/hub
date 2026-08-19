@@ -187,6 +187,9 @@ const getSharedProviderProblems = (environment: Environment): string[] => {
       problems.push(`${key} is required`);
     }
   }
+  if (!hasConfiguredValue(environment, "STAGING_EMAIL_RECIPIENT_ALLOWLIST")) {
+    problems.push("STAGING_EMAIL_RECIPIENT_ALLOWLIST is required");
+  }
   const sender = environment.RESEND_FROM_EMAIL?.trim().toLowerCase();
   const address = sender?.match(DISPLAY_NAME_EMAIL)?.[1] ?? sender;
   const senderDomain = address?.split("@").at(-1);

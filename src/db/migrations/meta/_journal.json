@@ -379,6 +379,69 @@
       "when": 1785632318824,
       "tag": "0053_course_payment_offers",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1785744643480,
+      "tag": "0054_payments_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1785751899658,
+      "tag": "0055_limit_course_installments",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1786099773858,
+      "tag": "0056_certificate_state_invariants",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1786199601997,
+      "tag": "0057_pink_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1786206200471,
+      "tag": "0058_reconcile_certificate_state_invariants",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1786750745848,
+      "tag": "0059_material_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1786975800476,
+      "tag": "0060_course_availability_and_interest",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1787004243086,
+      "tag": "0061_paused_course_landing_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1787012301824,
+      "tag": "0062_certificate_reconciliation_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -17,4 +17,10 @@ export const certificateMigrationStateChecks: readonly MigrationStateCheck[] = [
     statement:
       "select exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'certificates' and column_name in ('render_claim_token', 'render_claimed_at') having count(*) = 2) and exists (select 1 from pg_constraint where conrelid = 'public.certificates'::regclass and conname = 'certificates_render_claim_pair_check' and contype = 'c') and exists (select 1 from pg_constraint where conrelid = 'public.certificates'::regclass and conname = 'certificates_ready_artifact_check' and contype = 'c') as present",
   },
+  {
+    check: "estado de revogacao e historico de certificados",
+    migration: "0056_certificate_state_invariants",
+    statement:
+      "select exists (select 1 from pg_constraint where conrelid = 'public.certificates'::regclass and conname in ('certificates_revocation_state_check', 'certificates_revoked_reason_category_check', 'certificates_valid_revocation_fields_check') and contype = 'c' group by conrelid having count(*) = 3) and exists (select 1 from pg_constraint where conrelid = 'public.certificates'::regclass and conname = 'certificates_course_id_courses_id_fk' and confdeltype = 'r') as present",
+  },
 ];

@@ -5,6 +5,17 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const toastError = vi.hoisted(() => vi.fn());
+const toastSuccess = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: toastError,
+    success: toastSuccess,
+  },
+}));
+
 import { CoursePurchaseLink } from "./course-purchase-link";
 
 declare global {
@@ -28,30 +39,39 @@ describe("CoursePurchaseLink", () => {
     act(() => root.unmount());
     container.remove();
     Reflect.deleteProperty(navigator, "clipboard");
+    toastError.mockReset();
+    toastSuccess.mockReset();
     vi.restoreAllMocks();
   });
 
   const renderAvailableLink = (): void => {
     act(() => {
       root.render(
-        <CoursePurchaseLink link={{ available: true, url: publicUrl }} />
+        <CoursePurchaseLink
+          link={{ available: true, url: publicUrl }}
+          publicUrl={publicUrl}
+        />
       );
     });
   };
 
-  it("shows the public URL in a labeled read-only input with a semantic copy button", () => {
+  const clickCopyButton = (): void => {
+    const button = container.querySelector<HTMLButtonElement>("button");
+    if (!button) {
+      throw new Error("Expected purchase copy button.");
+    }
+    button.click();
+  };
+
+  it("exposes a direct copy action without rendering the URL or a checkout link", () => {
     renderAvailableLink();
 
-    const input = container.querySelector<HTMLInputElement>("input");
     const button = container.querySelector<HTMLButtonElement>("button");
 
-    expect(input?.readOnly).toBe(true);
-    expect(input?.value).toBe(publicUrl);
-    expect(
-      container.querySelector('label[for="course-purchase-link"]')
-    ).not.toBeNull();
+    expect(button?.textContent).toContain("Link público");
     expect(button?.type).toBe("button");
-    expect(button?.textContent).toContain("Copiar");
+    expect(container.querySelector("input:not(.sr-only)")).toBeNull();
+    expect(document.querySelector(`a[href="${publicUrl}"]`)).toBeNull();
   });
 
   it("copies the URL on demand and announces success", async () => {
@@ -63,14 +83,13 @@ describe("CoursePurchaseLink", () => {
     renderAvailableLink();
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("button")?.click();
+      clickCopyButton();
       await Promise.resolve();
     });
 
     expect(writeText).toHaveBeenCalledWith(publicUrl);
-    expect(
-      container.querySelector('[aria-live="polite"]')?.textContent
-    ).toContain("Link copiado");
+    expect(toastSuccess).toHaveBeenCalledWith("Link público copiado.");
+    expect(container.querySelector('[aria-live="polite"]')).toBeNull();
   });
 
   it.each([
@@ -87,30 +106,37 @@ describe("CoursePurchaseLink", () => {
     const input = container.querySelector<HTMLInputElement>("input");
 
     await act(async () => {
-      container.querySelector<HTMLButtonElement>("button")?.click();
+      clickCopyButton();
       await Promise.resolve();
     });
 
     expect(document.activeElement).toBe(input);
     expect(input?.selectionStart).toBe(0);
     expect(input?.selectionEnd).toBe(publicUrl.length);
-    expect(
-      container.querySelector('[aria-live="polite"]')?.textContent
-    ).toContain("Ctrl+C");
+    expect(container.querySelector('[aria-live="polite"]')).toBeNull();
+    expect(toastError).toHaveBeenCalledWith(
+      "Não foi possível copiar automaticamente. O link foi selecionado; pressione Ctrl+C para copiar."
+    );
   });
 
-  it("explains an unavailable link without rendering a false URL", () => {
+  it("keeps the stable public link copyable while explaining closed checkout", () => {
     act(() => {
       root.render(
         <CoursePurchaseLink
           link={{ available: false, reason: "course_unpublished" }}
+          publicUrl={publicUrl}
         />
       );
     });
 
+    expect(container.textContent).toContain("Checkout público indisponível");
     expect(container.textContent).toContain("course_unpublished");
-    expect(container.textContent).toContain("publicacao publicada");
-    expect(container.querySelector("input")).toBeNull();
-    expect(container.querySelector("button")).toBeNull();
+    expect(container.textContent).toContain("publicação publicada");
+    expect(container.querySelector("input")?.getAttribute("value")).toBe(
+      publicUrl
+    );
+    expect(container.querySelector("button")?.textContent).toContain(
+      "Link público"
+    );
   });
 });

@@ -88,26 +88,42 @@ describe("course presentation helpers", () => {
     const courses = [
       {
         accessStatus: "none",
+        availabilityPreset: "available",
         progressPercent: 0,
       },
       {
         accessStatus: "active",
+        availabilityPreset: "available",
         progressPercent: 100,
       },
       {
         accessStatus: "active",
+        availabilityPreset: "sales_paused",
         progressPercent: 35,
       },
       {
         accessStatus: "expired",
+        availabilityPreset: "available",
         progressPercent: 80,
+      },
+      {
+        accessStatus: "none",
+        availabilityPreset: "coming_soon",
+        progressPercent: 0,
+      },
+      {
+        accessStatus: "none",
+        availabilityPreset: "sales_paused",
+        progressPercent: 0,
       },
     ] as const;
 
     expect(groupStudentCatalogCourses(courses)).toEqual({
       active: [courses[2]],
       completed: [courses[1]],
+      comingSoon: [courses[4]],
       locked: [courses[0], courses[3]],
+      salesPaused: [courses[5]],
     });
   });
 

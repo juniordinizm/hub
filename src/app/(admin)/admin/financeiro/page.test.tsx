@@ -86,10 +86,30 @@ describe("FinancialStatementImportCard", () => {
 });
 
 describe("PaymentReviewOperation", () => {
+  it("hides amount mismatch decisions without mutable review access", () => {
+    const markup = renderToStaticMarkup(
+      <PaymentReviewOperation
+        canManageFinancialReviews={false}
+        review={{
+          id: "review-1",
+          orderId: "order-1",
+          providerCheckoutId: "chk-1",
+          reason: "paid amount differs from offer snapshot",
+          status: "pending",
+          type: "amount_mismatch",
+        }}
+      />
+    );
+
+    expect(markup).not.toContain("Aprovar");
+    expect(markup).not.toContain("Rejeitar");
+    expect(markup).toContain("Aguardando decisao de uma administradora.");
+  });
+
   it("renders one refund flow when a pending buyer identity review has no order card", () => {
     const markup = renderToStaticMarkup(
       <PaymentReviewOperation
-        canResolveTerminalConflicts
+        canManageFinancialReviews
         review={{
           id: "review-1",
           orderId: "order-1",
@@ -122,7 +142,7 @@ describe("PaymentReviewOperation", () => {
           order={paidOrder}
         />
         <PaymentReviewOperation
-          canResolveTerminalConflicts
+          canManageFinancialReviews
           review={{
             id: "review-1",
             orderId: paidOrder.id,
@@ -144,7 +164,7 @@ describe("PaymentReviewOperation", () => {
   it("keeps resolved buyer identity reviews as history without another refund operation", () => {
     const markup = renderToStaticMarkup(
       <PaymentReviewOperation
-        canResolveTerminalConflicts
+        canManageFinancialReviews
         review={{
           id: "review-1",
           orderId: "order-1",

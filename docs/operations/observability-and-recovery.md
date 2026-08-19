@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: d6e45fb52e61ecf40dc5ca556867b563cf703e1b
+last_verified_commit: acb1d0b
 ---
 
 # Observabilidade e recuperação
@@ -20,7 +20,7 @@ Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos.
 | Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração Asaas e Pedido sem PII |
 | Webhook e concessão | `webhook.asaas`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
 | Player e upload | `cron.jmvstream`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) |
-| Certificado e e-mail | outbox, dead letter e exceção | Operações | alta se emissão não notifica | conferir agregado, outbox e Resend; não editar snapshot |
+| Certificado e e-mail | outbox, dead letter, rota pública, verificação de hash e exceção | Operações | alta se emissão não notifica ou PDF válido/pronto fica indisponível | conferir agregado, outbox, R2 e Resend; não editar snapshot nem divulgar URL assinada |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
 | Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
 
@@ -32,7 +32,7 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Não inclua esses dados nos valores de outros campos.
 
-`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
+`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
 As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
 
@@ -42,7 +42,18 @@ As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem
 - `GET /api/health/ready` é readiness: exige `Authorization: Bearer <HEALTHCHECK_SECRET>` quando o segredo existe. Em produção, segredo ausente, conexão indisponível ou schema incompatível retorna 503 sem detalhes.
 - A readiness usa conexão com timeout de um segundo, transação somente leitura e exige no journal `drizzle.__drizzle_migrations` a migration mínima declarada em `src/db/migration-state.ts`. Providers externos não bloqueiam cada request.
 
-RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhook falho e vídeo pendente, com a idade do item mais antigo.
+RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhooks Asaas prontos, em retry ou falhos, checkouts e reembolsos incertos e vídeo pendente, com a idade do item mais antigo.
+
+O snapshot emite códigos operacionais sem PII, com limiares internos nomeados:
+
+- `outbox_dead_letter`: existe ao menos uma mensagem em `dead_letter`, severidade crítica;
+- `outbox_pending_stale`: mensagem pendente há pelo menos 15 minutos, severidade `warning`, ou há pelo menos 60 minutos, severidade `critical`;
+- `webhook_ready_stale`: evento `received`/`processing` há pelo menos 15 minutos;
+- `webhook_retry_stale`: evento `retryable` há pelo menos 6 horas;
+- `webhook_failed_stale`: evento `failed` há pelo menos 24 horas;
+- `webhook_payload_retention_risk`: qualquer um desses eventos há pelo menos 25 dias, severidade crítica, cinco dias antes da sanitização obrigatória em 30 dias.
+
+Esses limiares acionam o runbook; não são SLO ratificado nem autorizam mutação externa automática.
 
 ## SLI/SLO antes de ratificação
 
@@ -55,6 +66,19 @@ Colete uma linha de base de 30 dias antes de fixar meta, janela, error budget ou
 5. falha e latência de `checkout.create`.
 
 Até haver baseline e aprovação de produto/operações, excedente gera investigação pelo runbook, não promessa de SLO. A revisão mensal registra dona, ambiente, período, volume e decisão.
+
+Ensaios e verificações podem usar `createRecoveryEvidence`, em
+`src/tooling/observability-recovery-evidence.ts`, para produzir um registro
+estruturado com versão, ambiente, dona, janela UTC, journal e nomes de checks.
+O helper rejeita e-mail, URL, credencial e identificador sem formato seguro; ele
+não consulta nem altera banco e não substitui a confirmação humana de PITR,
+backup ou entrega de alerta.
+
+Para registrar somente a evidência dos checks já confirmados manualmente, use
+`bun run ops:recovery:evidence` com `RECOVERY_DRILL_OWNER`,
+`RECOVERY_DRILL_ENVIRONMENT`, `RECOVERY_DRILL_MIGRATION_JOURNAL` e os três
+resultados `RECOVERY_DRILL_*`. O comando aceita exclusivamente `--dry-run`, não
+abre conexão, não executa migration e não restaura banco.
 
 ## Diagnóstico por provider
 
@@ -70,12 +94,40 @@ Até haver baseline e aprovação de produto/operações, excedente gera investi
 1. Relacione `correlationId`, ID do Pedido e `event_key`, sem payload bruto.
 2. Confira token de acesso, deduplicação, estado financeiro e `payment_reviews`.
 3. Use somente retry autorizado; não crie Matrícula diretamente para simular pagamento.
+4. Para `installment_enrichment_failed`, confirme que a Revisão
+   `installment_enrichment_pending` existe e que a Concessão paga já foi revogada quando o
+   ID parcelado era exato. Aguarde as cinco tentativas automáticas; não repita reembolso nem
+   restaure acesso.
+5. Se o evento terminar `failed`, somente Admin com `retryWebhook` pode reenfileirá-lo,
+   após confirmar no Asaas que o agregado está consultável. Suporte apenas consulta e
+   encaminha o caso.
+6. Se a fila Asaas estiver interrompida, reative o envio no painel antes de replay. Confirme
+   que a URL, o token e o tipo de envio pertencem ao ambiente correto; não troque credenciais
+   para contornar backlog.
+7. Antes de reenfileirar um evento falho, consulte o Pedido, a cobrança ou o parcelamento pelo
+   ID exato e compare o estado já persistido. Se a chamada anterior teve resultado incerto,
+   consulte primeiro; nunca repita criação de Checkout ou reembolso para “testar”.
+8. Faça replay pelo painel do Asaas quando a entrega ainda estiver retida. Quando o evento já
+   estiver na inbox local como `failed`, use **Admin > Auditoria**, informe o motivo e
+   reenfileire uma vez. O comando só aceita payload não sanitizado e ainda dentro de 30 dias,
+   zera tentativas e deixa trilha `asaas_webhook.requeued`.
+9. Após o replay, acompanhe `ready`, `retryable`, idade e Revisões até convergirem. Não edite
+   Pedido, Concessão ou Matrícula diretamente. Se o payload alcançou 25 dias, trate como
+   incidente crítico antes que a evidência bruta seja removida.
 
 ### JMVStream e R2
 
 1. Para JMVStream, confira `videoHash`, estado local, cron e etapa: parte, complete, processamento, sync ou delete.
 2. Preserve sessão, ETags e IDs. A divergência `gallery` permanece bloqueio no guia de [JMVStream](../integrations/jmvstream.md).
 3. Para R2, registre somente bucket/chave; teste HEAD privado e GET público conforme publicação. Não limpe objetos sem reconciliar referência.
+
+### Certificado público
+
+1. Comece pela página canônica `/certificados/[code]` e registre apenas estado, `render_status` e `correlationId`; nunca copie código completo, chave do objeto ou URL assinada para logs e tickets.
+2. Preview/download só é esperado para `valid` e `ready`. `pending`, `failed`, `revoked`, chave/digest ausente e rate limit bloqueiam o redirecionamento; não contorne a rota com acesso direto ao R2.
+3. Se `/certificados/[code]/pdf` retornar indisponibilidade para um registro elegível, confira a metadata SHA-256 por HEAD privado. Divergência bloqueia a URL assinada e exige investigação do artefato; não altere o snapshot nem o digest para forçar o download.
+4. Confirme `noindex,nofollow` na página e `X-Robots-Tag: noindex, nofollow` no redirect. A URL do R2 expira em cinco minutos e não deve ser tratada como link canônico.
+5. Revogação deve impedir novos previews/downloads imediatamente. PDFs já baixados ou copiados fora do Hub não podem ser recolhidos; use a página pública para comunicar a invalidação.
 
 ### Resend
 

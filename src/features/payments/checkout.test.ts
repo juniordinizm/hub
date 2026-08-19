@@ -37,6 +37,7 @@ const course = {
   payment_allow_pix: true,
   payment_max_installment_count: 3,
   price_in_cents: 10_000,
+  sales_status: "open",
   slug: "formacao-neuro",
   status: "active",
   title: "Formação prática em neuroeducação",
@@ -500,6 +501,44 @@ describe("createAsaasCheckoutIntent", () => {
     expect(pool.query.mock.calls.at(-1)?.[0]).toContain("updated_at = now()");
   });
 
+  it("snapshots the effective installment limit derived from the course price", async () => {
+    const lowPriceCourse = { ...course, price_in_cents: 1990 };
+    const effectiveOrder = {
+      ...insertedOrder,
+      amount_in_cents: 1990,
+      payment_max_installment_count: 1,
+    };
+    const pool = createPool((sql, values) => {
+      if (sql.startsWith("select c.id")) {
+        return { rows: [lowPriceCourse] };
+      }
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        expect(values?.at(-1)).toBe(1);
+        return { rows: [effectiveOrder] };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+    const gateway = createGateway();
+
+    await createAsaasCheckoutIntent(authenticatedInput(gateway));
+
+    expect(gateway.calls.createCheckout[0]?.paymentOptions).toEqual({
+      allowCreditCard: true,
+      allowPix: true,
+      maxInstallmentCount: 1,
+    });
+  });
+
   it.each([
     0, 999,
   ])("rejects price %i before persistence or gateway access", async (priceInCents) => {
@@ -590,6 +629,26 @@ describe("createAsaasCheckoutIntent", () => {
       }
       if (sql.includes("from enrollments")) {
         return { rows: [] };
+      }
+      throw new Error("Não deveria persistir.");
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+    const gateway = createGateway();
+
+    await expect(
+      createAsaasCheckoutIntent(authenticatedInput(gateway))
+    ).rejects.toThrow("Curso indisponível para checkout pago.");
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a course whose sales are closed before persistence or provider access", async () => {
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return { rows: [{ ...course, sales_status: "closed" }] };
       }
       throw new Error("Não deveria persistir.");
     });

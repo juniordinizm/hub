@@ -84,6 +84,29 @@ Compartilhar domínio e credencial aumenta o impacto de um vazamento local. A
 allowlist reduz o risco de envio acidental, mas não substitui o cuidado com a
 API key. Não registre a chave em chat, documento, commit ou log.
 
+### Staging
+
+Staging compartilha a estrutura Resend aprovada para Production: domínio
+verificado, credencial de envio e configuração de remetente no domínio
+`neurocapacitar.com.br`. O catálogo de templates também é único: Staging usa os
+mesmos aliases canônicos da aplicação, sem cópias `staging-*` ou `production-*`.
+
+O preflight exige `STAGING_EMAIL_RECIPIENT_ALLOWLIST`, separada por vírgula, e
+bloqueia o runtime quando a variável está ausente, vazia ou contém somente um
+placeholder. A lista contém endereços destinatários controlados, não aliases de
+template, e deve ser mantida mínima e revisada.
+
+`STAGING_RESEND_USES_PRODUCTION=true` é um acknowledgement independente de que
+a estrutura Resend é compartilhada. Ele não substitui a allowlist nem libera
+destinatários. Nesta etapa, a allowlist já faz parte do contrato e do preflight;
+a aplicação já bloqueia destinatários fora da lista antes de renderizar ou
+chamar o Resend.
+
+Staging não possui isolamento forte de credencial, domínio ou reputação. Um uso
+indevido pode consumir cota, afetar a reputação compartilhada do domínio ou
+alcançar um destinatário permitido; a allowlist reduz o alcance, mas não elimina
+esse risco.
+
 ## Verificação operacional
 
 Estado da liberação inicial:

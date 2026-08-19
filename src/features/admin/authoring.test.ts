@@ -63,6 +63,9 @@ import {
   saveModule,
 } from "./authoring";
 
+const COURSE_ACTIVATION_UPDATE_PATTERN =
+  /update courses\s+set status = 'active'/i;
+
 const coverImage = {
   original: {
     contentType: "image/png",
@@ -73,14 +76,14 @@ const coverImage = {
   variants: {
     card: {
       contentType: "image/webp",
-      height: 540,
+      height: 1000,
       key: "courses/course-1/cover/card.webp",
       sizeBytes: 1,
       width: 960,
     },
     thumb: {
       contentType: "image/webp",
-      height: 270,
+      height: 500,
       key: "courses/course-1/cover/thumb.webp",
       sizeBytes: 1,
       width: 480,
@@ -187,6 +190,11 @@ describe("admin authoring", () => {
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.original.key);
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.card.key);
     expect(publishR2Object).toHaveBeenCalledWith(coverImage.variants.thumb.key);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        COURSE_ACTIVATION_UPDATE_PATTERN.test(String(sql))
+      )
+    ).toBe(false);
   });
 
   it("creates a draft course, records it, then syncs its JMVStream folder", async () => {
@@ -204,7 +212,7 @@ describe("admin authoring", () => {
     formData.set("price", "R$ 129,90");
     formData.set("accessDurationMonths", "6");
     formData.set("status", "active");
-    formData.set("workloadHours", "999");
+    formData.set("workloadHoursOverride", "18");
 
     const result = await saveCourse({ actorUserId: "admin-1", formData });
 
@@ -218,6 +226,8 @@ describe("admin authoring", () => {
       "Curso novo",
       "Subtitulo",
       "Descricao",
+      18,
+      18,
       12_990,
       true,
       true,
@@ -291,7 +301,7 @@ describe("admin authoring", () => {
     expect(ensureJmvstreamCourseFolder).not.toHaveBeenCalled();
   });
 
-  it("archives an existing course through the save lifecycle", async () => {
+  it("does not change Course availability through the generic save lifecycle", async () => {
     const formData = new FormData();
     formData.set("courseId", "course-1");
     formData.set("title", "Curso existente");
@@ -304,10 +314,12 @@ describe("admin authoring", () => {
     const updateCourseCall = query.mock.calls.find(([sql]) =>
       String(sql).includes("update courses")
     );
-    expect(updateCourseCall?.[0]).toContain("price_in_cents = $4");
+    expect(updateCourseCall?.[0]).toContain("price_in_cents = $5");
+    expect(updateCourseCall?.[0]).not.toContain("status =");
     expect(updateCourseCall?.[0]).toContain("where id = $12");
     expect(updateCourseCall?.[1]).toEqual([
       "Curso existente",
+      null,
       null,
       null,
       1000,
@@ -317,7 +329,6 @@ describe("admin authoring", () => {
       null,
       null,
       12,
-      "archived",
       "course-1",
     ]);
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith("course-1");
@@ -708,6 +719,34 @@ describe("admin authoring", () => {
     await expect(
       saveLesson({ actorUserId: "admin-1", formData })
     ).rejects.toThrow("Prepare alteracoes");
+  });
+
+  it("rejects an existing published lesson before processing media or moving it into a draft module", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes(
+          "join course_publications cp on cp.id = l.course_publication_id"
+        )
+      ) {
+        return { rows: [] };
+      }
+
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("lessonId", "published-lesson");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula publicada");
+    formData.set("textDocument", JSON.stringify(textDocument));
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Prepare alteracoes");
+
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("update lessons"))
+    ).toBe(false);
   });
 
   it("rejects a compatible correction that changes published lesson structure", async () => {

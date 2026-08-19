@@ -176,12 +176,8 @@ const auditEnrollmentExpirationChange = async ({
   });
 };
 
-const revalidateEnrollmentAdminPaths = (userId: string): void => {
+const revalidateEnrollmentAdminPaths = (): void => {
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
@@ -190,26 +186,62 @@ export const saveCourseAction = async (formData: FormData): Promise<void> => {
   revalidateAdmin();
 };
 
+export type CoursePublicationActionResult =
+  | { ok: true }
+  | { message: string; ok: false };
+
+const getCoursePublicationActionError = (
+  error: unknown,
+  fallback: string
+): CoursePublicationActionResult => ({
+  message: error instanceof Error ? error.message : fallback,
+  ok: false,
+});
+
 export const createCoursePublicationDraftAction = async (
   courseId: string
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  await createCoursePublicationDraft({
-    actorUserId: session.user.id,
-    courseId,
-  });
-  revalidateAdmin();
+): Promise<CoursePublicationActionResult> => {
+  try {
+    const session = await requireRole(["admin"]);
+    await createCoursePublicationDraft({
+      actorUserId: session.user.id,
+      courseId,
+    });
+    revalidateAdmin();
+    return { ok: true };
+  } catch (error) {
+    return getCoursePublicationActionError(
+      error,
+      "Não foi possível preparar as alterações. Tente novamente."
+    );
+  }
 };
 
 export const publishCoursePublicationAction = async (
   courseId: string
-): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  await publishCoursePublication({
-    actorUserId: session.user.id,
-    courseId,
-  });
-  revalidateAdmin();
+): Promise<CoursePublicationActionResult> => {
+  try {
+    const session = await requireRole(["admin"]);
+    const result = await publishCoursePublication({
+      actorUserId: session.user.id,
+      courseId,
+    });
+
+    if (result === "no_draft") {
+      return {
+        message: "Não há alterações em preparo para publicar.",
+        ok: false,
+      };
+    }
+
+    revalidateAdmin();
+    return { ok: true };
+  } catch (error) {
+    return getCoursePublicationActionError(
+      error,
+      "Não foi possível publicar as alterações. Tente novamente."
+    );
+  }
 };
 
 export const saveModuleAction = async (formData: FormData): Promise<void> => {
@@ -374,7 +406,7 @@ export const extendEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { days, enrollmentId, months, reason, userId } =
+  const { days, enrollmentId, months, reason } =
     parseExtendEnrollmentExpirationInput(formData);
   const { extendEnrollmentExpiration } = await import(
     "@/features/enrollments/server"
@@ -394,10 +426,6 @@ export const extendEnrollmentExpirationAction = async (
     targetType: "enrollment",
   });
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const setEnrollmentExpirationAction = async (
@@ -406,7 +434,7 @@ export const setEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, newExpiresAt, reason, userId } =
+  const { enrollmentId, newExpiresAt, reason } =
     parseSetEnrollmentExpirationInput(formData);
   const { setEnrollmentExpiration } = await import(
     "@/features/enrollments/server"
@@ -424,10 +452,6 @@ export const setEnrollmentExpirationAction = async (
     result,
   });
   revalidateAdmin();
-
-  if (userId) {
-    revalidatePath(`/admin/alunos/${userId}`);
-  }
 };
 
 export const adjustEnrollmentExpirationAction = async (
@@ -436,7 +460,7 @@ export const adjustEnrollmentExpirationAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { adjustment, enrollmentId, newExpiresAtValue, reason, userId } =
+  const { adjustment, enrollmentId, newExpiresAtValue, reason } =
     parseAdjustEnrollmentExpirationInput(formData);
 
   if (adjustment === "set_exact") {
@@ -455,7 +479,7 @@ export const adjustEnrollmentExpirationAction = async (
       enrollmentId,
       result,
     });
-    revalidateEnrollmentAdminPaths(userId);
+    revalidateEnrollmentAdminPaths();
     return;
   }
 
@@ -468,7 +492,7 @@ export const blockEnrollmentAccessAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, reason, userId } = parseEnrollmentAccessInput(formData);
+  const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { blockEnrollmentAccess } = await import(
     "@/features/enrollments/server"
@@ -484,7 +508,7 @@ export const blockEnrollmentAccessAction = async (
     targetId: enrollmentId,
     targetType: "enrollment",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const restoreEnrollmentAccessAction = async (
@@ -493,7 +517,7 @@ export const restoreEnrollmentAccessAction = async (
   const session = await requireRole(
     rolesForPermission("manageEnrollmentAccess")
   );
-  const { enrollmentId, reason, userId } = parseEnrollmentAccessInput(formData);
+  const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { restoreEnrollmentAccess } = await import(
     "@/features/enrollments/server"
@@ -509,7 +533,7 @@ export const restoreEnrollmentAccessAction = async (
     targetId: enrollmentId,
     targetType: "enrollment",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const blockStudentPlatformAccessAction = async (
@@ -540,7 +564,7 @@ export const blockStudentPlatformAccessAction = async (
     targetId: userId,
     targetType: "student",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const restoreStudentPlatformAccessAction = async (
@@ -571,7 +595,7 @@ export const restoreStudentPlatformAccessAction = async (
     targetId: userId,
     targetType: "student",
   });
-  revalidateEnrollmentAdminPaths(userId);
+  revalidateEnrollmentAdminPaths();
 };
 
 export const saveFaqAction = async (formData: FormData): Promise<void> => {
@@ -699,18 +723,12 @@ export const saveSettingsAction = async (formData: FormData): Promise<void> => {
   const legalName = readString(formData, "issuerLegalName");
   const displayName = readString(formData, "issuerDisplayName");
   const cnpj = readString(formData, "issuerCnpj");
-  const courseFreeStatement = readString(formData, "issuerCourseFreeStatement");
   if (legalName && cnpj) {
     await getPool().query(
-      `insert into certificate_issuer_profiles (id, legal_name, cnpj, display_name, course_free_statement)
-     values ('global', $1, $2, $3, $4)
-     on conflict (id) do update set legal_name = excluded.legal_name, cnpj = excluded.cnpj, display_name = excluded.display_name, course_free_statement = excluded.course_free_statement, updated_at = now()`,
-      [
-        legalName,
-        cnpj,
-        displayName || legalName,
-        courseFreeStatement || "Certificado de conclusao de curso livre.",
-      ]
+      `insert into certificate_issuer_profiles (id, legal_name, cnpj, display_name)
+       values ('global', $1, $2, $3)
+       on conflict (id) do update set legal_name = excluded.legal_name, cnpj = excluded.cnpj, display_name = excluded.display_name, updated_at = now()`,
+      [legalName, cnpj, displayName || legalName]
     );
   }
   await audit({
@@ -788,6 +806,7 @@ const persistCertificateTemplateDraft = async ({
         }
         signatureKey = nextSignatureKey;
         return await saveCertificateTemplateDraft({
+          actorUserId,
           courseId,
           signerName: readString(formData, "signerName") || null,
           signerRole: readString(formData, "signerRole") || null,
@@ -864,7 +883,8 @@ export const publishCertificateTemplateFormAction = async (
     const session = await requireRole(["admin"]);
     await saveAndPublishCertificateTemplate({
       formData,
-      publishDraft: publishCertificateTemplate,
+      publishDraft: (courseId) =>
+        publishCertificateTemplate(courseId, session.user.id),
       saveDraft: async (draftFormData) => {
         await persistCertificateTemplateDraft({
           actorUserId: session.user.id,
@@ -891,16 +911,16 @@ export const publishCertificateTemplateFormAction = async (
 export const disableCertificateForCourseAction = async (
   courseId: string
 ): Promise<void> => {
-  await requireRole(["admin"]);
-  await disableCertificateForCourse(courseId);
+  const session = await requireRole(["admin"]);
+  await disableCertificateForCourse(courseId, session.user.id);
   revalidateAdmin();
 };
 
 export const enableCertificateForCourseAction = async (
   courseId: string
 ): Promise<void> => {
-  await requireRole(["admin"]);
-  await enableCertificateForCourse(courseId);
+  const session = await requireRole(["admin"]);
+  await enableCertificateForCourse(courseId, session.user.id);
   revalidateAdmin();
 };
 

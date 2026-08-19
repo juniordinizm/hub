@@ -17,6 +17,7 @@ const field = {
   width: 80,
   x: 10,
   y: 30,
+  verticalAlign: "middle",
 };
 
 const validDraft = {
@@ -42,6 +43,31 @@ describe("parseCertificateTemplateDraft", () => {
     expect(parseCertificateTemplateDraft(JSON.stringify(validDraft))).toEqual(
       validDraft
     );
+  });
+
+  it("normalizes legacy fields without vertical alignment to the center", () => {
+    const legacy = {
+      ...validDraft,
+      fields: [{ ...field, verticalAlign: undefined }],
+    };
+
+    expect(parseCertificateTemplateDraft(legacy).fields[0]?.verticalAlign).toBe(
+      "middle"
+    );
+  });
+
+  it("removes the retired course-free field from stored drafts", () => {
+    const legacyField = {
+      ...field,
+      field: "courseFreeStatement",
+    };
+
+    expect(
+      parseCertificateTemplateDraft({
+        ...validDraft,
+        fields: [field, legacyField],
+      }).fields.map((item) => item.field)
+    ).toEqual(["studentName"]);
   });
 });
 
@@ -76,6 +102,11 @@ describe("parseCertificateRenderSnapshot", () => {
   });
 
   it("parses a complete immutable snapshot", () => {
+    const legacyField = {
+      ...field,
+      field: "courseFreeStatement",
+      y: 50,
+    };
     const snapshot = parseCertificateRenderSnapshot({
       certificate: { code: "CERT-123", issuedAt: "2026-07-22T12:00:00.000Z" },
       completion: { completedAt: "2026-07-21T12:00:00.000Z" },
@@ -89,7 +120,7 @@ describe("parseCertificateRenderSnapshot", () => {
       student: { name: "Ana" },
       template: {
         backgroundKey: validDraft.backgroundKey,
-        fields: validDraft.fields,
+        fields: [...validDraft.fields, legacyField],
         id: "2c5c41a6-29c1-4a42-8474-f1f7021d5137",
         signatureKey: null,
         signerName: null,
@@ -100,5 +131,6 @@ describe("parseCertificateRenderSnapshot", () => {
     });
 
     expect(snapshot.issuer.displayName).toBe("Hub");
+    expect(snapshot.template.fields.at(-1)?.field).toBe("courseFreeStatement");
   });
 });

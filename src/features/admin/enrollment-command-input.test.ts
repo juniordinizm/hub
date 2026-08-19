@@ -13,9 +13,20 @@ describe("admin enrollment command inputs", () => {
     formData.set("reason", "Ajuste aprovado");
     formData.set("newExpiresAt", "2099-06-15");
 
-    expect(parseSetEnrollmentExpirationInput(formData).newExpiresAt).toEqual(
-      new Date(2099, 5, 15, 23, 59, 59, 999)
-    );
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = "UTC";
+
+    try {
+      expect(parseSetEnrollmentExpirationInput(formData).newExpiresAt).toEqual(
+        new Date("2099-06-16T02:59:59.999Z")
+      );
+    } finally {
+      if (previousTimeZone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTimeZone;
+      }
+    }
   });
 
   it("keeps optional extension units absent instead of coercing invalid values", () => {

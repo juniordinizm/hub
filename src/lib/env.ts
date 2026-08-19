@@ -73,6 +73,7 @@ const serverEnvSchema = z.object({
     .transform((value) => value === "true"),
   SUPPORT_EMAIL: optionalNonEmptyString,
   STAGING_DATABASE_HOST: optionalNonEmptyString,
+  STAGING_EMAIL_RECIPIENT_ALLOWLIST: optionalNonEmptyString,
   STAGING_JMVSTREAM_USES_PRODUCTION: optionalNonEmptyString,
   STAGING_R2_USES_DEVELOPMENT: optionalNonEmptyString,
   STAGING_RESEND_USES_PRODUCTION: optionalNonEmptyString,
@@ -87,20 +88,35 @@ const serverEnvSchema = z.object({
 type ServerEnvironment = z.infer<typeof serverEnvSchema>;
 type RawEnvironment = Readonly<Record<string, string | undefined>>;
 
-const isLoopbackE2eRuntime = (env: ServerEnvironment): boolean => {
-  const applicationUrls = [
-    env.BETTER_AUTH_URL,
-    env.CERTIFICATE_PUBLIC_BASE_URL,
-    env.NEXT_PUBLIC_APP_URL,
-  ].map((value) => new URL(value));
+export const isIsolatedE2eRuntime = (environment: RawEnvironment): boolean => {
+  if (
+    environment.CI !== "true" ||
+    environment.E2E_TEST_MODE !== "true" ||
+    resolveRuntimeEnvironment(environment) !== "e2e"
+  ) {
+    return false;
+  }
 
-  return (
-    env.E2E_TEST_MODE &&
-    applicationUrls.every((url) =>
-      ["127.0.0.1", "[::1]", "localhost"].includes(url.hostname)
-    ) &&
-    new Set(applicationUrls.map((url) => url.origin)).size === 1
-  );
+  const applicationUrlValues = [
+    environment.BETTER_AUTH_URL,
+    environment.CERTIFICATE_PUBLIC_BASE_URL,
+    environment.NEXT_PUBLIC_APP_URL,
+  ];
+  if (applicationUrlValues.some((value) => !value)) {
+    return false;
+  }
+
+  try {
+    const applicationUrls = applicationUrlValues.map(
+      (value) => new URL(value as string)
+    );
+    return (
+      applicationUrls.every((url) => url.hostname === "127.0.0.1") &&
+      new Set(applicationUrls.map((url) => url.origin)).size === 1
+    );
+  } catch {
+    return false;
+  }
 };
 
 const validateCanonicalProductionUrls = (
@@ -142,12 +158,15 @@ const validateServerEnvironment = (
     throw new Error("E2E_TEST_MODE requires CI=true.");
   }
 
-  const isolatedE2eRuntime = isLoopbackE2eRuntime(env);
+  const runtimeEnvironment = resolveRuntimeEnvironment(rawEnvironment);
+  if (env.E2E_TEST_MODE && runtimeEnvironment !== "e2e") {
+    throw new Error("E2E_TEST_MODE must not be enabled in a Vercel runtime.");
+  }
+
+  const isolatedE2eRuntime = isIsolatedE2eRuntime(rawEnvironment);
   if (env.E2E_TEST_MODE && !isolatedE2eRuntime) {
     throw new Error("E2E_TEST_MODE requires loopback application URLs.");
   }
-
-  const runtimeEnvironment = resolveRuntimeEnvironment(rawEnvironment);
 
   if (runtimeEnvironment === "staging") {
     const stagingProblems = getStagingEnvironmentProblems(rawEnvironment);
@@ -231,6 +250,8 @@ export const getServerEnv = () => {
     SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     STAGING_DATABASE_HOST: process.env.STAGING_DATABASE_HOST,
+    STAGING_EMAIL_RECIPIENT_ALLOWLIST:
+      process.env.STAGING_EMAIL_RECIPIENT_ALLOWLIST,
     STAGING_JMVSTREAM_USES_PRODUCTION:
       process.env.STAGING_JMVSTREAM_USES_PRODUCTION,
     STAGING_R2_USES_DEVELOPMENT: process.env.STAGING_R2_USES_DEVELOPMENT,

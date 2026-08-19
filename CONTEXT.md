@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: 2ede052
 ---
 
 # Glossário do Hub
@@ -48,6 +48,18 @@ Suspensão da Conta na experiência da Aluna, mais ampla que bloqueio de Matríc
 **Revisão financeira**  
 Fila humana quando o sistema não pode aplicar evento financeiro com segurança, como conflito entre estados terminais ou valor divergente.
 
+**Estado de entrega do Curso**
+Define se o conteúdo pode ser entregue: rascunho, ativo ou arquivado. Não define vitrine nem novas vendas.
+
+**Visibilidade de catálogo**
+Define se pessoas sem Matrícula descobrem o Curso na vitrine. Ocultar não revoga acesso adquirido.
+
+**Estado de vendas**
+Define se o Hub aceita novas compras do Curso. Fechar vendas não altera Concessões ou Matrículas existentes.
+
+**Interesse de venda**
+Manifestação reversível de uma Conta Student para receber um único aviso na próxima abertura de vendas. Não é Pedido, Concessão ou Matrícula.
+
 ## Aprendizagem e conteúdo
 
 **Curso**  
@@ -57,7 +69,7 @@ Produto educacional vendável e publicável, composto por Módulos e Aulas.
 Revisão interna materializada de Módulos e Aulas, com estados rascunho, publicada e aposentada. A publicação vigente define o currículo vivo de todas as Matrículas ativas do Curso; não é produto nem direito comercial individual.
 
 **Conclusão de Curso (`CourseCompletion`)**
-Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
+Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Somente a transação que cria essa primeira evidência pode iniciar a emissão automática de Certificado. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
 
 **Módulo**  
 Agrupamento ordenado de Aulas dentro de Curso.
@@ -72,7 +84,7 @@ Evidência de consumo de Aulas e Curso. Não é direito de acesso.
 Estado em que Aula ou Curso satisfaz a regra vigente de completude. É independente de expiração.
 
 **Certificado**  
-Documento para uma Aluna e Curso, com snapshots exibidos. Pode ser válido, revogado ou reemitido.
+Documento para uma Aluna e Curso, com snapshots exibidos. O lifecycle é serializado por Conta e Curso; o preparo do PDF pode estar pendente, pronto ou falho. Pode ser válido, revogado ou reemitido.
 
 **Evento de aprendizagem**
 Registro técnico minimizado e idempotente de início, checkpoint, conclusão ou falha. É analytics, não autoridade de Progresso, acesso ou Certificado.

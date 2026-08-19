@@ -15,11 +15,16 @@ export interface ClaimedOutboxMessage {
 
 export class OutboxDeliveryError extends Error {
   readonly code: string;
+  readonly deferred: boolean;
   readonly retryable: boolean;
 
-  constructor(code: string, { retryable }: { retryable: boolean }) {
+  constructor(
+    code: string,
+    { deferred = false, retryable }: { deferred?: boolean; retryable: boolean }
+  ) {
     super(code);
     this.code = code;
+    this.deferred = deferred;
     this.retryable = retryable;
   }
 }
@@ -32,37 +37,50 @@ const getDeliveryError = (error: unknown): OutboxDeliveryError =>
 export const processClaimedOutboxMessage = async ({
   deliver,
   markDeadLetter,
+  markDeferred,
   markDelivered,
   markRetry,
   message,
   random,
 }: {
   deliver: (message: ClaimedOutboxMessage) => Promise<void>;
-  markDeadLetter: (input: { errorCode: string; id: string }) => Promise<void>;
-  markDelivered: (id: string) => Promise<void>;
+  markDeadLetter: (input: {
+    errorCode: string;
+    id: string;
+  }) => Promise<boolean>;
+  markDeferred: (input: { errorCode: string; id: string }) => Promise<boolean>;
+  markDelivered: (id: string) => Promise<boolean>;
   markRetry: (input: {
     errorCode: string;
     id: string;
     retryDelayMs: number;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   message: ClaimedOutboxMessage;
   random?: () => number;
-}): Promise<"dead_letter" | "delivered" | "retrying"> => {
+}): Promise<
+  "dead_letter" | "deferred" | "delivered" | "lease_lost" | "retrying"
+> => {
   try {
     await deliver(message);
-    await markDelivered(message.id);
-    return "delivered";
+    return (await markDelivered(message.id)) ? "delivered" : "lease_lost";
   } catch (error) {
     const deliveryError = getDeliveryError(error);
-    if (!deliveryError.retryable || message.attempts >= OUTBOX_MAX_ATTEMPTS) {
-      await markDeadLetter({
+    if (deliveryError.deferred) {
+      const transitioned = await markDeferred({
         errorCode: deliveryError.code,
         id: message.id,
       });
-      return "dead_letter";
+      return transitioned ? "deferred" : "lease_lost";
+    }
+    if (!deliveryError.retryable || message.attempts >= OUTBOX_MAX_ATTEMPTS) {
+      const transitioned = await markDeadLetter({
+        errorCode: deliveryError.code,
+        id: message.id,
+      });
+      return transitioned ? "dead_letter" : "lease_lost";
     }
 
-    await markRetry({
+    const transitioned = await markRetry({
       errorCode: deliveryError.code,
       id: message.id,
       retryDelayMs: getRetryDelayMs({
@@ -70,6 +88,6 @@ export const processClaimedOutboxMessage = async ({
         ...(random ? { random } : {}),
       }),
     });
-    return "retrying";
+    return transitioned ? "retrying" : "lease_lost";
   }
 };

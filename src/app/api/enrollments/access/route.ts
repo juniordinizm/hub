@@ -19,6 +19,13 @@ export const GET = async (request: Request): Promise<Response> => {
     );
   }
 
+  if (session.platformBlockedAt) {
+    return NextResponse.json(
+      { error: "Acesso temporariamente bloqueado." },
+      { status: 403 }
+    );
+  }
+
   const url = new URL(request.url);
   const courseId = url.searchParams.get("courseId");
 

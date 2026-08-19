@@ -13,6 +13,7 @@ import {
   getAsaasProviderClient,
 } from "@/features/payments/provider";
 import {
+  type FinancialStatementImportResult,
   importAsaasFinancialStatement,
   reconcileAsaasPayment,
 } from "@/features/payments/reconciliation";
@@ -130,7 +131,7 @@ export const reconcileAsaasPaymentAction = async (
 
 export const importAsaasStatementAction = async (
   formData: FormData
-): Promise<{ imported: number }> => {
+): Promise<FinancialStatementImportResult> => {
   const session = await requirePermission("manageFinancialOperations");
   const startDate = readString(formData, "startDate");
   const finishDate = readString(formData, "finishDate");
@@ -150,7 +151,7 @@ export const importAsaasStatementAction = async (
 export const resolvePaymentReviewAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requirePermission("viewFinancials");
+  const session = await requirePermission("manageFinancialReviews");
   const reviewId = readString(formData, "reviewId");
   const decision = readString(formData, "decision");
 
@@ -160,7 +161,6 @@ export const resolvePaymentReviewAction = async (
 
   await resolvePaymentReview({
     actorUserId: session.user.id,
-    canResolveTerminalConflicts: session.role === "admin",
     decision,
     decisionReason: readString(formData, "decisionReason"),
     reviewId,

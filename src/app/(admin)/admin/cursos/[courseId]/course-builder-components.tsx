@@ -2,9 +2,9 @@
 
 import {
   Add01Icon,
+  ArrowDown01Icon,
   Edit01Icon,
   FloppyDiskIcon,
-  PlayCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import { CourseBuilderClient } from "@/components/course-builder-dnd";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DialogBody,
   DialogFooter,
@@ -28,8 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { TableCell } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import {
   createLessonDraftAction,
@@ -56,27 +55,39 @@ const CONTENT_STATUS_LABELS: Record<string, string> = {
 
 export function CourseBuilderWrapper({
   course,
+  editable,
   modules,
   lessons,
 }: {
   course: CourseData;
+  editable: boolean;
   modules: ModuleData[];
   lessons: LessonData[];
 }) {
   return (
     <CourseBuilderClient
       course={course}
+      editable={editable}
       initialLessons={lessons}
       initialModules={modules}
       renderLesson={(lesson, _moduleData, index) => (
-        <LessonRow courseId={course.id} index={index} lesson={lesson} />
+        <LessonRow
+          courseId={course.id}
+          editable={editable}
+          index={index}
+          lesson={lesson}
+        />
       )}
-      renderModule={(moduleData, moduleLessons, index) => (
+      renderModule={(moduleData, moduleLessons, index, disclosure) => (
         <ModuleSection
+          contentId={disclosure.contentId}
           course={course}
+          editable={editable}
+          expanded={disclosure.expanded}
           index={index}
           moduleData={moduleData}
           moduleLessons={moduleLessons}
+          onToggle={disclosure.onToggle}
         />
       )}
     />
@@ -84,39 +95,76 @@ export function CourseBuilderWrapper({
 }
 
 export function ModuleSection({
+  contentId,
   course,
+  editable,
+  expanded,
   moduleData,
   moduleLessons,
-  index,
+  onToggle,
+  index: _index,
 }: {
+  contentId: string;
   course: CourseData;
+  editable: boolean;
+  expanded: boolean;
+  index?: number;
   moduleData: ModuleData;
   moduleLessons: LessonData[];
-  index: number;
+  onToggle: () => void;
 }): React.JSX.Element {
   const nextLessonSortOrder =
     moduleLessons.length > 0
       ? Math.max(...moduleLessons.map((l) => l.sortOrder)) + 1
       : 1;
+  const lessonCount = moduleLessons.length;
+  const totalDuration = moduleLessons.reduce(
+    (total, lesson) => total + lesson.durationSeconds,
+    0
+  );
 
   return (
-    <>
-      <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-muted-foreground text-xs">Modulo {index + 1}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold">{moduleData.title}</h3>
+    <div className="flex min-w-0 flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <Button
+          aria-controls={contentId}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Recolher" : "Expandir"} módulo ${moduleData.title}`}
+          className="mt-0.5 shrink-0"
+          onClick={onToggle}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <HugeiconsIcon
+            className={expanded ? "rotate-0" : "-rotate-90"}
+            icon={ArrowDown01Icon}
+            size={16}
+            strokeWidth={2}
+          />
+        </Button>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="min-w-0 break-words font-semibold leading-snug">
+              {moduleData.title}
+            </h3>
             <Badge
               variant={moduleData.status === "active" ? "default" : "outline"}
             >
               {CONTENT_STATUS_LABELS[moduleData.status] ?? moduleData.status}
             </Badge>
           </div>
+          <p className="mt-1 text-muted-foreground text-sm">
+            {lessonCount} {lessonCount === 1 ? "aula" : "aulas"} ·{" "}
+            {formatLessonDuration(totalDuration)}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+      </div>
+      {editable ? (
+        <div className="flex shrink-0 items-center gap-2 pl-10 md:pl-0">
           <DiscardAwareDialog
             className="sm:max-w-lg"
-            description="Defina o basico da aula. Depois voce sera levado para a edicao completa."
+            description="Defina o básico da aula. Depois você será levado para a edição completa."
             title="Nova aula"
             trigger={
               <DialogTriggerButton size="sm" variant="outline">
@@ -131,10 +179,10 @@ export function ModuleSection({
             />
           </DiscardAwareDialog>
           <DiscardAwareDialog
-            description="Atualize os dados deste modulo."
-            title="Editar modulo"
+            description="Atualize os dados deste módulo."
+            title="Editar módulo"
             trigger={
-              <DialogTriggerButton size="sm" variant="secondary">
+              <DialogTriggerButton size="sm" variant="ghost">
                 <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
                 Editar
               </DialogTriggerButton>
@@ -143,65 +191,76 @@ export function ModuleSection({
             <ModuleForm course={course} moduleData={moduleData} />
           </DiscardAwareDialog>
         </div>
-      </div>
-      <Separator />
-    </>
+      ) : null}
+    </div>
   );
 }
 
 export function LessonRow({
   courseId,
+  editable,
   lesson,
   index,
 }: {
   courseId: string;
+  editable: boolean;
   lesson: LessonData;
   index: number;
 }): React.JSX.Element {
   const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
   const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
   const hasAnyContent = hasVideo || hasText;
+  let contentLabel = "Texto";
+  if (hasVideo && hasText) {
+    contentLabel = "Vídeo + texto";
+  } else if (hasVideo) {
+    contentLabel = "Vídeo";
+  }
 
   return (
-    <>
-      <TableCell className="w-[80px] min-w-[80px] font-mono text-muted-foreground text-xs">
-        Aula {index + 1}
-      </TableCell>
-      <TableCell className="w-[300px] min-w-[300px] max-w-[300px] truncate font-medium">
-        {lesson.title}
-      </TableCell>
-      <TableCell className="w-[150px] min-w-[150px] text-center text-muted-foreground text-sm">
-        {formatLessonDuration(lesson.durationSeconds)}
-      </TableCell>
-      <TableCell className="w-[200px] min-w-[200px]">
-        <div className="flex items-center justify-center gap-2">
-          {hasVideo ? <Badge variant="secondary">Video</Badge> : null}
-          {hasText ? <Badge variant="secondary">Texto</Badge> : null}
-          {hasAnyContent ? null : (
-            <Badge variant="destructive">Sem conteudo</Badge>
-          )}
+    <div className="grid min-w-0 gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center md:px-5">
+      <div className="min-w-0">
+        <p className="font-mono text-muted-foreground text-xs">
+          Aula {index + 1}
+        </p>
+        <p className="mt-0.5 line-clamp-2 break-words font-medium leading-snug">
+          {lesson.title}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground text-xs md:hidden">
+          <span>{formatLessonDuration(lesson.durationSeconds)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{lesson.isRequired ? "Obrigatória" : "Opcional"}</span>
         </div>
-      </TableCell>
-      <TableCell className="w-[180px] min-w-[180px]">
-        <div className="flex justify-center">
-          <Badge
-            className="w-fit"
-            variant={lesson.status === "active" ? "default" : "outline"}
-          >
-            {CONTENT_STATUS_LABELS[lesson.status] ?? lesson.status}
-          </Badge>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+        {hasAnyContent ? (
+          <Badge variant="secondary">{contentLabel}</Badge>
+        ) : (
+          <Badge variant="destructive">Sem conteúdo</Badge>
+        )}
+        <Badge variant={lesson.status === "active" ? "default" : "outline"}>
+          {CONTENT_STATUS_LABELS[lesson.status] ?? lesson.status}
+        </Badge>
+        <div className="hidden items-center gap-2 text-muted-foreground text-xs md:flex">
+          <span>{formatLessonDuration(lesson.durationSeconds)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{lesson.isRequired ? "Obrigatória" : "Opcional"}</span>
         </div>
-      </TableCell>
-      <TableCell className="w-full" />
-      <TableCell className="w-[100px] text-right">
-        <Button asChild size="sm" variant="ghost">
+      </div>
+      {editable ? (
+        <Button
+          asChild
+          className="w-fit md:justify-self-end"
+          size="sm"
+          variant="ghost"
+        >
           <Link href={route(`/admin/cursos/${courseId}/aulas/${lesson.id}`)}>
             <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
             Editar
           </Link>
         </Button>
-      </TableCell>
-    </>
+      ) : null}
+    </div>
   );
 }
 
@@ -231,7 +290,7 @@ export function ModuleForm({
               type="hidden"
             />
             <Field>
-              <FieldLabel>Titulo</FieldLabel>
+              <FieldLabel>Título</FieldLabel>
               <Input
                 defaultValue={moduleData?.title ?? ""}
                 name="title"
@@ -239,7 +298,7 @@ export function ModuleForm({
               />
             </Field>
             <Field>
-              <FieldLabel>Descricao</FieldLabel>
+              <FieldLabel>Descrição</FieldLabel>
               <Textarea
                 defaultValue={moduleData?.description ?? ""}
                 name="description"
@@ -272,7 +331,7 @@ export function ModuleForm({
               size={18}
               strokeWidth={2}
             />
-            {moduleData ? "Salvar modulo" : "Criar modulo"}
+            {moduleData ? "Salvar módulo" : "Criar módulo"}
           </Button>
         </DialogFooter>
       </AutoCloseDialogForm>
@@ -296,14 +355,9 @@ export function LessonEditorSidebarFields({
         type="hidden"
         value={lesson.moduleId}
       />
-      <input
-        form={formId}
-        name="isRequired"
-        type="hidden"
-        value={lesson.isRequired ? "on" : "false"}
-      />
+      <input form={formId} name="isRequired" type="hidden" value="false" />
       <Field>
-        <FieldLabel>Titulo da aula</FieldLabel>
+        <FieldLabel>Título da aula</FieldLabel>
         <Input
           defaultValue={lesson.title}
           form={formId}
@@ -322,13 +376,12 @@ export function LessonEditorSidebarFields({
         />
       </Field>
       <Field orientation="horizontal">
-        <Input
+        <Checkbox
           defaultChecked={lesson.isRequired}
           disabled={lesson.coursePublicationStatus === "published"}
           form={formId}
           id="lesson-is-required"
           name="isRequired"
-          type="checkbox"
           value="on"
         />
         <FieldLabel htmlFor="lesson-is-required">
@@ -356,11 +409,11 @@ export function CreateLessonDraftForm({
           <input name="moduleId" type="hidden" value={moduleId} />
           <input name="sortOrder" type="hidden" value={nextSortOrder} />
           <Field>
-            <FieldLabel>Titulo</FieldLabel>
+            <FieldLabel>Título</FieldLabel>
             <Input name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Descricao</FieldLabel>
+            <FieldLabel>Descrição</FieldLabel>
             <Textarea name="description" required />
           </Field>
         </FieldGroup>
@@ -375,105 +428,26 @@ export function CreateLessonDraftForm({
   );
 }
 
-export function InfoRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right font-medium">{value}</span>
-    </div>
-  );
-}
-
-export function InfoTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-lg border bg-background/35 p-4">
-      <p className="text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1 break-words font-medium text-sm">{value}</p>
-    </div>
-  );
-}
-
-export function CourseMetricCard({
-  helper,
-  icon: Icon,
-  label,
-  value,
-}: {
-  helper: string;
-  // biome-ignore lint/suspicious/noExplicitAny: type from hugeicons
-  icon?: any;
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border bg-card p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-medium text-muted-foreground text-sm tracking-tight">
-          {label}
-        </p>
-        {Icon && (
-          <div className="flex size-7 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
-            {/* biome-ignore lint/suspicious/noExplicitAny: dynamic icon prop */}
-            <HugeiconsIcon icon={Icon as any} size={16} />
-          </div>
-        )}
-      </div>
-      <div>
-        <p className="font-bold text-2xl">{value}</p>
-        <p className="text-muted-foreground text-xs">{helper}</p>
-      </div>
-    </div>
-  );
-}
-
-export function ContentStatusCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-        <HugeiconsIcon icon={PlayCircleIcon} size={18} strokeWidth={2} />
-      </div>
-      <div>
-        <p className="text-muted-foreground text-xs">{label}</p>
-        <p className="font-semibold text-lg">{value}</p>
-      </div>
-    </div>
-  );
-}
-
 export function CreateModuleDialog({
   course,
   nextModuleSortOrder,
+  triggerLabel = "Novo módulo",
+  triggerVariant = "default",
 }: {
   course: CourseData;
   nextModuleSortOrder: number;
+  triggerLabel?: string;
+  triggerVariant?: React.ComponentProps<typeof DialogTriggerButton>["variant"];
 }): React.JSX.Element {
   return (
     <DiscardAwareDialog
       className="sm:max-w-3xl"
-      description="Adicione uma unidade ao curso."
-      title="Novo modulo"
+      description="Adicione uma unidade ao Curso."
+      title="Novo módulo"
       trigger={
-        <DialogTriggerButton>
+        <DialogTriggerButton variant={triggerVariant}>
           <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
-          Novo modulo
+          {triggerLabel}
         </DialogTriggerButton>
       }
     >

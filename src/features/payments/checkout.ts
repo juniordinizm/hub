@@ -4,6 +4,7 @@ import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 import { parseBuyerIdentity } from "./buyer-identity";
+import { getEffectiveMaxInstallmentCount } from "./course-payment-offer";
 import { getApplicationUrl } from "./provider";
 
 const CHECKOUT_EXPIRATION_MINUTES = 60;
@@ -106,6 +107,7 @@ interface CheckoutCourse {
   payment_allow_pix: boolean;
   payment_max_installment_count: number;
   price_in_cents: number;
+  sales_status: "closed" | "open";
   slug: string;
   status: string;
   title: string;
@@ -571,7 +573,7 @@ export const createAsaasCheckoutIntent = async (
       select c.id, c.title, c.slug, c.description, c.price_in_cents,
              c.payment_allow_pix, c.payment_allow_credit_card,
              c.payment_max_installment_count,
-             c.access_duration_months, c.status,
+             c.access_duration_months, c.status, c.sales_status,
              exists (
                select 1 from course_publications cp
                where cp.course_id = c.id and cp.status = 'published'
@@ -587,6 +589,7 @@ export const createAsaasCheckoutIntent = async (
 
   if (
     course?.status !== "active" ||
+    course.sales_status !== "open" ||
     !course.has_published_publication ||
     course.price_in_cents < ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS
   ) {
@@ -655,7 +658,10 @@ export const createAsaasCheckoutIntent = async (
       item.description,
       course.payment_allow_pix,
       course.payment_allow_credit_card,
-      course.payment_max_installment_count,
+      getEffectiveMaxInstallmentCount({
+        configuredMaxInstallmentCount: course.payment_max_installment_count,
+        priceInCents: item.valueInCents,
+      }),
     ]
   );
   const createdOrder = inserted.rows[0];

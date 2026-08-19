@@ -17,13 +17,16 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
+  useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Menu01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type React from "react";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Separator } from "@/components/ui/separator";
-import { Table, TableBody } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
   reorderLessonsAction,
   reorderModulesAction,
@@ -35,14 +38,20 @@ import type {
 } from "@/features/admin/server";
 import { getAffectedLessonReorderGroups } from "./course-builder-reorder";
 import { SortableItem } from "./sortable-list";
-import { SortableTableRow } from "./sortable-table-row";
 
 type CourseData = AdminCourse;
 type ModuleData = AdminModule;
 type LessonData = AdminLesson;
 
+export interface CourseBuilderModuleRenderState {
+  contentId: string;
+  expanded: boolean;
+  onToggle: () => void;
+}
+
 interface CourseBuilderClientProps {
   course: CourseData;
+  editable: boolean;
   initialLessons: LessonData[];
   initialModules: ModuleData[];
   renderLesson: (
@@ -53,12 +62,68 @@ interface CourseBuilderClientProps {
   renderModule: (
     moduleData: ModuleData,
     moduleLessons: LessonData[],
-    index: number
+    index: number,
+    disclosure: CourseBuilderModuleRenderState
   ) => React.ReactNode;
+}
+
+function SortableLesson({
+  children,
+  disabled,
+  handleHidden,
+  lesson,
+}: {
+  children: React.ReactNode;
+  disabled: boolean;
+  handleHidden: boolean;
+  lesson: LessonData;
+}): React.JSX.Element {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    data: { type: "lesson" },
+    disabled,
+    id: lesson.id,
+  });
+
+  return (
+    <div
+      className={`flex min-w-0 border-t transition-colors ${
+        isDragging ? "relative z-10 bg-card opacity-95 drop-shadow-xl" : ""
+      }`}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+    >
+      {handleHidden ? null : (
+        <Button
+          aria-label={`Reordenar aula ${lesson.title}`}
+          className="ml-1 size-11 touch-manipulation self-center text-muted-foreground/50 hover:text-foreground active:cursor-grabbing md:size-10"
+          disabled={disabled}
+          size="icon"
+          type="button"
+          variant="ghost"
+          {...attributes}
+          {...listeners}
+        >
+          <HugeiconsIcon icon={Menu01Icon} size={18} strokeWidth={2} />
+        </Button>
+      )}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
 }
 
 export function CourseBuilderClient({
   course,
+  editable,
   initialModules,
   initialLessons,
   renderModule,
@@ -70,6 +135,9 @@ export function CourseBuilderClient({
   const [activeType, setActiveType] = useState<"module" | "lesson" | null>(
     null
   );
+  const [expandedModuleIds, setExpandedModuleIds] = useState<Set<string>>(
+    () => new Set(initialModules[0] ? [initialModules[0].id] : [])
+  );
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -79,6 +147,19 @@ export function CourseBuilderClient({
   useEffect(() => {
     setLessons(initialLessons);
   }, [initialLessons]);
+
+  useEffect(() => {
+    const availableModuleIds = new Set(initialModules.map((item) => item.id));
+    setExpandedModuleIds((current) => {
+      const next = new Set(
+        [...current].filter((moduleId) => availableModuleIds.has(moduleId))
+      );
+      if (next.size === 0 && initialModules[0]) {
+        next.add(initialModules[0].id);
+      }
+      return next;
+    });
+  }, [initialModules]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -92,7 +173,7 @@ export function CourseBuilderClient({
   );
 
   function handleDragStart(event: DragStartEvent) {
-    if (isPending) {
+    if (!editable || isPending) {
       return;
     }
 
@@ -103,7 +184,7 @@ export function CourseBuilderClient({
   }
 
   function handleDragOver(event: DragOverEvent) {
-    if (isPending) {
+    if (!editable || isPending) {
       return;
     }
 
@@ -128,6 +209,12 @@ export function CourseBuilderClient({
     }
 
     if (isActiveLesson && isOverLesson) {
+      const destinationLesson = lessons.find((lesson) => lesson.id === overId);
+      if (destinationLesson) {
+        setExpandedModuleIds((current) =>
+          new Set(current).add(destinationLesson.moduleId)
+        );
+      }
       setLessons((prev) => {
         const activeIndex = prev.findIndex((l) => l.id === activeId);
         const overIndex = prev.findIndex((l) => l.id === overId);
@@ -156,6 +243,7 @@ export function CourseBuilderClient({
     }
 
     if (isActiveLesson && isOverModule) {
+      setExpandedModuleIds((current) => new Set(current).add(overId as string));
       setLessons((prev) => {
         const activeIndex = prev.findIndex((l) => l.id === activeId);
         if (activeIndex === -1) {
@@ -205,7 +293,7 @@ export function CourseBuilderClient({
           }
         } catch {
           setModules(initialModules);
-          toast.error("Nao foi possivel salvar a nova ordem. Tente novamente.");
+          toast.error("Não foi possível salvar a nova ordem. Tente novamente.");
         }
       });
     }
@@ -231,7 +319,7 @@ export function CourseBuilderClient({
         }
       } catch {
         setLessons(initialLessons);
-        toast.error("Nao foi possivel salvar a nova ordem. Tente novamente.");
+        toast.error("Não foi possível salvar a nova ordem. Tente novamente.");
       }
     });
   }
@@ -256,7 +344,7 @@ export function CourseBuilderClient({
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    if (isPending) {
+    if (!editable || isPending) {
       setActiveId(null);
       setActiveType(null);
       return;
@@ -297,6 +385,15 @@ export function CourseBuilderClient({
       sensors={sensors}
     >
       <div className="flex flex-col gap-4">
+        {isPending ? (
+          <p
+            aria-live="polite"
+            className="text-muted-foreground text-sm"
+            role="status"
+          >
+            Salvando ordem…
+          </p>
+        ) : null}
         <SortableContext
           items={modules.map((m) => m.id)}
           strategy={verticalListSortingStrategy}
@@ -308,43 +405,55 @@ export function CourseBuilderClient({
               );
               return (
                 <SortableItem
+                  ariaLabel={`Reordenar módulo ${moduleData.title}`}
                   className="rounded-lg border bg-card shadow-sm"
                   data={{ type: "module" }}
-                  handleClassName="px-4 pt-6 items-start"
+                  disabled={!editable || isPending}
+                  handleClassName="ml-1"
+                  handleHidden={!editable}
                   id={moduleData.id}
                   key={moduleData.id}
                 >
-                  {renderModule(moduleData, moduleLessons, moduleIndex)}
-                  <SortableContext
-                    items={moduleLessons.map((l) => l.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {moduleLessons.length > 0 && (
-                      <div className="border-t">
-                        <Table>
-                          <TableBody>
-                            {moduleLessons.map((lesson, lessonIndex) => (
-                              <SortableTableRow
-                                data={{ type: "lesson" }}
-                                id={lesson.id}
-                                key={lesson.id}
-                              >
-                                {renderLesson(lesson, moduleData, lessonIndex)}
-                              </SortableTableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                    {moduleLessons.length === 0 && (
-                      <>
-                        <Separator />
-                        <p className="px-5 py-4 text-muted-foreground text-sm">
-                          Nenhuma aula cadastrada neste módulo.
-                        </p>
-                      </>
-                    )}
-                  </SortableContext>
+                  {renderModule(moduleData, moduleLessons, moduleIndex, {
+                    contentId: `course-module-${moduleData.id}-lessons`,
+                    expanded: expandedModuleIds.has(moduleData.id),
+                    onToggle: () => {
+                      setExpandedModuleIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(moduleData.id)) {
+                          next.delete(moduleData.id);
+                        } else {
+                          next.add(moduleData.id);
+                        }
+                        return next;
+                      });
+                    },
+                  })}
+                  {expandedModuleIds.has(moduleData.id) ? (
+                    <div id={`course-module-${moduleData.id}-lessons`}>
+                      <SortableContext
+                        items={moduleLessons.map((l) => l.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        {moduleLessons.length > 0 ? (
+                          moduleLessons.map((lesson, lessonIndex) => (
+                            <SortableLesson
+                              disabled={!editable || isPending}
+                              handleHidden={!editable}
+                              key={lesson.id}
+                              lesson={lesson}
+                            >
+                              {renderLesson(lesson, moduleData, lessonIndex)}
+                            </SortableLesson>
+                          ))
+                        ) : (
+                          <p className="border-t px-5 py-4 text-muted-foreground text-sm">
+                            Nenhuma aula cadastrada neste módulo.
+                          </p>
+                        )}
+                      </SortableContext>
+                    </div>
+                  ) : null}
                 </SortableItem>
               );
             })}

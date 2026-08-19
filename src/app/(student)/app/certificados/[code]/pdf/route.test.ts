@@ -4,6 +4,7 @@ interface StoredCertificate {
   code: string;
   key: string;
   ownerId: string;
+  pdfSha256?: string;
   renderStatus: "failed" | "pending" | "ready";
   status: "revoked" | "valid";
 }
@@ -13,6 +14,7 @@ const dependencies = vi.hoisted(() => ({
   createR2ObjectReadUrl: vi.fn(),
   query: vi.fn(),
   requireSession: vi.fn(),
+  verifyPrivateR2ObjectSha256: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -20,6 +22,7 @@ vi.mock("@/db", () => ({
 }));
 vi.mock("@/features/storage/r2", () => ({
   createR2ObjectReadUrl: dependencies.createR2ObjectReadUrl,
+  verifyPrivateR2ObjectSha256: dependencies.verifyPrivateR2ObjectSha256,
 }));
 vi.mock("@/lib/auth-policy", () => ({
   canPerform: dependencies.canPerform,
@@ -49,6 +52,17 @@ const certificates = new Map<string, StoredCertificate>([
       ownerId: "student-1",
       renderStatus: "ready",
       status: "revoked",
+    },
+  ],
+  [
+    "HASHED-READY",
+    {
+      code: "HASHED-READY",
+      key: "certificates/hashed-ready.pdf",
+      ownerId: "student-1",
+      pdfSha256: "a".repeat(64),
+      renderStatus: "ready",
+      status: "valid",
     },
   ],
   [
@@ -91,6 +105,7 @@ describe("GET /app/certificados/[code]/pdf", () => {
     dependencies.createR2ObjectReadUrl.mockResolvedValue(
       "https://private-r2.example.test/signed"
     );
+    dependencies.verifyPrivateR2ObjectSha256.mockResolvedValue("unknown");
     dependencies.query.mockImplementation(
       (
         sql: string,
@@ -107,7 +122,12 @@ describe("GET /app/certificados/[code]/pdf", () => {
         return Promise.resolve({
           rows:
             canRead && certificate
-              ? [{ pdf_storage_key: certificate.key }]
+              ? [
+                  {
+                    pdf_sha256: certificate.pdfSha256 ?? null,
+                    pdf_storage_key: certificate.key,
+                  },
+                ]
               : [],
         });
       }
@@ -192,5 +212,31 @@ describe("GET /app/certificados/[code]/pdf", () => {
       "admin",
       "manageCertificates"
     );
+  });
+
+  it("checks the persisted hash before redirecting to a certificate artifact", async () => {
+    dependencies.verifyPrivateR2ObjectSha256.mockResolvedValue("match");
+
+    const response = await requestCertificate("HASHED-READY");
+
+    expect(response.status).toBe(307);
+    expect(dependencies.verifyPrivateR2ObjectSha256).toHaveBeenCalledWith({
+      expectedSha256: "a".repeat(64),
+      key: "certificates/hashed-ready.pdf",
+    });
+    expect(dependencies.createR2ObjectReadUrl).toHaveBeenCalledWith({
+      key: "certificates/hashed-ready.pdf",
+    });
+  });
+
+  it("does not serve an artifact whose persisted hash does not match R2 metadata", async () => {
+    dependencies.verifyPrivateR2ObjectSha256.mockResolvedValue("mismatch");
+
+    const response = await requestCertificate("HASHED-READY");
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("retry-after")).toBe("60");
+    expect(dependencies.createR2ObjectReadUrl).not.toHaveBeenCalled();
   });
 });

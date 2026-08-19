@@ -44,12 +44,35 @@ describe("certificate preview layout", () => {
 
   it("maps PDF Helvetica typography to the closest browser metrics", () => {
     expect(getCertificatePreviewTextStyle(field, 841.89)).toMatchObject({
+      alignItems: "center",
       color: "#123456",
+      display: "flex",
       fontFamily: "Helvetica, Arial, sans-serif",
       fontSize: expect.stringMatching(THIRTY_PIXEL_PATTERN),
       fontWeight: 700,
       lineHeight: CERTIFICATE_PREVIEW_LINE_HEIGHT,
+      justifyContent: "flex-end",
       textAlign: "right",
     });
+  });
+
+  it.each([
+    ["left", "flex-start"],
+    ["center", "center"],
+    ["right", "flex-end"],
+  ] as const)("maps horizontal alignment %s to %s", (align, justifyContent) => {
+    expect(
+      getCertificatePreviewTextStyle({ ...field, align }, 841.89)
+    ).toMatchObject({ justifyContent, textAlign: align });
+  });
+
+  it.each([
+    ["top", "flex-start"],
+    ["middle", "center"],
+    ["bottom", "flex-end"],
+  ] as const)("maps vertical alignment %s to %s", (verticalAlign, alignItems) => {
+    expect(
+      getCertificatePreviewTextStyle({ ...field, verticalAlign }, 841.89)
+    ).toMatchObject({ alignItems });
   });
 });

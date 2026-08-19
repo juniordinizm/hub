@@ -362,8 +362,10 @@ export const uploadCourseCoverFile = async ({
 
 export const createR2ObjectReadUrl = async ({
   key,
+  responseContentDisposition,
 }: {
   key: string;
+  responseContentDisposition?: "attachment" | "inline";
 }): Promise<string> => {
   const config = getR2Config();
 
@@ -372,6 +374,9 @@ export const createR2ObjectReadUrl = async ({
     new GetObjectCommand({
       Bucket: config.bucketName,
       Key: config.namespace.toPhysicalKey(key),
+      ...(responseContentDisposition
+        ? { ResponseContentDisposition: responseContentDisposition }
+        : {}),
     }),
     { expiresIn: DOWNLOAD_URL_EXPIRES_SECONDS }
   );
@@ -413,10 +418,12 @@ export const uploadPrivateR2ObjectIfAbsent = async ({
   body,
   contentType,
   key,
+  metadata,
 }: {
   body: Buffer;
   contentType: string;
   key: string;
+  metadata?: Record<string, string>;
 }): Promise<"created" | "existing"> => {
   const config = getR2Config();
   try {
@@ -427,6 +434,7 @@ export const uploadPrivateR2ObjectIfAbsent = async ({
         ContentType: contentType,
         IfNoneMatch: "*",
         Key: config.namespace.toPhysicalKey(key),
+        ...(metadata ? { Metadata: metadata } : {}),
       })
     );
     return "created";
@@ -435,6 +443,56 @@ export const uploadPrivateR2ObjectIfAbsent = async ({
       return "existing";
     }
     throw error;
+  }
+};
+
+export type PrivateR2ObjectHashStatus =
+  | "match"
+  | "mismatch"
+  | "missing"
+  | "unknown"
+  | "unavailable";
+
+const isNotFoundError = (error: unknown): boolean => {
+  if (!(error instanceof Object && "$metadata" in error)) {
+    return false;
+  }
+  const metadata = error.$metadata;
+  return (
+    metadata instanceof Object &&
+    "httpStatusCode" in metadata &&
+    metadata.httpStatusCode === 404
+  );
+};
+
+export const verifyPrivateR2ObjectSha256 = async ({
+  expectedSha256,
+  key,
+}: {
+  expectedSha256: string;
+  key: string;
+}): Promise<PrivateR2ObjectHashStatus> => {
+  try {
+    const config = getR2Config();
+    const objectHead = await getR2Client(config).send(
+      new HeadObjectCommand({
+        Bucket: config.bucketName,
+        Key: config.namespace.toPhysicalKey(key),
+      })
+    );
+
+    const metadataHash = Object.entries(objectHead.Metadata ?? {}).find(
+      ([name]) => name.toLowerCase() === "sha256"
+    )?.[1];
+    if (!metadataHash) {
+      return "unknown";
+    }
+
+    return metadataHash.toLowerCase() === expectedSha256.toLowerCase()
+      ? "match"
+      : "mismatch";
+  } catch (error) {
+    return isNotFoundError(error) ? "missing" : "unavailable";
   }
 };
 

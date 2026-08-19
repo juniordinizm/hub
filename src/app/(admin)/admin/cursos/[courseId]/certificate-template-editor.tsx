@@ -2,6 +2,9 @@
 
 import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,14 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +44,7 @@ import {
   disableCertificateForCourseAction,
   enableCertificateForCourseAction,
 } from "@/features/admin/actions";
+import { reconcileHistoricalCertificatesAction } from "@/features/certificates/actions";
 import type { CertificateTemplateSpec } from "@/features/certificates/template-rules";
 import {
   type CertificateTemplateEditorTemplate,
@@ -103,15 +100,86 @@ const CertificateActivationMenuItem = ({
   );
 };
 
+const PendingCertificateReconciliation = ({
+  count,
+  courseId,
+}: {
+  count: number;
+  courseId: string;
+}): React.JSX.Element | null => {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  if (count <= 0) {
+    return null;
+  }
+
+  const batchSize = Math.min(count, 100);
+  const reconcile = (): void => {
+    const formData = new FormData();
+    formData.set("confirmed", "yes");
+    formData.set("courseId", courseId);
+    startTransition(async () => {
+      const result = await reconcileHistoricalCertificatesAction(formData);
+      if (result.status === "error") {
+        toast.error(result.message);
+        return;
+      }
+      toast.success(result.message);
+      router.refresh();
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="space-y-1">
+        <p className="font-medium text-sm">
+          {count} conclusoes aguardam certificado
+        </p>
+        <p className="text-muted-foreground text-xs">
+          A emissao ocorre em lotes de ate 100.
+        </p>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button disabled={isPending} size="sm" variant="outline">
+            Emitir certificados pendentes
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Emitir certificados pendentes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acao inicia a geracao do PDF e o envio do e-mail para cada
+              aluna elegivel. Certificados com qualquer historico, inclusive
+              revogados, nao serao duplicados.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={isPending} onClick={reconcile}>
+              Emitir {batchSize} certificados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+};
+
 export function CertificateTemplateEditor({
   certificateEnabled,
   courseId,
+  courseWorkloadHours = 0,
   issuerConfigured,
+  pendingCertificateReconciliationCount = 0,
   templates,
 }: {
   certificateEnabled: boolean;
   courseId: string;
+  courseWorkloadHours?: number;
   issuerConfigured: boolean;
+  pendingCertificateReconciliationCount?: number;
   templates: Array<
     CertificateTemplateEditorTemplate & { spec: CertificateTemplateSpec }
   >;
@@ -127,120 +195,108 @@ export function CertificateTemplateEditor({
   const canEnable = Boolean(active && issuerConfigured);
 
   return (
-    <Card>
-      <CardHeader>
-        <div>
-          <div className="flex items-center gap-3">
-            <CardTitle>Certificado</CardTitle>
-            <Badge variant={status.tone}>{status.label}</Badge>
-          </div>
-          <CardDescription className="mt-1 max-w-2xl">
-            Uma versao publicada por curso. Arte, dados e PDF ficam congelados
-            na emissao.
-          </CardDescription>
-          {active ? null : (
-            <p className="mt-2 text-muted-foreground text-xs">
-              Publique um template para ativar o certificado neste curso.
-            </p>
-          )}
-        </div>
-        <CardAction>
-          <Sheet>
-            <AlertDialog>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="icon" variant="ghost">
-                    <HugeiconsIcon icon={MoreHorizontalIcon} />
-                    <span className="sr-only">Mais acoes</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuGroup>
-                    <SheetTrigger asChild>
-                      <DropdownMenuItem>Historico de versoes</DropdownMenuItem>
-                    </SheetTrigger>
-                    <CertificateActivationMenuItem
-                      canEnable={canEnable}
-                      certificateEnabled={certificateEnabled}
-                      courseId={courseId}
-                    />
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+    <Card density="compact">
+      <PendingCertificateReconciliation
+        count={pendingCertificateReconciliationCount}
+        courseId={courseId}
+      />
+      <CertificateTemplateForm
+        courseId={courseId}
+        courseWorkloadHours={courseWorkloadHours}
+        hasPublishedTemplate={Boolean(active)}
+        issuerConfigured={issuerConfigured}
+        status={status}
+        template={editable}
+      >
+        <Sheet>
+          <AlertDialog>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button aria-label="Mais ações" size="icon" variant="ghost">
+                  <HugeiconsIcon icon={MoreHorizontalIcon} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <SheetTrigger asChild>
+                    <DropdownMenuItem>Histórico de versões</DropdownMenuItem>
+                  </SheetTrigger>
+                  <CertificateActivationMenuItem
+                    canEnable={canEnable}
+                    certificateEnabled={certificateEnabled}
+                    courseId={courseId}
+                  />
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Historico de versoes</SheetTitle>
-                  <SheetDescription>
-                    Versoes anteriores continuam como evidencia dos certificados
-                    emitidos.
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="mt-6 flex flex-col gap-3">
-                  {templates.length > 0 ? (
-                    templates.map((template) => (
-                      <div
-                        className="flex min-h-10 items-center justify-between gap-4 rounded-lg bg-muted/50 px-3 py-2 text-sm"
-                        key={`${template.version}-${template.status}`}
+            <SheetContent>
+              <SheetHeader className="p-4 pr-14">
+                <SheetTitle>Histórico de versões</SheetTitle>
+                <SheetDescription>
+                  Versões anteriores continuam como evidência dos certificados
+                  emitidos.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="mt-6 flex flex-col gap-3">
+                {templates.length > 0 ? (
+                  templates.map((template) => (
+                    <div
+                      className="flex min-h-10 items-center justify-between gap-4 rounded-lg bg-muted/50 px-3 py-2 text-sm"
+                      key={`${template.version}-${template.status}`}
+                    >
+                      <span className="tabular-nums">
+                        Versão {template.version}
+                      </span>
+                      <Badge
+                        variant={
+                          template.status === "published"
+                            ? "default"
+                            : "secondary"
+                        }
                       >
-                        <span>Versao {template.version}</span>
-                        <Badge
-                          variant={
-                            template.status === "published"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {getVersionStatusLabel(template.status)}
-                        </Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <Empty className="p-8">
-                      <EmptyHeader>
-                        <EmptyTitle>Nenhuma versao</EmptyTitle>
-                        <EmptyDescription>
-                          Salve o primeiro rascunho para iniciar o historico.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  )}
-                </div>
-              </SheetContent>
+                        {getVersionStatusLabel(template.status)}
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <Empty className="p-8">
+                    <EmptyHeader>
+                      <EmptyTitle>Nenhuma versão</EmptyTitle>
+                      <EmptyDescription>
+                        Salve o primeiro rascunho para iniciar o histórico.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                )}
+              </div>
+            </SheetContent>
 
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Desligar certificado?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Novas emissoes serao interrompidas. Certificados existentes
-                    permanecem validos e disponiveis.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <form
-                    action={disableCertificateForCourseAction.bind(
-                      null,
-                      courseId
-                    )}
-                  >
-                    <AlertDialogAction type="submit">
-                      Sim, desligar certificado
-                    </AlertDialogAction>
-                  </form>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </Sheet>
-        </CardAction>
-      </CardHeader>
-      <CardContent>
-        <CertificateTemplateForm
-          courseId={courseId}
-          issuerConfigured={issuerConfigured}
-          template={editable}
-        />
-      </CardContent>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desligar certificado?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Novas emissoes serao interrompidas. Certificados existentes
+                  permanecem validos e disponiveis.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <form
+                  action={disableCertificateForCourseAction.bind(
+                    null,
+                    courseId
+                  )}
+                >
+                  <AlertDialogAction type="submit">
+                    Sim, desligar certificado
+                  </AlertDialogAction>
+                </form>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </Sheet>
+      </CertificateTemplateForm>
     </Card>
   );
 }

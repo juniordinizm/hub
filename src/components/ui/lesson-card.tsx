@@ -1,4 +1,8 @@
-import { File01Icon, LockKeyIcon, PlayIcon } from "@hugeicons/core-free-icons";
+import {
+  File01Icon,
+  PlayIcon,
+  SquareLock02Icon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +154,7 @@ const getCenterIcon = ({
   isLocked: boolean;
 }) => {
   if (isLocked) {
-    return LockKeyIcon;
+    return SquareLock02Icon;
   }
 
   return hasVideo ? PlayIcon : File01Icon;

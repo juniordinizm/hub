@@ -3,6 +3,11 @@ import { reconcileRevokedCertificateArtifacts } from "@/features/certificates/ar
 import { reconcileCertificateTemplateAssets } from "@/features/certificates/template-asset-cleanup";
 import { sanitizeExpiredAsaasWebhookPayloads } from "@/features/payments/asaas-webhook-inbox";
 import { reconcileStagedAdminImageUploads } from "@/features/storage/staged-image-reconciliation";
+import {
+  APP_CURRENT_DATE_SQL,
+  APP_CURRENT_DAY_START_SQL,
+  APP_TIME_ZONE_SQL,
+} from "@/lib/timezone";
 
 interface MaintenanceResult {
   certificateTemplateAssetsRemoved: number;
@@ -134,11 +139,13 @@ export const runMaintenance = async ({
       metric_date, event_type, course_publication_id, lesson_id,
       event_count, unique_enrollment_count
     )
-    select occurred_at::date, event_type, course_publication_id, lesson_id,
+    select (occurred_at at time zone ${APP_TIME_ZONE_SQL})::date,
+           event_type, course_publication_id, lesson_id,
            count(*)::int, count(distinct enrollment_id)::int
     from learning_analytics_events
-    where occurred_at < date_trunc('day', now())
-    group by occurred_at::date, event_type, course_publication_id, lesson_id
+    where occurred_at < ${APP_CURRENT_DAY_START_SQL}
+    group by (occurred_at at time zone ${APP_TIME_ZONE_SQL})::date,
+             event_type, course_publication_id, lesson_id
     on conflict (metric_date, event_type, course_publication_id, lesson_id)
     do update set event_count = excluded.event_count,
                   unique_enrollment_count = excluded.unique_enrollment_count,
@@ -158,7 +165,8 @@ export const runMaintenance = async ({
     return result;
   }
   await pool.query(
-    "delete from learning_analytics_daily_metrics where metric_date < current_date - interval '13 months'"
+    `delete from learning_analytics_daily_metrics
+     where metric_date < (${APP_CURRENT_DATE_SQL} - interval '13 months')::date`
   );
 
   if (!(await canContinue())) {

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: 5bc18b1dc3eb0e56e86a6f11144a1371d9dd026d
 ---
 
 # Comércio e acesso
@@ -41,6 +41,13 @@ coordenado no PostgreSQL por HMAC de IP e ID canônico do Curso, com cinco novas
 por dez minutos; uma tentativa já persistida não consome novamente o limite. As migrations
 `0044` a `0051` passaram em PostgreSQL descartável, mas ainda não foram aplicadas em
 Production.
+
+Quando a criação retorna `processing`, a página pública consulta a mesma tentativa por
+UUID opaco e slug, sem criar outro Checkout automaticamente. O navegador compartilha esse
+UUID sem PII entre abas por até 60 minutos, aplica polling limitado em 1, 2, 4, 8 e 16
+segundos e então oferece somente verificação manual. A leitura exige a dupla exata, não
+aceita `orderId` enumerável separado, responde com `Cache-Control: no-store` e retorna
+apenas estado seguro e URL quando o Pedido correspondente já está `active`.
 
 **Falha:** preço abaixo de `1000` centavos, Curso indisponível, limite público ou provider
 sem configuração impedem checkout.
@@ -97,11 +104,14 @@ chave idempotente por Pedido.
 - evento parcial, desconhecido, regressivo ou contraditório abre revisão ou alerta;
 - decisão manual exige permissão, motivo e auditoria.
 
-**Implementação atual:** `decideAsaasFinancialEvent` produz a decisão pura e
-`processAsaasWebhookEvent` a aplica sob lock na mesma transação do worker. Valor
-divergente, anomalia, reembolso parcial e conflito terminal criam uma Revisão
-idempotente pelo `webhook_event_id`; identificadores ambíguos não escolhem Pedido nem
-produzem efeito.
+**Implementação atual:** `decideAsaasFinancialEvent` produz a decisão pura para webhook
+e `decideQueriedAsaasPayment` adapta a consulta da conciliação para a mesma matriz.
+`applyConfirmedPaymentAccess` converge identidade autenticada ou pública, estado pago,
+Concessão, Matrícula e outbox sob o lock do Pedido. Valor divergente, anomalia,
+reembolso parcial e conflito terminal criam uma Revisão; identificadores ambíguos não
+escolhem Pedido nem produzem efeito. PIX `CONFIRMED` consultado não libera; PIX
+`RECEIVED` e cartão `CONFIRMED`/`RECEIVED` podem recuperar o acesso, respeitando risco,
+estado terminal e Revisão pendente.
 
 ### REG-COM-004 Concessão é a origem; Matrícula é a projeção
 
@@ -175,10 +185,13 @@ auditoria usam outra transação local antes da mutação externa. A persistênc
 evidência ou da falha ocorre depois da resposta do provider.
 
 Conciliação por pagamento e importação de extrato são mutações administrativas e
-exigem `manageFinancialOperations`, exclusiva de Admin. Resolução de Revisão continua
-sob `viewFinancials`; o conflito terminal mantém a restrição adicional a Admin. A área
-financeira não renderiza os controles de conciliação nem importação para Suporte, embora
-a autorização do servidor continue sendo a barreira efetiva.
+exigem `manageFinancialOperations`, exclusiva de Admin. Toda resolução manual de
+Revisão exige `manageFinancialReviews`, também exclusiva de Admin; `viewFinancials`
+autoriza somente leitura. `buyer_identity`, `event_anomaly` e `partial_refund` não
+aceitam aprovação ou rejeição genérica: exigem, respectivamente, reembolso integral,
+conciliação/reprocessamento ou tratamento financeiro específico. A área financeira
+oculta os controles mutáveis para Suporte, mas a autorização do servidor permanece a
+barreira efetiva.
 
 ### REG-COM-009 Oferta de pagamento pertence ao Curso e ao Pedido
 
@@ -186,10 +199,20 @@ a autorização do servidor continue sendo a barreira efetiva.
 de cartão. Admin poderá oferecer Pix, cartão ou ambos; cartão à vista ou parcelado; e
 limite máximo próprio. A oferta efetiva precisa ser copiada para o Pedido.
 
-**Implementação atual:** preço, Pix, cartão e o teto de 1 a 21 parcelas são configuráveis
+**Implementação atual:** preço, Pix, cartão e o teto de 1 a 12 parcelas são configuráveis
 por Curso. O padrão de novos Cursos é Pix + cartão em até 3x. A oferta é copiada para o
 Pedido e convertida em `billingTypes`, `chargeTypes` e
-`installment.maxInstallmentCount` somente na borda Asaas.
+`installment.maxInstallmentCount` somente na borda Asaas. O item possui um único preço
+para Pix, cartão à vista e cartão parcelado. A Vendedora absorve as taxas descontadas pelo
+Asaas do recebível; a quantidade escolhida não altera o total pago pela Compradora.
+
+O teto efetivo respeita o piso comercial aprovado de `1000` centavos por parcela,
+equivalente ao preço mínimo de um Curso pago. O Asaas permite configurar na conta o valor
+mínimo da cobrança e o valor mínimo por parcela; o ambiente usado pelo projeto mantém o
+piso externo abaixo ou igual ao contrato interno. O Admin continua salvando o teto
+desejado; preço baixo reduz apenas o snapshot do novo Pedido e a tela explica a redução.
+Assim, o padrão comercial permanece 3x e um reajuste futuro pode tornar o teto configurado
+efetivo sem reescrever compras anteriores.
 
 Para cartão parcelado, `provider_installment_id` identifica o agregado e
 `provider_payment_id` preserva a primeira cobrança observada. Antes da transação local, o
@@ -199,13 +222,28 @@ total devem coincidir com o snapshot. Eventos das demais parcelas são aceitos s
 quando mantêm o mesmo agregado. Conciliação lista todas as cobranças, e reembolso integral
 usa `POST /v3/installments/{id}/refund`.
 
-**Limitação do fornecedor:** o Checkout hospedado não documenta juros comerciais,
-repasse de taxa ou preço variável conforme a quantidade escolhida. O Hub não apresenta
-uma opção fictícia “com/sem juros”; taxas e recebíveis seguem o contrato da conta Asaas.
-Não reutilizar juros por atraso.
+**Limitação do fornecedor:** o Checkout hospedado não aceita preço diferente por método
+ou quantidade de parcelas e não documenta, por sessão, quem absorve o custo do
+parcelamento. O Hub não apresenta uma opção fictícia “cliente/vendedor”; no contrato de
+lançamento, o preço é único e a Vendedora absorve as taxas. O campo `interest` de outras
+APIs é juros por atraso e não pode ser reutilizado para essa finalidade.
 
 Ver [DEC-DISC-011](../decisions.md#dec-disc-011) e a
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
+
+### REG-COM-010 Disponibilidade comercial não decide acesso adquirido
+
+Estado de entrega, visibilidade de catálogo e estado de vendas são dimensões
+independentes. Matrícula efetiva continua acessível quando vendas estão pausadas,
+mesmo com o Curso oculto. Rascunho e Arquivado bloqueiam entrega; somente
+Arquivado representa retirada histórica.
+
+“Em breve” é visível, não vende e aceita Interesse de venda autenticado. Abrir
+vendas enfileira um aviso por Interesse; fechar vendas bloqueia novos checkouts e
+enfileira cancelamento dos Checkouts Asaas ativos. Pagamento confirmado antes do
+cancelamento preserva a precedência financeira e concede acesso.
+
+Ver [ADR-0009](../adr/0009-course-availability-and-sale-interest.md).
 
 ## Evidências
 

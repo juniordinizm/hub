@@ -20,8 +20,8 @@ release.
 O workflow `CI` valida o código em Pull Requests e pushes para `staging` ou
 `main`, sem criar deployments. Uma CI verde do SHA atual de `staging` dispara
 `Deploy Vercel staging`, que cria backup Neon de sete dias, migra e publica no
-Custom Environment `staging`. O backup declara `parent_branch` com o ID de Staging;
-usar o input inexistente `parent` faz a action ignorar o ancestral pretendido. Os
+Custom Environment `staging`. O backup declara `parent_id` com o ID de Staging;
+o payload é enviado diretamente à API Neon para não depender de um endpoint. Os
 workflows de Staging e Production consultam a branch criada pela API Neon e interrompem
 a release antes da migration quando o `parent_id` diverge do ambiente esperado. O
 gatilho automático aceita somente uma CI verde originada por `push` em `staging`;
@@ -33,6 +33,13 @@ recebe um SHA completo contido em `main`, exige duas confirmações, prova a CI
 verde desse SHA e cria backup Neon de 14 dias antes da migration. Só então cria
 um deployment Production sem promovê-lo, testa readiness e o promove. Deploys
 Git automáticos da Vercel devem permanecer desligados.
+
+O backup efêmero de Staging é uma branch Neon somente de armazenamento: o workflow
+usa a API Neon sem solicitar endpoint de compute. Isso preserva a cópia de rollback
+por sete dias sem consumir a quota de computes do projeto. A migration continua
+apontando para `DATABASE_URL_DIRECT` do Staging; a branch de backup não deve ser usada
+para conexões durante a release. Se for necessário inspecionar ou conectar ao
+backup, provisionar um endpoint explicitamente e removê-lo depois da operação.
 
 O bootstrap de 2026-08-01 ocorreu antes de esses workflows existirem na branch
 padrão. A CI `30726910261` aprovou o SHA

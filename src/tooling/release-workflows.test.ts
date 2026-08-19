@@ -8,6 +8,12 @@ const readWorkflow = (fileName: string): string =>
     "utf8"
   );
 
+const readAction = (actionPath: string): string =>
+  readFileSync(
+    resolve(import.meta.dirname, `../../.github/${actionPath}`),
+    "utf8"
+  );
+
 const githubExpression = (expression: string): string =>
   ["$", "{{ ", expression, " }}"].join("");
 
@@ -96,9 +102,25 @@ describe("Production cleanup workflow", () => {
 describe("CI workflow", () => {
   it("prepares inherited data only inside the two ephemeral test branches", () => {
     const workflow = readWorkflow("ci.yml");
+    const neonAction = readAction("actions/create-neon-branch/action.yml");
 
+    expect(workflow).toContain("NEON_CI_PROJECT_ID");
+    expect(workflow).toContain("NEON_CI_API_KEY");
+    expect(workflow).not.toContain("secrets.NEON_API_KEY");
+    expect(workflow).not.toContain("vars.NEON_PROJECT_ID");
     expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
     expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
+    expect(
+      workflow.match(
+        /parent_branch: \$\{\{ vars\.NEON_CI_PARENT_BRANCH_ID \}\}/g
+      )
+    ).toHaveLength(2);
+    expect(workflow).toContain("is required for isolated CI databases.");
+    expect(neonAction).toContain("parent_branch:");
+    expect(neonAction).toContain("required: true");
+    expect(
+      neonAction.match(/parent_branch: \$\{\{ inputs\.parent_branch \}\}/g)
+    ).toHaveLength(3);
     expect(workflow).toContain(
       `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
     );
@@ -140,16 +162,59 @@ describe("CI workflow", () => {
     );
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
+    const neonProjectExpression = ["$", "{STAGING_NEON_PROJECT_ID}"].join("");
+    const branchOutputExpression = [
+      'echo "branch_id=',
+      "$",
+      '{branch_id}" >> "',
+      "$",
+      '{GITHUB_OUTPUT}"',
+    ].join("");
     expect(stagingWorkflow).toContain(
-      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
+      `https://console.neon.tech/api/v2/projects/${neonProjectExpression}/branches`
     );
-    expect(stagingWorkflow).not.toContain("\n          parent:");
+    expect(stagingWorkflow).toContain(
+      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]"
+    );
+    expect(stagingWorkflow).toContain(branchOutputExpression);
+    expect(stagingWorkflow).toContain('--write-out "%{http_code}"');
+    expect(stagingWorkflow).toContain(
+      "Neon branch backup request failed with HTTP"
+    );
+    expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");
     expect(stagingWorkflow).not.toContain(
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
     );
     expect(stagingWorkflow).toContain(
       "https://preview.neurocapacitar.com.br/api/health/ready"
     );
+  });
+
+  it("gives Knip a synthetic E2E database and declares the CI cleanup script", () => {
+    const workflow = readWorkflow("ci.yml");
+    const cleanupWorkflow = readWorkflow("cleanup-ci-neon-branches.yml");
+
+    expect(workflow).toContain(
+      "E2E_DATABASE_URL: postgresql://verification:verification@e2e-verification.invalid/hub"
+    );
+    expect(cleanupWorkflow).toContain(
+      "bun run ops:cleanup:ci-neon -- --execute"
+    );
+  });
+});
+
+describe("CI Neon branch cleanup workflow", () => {
+  it("runs a bounded allowlisted cleanup with dry-run and confirmation modes", () => {
+    const workflow = readWorkflow("cleanup-ci-neon-branches.yml");
+
+    expect(workflow).toContain('cron: "17 * * * *"');
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("default: dry-run");
+    expect(workflow).toContain("cleanup-ci-neon");
+    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --execute");
+    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --dry-run");
+    expect(workflow).toContain('CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"');
+    expect(workflow).not.toContain("staging-release-");
   });
 });
 
@@ -180,6 +245,23 @@ describe("Release backup ancestry", () => {
     expect(workflow).toContain(
       `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
         "PRODUCTION_NEON_BRANCH_ID"
+      )}" ]]`
+    );
+  });
+
+  it("creates and verifies a Staging reset backup from Staging", () => {
+    const workflow = readWorkflow("reset-staging.yml");
+
+    expect(workflow).toContain(
+      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
+    );
+    expect(workflow).not.toContain("\n          parent:");
+    expect(workflow).toContain("name: Verify Staging backup ancestry");
+    expect(workflow).toContain("BACKUP_BRANCH_ID:");
+    expect(workflow).toContain(".branch.parent_id");
+    expect(workflow).toContain(
+      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
+        "STAGING_NEON_BRANCH_ID"
       )}" ]]`
     );
   });

@@ -17,6 +17,8 @@ const LEGACY_JOURNAL_TOP = "1785037403006";
 const CURRENT_JOURNALS = [
   { count: 53, top: "1785424607559" },
   { count: 54, top: "1785632318824" },
+  { count: 55, top: "1785744643480" },
+  { count: 63, top: "1787012301824" },
 ] as const;
 const NEON_BRANCH_ID_PATTERN = /^br-[a-z0-9-]+$/;
 const NEON_HOST_SUFFIX = ".neon.tech";
@@ -90,14 +92,16 @@ export const prepareCiMigrationDatabase = async (
       ({ count, top }) =>
         state?.migration_count === count && state.migration_top === top
     );
-    if (isCurrentJournal) {
+    const isCleanJournal =
+      state?.migration_count === 0 && state.migration_top === null;
+    if (isCleanJournal || isCurrentJournal) {
       await client.query("commit");
       transactionOpen = false;
       return { status: "not-needed" };
     }
     if (!isLegacyJournal) {
       throw new Error(
-        "CI migration preparation requires journal 0043, 0052, or 0053."
+        "CI migration preparation requires a clean journal or journal 0043, 0052, 0053, 0054, or 0062."
       );
     }
 

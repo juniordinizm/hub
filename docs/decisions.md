@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 384db5ad9bca03ff5723f6c7e2602c80d9e0755c
+last_verified_commit: acb1d0b
 ---
 
 # Registro de decisões de produto
@@ -78,7 +78,7 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 **Tema:** ciclo de Certificados.
 **Estado:** aprovado e implementado.
 
-Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. O verificador público mostra status, data e categoria legível; não expõe detalhes internos. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
+Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 ## DEC-DISC-007
 
@@ -141,39 +141,72 @@ e [Asaas](integrations/asaas.md).
 ## DEC-DISC-011
 
 **Tema:** oferta de pagamento configurável por Curso.
-**Estado:** implementado no limite do contrato oficial; juros comerciais indisponíveis.
+**Estado:** implementado para o lançamento; repasse de taxas adiado.
 
 Cada Curso pago deve possuir configuração própria de preço e oferta:
 
 - Pix, cartão ou ambos;
 - cartão à vista ou parcelado;
-- quantidade máxima de parcelas definida pelo Admin;
-- política desejada de parcelamento com ou sem acréscimo para a Compradora.
+- quantidade máxima de parcelas definida pelo Admin, entre 1 e 12;
+- preço único para Pix e cartão, independentemente da quantidade de parcelas;
+- taxas de pagamento e parcelamento absorvidas pela Vendedora.
 
 O padrão inicial é Pix + cartão e cartão em até 3x. Preço e oferta
 efetiva devem ser copiados para o Pedido, para que a edição posterior do Curso não altere
 o contrato vendido.
 
-O Asaas Checkout documenta `billingTypes`, `chargeTypes=INSTALLMENT` e
-`installment.maxInstallmentCount`, mas não documenta juros comerciais por checkout. O
-campo `interest` das APIs de cobrança significa juros por atraso. Portanto, o Admin
-configura métodos e teto de parcelas, mas não uma política de juros que o provider não
-consegue cumprir.
+O Asaas Checkout recebe um único valor de item para Pix e cartão. Ele documenta
+`billingTypes`, `chargeTypes=INSTALLMENT` e `installment.maxInstallmentCount`, mas não
+documenta, por sessão, a escolha de quem absorve o custo do parcelamento nem valores
+diferentes por método. O campo `interest` das APIs de cobrança significa juros por
+atraso. Portanto, o Admin configura métodos e teto de parcelas; o Hub envia o mesmo total
+em todos os métodos e a Vendedora absorve as taxas descontadas do recebível. O teto
+comercial do Hub é 12x, mesmo que contratos ou bandeiras específicos do provider admitam
+mais.
 
 Cada parcela possui ID de pagamento próprio. O Hub correlaciona o
 `provider_installment_id`, valida o bruto do agregado antes de conceder acesso, aceita os
 IDs individuais sob esse agregado, concilia a lista completa e estorna o parcelamento
 integral pelo endpoint específico. A migration
-`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido.
+`0053_course_payment_offers` adiciona a configuração do Curso e os snapshots do Pedido;
+`0055_limit_course_installments` reduz configurações vigentes acima de 12x e passa a
+impedir novos valores fora do teto comercial, sem reescrever snapshots históricos.
 
 Ver a
 [pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md).
+
+## DEC-DISC-012
+
+**Tema:** disponibilidade comercial e interesse de venda.
+**Estado:** aprovado e implementado em código.
+
+Entrega, vitrine e novas vendas são dimensões independentes. Vendas pausadas
+preservam Matrículas efetivas e podem ser ocultadas. “Em breve” coleta interesse
+autenticado sem Pedido ou acesso. Abrir vendas avisa pela outbox; fechar vendas
+cancela Checkouts ativos. Ver [ADR-0009](adr/0009-course-availability-and-sale-interest.md).
+
+## DEC-DISC-013
+
+**Tema:** gestão contextual de Alunas no painel Admin.
+**Estado:** aprovado e implementado em código.
+
+`/admin/alunos` permanece como lista canônica. A ficha de uma Aluna abre em um
+`StudentManagementSheet` lateral, sem estado de seleção na URL, e carrega os dados sob
+demanda por GET administrativo protegido. O mesmo Sheet é usado pela aba de Alunos do
+Curso: a lista geral mostra plataforma, todas as Matrículas e todos os Certificados;
+o contexto do Curso mostra somente a Matrícula e os Certificados daquele Curso.
+
+Os dialogs anteriores de Aluna e Matrícula são substituídos pelo Sheet compartilhado.
+Mutação mantém o Sheet aberto, refaz a leitura e mostra confirmação. A rota individual
+`/admin/alunos/[userId]` é removida e acessos antigos retornam 404; autorização das
+actions e regras de domínio não mudam.
 
 ## Outras ratificações necessárias
 
 - escopo definitivo de `support` e capacidades financeiras mutáveis;
 - tratamento de compra pública com e-mail já pertencente a Admin/Suporte;
-- viabilidade e cálculo do acréscimo comercial por parcelamento;
+- eventual retomada, após o lançamento, do experimento de acréscimo comercial por
+  parcelamento;
 - política de reversão de ajustes encadeados;
 - confiabilidade banco e e-mail sem outbox;
 - critérios de incidente e SLOs;

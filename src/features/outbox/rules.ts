@@ -4,6 +4,8 @@ export const OUTBOX_TOPICS = {
   accessReleased: "email.access-released",
   certificateIssued: "email.certificate-issued",
   certificateRender: "certificate.render",
+  checkoutCancellation: "payments.checkout-cancel",
+  courseSalesOpened: "email.course-sales-opened",
 } as const;
 
 export type OutboxTopic = (typeof OUTBOX_TOPICS)[keyof typeof OUTBOX_TOPICS];
@@ -12,11 +14,13 @@ export type OutboxPayload =
   | { certificateId: string }
   | { courseId: string; userId: string }
   | { enrollmentId: string; warningKind: "1d" | "7d" }
+  | { interestId: string }
+  | { orderId: string }
   | { orderId: string; userId: string };
 
 export interface OutboxMessageInput {
   aggregateId: string;
-  aggregateType: "certificate" | "enrollment" | "order";
+  aggregateType: "certificate" | "course_interest" | "enrollment" | "order";
   idempotencyKey: string;
   payload: OutboxPayload;
   payloadVersion: 1;
@@ -121,6 +125,32 @@ export const createEnrollmentExpiryWarningMessage = ({
   topic: OUTBOX_TOPICS.accessExpiryWarning,
 });
 
+export const createCourseSalesOpenedMessage = ({
+  interestId,
+}: {
+  interestId: string;
+}): OutboxMessageInput => ({
+  aggregateId: interestId,
+  aggregateType: "course_interest",
+  idempotencyKey: `${OUTBOX_TOPICS.courseSalesOpened}/${interestId}/v1`,
+  payload: { interestId },
+  payloadVersion: 1,
+  topic: OUTBOX_TOPICS.courseSalesOpened,
+});
+
+export const createCheckoutCancellationMessage = ({
+  orderId,
+}: {
+  orderId: string;
+}): OutboxMessageInput => ({
+  aggregateId: orderId,
+  aggregateType: "order",
+  idempotencyKey: `${OUTBOX_TOPICS.checkoutCancellation}/${orderId}/v1`,
+  payload: { orderId },
+  payloadVersion: 1,
+  topic: OUTBOX_TOPICS.checkoutCancellation,
+});
+
 export const parseOutboxPayload = ({
   payload,
   payloadVersion,
@@ -129,6 +159,7 @@ export const parseOutboxPayload = ({
   payload: unknown;
   payloadVersion: number;
   topic: string;
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: validates a closed discriminated union without accepting extra fields.
 }): OutboxPayload => {
   if (payloadVersion !== 1 || !(payload && typeof payload === "object")) {
     throw unsupportedPayloadVersion();
@@ -178,6 +209,28 @@ export const parseOutboxPayload = ({
       (warningKind === "1d" || warningKind === "7d")
     ) {
       return { enrollmentId, warningKind };
+    }
+  }
+
+  if (topic === OUTBOX_TOPICS.courseSalesOpened) {
+    const { interestId } = payload as { interestId?: unknown };
+    if (
+      Object.keys(payload).length === 1 &&
+      typeof interestId === "string" &&
+      interestId
+    ) {
+      return { interestId };
+    }
+  }
+
+  if (topic === OUTBOX_TOPICS.checkoutCancellation) {
+    const { orderId } = payload as { orderId?: unknown };
+    if (
+      Object.keys(payload).length === 1 &&
+      typeof orderId === "string" &&
+      orderId
+    ) {
+      return { orderId };
     }
   }
 

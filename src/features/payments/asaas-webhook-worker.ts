@@ -21,9 +21,9 @@ export interface ClaimedAsaasWebhookEvent {
   payload: unknown;
 }
 
-export interface AsaasWebhookProcessorOutcome {
-  outcome: "ignored" | "processed";
-}
+export type AsaasWebhookProcessorOutcome =
+  | { outcome: "ignored" | "processed" }
+  | { errorCode: string; outcome: "retry" };
 
 export interface AsaasWebhookProcessingContext {
   client: PoolClient;
@@ -275,6 +275,18 @@ export const processClaimedAsaasWebhookEvent = async ({
       },
       preparation
     );
+    if (outcome.outcome === "retry") {
+      const retryResult = await markProcessingFailure({
+        client,
+        error: new AsaasWebhookProcessingError(outcome.errorCode, {
+          retryable: true,
+        }),
+        event: currentEvent,
+        workerId,
+      });
+      await client.query("commit");
+      return retryResult;
+    }
     const completed = await client.query<{ id: string }>(
       `
         update webhook_events

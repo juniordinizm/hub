@@ -49,11 +49,16 @@ export function LessonFocusHidden({
   return <>{children}</>;
 }
 
-export function LessonFocusToggle(): React.JSX.Element {
+export function LessonFocusToggle({
+  className,
+}: {
+  className?: string;
+} = {}): React.JSX.Element {
   const { isFocusMode, setFocusMode } = usePanelFocusMode();
 
   return (
     <Button
+      className={cn("hidden lg:inline-flex", className)}
       onClick={() => setFocusMode(!isFocusMode)}
       size="sm"
       type="button"
@@ -64,9 +69,7 @@ export function LessonFocusToggle(): React.JSX.Element {
         size={16}
         strokeWidth={2}
       />
-      <span className="hidden sm:inline">
-        {isFocusMode ? "Sair do foco" : "Modo foco"}
-      </span>
+      <span>{isFocusMode ? "Sair do foco" : "Modo foco"}</span>
     </Button>
   );
 }

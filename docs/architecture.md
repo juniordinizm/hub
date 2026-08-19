@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: acb1d0b
 ---
 
 # Arquitetura
@@ -20,7 +20,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 - `src/app/(student)`: área autenticada da Aluna.
 - `src/app/(admin)`: painel de Admin/Suporte.
 - `src/app/api`: Better Auth, checkout, webhooks, mídia, crons e health check.
-- `src/app/certificados/[code]`: validação pública por código/QR, sem acesso ao PDF.
+- `src/app/certificados/[code]`: página pública canônica de validação, preview e compartilhamento; as subrotas `preview` e `pdf` mediam artefatos privados sem publicar chaves do R2.
 
 Layouts e páginas obtêm dados no servidor. Componentes com interação local usam `"use client"` apenas na folha da árvore. Mutação parte de Server Actions ou Route Handlers; regras não devem morar em JSX.
 Layouts autenticados são `force-dynamic`: sessão e dados protegidos são resolvidos por requisição, nunca durante o build.
@@ -48,7 +48,7 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Progresso e interação => `src/features/progress/rules.ts`, `src/features/comments`, tabelas `lesson_progress`, `lesson_watch_progress`, `lesson_comments`.
 - Comércio => `src/features/payments`, tabelas `orders`, `webhook_events`, `payment_reviews`, `refund_requests`.
 - Acesso => `src/features/enrollments`, tabelas `enrollment_grants`, `enrollments`, `enrollment_expiration_adjustments`, `enrollment_events`.
-- Certificados => `src/features/certificates`, tabelas `certificate_issuer_profiles`, `certificate_templates`, `certificates` e `public_certificate_rate_limits`.
+- Certificados => `src/features/certificates`, tabelas `course_completions`, `certificate_issuer_profiles`, `certificate_templates`, `certificates`, `outbox_messages` e `public_certificate_rate_limits`.
 - Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
 - Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
@@ -57,14 +57,19 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 `getPool` cria um `pg.Pool`; `getDb` expõe Drizzle sobre o mesmo pool. `withVerifiedSslMode`, em `src/db/connection-url.ts`, normaliza conexões para `sslmode=verify-full` quando necessário.
 
+O topo local é `0062_certificate_reconciliation_indexes`. Essa migration é
+aditiva e cria índices para a reconciliação administrativa de Conclusões; não
+emite Certificados nem executa backfill. Sua promoção usa o fluxo controlado e o
+advisory lock global do migrador.
+
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 40 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 54 entradas alinhadas, com topo `0053_course_payment_offers`;
+O schema possui 42 tabelas exportadas em `src/db/schema.ts`. SQL e journal
+possuem 63 entradas alinhadas, com topo local `0062_certificate_reconciliation_indexes`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
-migration `0049` garante uma Revisão por Webhook; as migrations Asaas `0044` a
-`0053` estão aplicadas em Production e Staging. Na Vercel, cada instância limita o pool
+migration `0049` garante uma Revisão por Webhook; o estado aplicado de cada ambiente
+deve ser conferido no catálogo antes da promoção controlada. Na Vercel, cada instância limita o pool
 de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 [Banco e migrations](operations/database-and-migrations.md).
 
@@ -85,10 +90,13 @@ de aplicação a três conexões; readiness mantém uma conexão isolada. Veja
 3. `/api/webhooks/asaas` autentica, limita, valida e persiste a inbox antes de `200`.
 4. O worker reivindica o evento e abre uma transação com posse exclusiva.
 5. `processAsaasWebhookEvent` correlaciona somente identificadores exatos, bloqueia o
-   Pedido e aplica a matriz financeira sobre o snapshot bloqueado.
-6. A transação persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe
-   Matrícula; ativação ou acesso liberado entram na outbox no mesmo commit.
+   Pedido e aplica a matriz financeira sobre o snapshot bloqueado. A conciliação adapta
+   a consulta oficial do pagamento para a mesma matriz, sem manter política paralela.
+6. `apply-authoritative-financial-evidence.ts` converge pagamento, identidade, Concessão
+   e outbox; webhook e conciliação chamam esse mesmo módulo profundo. A transação
+   persiste evidência, Revisão idempotente ou Concessão/revogação e recompõe Matrícula.
 7. Conflitos ambíguos não escolhem Pedido e geram alerta durável sem payload ou PII.
+8. `availability-server.ts` fecha novas vendas antes de enfileirar cancelamento dos Checkouts ativos; acesso continua derivado de Matrícula e estado de entrega.
 
 O processor financeiro e sua rota cron estão implementados. A agenda chama o worker
 Asaas a cada minuto sob autenticação compartilhada, kill switch, lease e deadline. Isso
@@ -113,9 +121,11 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 ### Certificado, analytics e manutenção
 
 - cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados da Aluna, Curso e emissão em `render_snapshot`;
-- a conclusão elegível ou emissão manual cria o Certificado `pending` e uma mensagem `certificate.render`; o worker obtém claim persistido, gera o PDF uma vez, grava o artefato privado no R2 e só então enfileira o e-mail;
-- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle; reemissão cria nova evidência e preserva a anterior revogada;
-- download exige sessão e propriedade do Certificado ou permissão administrativa. Páginas públicas chamam `consumePublicCertificateLookup` antes de consultar por código e nunca expõem PDF ou CPF.
+- `completeLesson` usa lock transacional por Conta e Curso antes do progresso e do resumo; somente a transação que insere a primeira `CourseCompletion` pode criar o Certificado automático `pending` e a mensagem `certificate.render`;
+- o worker obtém claim persistido, grava o artefato privado no R2 e só então enfileira o e-mail que aponta para `/certificados/[code]`. A página do Curso é a entrada contextual do Certificado; `/app/certificados` é o arquivo global autenticado. Ambas distinguem `pending`, `ready`, `failed` e revogado sem transformar a lista autenticada no destino canônico de compartilhamento;
+- `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle com confirmação validada no servidor; reemissão cria nova evidência e preserva a anterior revogada;
+- `reconcileHistoricalCourseCertificates` é uma ação confirmada exclusiva de Admin, limitada a 100 Conclusões elegíveis por lote e sem Certificado histórico; migrations e leituras nunca fazem backfill silencioso;
+- `/certificados/[code]` e `/certificados/[code]/pdf` chamam `consumePublicCertificateLookup` antes da consulta. Somente Certificado `valid` e `ready`, com chave e digest presentes, recebe preview/download: a rota verifica o SHA-256 no R2 e redireciona para URL assinada de cinco minutos com `X-Robots-Tag: noindex, nofollow`. A página usa metadata `noindex,nofollow`; `pending`, `failed` e `revoked` não recebem URL assinada. A revogação bloqueia novos downloads, sem recolher cópias anteriores. CPF nunca é exposto.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
   limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
   inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas
@@ -124,7 +134,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ## Observabilidade
 
-`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
+`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; requests, breadcrumbs, transações e spans perdem query strings e códigos públicos de Certificado antes do envio. `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
 
 `GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Auditoria** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
 
@@ -140,6 +150,9 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e
   dead letter; `auth.account-activation` persiste apenas IDs locais e cria token no
   callback Better Auth. Recuperação pública e ativação legada continuam fora da outbox;
+- transições terminais da outbox são fenced por `locked_by`; perda do lease encerra o
+  lote sem contabilizar sucesso/falha, e `certificate.render` terminaliza mensagem e
+  Certificado de forma atômica;
 - `scheduled_job_leases` impede sobreposição de uma mesma rotina entre
   instâncias serverless sem depender de sessão Postgres;
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
@@ -184,16 +197,17 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
 - `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
-  compartilhada, `asaas-webhook-processor.ts` aplica
-  a decisão financeira e `public-checkout.ts` autoriza a entrada pública. Provider e
-  transição financeira não devem ser misturados em uma API genérica.
+  compartilhada, `asaas-financial-events.ts` decide eventos e consultas,
+  `apply-authoritative-financial-evidence.ts` aplica o efeito local e
+  `public-checkout.ts` autoriza a entrada pública. Provider e transição financeira não
+  devem ser misturados em uma API genérica.
 - `jmvstream/server.ts` é a façade de leitura operacional e dos casos de uso ainda consumidos; `auth.ts` resolve token, `client.ts` é o contrato HTTP e `upload.ts` executa multipart no navegador. `asset-persistence.ts`, `course-folders.ts`, `upload-session.ts`, `upload-completion.ts`, `player-sync.ts`, `asset-deletion.ts` e `manual-video-sync.ts` separam persistência e lifecycle. `provider-mapper.ts` traduz o estado remoto em operação de galeria. O upload multipart direto é invariante.
 - resources de aula: autoria e player tinham regras duplicadas de extensão, tipo e tamanho. `src/features/courses/resource-presentation.ts` concentra apenas essa apresentação pura, sem importar React ou providers.
 - actions administrativas de matrícula e certificados: seus `*-command-input.ts` traduzem e validam o `FormData` de cada comando. As actions continuam responsáveis por autenticar; serviços continuam responsáveis por autorização de domínio, transação e efeitos.
 
 ### Orçamento atual de leitura administrativa
 
-`getAdminStudentsData` usa duas queries em paralelo: matrículas e perfis de Aluna. O teste `admin/server-read-projections.test.ts` mede 250 Alunas com três matrículas cada: 750 linhas de matrícula, 250 perfis, duas queries e payload serializado inferior a 512 KiB. Não há paginação enquanto essa projeção permanecer dentro do orçamento; ao excedê-lo com volume representativo, a paginação deve preservar busca e detalhes por Aluna, não truncar silenciosamente a tabela.
+`getAdminStudentsData` consulta uma página limitada de perfis e somente as matrículas dos usuários daquela página. A ordenação é estável por nome e ID, a busca é server-side por nome/e-mail e o retorno informa `page`, `pageSize`, `search` e `hasNextPage`. O teste `admin/server-read-projections.test.ts` mantém o orçamento histórico de 250 Alunas como caso explícito, enquanto o padrão de runtime é 100 Alunas por página. A tabela deve preservar busca, detalhes por Aluna e navegação sem carregar a coleção inteira.
 
 ### Interfaces, consumidores e efeitos
 
@@ -201,13 +215,14 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 - **Símbolos:** `getStudentCourses`, `getStudentCourseCatalog`, `getStudentCourseAccessStatus`, `getStudentCourseOverview`, `getStudentLessonWorkspace`, `recordLessonWatchProgress`, `completeLesson` e `recalculateCourseWorkloadHours`; `issueCompletionCertificateIfEligible` para a conclusão.
 - **Consumidores:** páginas/actions de `/app`, handlers de recurso de aula, autoria administrativa e testes de SQL/concorrência.
-- **Invariante, queries e efeitos:** acesso exige Matrícula elegível e conteúdo publicado. `completeLesson` preserva a transação de progresso e delega apenas o resumo persistido ao serviço de certificado, que emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
+- **Invariante, queries e efeitos:** acesso exige Matrícula elegível e conteúdo publicado. `completeLesson` preserva a transação de progresso, adquire o lock por Conta e Curso antes da mutação e delega apenas o resumo persistido ao serviço de certificado. Somente a inserção vencedora da primeira Conclusão emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
 
 #### Administração
 
-- **Símbolos:** `getAdmin*Data`, `getAdminOverview`, `getAdminStudentDetail` e editores de curso/aula; actions nomeadas por comando.
-- **Consumidores:** páginas e componentes Admin. `authoring.ts` é chamado por actions, nunca por JSX.
-- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunas/acesso, financeiro, auditoria e configurações; a action chama o caso de uso e revalida as rotas afetadas.
+- **Símbolos:** `getAdmin*Data`, `getAdminOverview`, `getAdminStudentSheetData` e editores de curso/aula; actions nomeadas por comando.
+- **Consumidores:** páginas, tabelas e Sheets Admin. `authoring.ts` é chamado por actions, nunca por JSX.
+- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunas/acesso, financeiro, auditoria e configurações; a ficha de Aluna é carregada sob demanda por GET protegido, sem estado de seleção na URL. A action chama o caso de uso e revalida as superfícies administrativas afetadas.
+- **Ficha contextual de Aluna:** `/admin/alunos` e a aba de alunos do Curso usam o mesmo `StudentManagementSheet`. A lista geral mostra plataforma, todas as Matrículas e Certificados; o contexto de Curso mostra somente a Matrícula e os Certificados daquele Curso. A antiga rota `/admin/alunos/[userId]` não faz parte do produto e retorna 404.
 
 #### Acesso e comércio
 

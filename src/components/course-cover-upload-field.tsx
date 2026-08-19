@@ -10,8 +10,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CourseCoverCropDialog } from "@/features/courses/course-cover-crop-dialog";
 import {
   COURSE_COVER_ACCEPT,
+  COURSE_COVER_CARD_HEIGHT,
+  COURSE_COVER_CARD_WIDTH,
   parseCourseCoverImage,
 } from "@/features/storage/course-cover";
 import { uploadStagedAdminImage } from "@/features/storage/staged-image-upload-client";
@@ -59,6 +62,7 @@ export function CourseCoverUploadField({
   );
   const [isPreviewLoaded, setIsPreviewLoaded] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
   const uploadRequestIdRef = useRef(0);
@@ -96,6 +100,7 @@ export function CourseCoverUploadField({
   const clearSelectedFile = (): void => {
     uploadRequestIdRef.current += 1;
     setIsUploading(false);
+    setPendingCropFile(null);
     setCoverUploadJson("");
     setPreviewBlurDataUrl(null);
     setIsPreviewLoaded(false);
@@ -112,6 +117,7 @@ export function CourseCoverUploadField({
   };
 
   const restorePersistedPreview = (): void => {
+    setPendingCropFile(null);
     setCoverUploadJson("");
     setPreviewBlurDataUrl(parsedCover?.blurDataUrl ?? null);
     setIsPreviewLoaded(false);
@@ -172,6 +178,19 @@ export function CourseCoverUploadField({
     const dataTransfer = new DataTransfer();
     dataTransfer.items.add(file);
     inputRef.current.files = dataTransfer.files;
+    setPendingCropFile(file);
+  };
+
+  const cancelCrop = (): void => {
+    setPendingCropFile(null);
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  };
+
+  const completeCrop = (file: File): void => {
+    setPendingCropFile(null);
     stageFile(file).catch(() => undefined);
   };
 
@@ -224,7 +243,7 @@ export function CourseCoverUploadField({
         value={isUploading ? "on" : ""}
       />
 
-      <div className="relative aspect-video w-full">
+      <div className="relative aspect-[24/25] w-full">
         {/* biome-ignore lint/a11y/useSemanticElements: div is required for drag-and-drop drop zone with flexible sizing */}
         <div
           className={cn(
@@ -247,7 +266,11 @@ export function CourseCoverUploadField({
               const file = event.currentTarget.files?.[0];
 
               if (file) {
-                stageFile(file).catch(() => undefined);
+                if (isValidCoverFile(file)) {
+                  setPendingCropFile(file);
+                } else {
+                  event.currentTarget.value = "";
+                }
               }
             }}
             ref={inputRef}
@@ -305,7 +328,8 @@ export function CourseCoverUploadField({
                 Arraste ou clique para selecionar a capa
               </p>
               <p className="text-muted-foreground text-xs">
-                PNG, JPG ou WebP ate 4MB
+                Card: {COURSE_COVER_CARD_WIDTH} × {COURSE_COVER_CARD_HEIGHT} px
+                (24:25) · PNG, JPG ou WebP ate 4MB
               </p>
             </div>
           )}
@@ -340,6 +364,11 @@ export function CourseCoverUploadField({
           </div>
         )}
       </div>
+      <CourseCoverCropDialog
+        file={pendingCropFile}
+        onCancel={cancelCrop}
+        onComplete={completeCrop}
+      />
     </div>
   );
 }

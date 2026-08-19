@@ -14,7 +14,11 @@ import { cn } from "@/lib/utils";
 
 interface CertificateImageUploadFieldProps {
   className?: string;
+  compact?: boolean;
+  compactWhenImage?: boolean;
+  form?: string;
   id?: string;
+  imageName?: string | null | undefined;
   imageUrl: string | null;
   kind: CertificateImageKind;
   label?: string;
@@ -25,8 +29,12 @@ interface CertificateImageUploadFieldProps {
 
 export function CertificateImageUploadField({
   className,
+  compact = false,
+  compactWhenImage = false,
+  form,
   id,
   imageUrl,
+  imageName,
   kind,
   label = "Arraste ou clique para selecionar a imagem",
   onFileSelect,
@@ -56,7 +64,7 @@ export function CertificateImageUploadField({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Nao foi possivel usar a imagem."
+          : "Não foi possível usar a imagem."
       );
     }
   };
@@ -64,11 +72,20 @@ export function CertificateImageUploadField({
   const openPicker = (): void => inputRef.current?.click();
 
   return (
-    <div className={cn("flex flex-col gap-3", className)}>
+    <div
+      className={cn("flex flex-col gap-3", className)}
+      data-compact-upload={imageUrl && compactWhenImage ? kind : undefined}
+    >
       <input
         accept={CERTIFICATE_IMAGE_ACCEPT}
+        aria-label={
+          kind === "background"
+            ? "Selecionar arte de fundo"
+            : "Selecionar imagem da assinatura"
+        }
         className="sr-only"
         data-upload-kind={kind}
+        form={form}
         id={id}
         onChange={(event) => {
           const file = event.currentTarget.files?.[0];
@@ -82,42 +99,77 @@ export function CertificateImageUploadField({
         type="file"
       />
 
-      <Button
-        className="min-h-24 w-full flex-col gap-2 border-dashed text-center transition-[border-color,background-color,scale] active:scale-[0.96] data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/5"
-        data-dragging={isDragging}
-        onClick={openPicker}
-        onDragLeave={(event) => {
-          event.preventDefault();
-          setIsDragging(false);
-        }}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setIsDragging(false);
-          const file = event.dataTransfer.files?.[0];
-          if (file) {
-            selectFile(file);
-          }
-        }}
-        type="button"
-        variant="outline"
-      >
-        <HugeiconsIcon data-icon="inline-start" icon={ImageUpload01Icon} />
-        <span className="text-muted-foreground text-sm">{label}</span>
-        <span className="text-xs">
-          {kind === "background"
-            ? "JPG, PNG ou WebP ate 10 MB"
-            : "JPG, PNG ou WebP ate 2 MB"}
-        </span>
-      </Button>
+      {imageUrl && compactWhenImage ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 ring-1 ring-foreground/5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+            <span className="truncate text-sm">
+              {selectedFile?.name ?? imageName ?? "Imagem atual"}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              className="min-h-10"
+              onClick={openPicker}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Substituir imagem
+            </Button>
+            <Button
+              aria-label="Remover imagem"
+              className="min-h-10"
+              onClick={() => onFileSelect(null)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Remover
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          className={cn(
+            "w-full flex-col border-dashed text-center transition-[border-color,background-color,scale] active:scale-[0.96] data-[dragging=true]:border-primary data-[dragging=true]:bg-primary/5",
+            compact ? "min-h-16 gap-1.5 py-2" : "min-h-24 gap-2"
+          )}
+          data-dragging={isDragging}
+          onClick={openPicker}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setIsDragging(false);
+            const file = event.dataTransfer.files?.[0];
+            if (file) {
+              selectFile(file);
+            }
+          }}
+          type="button"
+          variant="outline"
+        >
+          <HugeiconsIcon data-icon="inline-start" icon={ImageUpload01Icon} />
+          <span className="text-muted-foreground text-sm">{label}</span>
+          <span className="text-xs">
+            {kind === "background"
+              ? "JPG, PNG ou WebP até 10 MB"
+              : "JPG, PNG ou WebP até 2 MB"}
+          </span>
+        </Button>
+      )}
 
-      {imageUrl ? (
+      {imageUrl && !compactWhenImage ? (
         <div className="flex min-h-10 items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2">
           <span className="truncate text-muted-foreground text-sm">
-            {selectedFile?.name ?? "Imagem atual"}
+            {selectedFile?.name ?? imageName ?? "Imagem atual"}
           </span>
           <Button
             aria-label="Remover imagem"

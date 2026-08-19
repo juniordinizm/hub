@@ -88,7 +88,7 @@ describe("prepareCiMigrationDatabase", () => {
       .mockResolvedValueOnce({ rows: [] });
 
     await expect(prepareCiMigrationDatabase({ query })).rejects.toThrow(
-      "CI migration preparation requires journal 0043, 0052, or 0053."
+      "CI migration preparation requires a clean journal or journal 0043, 0052, 0053, 0054, or 0062."
     );
     expect(query).not.toHaveBeenCalledWith(
       "truncate table public.orders cascade"
@@ -122,6 +122,63 @@ describe("prepareCiMigrationDatabase", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{ migration_count: 54, migration_top: "1785632318824" }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(prepareCiMigrationDatabase({ query })).resolves.toEqual({
+      status: "not-needed",
+    });
+    expect(query).not.toHaveBeenCalledWith(
+      "truncate table public.orders cascade"
+    );
+    expect(query).toHaveBeenLastCalledWith("commit");
+  });
+
+  it("does nothing when the parent branch is already at 0054", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ migration_count: 55, migration_top: "1785744643480" }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(prepareCiMigrationDatabase({ query })).resolves.toEqual({
+      status: "not-needed",
+    });
+    expect(query).not.toHaveBeenCalledWith(
+      "truncate table public.orders cascade"
+    );
+    expect(query).toHaveBeenLastCalledWith("commit");
+  });
+
+  it("does nothing when the parent branch is already at the current local journal", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ migration_count: 63, migration_top: "1787012301824" }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(prepareCiMigrationDatabase({ query })).resolves.toEqual({
+      status: "not-needed",
+    });
+    expect(query).not.toHaveBeenCalledWith(
+      "truncate table public.orders cascade"
+    );
+    expect(query).toHaveBeenLastCalledWith("commit");
+  });
+
+  it("does nothing for a clean CI parent and lets the job apply the full chain", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ migration_count: 0, migration_top: null }],
       })
       .mockResolvedValueOnce({ rows: [] });
 

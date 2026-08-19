@@ -1,15 +1,16 @@
 import "server-only";
+import { render } from "@react-email/components";
 import { Resend } from "resend";
-import { assertDevelopmentEmailRecipientAllowed } from "@/features/email/development-recipient";
-import {
-  AccessExpiryWarningEmail,
-  AccessReleasedEmail,
-  CertificateIssuedEmail,
-  PasswordResetEmail,
-  SupportRequestEmail,
-} from "@/features/email/templates";
+import { assertDevelopmentOrStagingEmailRecipientAllowed } from "@/features/email/development-recipient";
+import { recordE2eCertificateEmailDelivery } from "@/features/email/e2e-delivery-sink";
 import { isAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, isIsolatedE2eRuntime } from "@/lib/env";
+import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
+import type { HostedEmailTemplateVariables } from "./templates-contract";
+import {
+  resolveHostedTemplateAlias,
+  validateHostedTemplateVariables,
+} from "./templates-contract";
 
 interface SendEmailInput {
   idempotencyKey?: string;
@@ -18,6 +19,59 @@ interface SendEmailInput {
   subject: string;
   to: string;
 }
+
+interface EmailProviderError {
+  message: string;
+  name?: string;
+}
+
+const resolveAndAssertEmailRuntimeEnvironment = ({
+  env,
+  recipient,
+}: {
+  env: ReturnType<typeof getServerEnv>;
+  recipient: string;
+}): ReturnType<typeof resolveRuntimeEnvironment> => {
+  const runtimeEnvironment = resolveRuntimeEnvironment(process.env);
+  const recipientEnvironment =
+    runtimeEnvironment === "staging" ? "staging" : env.NODE_ENV;
+  const recipientAllowlist =
+    runtimeEnvironment === "staging"
+      ? env.STAGING_EMAIL_RECIPIENT_ALLOWLIST
+      : env.DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST;
+
+  assertDevelopmentOrStagingEmailRecipientAllowed({
+    allowlist: recipientAllowlist,
+    environment: recipientEnvironment,
+    recipient,
+  });
+
+  return runtimeEnvironment;
+};
+
+const handleEmailProviderError = ({
+  authSecret,
+  error,
+  idempotencyKey,
+}: {
+  authSecret: string;
+  error: EmailProviderError | null;
+  idempotencyKey?: string;
+}): void => {
+  const activationEmailAlreadyAccepted =
+    error?.name === "invalid_idempotent_request" &&
+    Boolean(
+      idempotencyKey &&
+        isAccountActivationEmailIdempotencyKey({
+          authSecret,
+          value: idempotencyKey,
+        })
+    );
+
+  if (error && !activationEmailAlreadyAccepted) {
+    throw new Error(error.message);
+  }
+};
 
 export const sendTransactionalEmail = async ({
   idempotencyKey,
@@ -36,16 +90,13 @@ export const sendTransactionalEmail = async ({
     throw new Error("RESEND_API_KEY is required to send transactional email.");
   }
 
-  assertDevelopmentEmailRecipientAllowed({
-    allowlist: env.DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST,
-    environment: env.NODE_ENV,
-    recipient: to,
-  });
+  resolveAndAssertEmailRuntimeEnvironment({ env, recipient: to });
 
   const resolvedReplyTo = replyTo ?? env.SUPPORT_EMAIL;
+  const html = await render(react);
   const email = {
     from: env.RESEND_FROM_EMAIL,
-    react,
+    html,
     ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
     subject,
     to,
@@ -55,19 +106,68 @@ export const sendTransactionalEmail = async ({
     ...(idempotencyKey ? [{ idempotencyKey }] : [])
   );
 
-  const activationEmailAlreadyAccepted =
-    error?.name === "invalid_idempotent_request" &&
-    Boolean(
-      idempotencyKey &&
-        isAccountActivationEmailIdempotencyKey({
-          authSecret: env.BETTER_AUTH_SECRET,
-          value: idempotencyKey,
-        })
-    );
+  handleEmailProviderError({
+    authSecret: env.BETTER_AUTH_SECRET,
+    error,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+};
 
-  if (error && !activationEmailAlreadyAccepted) {
-    throw new Error(error.message);
+export const sendHostedTemplateEmail = async ({
+  idempotencyKey,
+  replyTo,
+  subject,
+  to,
+  ...templateVariables
+}: HostedEmailTemplateVariables & {
+  idempotencyKey?: string;
+  replyTo?: string;
+  subject?: string;
+  to: string;
+}): Promise<void> => {
+  const env = getServerEnv();
+
+  validateHostedTemplateVariables(templateVariables);
+
+  if (env.E2E_TEST_MODE) {
+    return;
   }
+
+  if (!env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is required to send transactional email.");
+  }
+
+  const runtimeEnvironment = resolveAndAssertEmailRuntimeEnvironment({
+    env,
+    recipient: to,
+  });
+  const { name, ...variables } = templateVariables;
+  const alias = resolveHostedTemplateAlias({
+    name,
+    runtimeEnvironment,
+  });
+
+  const resolvedReplyTo = replyTo ?? env.SUPPORT_EMAIL;
+  const email = {
+    from: env.RESEND_FROM_EMAIL,
+    ...(resolvedReplyTo ? { replyTo: resolvedReplyTo } : {}),
+    ...(subject === undefined ? {} : { subject }),
+    template: {
+      id: alias,
+      variables,
+    },
+    to,
+  };
+  const { error } = await new Resend(env.RESEND_API_KEY).emails.send(
+    email,
+    ...(idempotencyKey ? [{ idempotencyKey }] : [])
+  );
+
+  handleEmailProviderError({
+    authSecret: env.BETTER_AUTH_SECRET,
+    error,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
 };
 
 export const sendPasswordResetEmail = async ({
@@ -81,11 +181,13 @@ export const sendPasswordResetEmail = async ({
   to: string;
   userName: string;
 }): Promise<void> =>
-  sendTransactionalEmail({
+  sendHostedTemplateEmail({
+    ACTION_URL: resetUrl,
     ...(idempotencyKey ? { idempotencyKey } : {}),
-    react: PasswordResetEmail({ actionUrl: resetUrl, name: userName }),
+    name: "auth-password-reset",
     subject: "Criar ou redefinir senha do PROTEA-R Hub",
     to,
+    USER_NAME: userName,
   });
 
 export const sendAccessReleasedEmail = async ({
@@ -100,20 +202,20 @@ export const sendAccessReleasedEmail = async ({
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> =>
-  sendTransactionalEmail({
+}): Promise<void> => {
+  const appUrl = getServerEnv().NEXT_PUBLIC_APP_URL;
+
+  await sendHostedTemplateEmail({
+    ACTION_URL: `${appUrl}${courseId ? `/app/cursos/${courseId}` : "/app"}`,
+    COURSE_TITLE: courseTitle,
     ...(idempotencyKey ? { idempotencyKey } : {}),
-    react: AccessReleasedEmail({
-      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}${
-        courseId ? `/app/cursos/${courseId}` : "/app"
-      }`,
-      courseTitle,
-      name: userName,
-      resetUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/recuperar-senha`,
-    }),
+    name: "access-released",
+    PASSWORD_RESET_URL: `${appUrl}/recuperar-senha`,
     subject: "Acesso liberado no PROTEA-R Hub",
     to,
+    USER_NAME: userName,
   });
+};
 
 export const sendAccessExpiryWarningEmail = async ({
   courseId,
@@ -129,16 +231,42 @@ export const sendAccessExpiryWarningEmail = async ({
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> =>
-  sendTransactionalEmail({
+}): Promise<void> => {
+  const formattedDaysRemaining =
+    daysRemaining === 1 ? "1 dia" : `${daysRemaining} dias`;
+
+  await sendHostedTemplateEmail({
+    ACTION_URL: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/cursos/${courseId}`,
+    COURSE_TITLE: courseTitle,
+    DAYS_REMAINING: formattedDaysRemaining,
     ...(idempotencyKey ? { idempotencyKey } : {}),
-    react: AccessExpiryWarningEmail({
-      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/cursos/${courseId}`,
-      courseTitle,
-      daysRemaining,
-      name: userName,
-    }),
-    subject: `Seu acesso vence em ${daysRemaining} ${daysRemaining === 1 ? "dia" : "dias"}`,
+    name: "access-expiry-warning",
+    subject: `Seu acesso vence em ${formattedDaysRemaining}`,
+    to,
+    USER_NAME: userName,
+  });
+};
+
+export const sendCourseSalesOpenedEmail = async ({
+  courseSlug,
+  courseTitle,
+  idempotencyKey,
+  to,
+  userName,
+}: {
+  courseSlug: string;
+  courseTitle: string;
+  idempotencyKey: string;
+  to: string;
+  userName: string;
+}): Promise<void> =>
+  sendHostedTemplateEmail({
+    ACTION_URL: `${getServerEnv().NEXT_PUBLIC_APP_URL}/comprar/${encodeURIComponent(courseSlug)}`,
+    COURSE_TITLE: courseTitle,
+    USER_NAME: userName,
+    idempotencyKey,
+    name: "course-sales-opened",
+    subject: `Inscrições abertas: ${courseTitle}`,
     to,
   });
 
@@ -154,18 +282,29 @@ export const sendCertificateIssuedEmail = async ({
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> =>
-  sendTransactionalEmail({
+}): Promise<void> => {
+  if (isIsolatedE2eRuntime(process.env)) {
+    recordE2eCertificateEmailDelivery({
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+      recipient: to,
+    });
+    return;
+  }
+
+  await sendHostedTemplateEmail({
+    ACTION_URL: new URL(
+      `/certificados/${encodeURIComponent(certificateCode)}`,
+      getServerEnv().CERTIFICATE_PUBLIC_BASE_URL
+    ).toString(),
+    CERTIFICATE_CODE: certificateCode,
+    COURSE_TITLE: courseTitle,
     ...(idempotencyKey ? { idempotencyKey } : {}),
-    react: CertificateIssuedEmail({
-      actionUrl: `${getServerEnv().NEXT_PUBLIC_APP_URL}/certificados/${certificateCode}`,
-      certificateCode,
-      courseTitle,
-      name: userName,
-    }),
+    name: "certificate-issued",
     subject: "Seu certificado PROTEA-R Hub foi emitido",
     to,
+    USER_NAME: userName,
   });
+};
 
 export const sendSupportRequestEmail = async ({
   courseTitle,
@@ -182,16 +321,15 @@ export const sendSupportRequestEmail = async ({
 }): Promise<void> => {
   const env = getServerEnv();
 
-  await sendTransactionalEmail({
-    react: SupportRequestEmail({
-      ...(courseTitle ? { courseTitle } : {}),
-      message,
-      studentEmail,
-      studentName,
-      subject,
-    }),
+  await sendHostedTemplateEmail({
+    COURSE_TITLE: courseTitle ?? "Não informado",
+    MESSAGE: message,
+    name: "support-request",
     replyTo: studentEmail,
     subject: `Suporte: ${subject}`,
+    STUDENT_EMAIL: studentEmail,
+    STUDENT_NAME: studentName,
+    SUPPORT_SUBJECT: subject,
     to: env.SUPPORT_EMAIL ?? env.RESEND_FROM_EMAIL,
   });
 };

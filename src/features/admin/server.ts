@@ -4,6 +4,10 @@ import {
   type AdminStudentSummary,
   summarizeAdminStudents,
 } from "@/features/admin/students";
+import {
+  type CertificateOperationRecord,
+  getCertificateOperationsForUser,
+} from "@/features/certificates/server";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
   getOperationalBacklogSnapshot,
@@ -111,20 +115,39 @@ export interface AdminCertificate {
 
 export interface AdminCourse {
   accessDurationMonths: number;
+  catalogVisibility: "hidden" | "listed";
   certificateEnabled: boolean;
   coverImage: unknown;
   description: string | null;
+  hasCommercialHistory: boolean;
   id: string;
+  interestCount: number;
+  interestNotificationsSent: number;
+  launchDate: string | null;
+  launchLandingUrl: string | null;
+  lessonCount?: number;
+  moduleCount?: number;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
+  pendingCertificateReconciliationCount: number;
+  pendingCheckoutCancellations: number;
+  pendingInterestNotifications: number;
   priceInCents: number;
+  salesStatus: "closed" | "open";
   slug: string;
   status: string;
   subtitle: string | null;
   thumbnailUrl: string | null;
   title: string;
   workloadHours: number;
+  workloadHoursOverride: number | null;
+}
+
+export interface AdminCourseOverviewSummary {
+  activeEnrollmentCount: number;
+  paidOrderCount: number;
+  validCertificateCount: number;
 }
 
 export interface AdminEnrollment {
@@ -140,6 +163,26 @@ export interface AdminEnrollment {
   startsAt: Date;
   status: string;
   userId: string;
+}
+
+const DEFAULT_ADMIN_STUDENT_PAGE_SIZE = 100;
+const MAX_ADMIN_STUDENT_PAGE_SIZE = 250;
+const MAX_ADMIN_STUDENT_PAGE = 1000;
+
+export interface AdminStudentsQuery {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+}
+
+const DEFAULT_ADMIN_COURSE_PAGE_SIZE = 50;
+const MAX_ADMIN_COURSE_PAGE_SIZE = 100;
+const MAX_ADMIN_COURSE_PAGE = 1000;
+
+export interface AdminCourseCatalogQuery {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
 }
 
 export interface AdminFaq {
@@ -237,7 +280,6 @@ export interface AdminSettings {
   certificateSignerName: string | null;
   certificateSignerRole: string | null;
   issuerCnpj: string | null;
-  issuerCourseFreeStatement: string | null;
   issuerDisplayName: string | null;
   issuerLegalName: string | null;
 }
@@ -271,19 +313,75 @@ export interface AdminStudentDetail {
   userId: string;
 }
 
+export interface AdminStudentSheetData {
+  certificates: CertificateOperationRecord[];
+  context: {
+    courseId: string | null;
+    courseTitle: string | null;
+  };
+  student: AdminStudentDetail;
+}
+
 const requireAdminReadAccess = (): Promise<void> =>
   requirePermission("viewAdminPanel").then(() => undefined);
 
-const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
+const readCourses = async (
+  courseId?: string,
+  options: AdminCourseCatalogQuery = {}
+): Promise<AdminCourse[]> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_COURSE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const values: unknown[] = [];
+  const filters: string[] = [];
+
+  if (courseId) {
+    values.push(courseId);
+    filters.push(`courses.id = $${values.length}`);
+  } else if (search) {
+    values.push(`%${search}%`);
+    filters.push(
+      `(courses.title ilike $${values.length} or courses.subtitle ilike $${values.length} or courses.slug ilike $${values.length})`
+    );
+  }
+
+  const pagination = courseId
+    ? ""
+    : (() => {
+        values.push(pageSize + 1, (page - 1) * pageSize);
+        return `limit $${values.length - 1} offset $${values.length}`;
+      })();
+  const whereClause =
+    filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
     access_duration_months: number;
+    catalog_visibility: "hidden" | "listed";
     certificate_enabled: boolean;
     description: string | null;
+    has_commercial_history: boolean;
     id: string;
+    interest_count: number;
+    interest_notifications_sent: number;
+    launch_date: string | null;
+    launch_landing_url: string | null;
+    lesson_count: number;
+    module_count: number;
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
     payment_max_installment_count: number;
+    pending_certificate_reconciliation_count: number;
     price_in_cents: number;
+    pending_checkout_cancellations: number;
+    pending_interest_notifications: number;
+    sales_status: "closed" | "open";
     slug: string;
     status: string;
     subtitle: string | null;
@@ -291,22 +389,101 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     thumbnail_url: string | null;
     title: string;
     workload_hours: number;
+    workload_hours_override: number | null;
   }>(
-    courseId
-      ? "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses where id = $1"
-      : "select id, slug, title, subtitle, description, workload_hours, price_in_cents, payment_allow_pix, payment_allow_credit_card, payment_max_installment_count, thumbnail_url, cover_image_json, access_duration_months, certificate_enabled, status from courses order by created_at desc",
-    courseId ? [courseId] : undefined
+    `
+      select courses.*,
+        (
+          exists (
+            select 1 from orders o
+            where o.course_id = courses.id and o.status = 'paid'
+          ) or exists (
+            select 1 from enrollment_grants eg where eg.course_id = courses.id
+          ) or exists (
+            select 1 from enrollments e where e.course_id = courses.id
+          )
+        ) as has_commercial_history,
+        (
+          select count(*)::int from course_sale_interests csi
+          where csi.course_id = courses.id
+        ) as interest_count,
+        (
+          select count(*)::int from course_sale_interests csi
+          where csi.course_id = courses.id
+            and csi.notification_enqueued_at is not null
+        ) as pending_interest_notifications,
+        (
+          select count(*)::int
+          from course_completions completion
+          where completion.course_id = courses.id
+            and courses.certificate_enabled = true
+            and exists (
+              select 1
+              from certificate_templates template
+              where template.course_id = courses.id
+                and template.status = 'published'
+            )
+            and exists (
+              select 1
+              from certificate_issuer_profiles issuer
+              where issuer.id = 'global'
+            )
+            and not exists (
+              select 1
+              from certificates certificate
+              where certificate.user_id = completion.user_id
+                and certificate.course_id = completion.course_id
+            )
+        ) as pending_certificate_reconciliation_count,
+        (
+          select count(*)::int
+          from outbox_messages om
+          join orders o on o.id = (om.payload ->> 'orderId')::uuid
+          where om.topic = 'payments.checkout-cancel'
+            and om.status in ('pending', 'retrying', 'processing')
+            and o.course_id = courses.id
+        ) as pending_checkout_cancellations
+        ,(
+          select count(*)::int
+          from modules m
+          where m.course_id = courses.id
+        ) as module_count
+        ,(
+          select count(*)::int
+          from lessons l
+          join modules m on m.id = l.module_id
+          where m.course_id = courses.id
+        ) as lesson_count
+      from courses
+      ${whereClause}
+      order by courses.created_at desc
+      ${pagination}
+    `,
+    values.length > 0 ? values : undefined
   );
 
   return rows.map((row) => ({
     accessDurationMonths: row.access_duration_months,
+    catalogVisibility: row.catalog_visibility,
     certificateEnabled: row.certificate_enabled,
     description: row.description,
+    hasCommercialHistory: row.has_commercial_history,
     id: row.id,
+    interestCount: row.interest_count,
+    interestNotificationsSent: row.interest_notifications_sent,
+    lessonCount: row.lesson_count ?? 0,
+    launchDate: row.launch_date,
+    launchLandingUrl: row.launch_landing_url,
     paymentAllowCreditCard: row.payment_allow_credit_card,
     paymentAllowPix: row.payment_allow_pix,
     paymentMaxInstallmentCount: row.payment_max_installment_count,
     priceInCents: row.price_in_cents,
+    pendingCertificateReconciliationCount:
+      row.pending_certificate_reconciliation_count,
+    pendingCheckoutCancellations: row.pending_checkout_cancellations,
+    pendingInterestNotifications: row.pending_interest_notifications,
+    moduleCount: row.module_count ?? 0,
+    salesStatus: row.sales_status,
     slug: row.slug,
     status: row.status,
     subtitle: row.subtitle,
@@ -314,6 +491,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     thumbnailUrl: row.thumbnail_url,
     title: row.title,
     workloadHours: row.workload_hours,
+    workloadHoursOverride: row.workload_hours_override,
   }));
 };
 
@@ -489,7 +667,7 @@ const readLessonEditor = async ({
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
       join course_publications cp on cp.id = l.course_publication_id
-      where m.course_id = $1 and l.id = $2
+      where m.course_id = $1 and l.id = $2 and cp.status = 'draft'
       limit 1
     `,
     [courseId, lessonId]
@@ -535,8 +713,28 @@ const readLessonEditor = async ({
 };
 
 const readEnrollments = async (
-  courseId?: string
+  courseId?: string,
+  userIds?: readonly string[]
 ): Promise<AdminEnrollment[]> => {
+  if (userIds && userIds.length === 0) {
+    return [];
+  }
+
+  const values: unknown[] = [];
+  const filters: string[] = [];
+
+  if (courseId) {
+    values.push(courseId);
+    filters.push(`e.course_id = $${values.length}`);
+  }
+
+  if (userIds) {
+    values.push(userIds);
+    filters.push(`e.user_id = any($${values.length}::text[])`);
+  }
+
+  const whereClause =
+    filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
     course_id: string;
     course_title: string;
@@ -568,10 +766,10 @@ const readEnrollments = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      ${courseId ? "where e.course_id = $1" : ""}
+      ${whereClause}
       order by e.updated_at desc
     `,
-    courseId ? [courseId] : undefined
+    values.length > 0 ? values : undefined
   );
 
   return rows.map((row) => ({
@@ -793,18 +991,16 @@ const readSettings = async (): Promise<AdminSettings> => {
   const settings = rows[0];
   const issuer = await getPool().query<{
     cnpj: string;
-    course_free_statement: string;
     display_name: string;
     legal_name: string;
   }>(
-    "select cnpj, display_name, legal_name, course_free_statement from certificate_issuer_profiles where id = 'global' limit 1"
+    "select cnpj, display_name, legal_name from certificate_issuer_profiles where id = 'global' limit 1"
   );
 
   return {
     certificateSignerName: settings?.certificate_signer_name ?? null,
     certificateSignerRole: settings?.certificate_signer_role ?? null,
     issuerCnpj: issuer.rows[0]?.cnpj ?? null,
-    issuerCourseFreeStatement: issuer.rows[0]?.course_free_statement ?? null,
     issuerDisplayName: issuer.rows[0]?.display_name ?? null,
     issuerLegalName: issuer.rows[0]?.legal_name ?? null,
   };
@@ -862,16 +1058,34 @@ const readAuditLogs = async (): Promise<AdminAuditLog[]> => {
   }));
 };
 
-const readStudentProfiles = async (): Promise<
-  Array<{
+const readStudentProfiles = async (
+  options: AdminStudentsQuery = {}
+): Promise<{
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  profiles: Array<{
     email: string;
     lastAccessAt: Date | null;
     name: string;
     platformBlockedAt: Date | null;
     platformBlockedReason: string | null;
     userId: string;
-  }>
-> => {
+  }>;
+  search: string;
+}> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_STUDENT_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_STUDENT_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_STUDENT_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_STUDENT_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const offset = (page - 1) * pageSize;
   const { rows } = await getPool().query<{
     email: string;
     last_access_at: Date | null;
@@ -879,23 +1093,34 @@ const readStudentProfiles = async (): Promise<
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     user_id: string;
-  }>(`
-    select u.id as user_id, u.name, u.email, p.last_access_at,
-           p.platform_blocked_at, p.platform_blocked_reason
-    from profiles p
-    join users u on u.id = p.user_id
-    where p.role = 'student'
-    order by u.name asc
-  `);
+  }>(
+    `
+      select u.id as user_id, u.name, u.email, p.last_access_at,
+             p.platform_blocked_at, p.platform_blocked_reason
+      from profiles p
+      join users u on u.id = p.user_id
+      where p.role = 'student'
+        and ($1 = '' or u.name ilike $2 or u.email ilike $2)
+      order by u.name asc, u.id asc
+      limit $3 offset $4
+    `,
+    [search, `%${search}%`, pageSize + 1, offset]
+  );
 
-  return rows.map((row) => ({
-    email: row.email,
-    lastAccessAt: row.last_access_at,
-    name: row.name,
-    platformBlockedAt: row.platform_blocked_at,
-    platformBlockedReason: row.platform_blocked_reason,
-    userId: row.user_id,
-  }));
+  return {
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    profiles: rows.slice(0, pageSize).map((row) => ({
+      email: row.email,
+      lastAccessAt: row.last_access_at,
+      name: row.name,
+      platformBlockedAt: row.platform_blocked_at,
+      platformBlockedReason: row.platform_blocked_reason,
+      userId: row.user_id,
+    })),
+    search,
+  };
 };
 
 export const getAdminDashboardData = async (): Promise<{
@@ -919,19 +1144,30 @@ export const getAdminDashboardData = async (): Promise<{
   return { courses, coursesRevenue, lessons, modules, orders };
 };
 
-export const getAdminStudentsData = async (): Promise<{
+export const getAdminStudentsData = async (
+  options: AdminStudentsQuery = {}
+): Promise<{
   enrollments: AdminEnrollment[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
   students: AdminStudentSummary[];
 }> => {
   await requireAdminReadAccess();
-  const [enrollments, profiles] = await Promise.all([
-    readEnrollments(),
-    readStudentProfiles(),
-  ]);
+  const profilePage = await readStudentProfiles(options);
+  const enrollments = await readEnrollments(
+    undefined,
+    profilePage.profiles.map((profile) => profile.userId)
+  );
 
   return {
     enrollments,
-    students: summarizeAdminStudents(enrollments, profiles),
+    hasNextPage: profilePage.hasNextPage,
+    page: profilePage.page,
+    pageSize: profilePage.pageSize,
+    search: profilePage.search,
+    students: summarizeAdminStudents(enrollments, profilePage.profiles),
   };
 };
 
@@ -956,18 +1192,39 @@ export const getAdminSettingsData = async (): Promise<{
   return { settings: await readSettings() };
 };
 
-export const getAdminCourseCatalogData = async (): Promise<{
+export const getAdminCourseCatalogData = async (
+  options: AdminCourseCatalogQuery = {}
+): Promise<{
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
   courses: AdminCourse[];
   lessons: AdminLesson[];
   modules: AdminModule[];
 }> => {
   await requireAdminReadAccess();
-  const [courses, modules, lessons] = await Promise.all([
-    readCourses(),
-    readModules(),
-    readLessons(),
-  ]);
-  return { courses, lessons, modules };
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_COURSE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const courses = await readCourses(undefined, { page, pageSize, search });
+  return {
+    courses: courses.slice(0, pageSize),
+    hasNextPage: courses.length > pageSize,
+    lessons: [],
+    modules: [],
+    page,
+    pageSize,
+    search,
+  };
 };
 
 export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {
@@ -995,26 +1252,47 @@ export const getAdminFinancialData = async (
   return { certificates, coursesRevenue, orders, paymentReviews };
 };
 
+export const getAdminCourseOverviewSummary = async (
+  courseId: string
+): Promise<AdminCourseOverviewSummary> => {
+  await requireAdminReadAccess();
+  const { rows } = await getPool().query<{
+    active_enrollment_count: number;
+    paid_order_count: number;
+    valid_certificate_count: number;
+  }>(
+    `
+      select
+        (select count(*)::int from enrollments where course_id = $1 and status = 'active') as active_enrollment_count,
+        (select count(*)::int from orders where course_id = $1 and status = 'paid') as paid_order_count,
+        (select count(*)::int from certificates where course_id = $1 and status = 'valid') as valid_certificate_count
+    `,
+    [courseId]
+  );
+  const row = rows[0];
+
+  return {
+    activeEnrollmentCount: row?.active_enrollment_count ?? 0,
+    paidOrderCount: row?.paid_order_count ?? 0,
+    validCertificateCount: row?.valid_certificate_count ?? 0,
+  };
+};
+
 export const getAdminCourseDetailData = async (
   courseId: string
 ): Promise<{
-  certificates: AdminCertificate[];
   course: AdminCourse;
   enrollments: AdminEnrollment[];
   lessons: AdminLesson[];
   modules: AdminModule[];
-  orders: AdminOrder[];
 } | null> => {
   await requireAdminReadAccess();
-  const [courses, modules, lessons, enrollments, orders, certificates] =
-    await Promise.all([
-      readCourses(courseId),
-      readModules(courseId),
-      readLessons(courseId),
-      readEnrollments(courseId),
-      readOrders(courseId),
-      readCertificates(courseId),
-    ]);
+  const [courses, modules, lessons, enrollments] = await Promise.all([
+    readCourses(courseId),
+    readModules(courseId),
+    readLessons(courseId),
+    readEnrollments(courseId),
+  ]);
   const course = courses[0];
 
   if (!course) {
@@ -1022,12 +1300,10 @@ export const getAdminCourseDetailData = async (
   }
 
   return {
-    certificates,
     course,
     enrollments,
     lessons,
     modules,
-    orders,
   };
 };
 
@@ -1101,18 +1377,18 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
-    course_id: string;
-    course_title: string;
+    course_id: string | null;
+    course_title: string | null;
     email: string;
-    expires_at: Date;
-    id: string;
+    expires_at: Date | null;
+    id: string | null;
     name: string;
-    original_expires_at: Date;
+    original_expires_at: Date | null;
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     revoked_reason: string | null;
-    starts_at: Date;
-    status: string;
+    starts_at: Date | null;
+    status: string | null;
     user_id: string;
   }>(
     `
@@ -1120,20 +1396,20 @@ export const getAdminStudentDetail = async (
              e.status, e.starts_at, e.expires_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
              e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
-      from enrollments e
-      join users u on u.id = e.user_id
-      left join profiles p on p.user_id = u.id
-      join courses c on c.id = e.course_id
+      from users u
+      join profiles p on p.user_id = u.id and p.role = 'student'
+      left join enrollments e on e.user_id = u.id
+      left join courses c on c.id = e.course_id
       left join lateral (
         select eg.base_expires_at
         from enrollment_grants eg
-        where eg.user_id = e.user_id
+        where eg.user_id = u.id
           and eg.course_id = e.course_id
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      where e.user_id = $1
-      order by c.title
+      where u.id = $1
+      order by c.title nulls last
     `,
     [userId]
   );
@@ -1146,20 +1422,80 @@ export const getAdminStudentDetail = async (
 
   return {
     email: firstRow.email,
-    enrollments: result.rows.map((row) => ({
-      courseId: row.course_id,
-      courseTitle: row.course_title,
-      expiresAt: row.expires_at,
-      id: row.id,
-      originalExpiresAt: row.original_expires_at,
-      revokedReason: row.revoked_reason,
-      startedAt: row.starts_at,
-      status: row.status,
-    })),
+    enrollments: result.rows.flatMap((row) => {
+      if (
+        !(
+          row.course_id &&
+          row.course_title &&
+          row.expires_at &&
+          row.id &&
+          row.original_expires_at &&
+          row.starts_at &&
+          row.status
+        )
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          courseId: row.course_id,
+          courseTitle: row.course_title,
+          expiresAt: row.expires_at,
+          id: row.id,
+          originalExpiresAt: row.original_expires_at,
+          revokedReason: row.revoked_reason,
+          startedAt: row.starts_at,
+          status: row.status,
+        },
+      ];
+    }),
     name: firstRow.name,
     platformBlockedAt: firstRow.platform_blocked_at,
     platformBlockedReason: firstRow.platform_blocked_reason,
     userId: firstRow.user_id,
+  };
+};
+
+export const getAdminStudentSheetData = async ({
+  courseId,
+  userId,
+}: {
+  courseId?: string;
+  userId: string;
+}): Promise<AdminStudentSheetData | null> => {
+  await requireAdminReadAccess();
+  const [student, certificates] = await Promise.all([
+    getAdminStudentDetail(userId),
+    getCertificateOperationsForUser(userId),
+  ]);
+
+  if (!student) {
+    return null;
+  }
+
+  if (!courseId) {
+    return {
+      certificates,
+      context: { courseId: null, courseTitle: null },
+      student,
+    };
+  }
+
+  const enrollment = student.enrollments.find(
+    (candidate) => candidate.courseId === courseId
+  );
+
+  if (!enrollment) {
+    return null;
+  }
+
+  return {
+    certificates: certificates.filter(
+      (certificate) => certificate.courseId === courseId
+    ),
+    context: { courseId, courseTitle: enrollment.courseTitle },
+    student: { ...student, enrollments: [enrollment] },
   };
 };
 

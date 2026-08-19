@@ -21,7 +21,12 @@ const createClient = (
     course_id: string;
     order_id: string;
     status: "pending";
-    type: "amount_mismatch" | "buyer_identity" | "terminal_conflict";
+    type:
+      | "amount_mismatch"
+      | "buyer_identity"
+      | "event_anomaly"
+      | "partial_refund"
+      | "terminal_conflict";
     user_id: string | null;
   } | null
 ) => {
@@ -46,7 +51,7 @@ describe("payment review resolution", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects terminal conflicts for non-admin operators and rolls back", async () => {
+  it("resolves terminal conflicts after the admin permission boundary", async () => {
     const client = createClient({
       access_duration_months: 12,
       course_id: "course-1",
@@ -57,18 +62,14 @@ describe("payment review resolution", () => {
     });
     dependencies.connect.mockResolvedValue(client);
 
-    await expect(
-      resolvePaymentReview({
-        actorUserId: "support-1",
-        canResolveTerminalConflicts: false,
-        decision: "rejected",
-        decisionReason: " conflito confirmado ",
-        reviewId: "review-1",
-      })
-    ).rejects.toThrow("Somente administradores resolvem conflitos terminais.");
+    await resolvePaymentReview({
+      actorUserId: "admin-1",
+      decision: "rejected",
+      decisionReason: " conflito confirmado ",
+      reviewId: "review-1",
+    });
 
-    expect(client.query).toHaveBeenCalledWith("rollback");
-    expect(client.query).not.toHaveBeenCalledWith("commit");
+    expect(client.query).toHaveBeenCalledWith("commit");
     expect(client.release).toHaveBeenCalledOnce();
   });
 
@@ -89,7 +90,6 @@ describe("payment review resolution", () => {
     await expect(
       resolvePaymentReview({
         actorUserId: "admin-1",
-        canResolveTerminalConflicts: true,
         decision,
         decisionReason: "decisao indevida",
         reviewId: "review-1",
@@ -129,7 +129,6 @@ describe("payment review resolution", () => {
     await expect(
       resolvePaymentReview({
         actorUserId: "admin-1",
-        canResolveTerminalConflicts: true,
         decision,
         decisionReason: "   ",
         reviewId: "review-1",
@@ -153,6 +152,40 @@ describe("payment review resolution", () => {
     expect(client.release).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    [
+      "event_anomaly",
+      "Anomalia financeira exige conciliacao ou reprocessamento.",
+    ],
+    [
+      "partial_refund",
+      "Reembolso parcial exige tratamento financeiro especifico.",
+    ],
+  ] as const)("rejects generic decisions for %s reviews", async (type, message) => {
+    const client = createClient({
+      access_duration_months: 12,
+      course_id: "course-1",
+      order_id: "order-1",
+      status: "pending",
+      type,
+      user_id: "user-1",
+    });
+    dependencies.connect.mockResolvedValue(client);
+
+    await expect(
+      resolvePaymentReview({
+        actorUserId: "admin-1",
+        decision: "rejected",
+        decisionReason: "decisao generica indevida",
+        reviewId: "review-1",
+      })
+    ).rejects.toThrow(message);
+
+    expect(client.query).toHaveBeenCalledWith("rollback");
+    expect(client.query).not.toHaveBeenCalledWith("commit");
+    expect(dependencies.applyPaidWebhookAccess).not.toHaveBeenCalled();
+  });
+
   it("rejects an empty reason for other review types after locking", async () => {
     const client = createClient({
       access_duration_months: 12,
@@ -167,7 +200,6 @@ describe("payment review resolution", () => {
     await expect(
       resolvePaymentReview({
         actorUserId: "support-1",
-        canResolveTerminalConflicts: false,
         decision: "rejected",
         decisionReason: " ",
         reviewId: "review-1",
@@ -194,8 +226,7 @@ describe("payment review resolution", () => {
     dependencies.connect.mockResolvedValue(client);
 
     await resolvePaymentReview({
-      actorUserId: "support-1",
-      canResolveTerminalConflicts: false,
+      actorUserId: "admin-1",
       decision: "approved",
       decisionReason: " valor conferido ",
       reviewId: "review-1",
@@ -212,12 +243,12 @@ describe("payment review resolution", () => {
     );
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("update payment_reviews"),
-      ["review-1", "approved", "valor conferido", "support-1"]
+      ["review-1", "approved", "valor conferido", "admin-1"]
     );
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
       [
-        "support-1",
+        "admin-1",
         "payment_review.resolved",
         "review-1",
         "approved",

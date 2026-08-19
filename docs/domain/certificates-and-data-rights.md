@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: ef8819df4bf53add09c2b05876fb8b7eff306f21
+last_verified_commit: acb1d0b
 ---
 
 # Certificados e dados técnicos
@@ -20,6 +20,32 @@ para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ
 Curso. Não há HTML livre, campos arbitrários ou inferência automática de
 posicionamento.
 
+Sobreposições geométricas entre campos visíveis são permitidas: podem ser uma
+decisão intencional de composição. O editor calcula os pares sobrepostos,
+mostra um aviso acessível e destaca os retângulos no preview, mas não bloqueia
+salvar o rascunho nem publicar. Continuam bloqueantes a ausência da arte,
+campos fora da área imprimível, campos duplicados, campos obrigatórios ocultos,
+cores inválidas, fontes não permitidas e tamanhos de fonte fora do limite.
+
+O certificado sempre usa a carga horária efetiva do Curso. A configuração do
+Curso pode deixar `courses.workload_hours_override` nulo para calcular
+automaticamente a soma arredondada das aulas, ou informar um inteiro não
+negativo para substituir o valor exibido aos alunos e usado nas próximas
+emissões. A emissão grava somente a carga efetiva em
+`certificates.workload_hours_snapshot`; certificados já emitidos permanecem
+imutáveis. Campos de texto usam `verticalAlign` (`top`, `middle` ou `bottom`),
+com `middle` como default compatível para specs legados, tanto no preview quanto
+no PDF. O antigo campo de curso livre não faz parte do perfil emissor, template
+ou novas emissões; snapshots históricos que ainda o contenham são somente
+leitura. A migration de contrato transfere para o Curso um override manual
+existente no template ativo antes de remover a coluna legada.
+
+Na renderização, o template publicado é a autoridade visual: posição, área e
+fonte são usadas exatamente como configuradas. Se nomes ou textos variáveis
+excederem o retângulo, o PDF preserva o recorte definido pela operação; o
+editor avisa antes do salvamento e pede confirmação adicional antes da
+publicação. Nenhum autoajuste ocorre no worker.
+
 Quando um rascunho substitui fundo ou assinatura, a chave anterior entra em
 `certificate_template_asset_cleanup` com carência de 24 horas. A manutenção
 reconfirma que nenhum template referencia a chave antes de excluir no R2. O
@@ -31,27 +57,62 @@ Certificado preserva código público, Conta, Curso, publicação interna de ori
 
 ### REG-DAT-001 Emissão exige conclusão e unicidade válida
 
-`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir e somente quando não há Certificado anterior para a Aluna no Curso. `completeLesson` cria a primeira conclusão e pode emitir automaticamente quando todas as Aulas obrigatórias da publicação vigente estão concluídas. Depois de uma revogação, somente `reissueCertificate` pode criar nova evidência, sempre na publicação de origem.
+`issueManualCertificate` cria `CourseCompletion` se ela ainda não existir e somente quando não há Certificado anterior para a Aluna no Curso. `completeLesson` cria a primeira conclusão quando todas as Aulas obrigatórias da publicação vigente estão concluídas. Somente a transação que insere essa primeira `CourseCompletion` pode iniciar a emissão automática; conflito com uma conclusão já existente encerra o caminho sem tentar Certificado ou outbox. Depois de uma revogação, somente `reissueCertificate` pode criar nova evidência, sempre na publicação de origem.
 
 **Invariantes:** `CourseCompletion` é única por Conta e Curso; o código público é único; não há segundo Certificado válido para a mesma Conta e Curso sem lifecycle explícito; Certificado revogado bloqueia emissão automática; snapshots e a publicação de origem preservam o texto emitido. Publicação posterior não reabre a conclusão nem gera novo certificado automaticamente.
 
-**Concorrência:** `tryIssueAutomaticCompletionCertificate` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora solicita e-mail, gravando `email.certificate-issued` na outbox sem PII. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
+**Concorrência:** `lockCourseCertificateLifecycleInTransaction` exige uma transação aberta e usa advisory lock transacional por Conta e Curso. `completeLesson` o adquire antes de gravar `lesson_progress` e antes de calcular o resumo de conclusão; emissão automática, emissão manual e reemissão usam a mesma interface para suas decisões de lifecycle. A criação de `CourseCompletion` usa `INSERT ... ON CONFLICT DO NOTHING RETURNING`; somente a inserção vencedora chama a emissão automática. A criação do Certificado também usa `INSERT ... ON CONFLICT DO NOTHING RETURNING code`. Somente a transação vencedora grava a mensagem de renderização na outbox; o e-mail continua condicionado à renderização pronta e sem PII na mensagem. Veja [Outbox](../operations/outbox-and-transactional-effects.md).
 
 ### REG-DAT-001A Renderização e arquivo imutáveis
 
-A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico persistido por Certificado antes de renderizar; o token e o instante do claim formam um lease de dez minutos. Claim ativo impede outro renderizador, lease abandonado pode ser retomado e falha recuperável libera somente o token pertencente à tentativa. Nenhuma conexão Postgres permanece reservada durante leitura do R2, Sharp, PDFKit ou upload. A worker lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. O fencing não promete computação única: quando o lease expira durante uma operação lenta, duas workers podem executar IO, mas somente a dona do token vigente pode concluir o único artefato persistido. A conclusão também exige que o Certificado continue `valid`; revogação durante o IO impede `ready` e o e-mail. Somente depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. Download exige sessão da Aluna ou permissão administrativa. O QR/código público apenas valida dados mínimos e nunca entrega o PDF.
+A transação vencedora de emissão grava `certificate.render`. A worker obtém um claim atômico persistido por Certificado antes de renderizar; o token e o instante do claim formam um lease de dez minutos. Claim ativo impede outro renderizador, lease abandonado pode ser retomado e falha recuperável libera somente o token pertencente à tentativa. Nenhuma conexão Postgres permanece reservada durante leitura do R2, Sharp, PDFKit ou upload. A worker lê somente o snapshot validado e grava o PDF em chave privada determinística no R2. Se cair depois do upload, a próxima tentativa finaliza o mesmo artefato, sem reconstruí-lo. A rota `/certificados/[code]/preview` cria sob demanda uma imagem PNG determinística da primeira página usando o mesmo snapshot, arte, QR e campos; ela também grava o PNG no R2 privado para as próximas visualizações. O fencing não promete computação única: quando o lease expira durante uma operação lenta, duas workers podem executar IO, mas somente a dona do token vigente pode concluir o único artefato persistido. A conclusão também exige que o Certificado continue `valid`; revogação durante o IO impede `ready` e o e-mail. Somente depois de `render_status = ready` a worker grava `email.certificate-issued`. O snapshot registra template/versionamento, arte, campos, marca, razão social, CNPJ, conclusão e hash SHA-256. Reemissão cria nova evidência e preserva a anterior. O objeto permanece no R2 privado, mas Certificado `valid` e `ready` pode ser visualizado por PNG e baixado publicamente pela página canônica `/certificados/[code]`; as rotas mediadoras nunca publicam a chave do objeto.
+
+O upload de novos PDFs também grava o digest SHA-256 como metadata privada do objeto R2. A rota pública confere essa metadata antes de emitir uma URL assinada de cinco minutos. Digest ausente não libera o arquivo; divergência ou falha de verificação retorna indisponibilidade sem redirecionar. Objetos legados sem metadata permanecem explicitamente não verificáveis até backfill/reconciliação.
+
+Na área autenticada, Certificado `pending` aparece como “Preparando” e atualiza a lista enquanto houver preparo; `ready` aponta para a página pública canônica; `failed` bloqueia preview/download e oferece contato com Suporte. A página do Curso é a entrada contextual do Certificado daquela conclusão. `/app/certificados` é o arquivo global autenticado para acompanhar todos os registros, não o destino canônico de compartilhamento. O e-mail só nasce depois de `ready` e aponta para `/certificados/[code]`, nunca diretamente para a URL assinada do R2.
 
 ### REG-DAT-002 Revogação preserva histórico
 
-`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências.
+`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências. A revogação bloqueia imediatamente novos previews e downloads nas rotas do Hub, mas não consegue recolher PDFs já baixados nem desfazer cópias compartilhadas anteriormente.
 
 ### REG-DAT-003 Reemissão cria nova evidência
 
 `reissueCertificate` revoga o anterior e cria novo código e snapshots, mantendo vínculo auditável. As categorias canônicas são `identity_correction`, `course_snapshot_correction`, `duplicate_or_technical_issue`, `eligibility_correction`, `integrity_review`, `legal_or_compliance` e `other`; `other` exige detalhe interno. Veja [DEC-DISC-006](../decisions.md#dec-disc-006) e [ADR-0006](../adr/0006-certificate-lifecycle.md).
 
+### REG-DAT-003A Hardening do ciclo e da rastreabilidade
+
+Reemissão somente pode partir do registro histórico mais recente da Aluna no
+Curso e usa lock transacional por par Aluna/Curso; assim, o predecessor revogado
+não é reescrito e duas reemissões concorrentes não criam ramificação. A UI só
+oferece a operação para o registro elegível. Novas emissões usam código no
+formato `PRT-` seguido de 32 caracteres hexadecimais; o lookup continua
+compatível com códigos legados.
+
+O signatário do template do Curso tem precedência sobre
+`app_settings.certificate_signer_name` e
+`app_settings.certificate_signer_role`. Quando o template não define o valor,
+o default global é resolvido na emissão e congelado no `render_snapshot`.
+Salvar rascunho, publicar, habilitar e desabilitar template registram ator,
+alvo e metadados em `audit_logs` na mesma transação da mutação; o rascunho
+inclui o digest SHA-256 do spec e a publicação inclui o template publicado.
+
+`reconcileHistoricalCourseCertificates` é exclusivo de Admin e exige confirmação
+server-side. Cada execução seleciona em ordem estável no máximo 100 Conclusões do Curso
+que ainda não possuem nenhum Certificado, preserva publicação/data/carga histórica e
+enfileira a renderização na mesma transação. Certificado revogado também conta como
+histórico; migrations, deploy e leitura não disparam backfill silencioso.
+
+A migration `0056_certificate_state_invariants` normaliza registros legados,
+restringe exclusão física do Curso e valida a coerência entre `status`, campos
+de revogação e categorias canônicas. Em 2026-08-07, a migration foi aplicada
+pelo runner oficial e verificada em staging; a promoção para Production ainda
+deve seguir o workflow protegido após preflight e backup.
+
 ### REG-DAT-004 Consulta pública é limitada
 
-`consumePublicCertificateLookup`, em `src/features/certificates/public-rate-limit.ts`, aplica limite antes de `getCertificateByCode`. Código inexistente não revela outros Certificados da pessoa.
+`/certificados/[code]` é a página canônica de validação, preview e compartilhamento. `consumePublicCertificateLookup`, em `src/features/certificates/public-rate-limit.ts`, aplica limite antes de `getCertificateByCode`; a mesma barreira antecede a leitura da rota `/certificados/[code]/pdf`. Código inexistente não revela outros Certificados da pessoa.
+
+A página mantém apenas o resumo contextual da Aluna e do Curso, o estado e o código público; os demais claims permanecem no PDF. Somente `status = valid` e `render_status = ready` mostra a imagem de preview e a ação de download. `pending`, `failed` e `revoked` permanecem consultáveis com seu estado seguro, sem preview, download ou URL assinada. A rota do PNG gera ou reutiliza o artefato privado e responde com redirect inline; a rota do PDF repete a validação de estado, exige chave e digest, verifica o SHA-256 no R2 e só então responde com redirect temporário para uma URL assinada curta. A página publica `noindex,nofollow`; as respostas de redirect publicam `X-Robots-Tag: noindex, nofollow`. Códigos de Certificado são redigidos no pathname enviado ao Sentry, e respostas de erro não incluem detalhes do provider.
 
 ## Dados técnicos e manutenção
 

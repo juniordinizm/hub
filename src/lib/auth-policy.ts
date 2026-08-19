@@ -6,6 +6,7 @@ export type AuthPermission =
   | "manageContent"
   | "manageEnrollmentAccess"
   | "manageFinancialOperations"
+  | "manageFinancialReviews"
   | "manageLearningAnalytics"
   | "manageSettings"
   | "retryOutbox"
@@ -20,6 +21,7 @@ const rolePermissions: Record<AppRole, AuthPermission[]> = {
     "manageContent",
     "manageEnrollmentAccess",
     "manageFinancialOperations",
+    "manageFinancialReviews",
     "manageLearningAnalytics",
     "manageSettings",
     "retryOutbox",

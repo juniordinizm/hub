@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 2ede052
 ---
 
 # Ambiente e desenvolvimento local
@@ -37,8 +37,9 @@ Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
 `VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
 Sentry de Development. Compartilha os buckets R2 de Development sob o namespace
 físico `staging/`, o plano JMVStream de Production e a estrutura Resend já
-aprovada. Essas exceções exigem confirmações explícitas e não oferecem
-isolamento completo nos três providers compartilhados.
+aprovada, mas o preflight exige `STAGING_EMAIL_RECIPIENT_ALLOWLIST`; sem essa
+variável, o runtime é bloqueado. Essas exceções exigem confirmações explícitas
+e não oferecem isolamento completo nos três providers compartilhados.
 
 Production em `APPLICATION_MAINTENANCE_MODE=full` exige cadastro, checkout,
 webhook Asaas e jobs desligados. O Proxy responde `503` para páginas, APIs,
@@ -94,6 +95,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
 | `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
+| `STAGING_EMAIL_RECIPIENT_ALLOWLIST` | obrigatória em Staging no preflight | preflight de Staging | dado interno |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
 | `SUPPORT_EMAIL` | caixa real e `Reply-To` padrão; `suporte@neurocapacitar.com.br` em Production | e-mail de suporte | dado operacional |
 | `ASAAS_API_KEY` | checkout Asaas server-only | adapter Asaas | sim |
@@ -107,6 +109,10 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
 | `SCHEDULED_JOBS_ENABLED` | kill switch; `true` somente após liberar os crons de Production | handlers cron | não |
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
+| `RECOVERY_DRILL_OWNER` | operador do registro de ensaio somente leitura | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_ENVIRONMENT` | `development`, `staging` ou `production` do ensaio | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_MIGRATION_JOURNAL` | topo do journal conferido manualmente | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_READINESS`, `RECOVERY_DRILL_MIGRATION`, `RECOVERY_DRILL_ALERTS` | resultado `passed`/`failed` confirmado pelo operador | `ops:recovery:evidence` | não |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
 | `STAGING_SENTRY_PROJECT_ID` | confirmação do projeto Development compartilhado | preflight Staging | identificador protegido |
@@ -190,8 +196,14 @@ for testado. Consulte [Resend e e-mail institucional](../integrations/resend.md)
 O runtime E2E compilado pela CI usa `next start`, mas não representa um deploy
 de produção. A dispensa das credenciais de providers só é aceita com
 `E2E_TEST_MODE=true`, `CI=true` e as três URLs canônicas na mesma origem
-loopback. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
-proibidas nesse processo web.
+explícita `127.0.0.1`. `DATABASE_URL_DIRECT` e `INTERNAL_BOOTSTRAP_SECRET` continuam
+proibidas nesse processo web. Metadados `VERCEL_ENV` de Production/Preview e
+`VERCEL_TARGET_ENV=staging` têm precedência e impedem o modo E2E.
+
+O sink de e-mail de Certificado e `/api/e2e/email-deliveries` obedecem à mesma
+classificação fail-closed: fora desse runtime isolado, o módulo recusa acesso e a rota
+responde `404`. O registro em memória contém somente tópico, hash SHA-256 do destinatário
+normalizado e chave de idempotência; não guarda e-mail, nome, código ou conteúdo da mensagem.
 
 `CLIENT_IP_SOURCE=cloudflare` só é seguro quando a origem não aceita tráfego
 fora da Cloudflare. Na Vercel, use o default `x-forwarded-for`; a aplicação
@@ -201,7 +213,10 @@ Não há variável de “aprovação jurídica” ou “retenção de privacidad
 
 ## Setup local
 
-1. Instale Bun 1.3.11 e execute `bun install`.
+1. Instale Bun 1.3.11 e execute `bun install`. O projeto fixa `sharp` na mesma
+   linha compatível com o `sharp` opcional do Next; não force outra versão no
+   `overrides`, pois dois runtimes nativos de `sharp` no mesmo processo Windows
+   podem causar `ERR_DLOPEN_FAILED`.
 2. Copie `.env.example` para `.env.local`.
 3. Configure `DATABASE_URL` para a branch compartilhada `development` já
    migrada; nunca use o compute Production.
@@ -245,6 +260,22 @@ Use `verify:quick` durante o trabalho e `verify` antes do Pull Request.
 `bun run dev` serve o projeto. `bun run fix` altera arquivos e deve ser
 deliberado. O fluxo completo até Production está no
 [tutorial de release](production-release-guide.md).
+
+## Política de datas e fusos
+
+O banco guarda instantes em UTC nos timestamps com `withTimezone: true`. A
+interface do produto exibe esses instantes no fuso fixo `America/Sao_Paulo`, por
+meio dos helpers de `src/lib/formatters.ts`. Isso torna Development, Staging e
+Production determinísticos, independentemente do fuso do processo Node/Bun,
+da região de execução da Vercel ou do navegador do usuário.
+
+Não use `Intl.DateTimeFormat` sem `timeZone`, `Date#toLocaleString`,
+`Date#toString` ou `toISOString().slice(0, 10)` para saída de calendário. Uma
+data escolhida sem horário é interpretada como calendário de São Paulo e só
+depois convertida em um instante UTC antes de ser persistida. Agendamentos e
+logs operacionais continuam em UTC e devem ser rotulados como tal.
+Relatórios diários e agregações SQL usam explicitamente a meia-noite desse fuso;
+não dependem do `TimeZone` da sessão PostgreSQL.
 
 ## Evidências
 

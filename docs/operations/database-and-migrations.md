@@ -1,12 +1,21 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 2ede052
 ---
 
 # Banco e migrations
 
+O registro factual de qual commit e qual migration estão implantados fica em
+[Estado de release](release-state.md). Os parágrafos históricos abaixo preservam
+evidência de ensaios anteriores; quando divergirem do registro atual, não devem
+ser usados como autorização de promoção.
+
 ## Estado atual
+
+O topo local é `0062_certificate_reconciliation_indexes`. Ela adiciona índices
+para selecionar Conclusões históricas por Curso em ordem estável e consultar
+qualquer histórico de Certificado por Conta e Curso, sem reescrever dados.
 
 O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
 `0000` a `0053` está aplicada à branch `production`
@@ -21,6 +30,58 @@ guardado confirmaram idempotência, 54 entradas no journal, as quatro novas
 colunas de snapshot do Pedido e a oferta padrão Pix + cartão em até 3x no Curso
 existente. Production permaneceu em `0052` durante essa homologação e recebeu
 `0053` somente na promoção protegida posterior.
+
+O repositório agora possui `0054_payments_hardening`, 55 entradas e 41 tabelas no
+snapshot local. Em 2026-08-03, o SQL foi validado primeiro numa branch temporária
+descendente de Staging com `0053`; depois, Development, Staging e Production receberam
+`0054`. Os três alvos apresentaram 55 entradas no journal, topo em `1785744643480`, hash
+`95468fdf6ece0c5873406d9de4e2a5aeee20511d0ebf226d67f1f921a9f673b1`, a tabela de
+cursor do extrato e as seis constraints financeiras esperadas. Development também
+recebeu a `0053` que ainda estava pendente e uma segunda execução do migrador confirmou
+idempotência. Production teve zero violações no preflight e recebeu antes uma branch de
+backup `payments-hardening-backup-20260803`. O identificador da branch temporária foi
+removido após a retenção operacional; não reutilize esse ID. O perfil
+persistente `vercel-preview` continua dormente e, por contrato, não recebe migrations.
+
+O repositório também possui `0055_limit_course_installments`, que reduz para 12 o teto
+configurável de parcelas dos Cursos sem reescrever snapshots históricos dos Pedidos. Em
+2026-08-03, o SQL foi exercitado numa branch Neon descartável descendente de Production:
+zero Cursos exigiram normalização e a constraint resultante aceitou somente valores de 1
+a 12. Development recebeu a migration e passou a ter 56 entradas, topo em
+`1785751899658`. Esse registro é histórico do ensaio de 2026-08-03; o estado atual dos
+alvos persistentes está descrito no parágrafo de 2026-08-07 abaixo.
+
+Uma PR draft pausada `#26` usou anteriormente o rótulo experimental
+`0056_asaas_installment_pricing`; esse experimento não integra a cadeia atual e seus
+objetos não devem ser reutilizados. `0056_certificate_state_invariants` é a
+última migration do módulo de Certificados já promovida aos ambientes compartilhados.
+
+A migration local `0057_pink_chronomancer` adiciona o override nullable de carga
+horária em `certificate_templates` e sua constraint de não negatividade. A
+`0058_reconcile_certificate_state_invariants` reconcilia o drift catalogado em
+Development antes de liberar o runtime compatível com o novo contrato. As duas
+foram geradas e revisadas em 2026-08-08. `0057` e `0058` foram promovidas somente
+a Development (`br-cool-voice-acsxtxyv`) pelo runner guardado, com autorização
+explícita; Staging e Production continuam sem essas migrations. O journal de
+Development ficou com 61 entradas, topo em `1786206200471`, e o postflight
+confirmou a coluna de carga horária, sua constraint, as três constraints de
+revogação e a FK de Curso em `ON DELETE RESTRICT`.
+
+Uma auditoria somente-leitura em 2026-08-08 confirmou que Development
+(`br-cool-voice-acsxtxyv`) ainda não possuía a coluna de `0057`. A mesma auditoria
+encontrou uma divergência anterior: o journal registrava `0056`, mas os três checks
+de estado de revogação dessa migration estavam ausentes e a FK de Curso usava
+`ON DELETE CASCADE`. Esse drift foi reconciliado por `0058` antes da promoção em
+Development; as próximas promoções ainda devem usar uma branch Neon descartável e
+o workflow protegido.
+
+Em 2026-08-07, `0056_certificate_state_invariants` foi aplicada pelo runner oficial na
+branch Staging `br-rapid-rain-acnqzhiv`. O journal passou a 57 linhas, topo
+`1786099773858`, hash `a65efc91b945926a6e1ea2f607324c28e1dac6650798ac5716e3d885c88e22f1`;
+o postflight confirmou três constraints de revogação, FK de Curso em `ON DELETE RESTRICT`
+e zero Certificados. Uma segunda execução do runner foi idempotente, sem nova linha ou
+reaplicação de DDL. Production permanece em 0054; a promoção protegida precisa aplicar
+0055, 0056, 0057 e 0058 em ordem, com backup e preflight.
 
 `0042_serverless_job_leases` adiciona os leases persistentes dos crons e a fila
 de limpeza de artes de Certificado. `0043_staged_admin_image_uploads` registra,
@@ -48,7 +109,10 @@ compute Production conhecido antes de abrir conexão. O reset possui modo
 `plan`, que lê contagens dentro de transação e faz rollback, e modo `execute`,
 que exige `RESET_STAGING_DATA`, preserva `__drizzle_migrations`, recria somente
 o Admin e limpa apenas o namespace físico `staging/` nos dois buckets
-Development compartilhados. Não remove vídeos JMVStream.
+Development compartilhados. Não remove vídeos JMVStream. Antes do reset, o
+workflow cria um backup usando o input `parent_branch` da action Neon e confere
+via API que a branch criada descende da branch Staging configurada; se a
+ancestralidade não coincidir, a execução é interrompida.
 
 ## Autoridades
 
@@ -71,7 +135,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0053_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia, `0062_snapshot.json`. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -98,6 +162,32 @@ zero registros em todas as tabelas operacionais. Em seguida, o run
 `30605515827` aplicou `0044` a `0052`, auditou o journal e promoveu a Release B.
 A branch de backup deve permanecer durante a estabilização e não pode ser
 removida sem aceite explícito.
+
+A migration local `0059_material_madame_hydra` adiciona
+`courses.workload_hours_override`, migra para esse campo o override manual
+existente no template publicado (ou no rascunho mais recente, quando não há
+publicado) e sincroniza o cache efetivo de `courses.workload_hours`, remove
+`course_free_statement` do perfil emissor e remove
+`certificate_workload_hours` do template. Ela preserva os snapshots históricos
+porque apenas altera o schema vivo; o runtime mantém compatibilidade de leitura
+para esses registros antigos. A migration foi gerada e revisada localmente. Em
+2026-08-14, a branch persistente `development` (`br-cool-voice-acsxtxyv`) foi
+reativada pelo Neon e recebeu `0059` com `bun run db:migrate:development`,
+usando o endpoint direto validado pelo guard. O journal passou a 62 entradas,
+com o hash `8479636c6c4b8843b752d076dce75217a72765b7b91c579492cdd1b9e7d997e8`;
+o postflight confirmou `courses.workload_hours_override`, a constraint de não
+negatividade e a remoção das duas colunas aposentadas. Staging e Production
+permaneceram intocados nesta etapa.
+
+`0061_paused_course_landing_url` permite manter uma landing opcional quando as
+vendas estão fechadas. `0062_certificate_reconciliation_indexes` adiciona
+`course_completions_course_reconciliation_idx` em
+`(course_id, completed_at, id, user_id)` e o índice não parcial
+`certificates_user_course_history_idx` em `(user_id, course_id)`. A migration é
+somente aditiva e não altera linhas existentes; sua promoção continua sujeita
+ao fluxo controlado deste runbook e ao advisory lock global do migrador. Ela não
+emite Certificados nem reconcilia Conclusões; o lote permanece uma ação confirmada
+de Admin depois da promoção.
 
 ## Conexões
 
@@ -296,6 +386,13 @@ Em dados existentes, valide contagens e relações antes e depois. Rollback pref
   incluindo métodos aceitos, teto de parcelamento e correlação pelo agregado de
   parcelas. Foi exercitada pela CI em branches Neon isoladas e promovida somente
   para Staging em 2026-08-01.
+- `0054`: adiciona o cursor retomável da importação de extrato e checks aditivos de
+  valores não negativos e consistência entre estado financeiro e evidência. Antes de
+  criar os checks, a própria migration executa auditoria somente leitura e aborta com
+  erro explícito se encontrar divergência; ela não corrige nem apaga Pedido ou reembolso.
+  O SQL, journal e snapshot foram gerados pelo Drizzle, passaram em
+  `db:migrations:check` e foram promovidos aos alvos persistentes em 2026-08-03;
+  o estado atual de cada branch deve ser conferido no catálogo antes de nova promoção.
 - Em 2026-07-31, o primeiro run do PR da Release B falhou nas duas jobs PostgreSQL:
   ambas clonaram os cinco Pedidos da branch `production`, e `0046` recusou os snapshots
   `NOT NULL`. O pipeline passou a preparar esses clones com o comando guardado descrito
@@ -338,10 +435,10 @@ bun run db:migrate:e2e
 ```
 
 O comando `bun run db:prepare:ci-migration` não é de uso manual. A CI o executa somente
-nas branches criadas pela própria job enquanto a branch-pai está em `0043`. Ele valida
-ambiente CI, branch Neon, URLs, compute não Production e journal antes de truncar
-`orders` com dependências somente no clone efêmero. O journal diferente de `0043`,
-`0052` ou `0053` interrompe o comando; em `0052` ou `0053`, ele não altera dados.
+nas branches criadas pela própria job. Ele valida ambiente CI, branch Neon, URLs,
+compute não Production e journal antes de truncar `orders` com dependências somente no
+clone efêmero herdado de `0043`. O journal diferente de `0043`, `0052`, `0053` ou `0054`
+interrompe o comando; em `0052`, `0053` ou `0054`, ele não altera dados.
 Assim, a exceção de
 corte não se transforma em limpeza recorrente nem bloqueia a CI depois da promoção.
 
