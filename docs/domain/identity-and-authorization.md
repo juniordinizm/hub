@@ -32,6 +32,17 @@ antes de procurar ou criar a Conta da Compradora.
 
 **Falha:** conflitos de legado precisam ser resolvidos antes de aplicar a restrição. A migration não está no journal atual; a garantia do banco implantado não foi verificada.
 
+`scanBuyerIdentityCollisions`, em `src/features/payments/identity-collision-audit.ts`,
+é uma auditoria somente leitura em lotes por cursor. Ela agrupa somente colisões da
+política já implementada, preserva os e-mails originais para a investigação
+administrativa e não altera Conta, Pedido ou Matrícula. Nenhum resultado da auditoria
+autoriza merge automático: cada conflito legado exige decisão explícita.
+
+O comando `bun run ops:audit:buyer-identities` exibe por padrão apenas quantidade,
+quantidade de Contas e hash do agrupamento. A forma detalhada exige a confirmação
+local `IDENTITY_AUDIT_CONFIRMATION=read-only`; nunca execute essa forma em CI ou
+redirecione sua saída para logs compartilhados.
+
 ### REG-IDA-002 Cadastro público é desabilitado por padrão
 
 `AUTH_PUBLIC_SIGNUP_ENABLED` tem default `false`. Quando desligado, `isBlockedAuthEndpoint`, em `src/lib/auth-policy.ts`, bloqueia `POST sign-up/email`. Contas também podem entrar por fluxo financeiro ou bootstrap operacional.
@@ -61,6 +72,16 @@ segunda. `viewFinancials` permanece estritamente leitura. `executeRefund` contin
 separada para o Suporte iniciar o fluxo explícito de estorno autorizado.
 
 Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização. O papel Suporte implementado aguarda ratificação de produto.
+
+### Assurance de Admin/Suporte
+
+`resolveAdminAssurance`, em `src/lib/admin-assurance.ts`, define o contrato para
+enforcement futuro: `setup_required`, `challenge_required`, `verified` ou
+`recovery_required`. O helper não é ativado por padrão e não altera estudantes ou
+validação pública de Certificados. A ativação exige o plugin two-factor do Better
+Auth, migration da tabela `two_factor`, tela de TOTP/backup codes, recovery testado
+e confirmação manual de que pelo menos dois Admins conseguem recuperar a conta.
+Até esses passos, permissões existentes continuam sendo a policy efetiva.
 
 ### REG-IDA-004 Bloqueio de plataforma prevalece sobre Matrículas
 

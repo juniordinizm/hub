@@ -13,6 +13,9 @@ export const resolveCourseAccess = async ({
       select e.id
       from enrollments e
       join courses c on c.id = e.course_id
+      join course_publications cp
+        on cp.course_id = c.id
+       and cp.status = 'published'
       where e.user_id = $1
         and e.course_id = $2
         and e.status = 'active'
@@ -40,6 +43,9 @@ export const resolveLessonAccess = async ({
       from lessons l
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
+      join course_publications cp
+        on cp.id = l.course_publication_id
+       and cp.status = 'published'
       join enrollments e on e.course_id = c.id
       where l.id = $2
         and e.user_id = $1
@@ -49,6 +55,7 @@ export const resolveLessonAccess = async ({
         and c.status = 'active'
         and m.status = 'active'
         and l.status = 'active'
+        and m.course_publication_id = cp.id
       limit 1
     `,
     [userId, lessonId]

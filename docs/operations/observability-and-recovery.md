@@ -67,6 +67,19 @@ Colete uma linha de base de 30 dias antes de fixar meta, janela, error budget ou
 
 Até haver baseline e aprovação de produto/operações, excedente gera investigação pelo runbook, não promessa de SLO. A revisão mensal registra dona, ambiente, período, volume e decisão.
 
+Ensaios e verificações podem usar `createRecoveryEvidence`, em
+`src/tooling/observability-recovery-evidence.ts`, para produzir um registro
+estruturado com versão, ambiente, dona, janela UTC, journal e nomes de checks.
+O helper rejeita e-mail, URL, credencial e identificador sem formato seguro; ele
+não consulta nem altera banco e não substitui a confirmação humana de PITR,
+backup ou entrega de alerta.
+
+Para registrar somente a evidência dos checks já confirmados manualmente, use
+`bun run ops:recovery:evidence` com `RECOVERY_DRILL_OWNER`,
+`RECOVERY_DRILL_ENVIRONMENT`, `RECOVERY_DRILL_MIGRATION_JOURNAL` e os três
+resultados `RECOVERY_DRILL_*`. O comando aceita exclusivamente `--dry-run`, não
+abre conexão, não executa migration e não restaura banco.
+
 ## Diagnóstico por provider
 
 ### Neon/Postgres

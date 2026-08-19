@@ -125,6 +125,8 @@ export interface AdminCourse {
   interestNotificationsSent: number;
   launchDate: string | null;
   launchLandingUrl: string | null;
+  lessonCount?: number;
+  moduleCount?: number;
   paymentAllowCreditCard: boolean;
   paymentAllowPix: boolean;
   paymentMaxInstallmentCount: number;
@@ -161,6 +163,26 @@ export interface AdminEnrollment {
   startsAt: Date;
   status: string;
   userId: string;
+}
+
+const DEFAULT_ADMIN_STUDENT_PAGE_SIZE = 100;
+const MAX_ADMIN_STUDENT_PAGE_SIZE = 250;
+const MAX_ADMIN_STUDENT_PAGE = 1000;
+
+export interface AdminStudentsQuery {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+}
+
+const DEFAULT_ADMIN_COURSE_PAGE_SIZE = 50;
+const MAX_ADMIN_COURSE_PAGE_SIZE = 100;
+const MAX_ADMIN_COURSE_PAGE = 1000;
+
+export interface AdminCourseCatalogQuery {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
 }
 
 export interface AdminFaq {
@@ -303,7 +325,42 @@ export interface AdminStudentSheetData {
 const requireAdminReadAccess = (): Promise<void> =>
   requirePermission("viewAdminPanel").then(() => undefined);
 
-const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
+const readCourses = async (
+  courseId?: string,
+  options: AdminCourseCatalogQuery = {}
+): Promise<AdminCourse[]> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_COURSE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const values: unknown[] = [];
+  const filters: string[] = [];
+
+  if (courseId) {
+    values.push(courseId);
+    filters.push(`courses.id = $${values.length}`);
+  } else if (search) {
+    values.push(`%${search}%`);
+    filters.push(
+      `(courses.title ilike $${values.length} or courses.subtitle ilike $${values.length} or courses.slug ilike $${values.length})`
+    );
+  }
+
+  const pagination = courseId
+    ? ""
+    : (() => {
+        values.push(pageSize + 1, (page - 1) * pageSize);
+        return `limit $${values.length - 1} offset $${values.length}`;
+      })();
+  const whereClause =
+    filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
     access_duration_months: number;
     catalog_visibility: "hidden" | "listed";
@@ -315,6 +372,8 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     interest_notifications_sent: number;
     launch_date: string | null;
     launch_landing_url: string | null;
+    lesson_count: number;
+    module_count: number;
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
     payment_max_installment_count: number;
@@ -384,10 +443,23 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
             and om.status in ('pending', 'retrying', 'processing')
             and o.course_id = courses.id
         ) as pending_checkout_cancellations
+        ,(
+          select count(*)::int
+          from modules m
+          where m.course_id = courses.id
+        ) as module_count
+        ,(
+          select count(*)::int
+          from lessons l
+          join modules m on m.id = l.module_id
+          where m.course_id = courses.id
+        ) as lesson_count
       from courses
-      ${courseId ? "where courses.id = $1" : "order by courses.created_at desc"}
+      ${whereClause}
+      order by courses.created_at desc
+      ${pagination}
     `,
-    courseId ? [courseId] : undefined
+    values.length > 0 ? values : undefined
   );
 
   return rows.map((row) => ({
@@ -399,6 +471,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
     id: row.id,
     interestCount: row.interest_count,
     interestNotificationsSent: row.interest_notifications_sent,
+    lessonCount: row.lesson_count ?? 0,
     launchDate: row.launch_date,
     launchLandingUrl: row.launch_landing_url,
     paymentAllowCreditCard: row.payment_allow_credit_card,
@@ -409,6 +482,7 @@ const readCourses = async (courseId?: string): Promise<AdminCourse[]> => {
       row.pending_certificate_reconciliation_count,
     pendingCheckoutCancellations: row.pending_checkout_cancellations,
     pendingInterestNotifications: row.pending_interest_notifications,
+    moduleCount: row.module_count ?? 0,
     salesStatus: row.sales_status,
     slug: row.slug,
     status: row.status,
@@ -639,8 +713,28 @@ const readLessonEditor = async ({
 };
 
 const readEnrollments = async (
-  courseId?: string
+  courseId?: string,
+  userIds?: readonly string[]
 ): Promise<AdminEnrollment[]> => {
+  if (userIds && userIds.length === 0) {
+    return [];
+  }
+
+  const values: unknown[] = [];
+  const filters: string[] = [];
+
+  if (courseId) {
+    values.push(courseId);
+    filters.push(`e.course_id = $${values.length}`);
+  }
+
+  if (userIds) {
+    values.push(userIds);
+    filters.push(`e.user_id = any($${values.length}::text[])`);
+  }
+
+  const whereClause =
+    filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
     course_id: string;
     course_title: string;
@@ -672,10 +766,10 @@ const readEnrollments = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      ${courseId ? "where e.course_id = $1" : ""}
+      ${whereClause}
       order by e.updated_at desc
     `,
-    courseId ? [courseId] : undefined
+    values.length > 0 ? values : undefined
   );
 
   return rows.map((row) => ({
@@ -964,16 +1058,34 @@ const readAuditLogs = async (): Promise<AdminAuditLog[]> => {
   }));
 };
 
-const readStudentProfiles = async (): Promise<
-  Array<{
+const readStudentProfiles = async (
+  options: AdminStudentsQuery = {}
+): Promise<{
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  profiles: Array<{
     email: string;
     lastAccessAt: Date | null;
     name: string;
     platformBlockedAt: Date | null;
     platformBlockedReason: string | null;
     userId: string;
-  }>
-> => {
+  }>;
+  search: string;
+}> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_STUDENT_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_STUDENT_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_STUDENT_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_STUDENT_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const offset = (page - 1) * pageSize;
   const { rows } = await getPool().query<{
     email: string;
     last_access_at: Date | null;
@@ -981,23 +1093,34 @@ const readStudentProfiles = async (): Promise<
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     user_id: string;
-  }>(`
-    select u.id as user_id, u.name, u.email, p.last_access_at,
-           p.platform_blocked_at, p.platform_blocked_reason
-    from profiles p
-    join users u on u.id = p.user_id
-    where p.role = 'student'
-    order by u.name asc
-  `);
+  }>(
+    `
+      select u.id as user_id, u.name, u.email, p.last_access_at,
+             p.platform_blocked_at, p.platform_blocked_reason
+      from profiles p
+      join users u on u.id = p.user_id
+      where p.role = 'student'
+        and ($1 = '' or u.name ilike $2 or u.email ilike $2)
+      order by u.name asc, u.id asc
+      limit $3 offset $4
+    `,
+    [search, `%${search}%`, pageSize + 1, offset]
+  );
 
-  return rows.map((row) => ({
-    email: row.email,
-    lastAccessAt: row.last_access_at,
-    name: row.name,
-    platformBlockedAt: row.platform_blocked_at,
-    platformBlockedReason: row.platform_blocked_reason,
-    userId: row.user_id,
-  }));
+  return {
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    profiles: rows.slice(0, pageSize).map((row) => ({
+      email: row.email,
+      lastAccessAt: row.last_access_at,
+      name: row.name,
+      platformBlockedAt: row.platform_blocked_at,
+      platformBlockedReason: row.platform_blocked_reason,
+      userId: row.user_id,
+    })),
+    search,
+  };
 };
 
 export const getAdminDashboardData = async (): Promise<{
@@ -1021,19 +1144,30 @@ export const getAdminDashboardData = async (): Promise<{
   return { courses, coursesRevenue, lessons, modules, orders };
 };
 
-export const getAdminStudentsData = async (): Promise<{
+export const getAdminStudentsData = async (
+  options: AdminStudentsQuery = {}
+): Promise<{
   enrollments: AdminEnrollment[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
   students: AdminStudentSummary[];
 }> => {
   await requireAdminReadAccess();
-  const [enrollments, profiles] = await Promise.all([
-    readEnrollments(),
-    readStudentProfiles(),
-  ]);
+  const profilePage = await readStudentProfiles(options);
+  const enrollments = await readEnrollments(
+    undefined,
+    profilePage.profiles.map((profile) => profile.userId)
+  );
 
   return {
     enrollments,
-    students: summarizeAdminStudents(enrollments, profiles),
+    hasNextPage: profilePage.hasNextPage,
+    page: profilePage.page,
+    pageSize: profilePage.pageSize,
+    search: profilePage.search,
+    students: summarizeAdminStudents(enrollments, profilePage.profiles),
   };
 };
 
@@ -1058,18 +1192,39 @@ export const getAdminSettingsData = async (): Promise<{
   return { settings: await readSettings() };
 };
 
-export const getAdminCourseCatalogData = async (): Promise<{
+export const getAdminCourseCatalogData = async (
+  options: AdminCourseCatalogQuery = {}
+): Promise<{
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
   courses: AdminCourse[];
   lessons: AdminLesson[];
   modules: AdminModule[];
 }> => {
   await requireAdminReadAccess();
-  const [courses, modules, lessons] = await Promise.all([
-    readCourses(),
-    readModules(),
-    readLessons(),
-  ]);
-  return { courses, lessons, modules };
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_COURSE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const courses = await readCourses(undefined, { page, pageSize, search });
+  return {
+    courses: courses.slice(0, pageSize),
+    hasNextPage: courses.length > pageSize,
+    lessons: [],
+    modules: [],
+    page,
+    pageSize,
+    search,
+  };
 };
 
 export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {

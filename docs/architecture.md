@@ -207,7 +207,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 ### Orçamento atual de leitura administrativa
 
-`getAdminStudentsData` usa duas queries em paralelo: matrículas e perfis de Aluna. O teste `admin/server-read-projections.test.ts` mede 250 Alunas com três matrículas cada: 750 linhas de matrícula, 250 perfis, duas queries e payload serializado inferior a 512 KiB. Não há paginação enquanto essa projeção permanecer dentro do orçamento; ao excedê-lo com volume representativo, a paginação deve preservar busca e detalhes por Aluna, não truncar silenciosamente a tabela.
+`getAdminStudentsData` consulta uma página limitada de perfis e somente as matrículas dos usuários daquela página. A ordenação é estável por nome e ID, a busca é server-side por nome/e-mail e o retorno informa `page`, `pageSize`, `search` e `hasNextPage`. O teste `admin/server-read-projections.test.ts` mantém o orçamento histórico de 250 Alunas como caso explícito, enquanto o padrão de runtime é 100 Alunas por página. A tabela deve preservar busca, detalhes por Aluna e navegação sem carregar a coleção inteira.
 
 ### Interfaces, consumidores e efeitos
 

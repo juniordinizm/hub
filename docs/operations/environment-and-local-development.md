@@ -107,6 +107,10 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |
 | `SCHEDULED_JOBS_ENABLED` | kill switch; `true` somente após liberar os crons de Production | handlers cron | não |
 | `HEALTHCHECK_SECRET` | readiness, obrigatória em produção; mínimo de 32 caracteres | `GET /api/health/ready` | sim |
+| `RECOVERY_DRILL_OWNER` | operador do registro de ensaio somente leitura | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_ENVIRONMENT` | `development`, `staging` ou `production` do ensaio | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_MIGRATION_JOURNAL` | topo do journal conferido manualmente | `ops:recovery:evidence` | não |
+| `RECOVERY_DRILL_READINESS`, `RECOVERY_DRILL_MIGRATION`, `RECOVERY_DRILL_ALERTS` | resultado `passed`/`failed` confirmado pelo operador | `ops:recovery:evidence` | não |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
 | `STAGING_SENTRY_PROJECT_ID` | confirmação do projeto Development compartilhado | preflight Staging | identificador protegido |

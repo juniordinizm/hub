@@ -109,6 +109,8 @@
     "db:smoke:empty": "bun scripts/smoke-empty-database.ts",
     "storage:publish-active-course-covers": "bun --conditions=react-server scripts/publish-active-course-covers.ts",
     "db:studio": "drizzle-kit studio",
+    "ops:recovery:evidence": "bun scripts/observability-recovery-drill.ts --dry-run",
+    "ops:audit:buyer-identities": "bun scripts/audit-buyer-identities.ts --summary",
     "prepare": "bun scripts/install-git-hooks.ts"
   },
   "version": "0.1.0",

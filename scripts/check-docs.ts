@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
+import { parseReleaseState } from "../src/tooling/release-state";
 
 const CANONICAL_DOCUMENT_PATHS = [
   "README.md",
@@ -25,6 +26,7 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/operations/vercel-first-launch-checklist.md",
   "docs/operations/vercel-migration-status.md",
   "docs/operations/testing-and-ci.md",
+  "docs/operations/release-state.md",
   "docs/operations/outbox-and-transactional-effects.md",
   "docs/operations/observability-and-recovery.md",
   "docs/adr/0001-custom-rbac.md",
@@ -360,6 +362,38 @@ const validateEnvironmentCoverage = ({
         `${environmentDocumentPath}: variável de .env.example sem cobertura: ${variable}`
     );
 
+const validateReleaseState = ({
+  content,
+  documentPath,
+}: {
+  content: string;
+  documentPath: string;
+}): string[] => {
+  const metadata = parseMetadata(content);
+
+  try {
+    parseReleaseState({
+      deployed: {
+        commit: metadata.get("deployed_commit") ?? "",
+        environment: metadata.get("deployed_environment") ?? "",
+      },
+      documented: {
+        commit: metadata.get("documented_commit") ?? "",
+        environment: metadata.get("documented_environment") ?? "",
+      },
+      verified: {
+        commit: metadata.get("verified_commit") ?? "",
+        environment: metadata.get("verified_environment") ?? "",
+      },
+    });
+    return [];
+  } catch (error) {
+    return [
+      `${documentPath}: estado de release inválido: ${error instanceof Error ? error.message : "erro desconhecido"}`,
+    ];
+  }
+};
+
 export const validateDocumentation = ({
   rootDirectory,
   documentPaths = CANONICAL_DOCUMENT_PATHS,
@@ -393,6 +427,12 @@ export const validateDocumentation = ({
       environmentDocumentPath,
       rootDirectory,
     }),
+    ...(documentPaths.includes("docs/operations/release-state.md")
+      ? validateReleaseState({
+          content: documents.get("docs/operations/release-state.md") ?? "",
+          documentPath: "docs/operations/release-state.md",
+        })
+      : []),
   ];
 };
 

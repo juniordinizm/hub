@@ -24,8 +24,25 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
-  const data = await getAdminStudentsData();
+interface AdminStudentsPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+const firstSearchParam = (
+  value: string | string[] | undefined
+): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+export default async function AdminStudentsPage({
+  searchParams,
+}: AdminStudentsPageProps): Promise<React.JSX.Element> {
+  const params = (await searchParams) ?? {};
+  const page = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
+  const data = await getAdminStudentsData({
+    page: Number.isFinite(page) ? page : 1,
+    ...(firstSearchParam(params.q)
+      ? { search: firstSearchParam(params.q) }
+      : {}),
+  });
   const enrollmentsByUserId = new Map<string, StudentEnrollmentRow[]>();
   const studentAccessSummary = summarizeAdminStudentAccess(data.students);
 
@@ -110,7 +127,12 @@ export default async function AdminStudentsPage(): Promise<React.JSX.Element> {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <StudentsTable students={students} />
+            <StudentsTable
+              hasNextPage={data.hasNextPage}
+              page={data.page}
+              search={data.search}
+              students={students}
+            />
           </CardContent>
         </Card>
       </div>

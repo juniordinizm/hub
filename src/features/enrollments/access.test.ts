@@ -18,6 +18,10 @@ describe("enrollment access read model", () => {
       expect.stringContaining("and c.status = 'active'"),
       ["student-1", "course-1"]
     );
+    const sql = query.mock.calls.at(-1)?.[0] as string;
+    expect(sql).toContain("join course_publications cp");
+    expect(sql).toContain("cp.course_id = c.id");
+    expect(sql).toContain("cp.status = 'published'");
   });
 
   it("requires an active published lesson for lesson access", async () => {
@@ -30,5 +34,9 @@ describe("enrollment access read model", () => {
       expect.stringContaining("and l.status = 'active'"),
       ["student-1", "lesson-1"]
     );
+    const sql = query.mock.calls.at(-1)?.[0] as string;
+    expect(sql).toContain("join course_publications cp");
+    expect(sql).toContain("cp.status = 'published'");
+    expect(sql).toContain("cp.id = l.course_publication_id");
   });
 });

@@ -3,6 +3,7 @@ export const CI_NEON_BRANCH_PREFIXES = ["ci-integration-", "ci-e2e-"] as const;
 export const DEFAULT_STALE_AFTER_MS = 26 * 60 * 60 * 1000;
 const CLEANUP_CONFIRMATION = "cleanup-ci-neon";
 const MAX_BRANCHES_PER_RUN = 50;
+const MAX_BRANCH_LIST_PAGES = 100;
 const NEON_API_HOST = "https://console.neon.tech/api/v2";
 
 export interface NeonCiBranch {
@@ -127,24 +128,55 @@ const listBranches = async (
   projectId: string,
   apiKey: string
 ): Promise<NeonCiBranch[]> => {
-  const response = await fetchImpl(
-    `${NEON_API_HOST}/projects/${encodeURIComponent(projectId)}/branches?limit=100`,
-    { headers: { Authorization: `Bearer ${apiKey}` } }
-  );
-  const body = (await readJson(response)) as {
-    branches?: unknown;
-  } | null;
-  if (!Array.isArray(body?.branches)) {
-    throw new Error("Neon API returned an invalid branch list.");
+  const branches: NeonCiBranch[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+
+  for (let page = 0; page < MAX_BRANCH_LIST_PAGES; page += 1) {
+    const params = new URLSearchParams({ limit: "100" });
+    if (cursor) {
+      params.set("cursor", cursor);
+    }
+
+    const response = await fetchImpl(
+      `${NEON_API_HOST}/projects/${encodeURIComponent(projectId)}/branches?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${apiKey}` } }
+    );
+    const body = (await readJson(response)) as {
+      branches?: unknown;
+      pagination?: { next?: unknown } | null;
+    } | null;
+    if (!Array.isArray(body?.branches)) {
+      throw new Error("Neon API returned an invalid branch list.");
+    }
+
+    branches.push(
+      ...body.branches.filter(
+        (branch): branch is NeonCiBranch =>
+          typeof branch === "object" &&
+          branch !== null &&
+          typeof (branch as NeonCiBranch).id === "string" &&
+          typeof (branch as NeonCiBranch).project_id === "string" &&
+          typeof (branch as NeonCiBranch).name === "string"
+      )
+    );
+
+    const nextCursor =
+      typeof body.pagination?.next === "string" &&
+      body.pagination.next.length > 0
+        ? body.pagination.next
+        : null;
+    if (!nextCursor) {
+      return branches;
+    }
+    if (seenCursors.has(nextCursor)) {
+      throw new Error("Neon API returned a repeated branch cursor.");
+    }
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
   }
-  return body.branches.filter(
-    (branch): branch is NeonCiBranch =>
-      typeof branch === "object" &&
-      branch !== null &&
-      typeof (branch as NeonCiBranch).id === "string" &&
-      typeof (branch as NeonCiBranch).project_id === "string" &&
-      typeof (branch as NeonCiBranch).name === "string"
-  );
+
+  throw new Error("Neon API branch pagination exceeded the safety limit.");
 };
 
 const deleteBranch = async (
@@ -178,7 +210,7 @@ export const runCiNeonBranchCleanup = async ({
 }): Promise<CiNeonCleanupResult> => {
   const mode = parseMode(argv);
   const apiKey = requiredEnvironmentValue(environment, "NEON_API_KEY");
-  const projectId = requiredEnvironmentValue(environment, "NEON_PROJECT_ID");
+  const projectId = requiredEnvironmentValue(environment, "NEON_CI_PROJECT_ID");
   if (
     mode === "execute" &&
     environment.CI_NEON_CLEANUP_CONFIRMATION !== CLEANUP_CONFIRMATION
