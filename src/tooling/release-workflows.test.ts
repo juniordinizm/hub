@@ -170,7 +170,7 @@ describe("CI workflow", () => {
       `https://console.neon.tech/api/v2/projects/${neonProjectExpression}/branches`
     );
     expect(stagingWorkflow).toContain(
-      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at}"
+      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]"
     );
     expect(stagingWorkflow).toContain(branchOutputExpression);
     expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");

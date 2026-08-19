@@ -84,7 +84,7 @@ jobs:
               --arg branch_name "${BACKUP_BRANCH_NAME}" \
               --arg parent_branch "${STAGING_NEON_BRANCH_ID}" \
               --arg expires_at "${NEON_BACKUP_EXPIRES_AT}" \
-              '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at}}'
+              '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]}'
           )"
           response="$(
             curl --fail-with-body --silent --show-error \
