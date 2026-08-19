@@ -1,0 +1,52 @@
+name: Cleanup CI Neon branches
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Cleanup mode
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - execute
+      confirmation:
+        description: Type cleanup-ci-neon only for execute mode
+        required: false
+        type: string
+
+concurrency:
+  group: cleanup-ci-neon-branches
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Remove expired CI branches
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"
+      CI_NEON_CLEANUP_CONFIRMATION: ${{ github.event_name == 'schedule' && 'cleanup-ci-neon' || inputs.confirmation }}
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+      - name: Run bounded CI branch cleanup
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${{ inputs.mode }}" == "execute" ]]; then
+            bun scripts/cleanup-ci-neon-branches.ts --execute
+          else
+            bun scripts/cleanup-ci-neon-branches.ts --dry-run
+          fi

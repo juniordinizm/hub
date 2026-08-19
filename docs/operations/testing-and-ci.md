@@ -52,6 +52,21 @@ commit sem exigir escrita em Preview, Development ou Production. O deployment
 de candidato deixa de funcionar quando sua branch descartável é removida; ele é
 evidência de gate, não ambiente compartilhado para revisão manual.
 
+### Limpeza automática das branches de CI
+
+O workflow `.github/workflows/cleanup-ci-neon-branches.yml` executa a cada hora
+e também pode ser disparado manualmente. Ele consulta o projeto definido por
+`NEON_PROJECT_ID` e só considera nomes com os prefixos `ci-integration-` e
+`ci-e2e-`. Branches expiradas são removidas; uma branch sem `expires_at` só é
+considerada órfã quando tem pelo menos 26 horas. Branches protegidas,
+Production, `vercel-preview` e `staging-release-*` ficam fora da allowlist.
+
+O modo manual padrão é `dry-run`. A exclusão exige `--execute` e a confirmação
+`cleanup-ci-neon`; o job limita cada execução a 50 branches. Os passos
+`always()` dos jobs continuam sendo a limpeza imediata; o janitor cobre
+cancelamentos, falhas de runner e branches cujo ID não voltou como output da
+action de criação. Backups de release não são apagados por esse workflow.
+
 Pull requests do Dependabot também não recebem os Actions secrets normais e
 podem alterar justamente o código de uma action de terceiros. Por isso,
 `integration-db` e `e2e` são explicitamente ignoradas quando

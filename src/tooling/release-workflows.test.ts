@@ -187,6 +187,25 @@ describe("CI workflow", () => {
   });
 });
 
+describe("CI Neon branch cleanup workflow", () => {
+  it("runs a bounded allowlisted cleanup with dry-run and confirmation modes", () => {
+    const workflow = readWorkflow("cleanup-ci-neon-branches.yml");
+
+    expect(workflow).toContain('cron: "17 * * * *"');
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("default: dry-run");
+    expect(workflow).toContain("cleanup-ci-neon");
+    expect(workflow).toContain(
+      "bun scripts/cleanup-ci-neon-branches.ts --execute"
+    );
+    expect(workflow).toContain(
+      "bun scripts/cleanup-ci-neon-branches.ts --dry-run"
+    );
+    expect(workflow).toContain('CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"');
+    expect(workflow).not.toContain("staging-release-");
+  });
+});
+
 describe("Release backup ancestry", () => {
   it("fails closed when a Staging backup does not descend from Staging", () => {
     const workflow = readWorkflow("deploy-staging.yml");
