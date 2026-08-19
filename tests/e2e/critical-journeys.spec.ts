@@ -480,6 +480,7 @@ test("mobile lesson navigation exposes the course outline and locked lessons", a
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
 
   const mobileNavigation = page
+    .locator("#main-content")
     .locator("details")
     .filter({ hasText: "Conteúdo do curso" });
   await mobileNavigation.locator("summary").click();
