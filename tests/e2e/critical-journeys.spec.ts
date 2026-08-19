@@ -482,9 +482,7 @@ test("mobile lesson navigation exposes the course outline and locked lessons", a
   const mobileNavigation = page
     .locator("details")
     .filter({ hasText: "Conteúdo do curso" });
-  await mobileNavigation
-    .getByText("Conteúdo do curso", { exact: true })
-    .click();
+  await mobileNavigation.locator("summary").click();
   await expect(mobileNavigation.getByText("Segunda aula")).toBeVisible();
   await expect(
     mobileNavigation.getByText("Libere concluindo a aula anterior")
