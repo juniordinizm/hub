@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: cf6a129
+last_verified_commit: 273dce1
 deployed_commit: 12d7e7e
 deployed_environment: staging
 verified_commit: cf6a129
