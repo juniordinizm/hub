@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # Banco e migrations
@@ -332,6 +332,16 @@ Não são alternativas para onboarding nem promoção. `db:push` altera schema s
 7. Registre ambiente, operadora, migrations esperadas/aplicadas e impacto.
 
 Em dados existentes, valide contagens e relações antes e depois. Rollback preferencial é forward-fix revisado; não use reset como rollback.
+
+Backups de release Neon seguem retenção limitada, não exclusão por idade
+isolada. Preserve as quatro branches persistentes (`production`, `staging`,
+`development` e `vercel-preview`), a branch histórica
+`asaas-cutover-backup-*` e o backup mais recente de cada ambiente. Para
+backups `staging-release-*` ou `production-release-*` superseded, execute o
+workflow separado em dry-run, confira projeto, parent e ausência de rollback
+em andamento e somente então use a confirmação explícita
+`cleanup-release-backups`. O cleanup nunca considera branches fora desses
+prefixos nem estados que não estejam `ready`.
 
 ## Histórico operacional confirmado
 

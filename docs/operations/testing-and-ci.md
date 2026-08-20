@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: acb1d0b
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # Testes e CI
@@ -81,6 +81,32 @@ apenas o commit atual e produziria um falso erro para documentos verificados em 
 Todas as actions são fixadas em commit imutável. O Dependabot propõe
 atualizações semanais do ecossistema `github-actions`; cada mudança de SHA
 continua passando pelos mesmos gates.
+
+### Limpeza dos backups de release
+
+Backups `staging-release-*` e `production-release-*` não pertencem à limpeza
+das branches efêmeras de CI. O workflow separado
+`.github/workflows/cleanup-neon-release-backups.yml` executa dry-run agendado
+para os dois ambientes e permite execução manual somente com confirmação.
+
+O comando preserva as branches persistentes `production`, `staging`,
+`development` e `vercel-preview`, toda branch histórica `asaas-cutover-backup-*`
+e o backup mais recente de cada ambiente. Ele só considera branches do projeto
+Neon e com o `parent_id` exato configurado para o ambiente; estados que não
+sejam `ready` ficam fora da seleção. Cada execução remove no máximo dois
+backups.
+
+Para uma exclusão aprovada:
+
+```bash
+bun run ops:cleanup:release-backups -- --environment=production --dry-run
+RELEASE_BACKUP_CLEANUP_CONFIRMATION=cleanup-release-backups \
+  bun run ops:cleanup:release-backups -- --environment=production --execute
+```
+
+O segundo comando consulta novamente o inventário antes de excluir. Nunca
+remova branch persistente, histórica ou o último backup do ambiente para
+liberar espaço de forma ad hoc.
 
 ## Banco efêmero da CI
 
