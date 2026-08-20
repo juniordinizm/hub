@@ -573,11 +573,15 @@ no [tutorial da alteração até Production](production-release-guide.md).
 Resumo da fronteira:
 
 - push cria CI e Preview, mas não publica Production;
-- merge atualiza `main`, mas também não publica Production;
+- merge de feature atualiza `staging`; depois da homologação, o PR
+  `staging → main` atualiza o candidato de Production, mas também não publica
+  o domínio sozinho;
 - migration em Development é manual e só ocorre depois do merge;
 - migration e deploy Production acontecem juntos no workflow manual
   `Deploy Vercel production`;
-- não é necessário copiar ou digitar SHA.
+- não é necessário copiar ou digitar SHA;
+- o auto-delete de branches após merge permanece desabilitado para não remover
+  `staging`; branches de feature são limpas manualmente após a confirmação.
 
 ## Quando parar e pedir ajuda
 

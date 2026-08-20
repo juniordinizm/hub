@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # PROTEA-R Hub

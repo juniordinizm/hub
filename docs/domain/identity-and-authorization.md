@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 61f91774be8ec222b7c1ea724863d43f909fcdf9
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # Identidade e autorização

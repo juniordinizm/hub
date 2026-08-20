@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # Ambiente e desenvolvimento local
@@ -20,6 +20,14 @@ técnico completo.
 
 A topologia, o onboarding de outra estação e as restrições de cada provider
 estão no [guia de Development compartilhado](shared-development-and-release-guide.md).
+
+Depois de reconciliar os providers, esta estação mantém somente `.env.local`.
+`.env.staging` e `.env.production` são fontes locais temporárias e não devem
+ser usados como secret manager, commitados ou mantidos depois que Vercel e
+GitHub Environments tiverem sido confirmados. Rotação é manual, na ordem
+Staging → Production, registrando somente presença e fingerprint seguro; o
+valor de nenhuma chave entra em chat, log ou documentação. Rotacionar
+`BETTER_AUTH_SECRET` em Production exige janela aprovada e invalida sessões.
 
 ## Topologia de ambientes
 
@@ -41,11 +49,12 @@ aprovada, mas o preflight exige `STAGING_EMAIL_RECIPIENT_ALLOWLIST`; sem essa
 variável, o runtime é bloqueado. Essas exceções exigem confirmações explícitas
 e não oferecem isolamento completo nos três providers compartilhados.
 
-Production em `APPLICATION_MAINTENANCE_MODE=full` exige cadastro, checkout,
-webhook Asaas e jobs desligados. O Proxy responde `503` para páginas, APIs,
-Server Actions e login, liberando somente health, readiness e crons
-autenticados. Preview permanece como perfil dormente e recusa credenciais de
-providers caso volte a ser usado.
+Durante migration e deploy controlados, Production pode entrar em
+`APPLICATION_MAINTENANCE_MODE=full`; ao terminar, deve retornar a `off` e ser
+validada novamente. A configuração estável deste sprint mantém
+`PAYMENTS_CHECKOUT_MODE=disabled`, `ASAAS_WEBHOOK_ENABLED=false` e
+`SCHEDULED_JOBS_ENABLED=false`. Preview permanece como perfil dormente e
+recusa credenciais de providers caso volte a ser usado.
 
 Staging envia `noindex` por metadata e `X-Robots-Tag`, não publica sitemap e
 exibe uma faixa visual. Isso reduz indexação acidental, mas a URL continua
