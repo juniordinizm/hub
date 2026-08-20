@@ -218,6 +218,32 @@ describe("CI Neon branch cleanup workflow", () => {
   });
 });
 
+describe("Release backup cleanup workflow", () => {
+  it("runs scheduled dry-runs for both environments and gates manual execution", () => {
+    const workflow = readWorkflow("cleanup-neon-release-backups.yml");
+
+    expect(workflow).toContain('cron: "37 3 * * *"');
+    expect(workflow).toContain("scheduled-staging:");
+    expect(workflow).toContain("scheduled-production:");
+    expect(workflow).toContain("manual:");
+    expect(workflow).toContain("default: dry-run");
+    expect(workflow).toContain("cleanup-release-backups");
+    expect(workflow).toContain(
+      "bun run ops:cleanup:release-backups -- --environment=staging --dry-run"
+    );
+    expect(workflow).toContain(
+      "bun run ops:cleanup:release-backups -- --environment=production --dry-run"
+    );
+    expect(workflow).toContain(
+      `"--environment=${shellVariable("TARGET_ENVIRONMENT")}"`
+    );
+    expect(workflow).toContain(`"--${shellVariable("CLEANUP_MODE")}"`);
+    expect(workflow).toContain("NEON_RELEASE_PARENT_BRANCH_ID");
+    expect(workflow).toContain("NEON_RELEASE_PROJECT_ID");
+    expect(workflow).toContain("RELEASE_BACKUP_CLEANUP_CONFIRMATION");
+  });
+});
+
 describe("Release backup ancestry", () => {
   it("fails closed when a Staging backup does not descend from Staging", () => {
     const workflow = readWorkflow("deploy-staging.yml");
