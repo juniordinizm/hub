@@ -138,6 +138,18 @@ describe("production environment contract", () => {
     expect(getProductionEnvironmentProblems(environment)).toEqual([]);
   });
 
+  it("allows non-secret Asaas settings when checkout and webhook are disabled", () => {
+    const environment = {
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      APPLICATION_MAINTENANCE_MODE: "off",
+      ASAAS_API_BASE_URL: "https://api.asaas.com",
+      ASAAS_USER_AGENT: "hub/1.0 support@example.com",
+      ASAAS_WEBHOOK_ENABLED: "false",
+    };
+
+    expect(getProductionEnvironmentProblems(environment)).toEqual([]);
+  });
+
   it.each([
     "authenticated",
     "public",

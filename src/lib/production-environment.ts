@@ -181,9 +181,11 @@ export const getProductionEnvironmentProblems = (
     const configuredAsaasVariables = ASAAS_PRODUCTION_VARIABLES.filter((key) =>
       hasValue(environment, key)
     );
+    const hasAsaasCredentials = ["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"].some(
+      (key) => hasValue(environment, key)
+    );
     if (
-      (configuredAsaasVariables.length > 0 ||
-        requiresAsaasCapability(environment)) &&
+      (hasAsaasCredentials || requiresAsaasCapability(environment)) &&
       configuredAsaasVariables.length < ASAAS_PRODUCTION_VARIABLES.length
     ) {
       problems.push(
