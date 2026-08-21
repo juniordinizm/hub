@@ -90,10 +90,12 @@ descontadas do recebível.
 - Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10; autoria e checkout
   validam o limite antes da chamada externa;
 - conversão para o decimal em reais acontece somente na borda HTTP e deve ser exata;
-- o OpenAPI marca `imageBase64` como obrigatória, enquanto o
-  [guia de Checkout Asaas](https://docs.asaas.com/docs/checkout-asaas) não estabelece
-  essa exigência e o sandbox aceitou sua ausência;
-- o adapter inicial omite `imageBase64`; imagem só entra após novo contrato e validação;
+- o contrato atual do endpoint marca `imageBase64` como obrigatória em cada item;
+- o adapter envia o Base64 bruto do logo institucional versionado em
+  `public/protear/logo-negativo.svg` em cada item. O checkout não depende de capa do
+  Curso, URL externa, dado pessoal ou imagem fornecida pela Compradora;
+- o resultado histórico do Sandbox sem `imageBase64` não é evidência suficiente para
+  Production e não deve ser usado para remover esse campo;
 - callback não é autoridade financeira nem libera acesso.
 
 ### Configuração comercial por Curso
