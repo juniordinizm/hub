@@ -474,6 +474,30 @@ Não faça pagamento real, envie e-mail a cliente, crie vídeo real ou emita
 certificado artificial apenas como smoke genérico. Use dados de controle e a
 menor operação capaz de provar a mudança.
 
+### Perfil de manutenção e flags de Production
+
+Quando a migration ou a promoção exigir manutenção, altere o ambiente
+Production na Vercel antes da operação para:
+
+```text
+APPLICATION_MAINTENANCE_MODE=full
+PAYMENTS_CHECKOUT_MODE=disabled
+ASAAS_WEBHOOK_ENABLED=false
+SCHEDULED_JOBS_ENABLED=false
+```
+
+Depois que o deployment verificado estiver promovido, altere somente
+`APPLICATION_MAINTENANCE_MODE` para `off`, faça um novo deployment/promote do
+mesmo SHA validado e repita os smokes públicos e de readiness. O estado final
+não pode deixar pagamento, webhook ou jobs habilitados neste sprint.
+
+Secrets são reconciliados manualmente, sempre Staging → Production. Confirme
+somente nomes, presença e fingerprints seguros entre GitHub Environments,
+Vercel e providers. O valor de uma chave não deve ser impresso nem persistido
+no repositório. Resend mantém o domínio/remetente verificado; a rotação troca
+apenas a chave. A rotação de `BETTER_AUTH_SECRET` em Production exige janela
+aprovada e teste de login novamente.
+
 ## Se alguma coisa falhar
 
 ### CI ou Preview falhou

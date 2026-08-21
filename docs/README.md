@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 2ede052
+last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
 ---
 
 # Documentação do Hub
@@ -85,6 +85,13 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Disponibilidade comercial e interesse em Cursos](superpowers/specs/2026-08-17-course-availability-and-interest-design.md)
 - [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
 - [Plano do hardening de conclusão e Certificados](superpowers/plans/2026-08-17-certificate-production-hardening.md)
+
+## Material não canônico
+
+Os arquivos abaixo são snapshots preservados para rastreabilidade. Eles não são autoridade de produto, contrato de runtime nem runbook vigente:
+
+- [Plano histórico de migração para Resend Hosted Templates](superpowers/plans/2026-08-19-resend-hosted-email-templates-migration.md)
+- [Auditoria histórica de e-mail e autenticação](../research/2026-08-19-email-auth-system-consolidated-audit.md)
 
 ## Contrato de manutenção
 

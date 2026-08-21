@@ -112,7 +112,8 @@
     "db:studio": "drizzle-kit studio",
     "ops:recovery:evidence": "bun scripts/observability-recovery-drill.ts --dry-run",
     "ops:audit:buyer-identities": "bun scripts/audit-buyer-identities.ts --summary",
-    "ops:cleanup:ci-neon": "bun scripts/cleanup-ci-neon-branches.ts",
+    "ops:cleanup:ci-neon": "bun src/tooling/neon-ci-branch-cleanup.ts",
+    "ops:cleanup:release-backups": "bun src/tooling/neon-release-backup-cleanup.ts",
     "prepare": "bun scripts/install-git-hooks.ts"
   },
   "version": "0.1.0",
