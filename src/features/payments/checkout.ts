@@ -12,6 +12,7 @@ const CHECKOUT_ITEM_NAME_MAX_LENGTH = 30;
 const CHECKOUT_ITEM_DESCRIPTION_MAX_LENGTH = 150;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SAFE_PROVIDER_CODE_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
 
 export interface CheckoutCallbacks {
   cancelUrl: string;
@@ -314,15 +315,22 @@ const safeGatewayFailure = (
   resultStatus: "failed" | "processing";
 } => {
   if (error instanceof AsaasGatewayError) {
+    const providerCode = error.providerCode?.trim();
+    const safeProviderCode =
+      providerCode && SAFE_PROVIDER_CODE_PATTERN.test(providerCode)
+        ? providerCode
+        : undefined;
+    const messageSuffix = safeProviderCode ? `_${safeProviderCode}` : "";
+
     return error.outcome === "rejected"
       ? {
           checkoutStatus: "failed",
-          message: `asaas_${error.kind}_rejected`,
+          message: `asaas_${error.kind}${messageSuffix}_rejected`,
           resultStatus: "failed",
         }
       : {
           checkoutStatus: "uncertain",
-          message: `asaas_${error.kind}_unknown`,
+          message: `asaas_${error.kind}${messageSuffix}_unknown`,
           resultStatus: "processing",
         };
   }
