@@ -144,7 +144,7 @@ Admin pode usar preview; a mutação de experiência da Aluna continua proibida 
 
 ### REG-COM-006 Expiração é calculada sobre a Concessão paga
 
-`extendEnrollmentExpiration`, `setEnrollmentExpiration` e `reverseExpirationAdjustment` alteram a janela efetiva, registram `enrollment_expiration_adjustments` e eventos.
+`extendEnrollmentExpiration` e `setEnrollmentExpiration` alteram a janela efetiva, registram `enrollment_expiration_adjustments` e eventos.
 
 **Autorização:** `manageEnrollmentAccess`.
 
@@ -155,7 +155,7 @@ Admin pode usar preview; a mutação de experiência da Aluna continua proibida 
 - ajuste não deve mudar carga horária ou duração pedagógica;
 - manutenção expira Concessões vencidas e recompõe Matrículas.
 
-**Limitação:** reversão restaura o valor anterior do ajuste escolhido e pode sobrescrever ajustes posteriores encadeados. Não use reversão fora de ordem sem inspeção manual.
+**Histórico:** existiu `reverseExpirationAdjustment`, removida por ser inalcançável e por restaurar às cegas o valor anterior, podendo sobrescrever ajustes posteriores encadeados. Se a reversão voltar a ser necessária, deve nascer com guarda de ordem, idempotência e recomputação de status. A coluna `reversed_adjustment_id` e o valor de evento `expiration_adjustment_reversed` permanecem no schema por o banco ser forward-only.
 
 ### REG-COM-007 Bloqueio manual é reversível e auditável
 

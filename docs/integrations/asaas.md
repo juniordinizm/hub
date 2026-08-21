@@ -21,17 +21,16 @@ autenticada e pública de checkout, e a inbox durável
 recebe e deduplica webhooks antes do processor financeiro transacional. O worker é
 chamado a cada minuto pela rota cron protegida, com lease de seis minutos e prazo interno
 de 270 segundos. Checkout, pagamento PIX/cartão, cancelamento, expiração, reembolso,
-conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. Conta e
-`ASAAS_API_BASE_URL`, `ASAAS_USER_AGENT` e `ASAAS_API_KEY` já estão configurados em
-Production. A primeira auditoria controlada recebeu `invalid_environment`: a variável
-continha uma chave Sandbox, sem espaços extras, em vez de uma chave Production. Nenhuma
-mutação foi enviada ao Asaas, a chave foi devolvida ao modo Sensitive e precisa ser
-removida de Production. Produto adiou a credencial real: o próximo ensaio permanece no
-Sandbox por Development/ngrok; `ASAAS_WEBHOOK_TOKEN` de Production ainda não foi
-configurado.
-Checkout e webhook permanecem fechados por `PAYMENTS_CHECKOUT_MODE=disabled` e
-`ASAAS_WEBHOOK_ENABLED=false`; o smoke do estado fechado retornou `503` nas duas
-entradas e `404` na rota legada removida.
+conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. O corte
+comercial de Production aconteceu depois do deployment `177259f` de 2026-08-20: a chave
+Sandbox foi removida do ambiente, a credencial Asaas real e o
+`ASAAS_WEBHOOK_TOKEN` de Production foram configurados, e o ambiente foi aberto com
+`PAYMENTS_CHECKOUT_MODE=public`, `ASAAS_WEBHOOK_ENABLED=true` e
+`SCHEDULED_JOBS_ENABLED=true`, sem novo deploy. As sondas públicas de 2026-08-21
+confirmaram checkout habilitado (GET `/api/checkouts/course` sem parâmetros => `400`) e
+webhook ativo exigindo token (POST sem token => `401`). Nenhuma venda real havia
+ocorrido até 2026-08-21; a primeira venda supervisionada, com reembolso de teste,
+permanece pendente.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
 O release de manutenção de 2026-08-02 promoveu o código e a migration

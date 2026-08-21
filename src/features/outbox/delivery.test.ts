@@ -12,6 +12,7 @@ const dependencies = vi.hoisted(() => ({
   sendCertificateIssuedEmail: vi.fn(),
   sendCourseSalesOpenedEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
+  sendSupportRequestEmail: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -31,6 +32,7 @@ vi.mock("@/features/email/server", () => ({
   sendCertificateIssuedEmail: dependencies.sendCertificateIssuedEmail,
   sendCourseSalesOpenedEmail: dependencies.sendCourseSalesOpenedEmail,
   sendPasswordResetEmail: dependencies.sendPasswordResetEmail,
+  sendSupportRequestEmail: dependencies.sendSupportRequestEmail,
 }));
 
 import {
@@ -628,6 +630,67 @@ describe("outbox email delivery", () => {
       deferred: true,
     });
     expect(dependencies.sendCourseSalesOpenedEmail).not.toHaveBeenCalled();
+  });
+
+  it("delivers a support request email with data read at delivery time", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          course_title: "Curso de suporte",
+          message: "Mensagem de teste controlada.",
+          student_email: "student@example.test",
+          student_name: "Aluna Teste",
+          subject: "Dúvida controlada",
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({ query });
+    dependencies.sendSupportRequestEmail.mockResolvedValue(undefined);
+
+    await deliverOutboxMessage({
+      aggregateId: "request-1",
+      aggregateType: "support_request",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey: "email.support-request/request-1/v1",
+      payload: { requestId: "request-1" },
+      payloadVersion: 1,
+      topic: "email.support-request",
+    });
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("from support_requests"),
+      ["request-1"]
+    );
+    expect(dependencies.sendSupportRequestEmail).toHaveBeenCalledWith({
+      courseTitle: "Curso de suporte",
+      idempotencyKey: "email.support-request/request-1/v1",
+      message: "Mensagem de teste controlada.",
+      studentEmail: "student@example.test",
+      studentName: "Aluna Teste",
+      subject: "Dúvida controlada",
+    });
+  });
+
+  it("rejects a support request whose stored aggregate no longer exists", async () => {
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({ rows: [] }),
+    });
+
+    await expect(
+      deliverOutboxMessage({
+        aggregateId: "request-1",
+        aggregateType: "support_request",
+        attempts: 1,
+        id: "outbox-1",
+        idempotencyKey: "email.support-request/request-1/v1",
+        payload: { requestId: "request-1" },
+        payloadVersion: 1,
+        topic: "email.support-request",
+      })
+    ).rejects.toMatchObject({ code: "aggregate_not_deliverable" });
+
+    expect(dependencies.sendSupportRequestEmail).not.toHaveBeenCalled();
   });
 
   it("cancels an active unpaid Asaas checkout without changing a paid order", async () => {

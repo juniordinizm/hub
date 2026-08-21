@@ -9,8 +9,8 @@ import {
   completeLesson,
   recordLessonWatchProgress,
 } from "@/features/courses/server";
-import { sendSupportRequestEmail } from "@/features/email/server";
 import { setLearningAnalyticsPreference } from "@/features/learning-analytics/server";
+import { createSupportRequest } from "@/features/support/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 
@@ -100,12 +100,11 @@ export const sendSupportRequestAction = async (
     throw new Error("Informe assunto e mensagem para o suporte.");
   }
 
-  await sendSupportRequestEmail({
+  await createSupportRequest({
     ...(courseTitle ? { courseTitle } : {}),
     message,
-    studentEmail: session.user.email,
-    studentName: session.user.name,
     subject,
+    userId: session.user.id,
   });
 };
 

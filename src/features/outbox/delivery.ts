@@ -6,6 +6,7 @@ import {
   sendAccessReleasedEmail,
   sendCertificateIssuedEmail,
   sendCourseSalesOpenedEmail,
+  sendSupportRequestEmail,
 } from "@/features/email/server";
 import {
   getApplicationUrl,
@@ -413,6 +414,99 @@ const deliverCheckoutCancellation = async ({
   return true;
 };
 
+interface SupportRequestDeliveryData {
+  course_title: string | null;
+  message: string;
+  student_email: string;
+  student_name: string;
+  subject: string;
+}
+
+const parseSupportRequestDeliveryData = (
+  row: unknown
+): SupportRequestDeliveryData | null => {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  const courseTitle = Reflect.get(row, "course_title");
+  const message = Reflect.get(row, "message");
+  const studentEmail = Reflect.get(row, "student_email");
+  const studentName = Reflect.get(row, "student_name");
+  const subject = Reflect.get(row, "subject");
+  if (
+    typeof message !== "string" ||
+    !message ||
+    typeof studentEmail !== "string" ||
+    !studentEmail ||
+    typeof studentName !== "string" ||
+    !studentName ||
+    typeof subject !== "string" ||
+    !subject ||
+    (courseTitle !== null && typeof courseTitle !== "string")
+  ) {
+    return null;
+  }
+  return {
+    course_title: courseTitle,
+    message,
+    student_email: studentEmail,
+    student_name: studentName,
+    subject,
+  };
+};
+
+const getSupportRequestDeliveryData = async (
+  requestId: string
+): Promise<SupportRequestDeliveryData | null> => {
+  const result = await getPool().query(
+    `
+      select
+        support_requests.subject,
+        support_requests.message,
+        support_requests.course_title,
+        users.email as student_email,
+        users.name as student_name
+      from support_requests
+      join users on users.id = support_requests.user_id
+      where support_requests.id = $1
+      limit 1
+    `,
+    [requestId]
+  );
+  return parseSupportRequestDeliveryData(result.rows[0]);
+};
+
+const deliverSupportRequest = async ({
+  message,
+  payload,
+}: {
+  message: ClaimedOutboxMessage;
+  payload: OutboxPayload;
+}): Promise<boolean> => {
+  if (
+    message.topic !== OUTBOX_TOPICS.supportRequest ||
+    !("requestId" in payload)
+  ) {
+    return false;
+  }
+  if (message.aggregateId !== payload.requestId) {
+    throw unavailableAggregate();
+  }
+  const data = await getSupportRequestDeliveryData(payload.requestId);
+  if (!data) {
+    throw unavailableAggregate();
+  }
+  await sendSupportRequestEmail({
+    ...(data.course_title ? { courseTitle: data.course_title } : {}),
+    idempotencyKey: message.idempotencyKey,
+    message: data.message,
+    studentEmail: data.student_email,
+    studentName: data.student_name,
+    subject: data.subject,
+  });
+  return true;
+};
+
 const deliverCertificateRender = async (
   certificateId: string
 ): Promise<void> => {
@@ -464,6 +558,10 @@ export const deliverOutboxMessage = async (
     }
 
     if (await deliverCheckoutCancellation({ message, payload })) {
+      return;
+    }
+
+    if (await deliverSupportRequest({ message, payload })) {
       return;
     }
 
