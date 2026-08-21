@@ -586,7 +586,7 @@ export class AsaasClient implements AsaasGateway {
       items: [
         {
           description: input.item.description,
-          imageBase64: getAsaasCheckoutItemImageBase64(),
+          imageBase64: await getAsaasCheckoutItemImageBase64(),
           name: input.item.name,
           quantity: 1,
           value: centsToProviderDecimal(input.item.valueInCents),
