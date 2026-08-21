@@ -488,8 +488,11 @@ SCHEDULED_JOBS_ENABLED=false
 
 Depois que o deployment verificado estiver promovido, altere somente
 `APPLICATION_MAINTENANCE_MODE` para `off`, faça um novo deployment/promote do
-mesmo SHA validado e repita os smokes públicos e de readiness. O estado final
-não pode deixar pagamento, webhook ou jobs habilitados neste sprint.
+mesmo SHA validado e repita os smokes públicos e de readiness. Ao final da janela
+de manutenção, Production volta ao estado comercial vigente, aberto desde
+2026-08-21: `PAYMENTS_CHECKOUT_MODE=public`, `ASAAS_WEBHOOK_ENABLED=true` e
+`SCHEDULED_JOBS_ENABLED=true`. As flags desabilitadas listadas acima pertencem
+somente ao perfil de manutenção durante a operação.
 
 Secrets são reconciliados manualmente, sempre Staging → Production. Confirme
 somente nomes, presença e fingerprints seguros entre GitHub Environments,

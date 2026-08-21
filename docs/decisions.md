@@ -115,7 +115,7 @@ O workflow de solicitações e anonimização foi removido: não havia solicitan
 ## DEC-DISC-009
 
 **Tema:** analytics de aprendizagem padrão com opt-out.
-**Estado:** aprovado e implementado, condicionado à ratificação jurídica antes da produção.
+**Estado:** aprovado, implementado e ratificado juridicamente em 2026-08-21.
 
 Para a plataforma pequena atual, analytics técnico minimizado fica habilitado por padrão, sem modal, consentimento ou área dedicada. A Aluna tem controle claro em **Conta > Configurações** para desligar análises opcionais. Desativar remove eventos brutos identificáveis, bloqueia eventos futuros e exclui a Aluna das consultas analíticas; não altera acesso, sequência, progresso, conclusão ou Certificado.
 
@@ -141,7 +141,7 @@ e [Asaas](integrations/asaas.md).
 ## DEC-DISC-011
 
 **Tema:** oferta de pagamento configurável por Curso.
-**Estado:** implementado para o lançamento; repasse de taxas adiado.
+**Estado:** decisão final ratificada em 2026-08-21; preço único com taxas absorvidas pela Vendedora.
 
 Cada Curso pago deve possuir configuração própria de preço e oferta:
 
@@ -201,13 +201,46 @@ Mutação mantém o Sheet aberto, refaz a leitura e mostra confirmação. A rota
 `/admin/alunos/[userId]` é removida e acessos antigos retornam 404; autorização das
 actions e regras de domínio não mudam.
 
+## DEC-DISC-014
+
+**Tema:** escopo definitivo do papel `support`.
+**Estado:** aprovado e ratificado em 2026-08-21 pelo responsável de produto.
+
+`support` mantém as capacidades já implementadas em `src/lib/auth-policy.ts`:
+`executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `viewAdminPanel` e
+`viewFinancials`. O reembolso integral pode ser executado pelo `support` sozinho,
+inclusive em produção com pagamento real. Reconciliação financeira e importação de
+extratos permanecem exclusivas de `admin`. Se o time de suporte passar a incluir
+terceiros, reabrir a decisão para separar solicitar e aprovar reembolso.
+
+## DEC-DISC-015
+
+**Tema:** e-mails fora da outbox.
+**Estado:** aprovado e ratificado em 2026-08-21 pelo responsável de produto.
+
+Somente a recuperação pública de senha permanece fora da outbox, por decisão de
+segurança: a URL contém token secreto e não deve ser persistida na fila. A falha de
+envio nesse caminho é apenas registrada em log e a Aluna precisa solicitar de novo.
+Ativação legada de conta e mensagem do formulário de suporte são entregues pela outbox
+com retentativa, idempotência e dead-letter; o suporte migrou para a outbox no PR do
+Sprint 1 de 2026-08-21, com o agregado `support_requests`.
+
 ## Outras ratificações necessárias
 
-- escopo definitivo de `support` e capacidades financeiras mutáveis;
 - tratamento de compra pública com e-mail já pertencente a Admin/Suporte;
-- eventual retomada, após o lançamento, do experimento de acréscimo comercial por
-  parcelamento;
-- política de reversão de ajustes encadeados;
-- confiabilidade banco e e-mail sem outbox;
 - critérios de incidente e SLOs;
 - uso de provedores externos; racional histórico não localizado.
+
+Ratificações concluídas em 2026-08-21 pelo responsável de produto:
+
+- DEC-DISC-005: a ausência de coorte foi ratificada com vendas reais ativas; publicar
+  altera a experiência de todas as Matrículas elegíveis e isso é aceito. Reabrir somente
+  com calendário ou turma real.
+- DEC-DISC-009: analytics ratificado juridicamente; a base legal, a transparência e os
+  prazos declarados na política de privacidade pública foram confirmados como aprovados.
+- DEC-DISC-011: decisão final; preço único com custo do parcelamento absorvido pela
+  Vendedora. Reabrir somente com dados reais de venda que justifiquem acréscimo
+  comercial por parcelamento.
+- Escopo de `support`: ver DEC-DISC-014.
+- Reversão de ajustes encadeados: encerrada por remoção; `reverseExpirationAdjustment`
+  foi deletada como código inalcançável e a REG-COM-006 registra o histórico.
