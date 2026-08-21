@@ -27,7 +27,12 @@
 .DS_Store
 *.pem
 /.0ref/
-/.agents/
+/.agents/*
+!/.agents/skills/
+/.agents/skills/*
+!/.agents/skills/external-deliberation/
+!/.agents/skills/external-deliberation/**
+/.agents/skills/external-deliberation/node_modules/
 
 # debug
 npm-debug.log*
@@ -47,3 +52,7 @@ next-env.d.ts
 
 # Sentry Config File
 .env.sentry-build-plugin
+
+
+.codex/external-reviewer.local.md
+.codex/deliberations/

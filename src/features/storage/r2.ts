@@ -28,6 +28,7 @@ import {
   type StagedAdminImagePurpose,
   type StagedAdminImageReference,
 } from "@/features/storage/staged-image-upload";
+import { getServerEnv } from "@/lib/env";
 
 const UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_URL_EXPIRES_SECONDS = 5 * 60;
@@ -62,9 +63,7 @@ interface R2LessonResource {
   storage: "r2";
 }
 
-const readRequiredEnv = (key: string): string => {
-  const value = process.env[key]?.trim();
-
+const requireEnvValue = (value: string | undefined, key: string): string => {
   if (!value) {
     throw new Error(`Configure ${key} para usar anexos R2.`);
   }
@@ -72,26 +71,39 @@ const readRequiredEnv = (key: string): string => {
   return value;
 };
 
-const getR2Config = (): R2Config => ({
-  accessKeyId: readRequiredEnv("R2_ACCESS_KEY_ID"),
-  accountId: readRequiredEnv("R2_ACCOUNT_ID"),
-  bucketName: readRequiredEnv("R2_BUCKET_NAME"),
-  namespace: createR2ObjectNamespace(process.env.R2_OBJECT_PREFIX),
-  secretAccessKey: readRequiredEnv("R2_SECRET_ACCESS_KEY"),
-});
+const getR2Config = (): R2Config => {
+  const env = getServerEnv();
 
-const getPublicR2Config = (): PublicR2Config => ({
-  ...getR2Config(),
-  publicBucketName: readRequiredEnv("R2_PUBLIC_BUCKET_NAME"),
-});
+  return {
+    accessKeyId: requireEnvValue(env.R2_ACCESS_KEY_ID, "R2_ACCESS_KEY_ID"),
+    accountId: requireEnvValue(env.R2_ACCOUNT_ID, "R2_ACCOUNT_ID"),
+    bucketName: requireEnvValue(env.R2_BUCKET_NAME, "R2_BUCKET_NAME"),
+    namespace: createR2ObjectNamespace(env.R2_OBJECT_PREFIX),
+    secretAccessKey: requireEnvValue(
+      env.R2_SECRET_ACCESS_KEY,
+      "R2_SECRET_ACCESS_KEY"
+    ),
+  };
+};
+
+const getPublicR2Config = (): PublicR2Config => {
+  const env = getServerEnv();
+
+  return {
+    ...getR2Config(),
+    publicBucketName: requireEnvValue(
+      env.R2_PUBLIC_BUCKET_NAME,
+      "R2_PUBLIC_BUCKET_NAME"
+    ),
+  };
+};
 
 const getR2Client = (config: R2Config): S3Client => {
+  const env = getServerEnv();
   const endpoint = resolveR2ClientEndpoint({
     accountId: config.accountId,
-    e2eTestMode: process.env.E2E_TEST_MODE === "true",
-    ...(process.env.R2_ENDPOINT
-      ? { endpointOverride: process.env.R2_ENDPOINT }
-      : {}),
+    e2eTestMode: env.E2E_TEST_MODE,
+    ...(env.R2_ENDPOINT ? { endpointOverride: env.R2_ENDPOINT } : {}),
   });
 
   return new S3Client({
@@ -499,7 +511,10 @@ export const verifyPrivateR2ObjectSha256 = async ({
 export const getPublicMediaUrl = (key: string): string => {
   const config = getR2Config();
   return buildPublicMediaUrl({
-    baseUrl: readRequiredEnv("R2_PUBLIC_BASE_URL"),
+    baseUrl: requireEnvValue(
+      getServerEnv().R2_PUBLIC_BASE_URL,
+      "R2_PUBLIC_BASE_URL"
+    ),
     key,
     physicalKey: config.namespace.toPhysicalKey(key),
   });

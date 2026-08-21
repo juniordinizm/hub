@@ -308,12 +308,14 @@ export const sendCertificateIssuedEmail = async ({
 
 export const sendSupportRequestEmail = async ({
   courseTitle,
+  idempotencyKey,
   message,
   studentEmail,
   studentName,
   subject,
 }: {
   courseTitle?: string;
+  idempotencyKey?: string;
   message: string;
   studentEmail: string;
   studentName: string;
@@ -323,6 +325,7 @@ export const sendSupportRequestEmail = async ({
 
   await sendHostedTemplateEmail({
     COURSE_TITLE: courseTitle ?? "Não informado",
+    ...(idempotencyKey ? { idempotencyKey } : {}),
     MESSAGE: message,
     name: "support-request",
     replyTo: studentEmail,

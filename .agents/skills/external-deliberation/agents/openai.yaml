@@ -1,0 +1,6 @@
+interface:
+  display_name: "External Deliberation"
+  short_description: "Run sealed independent reviews with the configured ChatGPT reviewer"
+
+policy:
+  allow_implicit_invocation: false

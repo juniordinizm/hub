@@ -1430,6 +1430,21 @@ export const auditLogs = pgTable(
   ]
 );
 
+export const supportRequests = pgTable(
+  "support_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    subject: text("subject").notNull(),
+    message: text("message").notNull(),
+    courseTitle: text("course_title"),
+    ...timestamps,
+  },
+  (table) => [index("support_requests_user_idx").on(table.userId)]
+);
+
 export const outboxMessages = pgTable(
   "outbox_messages",
   {

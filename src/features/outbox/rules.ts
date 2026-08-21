@@ -6,6 +6,7 @@ export const OUTBOX_TOPICS = {
   certificateRender: "certificate.render",
   checkoutCancellation: "payments.checkout-cancel",
   courseSalesOpened: "email.course-sales-opened",
+  supportRequest: "email.support-request",
 } as const;
 
 export type OutboxTopic = (typeof OUTBOX_TOPICS)[keyof typeof OUTBOX_TOPICS];
@@ -16,11 +17,17 @@ export type OutboxPayload =
   | { enrollmentId: string; warningKind: "1d" | "7d" }
   | { interestId: string }
   | { orderId: string }
-  | { orderId: string; userId: string };
+  | { orderId: string; userId: string }
+  | { requestId: string };
 
 export interface OutboxMessageInput {
   aggregateId: string;
-  aggregateType: "certificate" | "course_interest" | "enrollment" | "order";
+  aggregateType:
+    | "certificate"
+    | "course_interest"
+    | "enrollment"
+    | "order"
+    | "support_request";
   idempotencyKey: string;
   payload: OutboxPayload;
   payloadVersion: 1;
@@ -151,6 +158,19 @@ export const createCheckoutCancellationMessage = ({
   topic: OUTBOX_TOPICS.checkoutCancellation,
 });
 
+export const createSupportRequestMessage = ({
+  requestId,
+}: {
+  requestId: string;
+}): OutboxMessageInput => ({
+  aggregateId: requestId,
+  aggregateType: "support_request",
+  idempotencyKey: `${OUTBOX_TOPICS.supportRequest}/${requestId}/v1`,
+  payload: { requestId },
+  payloadVersion: 1,
+  topic: OUTBOX_TOPICS.supportRequest,
+});
+
 export const parseOutboxPayload = ({
   payload,
   payloadVersion,
@@ -231,6 +251,17 @@ export const parseOutboxPayload = ({
       orderId
     ) {
       return { orderId };
+    }
+  }
+
+  if (topic === OUTBOX_TOPICS.supportRequest) {
+    const { requestId } = payload as { requestId?: unknown };
+    if (
+      Object.keys(payload).length === 1 &&
+      typeof requestId === "string" &&
+      requestId
+    ) {
+      return { requestId };
     }
   }
 
