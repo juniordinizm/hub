@@ -232,8 +232,12 @@ descartados antes de sair do adapter. A fronteira:
   rejeições `429` podem ser retentáveis;
 - só expõe `providerCode` no formato técnico permitido e nunca copia token, descrição,
   body ou causa externa para o erro;
+- quando uma mutação de checkout é rejeitada, `checkout_error_message` pode incluir
+  somente esse `providerCode` seguro, entre o tipo do erro e o estado final; nunca
+  persiste a mensagem ou o corpo devolvido pelo Asaas;
 - preserva status e tipos de pagamento desconhecidos como strings;
-- omite `imageBase64` e nunca inventa CPF ou identificador de reembolso.
+- rasteriza o logo institucional para `imageBase64` PNG e nunca inventa CPF ou
+  identificador de reembolso.
 
 `src/features/payments/asaas.ts` contém a porta estreita.
 `src/features/payments/asaas-financial-events.ts` contém o parser estrutural do envelope

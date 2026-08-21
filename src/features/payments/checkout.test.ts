@@ -1068,11 +1068,13 @@ describe("createAsaasCheckoutIntent", () => {
     ["unknown", "uncertain"],
   ] as const)("persists a safe %s provider failure as %s", async (outcome, expectedStatus) => {
     const unsafeMessage = "token=secret aluna@example.com provider body";
+    let persistedFailureValues: unknown[] | undefined;
     const gateway = createGateway(
       new AsaasGatewayError({
         kind: "transport",
         message: unsafeMessage,
         outcome,
+        providerCode: "provider_error",
         retryable: true,
       })
     );
@@ -1096,9 +1098,7 @@ describe("createAsaasCheckoutIntent", () => {
         return { rows: [{ id: ATTEMPT_ID }] };
       }
       if (sql.startsWith("update orders")) {
-        expect(values?.[1]).toBe(expectedStatus);
-        expect(values?.join(" ")).not.toContain("secret");
-        expect(values?.join(" ")).not.toContain("aluna@example.com");
+        persistedFailureValues = values;
         return { rows: [{ id: ATTEMPT_ID }] };
       }
       throw new Error(`SQL inesperado: ${sql}`);
@@ -1111,6 +1111,12 @@ describe("createAsaasCheckoutIntent", () => {
       orderId: ATTEMPT_ID,
       status: outcome === "unknown" ? "processing" : "failed",
     });
+    expect(persistedFailureValues?.[1]).toBe(expectedStatus);
+    expect(persistedFailureValues?.join(" ")).not.toContain("secret");
+    expect(persistedFailureValues?.join(" ")).not.toContain(
+      "aluna@example.com"
+    );
+    expect(persistedFailureValues?.join(" ")).toContain("provider_error");
     expect(gateway.calls.createCheckout).toHaveLength(1);
   });
 
