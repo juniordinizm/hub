@@ -24,7 +24,6 @@ interface EnrollmentEventInput {
     | "access_manual_block_removed"
     | "access_manually_blocked"
     | "manual_access_granted"
-    | "expiration_adjustment_reversed"
     | "expiration_extended"
     | "expiration_set"
     | "payment_disputed"
@@ -825,102 +824,6 @@ export const setEnrollmentExpiration = async ({
   }
 
   return result;
-};
-
-export const reverseExpirationAdjustment = async ({
-  actorUserId,
-  adjustmentId,
-  now = new Date(),
-  reason,
-}: {
-  actorUserId: string;
-  adjustmentId: string;
-  now?: Date;
-  reason: string;
-}): Promise<void> => {
-  const normalizedReason = validateEnrollmentAdjustmentReason(reason);
-  const client = await getPool().connect();
-  try {
-    await client.query("begin");
-
-    const { rows } = await client.query<{
-      course_id: string;
-      grant_id: string;
-      previous_expires_at: Date;
-      user_id: string;
-    }>(
-      `
-        select
-          adjustment.grant_id,
-          adjustment.previous_expires_at,
-          eg.user_id,
-          eg.course_id
-        from enrollment_expiration_adjustments adjustment
-        join enrollment_grants eg on eg.id = adjustment.grant_id
-        where adjustment.id = $1
-        limit 1
-      `,
-      [adjustmentId]
-    );
-    const adjustment = rows[0];
-
-    if (!adjustment) {
-      throw new Error("Ajuste de expiracao invalido.");
-    }
-
-    await client.query(
-      `
-        insert into enrollment_expiration_adjustments (
-          grant_id,
-          adjustment_type,
-          previous_expires_at,
-          new_expires_at,
-          reason,
-          actor_user_id,
-          reversed_adjustment_id
-        )
-        values ($1, 'reversal', $2, $3, $4, $5, $6)
-      `,
-      [
-        adjustment.grant_id,
-        now,
-        adjustment.previous_expires_at,
-        normalizedReason,
-        actorUserId,
-        adjustmentId,
-      ]
-    );
-    await client.query(
-      `
-        update enrollment_grants
-        set effective_expires_at = $2,
-            updated_at = now()
-        where id = $1
-      `,
-      [adjustment.grant_id, adjustment.previous_expires_at]
-    );
-    await insertEnrollmentEvent(client, {
-      actorUserId,
-      courseId: adjustment.course_id,
-      eventType: "expiration_adjustment_reversed",
-      grantId: adjustment.grant_id,
-      metadata: { adjustmentId, reason: normalizedReason },
-      userId: adjustment.user_id,
-    });
-    await rebuildEnrollmentProjection({
-      client,
-      courseId: adjustment.course_id,
-      now,
-      userId: adjustment.user_id,
-    });
-
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback");
-    throw error;
-  } finally {
-    client.release();
-  }
 };
 
 export const blockEnrollmentAccess = async ({
