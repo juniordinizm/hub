@@ -178,12 +178,10 @@ verificados externamente.
 
 - catálogo remoto pode divergir da cadeia local quando a promoção controlada não for executada ou auditada;
 - ausência de coortes: publicar conteúdo altera a experiência de todas as Matrículas elegíveis;
-- reversão de ajuste de expiração pode sobrescrever ajustes posteriores;
 - recuperação pública e ativação legada permanecem fora da outbox;
 - decisões implementadas sem ratificação de produto;
 - infraestrutura e dados de produção não verificados;
-- JMVStream `gallery` no complete diverge da documentação histórica do projeto;
-- R2 é lido por `process.env` dinâmico, fora do schema central de `getServerEnv`.
+- JMVStream `gallery` no complete diverge da documentação histórica do projeto.
 
 ## Como investigar uma mudança
 
