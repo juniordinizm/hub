@@ -30,7 +30,6 @@
     "src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-header.tsx",
     "src/app/(admin)/admin/cursos/[courseId]/course-actions-dropdown.tsx",
     "src/features/certificates/actions.ts",
-    "src/features/privacy/actions.ts",
     // Kept as the rollback renderer until Sprint 11 removes React Email.
     "src/features/email/templates.tsx",
     "test-availability.ts",
@@ -52,7 +51,6 @@
     ],
     "src/features/certificates/server.ts": ["exports"],
     "src/features/courses/lesson-content.ts": ["exports"],
-    "src/features/privacy/server.ts": ["exports"],
     "src/features/storage/banner-image.ts": ["exports"],
     "src/features/storage/course-cover.ts": ["exports"],
     "src/features/storage/r2.ts": ["exports"]
