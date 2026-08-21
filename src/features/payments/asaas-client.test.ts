@@ -97,9 +97,9 @@ describe("AsaasClient", () => {
     if (typeof imageBase64 !== "string") {
       throw new Error("Checkout item image is missing.");
     }
-    expect(Buffer.from(imageBase64, "base64").toString("utf8")).toContain(
-      "<svg"
-    );
+    expect([...Buffer.from(imageBase64, "base64").subarray(0, 8)]).toEqual([
+      137, 80, 78, 71, 13, 10, 26, 10,
+    ]);
     expect(requestBody).not.toHaveProperty("customerData");
   });
 
