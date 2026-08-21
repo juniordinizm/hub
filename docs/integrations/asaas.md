@@ -90,10 +90,13 @@ descontadas do recebível.
 - Curso pago custa no mínimo `1000` centavos, equivalentes a R$ 10; autoria e checkout
   validam o limite antes da chamada externa;
 - conversão para o decimal em reais acontece somente na borda HTTP e deve ser exata;
-- o OpenAPI marca `imageBase64` como obrigatória, enquanto o
-  [guia de Checkout Asaas](https://docs.asaas.com/docs/checkout-asaas) não estabelece
-  essa exigência e o sandbox aceitou sua ausência;
-- o adapter inicial omite `imageBase64`; imagem só entra após novo contrato e validação;
+- o contrato atual do endpoint marca `imageBase64` como obrigatória em cada item;
+- o adapter rasteriza para PNG o logo institucional versionado em
+  `public/protear/logo-negativo.svg` e envia o Base64 bruto resultante em cada item.
+  O checkout não depende de capa do Curso, URL externa, dado pessoal ou imagem
+  fornecida pela Compradora;
+- o resultado histórico do Sandbox sem `imageBase64` não é evidência suficiente para
+  Production e não deve ser usado para remover esse campo;
 - callback não é autoridade financeira nem libera acesso.
 
 ### Configuração comercial por Curso
@@ -229,8 +232,12 @@ descartados antes de sair do adapter. A fronteira:
   rejeições `429` podem ser retentáveis;
 - só expõe `providerCode` no formato técnico permitido e nunca copia token, descrição,
   body ou causa externa para o erro;
+- quando uma mutação de checkout é rejeitada, `checkout_error_message` pode incluir
+  somente esse `providerCode` seguro, entre o tipo do erro e o estado final; nunca
+  persiste a mensagem ou o corpo devolvido pelo Asaas;
 - preserva status e tipos de pagamento desconhecidos como strings;
-- omite `imageBase64` e nunca inventa CPF ou identificador de reembolso.
+- rasteriza o logo institucional para `imageBase64` PNG e nunca inventa CPF ou
+  identificador de reembolso.
 
 `src/features/payments/asaas.ts` contém a porta estreita.
 `src/features/payments/asaas-financial-events.ts` contém o parser estrutural do envelope
