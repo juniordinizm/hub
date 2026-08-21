@@ -6,6 +6,7 @@ import {
   createCourseSalesOpenedMessage,
   createEnrollmentExpiryWarningMessage,
   createPaidAccessReleasedMessage,
+  createSupportRequestMessage,
   getRetryDelayMs,
   parseOutboxPayload,
 } from "./rules";
@@ -166,6 +167,23 @@ describe("outbox message contracts", () => {
       topic: "payments.checkout-cancel",
     });
     expect(parseOutboxPayload(message)).toEqual({ orderId: "order-1" });
+  });
+
+  it("stores only the request id in a support notification", () => {
+    const message = createSupportRequestMessage({ requestId: "request-1" });
+
+    expect(message).toEqual({
+      aggregateId: "request-1",
+      aggregateType: "support_request",
+      idempotencyKey: "email.support-request/request-1/v1",
+      payload: { requestId: "request-1" },
+      payloadVersion: 1,
+      topic: "email.support-request",
+    });
+    expect(parseOutboxPayload(message)).toEqual({ requestId: "request-1" });
+    expect(JSON.stringify(message.payload)).not.toMatch(
+      FORBIDDEN_PAYLOAD_KEY_PATTERN
+    );
   });
 
   it("rejects an unknown payload version without attempting delivery", () => {

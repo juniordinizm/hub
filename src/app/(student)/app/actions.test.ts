@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   completeLesson: vi.fn(),
+  createSupportRequest: vi.fn(),
   redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireSession: vi.fn(),
@@ -21,17 +22,21 @@ vi.mock("@/features/courses/server", () => ({
   completeLesson: dependencies.completeLesson,
   recordLessonWatchProgress: vi.fn(),
 }));
-vi.mock("@/features/email/server", () => ({
-  sendSupportRequestEmail: vi.fn(),
-}));
 vi.mock("@/features/learning-analytics/server", () => ({
   setLearningAnalyticsPreference: vi.fn(),
+}));
+vi.mock("@/features/support/server", () => ({
+  createSupportRequest: dependencies.createSupportRequest,
 }));
 vi.mock("@/lib/session", () => ({
   requireSession: dependencies.requireSession,
 }));
 
-import { completeLessonAction, setCourseSaleInterestAction } from "./actions";
+import {
+  completeLessonAction,
+  sendSupportRequestAction,
+  setCourseSaleInterestAction,
+} from "./actions";
 
 describe("completeLessonAction", () => {
   beforeEach(() => {
@@ -142,5 +147,42 @@ describe("setCourseSaleInterestAction", () => {
       "Apenas alunas podem demonstrar interesse."
     );
     expect(dependencies.setCourseSaleInterest).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendSupportRequestAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.requireSession.mockResolvedValue({
+      role: "student",
+      user: { id: "student-1" },
+    });
+    dependencies.createSupportRequest.mockResolvedValue(undefined);
+  });
+
+  it("persists the request for the outbox instead of sending inline", async () => {
+    const formData = new FormData();
+    formData.set("subject", "Dúvida controlada");
+    formData.set("message", "Mensagem de teste controlada.");
+    formData.set("courseTitle", "Curso de suporte");
+
+    await sendSupportRequestAction(formData);
+
+    expect(dependencies.createSupportRequest).toHaveBeenCalledWith({
+      courseTitle: "Curso de suporte",
+      message: "Mensagem de teste controlada.",
+      subject: "Dúvida controlada",
+      userId: "student-1",
+    });
+  });
+
+  it("rejects the request without subject or message", async () => {
+    const formData = new FormData();
+    formData.set("subject", "");
+
+    await expect(sendSupportRequestAction(formData)).rejects.toThrow(
+      "Informe assunto e mensagem para o suporte."
+    );
+    expect(dependencies.createSupportRequest).not.toHaveBeenCalled();
   });
 });
