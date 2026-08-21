@@ -70,8 +70,10 @@ describe("AsaasClient", () => {
     );
     const requestBody = JSON.parse(
       fetcher.mock.calls[0]?.[1]?.body as string
-    ) as Record<string, unknown>;
-    expect(requestBody).toEqual({
+    ) as Record<string, unknown> & {
+      items: Array<{ imageBase64?: unknown }>;
+    };
+    expect(requestBody).toMatchObject({
       billingTypes: ["PIX", "CREDIT_CARD"],
       chargeTypes: ["DETACHED"],
       callback: {
@@ -90,8 +92,15 @@ describe("AsaasClient", () => {
       ],
       minutesToExpire: 30,
     });
+    const imageBase64 = requestBody.items[0]?.imageBase64;
+    expect(typeof imageBase64).toBe("string");
+    if (typeof imageBase64 !== "string") {
+      throw new Error("Checkout item image is missing.");
+    }
+    expect(Buffer.from(imageBase64, "base64").toString("utf8")).toContain(
+      "<svg"
+    );
     expect(requestBody).not.toHaveProperty("customerData");
-    expect(requestBody).not.toHaveProperty("imageBase64");
   });
 
   it("serializes the minimum value without inventing payer data", async () => {

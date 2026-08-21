@@ -15,6 +15,7 @@ import {
   type RefundAsaasInstallment,
   type RefundAsaasPayment,
 } from "./asaas";
+import { getAsaasCheckoutItemImageBase64 } from "./asaas-checkout-image";
 import { buildAsaasCheckoutPaymentOptions } from "./asaas-checkout-options";
 import {
   parseAsaasDecimalToCents,
@@ -585,6 +586,7 @@ export class AsaasClient implements AsaasGateway {
       items: [
         {
           description: input.item.description,
+          imageBase64: getAsaasCheckoutItemImageBase64(),
           name: input.item.name,
           quantity: 1,
           value: centsToProviderDecimal(input.item.valueInCents),
