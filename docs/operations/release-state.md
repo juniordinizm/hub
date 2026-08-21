@@ -1,13 +1,13 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 273dce1
-deployed_commit: 12d7e7e
-deployed_environment: staging
-verified_commit: cf6a129
-verified_environment: staging
-documented_commit: cf6a129
-documented_environment: staging
+last_verified_commit: 177259f
+deployed_commit: 177259f
+deployed_environment: production
+verified_commit: 177259f
+verified_environment: production
+documented_commit: 177259f
+documented_environment: production
 ---
 
 # Estado de release
@@ -18,9 +18,11 @@ Este documento separa três fatos que não podem ser tratados como sinônimos:
 - `verified_*`: último commit que passou os gates locais/remotos conhecidos;
 - `documented_*`: commit contra o qual esta documentação foi conferida.
 
-O estado atual deste checkout registra `12d7e7e` como o último deployment de
-Staging conhecido. O HEAD `cf6a129` foi verificado localmente, mas ainda exige
-execução e promoção pelo workflow oficial antes de ser declarado implantado.
+O estado atual registra `177259f` ("release: promote validated staging to main
+#42") como o deployment de Production publicado em 2026-08-20 pelo workflow
+protegido, servindo `app.neurocapacitar.com.br`. Depois desse deployment, o
+ambiente de Production foi aberto comercialmente por variáveis de ambiente, sem
+novo deploy.
 
 Nenhuma linha deste documento autoriza migration, deploy, rollback ou alteração
 de dados. O [guia de Production](production-release-guide.md) continua sendo o
@@ -48,8 +50,13 @@ de cada ambiente e remova superseded somente pelo cleanup separado, após
 dry-run, confirmação `cleanup-release-backups`, conferência de projeto/parent
 e nova leitura do inventário.
 
-O estado operacional de Production deve terminar com manutenção `off`,
-`PAYMENTS_CHECKOUT_MODE=disabled`, `ASAAS_WEBHOOK_ENABLED=false` e
-`SCHEDULED_JOBS_ENABLED=false`. Resend, Neon, Vercel, R2, JMVStream, Auth e
+Estado operacional de Production verificado em 2026-08-21: manutenção `off`,
+`PAYMENTS_CHECKOUT_MODE=public`, `ASAAS_WEBHOOK_ENABLED=true` e
+`SCHEDULED_JOBS_ENABLED=true`. A chave Sandbox foi removida e a credencial
+Asaas real está configurada; Staging continua na conta Sandbox. As sondas
+públicas confirmaram checkout habilitado (GET `/api/checkouts/course` sem
+parâmetros => `400`) e webhook ativo com token (POST sem token =>
+`401`). Nenhuma venda real havia ocorrido até essa data; a primeira venda
+supervisionada permanece pendente. Resend, Neon, Vercel, R2, JMVStream, Auth e
 Asaas usam rotação manual por fingerprints; nenhum valor de secret pertence a
 este documento.
