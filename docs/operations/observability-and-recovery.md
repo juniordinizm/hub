@@ -34,6 +34,8 @@ O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-m
 
 `instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
+Os projetos Sentry por ambiente incluem `hub-development` (Development) e `hub-production` (Production; id numérico `4511951566798848`, guardado como proibido para Development e Staging em `src/lib/development-environment.ts` e `src/lib/staging-environment.ts`). Staging é separado por `STAGING_SENTRY_PROJECT_ID`. Desde 2026-08-21, Production envia para `hub-production` com `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN` configurados na Vercel.
+
 As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
 
 ## Liveness, readiness e RED
