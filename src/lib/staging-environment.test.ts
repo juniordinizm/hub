@@ -204,9 +204,9 @@ describe("Staging environment contract", () => {
     const problems = getStagingEnvironmentProblems({
       ...COMPLETE_STAGING_ENVIRONMENT,
       NEXT_PUBLIC_SENTRY_DSN:
-        "https://public@example.ingest.sentry.io/4511771125219328",
-      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511771125219328",
-      STAGING_SENTRY_PROJECT_ID: "4511771125219328",
+        "https://public@example.ingest.sentry.io/4511951566798848",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511951566798848",
+      STAGING_SENTRY_PROJECT_ID: "4511951566798848",
     });
 
     expect(problems).toEqual(

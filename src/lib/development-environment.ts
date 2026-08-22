@@ -1,6 +1,6 @@
 const PRODUCTION_NEON_COMPUTE = "ep-hidden-tooth-ac843qc2";
 const PRODUCTION_JMVSTREAM_PLAN_ID = "OD-20912";
-const PRODUCTION_SENTRY_PROJECT_ID = "4511771125219328";
+const PRODUCTION_SENTRY_PROJECT_ID = "4511951566798848";
 const DEVELOPMENT_PRIVATE_BUCKET = "hub-development-private";
 const DEVELOPMENT_PUBLIC_BUCKET = "hub-development-public";
 const APPROVED_RESEND_DOMAIN = "neurocapacitar.com.br";
