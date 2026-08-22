@@ -256,7 +256,7 @@ As jornadas atuais verificam:
 - axe-core sem violações `critical` ou `serious` na Biblioteca e Aula da Aluna.
 
 Essa cobertura full-story está implementada em `critical-journeys.spec.ts` e integrada à
-job Playwright; a execução da CI para este commit permanece pendente. Não trate a presença
+job Playwright; a CI da `main` executou verde nos releases seguintes (por exemplo `bbf89ad`, 2026-08-22). Não trate a presença
 do teste como resultado verde nem como evidência de promoção.
 
 A negação sem Concessão renderiza a página segura “Página indisponível”, sem revelar a Aula nem

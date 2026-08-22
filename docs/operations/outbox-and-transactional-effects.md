@@ -35,7 +35,7 @@ devolve o certificado a `pending` antes de reentregar a mesma mensagem.
   `auth.account-activation/<order-id>/v1`; payload exatamente `userId` e `orderId`.
 - `email.course-sales-opened`: emitido ao abrir vendas; agregado `course_interest`; chave por Interesse; payload somente `interestId`. Vendas novamente fechadas adiam sem consumir tentativa.
 - `payments.checkout-cancel`: emitido ao fechar vendas; agregado `order`; chave por Pedido; payload somente `orderId`. Pedido já pago ou Checkout já terminal conclui como no-op.
-- `email.support-request`: emitido quando uma Aluna envia o formulário de suporte; agregado `support_request`; chave `email.support-request/<request-id>/v1`; payload somente `requestId`. A ação registra assunto, mensagem e curso em `support_requests` na mesma transação do enfileiramento; o delivery relê esses campos e os dados atuais da Aluna somente no momento da entrega.
+- `email.support-request`: emitido quando uma Aluna envia o formulário de suporte; agregado `support_request`; chave `email.support-request/<request-id>/v1`; payload somente `requestId`. A ação registra assunto, mensagem e curso em `support_requests` na mesma transação do enfileiramento; o delivery relê esses campos e os dados atuais da Aluna somente no momento da entrega. A ação limita assunto a 160 e mensagem a 1800 caracteres (contrato do template hospedado), aceita no máximo 3 pedidos por Aluna em 10 minutos e a manutenção expira os registros após 90 dias.
 
 O payload nunca contém nome, e-mail, token de redefinição, senha, chave de API ou URL secreta. O adaptador consulta os dados atuais somente no momento da entrega.
 
