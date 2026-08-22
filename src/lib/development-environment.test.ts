@@ -141,10 +141,10 @@ describe("Development environment contract", () => {
   it("rejects Production Sentry identifiers", () => {
     const problems = getDevelopmentEnvironmentProblems({
       ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
-      DEVELOPMENT_SENTRY_PROJECT_ID: "4511771125219328",
+      DEVELOPMENT_SENTRY_PROJECT_ID: "4511951566798848",
       NEXT_PUBLIC_SENTRY_DSN:
-        "https://public@example.ingest.sentry.io/4511771125219328",
-      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511771125219328",
+        "https://public@example.ingest.sentry.io/4511951566798848",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511951566798848",
     });
 
     expect(problems).toEqual(
