@@ -7,8 +7,8 @@ export const buildContentSecurityPolicy = ({
 }): string => {
   const connectSources = [
     "'self'",
-    "https:",
-    "wss:",
+    // Browser Sentry SDK reports to the organization ingest host only.
+    "https://*.ingest.us.sentry.io",
     ...new Set(additionalConnectOrigins),
   ].join(" ");
 
@@ -19,7 +19,7 @@ export const buildContentSecurityPolicy = ({
     "img-src 'self' blob: data: https:",
     "font-src 'self' data:",
     `connect-src ${connectSources}`,
-    "frame-src https:",
+    "frame-src 'self' https://player.jmvstream.com",
     "media-src 'self' blob: https:",
     "worker-src 'self' blob:",
     "object-src 'none'",
