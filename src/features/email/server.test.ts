@@ -42,7 +42,12 @@ import {
 } from "./server";
 import type { HostedEmailTemplateVariables } from "./templates-contract";
 
-const ORIGINAL_ENV = { ...process.env };
+// Bun loads .env.local into process.env; strip the variables this suite owns
+// so every test starts from the state it sets explicitly.
+const ORIGINAL_ENV = (() => {
+  const { SUPPORT_EMAIL: _ambientSupportEmail, ...snapshot } = process.env;
+  return snapshot;
+})();
 const VALID_ACTIVATION_IDEMPOTENCY_KEY =
   deriveAccountActivationEmailIdempotencyKey({
     authSecret: "auth-secret",

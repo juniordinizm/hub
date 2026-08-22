@@ -2,13 +2,22 @@ import { describe, expect, it } from "vitest";
 import { buildContentSecurityPolicy } from "./content-security-policy";
 
 describe("content security policy", () => {
-  it("keeps production connections restricted to the application and TLS origins", () => {
+  it("restricts connections to the application and the Sentry ingest host", () => {
     expect(
       buildContentSecurityPolicy({
         additionalConnectOrigins: [],
         isProduction: true,
       })
-    ).toContain("connect-src 'self' https: wss:");
+    ).toContain("connect-src 'self' https://*.ingest.us.sentry.io");
+  });
+
+  it("frames only the application and the JMVStream player", () => {
+    expect(
+      buildContentSecurityPolicy({
+        additionalConnectOrigins: [],
+        isProduction: true,
+      })
+    ).toContain("frame-src 'self' https://player.jmvstream.com");
   });
 
   it("allows a validated E2E object-storage origin without changing other directives", () => {
@@ -18,7 +27,7 @@ describe("content security policy", () => {
     });
 
     expect(policy).toContain(
-      "connect-src 'self' https: wss: http://127.0.0.1:4568"
+      "connect-src 'self' https://*.ingest.us.sentry.io http://127.0.0.1:4568"
     );
     expect(policy).toContain("upgrade-insecure-requests");
   });

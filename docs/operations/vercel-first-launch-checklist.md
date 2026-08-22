@@ -175,11 +175,10 @@ Os dois environments também contêm `VERCEL_AUTOMATION_BYPASS_SECRET`, gerado
 pela Vercel exclusivamente para o smoke de readiness. Esse segredo não pertence
 ao runtime da aplicação, ao banco nem aos providers.
 
-**Detalhe de Preview:** o token final
-`GitHub hub deploy 2026-07` está limitado ao time `Neuro Capacitar`, que contém
-somente o projeto `hub`, e expira em 2026-10-24. O token anterior sem expiração
-foi revogado e os dois tokens publicados por engano não aparecem mais na
-listagem. Os jobs Preview e Production provaram o valor compartilhado de
+**Detalhe de Preview:** o token `GitHub hub deploy 2026-07` (expiração
+2026-10-24) foi **rotacionado em 2026-08-22**; a credencial atual e a respectiva
+expiração devem ser lidas no cofre de secrets, não neste documento. O histórico de
+revogações anteriores permanece registrado no Git. Os jobs Preview e Production provaram o valor compartilhado de
 readiness e a credencial GitHub. Se outro projeto entrar no time, segregar os
 deploys antes de reutilizar a credencial.
 

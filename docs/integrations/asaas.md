@@ -388,12 +388,8 @@ enriquecimento necessário.
 `GET /api/cron/asaas-webhooks` usa o guard compartilhado de `CRON_SECRET` e
 `SCHEDULED_JOBS_ENABLED`, adquire lease persistente de seis minutos e entrega ao worker o
 prazo interno de 270 segundos e a verificação de posse. Sobreposição retorna sucesso
-seguro sem processar. A agenda `* * * * *` em `vercel.json` é UTC. Isso prova somente o
-agendamento em código; deploy, habilitação e homologação permanecem pendentes.
-`requeueFailedAsaasWebhook` já oferece o primitivo
-transacional de retry administrativo somente para evento Asaas `failed` com payload
-presente, exigindo motivo e gravando `asaas_webhook.requeued`; action e UI ficam para a
-Etapa 8.
+seguro sem processar. A agenda `* * * * *` em `vercel.json` é UTC.
+O agendamento está ativo em Production desde 2026-08-21 (`SCHEDULED_JOBS_ENABLED=true`), e o retry administrativo de evento Asaas `failed` com payload presente está implementado como action (`retryFailedAsaasWebhookAction`, permissão `retryWebhook`) e exposto no painel de operações financeiras do Admin, exigindo motivo e gravando `asaas_webhook.requeued`.
 
 ## Eventos, valor e acesso
 
@@ -674,11 +670,10 @@ comprovadas no sandbox ou na conta:
 
 - eventos de risco do cartão, que não foram emitidos na compra Sandbox observada e
   permanecem cobertos por testes automatizados;
-- situação, aptidão e credenciais da conta de produção;
+- situação e aptidão da conta de produção (a credencial real e o webhook token já estão configurados e comprovados por sondas públicas em 2026-08-21);
 - confirmar em produção que a omissão de `imageBase64` continua aceita e monitorar
   breaking changes na divergência entre OpenAPI, guia e comportamento;
 - ausência ou disponibilidade futura de HMAC oficial;
-- credenciais, webhook e allowlist efetivos em produção.
 
 Referências adicionais:
 

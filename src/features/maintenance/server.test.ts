@@ -69,6 +69,7 @@ describe("runMaintenance", () => {
       .mockResolvedValueOnce({ rowCount: 11 })
       .mockResolvedValueOnce({ rowCount: 5 })
       .mockResolvedValueOnce({ rowCount: 6 })
+      .mockResolvedValueOnce({ rowCount: 12 })
       .mockResolvedValueOnce({ rowCount: 7 })
       .mockResolvedValueOnce({ rowCount: 1 });
     dependencies.getPool.mockReturnValue({ query });
@@ -84,6 +85,7 @@ describe("runMaintenance", () => {
       leaseLost: false,
       revokedCertificateArtifactsReconciled: 7,
       stagedAdminImagesRemoved: 8,
+      supportRequestsRemoved: 12,
       webhookPayloadsSanitized: 11,
     });
 
@@ -168,6 +170,7 @@ describe("runMaintenance", () => {
           leaseLost: false,
           revokedCertificateArtifactsReconciled: 7,
           stagedAdminImagesRemoved: 8,
+          supportRequestsRemoved: 12,
           webhookPayloadsSanitized: 11,
         }),
       ]

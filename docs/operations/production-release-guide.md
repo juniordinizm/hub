@@ -57,7 +57,7 @@ banco. Cada branch Neon mantém seu próprio journal.
 
 Você precisa de:
 
-- acesso ao repositório privado `juniordinizm/hub`;
+- acesso ao repositório `juniordinizm/hub` (publicado temporariamente como público para minutos de CI; a proteção de branches via ruleset exige repo público ou plano pago, e deixa de valer se o repo retornar a privado);
 - Git e Bun `1.3.11`;
 - `.env.local` de Development já aprovado;
 - permissão para abrir Pull Requests;

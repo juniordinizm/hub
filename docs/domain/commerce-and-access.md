@@ -39,8 +39,8 @@ externo e usa exclusivamente os snapshots obrigatórios de nome, descrição, va
 duração. As entradas autenticada e pública usam esse mesmo núcleo. O limite público é
 coordenado no PostgreSQL por HMAC de IP e ID canônico do Curso, com cinco novas intenções
 por dez minutos; uma tentativa já persistida não consome novamente o limite. As migrations
-`0044` a `0051` passaram em PostgreSQL descartável, mas ainda não foram aplicadas em
-Production.
+`0044` a `0051` foram promovidas a Production em 2026-07-31; o journal de
+Production acompanhou todas as promoções seguintes até `0064`.
 
 Quando a criação retorna `processing`, a página pública consulta a mesma tentativa por
 UUID opaco e slug, sem criar outro Checkout automaticamente. O navegador compartilha esse
@@ -59,7 +59,7 @@ o segredo server-only, limita o corpo antes de JSON e persiste eventos estrutura
 válidos antes de responder `200`. Duplicata também responde `200`; falha de banco não.
 O worker genérico separado possui claim, posse, stale-lock recovery, retry e conclusão
 CAS. A rota cron está agendada a cada minuto em `vercel.json`, sob kill switch, lease e
-deadline; o deploy de Production permanece pendente.
+deadline; está ativa em Production desde 2026-08-21.
 Payload vencido nunca volta ao worker: a manutenção sanitiza a evidência bruta e
 terminaliza qualquer evento não concluído com código seguro.
 
@@ -268,7 +268,8 @@ Ver [ADR-0009](../adr/0009-course-availability-and-sale-interest.md).
   Asaas existem em código. As migrations e os fluxos PIX, cartão, cancelamento,
   expiração, reembolso, conciliação e retry após indisponibilidade passaram em
   PostgreSQL descartável e Sandbox antes do novo handoff. O Sandbox não emitiu eventos de risco na compra de
-  cartão observada; esse ramo está coberto por testes automatizados. O corte de produção
-  permanece pendente. A jornada pública nova passou no servidor Asaas fake, no E2E com
+  cartão observada; esse ramo está coberto por testes automatizados. O corte comercial de
+  Production aconteceu em 2026-08-21, após o deployment `177259f`, com credencial real
+  e webhook ativo. A jornada pública nova passou no servidor Asaas fake, no E2E com
   PostgreSQL e em uma compra PIX Sandbox até a criação da senha, login e abertura do
   Curso.

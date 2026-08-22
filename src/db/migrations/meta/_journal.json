@@ -449,6 +449,13 @@
       "when": 1787347459385,
       "tag": "0063_support_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1787421713994,
+      "tag": "0064_certificates_preview_sha256",
+      "breakpoints": true
     }
   ]
 }

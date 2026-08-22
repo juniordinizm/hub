@@ -1244,6 +1244,7 @@ export const certificates = pgTable(
     issuedAt: timestamp("issued_at", tz).defaultNow().notNull(),
     pdfStorageKey: text("pdf_storage_key"),
     pdfSha256: text("pdf_sha256"),
+    previewSha256: text("preview_sha256"),
     renderedAt: timestamp("rendered_at", tz),
     renderStatus: certificateRenderStatusEnum("render_status")
       .default("pending")

@@ -20,6 +20,7 @@ interface MaintenanceResult {
   leaseLost: boolean;
   revokedCertificateArtifactsReconciled: number;
   stagedAdminImagesRemoved: number;
+  supportRequestsRemoved: number;
   webhookPayloadsSanitized: number;
 }
 
@@ -34,6 +35,7 @@ const emptyMaintenanceResult = (): MaintenanceResult => ({
   leaseLost: false,
   revokedCertificateArtifactsReconciled: 0,
   stagedAdminImagesRemoved: 0,
+  supportRequestsRemoved: 0,
   webhookPayloadsSanitized: 0,
 });
 
@@ -160,6 +162,14 @@ export const runMaintenance = async ({
     "delete from learning_analytics_events where occurred_at < now() - interval '90 days'"
   );
   result.learningAnalyticsEventsRemoved = analyticsEvents.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  const supportRequests = await pool.query(
+    "delete from support_requests where created_at < now() - interval '90 days'"
+  );
+  result.supportRequestsRemoved = supportRequests.rowCount ?? 0;
 
   if (!(await canContinue())) {
     return result;
