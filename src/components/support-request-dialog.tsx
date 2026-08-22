@@ -99,6 +99,7 @@ export function SupportRequestDialog({
                 <FieldLabel htmlFor="support-subject">Assunto</FieldLabel>
                 <Input
                   id="support-subject"
+                  maxLength={160}
                   name="subject"
                   placeholder={subject}
                   required
@@ -108,6 +109,7 @@ export function SupportRequestDialog({
                 <FieldLabel htmlFor="support-message">Mensagem</FieldLabel>
                 <Textarea
                   id="support-message"
+                  maxLength={1800}
                   name="message"
                   placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
                   required

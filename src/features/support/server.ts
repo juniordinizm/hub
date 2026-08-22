@@ -3,8 +3,10 @@ import { getPool } from "@/db";
 import { createSupportRequestMessage } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
 
-const SUPPORT_SUBJECT_MAX_LENGTH = 200;
-const SUPPORT_MESSAGE_MAX_LENGTH = 5000;
+const SUPPORT_SUBJECT_MAX_LENGTH = 160;
+const SUPPORT_MESSAGE_MAX_LENGTH = 1800;
+const SUPPORT_REQUEST_WINDOW_MINUTES = 10;
+const SUPPORT_REQUEST_MAX_PER_WINDOW = 3;
 
 const normalizeTextField = (value: string, maxLength: number): string => {
   const normalized = value.trim();
@@ -37,6 +39,22 @@ export const createSupportRequest = async ({
     SUPPORT_MESSAGE_MAX_LENGTH
   );
   const normalizedCourseTitle = courseTitle?.trim() || null;
+
+  const recentRequests = await getPool().query<{ count: string }>(
+    `
+      select count(*) as count
+      from support_requests
+      where user_id = $1
+        and created_at > now() - (${SUPPORT_REQUEST_WINDOW_MINUTES} * interval '1 minute')
+    `,
+    [userId]
+  );
+  const recentCount = Number(recentRequests.rows[0]?.count ?? 0);
+  if (recentCount >= SUPPORT_REQUEST_MAX_PER_WINDOW) {
+    throw new Error(
+      "Aguarde alguns minutos antes de enviar outra mensagem de suporte."
+    );
+  }
 
   const client = await getPool().connect();
   try {

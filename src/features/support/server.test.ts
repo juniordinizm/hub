@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   connect: vi.fn(),
   enqueueOutboxMessage: vi.fn(),
+  query: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({
-  getPool: () => ({ connect: dependencies.connect }),
+  getPool: () => ({ connect: dependencies.connect, query: dependencies.query }),
 }));
 vi.mock("@/features/outbox/server", () => ({
   enqueueOutboxMessage: dependencies.enqueueOutboxMessage,
@@ -29,6 +30,7 @@ const createClient = () => {
 describe("createSupportRequest", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dependencies.query.mockResolvedValue({ rows: [{ count: "0" }] });
     dependencies.enqueueOutboxMessage.mockResolvedValue({
       id: "outbox-1",
       inserted: true,
@@ -46,6 +48,10 @@ describe("createSupportRequest", () => {
       userId: "student-1",
     });
 
+    expect(dependencies.query).toHaveBeenCalledWith(
+      expect.stringContaining("select count(*) as count"),
+      ["student-1"]
+    );
     expect(client.query).toHaveBeenCalledWith("begin");
     expect(client.query).toHaveBeenCalledWith(
       expect.stringContaining("insert into support_requests"),
@@ -94,12 +100,38 @@ describe("createSupportRequest", () => {
   it("rejects oversized fields before opening a transaction", async () => {
     await expect(
       createSupportRequest({
-        message: "a".repeat(5001),
+        message: "a".repeat(1801),
         subject: "Dúvida controlada",
         userId: "student-1",
       })
     ).rejects.toThrow("Campo de suporte excede o tamanho permitido.");
 
+    await expect(
+      createSupportRequest({
+        message: "Mensagem de teste controlada.",
+        subject: "a".repeat(161),
+        userId: "student-1",
+      })
+    ).rejects.toThrow("Campo de suporte excede o tamanho permitido.");
+
+    expect(dependencies.query).not.toHaveBeenCalled();
     expect(dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it("rejects a student above the per-window request limit", async () => {
+    dependencies.query.mockResolvedValue({ rows: [{ count: "3" }] });
+
+    await expect(
+      createSupportRequest({
+        message: "Mensagem de teste controlada.",
+        subject: "Dúvida controlada",
+        userId: "student-1",
+      })
+    ).rejects.toThrow(
+      "Aguarde alguns minutos antes de enviar outra mensagem de suporte."
+    );
+
+    expect(dependencies.connect).not.toHaveBeenCalled();
+    expect(dependencies.enqueueOutboxMessage).not.toHaveBeenCalled();
   });
 });
