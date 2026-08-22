@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getClientIpAddress } from "./client-ip";
 
 describe("getClientIpAddress", () => {
-  it("uses the first address supplied by the trusted reverse proxy", () => {
+  it("uses the address appended by the trusted reverse proxy", () => {
     expect(
       getClientIpAddress(
         new Headers({
@@ -11,7 +11,27 @@ describe("getClientIpAddress", () => {
         }),
         "x-forwarded-for"
       )
-    ).toBe("203.0.113.10");
+    ).toBe("198.51.100.20");
+  });
+
+  it("ignores a client-forged forwarded entry", () => {
+    expect(
+      getClientIpAddress(
+        new Headers({
+          "x-forwarded-for": "1.2.3.4, 198.51.100.20",
+        }),
+        "x-forwarded-for"
+      )
+    ).toBe("198.51.100.20");
+  });
+
+  it("falls back to the real ip header without forwarding", () => {
+    expect(
+      getClientIpAddress(
+        new Headers({ "x-real-ip": "198.51.100.20" }),
+        "x-forwarded-for"
+      )
+    ).toBe("198.51.100.20");
   });
 
   it("uses Cloudflare's canonical address only in explicit Cloudflare mode", () => {
