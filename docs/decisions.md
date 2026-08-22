@@ -110,7 +110,7 @@ clique visível em condições normais, mas cria a tentativa por `POST` para evi
 **Tema:** retenção, privacidade e acessibilidade.
 **Estado:** manutenção técnica implementada; política jurídica de dados pendente.
 
-O workflow de solicitações e anonimização foi removido: não havia solicitante, operação administrativa recorrente ou plano aprovado. O cron de manutenção preserva apenas limpeza técnica de sessões, rate limits e analytics. Se houver pedido real no futuro, será necessário definir política jurídica, fluxo e auditoria antes de criar nova funcionalidade. Ledger financeiro e evidências necessárias para auditoria/defesa não devem ser apagados por atalho.
+O workflow de solicitações e anonimização foi removido: não havia solicitante, operação administrativa recorrente ou plano aprovado. O cron de manutenção preserva apenas limpeza técnica de sessões, rate limits, analytics e mensagens de suporte (expiradas após 90 dias desde 2026-08-22). Se houver pedido real no futuro, será necessário definir política jurídica, fluxo e auditoria antes de criar nova funcionalidade. Ledger financeiro e evidências necessárias para auditoria/defesa não devem ser apagados por atalho.
 
 ## DEC-DISC-009
 
@@ -121,7 +121,7 @@ Para a plataforma pequena atual, analytics técnico minimizado fica habilitado p
 
 Admin vê somente métricas agregadas por Aula e `CoursePublication`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 90 dias para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
 
-Esta decisão de produto não prova base legal ou conformidade LGPD. Antes da ativação em produção, é obrigatória ratificação jurídica da base legal, transparência, prazos e canal de direitos aplicáveis.
+A ratificação jurídica exigida por esta decisão foi concedida pelo responsável de produto em 2026-08-21, cobrindo base legal, transparência, prazos e canal de direitos declarados na política de privacidade pública.
 
 ## DEC-DISC-010
 
@@ -225,6 +225,24 @@ Ativação legada de conta e mensagem do formulário de suporte são entregues p
 com retentativa, idempotência e dead-letter; o suporte migrou para a outbox no PR do
 Sprint 1 de 2026-08-21, com o agregado `support_requests`.
 
+## DEC-DISC-016
+
+**Tema:** compartilhamento consciente de providers entre ambientes.
+**Estado:** risco aceito formalmente em 2026-08-22 pelo responsável de produto.
+
+Development e Staging compartilham recursos de Production em dois providers, por decisão
+explícita e não por acidente:
+
+- JMVStream: o plano Production `OD-20912` é reutilizado por Development e Staging;
+  não há isolamento técnico entre vídeos de teste e reais. A regra operacional proíbe
+  remoção/movimentação de ativos preexistentes e exige vídeos descartáveis.
+- Resend: o domínio verificado `neurocapacitar.com.br` é compartilhado; Development e
+  Staging permanecem restritos por allowlist de destinatários.
+
+Owner: engenharia. Mitigações: allowlists por ambiente, remetente identificado com
+sufixo Dev em Development, guarda de ambiente que rejeita credenciais fora do escopo
+aprovado. Reabrir se um terceiro passar a operar os ambientes ou se um provider oferecer
+isolamento sem custo adicional.
 ## Outras ratificações necessárias
 
 - tratamento de compra pública com e-mail já pertencente a Admin/Suporte;

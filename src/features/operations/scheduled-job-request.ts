@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
 
@@ -9,6 +10,20 @@ const getBearerToken = (authorization: string | null): string | null => {
   return authorization.slice("Bearer ".length).trim() || null;
 };
 
+const matchesCronSecret = (
+  expectedSecret: string,
+  receivedToken: string | null
+): boolean => {
+  if (!receivedToken) {
+    return false;
+  }
+
+  return timingSafeEqual(
+    createHash("sha256").update(expectedSecret, "utf8").digest(),
+    createHash("sha256").update(receivedToken, "utf8").digest()
+  );
+};
+
 export const getScheduledJobEarlyResponse = (
   request: Request
 ): Response | null => {
@@ -16,7 +31,7 @@ export const getScheduledJobEarlyResponse = (
   const receivedToken = getBearerToken(request.headers.get("authorization"));
 
   if (env.CRON_SECRET) {
-    if (receivedToken !== env.CRON_SECRET) {
+    if (!matchesCronSecret(env.CRON_SECRET, receivedToken)) {
       return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
     }
   } else if (env.NODE_ENV === "production") {

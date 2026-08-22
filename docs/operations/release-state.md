@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: edeb858
-deployed_commit: edeb858
+last_verified_commit: bbf89ad
+deployed_commit: bbf89ad
 deployed_environment: production
-verified_commit: edeb858
+verified_commit: bbf89ad
 verified_environment: production
-documented_commit: edeb858
+documented_commit: bbf89ad
 documented_environment: production
 ---
 
@@ -18,8 +18,8 @@ Este documento separa três fatos que não podem ser tratados como sinônimos:
 - `verified_*`: último commit que passou os gates locais/remotos conhecidos;
 - `documented_*`: commit contra o qual esta documentação foi conferida.
 
-O estado atual registra `edeb858` ("release: promote validated staging to main
-#45") como o deployment de Production publicado em 2026-08-21 pelo workflow
+O estado atual registra `bbf89ad` ("Merge pull request #47", promovendo o
+`85e58a8`) como o deployment de Production publicado em 2026-08-22 pelo workflow
 protegido, servindo `app.neurocapacitar.com.br`. A janela de manutenção desse
 release aplicou a migration `0063_support_requests`, promoveu o deployment
 verificado e devolveu o ambiente ao estado comercial aberto por redeploy do

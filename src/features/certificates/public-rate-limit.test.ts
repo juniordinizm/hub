@@ -36,7 +36,7 @@ describe("public certificate lookup", () => {
     );
 
     const expectedAddressHash = createHmac("sha256", "test-secret")
-      .update("203.0.113.10")
+      .update("198.51.100.20")
       .digest("hex");
     expect(query).toHaveBeenCalledWith(
       expect.any(String),

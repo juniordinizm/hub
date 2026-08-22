@@ -15,7 +15,13 @@ export const getClientIpAddress = (
     return validAddressOrUnknown(headers.get("cf-connecting-ip"));
   }
 
-  const forwardedAddress =
-    headers.get("x-forwarded-for")?.split(",")[0] ?? null;
+  // The client controls the leftmost x-forwarded-for entries; the trusted
+  // reverse proxy appends the observed peer address last.
+  const forwardedEntries = headers
+    .get("x-forwarded-for")
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  const forwardedAddress = forwardedEntries?.at(-1) ?? null;
   return validAddressOrUnknown(forwardedAddress || headers.get("x-real-ip"));
 };

@@ -43,8 +43,9 @@ export default function PrivacyNoticePage(): React.JSX.Element {
           </p>
           <p>
             Registros brutos ficam por até 90 dias e métricas agregadas por até
-            13 meses. Para exercer direitos sobre seus dados, use o canal de
-            suporte informado pela PROTEA-R.
+            13 meses. Mensagens enviadas pelo formulário de suporte ficam
+            registradas por até 90 dias para atendimento. Para exercer direitos
+            sobre seus dados, use o canal de suporte informado pela PROTEA-R.
           </p>
         </section>
       </article>
