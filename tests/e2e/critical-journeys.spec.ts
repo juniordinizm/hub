@@ -800,7 +800,9 @@ test("refund requires password and explicit destructive confirmation @mobile", a
   await page.context().clearCookies();
   await signIn(page, fixture.support, ADMIN_URL_PATTERN);
   await page.goto(`/admin/financeiro?q=${attemptId}`);
-  await expect(page.getByText(`checkout chk_${attemptId}`)).toBeVisible();
+  await expect(
+    page.getByText(`checkout chk_${attemptId}`, { exact: true }).first()
+  ).toBeVisible();
   const refundDisclosure = page
     .getByText("Solicitar estorno integral", { exact: true })
     .first();
