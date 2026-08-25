@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
+last_verified_commit: 2aea10a19e8c3e4267358afd52b531713b9a1e2a
 deployed_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 deployed_environment: production
 verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
@@ -105,6 +105,21 @@ Production continua no commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`, sem deploy, alias, migration,
 configuração, dado, DNS ou venda alterados por este checkpoint. A decisão
 histórica e atual permanece `NO-GO`.
+
+### Atualização Resend/Sentry em Staging
+
+O merge do PR `#58` produziu `2aea10a19e8c3e4267358afd52b531713b9a1e2a`. O deploy
+`32879658351` publicou o mesmo SHA, backup `staging-release-32879658351-1`, e a
+rota de readiness Resend com segredo Sensitive exclusivo de Staging. O primeiro
+run de lifecycle `32875321220` falhou antes de criar mensagem; após a correção,
+o run `32880106811` confirmou `email.sent`, `email.delivered`, estado final
+`delivered` e correlação sanitizada. O workflow normal de Staging também passou a
+chamar o worker Resend a cada cinco minutos.
+
+O Sentry continua no projeto histórico `hub-development`; a prova técnica de
+release/source map/evento permanece válida, mas `scrubIPAddresses=false` e o
+alerta sem filtro de ambiente/canal institucional mantêm o gate aberto. Nenhum
+projeto foi removido ou renomeado.
 
 ## Atualização
 

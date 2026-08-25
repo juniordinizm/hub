@@ -767,15 +767,15 @@ Correções adicionais foram versionadas nos commits `e6bac3a`, `1b6707e`,
 | `F-002` | `open` | código, workflow e testes do backup/restore existem | faltam bucket/role reais, dois backups, restore real, RPO e RTO |
 | `F-003` | `closed` | quatro concorrentes => três commits e uma rejeição em PostgreSQL | nenhum finding conhecido |
 | `F-004` | `closed` | geração obsoleta termina `superseded`, sem envio/retry | nenhum finding conhecido |
-| `F-005` | `closed` | assinatura, inbox idempotente, 5.040 permutações e integração PostgreSQL | ativação do webhook real permanece gate operacional |
+| `F-005` | `closed` | assinatura, inbox idempotente, 5.040 permutações, lifecycle real `32880106811` e integração PostgreSQL | corrida específica webhook/aceitação e alerta operacional |
 | `F-006` | `open` | parser e runbook implementados | DMARC público continua `p=none`; faltam janelas e progressão até `reject` |
 | `F-007` | `closed` | documentação consolidada, release-state separado e `docs:check` em CI | checker externo do candidato será obrigatório no release |
 | `F-008` | `closed` | sete caracteres rejeitados e oito aceitos em cadastro/reset/backend | nenhum finding conhecido |
 | `F-009` | `closed` | Axe `moderate+`, teclado/foco, 33 desktop e oito mobile | ampliar matriz quando novas jornadas críticas surgirem |
 | `F-010` | `open` | ecossistema Bun e política de grupos configurados | falta PR Dependabot real alterando `bun.lock` e passando CI |
 
-Além dos findings numerados, permanecem abertos: restore remoto; configuração e
-evento controlado do Resend; progressão DMARC; consolidação Sentry com release,
+Além dos findings numerados, permanecem abertos: restore remoto; corrida/alerta
+operacional do Resend; progressão DMARC; consolidação Sentry com release,
 source map, evento sanitizado e alerta; duas Contas Admin humanas com TOTP e
 backup code; checker do deployment candidato e smokes não destrutivos.
 
