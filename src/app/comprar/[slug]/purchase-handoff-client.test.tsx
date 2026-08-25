@@ -19,7 +19,8 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const FIRST_ATTEMPT = "11111111-1111-4111-8111-111111111111";
 const SECOND_ATTEMPT = "22222222-2222-4222-8222-222222222222";
-const STORAGE_KEY = "hub:checkout-attempt:curso-publico";
+const STORAGE_KEY = "hub:checkout-attempt:v3:curso-publico";
+const LEGACY_STORAGE_KEY = "hub:checkout-attempt:curso-publico";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -343,6 +344,29 @@ describe("PurchaseHandoffClient", () => {
       courseSlug: "curso-publico",
     });
     expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
+  });
+
+  it("nao reutiliza tentativa gravada antes da troca da conta Asaas", async () => {
+    sessionStorage.setItem(LEGACY_STORAGE_KEY, FIRST_ATTEMPT);
+    fetchMock.mockResolvedValue(
+      response({
+        orderId: "order-2",
+        retryAllowed: false,
+        status: "processing",
+      })
+    );
+
+    await renderHandoff();
+    await flushEffects();
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body)).checkoutAttemptId).toBe(
+      FIRST_ATTEMPT
+    );
+    expect(sessionStorage.getItem(STORAGE_KEY)).toMatch(
+      new RegExp(`^v2:\\d+:${FIRST_ATTEMPT}$`)
+    );
+    expect(globalThis.crypto.randomUUID).toHaveBeenCalledOnce();
   });
 
   it("reusa entre abas a tentativa ainda valida sem criar outro checkout", async () => {
