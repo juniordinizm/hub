@@ -992,5 +992,8 @@ O commit candidato atual adiciona listener aos pools de aplicação e readiness,
 emite evento operacional sanitizado e não relança a exceção. O teste
 `src/db/index.test.ts` reproduz o callback do pool e exige código
 `database_pool_client_error`; teste focal, TypeScript e Ultracite passaram. A
-requalificação externa do fix ainda depende de CI e deploy de Staging; Production
-continua congelada.
+CI 32885237608 e o deploy Staging 32886494503 passaram. A rodada de workers
+32886769013 executou /api/cron/outbox com HTTP 200 e outcome=success; a leitura
+Sentry de 24h manteve o Issue histórico com lastSeen=16:02:56Z e não mostrou
+nova ocorrência após o fix. O Issue continua aberto para triagem humana, sem
+resolução automática. Production continua congelada.
