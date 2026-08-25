@@ -339,6 +339,9 @@ O journal aplicado em Production possui quatro hashes históricos que diferem do
 hoje versionado (`0009`, `0037`, `0038` e `0039`). O contrato fixa os hashes realmente
 aplicados e calcula os outros 40 com quebras de linha LF canônicas, evitando divergência
 artificial em checkouts Windows com CRLF sem enfraquecer a comparação linha a linha.
+O migrador E2E aplica a mesma distinção sem lista de exceções: reconstrói o arquivo
+Drizzle e aceita somente os hashes LF/CRLF do conteúdo idêntico. Diferença de SQL,
+timestamp ausente ou hash fora desse par continua exigindo recriação da branch.
 
 Em 2026-07-29, executor e CLI foram validados numa clone descartável de Production: o
 `plan` real passou em transação somente leitura, sem alterar o schema `public`; a suíte

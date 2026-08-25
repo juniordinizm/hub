@@ -241,7 +241,11 @@ repetem a mesma validação. Processos mutadores exigem igualdade exata entre `D
 O migrador E2E também fixa `DATABASE_URL_DIRECT` no mesmo alvo antes de carregar a
 configuração Drizzle, impedindo que `.env.local` selecione outra branch.
 Ele recusa hosts pooler e aplica cada arquivo de migration em sua própria
-transação, validando hash e timestamp do journal. Arquivos apenas com comentários
+transação, validando hash e timestamp do journal. Para migrations já aplicadas,
+somente os hashes SHA-256 do mesmo conteúdo com LF ou CRLF são equivalentes;
+isso permite que um parent historicamente migrado no Windows seja qualificado
+por runner Linux sem aceitar alteração de SQL. Qualquer terceiro hash permanece
+drift bloqueante. Arquivos apenas com comentários
 também são registrados, sem executar SQL vazio. Cada qualificação deve começar
 em uma branch recém-criada ou resetada a partir do parent autorizado; o teardown
 global remove objetos externos da fixture, enquanto a exclusão da branch Neon é

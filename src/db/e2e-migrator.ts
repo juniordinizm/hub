@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { MigrationMeta } from "drizzle-orm/migrator";
 import type { PoolClient } from "pg";
 
@@ -8,6 +9,25 @@ interface AppliedMigrationRow {
 
 const COMMENT_ONLY_LINE = /^\s*(?:--.*)?$/;
 const MIGRATION_LINE_BREAK = /\r?\n/;
+const MIGRATION_LINE_ENDING = /\r\n?|\n/g;
+const STATEMENT_BREAKPOINT = "--> statement-breakpoint";
+
+const sha256 = (value: string): string =>
+  createHash("sha256").update(value).digest("hex");
+
+const isCompatibleMigrationHash = (
+  migration: MigrationMeta,
+  appliedHash: string
+): boolean => {
+  const source = migration.sql.join(STATEMENT_BREAKPOINT);
+  const lfSource = source.replace(MIGRATION_LINE_ENDING, "\n");
+  const compatibleHashes = new Set([
+    migration.hash,
+    sha256(lfSource),
+    sha256(lfSource.replaceAll("\n", "\r\n")),
+  ]);
+  return compatibleHashes.has(appliedHash);
+};
 
 export const hasExecutableMigrationSql = (statement: string): boolean =>
   statement
@@ -29,7 +49,7 @@ const assertAppliedJournalMatches = ({
   for (const row of applied) {
     const timestamp = Number(row.created_at);
     const local = localByTimestamp.get(timestamp);
-    if (!(local && local.hash === row.hash)) {
+    if (!(local && isCompatibleMigrationHash(local, row.hash))) {
       throw new Error(
         `E2E migration journal drift at ${row.created_at}; recreate the disposable branch.`
       );

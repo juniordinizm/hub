@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { MigrationMeta } from "drizzle-orm/migrator";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -10,6 +11,9 @@ const migration = (
   hash: string,
   sql: string[]
 ): MigrationMeta => ({ bps: true, folderMillis, hash, sql });
+
+const sha256 = (value: string): string =>
+  createHash("sha256").update(value).digest("hex");
 
 describe("E2E per-file migrator", () => {
   it("commits every file separately and journals comment-only baselines", async () => {
@@ -77,6 +81,29 @@ describe("E2E per-file migrator", () => {
         migrations: [migration(1, "hash-1", ["select 1"])],
       })
     ).rejects.toThrow("E2E migration journal drift at 1");
+  });
+
+  it("accepts a historical hash that differs only by line endings", async () => {
+    const sql = "create table example (id integer);\nselect 1;\n";
+    const client = {
+      query: vi.fn(async (statement: string) => ({
+        rows: statement.trim().startsWith("select hash")
+          ? [
+              {
+                created_at: "1",
+                hash: sha256(sql.replaceAll("\n", "\r\n")),
+              },
+            ]
+          : [],
+      })),
+    };
+
+    await expect(
+      applyE2eMigrationsPerFile({
+        client: client as never,
+        migrations: [migration(1, sha256(sql), [sql])],
+      })
+    ).resolves.toBeUndefined();
   });
 
   it("recognizes blank and line-comment-only statements", () => {
