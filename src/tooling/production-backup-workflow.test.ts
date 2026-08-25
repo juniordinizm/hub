@@ -53,6 +53,9 @@ describe("production database backup workflow", () => {
       "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377"
     );
     expect(source).toContain("postgresql-client-18");
+    expect(source).toContain(
+      `export PATH="/usr/lib/postgresql/18/bin:\${PATH}"`
+    );
     expect(source).toContain("pg_dump --version");
     expect(source).toContain("age --version");
     expect(source).not.toContain("upload-artifact");
