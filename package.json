@@ -116,6 +116,7 @@
     "ops:audit:buyer-identities": "bun scripts/audit-buyer-identities.ts --summary",
     "ops:analyze:dmarc": "bun scripts/analyze-dmarc-report.ts",
     "ops:check:sentry-readiness": "bun scripts/check-sentry-readiness.ts",
+    "ops:check:resend-lifecycle:staging": "bun scripts/check-staging-resend-lifecycle.ts",
     "ops:cleanup:ci-neon": "bun src/tooling/neon-ci-branch-cleanup.ts",
     "ops:cleanup:release-backups": "bun src/tooling/neon-release-backup-cleanup.ts",
     "ops:backup:production": "bun scripts/create-production-backup.ts",

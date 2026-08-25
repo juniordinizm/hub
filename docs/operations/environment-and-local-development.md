@@ -183,6 +183,15 @@ As seis rotas cron, inclusive `/api/cron/asaas-webhooks` e
 UTC, mas deve permanecer desabilitado até migrations, configuração e homologação do
 ambiente alvo.
 
+Vercel Cron executa no deployment Production. Staging usa
+`.github/workflows/run-staging-jobs.yml`: a agenda de cinco minutos deve chamar
+Asaas, outbox, JMVStream e Resend; omitir qualquer inbox deixa o ambiente sem
+projeção equivalente. A prova manual do Resend usa
+`.github/workflows/verify-staging-resend-lifecycle.yml`, exige confirmação
+`SEND_CONTROLLED_STAGING_PASSWORD_RESET`, roda somente no GitHub Environment
+`vercel-staging` e publica apenas estado, tipos de evento, contagem e UUID de
+correlação. O e-mail controlado, token e conteúdo nunca pertencem ao log.
+
 As quatro variáveis Asaas são opcionais no parser; o factory exige as três do adapter e a
 rota de webhook exige o token próprio. Development exige as quatro para a homologação
 sandbox. Production permite
