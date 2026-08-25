@@ -775,6 +775,7 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
   const manageButton = enrollmentRow.getByRole("button", {
     name: "Consultar",
   });
+  await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
@@ -1107,7 +1108,9 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
   const studentRow = page
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
-  await studentRow.getByRole("button", { name: "Gerenciar" }).click();
+  const manageButton = studentRow.getByRole("button", { name: "Gerenciar" });
+  await expect(manageButton).toHaveAttribute("data-state", "closed");
+  await manageButton.click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(
@@ -1144,7 +1147,11 @@ test("admin manages a student from the course context Sheet", async ({
   const enrollmentRow = page
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
-  await enrollmentRow.getByRole("button", { name: "Gerenciar" }).click();
+  const manageButton = enrollmentRow.getByRole("button", {
+    name: "Gerenciar",
+  });
+  await expect(manageButton).toHaveAttribute("data-state", "closed");
+  await manageButton.click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
