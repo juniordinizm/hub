@@ -61,7 +61,7 @@ jobs:
         with:
           bun-version: 1.3.11
       - run: bun install --frozen-lockfile
-      - name: Verify Staging deployment configuration
+      - name: Verify Staging workflow configuration
         run: |
           set -euo pipefail
           for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY STAGING_DATABASE_HOST STAGING_NEON_BRANCH_ID STAGING_NEON_PROJECT_ID VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
@@ -127,24 +127,89 @@ jobs:
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
       - name: Deploy exact SHA to the Staging target
+        id: deployment
         env:
           DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.sha }}
         run: |
-          bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
-            --target=staging \
-            --meta "githubCommitRef=staging" \
-            --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
-            --token="$VERCEL_TOKEN"
-      - name: Smoke stable Staging domain
+          set -euo pipefail
+          deployment_url="$(
+            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
+              --target=staging \
+              --meta "githubCommitRef=staging" \
+              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --token="$VERCEL_TOKEN" \
+              --no-color
+          )"
+          if [[ ! "${deployment_url}" =~ ^https://[a-zA-Z0-9.-]+\.vercel\.app$ ]]; then
+            echo "Vercel did not return a valid deployment URL." >&2
+            exit 1
+          fi
+          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
+      - name: Smoke exact deployment and stable Staging domain
+        env:
+          DEPLOYMENT_URL: ${{ steps.deployment.outputs.url }}
         run: |
           set -euo pipefail
-          headers="$(mktemp)"
-          curl --fail --silent --show-error --dump-header "${headers}" \
-            "https://preview.neurocapacitar.com.br/" > /dev/null
-          grep -iq '^x-robots-tag:.*noindex' "${headers}"
-          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            "https://preview.neurocapacitar.com.br/sitemap.xml")"
-          [[ "${status}" == "404" ]]
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
-            "https://preview.neurocapacitar.com.br/api/health/ready" > /dev/null
+
+          smoke_origin() {
+            local origin="$1"
+            local headers
+            local sitemap_status
+            local webhook_status
+            headers="$(mktemp)"
+
+            if ! curl --fail --silent --show-error --dump-header "${headers}" \
+              "${origin}/" > /dev/null; then
+              rm -f "${headers}"
+              return 1
+            fi
+            if ! grep -iq '^x-robots-tag:.*noindex' "${headers}"; then
+              rm -f "${headers}"
+              return 1
+            fi
+            sitemap_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              "${origin}/sitemap.xml")"
+            if [[ "${sitemap_status}" != "404" ]]; then
+              rm -f "${headers}"
+              return 1
+            fi
+            if ! curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+              "${origin}/api/health/ready" > /dev/null; then
+              rm -f "${headers}"
+              return 1
+            fi
+            webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --request POST \
+              --header 'Content-Type: application/json' \
+              --data '{}' \
+              "${origin}/api/webhooks/resend")"
+            rm -f "${headers}"
+            [[ "${webhook_status}" == "400" ]]
+          }
+
+          smoke_origin "${DEPLOYMENT_URL}"
+
+          deployment_json="$(
+            bunx vercel@57.0.0 inspect "${DEPLOYMENT_URL}" \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          jq -e \
+            --arg alias "preview.neurocapacitar.com.br" \
+            '.target == "staging" and .readyState == "READY" and (.aliases | index($alias) != null)' \
+            <<< "${deployment_json}" > /dev/null
+
+          stable_origin="https://preview.neurocapacitar.com.br"
+          for attempt in $(seq 1 12); do
+            if smoke_origin "${stable_origin}"; then
+              exit 0
+            fi
+            if [[ "${attempt}" -lt 12 ]]; then
+              sleep 5
+            fi
+          done
+          echo "Stable Staging smoke did not converge to a healthy deployment." >&2
+          exit 1
