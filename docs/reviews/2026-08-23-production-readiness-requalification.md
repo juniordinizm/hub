@@ -828,9 +828,12 @@ O token local separado de leitura funciona com `org:read`/`project:read`; o 403
 deixou de ser blocker de inspeção. A evidência confirma que Production ainda
 envia para o projeto histórico, enquanto a release foi duplicada no projeto
 novo. Um único projeto neutro com filtros por environment continua sendo a
-topologia aprovada. A regressão de ciclo encontrada nessa inspeção foi corrigida
-no commit `801a1ce`; ingestão real, source map e alerta institucional permanecem
-abertos.
+topologia aprovada. `sentry-cli sourcemaps explain --force` reconheceu release,
+exceção e stack do evento, mas confirmou que a release não possui artefatos
+enviados; a própria CLI marca esse diagnóstico como deprecated, por isso a
+evidência decisiva continua sendo o frame sem contexto e o futuro probe. A
+regressão de ciclo encontrada nessa inspeção foi corrigida no commit `801a1ce`;
+ingestão real, source map e alerta institucional permanecem abertos.
 
 ### 21.4 Dependabot e decisão
 

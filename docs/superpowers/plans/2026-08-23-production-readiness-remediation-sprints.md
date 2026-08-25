@@ -1694,7 +1694,8 @@ Issues/688 ocorrências, das quais 671 eram um loop do sanitizador recursivo
 durante verificação local Windows classificada como Production. O teste focado
 reproduziu o mesmo `RangeError`; o commit `801a1ce` tornou referências circulares
 serializáveis e manteve a remoção de PII. Os frames continuaram minificados, sem
-contexto resolvido, portanto source map real segue como gate aberto.
+contexto resolvido. A CLI reconheceu release/stack, mas informou que a release
+não tem artefatos enviados; portanto source map real segue como gate aberto.
 
 **Modificar:**
 
