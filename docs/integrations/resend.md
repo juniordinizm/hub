@@ -174,6 +174,15 @@ lifecycle originado pelo Resend, a corrida real webhook/aceitação, confirmaç�
 de entrega final e alerta operacional gratuito para dead letter/retry/bounce e
 complaint.
 
+O lifecycle controlado é reproduzido por dispatch do workflow
+`Verify Staging Resend lifecycle` na branch `staging`, com a confirmação literal
+`SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O job usa a Conta Admin controlada já
+allowlisted, recusa outro origin/host/branch, gera um reset sem usar o link,
+aciona o worker autenticado e exige `email.sent` e `email.delivered` processados,
+mensagem `delivered`, zero conflito e zero erro. Não execute o script localmente,
+não substitua a Conta controlada e não copie o e-mail ou URL de reset para a
+saída. A prova não cria sessão, não altera senha e não envolve checkout.
+
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de
 operação aponta para outra conta e não deve ser usado como autoridade sobre a
@@ -185,4 +194,5 @@ na caixa destinatária.
 `src/features/email/server.ts`, `src/features/email-delivery/*`,
 `src/app/api/webhooks/resend/route.ts`,
 `src/app/api/cron/resend-webhooks/route.ts`, migration `0067`,
-`src/lib/env.ts` e `src/lib/production-environment.ts`.
+`src/lib/env.ts`, `src/lib/production-environment.ts`,
+`scripts/check-staging-resend-lifecycle.ts` e os workflows de Staging.

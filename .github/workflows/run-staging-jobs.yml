@@ -44,6 +44,7 @@ jobs:
             call_job "/api/cron/asaas-webhooks" || failed=1
             call_job "/api/cron/outbox" || failed=1
             call_job "/api/cron/jmvstream" || failed=1
+            call_job "/api/cron/resend-webhooks" || failed=1
           fi
           if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "0 10 * * *" ]]; then
             call_job "/api/cron/enrollments" || failed=1
