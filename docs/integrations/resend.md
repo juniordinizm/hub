@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 ---
 
 # Resend e e-mail institucional
@@ -154,11 +154,25 @@ Estado da liberação inicial:
 6. [x] Confirmar remetente, `Reply-To` e estado `delivered`.
 7. [x] Executar um reset de senha real após o primeiro deployment.
 8. [ ] Confirmar SPF, DKIM e DMARC nos cabeçalhos da mensagem de aplicação.
-9. [ ] Implantar a rota e cadastrar somente `email.sent`,
+9. [x] Implantar a rota e cadastrar somente `email.sent`,
    `email.delivery_delayed`, `email.delivered`, `email.failed`,
    `email.suppressed`, `email.bounced` e `email.complained`.
 10. [ ] Provar assinatura, duplicata e corrida webhook/aceitação no ambiente
     real sem registrar endereço ou conteúdo.
+
+Em 2026-08-25, Staging recebeu a migration `0067`, a rota implantada e a
+inscrição Resend `72383e2a-c8f4-4d9b-9d59-e25a700f74b8`, apontando somente para
+`https://preview.neurocapacitar.com.br/api/webhooks/resend` com os sete eventos
+allowlisted. O signing secret está apenas na variável sensível do target
+Staging da Vercel; seu valor não foi lido, exibido ou versionado.
+
+Um evento controlado com envelope Svix e formato do provider retornou HTTP 200;
+a repetição byte a byte do mesmo `svix-id` também retornou 200, provando
+assinatura e idempotência no ambiente persistente sem enviar e-mail. Essa prova
+fecha a parte de assinatura/duplicata, não todo o item 10: ainda faltam um
+lifecycle originado pelo Resend, a corrida real webhook/aceitação, confirmação
+de entrega final e alerta operacional gratuito para dead letter/retry/bounce e
+complaint.
 
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de

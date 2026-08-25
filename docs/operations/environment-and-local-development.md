@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 ---
 
 # Ambiente e desenvolvimento local
@@ -210,7 +210,7 @@ confirme um bucket de produção.
   `INTERNAL_BOOTSTRAP_SECRET`, `E2E_*`, `SMOKE_DATABASE_URL` e
   `CERTIFICATE_CONCURRENCY_DATABASE_URL`.
 
-Em produção, `instrumentation.ts` chama `getServerEnv` no startup Node. O
+Em produção, `src/instrumentation.ts` chama `getServerEnv` no startup Node. O
 processo encerra antes de servir tráfego quando uma capacidade obrigatória
 está ausente. A lista de nomes fica em
 `src/lib/production-environment.ts` para Production e

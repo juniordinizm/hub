@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 requalification_result: no_go
 requalification_date: 2026-08-25
 current_sprint: 7
@@ -864,3 +864,111 @@ essa prova local não substitui a CI verde no próximo SHA candidato.
 A decisão permanece `NO-GO`. O checkpoint reduziu unknowns, corrigiu uma
 regressão do candidato e tornou os próximos passos verificáveis, mas não fechou
 nenhum dos três findings externos restantes.
+
+## 22. Qualificação mutável de Staging de 25 de agosto
+
+### 22.1 Escopo autorizado
+
+A proprietária esclareceu que o congelamento vale somente para Production.
+Staging/Preview foi autorizado para merge, migration, configuração de provider e
+deploy controlado. Continuaram proibidos: deploy ou promoção Production,
+alteração de `app.neurocapacitar.com.br`, migration ou dado Production, DNS ou
+provider Production e venda real. A venda supervisionada continua exclusiva do
+pós-deploy Production.
+
+### 22.2 CI, migrations e deployment de Staging
+
+Os PRs `#52`, `#53` e `#54` foram integrados somente em `staging`. O PR `#54`
+corrigiu a convenção de inicialização do Next.js 16: como a aplicação usa
+`src/app`, `instrumentation.ts` passou da raiz para `src/instrumentation.ts`.
+Testes focados 16/16, TypeScript, Ultracite e build local passaram antes do PR.
+
+A CI do PR `32861233212` aprovou quality em `1m34s`, PostgreSQL em `4m04s`,
+browser em `3m53s` e build/audit em `1m10s`. A CI do merge `32862430399` aprovou
+quality em `2m02s`, PostgreSQL em `1m09s`, 41/41 jornadas browser em `4,4 min`
+e build/audit em `1m00s`. As branches Neon efêmeras foram removidas pelos jobs.
+
+O merge produziu o SHA
+`aceeaf830cf75667df8ce21e5b586d47155dd5ac`. O workflow protegido
+`32863445174` verificou esse SHA antes de qualquer escrita. O primeiro attempt
+parou antes de migration com HTTP 422 `BRANCHES_LIMIT_EXCEEDED`. O dry-run
+`32863728656` preservou o backup mais recente e selecionou somente dois backups
+antigos; o execute `32863793696` removeu exatamente
+`br-mute-rice-acnbv19a` e `br-sweet-paper-acwarrnk`, preservando
+`br-little-silence-acmi27kr`. Nenhum branch Production foi selecionado.
+
+Na tentativa 2, o workflow criou `staging-release-32863445174-2`, verificou sua
+ancestralidade, aplicou `0065`–`0067` à branch persistente de Staging e publicou
+o deployment `dpl_FZ3WPZfrjAgD6jQPR7s4zvneePNu`. A Vercel confirmou target
+`staging`, estado `READY`, endereço exato
+`https://hub-ijsiilv7k-neuro-capacitar.vercel.app` e aliases
+`preview.neurocapacitar.com.br` e `hub-env-staging-neuro-capacitar.vercel.app`.
+O smoke do endereço exato passou antes da conferência do alias estável: raiz,
+`X-Robots-Tag: noindex`, sitemap 404, readiness autenticada e webhook Resend
+rejeitando envelope inválido com 400. O mesmo conjunto passou no alias.
+
+### 22.3 Resend em Staging
+
+A rota e a migration `0067` estão implantadas. A inscrição Resend
+`72383e2a-c8f4-4d9b-9d59-e25a700f74b8` aponta para
+`https://preview.neurocapacitar.com.br/api/webhooks/resend` e contém somente
+`email.sent`, `email.delivery_delayed`, `email.delivered`, `email.failed`,
+`email.suppressed`, `email.bounced` e `email.complained`. O signing secret está
+somente na variável sensível Staging da Vercel.
+
+Um envelope controlado, assinado e no formato do provider retornou 200. A
+repetição byte a byte com o mesmo `svix-id` também retornou 200, sem e-mail e sem
+persistir endereço ou conteúdo. Assinatura e duplicata reais do ambiente estão
+provadas. Permanecem abertos: lifecycle originado pelo Resend, corrida real
+webhook/aceitação, estado final entregue e alerta operacional gratuito.
+
+### 22.4 Sentry em Staging
+
+O build publicou no projeto preservado `hub-development` a release
+`aceeaf830cf75667df8ce21e5b586d47155dd5ac` e source maps de browser, servidor,
+edge e instrumentação. A leitura posterior contou 29 releases nesse projeto;
+`hub-production` continuou com uma única release, o SHA Production
+`9f2b8f177e7531f1c19242099f403c55b3820d08`, e não recebeu a release Staging.
+Isso reforça a recomendação de preservar `hub-development` e manter o projeto
+redundante até o cutover Production e a janela de observação; nenhum projeto foi
+renomeado ou removido.
+
+O probe do endereço exato retornou o evento
+`2a8b96ca952740ffb28a7fc04c7816d1` e a correlação
+`97350600-8687-47b8-842d-f896d75bd8c5`. O evento foi recebido em
+`2026-08-25T15:10:44Z`; organização, projeto, `environment=staging`, release e
+tag `readiness_probe=sentry` coincidiram. O frame resolveu para
+`app:///src/lib/sentry-readiness.ts:42`, `inApp=true`, comprovando o source map.
+
+O checker ainda reprova dois requisitos. Primeiro, o projeto possui
+`scrubIPAddresses=false`. Embora o SDK tenha removido identidade, e-mail,
+username e IP, a ingestão acrescentou `user.geo` com país/região derivados do IP
+de transporte; `cookies` foi apenas normalizado como array vazio. Segundo, o
+workflow global `Send a notification for high priority issues` foi acionado após
+o evento, mas tem `environment=null` e não comprova canal institucional. O token
+de inspeção possui somente `alerts:read`, `event:read`, `org:read`,
+`project:read`, `project:releases` e escopos correlatos; o token de build possui
+somente `org:ci`. Nenhum deles pode ou deve alterar a política ou o alerta.
+
+Próxima prova: uma credencial de gestão separada habilita remoção de IP no
+projeto preservado, cria ou ajusta workflow filtrado por ambiente e destino
+institucional, e um novo probe faz o checker retornar zero erro. Production
+exigirá seu próprio evento somente depois de um deploy Production aprovado.
+
+### 22.5 Decisão e gates restantes
+
+O resultado permanece `NO-GO`. Staging está implantada e tecnicamente saudável,
+mas isso não altera o histórico nem antecipa Sprint 8. Continuam abertos:
+
+- duas Contas Admin humanas, TOTP e códigos de recuperação conferidos;
+- ambiente/segredos de backup Production, dois backups, restore real e medição
+  RPO/RTO/PITR dentro do desenho gratuito;
+- progressão DMARC pelas janelas até `reject; pct=100`;
+- lifecycle e alerta Resend reais;
+- privacidade e alerta institucional Sentry;
+- PR Bun real do Dependabot após a configuração alcançar `main`;
+- checker do candidato Production, decisão humana `GO` e release protegido.
+
+Production permaneceu no SHA
+`9f2b8f177e7531f1c19242099f403c55b3820d08`. Nenhum deploy, alias, migration,
+dado, DNS, provider ou venda Production foi alterado.
