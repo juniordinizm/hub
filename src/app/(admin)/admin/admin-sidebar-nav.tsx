@@ -18,8 +18,9 @@ import {
   SidebarMenuLink,
 } from "@/components/ui/sidebar";
 import { route } from "@/lib/routes";
+import type { AppRole } from "@/lib/session";
 
-const navItems = [
+const adminNavItems = [
   ["Painel", "/admin", Analytics01Icon],
   ["Aprendizagem", "/admin/aprendizagem", Analytics01Icon],
   ["Cursos", "/admin/cursos", Book01Icon],
@@ -29,7 +30,19 @@ const navItems = [
   ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
 ] as const;
 
-export function AdminSidebarNav(): React.JSX.Element {
+const supportNavItems = [
+  ["Painel", "/admin", Analytics01Icon],
+  ["Cursos", "/admin/operacao/cursos", Book01Icon],
+  ["Financeiro", "/admin/financeiro", Invoice01Icon],
+] as const;
+
+export function AdminSidebarNav({
+  role,
+}: {
+  role: Extract<AppRole, "admin" | "support">;
+}): React.JSX.Element {
+  const navItems = role === "support" ? supportNavItems : adminNavItems;
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Menu</SidebarGroupLabel>

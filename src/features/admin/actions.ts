@@ -62,7 +62,7 @@ import {
   consumeStagedAdminImageUpload,
   consumeStagedAdminImageUploads,
 } from "@/features/storage/staged-image-upload-registry";
-import { rolesForPermission } from "@/lib/auth-policy";
+import { requirePermission } from "@/lib/auth-permissions";
 import {
   CORRELATION_ID_HEADER,
   createCorrelationId,
@@ -403,9 +403,7 @@ export const retryJmvstreamDeleteAction = async ({
 export const extendEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentSupport");
   const { days, enrollmentId, months, reason } =
     parseExtendEnrollmentExpirationInput(formData);
   const { extendEnrollmentExpiration } = await import(
@@ -431,9 +429,7 @@ export const extendEnrollmentExpirationAction = async (
 export const setEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentSupport");
   const { enrollmentId, newExpiresAt, reason } =
     parseSetEnrollmentExpirationInput(formData);
   const { setEnrollmentExpiration } = await import(
@@ -457,9 +453,7 @@ export const setEnrollmentExpirationAction = async (
 export const adjustEnrollmentExpirationAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentSupport");
   const { adjustment, enrollmentId, newExpiresAtValue, reason } =
     parseAdjustEnrollmentExpirationInput(formData);
 
@@ -489,9 +483,7 @@ export const adjustEnrollmentExpirationAction = async (
 export const blockEnrollmentAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentSupport");
   const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { blockEnrollmentAccess } = await import(
@@ -514,9 +506,7 @@ export const blockEnrollmentAccessAction = async (
 export const restoreEnrollmentAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentSupport");
   const { enrollmentId, reason } = parseEnrollmentAccessInput(formData);
 
   const { restoreEnrollmentAccess } = await import(
@@ -539,9 +529,7 @@ export const restoreEnrollmentAccessAction = async (
 export const blockStudentPlatformAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentAccess");
   const { reason, userId } = parseStudentPlatformAccessInput(
     formData,
     "Informe o motivo do bloqueio."
@@ -570,9 +558,7 @@ export const blockStudentPlatformAccessAction = async (
 export const restoreStudentPlatformAccessAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(
-    rolesForPermission("manageEnrollmentAccess")
-  );
+  const session = await requirePermission("manageEnrollmentAccess");
   const { userId } = parseStudentPlatformAccessInput(
     formData,
     "Informe o motivo da restauracao."
@@ -1302,7 +1288,7 @@ const persistDashboardBanner = async ({
 export const saveBannerAction = async (
   formData: FormData
 ): Promise<{ bannerId?: string } | undefined> => {
-  const session = await requireRole(["admin"]);
+  const session = await requirePermission("manageSettings");
   const existingBannerId = readString(formData, "bannerId");
   const linkUrl = readString(formData, "linkUrl") || null;
   const buttonText = readString(formData, "buttonText") || null;
@@ -1337,7 +1323,7 @@ export const saveBannerAction = async (
 };
 
 export const deleteBannerAction = async (formData: FormData): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requirePermission("manageSettings");
   const bannerId = readString(formData, "bannerId");
 
   if (!bannerId) {
@@ -1372,7 +1358,7 @@ export const deleteBannerAction = async (formData: FormData): Promise<void> => {
 export const reorderBannersAction = async (
   orderedBannerIds: string[]
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requirePermission("manageSettings");
 
   const pool = getPool();
   const client = await pool.connect();

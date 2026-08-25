@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # PROTEA-R Hub
@@ -16,21 +16,14 @@ Pré-requisitos:
 - acesso a um banco Postgres já compatível com o schema atual;
 - credenciais das integrações necessárias à funcionalidade que será testada.
 
-O histórico local de migrations está reconciliado até
-`0062_certificate_reconciliation_indexes`, incluindo outbox transacional,
-publicações de Curso, artefatos imutáveis de Certificado, perfil automático
-para cadastro público, leases dos jobs serverless e consumo único de uploads
-administrativos. As migrations Asaas `0044` a `0052` estão aplicadas em
-Production; `0053` foi validada em PostgreSQL descartável e aplicada em Staging,
-enquanto Production permanece em manutenção até a promoção aprovada. Para um banco local
-descartável,
-use os comandos de reset, seed e smoke somente conforme o
-[runbook de banco](docs/operations/database-and-migrations.md): eles recusam
-host remoto e exigem confirmação quando destrutivos.
-
-`0062` é aditiva: cria somente índices para selecionar Conclusões históricas e
-consultar histórico de Certificados. Ainda exige promoção controlada com o lock
-global do migrador; não executa reconciliação nem backfill de Certificados.
+O topo da cadeia local, a quantidade de migrations e a quantidade de tabelas
+exportadas têm uma única autoridade: o
+[runbook de banco](docs/operations/database-and-migrations.md), validado contra
+o journal e o schema por `bun run docs:check`. O catálogo efetivamente
+implantado em cada ambiente permanece no
+[Estado de release](docs/operations/release-state.md). Para um banco local
+descartável, use os comandos de reset, seed e smoke somente conforme o runbook:
+eles recusam host remoto e exigem confirmação quando destrutivos.
 
 O estado de deployment, verificação e documentação é mantido separadamente em
 [Estado de release](docs/operations/release-state.md). Um commit verificado localmente
@@ -96,6 +89,12 @@ com Next.js nativo, Functions Node.js 24 em `gru1`, Neon pooled em São Paulo e
 Cloudflare R2. Push e merge não publicam Production automaticamente: a promoção
 usa um workflow manual que aplica migrations pendentes, testa um deployment sem
 domínio e só então o promove.
+
+A [auditoria de Production Readiness de 23 de agosto de 2026](docs/reviews/2026-08-23-production-readiness-audit.md)
+registrou `NO-GO` para uma nova decisão de release até o encerramento dos dez
+findings e dos gates de recuperação/Sentry. Esse veredito não afirma que o
+deployment existente esteja indisponível; impede tratá-lo como evidência
+suficiente para a próxima promoção.
 
 Para publicar qualquer mudança, siga o
 [tutorial de alteração até Production](docs/operations/production-release-guide.md).

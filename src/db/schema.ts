@@ -137,7 +137,40 @@ export const outboxStatusEnum = pgEnum("outbox_status", [
   "retrying",
   "delivered",
   "dead_letter",
+  "superseded",
 ]);
+export const emailMessageStatusEnum = pgEnum("email_message_status", [
+  "sending",
+  "acceptance_unknown",
+  "accepted",
+  "delayed",
+  "delivered",
+  "failed",
+  "suppressed",
+  "bounced",
+  "complained",
+]);
+export const emailDeliveryTopicEnum = pgEnum("email_delivery_topic", [
+  "auth.account-activation",
+  "auth.password-reset",
+  "email.access-released",
+  "email.access-expiry-warning",
+  "email.certificate-issued",
+  "email.course-sales-opened",
+  "email.support-request",
+]);
+export const emailTemplateAliasEnum = pgEnum("email_template_alias", [
+  "auth-password-reset",
+  "access-released",
+  "access-expiry-warning",
+  "certificate-issued",
+  "course-sales-opened",
+  "support-request",
+]);
+export const resendWebhookEventStatusEnum = pgEnum(
+  "resend_webhook_event_status",
+  ["received", "processing", "processed", "ignored", "retrying", "dead_letter"]
+);
 export const certificateStatusEnum = pgEnum("certificate_status", [
   "valid",
   "revoked",
@@ -195,11 +228,31 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("users_email_lower_unique_idx").on(sql`lower(${table.email})`),
   ]
+);
+
+export const twoFactors = pgTable(
+  "two_factors",
+  {
+    id: text("id").primaryKey(),
+    secret: text("secret").notNull(),
+    backupCodes: text("backup_codes").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true).notNull(),
+    failedVerificationCount: integer("failed_verification_count")
+      .default(0)
+      .notNull(),
+    lockedUntil: timestamp("locked_until", tz),
+  },
+  (table) => [index("two_factors_secret_idx").on(table.secret)]
 );
 
 export const sessions = pgTable(
@@ -1464,6 +1517,7 @@ export const outboxMessages = pgTable(
     lastErrorCode: text("last_error_code"),
     lastErrorAt: timestamp("last_error_at", tz),
     deliveredAt: timestamp("delivered_at", tz),
+    supersededAt: timestamp("superseded_at", tz),
     manualReprocessCount: integer("manual_reprocess_count")
       .default(0)
       .notNull(),
@@ -1475,6 +1529,97 @@ export const outboxMessages = pgTable(
     ),
     index("outbox_messages_available_idx").on(table.status, table.availableAt),
     index("outbox_messages_locked_idx").on(table.status, table.lockedAt),
+    index("outbox_messages_superseded_idx").on(table.supersededAt),
+  ]
+);
+
+export const emailMessages = pgTable(
+  "email_messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").default("resend").notNull(),
+    providerMessageId: text("provider_message_id").unique(),
+    outboxMessageId: uuid("outbox_message_id")
+      .unique()
+      .references(() => outboxMessages.id, { onDelete: "set null" }),
+    correlationId: uuid("correlation_id").notNull().unique(),
+    topic: emailDeliveryTopicEnum("topic").notNull(),
+    templateAlias: emailTemplateAliasEnum("template_alias").notNull(),
+    status: emailMessageStatusEnum("status").default("sending").notNull(),
+    requestFingerprint: text("request_fingerprint").notNull(),
+    firstProviderAttemptAt: timestamp("first_provider_attempt_at", tz),
+    acceptanceUnknownAt: timestamp("acceptance_unknown_at", tz),
+    automaticRetryDeadlineAt: timestamp("automatic_retry_deadline_at", tz),
+    acceptedAt: timestamp("accepted_at", tz),
+    latestEventAt: timestamp("latest_event_at", tz),
+    delayedAt: timestamp("delayed_at", tz),
+    deliveredAt: timestamp("delivered_at", tz),
+    failedAt: timestamp("failed_at", tz),
+    suppressedAt: timestamp("suppressed_at", tz),
+    bouncedAt: timestamp("bounced_at", tz),
+    complainedAt: timestamp("complained_at", tz),
+    lastErrorCode: text("last_error_code"),
+    deliveryEventConflict: boolean("delivery_event_conflict")
+      .default(false)
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("email_messages_status_updated_idx").on(
+      table.status,
+      table.updatedAt
+    ),
+    check("email_messages_provider_resend", sql`${table.provider} = 'resend'`),
+    check(
+      "email_messages_request_fingerprint_sha256",
+      sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`
+    ),
+  ]
+);
+
+export const resendWebhookEvents = pgTable(
+  "resend_webhook_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    providerEventId: text("provider_event_id").notNull().unique(),
+    providerMessageId: text("provider_message_id"),
+    correlationId: uuid("correlation_id"),
+    eventType: text("event_type").notNull(),
+    occurredAt: timestamp("occurred_at", tz).notNull(),
+    receivedAt: timestamp("received_at", tz).defaultNow().notNull(),
+    payloadSha256: text("payload_sha256").notNull(),
+    status: resendWebhookEventStatusEnum("status")
+      .default("received")
+      .notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    availableAt: timestamp("available_at", tz).defaultNow().notNull(),
+    lockedAt: timestamp("locked_at", tz),
+    lockedBy: text("locked_by"),
+    processedAt: timestamp("processed_at", tz),
+    lastErrorCode: text("last_error_code"),
+    emailMessageId: uuid("email_message_id").references(
+      () => emailMessages.id,
+      { onDelete: "set null" }
+    ),
+    ...timestamps,
+  },
+  (table) => [
+    index("resend_webhook_events_available_idx").on(
+      table.status,
+      table.availableAt
+    ),
+    index("resend_webhook_events_provider_message_idx").on(
+      table.providerMessageId
+    ),
+    index("resend_webhook_events_timeline_idx").on(
+      table.emailMessageId,
+      table.occurredAt
+    ),
+    index("resend_webhook_events_correlation_idx").on(table.correlationId),
+    check(
+      "resend_webhook_events_payload_sha256",
+      sql`${table.payloadSha256} ~ '^[0-9a-f]{64}$'`
+    ),
   ]
 );
 

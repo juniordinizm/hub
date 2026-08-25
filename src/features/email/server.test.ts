@@ -1,19 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { Resend, send } = vi.hoisted(() => {
-  const send = vi.fn();
-  const Resend = vi.fn(function Resend() {
-    return { emails: { send } };
-  });
+const { Resend, clientQuery, connect, poolQuery, release, send } = vi.hoisted(
+  () => {
+    const send = vi.fn();
+    const poolQuery = vi.fn();
+    const client = { query: vi.fn(), release: vi.fn() };
+    const connect = vi.fn().mockResolvedValue(client);
+    const Resend = vi.fn(function Resend() {
+      return { emails: { send } };
+    });
 
-  return {
-    Resend,
-    send,
-  };
-});
+    return {
+      connect,
+      clientQuery: client.query,
+      poolQuery,
+      release: client.release,
+      Resend,
+      send,
+    };
+  }
+);
 
 vi.mock("server-only", () => ({}));
 vi.mock("resend", () => ({ Resend }));
+vi.mock("@/db", () => ({
+  getPool: () => ({ connect, query: poolQuery }),
+}));
 vi.mock("@react-email/components", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@react-email/components")>();
@@ -25,6 +37,7 @@ vi.mock("@react-email/components", async (importOriginal) => {
 });
 
 import { render as renderEmail } from "@react-email/components";
+import { createEmailRequestFingerprint } from "@/features/email-delivery/server";
 import { deriveAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
 import {
   getE2eCertificateEmailDeliveries,
@@ -87,6 +100,7 @@ const STAGING_TEST_ENV: NodeJS.ProcessEnv = {
   R2_SECRET_ACCESS_KEY: "r2-secret-key-fixture",
   RESEND_API_KEY: "re_fixture",
   RESEND_FROM_EMAIL: "Staging <notificacoes@neurocapacitar.com.br>",
+  RESEND_WEBHOOK_SECRET: "staging-resend-webhook-secret-fixture-000000000000",
   SCHEDULED_JOBS_ENABLED: "true",
   SENTRY_DSN: "https://secret@example.test/4511999999999999",
   STAGING_DATABASE_HOST: "ep-staging.example.test",
@@ -106,6 +120,10 @@ describe("transactional email", () => {
     Resend.mockClear();
     vi.mocked(renderEmail).mockClear();
     send.mockReset();
+    connect.mockClear();
+    poolQuery.mockReset();
+    clientQuery.mockReset();
+    release.mockClear();
   });
 
   it("renders email content through Resend with reply-to", async () => {
@@ -128,6 +146,100 @@ describe("transactional email", () => {
       subject: "Suporte",
       to: "support@example.com",
     });
+  });
+
+  it("records lifecycle before IO and returns provider acceptance for outbox email", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.RESEND_FROM_EMAIL = "PROTEA-R <noreply@example.com>";
+    process.env.BETTER_AUTH_SECRET = "auth-secret-at-least-32-characters";
+    const requestFingerprint = createEmailRequestFingerprint({
+      authSecret: process.env.BETTER_AUTH_SECRET,
+      request: {
+        email: {
+          from: "PROTEA-R <noreply@example.com>",
+          tags: [
+            { name: "hub_topic", value: "email_certificate_issued" },
+            {
+              name: "hub_correlation",
+              value: "0198d6f4-c2a5-7000-8000-000000000001",
+            },
+          ],
+          template: {
+            id: "certificate-issued",
+            variables: {
+              ACTION_URL: "https://app.example.test/certificate",
+              CERTIFICATE_CODE: "CERT-1",
+              COURSE_TITLE: "Course",
+              USER_NAME: "Student",
+            },
+          },
+          to: "student@example.com",
+        },
+        idempotencyKey: "email.certificate-issued/certificate-1/v1",
+      },
+    });
+    clientQuery
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            accepted_at: null,
+            automatic_retry_deadline_at: null,
+            database_now: new Date("2026-08-24T12:00:00.000Z"),
+            first_provider_attempt_at: null,
+            id: "0198d6f4-c2a5-7000-8000-000000000001",
+            provider_message_id: null,
+            request_fingerprint: requestFingerprint,
+            status: "sending",
+          },
+        ],
+      } as never)
+      .mockResolvedValueOnce({ rows: [] } as never)
+      .mockResolvedValueOnce({ rows: [] } as never);
+    const acceptedAt = new Date("2026-08-24T12:00:01.000Z");
+    poolQuery.mockResolvedValueOnce({
+      rowCount: 1,
+      rows: [{ accepted_at: acceptedAt }],
+    });
+    send.mockResolvedValue({ data: { id: "email_123" }, error: null });
+
+    await expect(
+      sendHostedTemplateEmail({
+        ACTION_URL: "https://app.example.test/certificate",
+        CERTIFICATE_CODE: "CERT-1",
+        COURSE_TITLE: "Course",
+        deliveryContext: {
+          correlationId: "0198d6f4-c2a5-7000-8000-000000000001",
+          idempotencyKey: "email.certificate-issued/certificate-1/v1",
+          outboxMessageId: "0198d6f4-c2a5-7000-8000-000000000001",
+          topic: "email.certificate-issued",
+        },
+        idempotencyKey: "email.certificate-issued/certificate-1/v1",
+        name: "certificate-issued",
+        to: "student@example.com",
+        USER_NAME: "Student",
+      })
+    ).resolves.toEqual({
+      acceptedAt,
+      messageId: "email_123",
+      provider: "resend",
+    });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tags: [
+          { name: "hub_topic", value: "email_certificate_issued" },
+          {
+            name: "hub_correlation",
+            value: "0198d6f4-c2a5-7000-8000-000000000001",
+          },
+        ],
+      }),
+      { idempotencyKey: "email.certificate-issued/certificate-1/v1" }
+    );
+    expect(clientQuery.mock.calls[0]?.[0]).toBe("begin");
+    expect(clientQuery.mock.calls.at(-1)?.[0]).toBe("commit");
+    expect(release).toHaveBeenCalledOnce();
   });
 
   it("escapes string content before sending it as HTML", async () => {
@@ -542,6 +654,80 @@ describe("transactional email", () => {
     ).resolves.toBeUndefined();
 
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("records a lifecycle activation conflict as terminal without contacting Resend again", async () => {
+    process.env.BETTER_AUTH_SECRET = "auth-secret";
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.RESEND_FROM_EMAIL = "PROTEA-R <noreply@example.com>";
+    const correlationId = "0198d6f4-c2a5-7000-8000-000000000001";
+    const acceptedAt = new Date("2026-08-24T12:00:01.000Z");
+    let requestFingerprint = "";
+    let selectedRows = 0;
+    const pendingRow = {
+      accepted_at: null,
+      automatic_retry_deadline_at: null,
+      database_now: new Date("2026-08-24T12:00:00.000Z"),
+      first_provider_attempt_at: null,
+      id: correlationId,
+      provider_message_id: null,
+      request_fingerprint: requestFingerprint,
+      status: "sending",
+    };
+    const satisfiedRow = {
+      ...pendingRow,
+      accepted_at: acceptedAt,
+      automatic_retry_deadline_at: new Date("2026-08-25T11:00:00.000Z"),
+      first_provider_attempt_at: new Date("2026-08-24T12:00:00.000Z"),
+      status: "accepted",
+    };
+    clientQuery.mockImplementation((query: string, parameters?: unknown[]) => {
+      if (query.includes("insert into email_messages")) {
+        requestFingerprint = String(parameters?.[4] ?? "");
+      }
+      if (query.includes("from email_messages")) {
+        selectedRows += 1;
+        const row = selectedRows === 1 ? pendingRow : satisfiedRow;
+        return {
+          rows: [{ ...row, request_fingerprint: requestFingerprint }],
+        } as never;
+      }
+      return { rows: [] } as never;
+    });
+    poolQuery.mockResolvedValueOnce({
+      rowCount: 1,
+      rows: [{ accepted_at: acceptedAt }],
+    });
+    send.mockResolvedValue({
+      data: null,
+      error: {
+        message: "Idempotency key reused with a different payload",
+        name: "invalid_idempotent_request",
+      },
+    });
+    const input = {
+      deliveryContext: {
+        correlationId,
+        idempotencyKey: "auth.account-activation/order-1/v1",
+        outboxMessageId: correlationId,
+        topic: "auth.account-activation" as const,
+      },
+      idempotencyKey: VALID_ACTIVATION_IDEMPOTENCY_KEY,
+      resetUrl: "https://auth.example.test/reset/new-token",
+      to: "student@example.com",
+      userName: "Student",
+    };
+
+    await expect(sendPasswordResetEmail(input)).resolves.toBeUndefined();
+    await expect(sendPasswordResetEmail(input)).resolves.toBeUndefined();
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(expect.any(Object), {
+      idempotencyKey: VALID_ACTIVATION_IDEMPOTENCY_KEY,
+    });
+    expect(String(poolQuery.mock.calls[0]?.[0])).toContain(
+      "status = 'accepted'"
+    );
   });
 
   it("rejects an idempotency conflict for a non-activation hosted email", async () => {

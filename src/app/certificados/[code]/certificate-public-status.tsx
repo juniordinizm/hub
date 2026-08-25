@@ -62,7 +62,7 @@ const getStatusPresentation = ({
 const toneClassNames = {
   danger: "border-destructive bg-card text-destructive",
   success:
-    "border-emerald-600 bg-emerald-600 text-white hover:border-emerald-700 hover:bg-emerald-700",
+    "border-emerald-700 bg-emerald-700 text-white hover:border-emerald-800 hover:bg-emerald-800",
   warning: "border-accent bg-card text-accent",
 } as const;
 

@@ -111,6 +111,7 @@ describe("admin read projections", () => {
     expect(sql).toContain("limit $1 offset $2");
     expect(sql).not.toContain("l.content_json");
     expect(sql).not.toContain("select l.*");
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
   });
 
   it("bounds the student projection and returns pagination metadata", async () => {
@@ -144,6 +145,7 @@ describe("admin read projections", () => {
     expect(String(profileCall?.[0])).toContain("limit $3");
     expect(String(profileCall?.[0])).toContain("offset $4");
     expect(profileCall?.[1]).toEqual(["student", "%student%", 101, 100]);
+    expect(requirePermission).toHaveBeenCalledWith("manageEnrollmentAccess");
   });
 
   it("projects buyer identity payment reviews with their order in the financial read", async () => {
@@ -177,7 +179,7 @@ describe("admin read projections", () => {
         type: "buyer_identity",
       },
     ]);
-    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
     const reviewSql = String(
       query.mock.calls.find(([sql]) =>
         String(sql).includes("from payment_reviews")
@@ -225,7 +227,7 @@ describe("admin read projections", () => {
       hasPublished: true,
     });
 
-    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
     expect(query).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]?.[1]).toEqual([courseId]);
     expect(String(query.mock.calls[0]?.[0])).toContain("status = 'draft'");
@@ -249,7 +251,7 @@ describe("admin read projections", () => {
       validCertificateCount: 41,
     });
 
-    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
     expect(query).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]?.[1]).toEqual([courseId]);
     const sql = String(query.mock.calls[0]?.[0])
@@ -307,7 +309,7 @@ describe("admin read projections", () => {
 
     const detail = await getAdminCourseDetailData(courseId);
 
-    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
     expect(query).toHaveBeenCalledTimes(4);
     expect(
       query.mock.calls.find(([sql]) =>
@@ -367,7 +369,7 @@ describe("admin read projections", () => {
 
     const editor = await getAdminLessonEditorData({ courseId, lessonId });
 
-    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
     expect(query).toHaveBeenCalledTimes(2);
     expect(getJmvstreamAssetsForLesson).toHaveBeenCalledWith(lessonId);
     const lessonEditorSql = String(
@@ -456,5 +458,6 @@ describe("admin read projections", () => {
 
     const sql = String(query.mock.calls[0]?.[0]).toLowerCase();
     expect(sql).toContain("left join enrollments");
+    expect(requirePermission).toHaveBeenCalledWith("manageEnrollmentAccess");
   });
 });

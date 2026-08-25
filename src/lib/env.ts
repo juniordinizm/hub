@@ -14,6 +14,14 @@ const optionalNonEmptyString = z.preprocess((value) => {
   return trimmedValue.length === 0 ? undefined : trimmedValue;
 }, z.string().min(1).optional());
 
+const optionalSecret = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+  const trimmedValue = value.trim();
+  return trimmedValue.length === 0 ? undefined : trimmedValue;
+}, z.string().min(32).optional());
+
 const serverEnvSchema = z.object({
   APPLICATION_MAINTENANCE_MODE: z.enum(["full", "off"]).default("off"),
   ASAAS_API_BASE_URL: z.string().url().optional(),
@@ -56,10 +64,15 @@ const serverEnvSchema = z.object({
   JMVSTREAM_PLAN_ID: optionalNonEmptyString,
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   NEXT_PUBLIC_SENTRY_DSN: optionalNonEmptyString,
+  NEXT_PUBLIC_SENTRY_RELEASE: optionalNonEmptyString,
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
   PAYMENTS_CHECKOUT_MODE: z.enum(["disabled", "authenticated", "public"]),
+  PRIVILEGED_MFA_ENFORCED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   R2_ACCESS_KEY_ID: optionalNonEmptyString,
   R2_ACCOUNT_ID: optionalNonEmptyString,
   R2_BUCKET_NAME: optionalNonEmptyString,
@@ -73,7 +86,10 @@ const serverEnvSchema = z.object({
     .string()
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
+  RESEND_WEBHOOK_SECRET: optionalNonEmptyString,
+  RESEND_READINESS_SECRET: optionalSecret,
   SENTRY_DSN: optionalNonEmptyString,
+  SENTRY_READINESS_SECRET: optionalSecret,
   SCHEDULED_JOBS_ENABLED: z
     .enum(["true", "false"])
     .default("false")
@@ -248,8 +264,10 @@ export const getServerEnv = () => {
     JMVSTREAM_PLAN_ID: process.env.JMVSTREAM_PLAN_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_SENTRY_RELEASE: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
     NODE_ENV: process.env.NODE_ENV,
     PAYMENTS_CHECKOUT_MODE: process.env.PAYMENTS_CHECKOUT_MODE,
+    PRIVILEGED_MFA_ENFORCED: process.env.PRIVILEGED_MFA_ENFORCED,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
     R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
     R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,
@@ -260,7 +278,10 @@ export const getServerEnv = () => {
     R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
+    RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    RESEND_READINESS_SECRET: process.env.RESEND_READINESS_SECRET,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    SENTRY_READINESS_SECRET: process.env.SENTRY_READINESS_SECRET,
     SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,
     SUPPORT_EMAIL: process.env.SUPPORT_EMAIL,
     STAGING_DATABASE_HOST: process.env.STAGING_DATABASE_HOST,

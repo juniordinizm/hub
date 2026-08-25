@@ -17,12 +17,102 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatCurrencyInCents, formatDateTime } from "@/lib/formatters";
 import { StudentCertificateOperations } from "./student-certificate-operations";
 import { StudentEnrollmentList } from "./student-enrollment-list";
-import type { StudentSheetPayload } from "./student-management-types";
+import type {
+  StudentManagementCapabilities,
+  StudentSheetPayload,
+} from "./student-management-types";
 import { StudentPlatformAccessControls } from "./student-platform-access-controls";
 
 export type { StudentSheetPayload } from "./student-management-types";
+
+export const SupportContextPanel = ({
+  context,
+}: {
+  context: NonNullable<StudentSheetPayload["supportContext"]>;
+}): React.JSX.Element => (
+  <div className="flex flex-col gap-6" data-support-operational-context>
+    <section
+      aria-labelledby="support-progress-title"
+      className="rounded-lg border p-4"
+    >
+      <h2 className="font-semibold text-base" id="support-progress-title">
+        Progresso obrigatório
+      </h2>
+      <p className="mt-2 text-muted-foreground text-sm">
+        {context.progress.completedRequiredLessons} de{" "}
+        {context.progress.requiredLessons} aulas obrigatórias
+      </p>
+    </section>
+    <section aria-labelledby="support-orders-title">
+      <h2 className="font-semibold text-base" id="support-orders-title">
+        Pedidos e reembolsos
+      </h2>
+      {context.orders.length ? (
+        <ul className="mt-3 divide-y rounded-lg border">
+          {context.orders.map((order) => (
+            <li className="p-3" key={order.id}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-sm">
+                    Pedido {order.id}
+                  </p>
+                  <p className="mt-1 text-muted-foreground text-xs">
+                    {formatDateTime(order.createdAt)} · {order.status}
+                    {order.refundStatus ? ` · ${order.refundStatus}` : ""}
+                  </p>
+                </div>
+                <p className="shrink-0 font-medium text-sm">
+                  {formatCurrencyInCents(
+                    order.paidAmountInCents ?? order.amountInCents
+                  )}
+                </p>
+              </div>
+              {order.refundedAmountInCents === null ? null : (
+                <p className="mt-2 text-muted-foreground text-xs">
+                  Reembolsado:{" "}
+                  {formatCurrencyInCents(order.refundedAmountInCents)}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-muted-foreground text-sm">
+          Nenhum Pedido associado a esta Aluna neste Curso.
+        </p>
+      )}
+    </section>
+    <section aria-labelledby="support-history-title">
+      <h2 className="font-semibold text-base" id="support-history-title">
+        Histórico contextual
+      </h2>
+      {context.audit.length ? (
+        <ul className="mt-3 divide-y rounded-lg border">
+          {context.audit.map((entry) => (
+            <li
+              className="p-3"
+              key={`${entry.action}-${entry.createdAt}-${entry.targetId ?? "none"}`}
+            >
+              <p className="font-medium text-sm">{entry.action}</p>
+              <p className="mt-1 text-muted-foreground text-xs">
+                {entry.targetType}
+                {entry.targetId ? ` · ${entry.targetId}` : ""} ·{" "}
+                {formatDateTime(entry.createdAt)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-muted-foreground text-sm">
+          Nenhum evento contextual registrado.
+        </p>
+      )}
+    </section>
+  </div>
+);
 
 const getStudentSheetUrl = (userId: string, courseId?: string): string => {
   const params = courseId ? `?courseId=${encodeURIComponent(courseId)}` : "";
@@ -46,11 +136,15 @@ const getHeaderBadge = ({
 };
 
 export function StudentManagementSheet({
+  capabilities,
   courseId,
+  dataUrl,
   trigger,
   userId,
 }: {
+  capabilities: StudentManagementCapabilities;
   courseId?: string;
+  dataUrl?: string;
   trigger: ReactNode;
   userId: string;
 }): React.JSX.Element {
@@ -77,7 +171,7 @@ export function StudentManagementSheet({
           requestInit.signal = signal;
         }
         const response = await fetch(
-          getStudentSheetUrl(userId, courseId),
+          dataUrl ?? getStudentSheetUrl(userId, courseId),
           requestInit
         );
         if (!response.ok) {
@@ -107,7 +201,7 @@ export function StudentManagementSheet({
         }
       }
     },
-    [courseId, userId]
+    [courseId, dataUrl, userId]
   );
   const refresh = useCallback(async (): Promise<void> => {
     await load();
@@ -190,7 +284,11 @@ export function StudentManagementSheet({
             </div>
           ) : null}
           {!(isLoading || error) && data ? (
-            <StudentManagementSheetContent data={data} onRefresh={refresh} />
+            <StudentManagementSheetContent
+              capabilities={capabilities}
+              data={data}
+              onRefresh={refresh}
+            />
           ) : null}
         </ScrollArea>
       </SheetContent>
@@ -199,20 +297,26 @@ export function StudentManagementSheet({
 }
 
 export function StudentManagementSheetContent({
+  capabilities,
   data,
   onRefresh,
 }: {
+  capabilities: StudentManagementCapabilities;
   data: StudentSheetPayload;
   onRefresh: () => void | Promise<void>;
 }): React.JSX.Element {
   const isCourseContext = data.context.courseId !== null;
   const student = data.student;
-  const [activeTab, setActiveTab] = useState<"access" | "certificates">(
-    "access"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "access" | "certificates" | "operations"
+  >("access");
 
   const handleTabChange = (value: string): void => {
-    if (value === "access" || value === "certificates") {
+    if (
+      value === "access" ||
+      value === "certificates" ||
+      value === "operations"
+    ) {
       setActiveTab(value);
     }
   };
@@ -227,6 +331,11 @@ export function StudentManagementSheetContent({
           <TabsTrigger className="flex-1" value="certificates">
             Certificados
           </TabsTrigger>
+          {data.supportContext ? (
+            <TabsTrigger className="flex-1" value="operations">
+              Operação
+            </TabsTrigger>
+          ) : null}
         </TabsList>
         <TabsContent className="flex flex-col gap-6" value="access">
           {isCourseContext ? (
@@ -236,13 +345,15 @@ export function StudentManagementSheetContent({
                 {data.context.courseTitle}
               </p>
             </div>
-          ) : (
+          ) : null}
+          {!isCourseContext && capabilities.canManagePlatformAccess ? (
             <StudentPlatformAccessControls
               onSuccess={onRefresh}
               student={student}
             />
-          )}
+          ) : null}
           <StudentEnrollmentList
+            canManageAccess={capabilities.canManageEnrollmentSupport}
             enrollments={student.enrollments}
             onRefresh={onRefresh}
             title={isCourseContext ? "Acesso ao Curso" : "Matrículas"}
@@ -250,12 +361,20 @@ export function StudentManagementSheetContent({
         </TabsContent>
         <TabsContent className="flex flex-col gap-6" value="certificates">
           <StudentCertificateOperations
+            canIssue={capabilities.canManageCertificates}
+            canReissue={capabilities.canReissueCertificates}
+            canRevoke={capabilities.canManageCertificates}
             certificates={data.certificates}
             courses={student.enrollments}
             onRefresh={onRefresh}
             userId={student.userId}
           />
         </TabsContent>
+        {data.supportContext ? (
+          <TabsContent className="flex flex-col gap-6" value="operations">
+            <SupportContextPanel context={data.supportContext} />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );

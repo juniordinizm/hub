@@ -7,6 +7,7 @@ import {
   getDatabasePoolOptions,
 } from "@/db/pool-policy";
 import { getServerEnv } from "@/lib/env";
+import { createCorrelationId, logOperationalEvent } from "@/lib/observability";
 import {
   accounts,
   appSettings,
@@ -15,6 +16,7 @@ import {
   courseCompletions,
   coursePublications,
   courses,
+  emailMessages,
   enrollmentEvents,
   enrollmentExpirationAdjustments,
   enrollmentGrants,
@@ -34,7 +36,9 @@ import {
   profiles,
   publicCertificateRateLimits,
   refundRequests,
+  resendWebhookEvents,
   sessions,
+  twoFactors,
   users,
   verifications,
   webhookEvents,
@@ -48,6 +52,7 @@ const schema = {
   courseCompletions,
   coursePublications,
   courses,
+  emailMessages,
   enrollmentEvents,
   enrollmentExpirationAdjustments,
   enrollmentGrants,
@@ -67,7 +72,9 @@ const schema = {
   publicCertificateRateLimits,
   profiles,
   refundRequests,
+  resendWebhookEvents,
   sessions,
+  twoFactors,
   users,
   verifications,
   webhookEvents,
@@ -84,10 +91,21 @@ const createPool = (purpose: DatabasePoolPurpose): Pool => {
     throw new Error("DATABASE_URL is required for database access.");
   }
 
-  return new Pool({
+  const createdPool = new Pool({
     connectionString: withVerifiedSslMode(DATABASE_URL),
     ...getDatabasePoolOptions(purpose),
   });
+  createdPool.on("error", () => {
+    logOperationalEvent({
+      correlationId: createCorrelationId(null),
+      errorCode: "database_pool_client_error",
+      httpStatus: 503,
+      operation: "database.pool",
+      outcome: "failure",
+      provider: "database",
+    });
+  });
+  return createdPool;
 };
 
 export const getPool = (): Pool => {

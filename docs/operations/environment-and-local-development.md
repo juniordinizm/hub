@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 ---
 
 # Ambiente e desenvolvimento local
@@ -79,6 +79,8 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `STAGING_OPERATION_CONFIRMATION` | literal `staging` | comandos de Staging | não |
 | `STAGING_ADMIN_EMAIL` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | dado interno |
 | `STAGING_ADMIN_PASSWORD` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | sim |
+| `STAGING_RECOVERY_ADMIN_EMAIL` | seed idempotente do segundo Admin do rollout TOTP | `seed-staging-admin.ts` | dado interno |
+| `STAGING_RECOVERY_ADMIN_PASSWORD` | seed idempotente do segundo Admin do rollout TOTP | `seed-staging-admin.ts` | sim |
 | `DEVELOPMENT_DATABASE_HOST` | preflight e seed Development | confirmação do endpoint Neon | identificador protegido |
 | `SHARED_DEVELOPMENT_SEED_CONFIRMATION` | seed Development | confirmação literal `development` | não |
 | `DEVELOPMENT_ADMIN_EMAIL` | seed Development | Conta Admin fictícia | dado interno |
@@ -95,6 +97,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
 | `BETTER_AUTH_URL` | explícita em Production; derivada do hostname Vercel em Preview | Better Auth | não |
 | `AUTH_PUBLIC_SIGNUP_ENABLED` | opcional, default `false` | rota Better Auth | não |
+| `PRIVILEGED_MFA_ENFORCED` | opcional, default `false`; `true` após rollout TOTP de Admin/Suporte | assurance servidor-side | não |
 | `BETTER_AUTH_API_KEY` | Infra opcional | Dash/Sentinel | sim |
 | `BETTER_AUTH_API_URL` | Infra opcional | Dash/Sentinel | não |
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |
@@ -103,6 +106,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `NEXT_PUBLIC_VERCEL_TARGET_ENV` | gerenciada pela Vercel; nunca manual em Development | classificação Sentry no navegador | público |
 | `CLIENT_IP_SOURCE` | runtime; `x-forwarded-for` na Vercel ou `cloudflare` com origem restrita | rate limits e checkout | não |
 | `RESEND_API_KEY` | envio de e-mail | `sendTransactionalEmail` | sim |
+| `RESEND_WEBHOOK_SECRET` | assinatura Svix do lifecycle | webhook Resend | sim; diferente da API key |
 | `DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST` | Development | bloqueio de destinatário externo | dado interno |
 | `STAGING_EMAIL_RECIPIENT_ALLOWLIST` | obrigatória em Staging no preflight | preflight de Staging | dado interno |
 | `RESEND_FROM_EMAIL` | remetente verificado; `Neuro Capacitar <notificacoes@neurocapacitar.com.br>` em Production | Resend | não |
@@ -124,9 +128,14 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `RECOVERY_DRILL_READINESS`, `RECOVERY_DRILL_MIGRATION`, `RECOVERY_DRILL_ALERTS` | resultado `passed`/`failed` confirmado pelo operador | `ops:recovery:evidence` | não |
 | `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
 | `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | SHA Git completo injetado pelo build | SDK cliente | público controlado |
+| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_ID` | organização, slug e ID do projeto único | `withSentryConfig`, checker | não |
 | `STAGING_SENTRY_PROJECT_ID` | confirmação do projeto Development compartilhado | preflight Staging | identificador protegido |
 | `DEVELOPMENT_SENTRY_PROJECT_ID` | preflight Development | confirmação do projeto Sentry | identificador protegido |
 | `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
+| `SENTRY_READINESS_SECRET` | autoriza emissão sintética controlada | `POST /api/health/sentry` em Staging/Production | sim |
+| `SENTRY_READINESS_AUTH_TOKEN` | inspeção somente leitura do evento | checker local/CI, ausente do runtime web | sim |
+| `SENTRY_READINESS_ALERT_NAME` | nome exato do workflow ativo esperado | checker Sentry | não |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | secret de build estável entre releases sobrepostas | `next build` | sim |
 | `DEPLOYMENT_VERSION` | build; SHA imutável do Git | `next.config.ts` | não |
 | `JMVSTREAM_API_BASE_URL` | vídeo | cliente JMVStream | não |
@@ -144,12 +153,48 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `R2_PUBLIC_BASE_URL` | leitura pública | URLs/Next Image | público |
 | `R2_OBJECT_PREFIX` | namespace físico; `staging` em Staging | fronteira S3 | não |
 | `STAGING_R2_USES_DEVELOPMENT` | confirmação dos buckets Development compartilhados | preflight Staging | `true` |
+| `BACKUP_DATABASE_URL` | role direta somente leitura de Production | GitHub Environment `production-backup` | sim |
+| `BACKUP_CADENCE_HOURS` | intervalo fixo igual ao cron | workflow de backup | `6` |
+| `BACKUP_R2_ACCOUNT_ID` | conta do bucket privado dedicado | backup, restore e gate de release | não |
+| `BACKUP_R2_BUCKET_NAME` | bucket privado dedicado | backup, restore e gate de release | não |
+| `BACKUP_R2_ACCESS_KEY_ID` | identificação da credencial read/write limitada ao bucket | workflow de backup | sim |
+| `BACKUP_R2_SECRET_ACCESS_KEY` | segredo da credencial read/write limitada ao bucket | workflow de backup | sim |
+| `BACKUP_AGE_RECIPIENT` | destinatário público X25519 | cifragem do dump | não |
+| `PRODUCTION_DATABASE_HOST` | host direto esperado de Production | backup e guardas de restore | identificador protegido |
+| `PRODUCTION_NEON_BRANCH_ID` | branch Production esperada | backup | identificador protegido |
+| `PRODUCTION_NEON_PROJECT_ID` | projeto Neon Production esperado | backup | identificador protegido |
+| `NEON_API_KEY` | leitura da branch e endpoints que provam a origem do dump | GitHub Environment `production-backup` | sim |
+| `VERCEL_TOKEN` | leitura do deployment Production implantado | GitHub Environment `production-backup` | sim |
+| `VERCEL_ORG_ID` | organização dona do deployment Production | backup | identificador protegido |
+| `VERCEL_PROJECT_ID` | projeto Vercel Production esperado | backup | identificador protegido |
+| `RESTORE_R2_ACCESS_KEY_ID` | identificação da credencial read-only limitada ao bucket | restore e gate de release | sim |
+| `RESTORE_R2_SECRET_ACCESS_KEY` | segredo da credencial read-only limitada ao bucket | restore e gate de release | sim |
+| `RESTORE_MANIFEST_KEY` | manifesto selecionado no namespace permitido | exercício manual | não |
+| `RESTORE_AGE_IDENTITY_FILE` | caminho absoluto offline, fora do repositório | exercício manual | caminho protegido; nunca conteúdo |
+| `RESTORE_DATABASE_URL` | alvo PostgreSQL 18 descartável `hub_restore_*` | exercício manual | sim |
+| `RESTORE_CONFIRMATION` | confirmação literal fail-closed | exercício manual | não |
+| `PROTECTED_DATABASE_HOSTS` | computes adicionais que o restore deve recusar | exercício manual | não |
+| `EXPIRY_WARNING_V1_CONFIRMATION` | confirmação literal do script pós-`0066` | Staging/Production, uso único | não |
 | `STAGING_RESEND_USES_PRODUCTION` | confirmação da estrutura Resend compartilhada | preflight Staging | `true` |
+| `RESEND_READINESS_SECRET` | bearer exclusivo da emissão controlada de lifecycle | Vercel Staging e GitHub Environment `vercel-staging` | sim; mínimo 32 caracteres |
 
-As cinco rotas cron, inclusive `/api/cron/asaas-webhooks`, compartilham
+As seis rotas cron, inclusive `/api/cron/asaas-webhooks` e
+`/api/cron/resend-webhooks`, compartilham
 `CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`. O worker Asaas está agendado a cada minuto em
 UTC, mas deve permanecer desabilitado até migrations, configuração e homologação do
 ambiente alvo.
+
+Vercel Cron executa no deployment Production. Staging usa
+`.github/workflows/run-staging-jobs.yml`: a agenda de cinco minutos deve chamar
+Asaas, outbox, JMVStream e Resend; omitir qualquer inbox deixa o ambiente sem
+projeção equivalente. A prova manual do Resend usa
+`.github/workflows/run-staging-jobs.yml`, operação manual
+`verify-resend-lifecycle`, exige confirmação
+`SEND_CONTROLLED_STAGING_PASSWORD_RESET`, roda somente no GitHub Environment
+`vercel-staging` e publica apenas estado, tipos de evento, contagem e UUID de
+correlação. A operação compartilha um workflow que já existe na branch padrão,
+permitindo carregar a definição de `staging` sem promover código para `main`.
+O e-mail controlado, token e conteúdo nunca pertencem ao log.
 
 As quatro variáveis Asaas são opcionais no parser; o factory exige as três do adapter e a
 rota de webhook exige o token próprio. Development exige as quatro para a homologação
@@ -167,16 +212,18 @@ confirme um bucket de produção.
 ### Separação por fase
 
 - build público: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`,
-  `R2_PUBLIC_BASE_URL` e `DEPLOYMENT_VERSION`;
+  `NEXT_PUBLIC_SENTRY_RELEASE`, `R2_PUBLIC_BASE_URL` e `DEPLOYMENT_VERSION`;
 - build secreto: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e, opcionalmente,
-  `SENTRY_AUTH_TOKEN`, armazenados no ambiente Vercel correspondente;
+  `SENTRY_AUTH_TOKEN`, armazenados no ambiente Vercel correspondente. Quando o
+  token existe, `SENTRY_ORG`, `SENTRY_PROJECT` e o SHA Git completo são
+  obrigatórios; o token não é disponibilizado ao runtime;
 - runtime web: URLs, `DATABASE_URL` pooled e credenciais dos providers;
 - job de migration: `DATABASE_URL_DIRECT`;
 - ausentes no web de produção: `DATABASE_URL_DIRECT`,
   `INTERNAL_BOOTSTRAP_SECRET`, `E2E_*`, `SMOKE_DATABASE_URL` e
   `CERTIFICATE_CONCURRENCY_DATABASE_URL`.
 
-Em produção, `instrumentation.ts` chama `getServerEnv` no startup Node. O
+Em produção, `src/instrumentation.ts` chama `getServerEnv` no startup Node. O
 processo encerra antes de servir tráfego quando uma capacidade obrigatória
 está ausente. A lista de nomes fica em
 `src/lib/production-environment.ts` para Production e

@@ -99,7 +99,7 @@ const deleteCertificateFixture = async (
 
 describe("outbox PostgreSQL concurrency", () => {
   beforeEach(async () => {
-    await pool.query("truncate table outbox_messages");
+    await pool.query("truncate table outbox_messages cascade");
   });
 
   afterAll(async () => {

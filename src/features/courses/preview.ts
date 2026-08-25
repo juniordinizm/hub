@@ -4,8 +4,7 @@ export type StudentPreviewMode = "student";
 
 const STUDENT_PREVIEW_PATHS = ["/app/cursos/", "/app/aulas/"] as const;
 
-export const isPreviewRole = (role: AppRole): boolean =>
-  role === "admin" || role === "support";
+export const isPreviewRole = (role: AppRole): boolean => role === "admin";
 
 export const getHomeHrefForRole = (role: AppRole): "/admin" | "/app" =>
   role === "student" ? "/app" : "/admin";

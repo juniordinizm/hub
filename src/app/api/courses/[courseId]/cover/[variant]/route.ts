@@ -7,7 +7,7 @@ import {
   createR2ObjectReadUrl,
   getPublicMediaUrl,
 } from "@/features/storage/r2";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/auth-permissions";
 
 export const runtime = "nodejs";
 
@@ -43,7 +43,7 @@ export async function GET(
     return Response.redirect(getPublicMediaUrl(image.key), 302);
   }
 
-  await requireRole(["admin", "support"]);
+  await requirePermission("manageContent");
 
   const signedUrl = await createR2ObjectReadUrl({ key: image.key });
 

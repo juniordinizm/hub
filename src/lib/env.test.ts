@@ -159,6 +159,8 @@ describe("server environment", () => {
       R2_SECRET_ACCESS_KEY: "development-r2-secret",
       RESEND_API_KEY: "re_shared",
       RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
+      RESEND_WEBHOOK_SECRET:
+        "resend-webhook-secret-at-least-thirty-two-characters",
       SCHEDULED_JOBS_ENABLED: "true",
       SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
       STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
@@ -191,6 +193,15 @@ describe("server environment", () => {
     setEnv("AUTH_PUBLIC_SIGNUP_ENABLED", undefined);
 
     expect(getServerEnv().AUTH_PUBLIC_SIGNUP_ENABLED).toBe(false);
+  });
+
+  it("keeps privileged MFA rollout disabled until explicitly activated", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("PRIVILEGED_MFA_ENFORCED", undefined);
+    expect(getServerEnv().PRIVILEGED_MFA_ENFORCED).toBe(false);
+
+    setEnv("PRIVILEGED_MFA_ENFORCED", "true");
+    expect(getServerEnv().PRIVILEGED_MFA_ENFORCED).toBe(true);
   });
 
   it("only permits E2E mode in CI", () => {

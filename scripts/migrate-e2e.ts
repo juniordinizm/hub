@@ -1,5 +1,10 @@
-import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import { Pool } from "pg";
+import { withVerifiedSslMode } from "../src/db/connection-url";
 import { assertSafeE2eDatabaseEnvironment } from "../src/db/e2e-database-guard";
+import { applyE2eMigrationsPerFile } from "../src/db/e2e-migrator";
+import { runMigrationWithLock } from "../src/db/migration-lock";
 
 type Environment = Readonly<Record<string, string | undefined>>;
 
@@ -27,12 +32,30 @@ export const createE2eMigrationEnvironment = (
 };
 
 if (import.meta.main) {
-  const result = spawnSync(process.execPath, ["x", "drizzle-kit", "migrate"], {
-    env: createE2eMigrationEnvironment(process.env),
-    stdio: "inherit",
-  });
-  if (result.error) {
-    throw result.error;
+  const environment = createE2eMigrationEnvironment(process.env);
+  const connectionString = environment.E2E_DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("E2E migration environment lost its database URL.");
   }
-  process.exitCode = result.status ?? 1;
+  const pool = new Pool({
+    application_name: "protea-r-e2e-migration",
+    connectionString: withVerifiedSslMode(connectionString),
+    connectionTimeoutMillis: 10_000,
+    max: 2,
+  });
+  const client = await pool.connect();
+  try {
+    const migrationsFolder = resolve(process.cwd(), "src/db/migrations");
+    await runMigrationWithLock({
+      client,
+      migrate: async () =>
+        await applyE2eMigrationsPerFile({
+          client,
+          migrations: readMigrationFiles({ migrationsFolder }),
+        }),
+    });
+    process.stdout.write("E2E migrations applied.\n");
+  } finally {
+    await pool.end();
+  }
 }

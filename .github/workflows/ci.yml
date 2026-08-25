@@ -110,7 +110,7 @@ jobs:
         run: bun run test:certificates:integration
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        uses: ./.github/actions/delete-neon-branch
         with:
           api_key: ${{ secrets.NEON_CI_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}
@@ -189,14 +189,15 @@ jobs:
             fi
             sleep "$((attempt * 3))"
           done
-      - name: Run Chromium journeys
+      - name: Run Chromium desktop and critical mobile journeys
         id: playwright
         env:
           BETTER_AUTH_SECRET: e2e-only-secret-not-for-production
           BETTER_AUTH_URL: http://127.0.0.1:3100
           CERTIFICATE_PUBLIC_BASE_URL: http://127.0.0.1:3100
-          DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
-          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          E2E_DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          E2E_RUNTIME_DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
           E2E_TEST_MODE: "true"
           NEXT_PUBLIC_APP_URL: http://127.0.0.1:3100
         run: bun run test:e2e
@@ -215,7 +216,7 @@ jobs:
             test-results/next-server.log
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        uses: ./.github/actions/delete-neon-branch
         with:
           api_key: ${{ secrets.NEON_CI_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}

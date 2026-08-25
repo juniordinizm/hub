@@ -13,6 +13,12 @@ import { getServerEnv } from "@/lib/env";
 
 const PUBLIC_CHECKOUT_WINDOW_SECONDS = 10 * 60;
 const PUBLIC_CHECKOUT_MAX_ATTEMPTS = 5;
+const PUBLIC_CHECKOUT_E2E_MAX_ATTEMPTS = 100;
+
+export const getPublicCheckoutMaxAttempts = (isE2eTestMode: boolean): number =>
+  isE2eTestMode
+    ? PUBLIC_CHECKOUT_E2E_MAX_ATTEMPTS
+    : PUBLIC_CHECKOUT_MAX_ATTEMPTS;
 
 export class PublicCheckoutRateLimitError extends Error {
   readonly retryAfterSeconds: number;
@@ -47,10 +53,12 @@ export const authorizePublicCheckoutIntent = async ({
   courseId,
   ipAddress,
   now = new Date(),
+  maxAttempts = PUBLIC_CHECKOUT_MAX_ATTEMPTS,
   secret,
 }: {
   courseId: string;
   ipAddress: string;
+  maxAttempts?: number;
   now?: Date;
   secret: string;
 }): Promise<void> => {
@@ -88,7 +96,7 @@ export const authorizePublicCheckoutIntent = async ({
          or public_checkout_rate_limits.request_count < $3
       returning expires_at
     `,
-    [keyHash, now, PUBLIC_CHECKOUT_MAX_ATTEMPTS]
+    [keyHash, now, maxAttempts]
   );
 
   if (consumed.rows[0]) {
@@ -130,7 +138,8 @@ export const createPublicCourseCheckout = async ({
   gateway?: AsaasGateway;
   ipAddress: string;
 }): Promise<CheckoutIntentResult> => {
-  const secret = getServerEnv().BETTER_AUTH_SECRET;
+  const environment = getServerEnv();
+  const secret = environment.BETTER_AUTH_SECRET;
 
   return await createAsaasCheckoutIntent({
     attemptId: checkoutAttemptId,
@@ -138,6 +147,7 @@ export const createPublicCourseCheckout = async ({
       await authorizePublicCheckoutIntent({
         courseId: canonicalCourseId,
         ipAddress,
+        maxAttempts: getPublicCheckoutMaxAttempts(environment.E2E_TEST_MODE),
         secret,
       }),
     buyer: authenticatedBuyer ?? { kind: "provider_pending" },

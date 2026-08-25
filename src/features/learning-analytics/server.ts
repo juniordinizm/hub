@@ -147,7 +147,7 @@ export interface LessonAnalyticsMetric {
 export const getLessonAnalyticsMetrics = async (): Promise<
   LessonAnalyticsMetric[]
 > => {
-  await requirePermission("viewAdminPanel");
+  await requirePermission("manageLearningAnalytics");
   const result = await getPool().query<{
     completed: string;
     course_publication_id: string;

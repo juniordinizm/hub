@@ -51,7 +51,10 @@ function TechnicalState({
   title: string;
 }): React.JSX.Element {
   return (
-    <PageContainer className="min-h-screen bg-background text-foreground">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background text-foreground"
+    >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <h1 className="font-bold text-2xl tracking-tight">{title}</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
@@ -68,7 +71,10 @@ function CourseAccess({
   view: Extract<PurchaseHandoffView, { kind: "access" }>;
 }): React.JSX.Element {
   return (
-    <PageContainer className="min-h-screen bg-background text-foreground">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background text-foreground"
+    >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <h1 className="font-bold text-2xl tracking-tight">
           {view.courseTitle}
@@ -92,7 +98,10 @@ function ComingSoon({
   view: Extract<PurchaseHandoffView, { kind: "coming_soon" }>;
 }): React.JSX.Element {
   return (
-    <PageContainer className="min-h-screen bg-background text-foreground">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background text-foreground"
+    >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <p className="font-medium text-muted-foreground text-sm">Em breve</p>
         <h1 className="mt-2 font-bold text-2xl tracking-tight">
@@ -134,7 +143,10 @@ function SalesClosed({
   view: Extract<PurchaseHandoffView, { kind: "sales_closed" }>;
 }): React.JSX.Element {
   return (
-    <PageContainer className="min-h-screen bg-background text-foreground">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background text-foreground"
+    >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <h1 className="font-bold text-2xl tracking-tight">
           {view.courseTitle}

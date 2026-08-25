@@ -414,7 +414,7 @@ describe("student experience reads", () => {
 
     const workspace = await getStudentLessonWorkspace({
       lessonId: "lesson-2",
-      viewer: { role: "support", userId: "support-1" },
+      viewer: { role: "admin", userId: "admin-1" },
     });
 
     expect(resolveLessonAccess).not.toHaveBeenCalled();

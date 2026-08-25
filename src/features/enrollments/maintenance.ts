@@ -277,6 +277,7 @@ export const processEnrollmentMaintenance = async ({
         client,
         message: createEnrollmentExpiryWarningMessage({
           enrollmentId: enrollment.id,
+          expectedExpiresAt: enrollment.expires_at,
           warningKind,
         }),
       });

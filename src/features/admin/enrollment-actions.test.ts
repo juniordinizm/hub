@@ -16,6 +16,11 @@ describe("admin enrollment actions", () => {
     expect(source).toContain("blockStudentPlatformAccessAction");
     expect(source).toContain("restoreStudentPlatformAccessAction");
     expect(source).toContain("extendEnrollmentExpiration");
+    expect(source).toContain('requirePermission("manageEnrollmentSupport")');
+    expect(source).toContain('requirePermission("manageEnrollmentAccess")');
+    expect(source).not.toContain(
+      'rolesForPermission("manageEnrollmentAccess")'
+    );
     expect(source).not.toContain("insert into enrollments");
   });
 });

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 ---
 
 # Arquitetura
@@ -57,15 +57,13 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 `getPool` cria um `pg.Pool`; `getDb` expõe Drizzle sobre o mesmo pool. `withVerifiedSslMode`, em `src/db/connection-url.ts`, normaliza conexões para `sslmode=verify-full` quando necessário.
 
-O topo local é `0062_certificate_reconciliation_indexes`. Essa migration é
-aditiva e cria índices para a reconciliação administrativa de Conclusões; não
-emite Certificados nem executa backfill. Sua promoção usa o fluxo controlado e o
-advisory lock global do migrador.
+O topo local da cadeia, a quantidade de entradas e a quantidade de tabelas
+exportadas são derivados do journal e do schema e declarados somente em
+[Banco e migrations](operations/database-and-migrations.md). O catálogo
+efetivamente implantado fica no [Estado de release](operations/release-state.md).
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 42 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 63 entradas alinhadas, com topo local `0062_certificate_reconciliation_indexes`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; o estado aplicado de cada ambiente
@@ -134,7 +132,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ## Observabilidade
 
-`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; requests, breadcrumbs, transações e spans perdem query strings e códigos públicos de Certificado antes do envio. `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
+`src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `src/instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; requests, breadcrumbs, transações e spans perdem query strings e códigos públicos de Certificado antes do envio. `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
 
 `GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Auditoria** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
 

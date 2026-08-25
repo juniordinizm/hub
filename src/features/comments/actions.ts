@@ -7,7 +7,8 @@ import {
   restoreLessonComment,
 } from "@/features/comments/server";
 import { canMutateStudentExperience } from "@/features/courses/preview";
-import { requireRole, requireSession } from "@/lib/session";
+import { requirePermission } from "@/lib/auth-permissions";
+import { requireSession } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
@@ -29,11 +30,8 @@ export const createLessonCommentAction = async (
     throw new Error("Preview de aluno nao permite comentar.");
   }
 
-  if (
-    context === "admin" &&
-    !(session.role === "admin" || session.role === "support")
-  ) {
-    throw new Error("Acesso administrativo necessario para comentar.");
+  if (context === "admin") {
+    await requirePermission("manageContent");
   }
 
   const result = await createLessonComment({
@@ -51,7 +49,7 @@ export const createLessonCommentAction = async (
 export const hideLessonCommentAction = async (
   formData: FormData
 ): Promise<void> => {
-  const session = await requireRole(["admin", "support"]);
+  const session = await requirePermission("manageContent");
   const commentId = readString(formData, "commentId");
 
   if (!commentId) {
@@ -70,7 +68,7 @@ export const hideLessonCommentAction = async (
 export const restoreLessonCommentAction = async (
   formData: FormData
 ): Promise<void> => {
-  await requireRole(["admin", "support"]);
+  await requirePermission("manageContent");
   const commentId = readString(formData, "commentId");
 
   if (!commentId) {

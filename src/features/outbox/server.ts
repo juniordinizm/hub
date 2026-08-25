@@ -2,7 +2,7 @@ import "server-only";
 import type { Pool } from "pg";
 import { getPool } from "@/db";
 import type { OutboxMessageInput } from "./rules";
-import type { ClaimedOutboxMessage } from "./worker";
+import type { ClaimedOutboxMessage, OutboxSupersededReason } from "./worker";
 
 type OutboxQueryClient = Pick<Pool, "query">;
 
@@ -160,6 +160,35 @@ export const markOutboxMessageDeferred = async ({
       set status = 'retrying',
           attempts = greatest(attempts - 1, 0),
           available_at = now() + interval '24 hours',
+          locked_at = null,
+          locked_by = null,
+          last_error_code = $3,
+          last_error_at = now(),
+          updated_at = now()
+      where id = $1 and status = 'processing' and locked_by = $2
+    `,
+    [id, workerId, errorCode]
+  );
+  return result.rowCount === 1;
+};
+
+export const markOutboxMessageSuperseded = async ({
+  client,
+  errorCode,
+  id,
+  workerId,
+}: {
+  client: OutboxQueryClient;
+  errorCode: OutboxSupersededReason;
+  id: string;
+  workerId: string;
+}): Promise<boolean> => {
+  const result = await client.query(
+    `
+      update outbox_messages
+      set status = 'superseded',
+          superseded_at = now(),
+          delivered_at = null,
           locked_at = null,
           locked_by = null,
           last_error_code = $3,
@@ -351,34 +380,44 @@ export const pruneOutboxRecords = async (): Promise<{
   deadLetters: number;
   delivered: number;
   reprocessAudits: number;
+  superseded: number;
 }> => {
-  const [delivered, deadLetters, reprocessAudits] = await Promise.all([
-    getPool().query(
-      `
+  const [delivered, deadLetters, superseded, reprocessAudits] =
+    await Promise.all([
+      getPool().query(
+        `
         delete from outbox_messages
         where status = 'delivered'
           and delivered_at < now() - interval '30 days'
       `
-    ),
-    getPool().query(
-      `
+      ),
+      getPool().query(
+        `
         delete from outbox_messages
         where status = 'dead_letter'
           and last_error_at < now() - interval '180 days'
       `
-    ),
-    getPool().query(
+      ),
+      getPool().query(
+        `
+        delete from outbox_messages
+        where status = 'superseded'
+          and superseded_at < now() - interval '30 days'
       `
+      ),
+      getPool().query(
+        `
         delete from audit_logs
         where action = 'outbox.requeued'
           and created_at < now() - interval '180 days'
       `
-    ),
-  ]);
+      ),
+    ]);
 
   return {
     deadLetters: deadLetters.rowCount ?? 0,
     delivered: delivered.rowCount ?? 0,
     reprocessAudits: reprocessAudits.rowCount ?? 0,
+    superseded: superseded.rowCount ?? 0,
   };
 };

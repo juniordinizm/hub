@@ -11,7 +11,7 @@ export default async function AdminLayout({
 
   return (
     <PanelLayout
-      navContent={<AdminSidebarNav />}
+      navContent={<AdminSidebarNav role={session.role} />}
       userEmail={session.user.email}
       userImage={(session.user as { image?: string | null }).image ?? null}
       userName={session.user.name}

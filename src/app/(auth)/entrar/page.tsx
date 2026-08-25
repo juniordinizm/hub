@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getServerEnv } from "@/lib/env";
 import { route } from "@/lib/routes";
 import { getCurrentSession } from "@/lib/session";
 import { SignInForm } from "./sign-in-form";
@@ -22,6 +23,13 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
   const session = await getCurrentSession();
 
   if (session && !(session.role === "student" && session.platformBlockedAt)) {
+    if (
+      session.role !== "student" &&
+      getServerEnv().PRIVILEGED_MFA_ENFORCED &&
+      !session.twoFactorEnabled
+    ) {
+      redirect(route("/configurar-segundo-fator"));
+    }
     redirect(route(session.role === "student" ? "/app" : "/admin"));
   }
 
@@ -30,7 +38,9 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
       <Card className="mx-auto w-full max-w-sm bg-card/95">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
-          <CardTitle className="text-3xl">Bem-vinda de volta</CardTitle>
+          <CardTitle as="h1" className="text-3xl">
+            Bem-vinda de volta
+          </CardTitle>
           <CardDescription>
             Acesse sua conta para continuar seus estudos.
           </CardDescription>

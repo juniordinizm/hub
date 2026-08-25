@@ -37,6 +37,7 @@ import {
 import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
+import { requirePermission } from "@/lib/auth-permissions";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
@@ -93,6 +94,7 @@ const firstSearchParam = (
 export default async function AdminCoursesPage({
   searchParams,
 }: AdminCoursesPageProps): Promise<React.JSX.Element> {
+  await requirePermission("manageContent");
   const params = (await searchParams) ?? {};
   const rawPage = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
   const options: AdminCourseCatalogQuery = {

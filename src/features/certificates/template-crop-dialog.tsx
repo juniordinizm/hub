@@ -84,7 +84,20 @@ export function CertificateTemplateCropDialog({
 
   return (
     <Dialog onOpenChange={(open) => !open && onCancel()} open={file !== null}>
-      <DialogContent className="max-w-4xl" showCloseButton={false}>
+      <DialogContent
+        className="max-w-4xl"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          const selectedEditorTab = document.querySelector<HTMLElement>(
+            'button[role="tab"][aria-selected="true"]'
+          );
+          const backgroundInput = document.querySelector<HTMLInputElement>(
+            'input[data-upload-kind="background"]'
+          );
+          (selectedEditorTab ?? backgroundInput)?.focus();
+        }}
+        showCloseButton={false}
+      >
         <DialogHeader>
           <DialogTitle>Ajustar arte do certificado</DialogTitle>
           <DialogDescription>

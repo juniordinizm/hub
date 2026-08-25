@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 import { resolveR2ClientEndpoint } from "./src/features/storage/r2-endpoint";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 import { buildContentSecurityPolicy } from "./src/lib/content-security-policy";
+import { resolveSentryBuildConfiguration } from "./src/lib/sentry-deployment";
 import { getStagingPresentation } from "./src/lib/staging-presentation";
 
 const allowedDevOrigins = getAllowedDevOrigins(process.env);
@@ -15,6 +16,10 @@ const isVercel = Boolean(process.env.VERCEL);
 const isProduction = process.env.NODE_ENV === "production";
 const isE2eTest = process.env.E2E_TEST_MODE === "true";
 const sentryAuthToken = isE2eTest ? "" : process.env.SENTRY_AUTH_TOKEN;
+const sentryBuildConfiguration = resolveSentryBuildConfiguration({
+  ...process.env,
+  SENTRY_AUTH_TOKEN: isProduction && !isE2eTest ? sentryAuthToken : undefined,
+});
 const e2eObjectStorageOrigin = process.env.R2_ENDPOINT
   ? new URL(
       resolveR2ClientEndpoint({
@@ -114,18 +119,34 @@ const nextConfig: NextConfig = {
     },
   ],
   ...(isVercel ? {} : { output: "standalone" }),
+  ...(sentryBuildConfiguration.release
+    ? {
+        env: {
+          NEXT_PUBLIC_SENTRY_RELEASE: sentryBuildConfiguration.release,
+        },
+      }
+    : {}),
   reactCompiler: true,
   serverExternalPackages: ["pdfkit"],
 };
 
 export default withSentryConfig(nextConfig, {
-  org: "summit-studio-ij",
-  project: "protear",
+  ...(sentryBuildConfiguration.org
+    ? { org: sentryBuildConfiguration.org }
+    : {}),
+  ...(sentryBuildConfiguration.project
+    ? { project: sentryBuildConfiguration.project }
+    : {}),
   ...(sentryAuthToken === undefined ? {} : { authToken: sentryAuthToken }),
+  ...(sentryBuildConfiguration.release
+    ? { release: { name: sentryBuildConfiguration.release } }
+    : {}),
   silent: !process.env.CI,
+  useRunAfterProductionCompileHook: true,
   widenClientFileUpload: true,
   sourcemaps: {
-    disable: isE2eTest || !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+    disable: !sentryBuildConfiguration.uploadSourceMaps,
   },
   webpack: {
     treeshake: {

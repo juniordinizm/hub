@@ -29,6 +29,22 @@ const CERTIFICATE_RECONCILIATION_BATCH_SIZE = 100;
 const CERTIFICATE_CODE_GENERATION_ERROR =
   "Nao foi possivel gerar um codigo publico unico.";
 
+export const assertCertificateReissueTargetAllowed = ({
+  actorRole,
+  latestCertificateId,
+  targetCertificateId,
+}: {
+  actorRole: "admin" | "support";
+  latestCertificateId: string | undefined;
+  targetCertificateId: string;
+}): void => {
+  if (actorRole === "support" && latestCertificateId !== targetCertificateId) {
+    throw new CertificateDomainError(
+      "Somente o certificado historico mais recente pode ser reemitido."
+    );
+  }
+};
+
 const isCertificateCodeCollision = (error: unknown): boolean => {
   if (!error || typeof error !== "object") {
     return false;
@@ -826,11 +842,13 @@ export const revokeCertificate = async ({
 };
 
 export const reissueCertificate = async ({
+  actorRole,
   actorUserId,
   certificateId,
   reasonCategory,
   reasonDetail,
 }: {
+  actorRole: "admin" | "support";
   actorUserId: string;
   certificateId: string;
   reasonCategory: string;
@@ -889,24 +907,23 @@ export const reissueCertificate = async ({
       throw new CertificateDomainError("Certificado nao localizado.");
     }
 
-    const latest = await client.query<{
-      id: string;
-      status: "revoked" | "valid";
-    }>(
-      `
-        select id, status
-        from certificates
-        where user_id = $1 and course_id = $2
-        order by issued_at desc, id desc
-        limit 1
-        for update
-      `,
-      [lockedPreviousCertificate.user_id, lockedPreviousCertificate.course_id]
-    );
-    if (latest.rows[0]?.id !== lockedPreviousCertificate.id) {
-      throw new CertificateDomainError(
-        "Somente o certificado historico mais recente pode ser reemitido."
+    if (actorRole === "support") {
+      const latest = await client.query<{ id: string }>(
+        `
+          select id
+          from certificates
+          where user_id = $1 and course_id = $2
+          order by issued_at desc, id desc
+          limit 1
+          for update
+        `,
+        [lockedPreviousCertificate.user_id, lockedPreviousCertificate.course_id]
       );
+      assertCertificateReissueTargetAllowed({
+        actorRole,
+        latestCertificateId: latest.rows[0]?.id,
+        targetCertificateId: lockedPreviousCertificate.id,
+      });
     }
 
     if (lockedPreviousCertificate.status === "valid") {

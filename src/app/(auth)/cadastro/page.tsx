@@ -30,7 +30,9 @@ export default async function SignUpPage(): Promise<React.JSX.Element> {
       <Card className="mx-auto w-full max-w-sm bg-card/95">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
-          <CardTitle className="text-3xl">Crie sua conta</CardTitle>
+          <CardTitle as="h1" className="text-3xl">
+            Crie sua conta
+          </CardTitle>
           <CardDescription>
             A conta da acesso a plataforma. Os cursos sao liberados
             separadamente.

@@ -151,7 +151,7 @@ export function CoursesRevenueTable({
             onValueChange={(value) => table.setPageSize(Number(value))}
             value={pageSize}
           >
-            <SelectTrigger className="w-[120px]">
+            <SelectTrigger aria-label="Cursos por página" className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

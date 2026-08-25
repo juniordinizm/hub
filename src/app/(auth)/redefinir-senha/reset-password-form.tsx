@@ -6,6 +6,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  getNewPasswordValidationError,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/password-policy";
 
 export function ResetPasswordForm({
   token,
@@ -16,17 +20,20 @@ export function ResetPasswordForm({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
-    setIsPending(true);
-
     const formData = new FormData(event.currentTarget);
     const password = String(formData.get("password") ?? "");
     const confirmation = String(formData.get("confirmation") ?? "");
 
-    if (password !== confirmation) {
-      setIsPending(false);
-      setMessage("As senhas precisam ser iguais.");
+    const passwordError = getNewPasswordValidationError({
+      confirmation,
+      password,
+    });
+    if (passwordError) {
+      setMessage(passwordError);
       return;
     }
+
+    setIsPending(true);
 
     const response = await fetch("/api/auth/reset-password", {
       body: JSON.stringify({ newPassword: password, token }),
@@ -60,7 +67,7 @@ export function ResetPasswordForm({
           <Input
             autoComplete="new-password"
             id="password"
-            minLength={10}
+            minLength={PASSWORD_MIN_LENGTH}
             name="password"
             required
             type="password"
@@ -71,7 +78,7 @@ export function ResetPasswordForm({
           <Input
             autoComplete="new-password"
             id="confirmation"
-            minLength={10}
+            minLength={PASSWORD_MIN_LENGTH}
             name="confirmation"
             required
             type="password"

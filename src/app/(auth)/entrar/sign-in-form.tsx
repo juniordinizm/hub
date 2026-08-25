@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { route } from "@/lib/routes";
-import { isSuccessfulSignInPayload } from "./sign-in-result";
+import { getSignInOutcome } from "./sign-in-result";
 
 export function SignInForm(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,14 @@ export function SignInForm(): React.JSX.Element {
       ? await response.json()
       : await response.text();
 
-    if (!(response.ok && isSuccessfulSignInPayload(payload))) {
+    const signInOutcome = response.ok ? getSignInOutcome(payload) : "failure";
+
+    if (signInOutcome === "two_factor_required") {
+      window.location.assign("/verificar-segundo-fator");
+      return;
+    }
+
+    if (signInOutcome !== "authenticated") {
       setError("E-mail ou senha incorretos.");
       return;
     }

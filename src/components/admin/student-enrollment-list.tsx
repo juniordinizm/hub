@@ -18,11 +18,26 @@ import {
 import { formatDateTime } from "@/lib/formatters";
 import type { StudentSheetEnrollment } from "./student-management-types";
 
+const getEnrollmentToggleLabel = (
+  isExpanded: boolean,
+  canManageAccess: boolean
+): string => {
+  if (isExpanded) {
+    return "Fechar";
+  }
+  if (canManageAccess) {
+    return "Gerenciar";
+  }
+  return "Consultar";
+};
+
 export function StudentEnrollmentList({
+  canManageAccess,
   enrollments,
   onRefresh,
   title = "Matrículas",
 }: {
+  canManageAccess: boolean;
   enrollments: StudentSheetEnrollment[];
   onRefresh: () => void | Promise<void>;
   title?: string;
@@ -87,7 +102,7 @@ export function StudentEnrollmentList({
                   type="button"
                   variant="ghost"
                 >
-                  {isExpanded ? "Fechar" : "Gerenciar"}
+                  {getEnrollmentToggleLabel(isExpanded, canManageAccess)}
                 </Button>
               </div>
               {isExpanded ? (
@@ -119,12 +134,14 @@ export function StudentEnrollmentList({
                       </dd>
                     </div>
                   </dl>
-                  <div className="mt-4">
-                    <EnrollmentExpirationControls
-                      enrollment={enrollment}
-                      onSuccess={onRefresh}
-                    />
-                  </div>
+                  {canManageAccess ? (
+                    <div className="mt-4">
+                      <EnrollmentExpirationControls
+                        enrollment={enrollment}
+                        onSuccess={onRefresh}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

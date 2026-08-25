@@ -86,6 +86,14 @@ describe("Better Auth password reset email callback", () => {
     await flushAfterCallbacks();
 
     expect(dependencies.sendPasswordResetEmail).toHaveBeenCalledWith({
+      deliveryContext: {
+        correlationId: "fbe7b6eb-e066-4b41-970a-f4ea65ca1772",
+        idempotencyKey:
+          "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
+        topic: "auth.password-reset",
+      },
+      idempotencyKey:
+        "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
       resetUrl: "https://auth.example.test/reset/public-token",
       to: "public@example.test",
       userName: "Public Student",
@@ -122,6 +130,14 @@ describe("Better Auth password reset email callback", () => {
     await flushAfterCallbacks();
 
     expect(dependencies.sendPasswordResetEmail).toHaveBeenCalledWith({
+      deliveryContext: {
+        correlationId: "fbe7b6eb-e066-4b41-970a-f4ea65ca1772",
+        idempotencyKey:
+          "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
+        topic: "auth.password-reset",
+      },
+      idempotencyKey:
+        "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
       resetUrl: "https://auth.example.test/reset/token",
       to: "student@example.test",
       userName: "Student",
@@ -212,11 +228,27 @@ describe("Better Auth password reset email callback", () => {
       expect(dependencies.after).not.toHaveBeenCalled();
     }
 
-    expect(dependencies.sendPasswordResetEmail).toHaveBeenCalledWith({
-      resetUrl: "https://auth.example.test/reset/token",
-      to: "student@example.test",
-      userName: "Student",
-    });
+    expect(dependencies.sendPasswordResetEmail).toHaveBeenCalledWith(
+      request
+        ? {
+            deliveryContext: {
+              correlationId: "fbe7b6eb-e066-4b41-970a-f4ea65ca1772",
+              idempotencyKey:
+                "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
+              topic: "auth.password-reset",
+            },
+            idempotencyKey:
+              "auth.password-reset/fbe7b6eb-e066-4b41-970a-f4ea65ca1772/v1",
+            resetUrl: "https://auth.example.test/reset/token",
+            to: "student@example.test",
+            userName: "Student",
+          }
+        : {
+            resetUrl: "https://auth.example.test/reset/token",
+            to: "student@example.test",
+            userName: "Student",
+          }
+    );
   });
 
   it("sanitizes an internal delivery failure while recording the failed outcome", async () => {

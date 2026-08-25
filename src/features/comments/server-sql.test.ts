@@ -61,6 +61,8 @@ describe("lesson comments SQL contracts", () => {
     );
 
     expect(source).toContain("const canModerateComments");
+    expect(source).toContain('role === "admin"');
+    expect(source).not.toContain('role === "admin" || role === "support"');
     expect(source).toContain("lc.status = 'visible'");
     expect(source).toContain("parent.status = 'visible'");
   });
