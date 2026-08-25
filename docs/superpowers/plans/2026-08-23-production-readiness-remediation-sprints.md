@@ -2308,10 +2308,10 @@ incidente financeiro.
 
 ### Tarefa 8.5: encerrar a release
 
-- [ ] Atualizar `docs/operations/release-state.md` com os três checkpoints reais.
-- [ ] Atualizar documentos canônicos das funcionalidades efetivamente
+- [x] Atualizar `docs/operations/release-state.md` com os três checkpoints reais.
+- [x] Atualizar documentos canônicos das funcionalidades efetivamente
   implantadas e seus `last_verified_commit`.
-- [ ] Acrescentar resoluções ao relatório histórico sem alterar sua decisão
+- [x] Acrescentar resoluções ao relatório histórico sem alterar sua decisão
   original.
 - [ ] Registrar a venda supervisionada como validação pós-deploy, não como gate
   retroativo.
