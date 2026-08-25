@@ -348,3 +348,16 @@ describe("Release backup ancestry", () => {
     );
   });
 });
+
+describe("Emergency Production backup exception", () => {
+  it("requires an explicit confirmation and preserves the Neon rollback branch", () => {
+    const workflow = readWorkflow("deploy-vercel.yml");
+
+    expect(workflow).toContain("emergency_skip_backup:");
+    expect(workflow).toContain("emergency_skip_backup_confirmation:");
+    expect(workflow).toContain("EMERGENCY_SKIP_PRODUCTION_BACKUP");
+    expect(workflow).toContain("if: inputs.emergency_skip_backup != true");
+    expect(workflow).toContain("name: Create confirmed Production Neon backup");
+    expect(workflow).toContain("name: Record emergency backup exception");
+  });
+});
