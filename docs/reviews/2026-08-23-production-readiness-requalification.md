@@ -979,3 +979,18 @@ mas isso não altera o histórico nem antecipa Sprint 8. Continuam abertos:
 Production permaneceu no SHA
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Nenhum deploy, alias, migration,
 dado, DNS, provider ou venda Production foi alterado.
+
+### 22.6 Diagnóstico Sentry de Staging
+
+A consulta somente leitura encontrou o Issue `7691774865`, uma ocorrência fatal
+em `GET /api/cron/outbox` no release documental `81b484ecc859412dccbecaceb768ec6dd57dfa50`:
+`pg` reportou `Connection terminated unexpectedly` como
+`auto.node.onuncaughtexception`. A inspeção de `src/db/index.ts` confirmou que
+os pools não tinham listener `error`.
+
+O commit candidato atual adiciona listener aos pools de aplicação e readiness,
+emite evento operacional sanitizado e não relança a exceção. O teste
+`src/db/index.test.ts` reproduz o callback do pool e exige código
+`database_pool_client_error`; teste focal, TypeScript e Ultracite passaram. A
+requalificação externa do fix ainda depende de CI e deploy de Staging; Production
+continua congelada.
