@@ -177,11 +177,28 @@ complaint.
 O lifecycle controlado é reproduzido por dispatch do workflow
 `Run Staging jobs` na branch `staging`, operação `verify-resend-lifecycle`, com a
 confirmação literal `SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O job usa a Conta Admin controlada já
-allowlisted, recusa outro origin/host/branch, gera um reset sem usar o link,
+recusa outro origin/host/branch, chama a rota de readiness com segredo próprio,
 aciona o worker autenticado e exige `email.sent` e `email.delivered` processados,
-mensagem `delivered`, zero conflito e zero erro. Não execute o script localmente,
-não substitua a Conta controlada e não copie o e-mail ou URL de reset para a
-saída. A prova não cria sessão, não altera senha e não envolve checkout.
+mensagem `delivered`, zero conflito e zero erro. Não execute o script localmente
+nem copie identidade ou conteúdo para a saída. A prova não cria sessão, não
+altera senha e não envolve checkout.
+
+A primeira execução real, run `32875321220`, falhou de forma fechada após um
+único request. Better Auth respondeu 200, mas o runtime registrou
+`password_reset_email_delivery_failed`; nenhum `email_messages` ou evento foi
+criado. O problema era anterior ao lifecycle e expôs o acoplamento indevido à
+Conta Admin configurada no GitHub, que não provava pertencer à allowlist do
+runtime.
+
+A correção usa `POST /api/health/resend`, somente em Staging, bearer exclusivo
+`RESEND_READINESS_SECRET` e corpo literal
+`{"confirmation":"EMIT_RESEND_READINESS_EMAIL"}`. A rota escolhe internamente a
+primeira interseção entre Conta existente e allowlist, envia uma mensagem
+controlada com lifecycle e retorna apenas `correlationId`. O checker consulta
+somente esse UUID. Segredo ausente, ambiente divergente, bearer ou corpo inválido
+não consultam banco nem enviam. O segredo de 64 caracteres existe somente como
+Sensitive no target Staging da Vercel e secret do GitHub Environment
+`vercel-staging`; nenhum valor foi exibido ou versionado.
 
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de

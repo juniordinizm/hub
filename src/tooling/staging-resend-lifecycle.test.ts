@@ -45,10 +45,12 @@ describe("Staging Resend lifecycle", () => {
       attempts: 3,
       dependencies: {
         delay,
-        hasControlledAccount: async () => true,
         readEvidence,
-        requestPasswordReset: async () => 200,
         runWebhookWorker,
+        startLifecycle: async () => ({
+          correlationId: deliveredEvidence().correlationId,
+          status: 200,
+        }),
       },
     });
 
@@ -57,22 +59,20 @@ describe("Staging Resend lifecycle", () => {
     expect(delay).toHaveBeenCalledOnce();
   });
 
-  it("refuses to send when the controlled account is absent", async () => {
-    const requestPasswordReset = vi.fn(async () => 200);
-
+  it("refuses to poll when the readiness route fails", async () => {
+    const runWebhookWorker = vi.fn(async () => 200);
     await expect(
       verifyStagingResendLifecycle({
         attempts: 1,
         dependencies: {
           delay: async () => undefined,
-          hasControlledAccount: async () => false,
           readEvidence: async () => null,
-          requestPasswordReset,
-          runWebhookWorker: async () => 200,
+          runWebhookWorker,
+          startLifecycle: async () => ({ status: 503 }),
         },
       })
-    ).rejects.toThrow("Controlled Staging account is not available.");
-    expect(requestPasswordReset).not.toHaveBeenCalled();
+    ).rejects.toThrow("Staging Resend readiness request failed.");
+    expect(runWebhookWorker).not.toHaveBeenCalled();
   });
 
   it("fails closed when the lifecycle never becomes delivered", async () => {
@@ -81,15 +81,17 @@ describe("Staging Resend lifecycle", () => {
         attempts: 1,
         dependencies: {
           delay: async () => undefined,
-          hasControlledAccount: async () => true,
           readEvidence: async () => ({
             ...deliveredEvidence(),
             eventStatuses: ["received"],
             eventTypes: ["email.sent"],
             messageStatus: "accepted",
           }),
-          requestPasswordReset: async () => 200,
           runWebhookWorker: async () => 200,
+          startLifecycle: async () => ({
+            correlationId: deliveredEvidence().correlationId,
+            status: 200,
+          }),
         },
       })
     ).rejects.toThrow("Staging Resend lifecycle did not converge");

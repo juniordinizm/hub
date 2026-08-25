@@ -87,6 +87,7 @@ const serverEnvSchema = z.object({
     .min(1)
     .default("PROTEA-R <noreply@example.com>"),
   RESEND_WEBHOOK_SECRET: optionalNonEmptyString,
+  RESEND_READINESS_SECRET: optionalSecret,
   SENTRY_DSN: optionalNonEmptyString,
   SENTRY_READINESS_SECRET: optionalSecret,
   SCHEDULED_JOBS_ENABLED: z
@@ -278,6 +279,7 @@ export const getServerEnv = () => {
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
+    RESEND_READINESS_SECRET: process.env.RESEND_READINESS_SECRET,
     SENTRY_DSN: process.env.SENTRY_DSN,
     SENTRY_READINESS_SECRET: process.env.SENTRY_READINESS_SECRET,
     SCHEDULED_JOBS_ENABLED: process.env.SCHEDULED_JOBS_ENABLED,

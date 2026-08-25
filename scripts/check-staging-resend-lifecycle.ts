@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { config } from "dotenv";
 import { Pool } from "pg";
 import { withVerifiedSslMode } from "../src/db/connection-url";
@@ -16,7 +15,6 @@ const POLL_INTERVAL_MS = 10_000;
 const REQUEST_TIMEOUT_MS = 15_000;
 const EXPECTED_ORIGIN = "https://preview.neurocapacitar.com.br";
 const EXECUTION_CONFIRMATION = "SEND_CONTROLLED_STAGING_PASSWORD_RESET";
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 
 const required = (name: string): string => {
   const value = process.env[name]?.trim();
@@ -40,11 +38,8 @@ const origin = required("STAGING_ORIGIN");
 if (origin !== EXPECTED_ORIGIN) {
   throw new Error("Staging Resend lifecycle origin is invalid.");
 }
-const controlledEmail = required("STAGING_ADMIN_EMAIL").toLowerCase();
-if (!EMAIL.test(controlledEmail)) {
-  throw new Error("Controlled Staging account is invalid.");
-}
 const cronSecret = required("CRON_SECRET");
+const readinessSecret = required("RESEND_READINESS_SECRET");
 const databaseUrl = required("DATABASE_URL_DIRECT");
 assertStagingTarget({
   branchId: process.env.STAGING_NEON_BRANCH_ID,
@@ -60,26 +55,18 @@ const pool = new Pool({
   max: 1,
 });
 
-const baseline = await pool.query<{ started_at: Date }>(
-  "select clock_timestamp() as started_at"
-);
-const startedAt = baseline.rows[0]?.started_at;
-if (!startedAt) {
-  await pool.end();
-  throw new Error("Staging Resend lifecycle baseline is unavailable.");
-}
-
-const readEvidence =
-  async (): Promise<StagingResendLifecycleEvidence | null> => {
-    const messageResult = await pool.query<{
-      correlation_id: string;
-      delivery_event_conflict: boolean;
-      id: string;
-      last_error_code: string | null;
-      provider_message_id: string | null;
-      status: string;
-    }>(
-      `
+const readEvidence = async (
+  correlationId: string
+): Promise<StagingResendLifecycleEvidence | null> => {
+  const messageResult = await pool.query<{
+    correlation_id: string;
+    delivery_event_conflict: boolean;
+    id: string;
+    last_error_code: string | null;
+    provider_message_id: string | null;
+    status: string;
+  }>(
+    `
       select
         id,
         correlation_id,
@@ -88,22 +75,20 @@ const readEvidence =
         delivery_event_conflict,
         last_error_code
       from email_messages
-      where topic = 'auth.password-reset'
-        and created_at >= $1
-      order by created_at desc
+      where correlation_id = $1
       limit 1
     `,
-      [startedAt]
-    );
-    const message = messageResult.rows[0];
-    if (!message) {
-      return null;
-    }
-    const eventResult = await pool.query<{
-      event_type: string;
-      status: string;
-    }>(
-      `
+    [correlationId]
+  );
+  const message = messageResult.rows[0];
+  if (!message) {
+    return null;
+  }
+  const eventResult = await pool.query<{
+    event_type: string;
+    status: string;
+  }>(
+    `
       select event_type, status
       from resend_webhook_events
       where email_message_id = $1
@@ -111,17 +96,17 @@ const readEvidence =
         or correlation_id = $3
       order by occurred_at, provider_event_id
     `,
-      [message.id, message.provider_message_id, message.correlation_id]
-    );
-    return {
-      correlationId: message.correlation_id,
-      deliveryEventConflict: message.delivery_event_conflict,
-      eventStatuses: eventResult.rows.map(({ status }) => status),
-      eventTypes: eventResult.rows.map(({ event_type }) => event_type),
-      lastErrorCode: message.last_error_code,
-      messageStatus: message.status,
-    };
+    [message.id, message.provider_message_id, message.correlation_id]
+  );
+  return {
+    correlationId: message.correlation_id,
+    deliveryEventConflict: message.delivery_event_conflict,
+    eventStatuses: eventResult.rows.map(({ status }) => status),
+    eventTypes: eventResult.rows.map(({ event_type }) => event_type),
+    lastErrorCode: message.last_error_code,
+    messageStatus: message.status,
   };
+};
 
 try {
   const evidence = await verifyStagingResendLifecycle({
@@ -130,33 +115,7 @@ try {
       delay: async () => {
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       },
-      hasControlledAccount: async () => {
-        const result = await pool.query<{ exists: boolean }>(
-          "select exists(select 1 from users where lower(email) = $1) as exists",
-          [controlledEmail]
-        );
-        return result.rows[0]?.exists === true;
-      },
       readEvidence,
-      requestPasswordReset: async () => {
-        const response = await fetch(
-          `${origin}/api/auth/request-password-reset`,
-          {
-            body: JSON.stringify({
-              email: controlledEmail,
-              redirectTo: `${origin}/redefinir-senha`,
-            }),
-            headers: {
-              "Content-Type": "application/json",
-              "x-correlation-id": randomUUID(),
-            },
-            method: "POST",
-            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-          }
-        );
-        await response.body?.cancel();
-        return response.status;
-      },
       runWebhookWorker: async () => {
         const response = await fetch(`${origin}/api/cron/resend-webhooks`, {
           headers: { authorization: `Bearer ${cronSecret}` },
@@ -164,6 +123,24 @@ try {
         });
         await response.body?.cancel();
         return response.status;
+      },
+      startLifecycle: async () => {
+        const response = await fetch(`${origin}/api/health/resend`, {
+          body: '{"confirmation":"EMIT_RESEND_READINESS_EMAIL"}',
+          headers: {
+            authorization: `Bearer ${readinessSecret}`,
+            "Content-Type": "application/json",
+          },
+          method: "POST",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        });
+        const body = (await response.json().catch(() => ({}))) as {
+          correlationId?: string;
+        };
+        return {
+          ...(body.correlationId ? { correlationId: body.correlationId } : {}),
+          status: response.status,
+        };
       },
     },
   });
