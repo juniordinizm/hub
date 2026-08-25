@@ -1538,10 +1538,20 @@ de no máximo 500.
 que o scheduler externo de Staging não chamava `/api/cron/resend-webhooks`; a
 agenda foi alinhada aos quatro workers de cinco minutos. O workflow manual
 `Run Staging jobs`, operação `verify-resend-lifecycle`, e o checker fail-closed
-usam somente o GitHub Environment `vercel-staging`, a Conta Admin controlada e a confirmação
+usam somente o GitHub Environment `vercel-staging`, segredo próprio e a confirmação
 `SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O aceite exige `email.sent` e
 `email.delivered` processados, estado final `delivered`, zero conflito e zero
 erro. A execução real permanece pendente até essa mudança alcançar `staging`.
+
+**Primeira execução e correção:** o run `32875321220` emitiu um único request e
+falhou com estado vazio; o log runtime sanitizado confirmou
+`password_reset_email_delivery_failed`. Nenhum `email_messages` foi criado e não
+houve retry de envio. O checker deixou de depender de `STAGING_ADMIN_EMAIL`: a
+rota `POST /api/health/resend`, protegida por segredo próprio e confirmação
+literal, escolhe no runtime uma Conta existente que também esteja na allowlist,
+inicia o lifecycle e retorna somente o UUID de correlação. O segredo foi
+provisionado apenas em Staging. Nova execução real permanece pendente após
+deploy dessa rota.
 
 ### Gate da Sprint 4
 

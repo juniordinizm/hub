@@ -176,6 +176,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `PROTECTED_DATABASE_HOSTS` | computes adicionais que o restore deve recusar | exercício manual | não |
 | `EXPIRY_WARNING_V1_CONFIRMATION` | confirmação literal do script pós-`0066` | Staging/Production, uso único | não |
 | `STAGING_RESEND_USES_PRODUCTION` | confirmação da estrutura Resend compartilhada | preflight Staging | `true` |
+| `RESEND_READINESS_SECRET` | bearer exclusivo da emissão controlada de lifecycle | Vercel Staging e GitHub Environment `vercel-staging` | sim; mínimo 32 caracteres |
 
 As seis rotas cron, inclusive `/api/cron/asaas-webhooks` e
 `/api/cron/resend-webhooks`, compartilham

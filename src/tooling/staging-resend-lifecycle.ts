@@ -9,10 +9,11 @@ export interface StagingResendLifecycleEvidence {
 
 interface StagingResendLifecycleDependencies {
   delay: () => Promise<void>;
-  hasControlledAccount: () => Promise<boolean>;
-  readEvidence: () => Promise<StagingResendLifecycleEvidence | null>;
-  requestPasswordReset: () => Promise<number>;
+  readEvidence: (
+    correlationId: string
+  ) => Promise<StagingResendLifecycleEvidence | null>;
   runWebhookWorker: () => Promise<number>;
+  startLifecycle: () => Promise<{ correlationId?: string; status: number }>;
 }
 
 const REQUIRED_EVENT_TYPES = new Set(["email.delivered", "email.sent"]);
@@ -40,13 +41,9 @@ export const verifyStagingResendLifecycle = async ({
   if (!Number.isSafeInteger(attempts) || attempts < 1) {
     throw new Error("Staging Resend lifecycle attempts must be positive.");
   }
-  if (!(await dependencies.hasControlledAccount())) {
-    throw new Error("Controlled Staging account is not available.");
-  }
-
-  const resetStatus = await dependencies.requestPasswordReset();
-  if (resetStatus < 200 || resetStatus >= 300) {
-    throw new Error("Staging password reset request failed.");
+  const started = await dependencies.startLifecycle();
+  if (started.status < 200 || started.status >= 300 || !started.correlationId) {
+    throw new Error("Staging Resend readiness request failed.");
   }
 
   let lastEvidence: StagingResendLifecycleEvidence | null = null;
@@ -55,7 +52,7 @@ export const verifyStagingResendLifecycle = async ({
     if (workerStatus < 200 || workerStatus >= 300) {
       throw new Error("Staging Resend webhook worker failed.");
     }
-    lastEvidence = await dependencies.readEvidence();
+    lastEvidence = await dependencies.readEvidence(started.correlationId);
     if (lastEvidence && isCompleteStagingResendLifecycle(lastEvidence)) {
       return lastEvidence;
     }

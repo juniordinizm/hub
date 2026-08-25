@@ -52,7 +52,7 @@ describe("Staging operations", () => {
       `DATABASE_URL_DIRECT: ${githubExpression("secrets.DATABASE_URL_DIRECT")}`
     );
     expect(workflow).toContain(
-      `STAGING_ADMIN_EMAIL: ${githubExpression("secrets.STAGING_ADMIN_EMAIL")}`
+      `RESEND_READINESS_SECRET: ${githubExpression("secrets.RESEND_READINESS_SECRET")}`
     );
     expect(workflow).toContain(
       `CRON_SECRET: ${githubExpression("secrets.CRON_SECRET")}`
