@@ -2,10 +2,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   emitSentryReadinessEvent: vi.fn(),
+  getClient: vi.fn(),
   getServerEnv: vi.fn(),
+  logOperationalEvent: vi.fn(),
 }));
 
+vi.mock("@sentry/nextjs", () => ({ getClient: dependencies.getClient }));
 vi.mock("@/lib/env", () => ({ getServerEnv: dependencies.getServerEnv }));
+vi.mock("@/lib/observability", () => ({
+  logOperationalEvent: dependencies.logOperationalEvent,
+}));
 vi.mock("@/lib/sentry-readiness", () => ({
   emitSentryReadinessEvent: dependencies.emitSentryReadinessEvent,
 }));
@@ -30,6 +36,7 @@ const request = ({
 describe("POST /api/health/sentry", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    dependencies.getClient.mockReturnValue({});
     dependencies.getServerEnv.mockReturnValue({
       NEXT_PUBLIC_SENTRY_RELEASE: release,
       SENTRY_DSN: "https://public@example.ingest.sentry.io/4511808556564480",
@@ -79,8 +86,42 @@ describe("POST /api/health/sentry", () => {
       eventId: "event-123",
     });
     expect(dependencies.emitSentryReadinessEvent).toHaveBeenCalledWith({
+      correlationId: expect.any(String),
       environment: "staging",
       release,
+    });
+  });
+
+  it("reports a sanitized operational failure when the Sentry client is unavailable", async () => {
+    dependencies.getClient.mockReturnValue(undefined);
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(dependencies.emitSentryReadinessEvent).not.toHaveBeenCalled();
+    expect(dependencies.logOperationalEvent).toHaveBeenCalledWith({
+      correlationId: expect.any(String),
+      errorCode: "sentry_client_unavailable",
+      httpStatus: 503,
+      operation: "health.sentry_readiness",
+      outcome: "failure",
+    });
+  });
+
+  it("reports a sanitized operational failure when emission does not flush", async () => {
+    dependencies.emitSentryReadinessEvent.mockRejectedValue(
+      new Error("sensitive provider detail")
+    );
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(dependencies.logOperationalEvent).toHaveBeenCalledWith({
+      correlationId: expect.any(String),
+      errorCode: "sentry_emission_failed",
+      httpStatus: 503,
+      operation: "health.sentry_readiness",
+      outcome: "failure",
     });
   });
 });

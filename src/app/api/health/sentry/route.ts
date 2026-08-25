@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
+import { getClient } from "@sentry/nextjs";
 import { NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { logOperationalEvent } from "@/lib/observability";
 import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
 import { emitSentryReadinessEvent } from "@/lib/sentry-readiness";
 
@@ -55,13 +57,33 @@ export const POST = async (request: Request): Promise<Response> => {
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 
+  const correlationId = crypto.randomUUID();
+  if (!getClient()) {
+    logOperationalEvent({
+      correlationId,
+      errorCode: "sentry_client_unavailable",
+      httpStatus: 503,
+      operation: "health.sentry_readiness",
+      outcome: "failure",
+    });
+    return NextResponse.json({ ok: false }, { status: 503 });
+  }
+
   try {
     const evidence = await emitSentryReadinessEvent({
+      correlationId,
       environment,
       release: env.NEXT_PUBLIC_SENTRY_RELEASE,
     });
     return NextResponse.json(evidence);
   } catch {
+    logOperationalEvent({
+      correlationId,
+      errorCode: "sentry_emission_failed",
+      httpStatus: 503,
+      operation: "health.sentry_readiness",
+      outcome: "failure",
+    });
     return NextResponse.json({ ok: false }, { status: 503 });
   }
 };

@@ -206,8 +206,15 @@ describe("CI workflow", () => {
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
     );
     expect(stagingWorkflow).toContain(
-      "https://preview.neurocapacitar.com.br/api/health/ready"
+      `DEPLOYMENT_URL: ${githubExpression("steps.deployment.outputs.url")}`
     );
+    expect(stagingWorkflow).toContain(
+      `smoke_origin "${shellVariable("DEPLOYMENT_URL")}"`
+    );
+    expect(stagingWorkflow).toContain(
+      'stable_origin="https://preview.neurocapacitar.com.br"'
+    );
+    expect(stagingWorkflow).toContain(".aliases | index($alias) != null");
   });
 
   it("gives Knip a synthetic E2E database and declares the CI cleanup script", () => {
