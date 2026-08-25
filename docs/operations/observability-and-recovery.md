@@ -31,7 +31,7 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 `proxy`, em `src/proxy.ts`, aceita apenas UUID v4 em `x-correlation-id` ou gera um novo. O valor segue para a requisição e a resposta. `logOperationalEvent`, em `src/lib/observability.ts`, emite JSON com `correlationId`, `operation`, `outcome`, `durationMs`, `errorCode`, `provider` e, quando seguro, `aggregateId`.
 
-O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Não inclua esses dados nos valores de outros campos.
+O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Referências circulares são substituídas por `[circular]` antes da serialização; esse marcador evita recursão sem publicar o objeto original. Não inclua dados sensíveis nos valores de outros campos.
 
 `instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
@@ -43,22 +43,21 @@ agora exige `SENTRY_ORG`, `SENTRY_PROJECT` e SHA Git completo quando existe
 `SENTRY_AUTH_TOKEN`; o mesmo SHA é injetado como `release`, o token fica somente
 no build e os source maps são removidos após upload.
 
-Na leitura autenticada de 2026-08-24, `hub-development` tinha 24 releases e 22
-Issues não resolvidas; `hub-production` tinha uma release, três Issues no total
-e uma não resolvida. O zero exibido no gráfico do painel era restrito ao
-intervalo selecionado. Preserve os dois projetos até triar essas Issues, trocar
-o DSN somente no deployment candidato e concluir a janela de observação. O
-projeto novo não deve ser removido automaticamente pelo deploy.
+Na leitura autenticada de 2026-08-25, `hub-development` tinha 25 releases e
+recebia os três environments; `hub-production` tinha uma release e zero
+ocorrência nos 14 dias consultados. O filtro Production do projeto histórico
+retornou cinco Issues/688 ocorrências, provando que o DSN efetivo ainda aponta
+para ele. Preserve os dois projetos até trocar o DSN somente no deployment
+candidato e concluir a janela de observação. O projeto novo não deve ser
+removido automaticamente pelo deploy.
 
-A triagem somente leitura repetida em 24 de agosto encontrou as mesmas 22 Issues
-não resolvidas no projeto histórico e três no inventário Production. Nenhuma
-teve atividade nas 48 horas anteriores à coleta. `HUB-PRODUCTION-1` e
-`HUB-PRODUCTION-3` estão resolvidas, tiveram uma ocorrência e não recorreram; a
-única não resolvida, `HUB-PRODUCTION-2`, é uma notificação de teste com um
-evento, vista pela última vez em 22 de agosto. Nada foi resolvido ou reaberto
-pela auditoria. Isso elimina um bloqueio de severidade, mas não autoriza
-exclusão: o DSN do deployment atual, a release histórica e a janela de
-observação ainda precisam ser preservados até o corte validado.
+Uma das Issues concentrava 671 `Maximum call stack size exceeded` em uma hora.
+Path Windows e Node 22 provaram origem em verificação local, não no runtime
+Vercel Linux/Node 24. O evento revelou, porém, uma regressão real do candidato:
+objetos circulares faziam o sanitizador recursar indefinidamente. O commit
+`801a1ce` adiciona detecção por caminho ativo e teste red/green. O evento não
+teve source map/contexto resolvido, então não serve como aceite do probe de
+readiness.
 
 A troca de slug/DSN, o evento sintético, a stack desminificada e o alerta em
 canal institucional ainda dependem do deployment candidato e da credencial

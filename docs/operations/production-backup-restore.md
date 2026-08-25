@@ -20,6 +20,29 @@ Class A e 8 milhões Class B. O código testa 6, 8 e 12 horas nessa ordem, mas o
 workflow executa a decisão registrada de seis horas; nunca muda a agenda em
 runtime nem habilita compra automática.
 
+Checkpoint externo somente leitura de `2026-08-25`:
+
+- o R2 Standard Free continua oferecendo 10 GB-mês, 1 milhão de operações
+  Class A, 10 milhões Class B e egress gratuito;
+- as credenciais S3 locais provaram `HeadBucket` e `ListObjectsV2` no bucket da
+  aplicação, mas ele não é o bucket exclusivo de backup e não pode ser usado
+  para encerrar este gate;
+- Wrangler `4.125.0` não possui sessão administrativa local, portanto Bucket
+  Lock, lifecycle e estado público do futuro bucket de backup continuam sem
+  leitura autenticada;
+- o GitHub ainda não possui o Environment `production-backup`, seus secrets ou
+  variables; o workflow existe apenas na branch de remediação e a API retorna
+  `404` ao procurá-lo na branch padrão;
+- o Neon Free mantém janela PITR máxima de seis horas e 1 GB de histórico. A
+  branch `production` está pronta, mas não protegida; proteção de branch exige
+  plano pago e não será usada como pressuposto deste desenho gratuito;
+- duas branches temporárias `production-release-*` expiram em `2026-09-05`.
+  Elas ajudam rollback de release, mas não substituem PITR ensaiado nem a cópia
+  cifrada externa.
+
+Nenhum bucket, role, Environment, secret, regra, branch ou objeto foi criado ou
+alterado durante esse checkpoint.
+
 ## Fronteiras de segurança
 
 - dump claro existe somente num diretório temporário do runner e é apagado logo

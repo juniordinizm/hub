@@ -799,6 +799,12 @@ executada porque bucket, role e GitHub Environment não foram provisionados.
 O checkpoint agregado aprovou 315 arquivos/2.154 testes, typecheck, migrations,
 Ultracite em 827 arquivos e 33 documentos canônicos.
 
+**Auditoria somente leitura em 2026-08-25:** `production-backup` ainda não existe
+nos Environments do GitHub, seus secrets/variables estão ausentes e o workflow
+retorna `404` na branch padrão. As credenciais S3 locais alcançam apenas o bucket
+da aplicação; isso não prova o bucket exclusivo de backup. Nenhuma job foi
+disparada.
+
 **Criar:**
 
 - `scripts/create-production-backup.ts`
@@ -874,6 +880,11 @@ HEAD/hash, e nenhum arquivo claro permanece no runner ou workspace.
 ### Tarefa 2.3: configurar o bucket R2 dedicado
 
 **Alteração externa controlada:** Cloudflare R2.
+
+**Estado em 2026-08-25:** pendente. Wrangler `4.125.0` não possui sessão
+administrativa local; nenhuma regra pôde ser lida. A documentação atual confirma
+R2 Standard Free em 10 GB-mês, 1 milhão Class A, 10 milhões Class B e egress
+gratuito. Nenhum bucket, objeto, token, lock ou lifecycle foi criado.
 
 **Configuração:**
 
@@ -1675,6 +1686,16 @@ alias canônico. O script nunca edita documento.
 
 ### Tarefa 5.5: tornar release e source map do Sentry explícitos
 
+**Auditoria e regressão em 2026-08-25:** a credencial separada somente leitura
+confirmou que `hub-development` concentra Development, Staging e Production,
+com 25 releases; `hub-production` possui uma release e não recebeu ocorrência
+nos 14 dias consultados. Production no projeto histórico apresentou cinco
+Issues/688 ocorrências, das quais 671 eram um loop do sanitizador recursivo
+durante verificação local Windows classificada como Production. O teste focado
+reproduziu o mesmo `RangeError`; o commit `801a1ce` tornou referências circulares
+serializáveis e manteve a remoção de PII. Os frames continuaram minificados, sem
+contexto resolvido, portanto source map real segue como gate aberto.
+
 **Modificar:**
 
 - `next.config.ts`
@@ -1741,6 +1762,11 @@ corte de DSN, ingestão, janela de observação e rollback.
 pendente. O token de inspeção configurado foi introspectado sem exposição e tem
 somente escopos de leitura/release (`alerts:read`, `event:read`, `org:read`,
 `project:read` e correlatos), não gestão.
+
+**Revalidação em 2026-08-25:** o helper somente leitura e o Sentry CLI listaram
+projetos, releases e Issues sem 403. Isso fecha somente o acesso de inspeção;
+nenhum evento foi emitido, nenhum alerta foi acionado e nenhuma configuração do
+provider foi alterada.
 
 **Criar:**
 
@@ -1956,6 +1982,13 @@ adicionado com agenda, grupos e limite aprovados. YAML foi parseado localmente e
 a documentação oficial confirmou Bun 1.1.39+; a abertura e validação de um PR
 real do Dependabot continua sendo evidência externa pendente.
 
+**Auditoria GitHub em 2026-08-25:** a branch padrão ainda usa a configuração
+anterior. O PR Dependabot #6 atualiza `actions/checkout` e possui quality/build
+verdes, com integração e browser corretamente skipped para o bot, mas não altera
+`package.json` ou `bun.lock`. Não serve como aceite de `F-010`. Depois do merge
+da remediação, aguardar a execução dinâmica semanal e exigir um PR do ecossistema
+`bun` com lockfile gerado pelo próprio Dependabot.
+
 **Modificar:**
 
 - `.github/dependabot.yml`
@@ -2012,6 +2045,12 @@ banco, provider, Playwright ou Next.js.
 `1e60557bc39956e74c1150880ca0d573129bcf34` concluídas. Decisão independente:
 `NO-GO`, pois os gates externos listados em 7.5 e os findings `F-002`, `F-006` e
 `F-010` permanecem abertos. Ver a requalificação para causas, commits e provas.
+
+**Checkpoint posterior:** a auditoria externa somente leitura encontrou uma
+regressão do sanitizador Sentry no candidato. O commit `801a1ce` possui teste
+red/green focado, TypeScript e Ultracite aprovados; ele passa a ser descendente
+obrigatório do próximo SHA candidato, mas não herda automaticamente a evidência
+integral da CI `32834478030`. Reexecutar os gates antes de qualquer nova decisão.
 
 ### Resultado
 

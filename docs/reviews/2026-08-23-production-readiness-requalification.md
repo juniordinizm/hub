@@ -251,12 +251,11 @@ Sprint 5; nenhum endereço pessoal será publicado.
 - DSN cliente: presente no bundle, valor não registrado;
 - DSN servidor: valor e presença não inferíveis do bundle público;
 - token de source maps nos builds Vercel Production e Staging: ausente;
-- inventário autenticado: concluído por integração somente leitura;
-- token local atual: válido, somente `org:ci`, adequado para upload e incapaz de
-  listar projetos por CLI;
-- `hub-development`: 23 releases, todas ainda marcadas como `unreleased`;
-- `hub-production`: zero releases;
-- release do SHA implantado: não criada pelo deployment observado;
+- inventário autenticado: concluído por token separado somente leitura, sem
+  expor o valor; o token `org:ci` permanece exclusivo de upload;
+- `hub-development`: 25 releases em `2026-08-25`;
+- `hub-production`: uma release, correspondente ao SHA implantado
+  `9f2b8f177e7531f1c19242099f403c55b3820d08`;
 - source maps: não comprovados e upload autenticado não executado;
 - ambientes de `hub-development`: `development`, `staging` e `production`;
 - ambientes de `hub-production`: somente `production`;
@@ -266,11 +265,12 @@ Sprint 5; nenhum endereço pessoal será publicado.
 - integrações retornadas pelo endpoint de integrações da organização: zero;
 - canal institucional explícito: não configurado; o destino de e-mail atual é
   dinâmico (`issue_owners`) e a segunda ação é uma Sentry App;
-- Issues não resolvidas por filtro de ambiente: `hub-production/production` 0,
-  `hub-development/production` 3, `hub-development/staging` 1 e
-  `hub-development/development` 17;
-- eventos nos buckets dos últimos 14 dias: 18, todos em `development`, cobrindo
-  sete Issues; os outros três filtros tiveram zero evento no período.
+- Issues não resolvidas por filtro de ambiente em `2026-08-25`:
+  `hub-production/production` 0, `hub-development/production` 5,
+  `hub-development/staging` 1 e `hub-development/development` 17;
+- ocorrências nos últimos 14 dias: `hub-development/production` 688,
+  `hub-development/development` 47 e `hub-development/staging` 2;
+  `hub-production/production` não recebeu ocorrência nesse período.
 
 ### 8.2 Diagnóstico autenticado do 403
 
@@ -286,8 +286,9 @@ autentica a CLI, mas `projects list` contra a organização canônica retorna `4
 por ausência de `org:read`; esse resultado é esperado e não indica alvo incorreto
 nem exige escopo administrativo.
 
-O Sentry CLI `3.6.2` listou 23 releases em `hub-development` e nenhuma em
-`hub-production`. O endpoint legado de regras retornou HTTP `410` com
+O checkpoint original usou o Sentry CLI `3.6.2`. A repetição de `2026-08-25`
+com CLI `2.58.6`, distribuída pelo SDK instalado, listou 25 releases em
+`hub-development` e uma em `hub-production`. O endpoint legado de regras retornou HTTP `410` com
 `{"message":"This API no longer exists."}`. O inventário então usou os endpoints
 GET atuais do Workflow Engine:
 
@@ -588,23 +589,32 @@ maps internos e zero arquivo `.map` em `.next/static`. Isso prova que artefatos
 de depuração não são publicados pelo Next.js, mas não substitui o upload e a
 validação de source map em um deployment real.
 
-O inventário autenticado mais recente, executado somente para leitura, encontrou
-dois projetos da mesma aplicação:
+O inventário autenticado foi repetido somente para leitura em `2026-08-25` e
+encontrou dois projetos da mesma aplicação:
 
 - `hub-development`, ID `4511808556564480`: ambientes `development`, `staging`
-  e `production`, 24 releases e 22 Issues não resolvidas;
+  e `production`, 25 releases e todo o tráfego de Issues observado;
 - `hub-production`, ID `4511951566798848`: ambiente `production`, uma release,
-  uma Issue não resolvida e três Issues totais.
+  zero Issue não resolvida e zero ocorrência no filtro de 14 dias.
 
-A triagem GET repetida encontrou zero atividade nas 48 horas anteriores à
-coleta. `HUB-PRODUCTION-1` e `HUB-PRODUCTION-3` estão resolvidas, tiveram uma
-ocorrência e não recorreram; a única Issue não resolvida,
-`HUB-PRODUCTION-2`, é uma notificação de teste com um evento, vista pela última
-vez em `2026-08-22T04:00:38Z`. Nada foi resolvido ou reaberto pela auditoria e
-nenhum título, stack, URL, usuário ou payload foi persistido no relatório. As
-22 Issues do projeto histórico também não tiveram atividade nessa janela. Isso
-reduz o risco do corte, mas não substitui o evento sanitizado e a observação do
-novo DSN.
+No projeto histórico, Development possui 17 Issues não resolvidas/47
+ocorrências, Staging uma/duas e Production cinco/688. A última ocorrência
+Production foi recebida em `2026-08-24T20:33:00Z`. Dessas ocorrências, 671
+pertenciam a `Maximum call stack size exceeded` entre `19:04:10Z` e `20:00:43Z`.
+Os frames apontavam para `.next` em Windows e Node 22, enquanto o deployment
+Vercel documentado usa Linux e Node 24. Logo, o lote foi produzido por uma
+verificação local classificada como `production`, não por uma execução da
+Vercel. Ainda assim, ele reproduziu uma regressão real do candidato: o
+sanitizador recursivo percorria referências circulares de telemetria sem guarda
+e passava a gerar o próprio erro.
+
+O teste `sanitizes circular telemetry without overflowing the call stack`
+reproduziu o mesmo `RangeError` em `src/lib/sentry-options.ts`; depois do commit
+`801a1ce`, o sanitizador detecta ciclos apenas no caminho ativo, emite o marcador
+`[circular]`, remove atributos sensíveis e volta a produzir JSON serializável.
+O arquivo focado passou 11/11 testes, TypeScript e Ultracite. A prova externa
+continua pendente porque os frames do evento não tinham contexto nem source map
+resolvido.
 
 A decisão permanece consolidar em um único projeto preservando o histórico de
 `hub-development`, depois renomeado para `hub-web`. O projeto Production atual
@@ -777,3 +787,59 @@ Sprint 8 não começou. Deploy, promoção de alias, migrations persistentes,
 ativação de flags, alteração de DNS/providers e venda real não foram
 autorizados nesta execução. A venda permanece validação pós-deploy e exigirá
 autorização financeira específica naquele momento.
+
+## 21. Checkpoint externo somente leitura de 25 de agosto
+
+A autorização seguinte permitiu apenas inventário e diagnóstico. Nenhum deploy,
+dispatch, merge, migration, criação de branch, bucket/objeto, secret, regra,
+projeto, alerta, evento sintético ou alteração DNS foi executado.
+
+### 21.1 Backup, R2 e Neon
+
+- o workflow de backup existe na branch de remediação, mas não na `main`; a API
+  do GitHub devolve `404` e não há execução histórica;
+- o Environment `production-backup` e todos os seus secrets/variables ainda não
+  existem;
+- o bucket R2 da aplicação respondeu a `HeadBucket` e `ListObjectsV2`, mas não é
+  o bucket exclusivo de backup. Wrangler não está autenticado para ler Bucket
+  Lock/lifecycle;
+- R2 Standard continua compatível com o desenho gratuito: 10 GB-mês, 1 milhão
+  Class A, 10 milhões Class B e egress gratuito;
+- Neon Production está `ready`, com cerca de 35 MB lógicos. O Free limita PITR
+  a seis horas/1 GB de histórico e não inclui branch protection; o controle
+  compensatório continua sendo least privilege, branches temporárias e backup
+  externo cifrado;
+- branches de release temporárias existem, mas não houve PITR nem restore real.
+
+Resultado: `F-002` continua `open`. Próxima prova: provisionar os recursos
+dedicados, executar dois backups, restaurar um deles integralmente e medir
+RPO/RTO em alvo descartável.
+
+### 21.2 DMARC
+
+Cloudflare e Google DNS responderam `v=DMARC1; p=none;`. SPF raiz do Lark e DKIM
+do Resend continuam publicados. O registro DMARC não possui `rua`, não há marco
+inicial auditável e nenhum relatório agregado foi analisado. A janela de 14 dias
+não pode ser contabilizada retroativamente. `F-006` continua `open`.
+
+### 21.3 Sentry
+
+O token local separado de leitura funciona com `org:read`/`project:read`; o 403
+deixou de ser blocker de inspeção. A evidência confirma que Production ainda
+envia para o projeto histórico, enquanto a release foi duplicada no projeto
+novo. Um único projeto neutro com filtros por environment continua sendo a
+topologia aprovada. A regressão de ciclo encontrada nessa inspeção foi corrigida
+no commit `801a1ce`; ingestão real, source map e alerta institucional permanecem
+abertos.
+
+### 21.4 Dependabot e decisão
+
+O GitHub reconhece `package-ecosystem: bun` para Bun 1.1.39 ou superior, mas a
+configuração está apenas na branch candidata. O PR #6 prova o fluxo de GitHub
+Actions e tem quality/build verdes; ele não altera `bun.lock`. `F-010` continua
+`open` até a configuração chegar à branch padrão e um PR Bun real passar os
+gates aplicáveis.
+
+A decisão permanece `NO-GO`. O checkpoint reduziu unknowns, corrigiu uma
+regressão do candidato e tornou os próximos passos verificáveis, mas não fechou
+nenhum dos três findings externos restantes.

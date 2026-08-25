@@ -48,6 +48,13 @@ branches Neon efêmeras foram excluídas. Esse resultado não altera os seis cam
 de Production no frontmatter: o candidato não foi mesclado, implantado,
 promovido nem verificado em Production, e a requalificação permanece `NO-GO`.
 
+Uma auditoria Sentry posterior encontrou referências circulares derrubando o
+sanitizador de telemetria durante uma verificação local classificada como
+Production. O commit corretivo `801a1cedf0b495c13ac576317d5773fd152202c4`
+passou o teste focado 11/11, TypeScript e Ultracite. Ele ainda precisa da matriz
+integral de CI; até essa repetição, `last_verified_commit` permanece no SHA
+anterior e nenhum novo SHA é candidato a deploy.
+
 ## Atualização
 
 Atualize os seis campos de estado na mesma mudança que altera o procedimento de

@@ -8,9 +8,18 @@ last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 
 ## Estado
 
-O analisador local está implementado. A progressão DNS ainda não começou neste
-registro e `F-006` permanece aberto. Nenhuma política pode ser avançada sem
-janela completa, relatórios suficientes e confirmação humana.
+O analisador local está implementado. Em `2026-08-25`, Cloudflare
+(`1.1.1.1`) e Google (`8.8.8.8`) resolveram o mesmo registro público:
+`v=DMARC1; p=none;`. O domínio também mantém o SPF raiz do Lark e o seletor
+DKIM `resend._domainkey` do Resend.
+
+Isso confirma a política de coleta, mas não inicia uma janela válida do plano:
+o TXT atual não declara `rua`, não há data de início comprovada e nenhum lote de
+relatórios agregados foi analisado. O primeiro período de 14 dias começa somente
+depois de publicar o registro recomendado com a caixa institucional, registrar
+horário/TTL e confirmar os dois resolvers. `F-006` permanece aberto e nenhuma
+política pode avançar sem janela completa, relatórios suficientes e confirmação
+humana do valor DNS exato.
 
 ## Coleta e análise gratuita
 
