@@ -231,22 +231,44 @@ jobs:
           bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" promote
           "${{ steps.deploy.outputs.url }}"
           --yes --token="$VERCEL_TOKEN"
-      - name: Smoke Production maintenance profile
+      - name: Smoke Production public profile
         env:
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br
         run: |
           set -euo pipefail
+
           for path in / /entrar /admin; do
             status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              "${PRODUCTION_ORIGIN}${path}")"
-            [[ "${status}" == "503" ]]
+              --location --max-redirs 3 "${PRODUCTION_ORIGIN}${path}")"
+            [[ "${status}" =~ ^(2|3)[0-9][0-9]$ ]] || {
+              echo "Public Production path ${path} returned HTTP ${status}." >&2
+              exit 1
+            }
           done
+
           curl --fail --silent --show-error \
             "${PRODUCTION_ORIGIN}/api/health" > /dev/null
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             "${PRODUCTION_ORIGIN}/api/health/ready" > /dev/null
+
+          checkout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "${PRODUCTION_ORIGIN}/api/checkouts/course")"
+          [[ "${checkout_status}" == "400" ]] || {
+            echo "Public checkout did not report enabled validation behavior (HTTP ${checkout_status})." >&2
+            exit 1
+          }
+
+          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "${PRODUCTION_ORIGIN}/api/webhooks/asaas")"
+          [[ "${webhook_status}" == "401" ]] || {
+            echo "Asaas webhook did not report enabled authentication behavior (HTTP ${webhook_status})." >&2
+            exit 1
+          }
       - name: Verify promoted provider alias and migration state
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}

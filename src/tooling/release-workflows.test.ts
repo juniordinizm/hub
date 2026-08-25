@@ -359,5 +359,9 @@ describe("Emergency Production backup exception", () => {
     expect(workflow).toContain("if: inputs.emergency_skip_backup != true");
     expect(workflow).toContain("name: Create confirmed Production Neon backup");
     expect(workflow).toContain("name: Record emergency backup exception");
+    expect(workflow).toContain("name: Smoke Production public profile");
+    expect(workflow).toContain("checkout_status=");
+    expect(workflow).toContain("webhook_status=");
+    expect(workflow).not.toContain(`[[ "\${status}" == "503" ]]`);
   });
 });

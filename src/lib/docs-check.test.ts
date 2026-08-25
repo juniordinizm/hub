@@ -171,7 +171,7 @@ describe("release workflow contracts", () => {
     expect(source).toContain("--output /dev/null");
   });
 
-  it("requires explicit Production SHA, maintenance confirmation, and backup", () => {
+  it("requires explicit Production SHA, commercial smoke, and backup", () => {
     const source = readWorkflow("deploy-vercel.yml");
     expect(source).toContain("release_sha:");
     expect(source).toContain("DEPLOY_PRODUCTION_MAINTENANCE");
@@ -180,7 +180,9 @@ describe("release workflow contracts", () => {
       source.indexOf("Create confirmed Production Neon backup")
     ).toBeLessThan(source.indexOf("db:migrate:production"));
     expect(source).toContain("https://app.neurocapacitar.com.br");
-    expect(source).toContain(['[[ "', '{status}" == "503" ]]'].join("$"));
+    expect(source).toContain("name: Smoke Production public profile");
+    expect(source).toContain("checkout_status=");
+    expect(source).toContain("webhook_status=");
   });
 
   it("keeps Staging reset manual, backed up, and explicitly confirmed", () => {
