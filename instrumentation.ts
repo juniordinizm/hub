@@ -1,16 +1,30 @@
-import { captureRequestError, withScope } from "@sentry/nextjs";
+import { captureRequestError, init, withScope } from "@sentry/nextjs";
 import type { Instrumentation } from "next";
 import { getServerEnv } from "./src/lib/env";
 import { logRequestFailure } from "./src/lib/request-error";
+import { resolveSentryRelease } from "./src/lib/sentry-deployment";
+import { getSentryOptions } from "./src/lib/sentry-options";
 
-export const register = async (): Promise<void> => {
+export const register = (): void => {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     getServerEnv();
-    await import("./sentry.server.config");
+    init(
+      getSentryOptions(
+        process.env.SENTRY_DSN,
+        process.env.VERCEL_TARGET_ENV,
+        resolveSentryRelease(process.env)
+      )
+    );
   }
 
   if (process.env.NEXT_RUNTIME === "edge") {
-    await import("./sentry.edge.config");
+    init(
+      getSentryOptions(
+        process.env.SENTRY_DSN,
+        process.env.VERCEL_TARGET_ENV,
+        resolveSentryRelease(process.env)
+      )
+    );
   }
 };
 
