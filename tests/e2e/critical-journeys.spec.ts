@@ -408,7 +408,11 @@ test("TOTP challenge preserves tab order and returns focus after error @mobile",
 
   await codeInput.fill("000000");
   await confirmButton.click();
-  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Não foi possível validar o código" })
+  ).toBeVisible();
   await expect(codeInput).toBeFocused();
 });
 
