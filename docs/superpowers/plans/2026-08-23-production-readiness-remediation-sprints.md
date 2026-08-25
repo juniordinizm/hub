@@ -886,6 +886,12 @@ administrativa local; nenhuma regra pôde ser lida. A documentação atual confi
 R2 Standard Free em 10 GB-mês, 1 milhão Class A, 10 milhões Class B e egress
 gratuito. Nenhum bucket, objeto, token, lock ou lifecycle foi criado.
 
+**Projeção fechada:** no modelo de 30 dias/120 runs, uma listagem por run, dois
+PUTs e um HEAD por classe resultam em cerca de 430 operações Class A e 155 Class
+B, incluindo 30 classes diárias e até cinco semanais. São menos de 0,06% e
+0,002% das reservas internas respectivas; o gate de release acrescenta uma
+listagem, um GET e um HEAD por execução.
+
 **Configuração:**
 
 - bucket privado exclusivo, sem custom domain, `r2.dev`, CORS ou acesso público;
@@ -906,7 +912,7 @@ gratuito. Nenhum bucket, objeto, token, lock ou lifecycle foi criado.
   estado público desabilitado.
 - [ ] Tentar exclusão controlada de objeto descartável ainda bloqueado e
   confirmar recusa; depois do prazo, confirmar lifecycle em objeto de teste.
-- [ ] Medir armazenamento e operações projetadas. Interromper em 80% da cota
+- [x] Medir armazenamento e operações projetadas. Interromper em 80% da cota
   gratuita; nunca ativar compra automática.
 - [ ] Alertar por falha de workflow e por ausência de manifesto recente usando
   GitHub Actions e o canal institucional já disponível.
@@ -2053,6 +2059,12 @@ red/green focado, TypeScript e Ultracite aprovados; ele passa a ser descendente
 obrigatório do próximo SHA candidato, mas não herda automaticamente a evidência
 integral da CI `32834478030`. Reexecutar os gates antes de qualquer nova decisão.
 
+**Verificação local posterior:** no SHA documental `92ec261`, migrations,
+TypeScript, Ultracite, 339 arquivos/2.286 testes, build Next.js com 20 páginas
+estáticas, zero source map público, Knip e audit de produção passaram. A CI
+integral não foi disparada porque criaria branches Neon efêmeras fora da
+autorização somente leitura.
+
 ### Resultado
 
 Reexecutar a auditoria no SHA candidato e emitir uma nova decisão independente.
@@ -2139,7 +2151,7 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
 - [ ] Sentry event/source map/alert verdes.
 - [ ] Smokes de endpoints públicos e readiness em deployment não promovido.
-- [ ] Não criar Checkout ou pagamento real nesta Sprint.
+- [x] Não criar Checkout ou pagamento real nesta Sprint.
 
 ### Tarefa 7.6: emitir decisão
 

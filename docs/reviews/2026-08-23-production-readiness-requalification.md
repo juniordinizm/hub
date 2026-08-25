@@ -393,6 +393,12 @@ Fórmula: `bytes_dump * execuções_mensais * 1,25`.
 - 8 h: `90` execuções, `18.828.675 bytes/mês`;
 - 12 h: `60` execuções, `12.552.450 bytes/mês`.
 
+No modelo escolhido de seis horas, o steady state de R2 executa cerca de 430
+operações Class A e 155 Class B por mês: uma listagem por run, dois PUTs e um
+HEAD por classe, com 30 classes diárias e até cinco semanais. Isso representa
+menos de 0,06% da reserva interna Class A e menos de 0,002% da Class B. Cada gate
+de release acrescenta apenas uma listagem, um GET e um HEAD.
+
 Com o uso Neon observado, 6 h projeta aproximadamente `54.915.796 bytes/mês`,
 cerca de `1,02%` da cota decimal de 5 GB e muito abaixo do teto operacional de
 80%. Sem considerar deduplicação ou compressão adicional, 120 objetos iguais
@@ -842,6 +848,18 @@ configuração está apenas na branch candidata. O PR #6 prova o fluxo de GitHub
 Actions e tem quality/build verdes; ele não altera `bun.lock`. `F-010` continua
 `open` até a configuração chegar à branch padrão e um PR Bun real passar os
 gates aplicáveis.
+
+### 21.5 Verificação local do descendente
+
+Depois do fix `801a1ce`, o SHA documental `92ec261` passou migrations,
+TypeScript, Ultracite em 880 arquivos e 339 arquivos/2.286 testes. O build Next.js
+16.2.11 compilou, executou TypeScript, gerou 20 páginas estáticas e terminou com
+zero source map público. Knip terminou com exit `0` e os mesmos 14 configuration
+hints conhecidos; `bun audit --production` não encontrou vulnerabilidade.
+
+A matriz CI integral não foi disparada porque integração/E2E criariam branches
+Neon efêmeras, fora da autorização somente leitura deste checkpoint. Portanto,
+essa prova local não substitui a CI verde no próximo SHA candidato.
 
 A decisão permanece `NO-GO`. O checkpoint reduziu unknowns, corrigiu uma
 regressão do candidato e tornou os próximos passos verificáveis, mas não fechou

@@ -55,6 +55,12 @@ passou o teste focado 11/11, TypeScript e Ultracite. Ele ainda precisa da matriz
 integral de CI; até essa repetição, `last_verified_commit` permanece no SHA
 anterior e nenhum novo SHA é candidato a deploy.
 
+O descendente documental `92ec261ab3b7c4f0789cfd90830866803754b4d9`
+também passou localmente 2.286 testes, build Next.js, Knip e audit de produção,
+com zero source map público. Esse resultado continua deliberadamente separado
+da CI integrada, que criaria branches Neon efêmeras e não foi autorizada no
+checkpoint somente leitura.
+
 ## Atualização
 
 Atualize os seis campos de estado na mesma mudança que altera o procedimento de

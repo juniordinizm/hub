@@ -43,6 +43,14 @@ Checkpoint externo somente leitura de `2026-08-25`:
 Nenhum bucket, role, Environment, secret, regra, branch ou objeto foi criado ou
 alterado durante esse checkpoint.
 
+Na projeção de 30 dias/120 execuções, cada run faz uma listagem e dois PUTs por
+classe; cada classe também recebe um HEAD de confirmação. Com 30 cópias diárias
+e até cinco semanais, o steady state soma aproximadamente 430 operações Class A
+e 155 Class B por mês. Isso usa menos de 0,06% da reserva interna Class A e menos
+de 0,002% da reserva Class B. Um gate de release acrescenta uma listagem, um GET
+de manifesto e um HEAD; restore, retries e testes controlados devem ser medidos
+separadamente, sem invalidar o limite de 80%.
+
 ## Fronteiras de segurança
 
 - dump claro existe somente num diretório temporário do runner e é apagado logo
