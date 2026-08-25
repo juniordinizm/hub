@@ -110,7 +110,7 @@ jobs:
         run: bun run test:certificates:integration
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        uses: ./.github/actions/delete-neon-branch
         with:
           api_key: ${{ secrets.NEON_CI_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}
@@ -216,7 +216,7 @@ jobs:
             test-results/next-server.log
       - name: Delete isolated Neon branch
         if: always() && steps.neon.outputs.branch_id != ''
-        uses: neondatabase/delete-branch-action@4468d825d5a88ef4012f1705a82f02ec3072f776 # v3.2.1
+        uses: ./.github/actions/delete-neon-branch
         with:
           api_key: ${{ secrets.NEON_CI_API_KEY }}
           branch: ${{ steps.neon.outputs.branch_id }}

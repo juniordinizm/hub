@@ -1,0 +1,62 @@
+name: Delete Neon branch with retries
+description: Delete one isolated Neon branch through the API without a Node runtime
+
+inputs:
+  api_key:
+    description: Neon API key
+    required: true
+  branch:
+    description: ID of the isolated branch
+    required: true
+  project_id:
+    description: Neon project ID
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Delete Neon branch
+      shell: bash
+      env:
+        NEON_API_KEY: ${{ inputs.api_key }}
+        NEON_BRANCH_ID: ${{ inputs.branch }}
+        NEON_PROJECT_ID: ${{ inputs.project_id }}
+      run: |
+        set -u
+
+        if [[ ! "${NEON_BRANCH_ID}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          echo "Neon branch ID contains unsupported characters."
+          exit 1
+        fi
+        if [[ ! "${NEON_PROJECT_ID}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          echo "Neon project ID contains unsupported characters."
+          exit 1
+        fi
+
+        response_file="${RUNNER_TEMP}/neon-delete-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+        status="000"
+        for attempt in 1 2 3; do
+          status="$(curl --silent --show-error \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --output "${response_file}" \
+            --write-out "%{http_code}" \
+            --request DELETE \
+            --header "Authorization: Bearer ${NEON_API_KEY}" \
+            "https://console.neon.tech/api/v2/projects/${NEON_PROJECT_ID}/branches/${NEON_BRANCH_ID}" || true)"
+
+          case "${status}" in
+            "200"|"204"|"404")
+              rm -f "${response_file}"
+              exit 0
+              ;;
+          esac
+
+          if [[ "${attempt}" != "3" ]]; then
+            sleep "$((attempt * 3))"
+          fi
+        done
+
+        rm -f "${response_file}"
+        echo "Neon branch deletion failed with HTTP ${status}."
+        exit 1

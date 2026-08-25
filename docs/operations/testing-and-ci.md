@@ -173,6 +173,12 @@ fixadas na mesma URL direta descartável. A criação de uma branch não garante
 o compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A quinta falha
 preserva o erro do migrador e bloqueia os gates seguintes.
 
+Cada job exclui sua branch efêmera em uma etapa `always()` pela ação local
+`.github/actions/delete-neon-branch`. A ação chama diretamente a API Neon, aceita `404`
+como resultado idempotente, limita conexão e requisição, tenta no máximo três vezes e
+registra somente o status HTTP em caso de falha. Nenhum corpo de resposta ou token é
+impresso.
+
 Quando a branch-pai ainda está em `0043`, ela contém os Pedidos de teste legados que
 `0046` deliberadamente não converte. Por isso, as duas jobs executam
 `db:prepare:ci-migration` antes do migrador. O preparador exige `CI=true`, o ID devolvido
