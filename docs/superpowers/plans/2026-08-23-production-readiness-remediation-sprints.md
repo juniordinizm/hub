@@ -1550,8 +1550,8 @@ houve retry de envio. O checker deixou de depender de `STAGING_ADMIN_EMAIL`: a
 rota `POST /api/health/resend`, protegida por segredo próprio e confirmação
 literal, escolhe no runtime uma Conta existente que também esteja na allowlist,
 inicia o lifecycle e retorna somente o UUID de correlação. O segredo foi
-provisionado apenas em Staging. Nova execução real permanece pendente após
-deploy dessa rota.
+provisionado apenas em Staging. A execução real posterior `32880106811` passou
+com tipos, estado final e correlação UUID sanitizados.
 
 ### Gate da Sprint 4
 

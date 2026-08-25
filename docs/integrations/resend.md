@@ -200,6 +200,12 @@ não consultam banco nem enviam. O segredo de 64 caracteres existe somente como
 Sensitive no target Staging da Vercel e secret do GitHub Environment
 `vercel-staging`; nenhum valor foi exibido ou versionado.
 
+Após o deploy `32879658351`, a verificação `32880106811` passou no mesmo SHA.
+A saída sanitizada confirmou `eventCount=2`, tipos `email.sent` e
+`email.delivered`, `match=true` e `messageStatus=delivered`, com correlação
+`362f1398-87f5-40f9-ba69-58b3ab60e831`. O provedor aceitou e entregou o e-mail
+controlado; nenhum endereço, URL, corpo ou segredo foi registrado.
+
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de
 operação aponta para outra conta e não deve ser usado como autoridade sobre a

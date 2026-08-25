@@ -919,8 +919,15 @@ somente na variável sensível Staging da Vercel.
 Um envelope controlado, assinado e no formato do provider retornou 200. A
 repetição byte a byte com o mesmo `svix-id` também retornou 200, sem e-mail e sem
 persistir endereço ou conteúdo. Assinatura e duplicata reais do ambiente estão
-provadas. Permanecem abertos: lifecycle originado pelo Resend, corrida real
-webhook/aceitação, estado final entregue e alerta operacional gratuito.
+provadas. Permanecem abertos apenas a corrida específica webhook/aceitação e o
+alerta operacional gratuito; o lifecycle provider e o estado final entregue
+foram provados no run `32880106811`.
+
+Após o deploy `32879658351`, a operação `verify-resend-lifecycle` do run
+`32880106811` passou com saída sanitizada: `eventCount=2`, tipos
+`email.sent`/`email.delivered`, `match=true` e `messageStatus=delivered`, usando
+correlação `362f1398-87f5-40f9-ba69-58b3ab60e831`. Nenhum endereço, corpo, URL ou
+segredo entrou nos logs.
 
 ### 22.4 Sentry em Staging
 
