@@ -39,7 +39,8 @@ O projeto possui cinco perfis:
 - Staging: homologação persistente em
   `https://preview.neurocapacitar.com.br`, com cadastro público e dados
   descartáveis;
-- Production: ambiente definitivo, atualmente em manutenção integral.
+- Production: ambiente definitivo, sem manutenção permanente; o estado comercial
+  é restaurado após cada operação controlada.
 
 Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
 `VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
