@@ -115,6 +115,7 @@ describe("Resend webhook worker", () => {
     [1, "retrying"],
     [12, "dead_letter"],
   ] as const)("keeps an unmatched event at attempt %i as %s", async (attempts, outcome) => {
+    const occurredAt = new Date(Date.now() - 60_000);
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rows: [] })
@@ -123,7 +124,7 @@ describe("Resend webhook worker", () => {
     await expect(
       processResendWebhookEvent({
         client: { query } as never,
-        event: claimed({ attempts }),
+        event: claimed({ attempts, occurredAt }),
         workerId: "resend-worker-a",
       })
     ).resolves.toBe(outcome);
