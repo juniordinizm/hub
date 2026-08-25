@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 ---
 
 # Ambiente e desenvolvimento local

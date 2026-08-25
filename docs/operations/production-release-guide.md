@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 1414bf5f6932b725f04738fe3560498e67883c0d
+last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 ---
 
 # Tutorial: da alteração até Production

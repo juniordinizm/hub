@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 requalification_result: in_progress
 requalification_date: 2026-08-24
 current_sprint: 6
