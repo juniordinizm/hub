@@ -30,7 +30,7 @@ vi.mock("./lib/sentry-options", () => ({
   getSentryOptions: dependencies.getSentryOptions,
 }));
 
-import { onRequestError, register } from "../instrumentation";
+import { onRequestError, register } from "./instrumentation";
 
 describe("instrumentation", () => {
   beforeEach(() => {
