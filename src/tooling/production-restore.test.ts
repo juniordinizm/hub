@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { access, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ProductionBackupManifestV1 } from "./production-backup";
 import type { BackupCommandRunner } from "./production-backup-execution";
@@ -39,13 +39,19 @@ const manifest = (): ProductionBackupManifestV1 => ({
   sourceNeonProjectId: "project-production",
 });
 
-const workspaceDirectory = "C:\\workspace\\hub";
+const workspaceDirectory = resolve("test-fixtures", "workspace");
+const offlineIdentityFile = resolve(
+  workspaceDirectory,
+  "..",
+  "offline",
+  "production-backup-identity.txt"
+);
 const restoreEnvironment = {
   BACKUP_DATABASE_URL:
     "postgresql://backup:secret@production.example.test/neondb?sslmode=verify-full",
   DEVELOPMENT_DATABASE_HOST: "development.example.test",
   PRODUCTION_DATABASE_HOST: "production.example.test",
-  RESTORE_AGE_IDENTITY_FILE: "C:\\offline\\production-backup-identity.txt",
+  RESTORE_AGE_IDENTITY_FILE: offlineIdentityFile,
   RESTORE_CONFIRMATION: "RESTORE_DISPOSABLE_PRODUCTION_BACKUP",
   RESTORE_DATABASE_URL:
     "postgresql://restore:secret@ephemeral.example.test/hub_restore_drill?sslmode=verify-full",
@@ -61,7 +67,7 @@ describe("resolveProductionRestoreConfig", () => {
         workspaceDirectory,
       })
     ).toMatchObject({
-      identityFile: "C:\\offline\\production-backup-identity.txt",
+      identityFile: offlineIdentityFile,
       manifestKey: restoreEnvironment.RESTORE_MANIFEST_KEY,
       targetDatabase: "hub_restore_drill",
       targetHost: "ephemeral.example.test",
@@ -94,7 +100,9 @@ describe("resolveProductionRestoreConfig", () => {
     ],
     [
       "identity inside repository",
-      { RESTORE_AGE_IDENTITY_FILE: "C:\\workspace\\hub\\identity.txt" },
+      {
+        RESTORE_AGE_IDENTITY_FILE: resolve(workspaceDirectory, "identity.txt"),
+      },
     ],
     [
       "identity content instead of path",
