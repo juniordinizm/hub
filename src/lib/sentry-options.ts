@@ -20,6 +20,7 @@ const SENSITIVE_ATTRIBUTE_KEY =
   /authorization|cookie|email|password|secret|signature|token|payload|signed.?url|user.?name/iu;
 const REDACTED_EMAIL = "[email]";
 const REDACTED_TOKEN = "Bearer [token]";
+const CIRCULAR_REFERENCE = "[circular]";
 
 const normalizeTelemetryText = (value: string): string => {
   const withoutCertificateQuery = value.replace(
@@ -50,22 +51,34 @@ const sanitizeRequestUrl = (url: string | undefined): string | undefined => {
   return normalizeTelemetryText(url);
 };
 
-const sanitizeTelemetryValue = (value: unknown): unknown => {
+const sanitizeTelemetryValue = (
+  value: unknown,
+  ancestors: WeakSet<object> = new WeakSet()
+): unknown => {
   if (typeof value === "string") {
     return normalizeTelemetryText(value);
-  }
-  if (Array.isArray(value)) {
-    return value.map(sanitizeTelemetryValue);
   }
   if (!value || typeof value !== "object") {
     return value;
   }
+  if (ancestors.has(value)) {
+    return CIRCULAR_REFERENCE;
+  }
 
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => !SENSITIVE_ATTRIBUTE_KEY.test(key))
-      .map(([key, item]) => [key, sanitizeTelemetryValue(item)])
-  );
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeTelemetryValue(item, ancestors));
+    }
+
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !SENSITIVE_ATTRIBUTE_KEY.test(key))
+        .map(([key, item]) => [key, sanitizeTelemetryValue(item, ancestors)])
+    );
+  } finally {
+    ancestors.delete(value);
+  }
 };
 
 const sanitizeSentryEvent = (event: ErrorEvent): ErrorEvent => {

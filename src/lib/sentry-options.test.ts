@@ -234,4 +234,24 @@ describe("Sentry options", () => {
     }
     expect(event?.tags).toEqual({ environment: "staging" });
   });
+
+  it("sanitizes circular telemetry without overflowing the call stack", () => {
+    const options = getSentryOptions(
+      "https://public@example.ingest.sentry.io/1"
+    );
+    const circular: Record<string, unknown> = {
+      email: "student@example.test",
+      label: "safe context",
+    };
+    circular.self = circular;
+
+    const event = options.beforeSend?.({
+      extra: { circular },
+    } as unknown as Parameters<NonNullable<typeof options.beforeSend>>[0]);
+    const serialized = JSON.stringify(event);
+
+    expect(serialized).toContain("safe context");
+    expect(serialized).toContain("[circular]");
+    expect(serialized).not.toContain("student@example.test");
+  });
 });
