@@ -56,7 +56,7 @@ describe("CertificateValidationPage", () => {
     expect(markup).toContain(
       'aria-label="Certificado válido: Documento válido e verificável pelo código público."'
     );
-    expect(markup).toContain("bg-emerald-600");
+    expect(markup).toContain("bg-emerald-700");
     expect(markup).toContain('data-certificate-status="valid"');
     expect(markup).toContain('data-certificate-document="true"');
     expect(markup).toContain("Código do certificado");

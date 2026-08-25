@@ -4,13 +4,18 @@ const dependencies = vi.hoisted(() => ({
   createR2ObjectReadUrl: vi.fn(),
   getPublicMediaUrl: vi.fn(),
   query: vi.fn(),
+  requirePermission: vi.fn(),
   requireRole: vi.fn(),
 }));
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: () => ({ query: dependencies.query }) }));
 vi.mock("@/features/storage/r2", () => ({
   createR2ObjectReadUrl: dependencies.createR2ObjectReadUrl,
   getPublicMediaUrl: dependencies.getPublicMediaUrl,
+}));
+vi.mock("@/lib/auth-permissions", () => ({
+  requirePermission: dependencies.requirePermission,
 }));
 vi.mock("@/lib/session", () => ({ requireRole: dependencies.requireRole }));
 
@@ -76,7 +81,7 @@ describe("course cover delivery", () => {
     expect(response.headers.get("location")).toBe(
       "https://media.example/card.webp"
     );
-    expect(dependencies.requireRole).not.toHaveBeenCalled();
+    expect(dependencies.requirePermission).not.toHaveBeenCalled();
   });
 
   it("requires an operator for a hidden draft cover", async () => {
@@ -89,6 +94,8 @@ describe("course cover delivery", () => {
     expect(response.headers.get("location")).toBe(
       "https://private.example/card.webp"
     );
-    expect(dependencies.requireRole).toHaveBeenCalledWith(["admin", "support"]);
+    expect(dependencies.requirePermission).toHaveBeenCalledWith(
+      "manageContent"
+    );
   });
 });

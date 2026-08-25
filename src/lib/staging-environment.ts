@@ -181,6 +181,7 @@ const getSharedProviderProblems = (environment: Environment): string[] => {
   for (const key of [
     "RESEND_API_KEY",
     "RESEND_FROM_EMAIL",
+    "RESEND_WEBHOOK_SECRET",
     "SUPPORT_EMAIL",
   ] as const) {
     if (!hasConfiguredValue(environment, key)) {
@@ -270,6 +271,7 @@ const getFirstPartySecretProblems = (environment: Environment): string[] =>
       "BETTER_AUTH_SECRET",
       "CRON_SECRET",
       "HEALTHCHECK_SECRET",
+      "RESEND_WEBHOOK_SECRET",
     ] as const
   ).flatMap((key) => {
     if (!hasConfiguredValue(environment, key)) {

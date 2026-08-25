@@ -8,9 +8,13 @@ import {
   markOutboxMessageDeferred,
   markOutboxMessageDelivered,
   markOutboxMessageForRetry,
+  markOutboxMessageSuperseded,
   pruneOutboxRecords,
 } from "./server";
-import { processClaimedOutboxMessage } from "./worker";
+import {
+  type OutboxProcessingOutcome,
+  processClaimedOutboxMessage,
+} from "./worker";
 
 const DEFAULT_BATCH_LIMIT = 20;
 
@@ -23,8 +27,32 @@ export interface OutboxWorkerResult {
   prunedDeadLetters: number;
   prunedDelivered: number;
   prunedReprocessAudits: number;
+  prunedSuperseded: number;
   retried: number;
+  superseded: number;
 }
+
+const recordOutboxOutcome = (
+  result: OutboxWorkerResult,
+  outcome: OutboxProcessingOutcome
+): boolean => {
+  if (outcome === "lease_lost") {
+    result.leaseLost = true;
+    return false;
+  }
+  if (outcome === "delivered") {
+    result.delivered += 1;
+  } else if (outcome === "deferred") {
+    result.deferred += 1;
+  } else if (outcome === "retrying") {
+    result.retried += 1;
+  } else if (outcome === "superseded") {
+    result.superseded += 1;
+  } else {
+    result.deadLettered += 1;
+  }
+  return true;
+};
 
 export const runOutboxWorker = async ({
   deadlineAt = Number.POSITIVE_INFINITY,
@@ -49,7 +77,9 @@ export const runOutboxWorker = async ({
     prunedDeadLetters: 0,
     prunedDelivered: 0,
     prunedReprocessAudits: 0,
+    prunedSuperseded: 0,
     retried: 0,
+    superseded: 0,
   };
 
   let processed = 0;
@@ -99,20 +129,17 @@ export const runOutboxWorker = async ({
           retryDelayMs,
           workerId,
         }),
+      markSuperseded: ({ errorCode, id }) =>
+        markOutboxMessageSuperseded({
+          client,
+          errorCode,
+          id,
+          workerId,
+        }),
       message,
     });
-    if (outcome === "lease_lost") {
-      result.leaseLost = true;
+    if (!recordOutboxOutcome(result, outcome)) {
       break;
-    }
-    if (outcome === "delivered") {
-      result.delivered += 1;
-    } else if (outcome === "deferred") {
-      result.deferred += 1;
-    } else if (outcome === "retrying") {
-      result.retried += 1;
-    } else {
-      result.deadLettered += 1;
     }
   }
 
@@ -134,5 +161,6 @@ export const runOutboxWorker = async ({
     prunedDeadLetters: pruned.deadLetters,
     prunedDelivered: pruned.delivered,
     prunedReprocessAudits: pruned.reprocessAudits,
+    prunedSuperseded: pruned.superseded,
   };
 };

@@ -423,6 +423,8 @@ Confirme antes:
 - migration Development validada, quando aplicável;
 - pessoa responsável disponível para observar o pós-deploy;
 - não existe incidente ativo no banco ou provider afetado.
+- o workflow **Backup Production database** tem uma execução verde nas últimas
+  seis horas; não tente contornar o gate com uma branch Neon.
 
 No GitHub:
 
@@ -444,11 +446,31 @@ O workflow executa:
 3. prova de CI verde para o SHA;
 4. instalação das dependências;
 5. verificação dos secrets operacionais;
-6. aplicação das migrations pendentes em Neon Production;
-7. auditoria do journal;
-8. criação de um deployment Production sem domínio;
-9. chamada autenticada de `/api/health/ready`;
-10. promoção para `app.neurocapacitar.com.br`.
+6. leitura do manifesto R2 `frequent` mais recente e confirmação de idade máxima
+   de 6 h 30 min, bucket, migration, tamanho e hash metadata;
+7. criação da branch Neon de release;
+8. aplicação das migrations pendentes em Neon Production;
+9. auditoria do journal;
+10. criação de um deployment Production sem domínio;
+11. chamada autenticada de `/api/health/ready`;
+12. checker somente leitura confirma deployment Vercel `READY`, projeto/SHA,
+    branch Neon `ready`, PostgreSQL 18 e journal/marker da candidata;
+13. promoção para `app.neurocapacitar.com.br`;
+14. repetição do checker exigindo o alias canônico no mesmo deployment.
+
+Durante o deploy, o checker compara o SHA candidato diretamente com Vercel,
+Neon e o journal PostgreSQL. Ele não exige que
+[Estado de release](release-state.md) já contenha esse SHA: tal exigência seria
+self-referential, pois o commit que documentasse o candidato teria outro SHA.
+Depois da promoção e do registro da evidência, uma auditoria separada pode usar
+`--documented-checkpoint=verified` para comparar o SHA implantado com o
+checkpoint documental. O checker emite apenas `match` e códigos fechados de
+divergência. HTTP 401/403, timeout, payload incompleto ou desacordo falham o
+workflow; nenhuma consulta lê tabelas de domínio e nenhum provider é alterado.
+
+Se o backup estiver stale ou inválido, dispare manualmente **Backup Production
+database**, aguarde a job verde e reinicie o deploy desde o começo. O deploy não
+cria backup implícito e a branch Neon de release é apenas a segunda camada.
 
 Se falhar antes da promoção, o domínio continua no deployment anterior. Não
 execute Vercel CLI nem migration manual para “terminar” o processo.

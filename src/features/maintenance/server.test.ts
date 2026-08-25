@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
+  pruneEmailDeliveryRecords: vi.fn().mockResolvedValue({
+    events: 0,
+    messages: 0,
+  }),
   reconcileCertificateTemplateAssets: vi.fn(),
   reconcileRevokedCertificateArtifacts: vi.fn(),
   reconcileStagedAdminImageUploads: vi.fn(),
@@ -9,6 +13,9 @@ const dependencies = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
+vi.mock("@/features/email-delivery/server", () => ({
+  pruneEmailDeliveryRecords: dependencies.pruneEmailDeliveryRecords,
+}));
 vi.mock("@/features/certificates/artifact-reconciliation", () => ({
   reconcileRevokedCertificateArtifacts:
     dependencies.reconcileRevokedCertificateArtifacts,
@@ -60,6 +67,10 @@ describe("runMaintenance", () => {
     dependencies.reconcileRevokedCertificateArtifacts.mockResolvedValue(7);
     dependencies.reconcileCertificateTemplateAssets.mockResolvedValue(9);
     dependencies.reconcileStagedAdminImageUploads.mockResolvedValue(8);
+    dependencies.pruneEmailDeliveryRecords.mockResolvedValueOnce({
+      events: 13,
+      messages: 14,
+    });
     const query = vi
       .fn()
       .mockResolvedValueOnce({ rowCount: 2 })
@@ -80,6 +91,8 @@ describe("runMaintenance", () => {
       deadlineReached: false,
       expiredRateLimitsRemoved: 7,
       expiredSessionsRemoved: 2,
+      emailDeliveryEventsRemoved: 13,
+      emailDeliveryMessagesRemoved: 14,
       learningAnalyticsAggregated: 5,
       learningAnalyticsEventsRemoved: 6,
       leaseLost: false,
@@ -165,6 +178,8 @@ describe("runMaintenance", () => {
           deadlineReached: false,
           expiredRateLimitsRemoved: 7,
           expiredSessionsRemoved: 2,
+          emailDeliveryEventsRemoved: 13,
+          emailDeliveryMessagesRemoved: 14,
           learningAnalyticsAggregated: 5,
           learningAnalyticsEventsRemoved: 6,
           leaseLost: false,

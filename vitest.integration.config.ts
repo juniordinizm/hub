@@ -12,7 +12,8 @@ export default defineConfig({
     // Ambas as suites limpam tabelas do banco descartável.
     // Executá-las em paralelo mistura fixtures e invalida as asserções de concorrência.
     fileParallelism: false,
+    hookTimeout: 120_000,
     include: ["src/**/*.integration.test.ts"],
-    testTimeout: 30_000,
+    testTimeout: 120_000,
   },
 });

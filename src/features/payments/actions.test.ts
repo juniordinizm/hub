@@ -9,10 +9,13 @@ const dependencies = vi.hoisted(() => ({
   })),
   getServerEnv: vi.fn(),
   importAsaasFinancialStatement: vi.fn(),
+  issueRefundConfirmation: vi.fn(),
   redirect: vi.fn(),
   reconcileAsaasPayment: vi.fn(),
+  requeueFailedAsaasWebhook: vi.fn(),
   requirePermission: vi.fn(),
   requireSession: vi.fn(),
+  requestFullRefund: vi.fn(),
   resolvePaymentReview: vi.fn(),
 }));
 
@@ -27,15 +30,15 @@ vi.mock("@/features/payments/provider", () => ({
   getAsaasProviderClient: () => ({ createCheckout: vi.fn() }),
 }));
 vi.mock("@/features/payments/refunds", () => ({
-  issueRefundConfirmation: vi.fn(),
-  requestFullRefund: vi.fn(),
+  issueRefundConfirmation: dependencies.issueRefundConfirmation,
+  requestFullRefund: dependencies.requestFullRefund,
 }));
 vi.mock("@/features/payments/reconciliation", () => ({
   importAsaasFinancialStatement: dependencies.importAsaasFinancialStatement,
   reconcileAsaasPayment: dependencies.reconcileAsaasPayment,
 }));
 vi.mock("@/features/payments/asaas-webhook-worker", () => ({
-  requeueFailedAsaasWebhook: vi.fn(),
+  requeueFailedAsaasWebhook: dependencies.requeueFailedAsaasWebhook,
 }));
 vi.mock("@/features/payments/payment-reviews", () => ({
   resolvePaymentReview: dependencies.resolvePaymentReview,
@@ -51,9 +54,12 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import {
+  confirmRefundPasswordAction,
   importAsaasStatementAction,
   reconcileAsaasPaymentAction,
+  requestFullRefundAction,
   resolvePaymentReviewAction,
+  retryFailedAsaasWebhookAction,
   startCourseCheckoutAction,
 } from "./actions";
 
@@ -256,5 +262,88 @@ describe("financial mutation actions", () => {
       decisionReason: "evidencia insuficiente",
       reviewId: ATTEMPT_ID,
     });
+  });
+
+  it("allows support to confirm and execute a full refund", async () => {
+    dependencies.requirePermission.mockResolvedValue({
+      role: "support",
+      user: { id: "support-user" },
+    });
+    dependencies.issueRefundConfirmation.mockResolvedValue({
+      confirmationToken: "single-use-token",
+    });
+    const confirmationForm = new FormData();
+    confirmationForm.set("orderId", ATTEMPT_ID);
+    confirmationForm.set("password", "current-password");
+
+    await expect(
+      confirmRefundPasswordAction(confirmationForm)
+    ).resolves.toEqual({ confirmationToken: "single-use-token" });
+
+    const refundForm = new FormData();
+    refundForm.set("orderId", ATTEMPT_ID);
+    refundForm.set("confirmationToken", "single-use-token");
+    refundForm.set("typedOrderId", ATTEMPT_ID);
+    refundForm.set("reason", "Solicitacao validada pelo suporte");
+    await requestFullRefundAction(refundForm);
+
+    expect(dependencies.requirePermission).toHaveBeenNthCalledWith(
+      1,
+      "executeRefund"
+    );
+    expect(dependencies.requirePermission).toHaveBeenNthCalledWith(
+      2,
+      "executeRefund"
+    );
+    expect(dependencies.issueRefundConfirmation).toHaveBeenCalledWith({
+      actorUserId: "support-user",
+      orderId: ATTEMPT_ID,
+      password: "current-password",
+    });
+    expect(dependencies.requestFullRefund).toHaveBeenCalledWith({
+      actorUserId: "support-user",
+      confirmationToken: "single-use-token",
+      orderId: ATTEMPT_ID,
+      reason: "Solicitacao validada pelo suporte",
+      typedOrderId: ATTEMPT_ID,
+    });
+  });
+
+  it.each([
+    {
+      action: reconcileAsaasPaymentAction,
+      form: { orderId: ATTEMPT_ID },
+      provider: dependencies.reconcileAsaasPayment,
+    },
+    {
+      action: importAsaasStatementAction,
+      form: { finishDate: "2026-07-30", startDate: "2026-07-01" },
+      provider: dependencies.importAsaasFinancialStatement,
+    },
+    {
+      action: resolvePaymentReviewAction,
+      form: { decision: "approved", reviewId: ATTEMPT_ID },
+      provider: dependencies.resolvePaymentReview,
+    },
+    {
+      action: retryFailedAsaasWebhookAction,
+      form: { webhookEventId: ATTEMPT_ID },
+      provider: dependencies.requeueFailedAsaasWebhook,
+    },
+  ])("denies support-only financial mutation before $action.name", async ({
+    action,
+    form,
+    provider,
+  }) => {
+    dependencies.requirePermission.mockRejectedValue(
+      new Error("permission_denied")
+    );
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(form)) {
+      formData.set(key, value);
+    }
+
+    await expect(action(formData)).rejects.toThrow("permission_denied");
+    expect(provider).not.toHaveBeenCalled();
   });
 });

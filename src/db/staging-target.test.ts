@@ -84,4 +84,15 @@ describe("Staging database target", () => {
     expect(source).toContain("RESTART IDENTITY CASCADE");
     expect(source).toContain("rollback");
   });
+
+  it("restores the two-Admin TOTP rollout invariant after a Staging reset", () => {
+    const workflow = readFileSync(
+      resolve(process.cwd(), ".github/workflows/reset-staging.yml"),
+      "utf8"
+    );
+
+    expect(workflow).toContain("STAGING_RECOVERY_ADMIN_EMAIL");
+    expect(workflow).toContain("STAGING_RECOVERY_ADMIN_PASSWORD");
+    expect(workflow).toContain('"2|0|0"');
+  });
 });

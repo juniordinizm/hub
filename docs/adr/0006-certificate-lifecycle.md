@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # ADR-0006 Snapshots, revogação e reemissão de Certificados
@@ -16,7 +16,7 @@ O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte
 
 O template publicado é a autoridade visual: o worker usa a posição, a área e a fonte configuradas sem autoajuste. Se um dado exceder o retângulo, o PDF preserva o recorte definido pela operação; o editor avisa antes do salvamento e pede confirmação adicional antes da publicação.
 
-Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin e Suporte podem executar as três operações, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor.
+Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin pode executar emissão, revogação e reemissão, inclusive a partir de um registro histórico, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor. Conforme [DEC-DISC-014](../decisions.md#dec-disc-014), `support` pode somente reemitir o Certificado existente mais recente da Aluna no Curso; emissão, revogação e reconciliação permanecem exclusivas de Admin. A capacidade é validada na action e a regra adicional de registro mais recente é validada no comando sob lock transacional.
 
 A emissão automática pertence exclusivamente à transação que insere a primeira `CourseCompletion`. Emissão, reemissão e progresso final compartilham lock transacional por Conta e Curso; encontrar uma Conclusão existente não tenta Certificado nem outbox.
 

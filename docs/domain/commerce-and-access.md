@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Comércio e acesso
@@ -146,7 +146,11 @@ Admin pode usar preview; a mutação de experiência da Aluna continua proibida 
 
 `extendEnrollmentExpiration` e `setEnrollmentExpiration` alteram a janela efetiva, registram `enrollment_expiration_adjustments` e eventos.
 
-**Autorização:** `manageEnrollmentAccess`.
+**Autorização atual:** `manageEnrollmentAccess`, concedida a Admin e `support`.
+O alvo aprovado no [DEC-DISC-014](../decisions.md#dec-disc-014) mantém essa
+capacidade ampla somente para Admin e cria uma capacidade restrita para `support`
+ajustar validade e bloquear/restaurar a Matrícula com motivo e auditoria. A
+separação ainda não está implementada.
 
 **Invariantes:**
 
@@ -154,6 +158,9 @@ Admin pode usar preview; a mutação de experiência da Aluna continua proibida 
 - extensão aceita dias/meses; definição exata registra antes/depois;
 - ajuste não deve mudar carga horária ou duração pedagógica;
 - manutenção expira Concessões vencidas e recompõe Matrículas.
+- aviso de expiração carrega a validade exata como geração. Se validade, estado
+  ou janela mudar antes do delivery, a outbox termina como `superseded` e não
+  chama o adapter de e-mail; o scheduler pode criar a nova geração idempotente.
 
 **Histórico:** existiu `reverseExpirationAdjustment`, removida por ser inalcançável e por restaurar às cegas o valor anterior, podendo sobrescrever ajustes posteriores encadeados. Se a reversão voltar a ser necessária, deve nascer com guarda de ordem, idempotência e recomputação de status. A coluna `reversed_adjustment_id` e o valor de evento `expiration_adjustment_reversed` permanecem no schema por o banco ser forward-only.
 

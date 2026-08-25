@@ -15,7 +15,7 @@ import {
   EMPTY_TEXT_DOCUMENT,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
-import { requireRole } from "@/lib/session";
+import { requirePermission } from "@/lib/auth-permissions";
 import { LessonEditorSidebarFields } from "../../course-builder-components";
 import { LessonSidebarActions } from "./lesson-sidebar-actions";
 import { LessonSidebarDuration } from "./lesson-sidebar-duration";
@@ -37,7 +37,7 @@ export default async function AdminLessonEditPage({
   const { courseId, lessonId } = await params;
   const [data, session] = await Promise.all([
     getAdminLessonEditorData({ courseId, lessonId }),
-    requireRole(["admin", "support"]),
+    requirePermission("manageContent"),
   ]);
 
   if (!data) {

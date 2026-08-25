@@ -32,6 +32,7 @@ const COMPLETE_STAGING_ENVIRONMENT: Record<string, string> = {
   R2_SECRET_ACCESS_KEY: "development-r2-secret",
   RESEND_API_KEY: "re_shared",
   RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
+  RESEND_WEBHOOK_SECRET: "resend-webhook-secret-at-least-32-characters",
   SCHEDULED_JOBS_ENABLED: "true",
   SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
   STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",

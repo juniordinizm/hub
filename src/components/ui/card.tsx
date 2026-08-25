@@ -52,7 +52,7 @@ function CardTitle({
   className,
   ...props
 }: React.ComponentProps<"div"> & {
-  as?: "div" | "h2" | "h3" | "h4";
+  as?: "div" | "h1" | "h2" | "h3" | "h4";
 }) {
   return (
     <Component

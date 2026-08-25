@@ -10,12 +10,12 @@ import {
 } from "./preview";
 
 describe("course preview helpers", () => {
-  it("enables student preview only for admin and support roles", () => {
+  it("enables authoring preview only for admin", () => {
     expect(getStudentPreviewMode({ preview: "aluno", role: "admin" })).toBe(
       "student"
     );
     expect(getStudentPreviewMode({ preview: "aluno", role: "support" })).toBe(
-      "student"
+      null
     );
     expect(getStudentPreviewMode({ preview: "aluno", role: "student" })).toBe(
       null
@@ -60,7 +60,7 @@ describe("course preview helpers", () => {
 
   it("identifies roles that can access preview routes", () => {
     expect(isPreviewRole("admin")).toBe(true);
-    expect(isPreviewRole("support")).toBe(true);
+    expect(isPreviewRole("support")).toBe(false);
     expect(isPreviewRole("student")).toBe(false);
   });
 
@@ -70,7 +70,7 @@ describe("course preview helpers", () => {
     expect(getHomeHrefForRole("support")).toBe("/admin");
   });
 
-  it("allows admin and support into student routes only for explicit course or lesson preview", () => {
+  it("allows only admin into student routes for explicit course or lesson preview", () => {
     expect(
       canAccessStudentRoute({
         pathname: "/app/cursos/course-1",
@@ -84,7 +84,7 @@ describe("course preview helpers", () => {
         previewMode: "student",
         role: "support",
       })
-    ).toBe(true);
+    ).toBe(false);
     expect(
       canAccessStudentRoute({
         pathname: "/app",

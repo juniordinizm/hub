@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  type AuthPermission,
   canPerform,
   getBetterAuthRateLimitConfig,
   getBootstrapAdminDecision,
@@ -71,21 +72,55 @@ describe("auth policy", () => {
     ).toBe("https://preview.example.com/redefinir-senha");
   });
 
-  it("keeps admin and support permissions explicit", () => {
-    expect(canPerform("admin", "manageContent")).toBe(true);
-    expect(canPerform("support", "manageContent")).toBe(false);
-    expect(canPerform("support", "manageEnrollmentAccess")).toBe(true);
-    expect(canPerform("support", "manageCertificates")).toBe(true);
-    expect(canPerform("support", "executeRefund")).toBe(true);
-    expect(canPerform("support", "retryWebhook")).toBe(false);
-    expect(canPerform("admin", "retryWebhook")).toBe(true);
-    expect(canPerform("support", "retryOutbox")).toBe(false);
-    expect(canPerform("admin", "retryOutbox")).toBe(true);
-    expect(canPerform("support", "manageFinancialOperations")).toBe(false);
-    expect(canPerform("admin", "manageFinancialOperations")).toBe(true);
-    expect(canPerform("support", "manageFinancialReviews")).toBe(false);
-    expect(canPerform("admin", "manageFinancialReviews")).toBe(true);
-    expect(canPerform("student", "viewAdminPanel")).toBe(false);
+  const permissions = [
+    "executeRefund",
+    "manageCertificates",
+    "manageContent",
+    "manageEnrollmentAccess",
+    "manageEnrollmentSupport",
+    "manageFinancialOperations",
+    "manageFinancialReviews",
+    "manageLearningAnalytics",
+    "manageSettings",
+    "reissueCertificates",
+    "retryOutbox",
+    "retryWebhook",
+    "viewAdminPanel",
+    "viewCourseOperations",
+    "viewFinancials",
+    "viewGlobalAudit",
+    "viewScopedAudit",
+    "viewStudentOperations",
+  ] as const;
+
+  const supportPermissions = new Set<(typeof permissions)[number]>([
+    "executeRefund",
+    "manageEnrollmentSupport",
+    "reissueCertificates",
+    "viewAdminPanel",
+    "viewCourseOperations",
+    "viewFinancials",
+    "viewScopedAudit",
+    "viewStudentOperations",
+  ]);
+
+  const permissionCases = (["admin", "support", "student"] as const).flatMap(
+    (role) =>
+      permissions.map(
+        (permission) =>
+          [
+            role,
+            permission,
+            role === "admin" ||
+              (role === "support" && supportPermissions.has(permission)),
+          ] as const
+      )
+  );
+
+  it.each(
+    permissionCases
+  )("authorizes role %s for %s as %s", (role, permission, expected) => {
+    expect(canPerform(role, permission as AuthPermission)).toBe(expected);
   });
 
   it("enables Better Auth infra only when an api key is configured", () => {

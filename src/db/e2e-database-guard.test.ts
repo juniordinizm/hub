@@ -47,6 +47,18 @@ describe("assertSafeE2eDatabaseEnvironment", () => {
     }
   });
 
+  it("rejects a pooled endpoint because concurrency tests require sessions", () => {
+    const pooledUrl =
+      "postgresql://e2e:e2e@ep-e2e-only-pooler.sa-east-1.aws.neon.tech/e2e";
+
+    expect(() =>
+      assertSafeE2eDatabaseEnvironment({
+        DATABASE_URL: pooledUrl,
+        E2E_DATABASE_URL: pooledUrl,
+      })
+    ).toThrow("E2E database must use a direct PostgreSQL endpoint");
+  });
+
   it("accepts an exact isolated PostgreSQL E2E URL", () => {
     expect(() =>
       assertSafeE2eDatabaseEnvironment({

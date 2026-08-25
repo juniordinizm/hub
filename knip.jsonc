@@ -22,6 +22,9 @@
     "scripts/**/*.{js,mjs,ts}",
     "*.{js,mjs,ts}"
   ],
+  "playwright": {
+    "config": []
+  },
   "ignore": [
     ".0ref/**",
     ".next/**",

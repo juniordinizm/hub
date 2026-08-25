@@ -87,6 +87,12 @@ const columns: ColumnDef<StudentTableRow>[] = [
     header: "Acoes",
     cell: ({ row }) => (
       <StudentManagementSheet
+        capabilities={{
+          canManageCertificates: true,
+          canManageEnrollmentSupport: true,
+          canManagePlatformAccess: true,
+          canReissueCertificates: true,
+        }}
         trigger={
           <Button size="sm" variant="outline">
             <HugeiconsIcon

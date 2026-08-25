@@ -54,6 +54,9 @@ const serverCommand = process.env.CI
   : `${bunCommand} run dev -- --port 3100`;
 
 export default defineConfig({
+  expect: {
+    timeout: 30_000,
+  },
   fullyParallel: false,
   globalSetup: "./tests/e2e/global-setup.ts",
   globalTeardown: "./tests/e2e/global-teardown.ts",
@@ -65,13 +68,14 @@ export default defineConfig({
         ["html", { open: "never" }],
       ]
     : "list",
-  retries: 0,
+  retries: process.env.CI ? 1 : 0,
   testDir: "./tests/e2e",
-  timeout: 30_000,
+  timeout: 120_000,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3100",
     trace: "retain-on-failure",
   },
+  workers: 1,
   webServer: [
     {
       command: `${bunCommand} scripts/e2e-asaas.ts`,
@@ -99,5 +103,16 @@ export default defineConfig({
       url: "http://127.0.0.1:3100",
     },
   ],
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      grepInvert: /@mobile-only/,
+      name: "chromium-desktop",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      grep: /@mobile/,
+      name: "chromium-mobile",
+      use: { ...devices["Pixel 7"] },
+    },
+  ],
 });

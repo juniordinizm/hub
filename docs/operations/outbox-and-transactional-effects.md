@@ -29,13 +29,24 @@ devolve o certificado a `pending` antes de reentregar a mesma mensagem.
 - `email.access-released`: emitido pelo processor financeiro quando a Conta já possui
   credencial; agregado `order`; chave `email.access-released/<order-id>/v1`; payload
   somente `userId` e `courseId`.
-- `email.access-expiry-warning`: emitido pela manutenção de Matrícula; agregado `enrollment`; chave por Matrícula e janela `1d` ou `7d`; payload somente `enrollmentId` e `warningKind`.
+- `email.access-expiry-warning`: emitido pela manutenção de Matrícula; agregado
+  `enrollment`; payload v2 fechado com `enrollmentId`, janela `1d`/`7d` e
+  `expectedExpiresAt` ISO UTC exato. A chave inclui Matrícula, janela, epoch da
+  validade e `/v2`. O epoch precisa corresponder ao payload. Payload v1 é aceito
+  apenas para classificação segura e nunca é enviado.
 - `auth.account-activation`: intenção emitida pelo processor Asaas quando a Conta
   vinculada ao Pedido pago ainda não possui credential; agregado `order`; chave
   `auth.account-activation/<order-id>/v1`; payload exatamente `userId` e `orderId`.
 - `email.course-sales-opened`: emitido ao abrir vendas; agregado `course_interest`; chave por Interesse; payload somente `interestId`. Vendas novamente fechadas adiam sem consumir tentativa.
 - `payments.checkout-cancel`: emitido ao fechar vendas; agregado `order`; chave por Pedido; payload somente `orderId`. Pedido já pago ou Checkout já terminal conclui como no-op.
-- `email.support-request`: emitido quando uma Aluna envia o formulário de suporte; agregado `support_request`; chave `email.support-request/<request-id>/v1`; payload somente `requestId`. A ação registra assunto, mensagem e curso em `support_requests` na mesma transação do enfileiramento; o delivery relê esses campos e os dados atuais da Aluna somente no momento da entrega. A ação limita assunto a 160 e mensagem a 1800 caracteres (contrato do template hospedado), aceita no máximo 3 pedidos por Aluna em 10 minutos e a manutenção expira os registros após 90 dias.
+- `email.support-request`: emitido quando uma Aluna envia o formulário de suporte;
+  agregado `support_request`; chave `email.support-request/<request-id>/v1`;
+  payload somente `requestId`. A ação normaliza e valida antes de conectar, abre
+  uma transação, adquire advisory lock por `support-request:<userId>`, conta,
+  insere e enfileira pelo mesmo client. Assim quatro requisições simultâneas da
+  mesma Conta resultam em três commits e uma rejeição, enquanto Contas diferentes
+  usam locks independentes. Assunto continua limitado a 160, mensagem a 1800,
+  janela a três pedidos em dez minutos e retenção a 90 dias.
 
 O payload nunca contém nome, e-mail, token de redefinição, senha, chave de API ou URL secreta. O adaptador consulta os dados atuais somente no momento da entrega.
 
@@ -84,7 +95,7 @@ O worker da inbox Asaas é separado da outbox e roda por
 - O claim é uma atualização atômica com `FOR UPDATE SKIP LOCKED`.
 - Cada mensagem recebe lease de dez minutos com `locked_at` e `locked_by`.
 - Lease abandonado fica elegível novamente; dois consumidores não devem entregar a mesma linha ativa.
-- Toda transição para `delivered`, `retrying` ou `dead_letter` confirma
+- Toda transição para `delivered`, `retrying`, `dead_letter` ou `superseded` confirma
   `status = processing` e `locked_by` do consumidor. Se a ownership foi perdida, o
   worker retorna `lease_lost` e o runner encerra o lote sem contabilizar a mensagem
   como entregue, adiada, repetida ou morta.
@@ -94,6 +105,42 @@ O worker da inbox Asaas é separado da outbox e roda por
   aponta para `/app/certificados`, que exige sessão, e não contém URL assinada de PDF.
 - Há no máximo cinco tentativas, com backoff exponencial de um minuto e jitter de até 12,5%.
 - Versão desconhecida de payload ou agregado não entregável vai para `dead_letter`.
+- `superseded` é terminal e separado de falha de entrega. O worker preenche
+  `superseded_at`, limpa o lease, preserva `delivered_at` nulo e não incrementa
+  tentativa nem cria dead letter. O snapshot operacional conta esse estado sem
+  payload.
+
+### Gerações do aviso de expiração
+
+Antes de resolver nome/e-mail e imediatamente antes de chamar Resend, o delivery
+relê `status` e `expires_at` sem filtrar Matrícula ativa. A geração é:
+
+- `current`: validade idêntica e janela ainda correta; somente esta envia;
+- `changed`: epoch/ISO não corresponde à validade atual;
+- `inactive`: Matrícula revogada/expirada ou ausente;
+- `expired`: validade já passou;
+- `wrong_window`: `7d` fora de 2–7 dias ou `1d` fora de 0–1 dia, pela mesma regra
+  UTC do scheduler.
+
+Os quatro últimos resultados geram, respectivamente,
+`expiry_generation_changed`, `expiry_inactive` ou `expiry_window_elapsed` e
+terminam como `superseded`. Payload v1 termina com `expiry_payload_v1`. Uma
+extensão redefine os marcadores da Matrícula; o scheduler cria uma nova chave
+v2. Retry da mesma validade preserva a chave.
+
+Depois de promover `0066`, mantenha jobs desligados e execute primeiro:
+
+```powershell
+bun run ops:supersede:expiry-warning-v1 -- --environment=staging --dry-run
+```
+
+O comando recusa host divergente, URL pooled, migration ausente e qualquer v1
+em `processing`. Confira somente as contagens sanitizadas. Para executar no alvo
+confirmado, defina `EXPIRY_WARNING_V1_CONFIRMATION` exatamente como
+`SUPERSEDE_EXPIRY_WARNING_V1`, troque `--dry-run` por `--execute` e rode uma vez.
+Ele altera apenas v1 `pending`/`retrying`, limpa o marcador correspondente em
+Matrículas ainda ativas e não toca mensagens entregues. Reative jobs somente
+depois de confirmar zero v1 elegível e permitir que o scheduler gere v2.
 
 O adaptador envia a `idempotencyKey` para o Resend. Em
 `auth.account-activation`, retries do Better Auth geram novos tokens válidos, mas usam a
@@ -101,7 +148,9 @@ mesma chave Resend derivada enquanto a intenção da outbox for a mesma. Como a 
 Resend responde `invalid_idempotent_request` ao payload diferente dentro de 24 horas; para
 uma chave de ativação no formato estrito, o adaptador considera esse resultado satisfeito,
 pois a chave confirma que o primeiro e-mail foi aceito e o token anterior permanece
-válido. Outros erros continuam falhando. Depois de 24 horas o provedor esquece a chave e
+válido. O lifecycle grava esse resultado como terminal `accepted`, mesmo sem um
+novo `provider_message_id`; retries seguintes retornam satisfeitos e não chamam
+o Resend novamente. Outros erros continuam falhando. Depois de 24 horas o provedor esquece a chave e
 um retry pode enviar outro e-mail. A entrega é ao menos uma vez e não promete execução
 exatamente uma vez além da janela.
 
@@ -126,6 +175,7 @@ Cada execução do consumidor remove:
 
 - mensagens `delivered` há mais de 30 dias;
 - mensagens `dead_letter` cuja última falha tem mais de 180 dias;
+- mensagens `superseded` há mais de 30 dias;
 - auditorias `outbox.requeued` com mais de 180 dias.
 
 Essa retenção cobre somente a outbox e sua auditoria operacional. Não autoriza apagar auditorias financeiras, dados de Conta ou outros registros sujeitos a política jurídica própria.
@@ -136,9 +186,13 @@ dias para `delivered` e 180 dias para `dead_letter`.
 
 ## Evidências
 
-- schema e migrations: `outboxMessages` em `src/db/schema.ts`, `0023_lyrical_lucky_pierre.sql` e `0024_light_stature.sql`;
+- schema e migrations: `outboxMessages` em `src/db/schema.ts`,
+  `0023_lyrical_lucky_pierre.sql`, `0024_light_stature.sql` e
+  `0066_gifted_retro_girl.sql`;
 - transações: `completeLesson`, `processAsaasWebhookEvent` e `processEnrollmentMaintenance`;
-- testes: `src/features/outbox/*.test.ts`, `outbox.integration.test.ts` e `certificate-issuance.integration.test.ts`;
+- testes: `src/features/outbox/*.test.ts`, `outbox.integration.test.ts`,
+  `expiry-warning.integration.test.ts`, `server.integration.test.ts` de suporte e
+  `certificate-issuance.integration.test.ts`;
 - idempotência de ativação: `src/lib/account-activation-idempotency.ts`,
   `src/lib/auth-password-reset.ts` e testes correspondentes;
 - provedor: [documentação de idempotência da Resend](https://resend.com/docs/dashboard/emails/idempotency-keys).

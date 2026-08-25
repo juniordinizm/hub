@@ -4,8 +4,22 @@ import { getSentryOptions } from "./sentry-options";
 describe("Sentry options", () => {
   it("classifies Staging events explicitly", () => {
     expect(
-      getSentryOptions("https://public@example.ingest.sentry.io/1", "staging")
-    ).toMatchObject({ environment: "staging" });
+      getSentryOptions(
+        "https://public@example.ingest.sentry.io/1",
+        "staging",
+        "a".repeat(40)
+      )
+    ).toMatchObject({ environment: "staging", release: "a".repeat(40) });
+  });
+
+  it("rejects an enabled Staging SDK without a full deployment SHA", () => {
+    expect(() =>
+      getSentryOptions(
+        "https://public@example.ingest.sentry.io/1",
+        "staging",
+        "abc1234"
+      )
+    ).toThrow("Sentry release must be the full deployment Git SHA.");
   });
 
   it("mantém a captura desativada sem DSN", () => {
@@ -174,5 +188,50 @@ describe("Sentry options", () => {
       request: { url: "https://hub.example.test/app" },
       tags: { correlation_id: "correlation-123" },
     });
+  });
+
+  it("removes sensitive attributes and values from every telemetry hook", () => {
+    const options = getSentryOptions(
+      "https://public@example.ingest.sentry.io/1"
+    );
+    const code = "PRT-1234567890ABCDEF1234567890ABCDEF";
+    const sensitive = {
+      authorization: "Bearer private-token",
+      email: "student@example.test",
+      safe: `GET /certificados/${code}?token=private-token`,
+    };
+
+    const event = options.beforeSend?.({
+      contexts: { request_context: sensitive },
+      extra: sensitive,
+      message:
+        "Failure for student@example.test using Bearer private-token at /app?token=private-token",
+      tags: { environment: "staging", reset_token: "private-token" },
+    } as unknown as Parameters<NonNullable<typeof options.beforeSend>>[0]);
+    const breadcrumb = options.beforeBreadcrumb?.({
+      data: sensitive,
+      message: "Failure for student@example.test at /app?token=private-token",
+    });
+    const transaction = options.beforeSendTransaction?.({
+      contexts: { request_context: sensitive },
+      transaction: `/certificados/${code}?token=private-token`,
+      type: "transaction",
+    });
+    const span = options.beforeSendSpan?.({
+      data: sensitive,
+      description: `GET /certificados/${code}?token=private-token`,
+      span_id: "span-id",
+      start_timestamp: 1,
+      trace_id: "trace-id",
+    });
+
+    for (const telemetry of [event, breadcrumb, transaction, span]) {
+      const serialized = JSON.stringify(telemetry);
+      expect(serialized).not.toContain("student@example.test");
+      expect(serialized).not.toContain("private-token");
+      expect(serialized).not.toContain(code);
+      expect(serialized).toContain("[certificate-code]");
+    }
+    expect(event?.tags).toEqual({ environment: "staging" });
   });
 });

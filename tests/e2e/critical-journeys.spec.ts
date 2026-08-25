@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import sharp from "sharp";
 import type { E2eFixture } from "../../scripts/seed-e2e";
+import { assertNoBlockingAccessibilityViolations } from "./accessibility";
 import {
   readAuthenticatedOrderIdentity,
   readBuyerIdentityReviewOutcome,
@@ -90,7 +90,7 @@ const signIn = async (
   }
 };
 
-test("landing CTA handoff creates one checkout and activation", async ({
+test("landing CTA handoff creates one checkout and activation @mobile", async ({
   page,
   request,
 }) => {
@@ -114,8 +114,9 @@ test("landing CTA handoff creates one checkout and activation", async ({
   const attemptId = checkoutId.replace(CHECKOUT_ID_PREFIX_PATTERN, "");
   expect(attemptId).toMatch(UUID_PATTERN);
 
-  await sendPaidWebhook({ attemptId, request });
-  await sendPaidWebhook({ attemptId, request });
+  const customerId = `cus_e2e_${attemptId}`;
+  await sendPaidWebhook({ attemptId, customerId, request });
+  await sendPaidWebhook({ attemptId, customerId, request });
   await runAsaasWorker(request);
   await runAsaasWorker(request);
 
@@ -315,7 +316,7 @@ test("anonymous paid collisions open identity review without access", async ({
   }
 });
 
-test("login and password recovery do not enumerate accounts", async ({
+test("login and password recovery do not enumerate accounts @mobile", async ({
   page,
 }) => {
   const fixture = await readFixture();
@@ -360,11 +361,17 @@ test("public signup creates a student account without granting a course", async 
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
   await page.goto("/admin/alunos");
   await page.getByPlaceholder(STUDENT_SEARCH_PLACEHOLDER_PATTERN).fill(email);
+  await page.getByRole("button", { name: "Buscar" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`\\?page=1&q=${encodeURIComponent(email)}`)
+  );
   await expect(page.getByText(name, { exact: true })).toBeVisible();
   await expect(page.getByText(email, { exact: true })).toBeVisible();
 });
 
-test("student with a grant opens the first lesson", async ({ page }) => {
+test("student with a grant opens the first lesson @mobile", async ({
+  page,
+}) => {
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
@@ -373,35 +380,46 @@ test("student with a grant opens the first lesson", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("student dashboard has no critical or serious accessibility violations", async ({
+test("student dashboard has no moderate or higher accessibility violations", async ({
   page,
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
 
-  const results = await new AxeBuilder({ page }).analyze();
-  const blockingViolations = results.violations.filter(
-    (violation) =>
-      violation.impact === "critical" || violation.impact === "serious"
-  );
-
-  expect(blockingViolations).toEqual([]);
+  await assertNoBlockingAccessibilityViolations(page, "student dashboard");
 });
 
-test("student lesson has no critical or serious accessibility violations", async ({
+test("TOTP challenge preserves tab order and returns focus after error @mobile", async ({
+  page,
+}) => {
+  await page.goto("/verificar-segundo-fator");
+  const codeInput = page.getByLabel("Código do autenticador");
+  const confirmButton = page.getByRole("button", { name: "Confirmar" });
+  const backupButton = page.getByRole("button", {
+    name: "Usar código de recuperação",
+  });
+
+  await page.keyboard.press("Tab");
+  await expect(codeInput).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(confirmButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(backupButton).toBeFocused();
+
+  await codeInput.fill("000000");
+  await confirmButton.click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(codeInput).toBeFocused();
+});
+
+test("student lesson has no moderate or higher accessibility violations", async ({
   page,
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
 
-  const results = await new AxeBuilder({ page }).analyze();
-  const blockingViolations = results.violations.filter(
-    (violation) =>
-      violation.impact === "critical" || violation.impact === "serious"
-  );
-
-  expect(blockingViolations).toEqual([]);
+  await assertNoBlockingAccessibilityViolations(page, "student lesson");
 });
 
 test("student area shows a safe recovery boundary after a server fault", async ({
@@ -471,11 +489,10 @@ test("sequencing keeps a future lesson locked", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("mobile lesson navigation exposes the course outline and locked lessons", async ({
+test("mobile lesson navigation exposes the course outline and locked lessons @mobile-only", async ({
   page,
 }) => {
   const fixture = await readFixture();
-  await page.setViewportSize({ height: 844, width: 390 });
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
 
@@ -697,6 +714,129 @@ test("admin is authorized and a student is redirected away from admin", async ({
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
 });
 
+test("support navigation and student Sheet preserve the role boundary @mobile", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.support, ADMIN_URL_PATTERN);
+  await expect(
+    page.getByRole("heading", { name: "Operação de suporte" })
+  ).toBeVisible();
+
+  if ((page.viewportSize()?.width ?? 1280) < 768) {
+    const menuTrigger = page.getByRole("button", {
+      name: "Abrir menu principal",
+    });
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      if (
+        await menuTrigger.evaluate(
+          (element) => element === document.activeElement
+        )
+      ) {
+        break;
+      }
+      await page.keyboard.press("Tab");
+    }
+    await expect(menuTrigger).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("link", { name: "Cursos" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(menuTrigger).toBeFocused();
+    await page.keyboard.press("Enter");
+  }
+
+  await expect(page.getByRole("link", { name: "Cursos" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { exact: true, name: "Financeiro" })
+  ).toBeVisible();
+  for (const forbiddenLink of [
+    "Aprendizagem",
+    "Alunos",
+    "Auditoria",
+    "Configurações",
+  ]) {
+    await expect(page.getByRole("link", { name: forbiddenLink })).toHaveCount(
+      0
+    );
+  }
+
+  await page.goto("/admin/cursos");
+  await expect(page).toHaveURL(ADMIN_URL_PATTERN);
+  await expect(page.getByRole("heading", { name: "Cursos" })).toHaveCount(0);
+
+  await page.goto(`/admin/operacao/cursos/${fixture.course.id}/alunas`);
+  const enrollmentRow = page
+    .locator("tbody tr")
+    .filter({ hasText: fixture.studentWithGrant.email });
+  const manageButton = enrollmentRow.getByRole("button", {
+    name: "Consultar",
+  });
+  await manageButton.click();
+  const studentSheet = page.getByRole("dialog");
+  await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
+  await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(studentSheet).toBeHidden();
+  await expect(manageButton).toBeFocused();
+});
+
+test("refund requires password and explicit destructive confirmation @mobile", async ({
+  page,
+  request,
+}) => {
+  const fixture = await readFixture();
+  await page.goto(`/comprar/${fixture.course.slug}`);
+  await page.waitForURL("http://127.0.0.1:4570/checkout/**");
+  const checkoutId = new URL(page.url()).pathname.split("/").at(-1) ?? "";
+  const attemptId = checkoutId.replace(CHECKOUT_ID_PREFIX_PATTERN, "");
+  expect(attemptId).toMatch(UUID_PATTERN);
+  await sendPaidWebhook({
+    attemptId,
+    customerId: `cus_e2e_${attemptId}`,
+    request,
+  });
+  await runAsaasWorker(request);
+
+  await page.context().clearCookies();
+  await signIn(page, fixture.support, ADMIN_URL_PATTERN);
+  await page.goto(`/admin/financeiro?q=${attemptId}`);
+  await expect(page.getByText(`checkout chk_${attemptId}`)).toBeVisible();
+  const refundDisclosure = page
+    .getByText("Solicitar estorno integral", { exact: true })
+    .first();
+  const refundOperation = refundDisclosure.locator("..");
+  await expect(refundDisclosure).toBeVisible();
+  await refundDisclosure.click();
+  await refundOperation
+    .getByLabel("Sua senha atual")
+    .fill(fixture.support.password);
+  await refundOperation
+    .getByRole("button", { name: "Confirmar senha" })
+    .click();
+
+  await expect(refundOperation.getByLabel("Confirme o pedido")).toBeVisible();
+  await expect(refundOperation.getByLabel("Motivo")).toBeVisible();
+  const destructiveButton = refundOperation.getByRole("button", {
+    name: "Confirmar estorno integral",
+  });
+  await expect(destructiveButton).toBeVisible();
+
+  let postCount = 0;
+  const countPost = (
+    browserRequest: import("@playwright/test").Request
+  ): void => {
+    if (browserRequest.method() === "POST") {
+      postCount += 1;
+    }
+  };
+  page.on("request", countPost);
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  page.off("request", countPost);
+  expect(postCount).toBe(0);
+  await expect(destructiveButton).toBeVisible();
+});
+
 test("admin crops, saves, and publishes the first certificate template", async ({
   page,
 }) => {
@@ -719,6 +859,19 @@ test("admin crops, saves, and publishes the first certificate template", async (
   await expect(
     page.getByRole("dialog", { name: "Ajustar arte do certificado" })
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: "Ajustar arte do certificado" })
+  ).toBeHidden();
+  await expect(page.locator(":focus-visible")).toHaveCount(1);
+  await page.locator("#certificate-background").setInputFiles({
+    buffer: await createCertificateBackground(),
+    mimeType: "image/png",
+    name: `certificate-background-${fixture.runId}-retry.png`,
+  });
+  await expect(
+    page.getByRole("dialog", { name: "Ajustar arte do certificado" })
+  ).toBeVisible();
   const useCropButton = page.getByRole("button", { name: "Usar recorte" });
   await expect(useCropButton).toBeEnabled();
   await useCropButton.click();
@@ -733,12 +886,10 @@ test("admin crops, saves, and publishes the first certificate template", async (
   ).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("Ativo", { exact: true })).toBeVisible();
 
-  const results = await new AxeBuilder({ page }).analyze();
-  const blockingViolations = results.violations.filter(
-    (violation) =>
-      violation.impact === "critical" || violation.impact === "serious"
+  await assertNoBlockingAccessibilityViolations(
+    page,
+    "admin certificate editor"
   );
-  expect(blockingViolations).toEqual([]);
 });
 
 test("public checkout exposes a safe configuration error", async ({
@@ -811,7 +962,7 @@ test("public certificates distinguish valid and revoked records", async ({
   await expect(page.getByRole("link", { name: "Baixar PDF" })).toHaveCount(0);
 });
 
-test("student certificates expose canonical links and lifecycle states safely", async ({
+test("student certificates expose canonical links and lifecycle states safely @mobile", async ({
   page,
 }) => {
   const fixture = await readFixture();
@@ -902,12 +1053,7 @@ test("student certificates expose canonical links and lifecycle states safely", 
     revokedCard.getByRole("button", { name: "Copiar link" })
   ).toBeVisible();
 
-  const results = await new AxeBuilder({ page }).analyze();
-  const blockingViolations = results.violations.filter(
-    (violation) =>
-      violation.impact === "critical" || violation.impact === "serious"
-  );
-  expect(blockingViolations).toEqual([]);
+  await assertNoBlockingAccessibilityViolations(page, "student certificates");
 });
 
 test("certificate PDF is public only for valid ready records", async ({
@@ -1019,5 +1165,10 @@ test("keyboard reaches the login form and student sidebar", async ({
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await expect(page.getByRole("link", { name: "Início" })).toBeVisible();
   await page.keyboard.press("Tab");
-  await expect(page.locator(":focus-visible")).toHaveCount(1);
+  const skipLink = page.getByRole("link", {
+    name: "Pular para o conteúdo principal",
+  });
+  await expect(skipLink).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#main-content")).toBeFocused();
 });

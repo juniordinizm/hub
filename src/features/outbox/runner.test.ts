@@ -8,6 +8,7 @@ const dependencies = vi.hoisted(() => ({
   markOutboxMessageDeferred: vi.fn(),
   markOutboxMessageDelivered: vi.fn(),
   markOutboxMessageForRetry: vi.fn(),
+  markOutboxMessageSuperseded: vi.fn(),
   pruneOutboxRecords: vi.fn(),
 }));
 
@@ -22,11 +23,12 @@ vi.mock("./server", () => ({
   markOutboxMessageDeferred: dependencies.markOutboxMessageDeferred,
   markOutboxMessageDelivered: dependencies.markOutboxMessageDelivered,
   markOutboxMessageForRetry: dependencies.markOutboxMessageForRetry,
+  markOutboxMessageSuperseded: dependencies.markOutboxMessageSuperseded,
   pruneOutboxRecords: dependencies.pruneOutboxRecords,
 }));
 
 import { runOutboxWorker } from "./runner";
-import { OutboxDeliveryError } from "./worker";
+import { OutboxDeliveryError, OutboxSupersededError } from "./worker";
 
 describe("outbox runner", () => {
   beforeEach(() => {
@@ -35,6 +37,7 @@ describe("outbox runner", () => {
     dependencies.markOutboxMessageDeferred.mockResolvedValue(true);
     dependencies.markOutboxMessageDelivered.mockResolvedValue(true);
     dependencies.markOutboxMessageForRetry.mockResolvedValue(true);
+    dependencies.markOutboxMessageSuperseded.mockResolvedValue(true);
   });
 
   it("delivers each claimed message and reports its terminal result", async () => {
@@ -60,6 +63,7 @@ describe("outbox runner", () => {
       deadLetters: 0,
       delivered: 0,
       reprocessAudits: 0,
+      superseded: 0,
     });
 
     await expect(
@@ -73,7 +77,9 @@ describe("outbox runner", () => {
       prunedDeadLetters: 0,
       prunedDelivered: 0,
       prunedReprocessAudits: 0,
+      prunedSuperseded: 0,
       retried: 0,
+      superseded: 0,
     });
 
     expect(dependencies.claimOutboxMessages).toHaveBeenCalledWith({
@@ -115,6 +121,7 @@ describe("outbox runner", () => {
       deadLetters: 0,
       delivered: 0,
       reprocessAudits: 0,
+      superseded: 0,
     });
 
     await expect(
@@ -123,6 +130,48 @@ describe("outbox runner", () => {
     expect(dependencies.markOutboxMessageDeferred).toHaveBeenCalledWith({
       client,
       errorCode: "course_sales_closed",
+      id: "outbox-1",
+      workerId: "worker-a",
+    });
+  });
+
+  it("reports a superseded generation separately from failures", async () => {
+    const client = { query: vi.fn() };
+    const message = {
+      aggregateId: "enrollment-1",
+      aggregateType: "enrollment",
+      attempts: 1,
+      id: "outbox-1",
+      idempotencyKey:
+        "email.access-expiry-warning/enrollment-1/7d/1788170400000/v2",
+      payload: {
+        enrollmentId: "enrollment-1",
+        expectedExpiresAt: "2026-08-31T10:00:00.000Z",
+        warningKind: "7d" as const,
+      },
+      payloadVersion: 2,
+      topic: "email.access-expiry-warning" as const,
+    };
+    dependencies.getPool.mockReturnValue(client);
+    dependencies.claimOutboxMessages
+      .mockResolvedValueOnce([message])
+      .mockResolvedValue([]);
+    dependencies.deliverOutboxMessage.mockRejectedValue(
+      new OutboxSupersededError("expiry_generation_changed")
+    );
+    dependencies.pruneOutboxRecords.mockResolvedValue({
+      deadLetters: 0,
+      delivered: 0,
+      reprocessAudits: 0,
+      superseded: 0,
+    });
+
+    await expect(
+      runOutboxWorker({ limit: 1, workerId: "worker-a" })
+    ).resolves.toMatchObject({ deadLettered: 0, retried: 0, superseded: 1 });
+    expect(dependencies.markOutboxMessageSuperseded).toHaveBeenCalledWith({
+      client,
+      errorCode: "expiry_generation_changed",
       id: "outbox-1",
       workerId: "worker-a",
     });

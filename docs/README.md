@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Documentação do Hub
@@ -49,7 +49,9 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Testes e CI](operations/testing-and-ci.md)
 - [Estado de release](operations/release-state.md)
 - [Outbox e efeitos transacionais](operations/outbox-and-transactional-effects.md)
-- [Observabilidade e recuperaÃ§Ã£o](operations/observability-and-recovery.md)
+- [Observabilidade e recuperação](operations/observability-and-recovery.md)
+- [Backup Production e restauração](operations/production-backup-restore.md)
+- [Progressão DMARC](operations/dmarc-rollout.md)
 
 ### Decisões
 
@@ -66,12 +68,15 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Requalificação de Production Readiness, Sprints 1–6 implementadas localmente e gates externos em execução](reviews/2026-08-23-production-readiness-requalification.md)
+- [Auditoria histórica de Production Readiness, resultado NO-GO](reviews/2026-08-23-production-readiness-audit.md)
 - [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
 - [Pesquisa da configuração comercial do Checkout Asaas](reviews/2026-07-30-asaas-payment-configuration-research.md)
 - [Pesquisa do repasse do custo do parcelamento](reviews/2026-08-03-asaas-installment-interest-research.md)
 
 ### Especificações aceitas em implementação
 
+- [Remediação da prontidão de Production](superpowers/specs/2026-08-23-production-readiness-remediation-design.md)
 - [Compra pública por link estável de Curso](superpowers/specs/2026-07-30-public-course-purchase-handoff-design.md)
 - [Plano de implementação da compra pública](superpowers/plans/2026-07-30-public-course-purchase-handoff.md)
 - [Staging persistente e manutenção integral de Production](superpowers/specs/2026-07-31-staging-environment-and-production-maintenance-design.md)
@@ -86,11 +91,16 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
 - [Plano do hardening de conclusão e Certificados](superpowers/plans/2026-08-17-certificate-production-hardening.md)
 
+### Plano mestre em execução
+
+- [Plano mestre de remediação da prontidão de Production](superpowers/plans/2026-08-23-production-readiness-remediation-sprints.md)
+
 ## Material não canônico
 
 Os arquivos abaixo são snapshots preservados para rastreabilidade. Eles não são autoridade de produto, contrato de runtime nem runbook vigente:
 
 - [Plano histórico de migração para Resend Hosted Templates](superpowers/plans/2026-08-19-resend-hosted-email-templates-migration.md)
+- [Plano substituído de conclusão de e-mail, autenticação e Resend](superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md)
 - [Auditoria histórica de e-mail e autenticação](../research/2026-08-19-email-auth-system-consolidated-audit.md)
 
 ## Contrato de manutenção

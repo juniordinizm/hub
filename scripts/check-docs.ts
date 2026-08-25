@@ -1,6 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
+import {
+  deriveDocumentationFacts,
+  readDocumentationFactsMetadata,
+  validateDocumentationFacts,
+} from "../src/tooling/documentation-facts";
+import {
+  findMissingDecisionReferences,
+  validateSupersededPlanIndexing,
+} from "../src/tooling/documentation-relations";
 import { parseReleaseState } from "../src/tooling/release-state";
 
 const CANONICAL_DOCUMENT_PATHS = [
@@ -29,6 +38,8 @@ const CANONICAL_DOCUMENT_PATHS = [
   "docs/operations/release-state.md",
   "docs/operations/outbox-and-transactional-effects.md",
   "docs/operations/observability-and-recovery.md",
+  "docs/operations/production-backup-restore.md",
+  "docs/operations/dmarc-rollout.md",
   "docs/adr/0001-custom-rbac.md",
   "docs/adr/0002-r2-buckets-and-publication.md",
   "docs/adr/0003-jmvstream-direct-multipart-upload.md",
@@ -89,6 +100,7 @@ const LINK_TITLE_SEPARATOR = /\s+["']/u;
 const ANGLE_BRACKETS = /^<|>$/g;
 const URI_SCHEME = /^[a-z][a-z\d+.-]*:/iu;
 const ENV_ASSIGNMENT = /^\s*([A-Z][A-Z0-9_]*)\s*=/;
+const SUPERSEDED_EXECUTION_STATUS = /^execution_status:\s*superseded\s*$/mu;
 
 interface ValidationOptions {
   commitExists?: (commit: string) => boolean;
@@ -363,16 +375,20 @@ const validateEnvironmentCoverage = ({
     );
 
 const validateReleaseState = ({
+  commitExists,
   content,
   documentPath,
+  verifiedCommits,
 }: {
+  commitExists: (commit: string) => boolean;
   content: string;
   documentPath: string;
+  verifiedCommits: Map<string, boolean>;
 }): string[] => {
   const metadata = parseMetadata(content);
 
   try {
-    parseReleaseState({
+    const releaseState = parseReleaseState({
       deployed: {
         commit: metadata.get("deployed_commit") ?? "",
         environment: metadata.get("deployed_environment") ?? "",
@@ -386,12 +402,104 @@ const validateReleaseState = ({
         environment: metadata.get("verified_environment") ?? "",
       },
     });
-    return [];
+    const errors: string[] = [];
+    for (const [checkpointName, checkpoint] of Object.entries(releaseState)) {
+      const exists =
+        verifiedCommits.get(checkpoint.commit) ??
+        commitExists(checkpoint.commit);
+      verifiedCommits.set(checkpoint.commit, exists);
+      if (!exists) {
+        errors.push(
+          `${documentPath}: ${checkpointName}_commit não existe: ${checkpoint.commit}`
+        );
+      }
+    }
+    return errors;
   } catch (error) {
     return [
       `${documentPath}: estado de release inválido: ${error instanceof Error ? error.message : "erro desconhecido"}`,
     ];
   }
+};
+
+const validateCurrentDatabaseFacts = ({
+  content,
+  documentPath,
+  rootDirectory,
+}: {
+  content: string;
+  documentPath: string;
+  rootDirectory: string;
+}): string[] => {
+  try {
+    const actual = deriveDocumentationFacts({
+      journalContent: readFileSync(
+        resolve(rootDirectory, "src/db/migrations/meta/_journal.json"),
+        "utf8"
+      ),
+      schemaSource: readFileSync(
+        resolve(rootDirectory, "src/db/schema.ts"),
+        "utf8"
+      ),
+    });
+    const documented = readDocumentationFactsMetadata(content);
+    return validateDocumentationFacts({ actual, documented }).map(
+      (error) => `${documentPath}: ${error}`
+    );
+  } catch (error) {
+    return [
+      `${documentPath}: fatos atuais do banco inválidos: ${
+        error instanceof Error ? error.message : "erro desconhecido"
+      }`,
+    ];
+  }
+};
+
+const listMarkdownFiles = (directory: string): string[] => {
+  if (!existsSync(directory)) {
+    return [];
+  }
+
+  const files: string[] = [];
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = resolve(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listMarkdownFiles(entryPath));
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      files.push(entryPath);
+    }
+  }
+  return files;
+};
+
+const validateSupersededPlans = ({
+  indexContent,
+  rootDirectory,
+}: {
+  indexContent: string;
+  rootDirectory: string;
+}): string[] => {
+  const plansDirectory = resolve(rootDirectory, "docs/superpowers/plans");
+  const errors: string[] = [];
+
+  for (const absolutePath of listMarkdownFiles(plansDirectory)) {
+    const planContent = readFileSync(absolutePath, "utf8");
+    if (!SUPERSEDED_EXECUTION_STATUS.test(planContent)) {
+      continue;
+    }
+    const planPath = absolutePath
+      .slice(rootDirectory.length + 1)
+      .replaceAll("\\", "/");
+    errors.push(
+      ...validateSupersededPlanIndexing({
+        indexContent,
+        planContent,
+        planPath,
+      })
+    );
+  }
+
+  return errors;
 };
 
 export const validateDocumentation = ({
@@ -403,11 +511,12 @@ export const validateDocumentation = ({
   removedDocumentPaths = REMOVED_DOCUMENT_PATHS,
   commitExists = (commit) => defaultCommitExists(rootDirectory, commit),
 }: ValidationOptions): string[] => {
+  const verifiedCommits = new Map<string, boolean>();
   const { documents, errors } = loadAndValidateDocuments(documentPaths, {
     commitExists,
     rootDirectory,
     stableIdDefinitions: new Map<string, string>(),
-    verifiedCommits: new Map<string, boolean>(),
+    verifiedCommits,
   });
 
   return [
@@ -429,8 +538,30 @@ export const validateDocumentation = ({
     }),
     ...(documentPaths.includes("docs/operations/release-state.md")
       ? validateReleaseState({
+          commitExists,
           content: documents.get("docs/operations/release-state.md") ?? "",
           documentPath: "docs/operations/release-state.md",
+          verifiedCommits,
+        })
+      : []),
+    ...(documentPaths.includes("docs/operations/database-and-migrations.md")
+      ? validateCurrentDatabaseFacts({
+          content:
+            documents.get("docs/operations/database-and-migrations.md") ?? "",
+          documentPath: "docs/operations/database-and-migrations.md",
+          rootDirectory,
+        })
+      : []),
+    ...(documentPaths.includes("docs/decisions.md")
+      ? findMissingDecisionReferences({
+          decisionRegister: documents.get("docs/decisions.md") ?? "",
+          guides: documents,
+        })
+      : []),
+    ...(documentPaths.includes("docs/README.md")
+      ? validateSupersededPlans({
+          indexContent: documents.get("docs/README.md") ?? "",
+          rootDirectory,
         })
       : []),
   ];

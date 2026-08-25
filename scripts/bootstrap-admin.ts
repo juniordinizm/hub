@@ -12,6 +12,7 @@ import {
   users,
   verifications,
 } from "../src/db/schema";
+import { PASSWORD_MIN_LENGTH } from "../src/lib/password-policy";
 
 config({ path: ".env.local" });
 config({ path: ".env" });
@@ -53,7 +54,7 @@ const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    minPasswordLength: 8,
+    minPasswordLength: PASSWORD_MIN_LENGTH,
   },
   secret: process.env.BETTER_AUTH_SECRET ?? "development-secret-change-me",
 });

@@ -22,7 +22,9 @@ export default function RequestPasswordResetPage(): React.JSX.Element {
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
-          <CardTitle className="text-3xl">Recuperar senha</CardTitle>
+          <CardTitle as="h1" className="text-3xl">
+            Recuperar senha
+          </CardTitle>
           <CardDescription>
             Enviaremos um link seguro para o seu e-mail cadastrado.
           </CardDescription>

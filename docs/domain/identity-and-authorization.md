@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Identidade e autorização
@@ -12,11 +12,13 @@ Define Conta, sessão, perfil, papéis, permissões e bloqueios. Termos comercia
 
 ## Modelo e estados
 
-- `users`: identidade Better Auth, papel e bloqueio de plataforma.
+- `users`: identidade Better Auth e indicador de segundo fator habilitado.
 - `accounts`: credenciais e provedores da identidade.
 - `sessions`: sessões revogáveis.
 - `verifications`: tokens de verificação e recuperação.
-- `profiles`: dados complementares da Aluna.
+- `two_factors`: segredo TOTP cifrado, códigos de recuperação cifrados e
+  orçamento de falhas do Better Auth.
+- `profiles`: papel, bloqueio de plataforma e dados complementares da Aluna.
 - papéis: `admin`, `support`, `student`.
 
 Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organização, tenant, convite ou equipe de cliente no domínio atual.
@@ -62,8 +64,26 @@ O trigger `users_create_student_profile`, da migration `0041_public_signup_stude
 `canPerform`, em `src/lib/auth-policy.ts`, é a fonte do RBAC:
 
 - `admin`: todas as capacidades;
-- `support`: `executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `viewAdminPanel`, `viewFinancials`;
+- `support`: `executeRefund`, `manageEnrollmentSupport`,
+  `reissueCertificates`, `viewAdminPanel`, `viewCourseOperations`,
+  `viewFinancials`, `viewScopedAudit` e `viewStudentOperations`;
 - `student`: nenhuma capacidade administrativa.
+
+Essa matriz central já representa a fronteira aprovada no
+[DEC-DISC-014](../decisions.md#dec-disc-014). `viewAdminPanel` autoriza somente o
+shell; toda leitura e mutação de domínio ainda exige sua capacidade específica.
+Páginas, Route Handlers, Server Actions e projeções aplicam essas capacidades no
+servidor. `support` usa consultas próprias por Curso e não executa primeiro uma
+consulta ampla para filtrá-la depois. O finding `F-001` permanece aberto somente
+até concluir o rollout operacional do TOTP e o gate completo do Sprint 1.
+
+A ficha contextual de `support` combina somente dados da Aluna no Curso
+selecionado: estado e validade da Matrícula, bloqueio contextual, progresso das
+Aulas obrigatórias, Certificado mais recente, Pedidos e reembolsos associados e
+auditoria restrita aos agregados permitidos. Ela não consulta nem mostra edição
+de conteúdo, configuração da plataforma, auditoria global ou controles Admin.
+Admin continua usando sua projeção própria e não herda a restrição de
+Certificado mais recente aplicada ao Suporte.
 
 `manageFinancialOperations` e `manageFinancialReviews` são capacidades mutáveis
 exclusivas de Admin. Conciliação por pagamento e importação de extrato exigem a
@@ -71,17 +91,30 @@ primeira; qualquer decisão manual que altere Revisão, Pedido ou acesso exige a
 segunda. `viewFinancials` permanece estritamente leitura. `executeRefund` continua
 separada para o Suporte iniciar o fluxo explícito de estorno autorizado.
 
-Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização. O papel Suporte implementado aguarda ratificação de produto.
+Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização.
 
 ### Assurance de Admin/Suporte
 
-`resolveAdminAssurance`, em `src/lib/admin-assurance.ts`, define o contrato para
-enforcement futuro: `setup_required`, `challenge_required`, `verified` ou
-`recovery_required`. O helper não é ativado por padrão e não altera estudantes ou
-validação pública de Certificados. A ativação exige o plugin two-factor do Better
-Auth, migration da tabela `two_factor`, tela de TOTP/backup codes, recovery testado
-e confirmação manual de que pelo menos dois Admins conseguem recuperar a conta.
-Até esses passos, permissões existentes continuam sendo a policy efetiva.
+O plugin two-factor do Better Auth `1.6.25` usa issuer `PROTEA-R Hub`, impede
+persistência útil de dispositivo confiável e bloqueia a Conta por quinze minutos
+após cinco falhas consecutivas. `resolvePrivilegedAssurance`, em
+`src/lib/privileged-assurance.ts`, trata uma sessão ativa de `admin` ou `support`
+com TOTP habilitado como verificada: o Better Auth apaga a sessão criada por senha
+antes do challenge e cria outra somente após TOTP ou backup code válido.
+
+`requireRole` e, por consequência, `requirePermission` aplicam essa assurance em
+cada fronteira servidor-side. Com `PRIVILEGED_MFA_ENFORCED=true`, uma Conta
+privilegiada sem TOTP só alcança `/configurar-segundo-fator`; estudantes não mudam.
+O default permanece `false` exclusivamente para o rollout: duas Contas Admin
+distintas devem concluir setup, e uma delas deve provar recuperação por backup
+code, antes de ativar o gate em Production.
+
+A configuração exige senha atual, apresenta QR e segredo manual, mostra códigos
+de recuperação uma única vez e valida TOTP sem confiar no dispositivo. O login
+aceita TOTP ou backup code com mensagem genérica. Recuperação reconfirma a senha,
+obtém a URI do segredo existente e substitui todo o conjunto de backup codes. Os
+endpoints de desativação e de segundo `enable` são negados a `admin` e `support`
+antes de delegar ao Better Auth.
 
 ### REG-IDA-004 Bloqueio de plataforma prevalece sobre Matrículas
 
@@ -144,7 +177,20 @@ Factory, parser, processor e delivery implementam
 
 ## Autenticação
 
-`getAuth`, em `src/lib/auth.ts`, configura Better Auth com adaptador Drizzle para `users`, `accounts`, `sessions` e `verifications`; e-mail e senha; token de redefinição por uma hora; revogação das sessões após redefinição; origens confiáveis de `parseTrustedOrigins`; e `nextCookies()` como último plugin.
+`getAuth`, em `src/lib/auth.ts`, configura Better Auth com adaptador Drizzle para
+`users`, `accounts`, `sessions`, `verifications` e `twoFactors`; e-mail e senha;
+token de redefinição por uma hora; revogação das sessões após redefinição;
+origens confiáveis de `parseTrustedOrigins`; o plugin `twoFactor`; e
+`nextCookies()` como último plugin.
+
+### REG-IDA-007 Senha tem mínimo único de oito caracteres
+
+Cadastro, redefinição, bootstrap operacional e Better Auth usam
+`PASSWORD_MIN_LENGTH = 8`, de `src/lib/password-policy.ts`. Sete caracteres são
+rejeitados e oito são aceitos; a confirmação deve ser idêntica. A mesma política
+preserva token de redefinição por uma hora e revoga as sessões existentes depois
+da troca. Mensagens públicas de recuperação continuam indistinguíveis para Conta
+existente, inexistente ou falha de entrega.
 
 As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 
@@ -158,14 +204,23 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
 - permissão não deve ser recebida do cliente;
 - e-mail, ID de usuário e papel não devem ser aceitos como prova de identidade sem sessão;
 - redefinição revoga sessões existentes;
+- mudança de papel ou do indicador de segundo fator revoga sessões existentes;
 - credenciais e secrets nunca entram em logs ou documentação versionada.
 
 ## Evidências
 
-- schema: `roleEnum`, `users`, `sessions`, `accounts`, `verifications`, `profiles` em `src/db/schema.ts`;
-- implementação: `getAuth`, `canPerform`, `isBlockedAuthEndpoint`, `getBootstrapAdminDecision`;
-- testes: `src/lib/auth-policy.test.ts`, `src/lib/trusted-origins.test.ts`, `src/lib/allowed-dev-origins.test.ts`;
-- rotas: `src/app/api/auth/[...all]/route.ts`, `src/app/api/auth/dev/bootstrap-admin/route.ts`.
+- schema: `roleEnum`, `users`, `sessions`, `accounts`, `verifications`,
+  `twoFactors` e `profiles` em `src/db/schema.ts`;
+- implementação: `getAuth`, `canPerform`, `resolvePrivilegedAssurance`,
+  `isBlockedAuthEndpoint` e `getBootstrapAdminDecision`;
+- testes: `src/lib/auth-policy.test.ts`, `src/lib/session.test.ts`,
+  `src/lib/privileged-assurance.test.ts`,
+  `src/lib/better-auth-two-factor-installed-contract.test.ts`,
+  `src/db/two-factor-schema-contract.test.ts`,
+  `src/lib/trusted-origins.test.ts` e `src/lib/allowed-dev-origins.test.ts`;
+- rotas: `src/app/api/auth/[...all]/route.ts`,
+  `src/app/api/auth/redirect/route.ts` e
+  `src/app/api/auth/dev/bootstrap-admin/route.ts`.
 
 ## Decisões e pendências
 
@@ -175,5 +230,7 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
   enfileirada pelo processor Asaas;
 - [DEC-DISC-007](../decisions.md#dec-disc-007): identidade de checkout e verificação,
   aprovadas e integradas ao processor Asaas; homologação externa pendente.
-- ratificar a matriz de Suporte;
+- [DEC-DISC-014](../decisions.md#dec-disc-014): matriz granular de `support`,
+  projeções por Curso e negações diretas implementadas; rollout operacional do
+  TOTP e gate completo do Sprint 1 permanecem pendentes;
 - racional histórico para Better Auth e autenticação por e-mail e senha não localizado.

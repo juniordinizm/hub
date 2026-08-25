@@ -206,8 +206,50 @@ const getRenderStatusLabel = (
   return "Indisponível";
 };
 
+function CertificateHistoryActions({
+  activeKind,
+  canRevoke,
+  isActive,
+  onSelectOperation,
+  status,
+}: {
+  activeKind: "reissue" | "revoke" | null;
+  canRevoke: boolean;
+  isActive: boolean;
+  onSelectOperation: (kind: "reissue" | "revoke") => void;
+  status: StudentSheetCertificate["status"];
+}): React.JSX.Element {
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {canRevoke && status === "valid" ? (
+        <Button
+          onClick={() => onSelectOperation("revoke")}
+          size="sm"
+          type="button"
+          variant={
+            isActive && activeKind === "revoke" ? "destructive" : "outline"
+          }
+        >
+          Revogar
+        </Button>
+      ) : null}
+      <Button
+        onClick={() => onSelectOperation("reissue")}
+        size="sm"
+        type="button"
+        variant={isActive && activeKind === "reissue" ? "secondary" : "outline"}
+      >
+        Reemitir
+      </Button>
+    </div>
+  );
+}
+
 function CertificateHistoryItem({
   activeOperation,
+  canReissue,
+  canReissueHistorical,
+  canRevoke,
   certificate,
   courses,
   onOperationSuccess,
@@ -215,6 +257,9 @@ function CertificateHistoryItem({
   userId,
 }: {
   activeOperation: ActiveCertificateOperation;
+  canReissue: boolean;
+  canReissueHistorical: boolean;
+  canRevoke: boolean;
   certificate: StudentSheetCertificate;
   courses: StudentSheetEnrollment[];
   onOperationSuccess: () => void | Promise<void>;
@@ -236,6 +281,9 @@ function CertificateHistoryItem({
       : reissueCertificateAction;
   const operationLabel =
     activeKind === "revoke" ? "Revogar certificado" : "Reemitir certificado";
+  const showOperations =
+    canReissue && (canReissueHistorical || certificate.canReissue);
+  const showHistoryNotice = !(canReissueHistorical || certificate.canReissue);
 
   return (
     <div className="p-3">
@@ -258,37 +306,21 @@ function CertificateHistoryItem({
           {certificate.status === "valid" ? "Válido" : "Revogado"}
         </Badge>
       </div>
-      {certificate.canReissue ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {certificate.status === "valid" ? (
-            <Button
-              onClick={() => onSelectOperation("revoke")}
-              size="sm"
-              type="button"
-              variant={
-                isActive && activeKind === "revoke" ? "destructive" : "outline"
-              }
-            >
-              Revogar
-            </Button>
-          ) : null}
-          <Button
-            onClick={() => onSelectOperation("reissue")}
-            size="sm"
-            type="button"
-            variant={
-              isActive && activeKind === "reissue" ? "secondary" : "outline"
-            }
-          >
-            Reemitir
-          </Button>
-        </div>
-      ) : (
+      {showOperations ? (
+        <CertificateHistoryActions
+          activeKind={activeKind}
+          canRevoke={canRevoke}
+          isActive={isActive}
+          onSelectOperation={onSelectOperation}
+          status={certificate.status}
+        />
+      ) : null}
+      {showHistoryNotice ? (
         <p className="mt-3 text-muted-foreground text-xs">
           Registro histórico; somente o certificado mais recente pode ser
           reemitido.
         </p>
-      )}
+      ) : null}
       {isActive && activeKind ? (
         <CertificateForm
           action={operationAction}
@@ -305,11 +337,17 @@ function CertificateHistoryItem({
 }
 
 export function StudentCertificateOperations({
+  canIssue,
+  canReissue,
+  canRevoke,
   certificates,
   courses,
   onRefresh,
   userId,
 }: {
+  canIssue: boolean;
+  canReissue: boolean;
+  canRevoke: boolean;
   certificates: StudentSheetCertificate[];
   courses: StudentSheetEnrollment[];
   onRefresh: () => void | Promise<void>;
@@ -317,6 +355,7 @@ export function StudentCertificateOperations({
 }): React.JSX.Element {
   const [activeOperation, setActiveOperation] =
     useState<ActiveCertificateOperation>(null);
+  const hasCourses = courses.length > 0;
   const onOperationSuccess = async (): Promise<void> => {
     setActiveOperation(null);
     await onRefresh();
@@ -330,7 +369,7 @@ export function StudentCertificateOperations({
           Histórico e operações administrativas desta aluna.
         </p>
       </div>
-      {courses.length ? (
+      {canIssue && hasCourses ? (
         <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
           <div>
             <p className="font-medium text-sm">Nova emissão</p>
@@ -355,13 +394,14 @@ export function StudentCertificateOperations({
               : "Emitir certificado manual"}
           </Button>
         </div>
-      ) : (
+      ) : null}
+      {canIssue && !hasCourses ? (
         <p className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
           É necessário matricular a aluna em um Curso antes de emitir um
           certificado manual.
         </p>
-      )}
-      {activeOperation?.kind === "issue" ? (
+      ) : null}
+      {canIssue && activeOperation?.kind === "issue" ? (
         <CertificateForm
           action={issueManualCertificateAction}
           courses={courses}
@@ -376,6 +416,9 @@ export function StudentCertificateOperations({
           {certificates.map((certificate) => (
             <CertificateHistoryItem
               activeOperation={activeOperation}
+              canReissue={canReissue}
+              canReissueHistorical={canIssue}
+              canRevoke={canRevoke}
               certificate={certificate}
               courses={courses}
               key={certificate.id}

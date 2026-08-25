@@ -16,6 +16,7 @@ import {
 } from "../src/db/schema";
 import { addMonths } from "../src/features/enrollments/rules";
 import { createManualAccessGrant } from "../src/features/enrollments/server";
+import { PASSWORD_MIN_LENGTH } from "../src/lib/password-policy";
 import { assertSharedDevelopmentDatabase } from "../src/lib/shared-development-database";
 
 config({ path: ".env.local", quiet: true });
@@ -53,7 +54,7 @@ const auth = betterAuth({
     schema: { accounts, sessions, users, verifications },
     usePlural: true,
   }),
-  emailAndPassword: { enabled: true, minPasswordLength: 8 },
+  emailAndPassword: { enabled: true, minPasswordLength: PASSWORD_MIN_LENGTH },
   secret: readRequiredEnvironment("BETTER_AUTH_SECRET"),
 });
 

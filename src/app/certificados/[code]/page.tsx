@@ -39,7 +39,10 @@ export default async function CertificateValidationPage({
     certificate.status === "valid" && certificate.renderStatus === "ready";
 
   return (
-    <PageContainer className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-8 sm:py-8 lg:px-12">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background px-4 py-6 text-foreground sm:px-8 sm:py-8 lg:px-12"
+    >
       <div className="mx-auto max-w-[1400px]" data-certificate-layout="split">
         <header className="mb-8 flex items-center justify-between border-border/60 border-b pb-4">
           <Image

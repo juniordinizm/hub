@@ -35,7 +35,21 @@ describe("AuditoriaPage", () => {
             severity: "critical" as const,
           },
         ],
-        outbox: { deadLetters: 0, oldestReadyAt: null, ready: 0 },
+        emailDelivery: {
+          accepted: 7,
+          bounced: 1,
+          complained: 2,
+          deadLetters: 0,
+          delivered: 6,
+          oldestRetryAt: null,
+          retrying: 0,
+        },
+        outbox: {
+          deadLetters: 0,
+          oldestReadyAt: null,
+          ready: 0,
+          superseded: 0,
+        },
         payments: {
           uncertainCheckouts: 9,
           uncertainRefunds: 7,
@@ -58,6 +72,9 @@ describe("AuditoriaPage", () => {
 
     expect(markup).toContain(">22<");
     expect(markup).toContain("Checkouts incertos: 9");
+    expect(markup).toContain("E-mails aceitos");
+    expect(markup).toContain(">7<");
+    expect(markup).toContain("Entregues: 6");
     expect(markup).toContain("Mensagens em dead letter");
     expect(markup).toContain(
       "Há mensagens que esgotaram as tentativas e exigem revisão manual."

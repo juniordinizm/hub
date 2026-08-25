@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Observabilidade e recuperação
@@ -23,6 +23,7 @@ Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos.
 | Certificado e e-mail | outbox, dead letter, rota pública, verificação de hash e exceção | Operações | alta se emissão não notifica ou PDF válido/pronto fica indisponível | conferir agregado, outbox, R2 e Resend; não editar snapshot nem divulgar URL assinada |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
 | Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
+| Backup Production | falha do workflow ou ausência de manifesto `frequent` válido há 6 h 30 min | Operações | crítica | disparar manualmente o backup, investigar sem liberar o deploy e seguir o [runbook de backup e restore](production-backup-restore.md) |
 
 Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado.
 
@@ -34,7 +35,57 @@ O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-m
 
 `instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
-Os projetos Sentry por ambiente incluem `hub-development` (Development) e `hub-production` (Production; id numérico `4511951566798848`, guardado como proibido para Development e Staging em `src/lib/development-environment.ts` e `src/lib/staging-environment.ts`). Staging é separado por `STAGING_SENTRY_PROJECT_ID`. Desde 2026-08-21, Production envia para `hub-production` com `SENTRY_DSN` e `NEXT_PUBLIC_SENTRY_DSN` configurados na Vercel. Em 2026-08-22 a regra de alerta "First seen event" foi ativada no projeto e comprovada ponta a ponta: um evento sintético controlado disparou a regra e entregou e-mail ao responsável. A manutenção diária também expira `support_requests` após 90 dias.
+O inventário autenticado preserva temporariamente `hub-development` (ID
+`4511808556564480`) como projeto com histórico e `hub-production` como projeto
+Production ainda referenciado pelo deployment canônico. O alvo é um projeto
+único, com `environment` separando Development, Staging e Production. O build
+agora exige `SENTRY_ORG`, `SENTRY_PROJECT` e SHA Git completo quando existe
+`SENTRY_AUTH_TOKEN`; o mesmo SHA é injetado como `release`, o token fica somente
+no build e os source maps são removidos após upload.
+
+Na leitura autenticada de 2026-08-24, `hub-development` tinha 24 releases e 22
+Issues não resolvidas; `hub-production` tinha uma release, três Issues no total
+e uma não resolvida. O zero exibido no gráfico do painel era restrito ao
+intervalo selecionado. Preserve os dois projetos até triar essas Issues, trocar
+o DSN somente no deployment candidato e concluir a janela de observação. O
+projeto novo não deve ser removido automaticamente pelo deploy.
+
+A triagem somente leitura repetida em 24 de agosto encontrou as mesmas 22 Issues
+não resolvidas no projeto histórico e três no inventário Production. Nenhuma
+teve atividade nas 48 horas anteriores à coleta. `HUB-PRODUCTION-1` e
+`HUB-PRODUCTION-3` estão resolvidas, tiveram uma ocorrência e não recorreram; a
+única não resolvida, `HUB-PRODUCTION-2`, é uma notificação de teste com um
+evento, vista pela última vez em 22 de agosto. Nada foi resolvido ou reaberto
+pela auditoria. Isso elimina um bloqueio de severidade, mas não autoriza
+exclusão: o DSN do deployment atual, a release histórica e a janela de
+observação ainda precisam ser preservados até o corte validado.
+
+A troca de slug/DSN, o evento sintético, a stack desminificada e o alerta em
+canal institucional ainda dependem do deployment candidato e da credencial
+correta. Até essas evidências existirem, Sentry permanece gate crítico aberto e
+bloqueia `GO`. A manutenção diária também expira `support_requests` após 90 dias.
+
+O probe controlado usa `POST /api/health/sentry`, disponível somente em Staging
+ou Production quando `SENTRY_READINESS_SECRET` existe. Ele exige bearer próprio
+e corpo literal `{"confirmation":"EMIT_SENTRY_READINESS_EVENT"}`, cria somente
+uma exceção constante em `src/lib/sentry-readiness.ts`, anexa `environment`, SHA
+completo e `readiness_probe=sentry`, aguarda o flush e retorna apenas `eventId` e
+`correlationId`. `SENTRY_READINESS_AUTH_TOKEN` é separado, somente leitura e
+nunca entra no runtime web.
+
+Depois da emissão, execute o checker somente leitura com o `eventId`, ambiente e
+SHA retornados pelo deployment, sem copiar tokens para a linha de comando:
+
+```powershell
+bun run ops:check:sentry-readiness -- --event-id=<32-hex> --environment=staging --release=<40-hex>
+```
+
+O processo lê `SENTRY_READINESS_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
+`SENTRY_PROJECT_ID` e `SENTRY_READINESS_ALERT_NAME` do ambiente seguro. Ele
+aguarda no máximo um minuto, exige evento no projeto/ambiente/release corretos,
+ausência de PII/query, frame resolvido para `src/lib/sentry-readiness.ts` e
+workflow ativo cujo `lastTriggered` alcança o evento. HTTP 401/403, resposta
+incompleta ou timeout falham; o checker não cria nem altera alerta.
 
 As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
 
@@ -90,6 +141,11 @@ abre conexão, não executa migration e não restaura banco.
 2. Use o `correlationId` no log e confira conectividade, pool runtime e journal.
 3. Runtime usa `DATABASE_URL` pooled; migrations usam `DATABASE_URL_DIRECT`. Nunca recupere com `db:push` ou `db:reset`.
 4. Branch, PITR, proteção e retenção de produção requerem verificação humana no Neon.
+5. O backup lógico independente executa às `17 */6 * * *` e também por dispatch
+   manual. O deploy recusa manifesto ausente, stale, com migration desconhecida,
+   tamanho divergente ou SHA-256 divergente. A falha do workflow é o alerta
+   primário do GitHub Actions; o canal institucional deve apontar para essa job
+   quando o GitHub Environment for provisionado.
 
 ### Asaas
 
@@ -155,7 +211,7 @@ Em 2026-07-21 UTC, a branch `recovery-drill-20260721` foi criada da branch `prod
 
 Esse é um ensaio real de cópia do estado corrente de produção e de recuperação forward de schema. Ele revelou o estado inicial de 23 entradas no journal e ausência de `outbox_messages`. Após aprovação explícita, `0023` e `0024` foram promovidas de forma controlada para `production`: o journal chegou a 25 entradas, a outbox existe e uma segunda execução do migrador não reaplicou schema.
 
-As branches `production` acessíveis de CI e do projeto `protear` permanecem sem proteção porque o plano Free não oferece esse recurso. O ensaio não comprova PITR em ponto histórico, política de backup/retenção ou entrega de alerta; essas verificações continuam adiadas até haver ambiente de produção e capacidade do provedor.
+As branches `production` acessíveis de CI e do projeto `protear` permanecem sem proteção porque o plano Free não oferece esse recurso. O ensaio não comprova PITR em ponto histórico, cópia independente, política de retenção nem entrega de alerta. A auditoria de 23 de agosto confirmou essas lacunas como bloqueio de recuperação; elas permanecem pendentes no plano mestre e não podem depender de upgrade pago.
 
 ## Manutenção
 

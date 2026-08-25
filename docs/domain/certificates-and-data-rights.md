@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Certificados e dados técnicos
@@ -73,7 +73,7 @@ Na área autenticada, Certificado `pending` aparece como “Preparando” e atua
 
 ### REG-DAT-002 Revogação preserva histórico
 
-`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências. A revogação bloqueia imediatamente novos previews e downloads nas rotas do Hub, mas não consegue recolher PDFs já baixados nem desfazer cópias compartilhadas anteriormente.
+`revokeCertificate` altera estado, categoria, detalhe interno, autoria e data; não apaga o registro. Admin pode emitir, revogar, reemitir qualquer registro histórico e reconciliar Certificados. `support` não emite, revoga nem reconcilia; pode somente reemitir o Certificado existente mais recente da Aluna no Curso, conforme [DEC-DISC-014](../decisions.md#dec-disc-014). A action exige a capacidade correspondente e o comando reaplica a regra de registro mais recente dentro do lock transacional. A confirmação é validada novamente no parser server-side da action; remover ou forjar o controle visual não autoriza o comando. A consulta pública mostra estado, data e categoria legível, nunca detalhe, autoria ou evidências. A revogação bloqueia imediatamente novos previews e downloads nas rotas do Hub, mas não consegue recolher PDFs já baixados nem desfazer cópias compartilhadas anteriormente.
 
 ### REG-DAT-003 Reemissão cria nova evidência
 
@@ -81,10 +81,12 @@ Na área autenticada, Certificado `pending` aparece como “Preparando” e atua
 
 ### REG-DAT-003A Hardening do ciclo e da rastreabilidade
 
-Reemissão somente pode partir do registro histórico mais recente da Aluna no
-Curso e usa lock transacional por par Aluna/Curso; assim, o predecessor revogado
-não é reescrito e duas reemissões concorrentes não criam ramificação. A UI só
-oferece a operação para o registro elegível. Novas emissões usam código no
+Reemissão por `support` somente pode partir do registro histórico mais recente da
+Aluna no Curso. Admin pode selecionar um registro histórico anterior para a
+correção excepcional. Ambos os caminhos usam lock transacional por par
+Aluna/Curso; o predecessor revogado não é reescrito e duas reemissões
+concorrentes não criam ramificação. A UI aplica a mesma fronteira por papel.
+Novas emissões usam código no
 formato `PRT-` seguido de 32 caracteres hexadecimais; o lookup continua
 compatível com códigos legados.
 

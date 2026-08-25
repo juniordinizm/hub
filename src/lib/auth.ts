@@ -3,15 +3,24 @@ import { dash, sentinel } from "@better-auth/infra";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins/two-factor";
 import { getDb } from "@/db";
-import { accounts, sessions, users, verifications } from "@/db/schema";
+import {
+  accounts,
+  sessions,
+  twoFactors,
+  users,
+  verifications,
+} from "@/db/schema";
 import { sendBetterAuthPasswordResetEmail } from "@/lib/auth-password-reset";
 import {
   getBetterAuthRateLimitConfig,
   getResolvedBetterAuthInfraConfig,
 } from "@/lib/auth-policy";
 import { getServerEnv } from "@/lib/env";
+import { AUTH_PASSWORD_POLICY } from "@/lib/password-policy";
 import { parseTrustedOrigins } from "@/lib/trusted-origins";
+import { TWO_FACTOR_SERVER_OPTIONS } from "@/lib/two-factor-policy";
 
 const createAuth = () => {
   const env = getServerEnv();
@@ -53,21 +62,24 @@ const createAuth = () => {
       schema: {
         accounts,
         sessions,
+        twoFactors,
         users,
         verifications,
       },
       usePlural: true,
     }),
     emailAndPassword: {
+      ...AUTH_PASSWORD_POLICY,
       enabled: true,
-      minPasswordLength: 8,
-      resetPasswordTokenExpiresIn: 3600,
-      revokeSessionsOnPasswordReset: true,
       sendResetPassword: async (input, request) => {
         await sendBetterAuthPasswordResetEmail(input, request);
       },
     },
-    plugins: [...infraPlugins, nextCookies()],
+    plugins: [
+      ...infraPlugins,
+      twoFactor(TWO_FACTOR_SERVER_OPTIONS),
+      nextCookies(),
+    ],
   });
 };
 

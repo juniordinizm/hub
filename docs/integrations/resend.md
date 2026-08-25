@@ -39,6 +39,10 @@ Esse risco é limitado por:
 - SPF, DKIM e DMARC válidos;
 - monitoramento de bounces e complaints antes de ampliar volume.
 
+Relatórios DMARC são analisados localmente, sem SaaS pago, pelo procedimento de
+[progressão DMARC](../operations/dmarc-rollout.md). XML bruto permanece fora do
+repositório e a política avança somente pelas cinco janelas aprovadas.
+
 ## DNS
 
 A Hostinger continua como autoridade DNS. Registros de website, Vercel e e-mail
@@ -64,12 +68,43 @@ Referências oficiais:
 ## Variáveis e segredo
 
 - `RESEND_API_KEY`: segredo Production, com o menor escopo de envio disponível;
+- `RESEND_WEBHOOK_SECRET`: signing secret diferente da API key, obrigatório em
+  Staging e Production e proibido em Preview;
 - `RESEND_FROM_EMAIL`: valor não secreto do remetente verificado;
 - `SUPPORT_EMAIL`: caixa operacional real e monitorada.
 
 Não registre a API key em chat, documento, commit ou GitHub Variable. Cadastre-a
 como variável sensível no ambiente Production da Vercel. Preview não reutiliza
 a chave de Production nem envia mensagens a clientes.
+
+## Lifecycle de aceitação e entrega
+
+`outbox_messages.delivered` significa que o handler aceitou o efeito, não que o
+destinatário recebeu a mensagem. O lifecycle real vive em `email_messages`:
+`sending`, `acceptance_unknown`, `accepted`, `delayed`, `delivered`, `failed`,
+`suppressed`, `bounced` e `complained`. O painel de Auditoria exibe aceite e
+entrega separadamente.
+
+Antes do IO, o servidor calcula HMAC-SHA256 canônico do request com
+`BETTER_AUTH_SECRET`, persiste somente o fingerprint e abre uma janela automática
+de 23 horas. Tags enviadas ao Resend são fechadas: `hub_topic` usa slug ASCII
+allowlisted e `hub_correlation` usa UUID local da mensagem. Se o provider ID já
+chegou por webhook, o retry conclui sem novo IO. Fingerprint diferente, deadline
+vencida ou conflito de idempotência mantêm `acceptance_unknown`; nunca se cria
+uma chave nova.
+
+O webhook `POST /api/webhooks/resend` lê o corpo bruto uma vez e verifica os
+três headers Svix com `resend.webhooks.verify`. A inbox grava somente digest,
+IDs do provider, tipo, horário e correlação allowlisted; não grava corpo,
+destinatário, remetente, assunto, tags completas ou headers. Duplicata por
+`svix-id` retorna 200, schema assinado inválido vira dead letter mínimo e falha
+de banco retorna 503.
+
+O cron `/api/cron/resend-webhooks` processa a inbox a cada cinco minutos com
+lease próprio. Eventos fora de ordem usam precedência determinística e nunca
+acionam reenvio ou alteram Conta, Matrícula ou Pedido. Retenção: eventos
+processados/ignorados 180 dias, dead letter 365 dias e mensagens terminais 365
+dias, em lotes de 500 e sem apagar mensagem com evento pendente.
 
 ### Development
 
@@ -119,6 +154,11 @@ Estado da liberação inicial:
 6. [x] Confirmar remetente, `Reply-To` e estado `delivered`.
 7. [x] Executar um reset de senha real após o primeiro deployment.
 8. [ ] Confirmar SPF, DKIM e DMARC nos cabeçalhos da mensagem de aplicação.
+9. [ ] Implantar a rota e cadastrar somente `email.sent`,
+   `email.delivery_delayed`, `email.delivered`, `email.failed`,
+   `email.suppressed`, `email.bounced` e `email.complained`.
+10. [ ] Provar assinatura, duplicata e corrida webhook/aceitação no ambiente
+    real sem registrar endereço ou conteúdo.
 
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de
@@ -128,5 +168,7 @@ na caixa destinatária.
 
 ## Evidências
 
-`src/features/email/server.ts`, `src/features/email/server.test.ts`,
+`src/features/email/server.ts`, `src/features/email-delivery/*`,
+`src/app/api/webhooks/resend/route.ts`,
+`src/app/api/cron/resend-webhooks/route.ts`, migration `0067`,
 `src/lib/env.ts` e `src/lib/production-environment.ts`.

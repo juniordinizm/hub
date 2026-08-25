@@ -3,8 +3,13 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { profiles } from "@/db/schema";
+import { profiles, users } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
+import { getServerEnv } from "@/lib/env";
+import {
+  getPrivilegedAssuranceRedirect,
+  resolvePrivilegedAssurance,
+} from "@/lib/privileged-assurance";
 import { route } from "@/lib/routes";
 
 export type AppRole = "admin" | "support" | "student";
@@ -13,6 +18,7 @@ export interface AppSession {
   platformBlockedAt: Date | null;
   platformBlockedReason: string | null;
   role: AppRole;
+  twoFactorEnabled: boolean;
   user: {
     id: string;
     name: string;
@@ -34,9 +40,11 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
       platformBlockedAt: profiles.platformBlockedAt,
       platformBlockedReason: profiles.platformBlockedReason,
       role: profiles.role,
+      twoFactorEnabled: users.twoFactorEnabled,
     })
-    .from(profiles)
-    .where(eq(profiles.userId, session.user.id))
+    .from(users)
+    .leftJoin(profiles, eq(profiles.userId, users.id))
+    .where(eq(users.id, session.user.id))
     .limit(1);
 
   return {
@@ -48,7 +56,22 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
       email: session.user.email,
     },
     role: profile?.role ?? "student",
+    twoFactorEnabled: profile?.twoFactorEnabled ?? false,
   };
+};
+
+const requirePrivilegedAssurance = (session: AppSession): void => {
+  const assurance = resolvePrivilegedAssurance({
+    hasActiveSession: true,
+    mfaEnforced: getServerEnv().PRIVILEGED_MFA_ENFORCED,
+    role: session.role,
+    twoFactorEnabled: session.twoFactorEnabled,
+  });
+  const redirectTo = getPrivilegedAssuranceRedirect(assurance);
+
+  if (redirectTo) {
+    redirect(route(redirectTo));
+  }
 };
 
 export const requireSession = async (): Promise<AppSession> => {
@@ -65,12 +88,17 @@ export const requireSession = async (): Promise<AppSession> => {
   return session;
 };
 
-export const requireRole = async (roles: AppRole[]): Promise<AppSession> => {
+export const requireRole = async <Role extends AppRole>(
+  roles: readonly Role[]
+): Promise<AppSession & { role: Role }> => {
   const session = await requireSession();
 
-  if (!roles.includes(session.role)) {
+  const allowedRole = roles.find((role) => role === session.role);
+  if (!allowedRole) {
     redirect(route("/app"));
   }
 
-  return session;
+  requirePrivilegedAssurance(session);
+
+  return { ...session, role: allowedRole };
 };

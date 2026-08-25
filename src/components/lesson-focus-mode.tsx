@@ -25,7 +25,7 @@ export function LessonFocusLayout({
           : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]"
       )}
     >
-      <main className="custom-scrollbar min-w-0 overflow-y-auto">{main}</main>
+      <div className="custom-scrollbar min-w-0 overflow-y-auto">{main}</div>
       {isFocusMode ? null : (
         <div className="hidden h-full min-w-0 overflow-hidden transition-opacity duration-200 ease-linear lg:block">
           {sidebar}

@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 888ad2f8addddef9dec4f11bacad8580ffb7181b
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # ADR-0001 RBAC próprio sem Admin/Organization Plugin
@@ -12,7 +12,7 @@ O produto possui três papéis globais e capacidades pequenas e explícitas. Nã
 
 ## Decisão
 
-Manter papéis em `roleEnum`/`users.role` e capacidades em `rolePermissions`, de `src/lib/auth-policy.ts`. Better Auth permanece responsável por autenticação e sessão, não pela autorização de negócio. Não habilitar Admin Plugin nem Organization Plugin sem nova necessidade de domínio.
+Manter papéis em `roleEnum`/`profiles.role` e capacidades em `rolePermissions`, de `src/lib/auth-policy.ts`. Better Auth permanece responsável por autenticação e sessão, não pela autorização de negócio. Não habilitar Admin Plugin nem Organization Plugin sem nova necessidade de domínio.
 
 ## Alternativas consideradas
 

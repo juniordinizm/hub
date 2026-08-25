@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Produto PROTEA-R Hub
@@ -104,16 +104,24 @@ decisão arquitetural retroativamente inventada.
 
 O [registro de decisões](docs/decisions.md) separa comportamento implementado, decisão aprovada, implementação aguardando ratificação e pendência real.
 
-Pendências principais: base legal e texto final de transparência para analytics padrão
-antes da produção; política comercial para eventual subsídio de juros, não configurável
-no Checkout hospedado;
-reversão de ajustes encadeados;
-critérios de incidente/SLO e escopo definitivo de Suporte. Pedidos de dados serão
-tratados como caso excepcional quando houver política jurídica formal e demanda real.
+Pendências principais: tratamento da compra pública cujo e-mail já pertença a
+Admin/Suporte, critérios de incidente/SLO e racional não localizado para alguns
+providers externos. Pedidos de dados serão tratados como caso excepcional quando
+houver política jurídica formal e demanda real.
 
 ## Capacidades administrativas vigentes
 
-`admin` possui todas as permissões em `rolePermissions`, de `src/lib/auth-policy.ts`. `support` pode ver painel e financeiro, executar reembolso e gerenciar Certificados e Matrículas; não pode gerenciar conteúdo, configurações nem retry de webhook. Não há workflow de anonimização ou solicitações de dados no produto atual. Essa matriz está implementada; sua ratificação de produto fica em [Identidade e autorização](docs/domain/identity-and-authorization.md).
+`admin` possui todas as permissões em `rolePermissions`, de `src/lib/auth-policy.ts`.
+A fronteira granular aprovada no
+[DEC-DISC-014](docs/decisions.md#dec-disc-014) autoriza `support` a analisar Cursos,
+Alunas, Matrículas e finanças; operar validade e bloqueio de Matrícula; reemitir
+somente o Certificado mais recente; e executar reembolso integral. Autoria,
+configuração, moderação, analytics detalhado, decisão financeira, conciliação,
+retry, bloqueio de plataforma, emissão e revogação permanecem exclusivas de
+`admin`. As projeções e as mutações aplicam essa matriz no servidor; o rollout do
+TOTP privilegiado ainda depende da preparação de duas Contas Admin antes de ativar
+o gate em Production. Não há workflow de anonimização ou solicitações de dados no
+produto atual.
 
 ## Critérios de qualidade
 

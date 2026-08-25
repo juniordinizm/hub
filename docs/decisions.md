@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 ---
 
 # Registro de decisões de produto
@@ -78,7 +78,7 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 **Tema:** ciclo de Certificados.
 **Estado:** aprovado e implementado.
 
-Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin e Suporte podem emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
+Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin pode emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `support` pode somente reemitir o Certificado existente mais recente da Aluna no Curso, com confirmação, motivo e auditoria; não pode emitir, revogar nem reconciliar manualmente. Essa separação, ratificada no [DEC-DISC-014](#dec-disc-014), está implementada com bloqueio transacional do registro mais recente e negação servidor-side. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 ## DEC-DISC-007
 
@@ -204,14 +204,39 @@ actions e regras de domínio não mudam.
 ## DEC-DISC-014
 
 **Tema:** escopo definitivo do papel `support`.
-**Estado:** aprovado e ratificado em 2026-08-21 pelo responsável de produto.
+**Estado:** aprovado em 2026-08-23 e implementado em código no Sprint 1;
+rollout TOTP de Production pendente.
 
-`support` mantém as capacidades já implementadas em `src/lib/auth-policy.ts`:
-`executeRefund`, `manageCertificates`, `manageEnrollmentAccess`, `viewAdminPanel` e
-`viewFinancials`. O reembolso integral pode ser executado pelo `support` sozinho,
-inclusive em produção com pagamento real. Reconciliação financeira e importação de
-extratos permanecem exclusivas de `admin`. Se o time de suporte passar a incluir
-terceiros, reabrir a decisão para separar solicitar e aprovar reembolso.
+`support` é uma função operacional distinta de `student` e `admin`, autorizada a:
+
+- abrir o painel operacional e consultar contagens de Cursos e Alunas por Curso;
+- consultar identidade mínima, Matrícula, progresso, Certificados, Pedidos e
+  histórico auditável restrito à Aluna e ao Curso;
+- ajustar validade e bloquear ou restaurar uma Matrícula, sempre com motivo e
+  auditoria;
+- consultar toda a operação financeira da plataforma, incluindo receita,
+  Pedidos, disputas, reembolsos e Revisões;
+- executar reembolso integral após TOTP, confirmação recente de senha, digitação
+  do identificador do Pedido, motivo e auditoria;
+- reemitir somente o Certificado existente mais recente da Aluna no Curso.
+
+`support` não pode administrar Curso, conteúdo, preço, disponibilidade, template,
+banner, FAQ, configuração ou provider; acessar analytics pedagógico detalhado ou
+exportá-lo; alterar Conta, Perfil, papel ou bloqueio de plataforma; emitir,
+revogar ou reconciliar Certificado; conciliar pagamento, importar extrato ou
+decidir Revisão; reenfileirar webhook/outbox; moderar conteúdo ou consultar a
+auditoria global.
+
+O alvo usa capacidades positivas granulares e autorização em cada página, Route
+Handler, Server Action, projeção e exportação. Navegação oculta não substitui a
+negação no servidor. A matriz central, as projeções operacionais, as mutações e o
+TOTP estão implementados no branch de remediação. A ativação do enforcement em
+Production permanece condicionada a duas Contas Admin aptas e recuperação real
+por backup code. O finding continua classificado como `F-001` até esse gate; a
+especificação de
+[remediação de Production](superpowers/specs/2026-08-23-production-readiness-remediation-design.md)
+é a autoridade detalhada até o encerramento. Admin e `support` usam TOTP quando o
+enforcement está ativo; mudança de papel revoga sessões existentes.
 
 ## DEC-DISC-015
 

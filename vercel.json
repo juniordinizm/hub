@@ -19,6 +19,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/resend-webhooks",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/maintenance",
       "schedule": "0 4 * * *"
     }

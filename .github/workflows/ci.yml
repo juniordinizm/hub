@@ -189,7 +189,7 @@ jobs:
             fi
             sleep "$((attempt * 3))"
           done
-      - name: Run Chromium journeys
+      - name: Run Chromium desktop and critical mobile journeys
         id: playwright
         env:
           BETTER_AUTH_SECRET: e2e-only-secret-not-for-production

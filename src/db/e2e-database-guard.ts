@@ -35,4 +35,9 @@ export const assertSafeE2eDatabaseEnvironment = (
       "E2E database must not target the Production Neon compute."
     );
   }
+  if (parsedUrl.hostname.includes("-pooler.")) {
+    throw new Error(
+      "E2E database must use a direct PostgreSQL endpoint, not a pooled endpoint."
+    );
+  }
 };
