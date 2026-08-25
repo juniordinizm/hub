@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
 current_migration_tag: 0067_sparkling_ghost_rider
 migration_entry_count: 68
 schema_table_count: 46

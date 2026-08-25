@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
 deployed_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 deployed_environment: production
 verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
@@ -38,6 +38,15 @@ ainda precisam ser encerrados pelo plano mestre.
 Nenhuma linha deste documento autoriza migration, deploy, rollback ou alteração
 de dados. O [guia de Production](production-release-guide.md) continua sendo o
 procedimento operacional; este arquivo é somente o registro verificável do estado.
+
+## Candidato de remediação não implantado
+
+O commit `1e60557bc39956e74c1150880ca0d573129bcf34`, na branch
+`codex/production-readiness-remediation`, passou a CI `32834478030`: quality,
+45 testes PostgreSQL, 41 jornadas Playwright sem retry, build e Knip. As duas
+branches Neon efêmeras foram excluídas. Esse resultado não altera os seis campos
+de Production no frontmatter: o candidato não foi mesclado, implantado,
+promovido nem verificado em Production, e a requalificação permanece `NO-GO`.
 
 ## Atualização
 

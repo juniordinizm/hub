@@ -1,10 +1,10 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
-requalification_result: in_progress
-requalification_date: 2026-08-24
-current_sprint: 6
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+requalification_result: no_go
+requalification_date: 2026-08-25
+current_sprint: 7
 ---
 
 # Requalificação de Production Readiness
@@ -682,3 +682,95 @@ público usa runners padrão gratuitos e ilimitados; dois caches ativos somam
 estão encerrados no working tree. `F-010` permanece implementado localmente,
 mas só poderá ser encerrado quando um PR real do Dependabot alterar `bun.lock` e
 passar os gates no SHA candidato remoto.
+
+## 18. Requalificação técnica da Sprint 7
+
+### 18.1 Identidade e resultado
+
+O candidato técnico final é
+`1e60557bc39956e74c1150880ca0d573129bcf34`, na branch
+`codex/production-readiness-remediation`. O mesmo SHA está no repositório remoto.
+A execução GitHub Actions `32834478030`, iniciada em `2026-08-25T09:54:51Z` e
+encerrada em `2026-08-25T10:07:03Z`, terminou `success`. Nenhum workflow de
+deploy foi acionado, nenhum ambiente persistente recebeu migration ou seed e
+nenhuma venda real foi iniciada.
+
+Evidência do gate final:
+
+- quality em `1m55s`: 35 documentos, migrations, TypeScript, 880 arquivos no
+  Ultracite, 339 arquivos/2.285 testes Vitest e `bun audit --production` sem
+  vulnerabilidade;
+- integração PostgreSQL em `3m57s`: baseline e migrations aplicados em branch
+  Neon efêmera, oito arquivos/45 testes aprovados e branch excluída;
+- browser em `4m57s`: 33 casos desktop e oito mobile, 41 aprovados, duração
+  acumulada `188,98s`, zero retry e zero resultado não aprovado;
+- build e dependências em `1m10s`: Next.js `16.2.11` compilado com configuração
+  CI sintética e Knip aprovado;
+- limpeza: as duas branches Neon efêmeras foram removidas pela ação local
+  fail-closed, sem imprimir token ou resposta e sem warning de runtime legado;
+- anotações: somente a notice informativa `41 passed (4.3m)` do Playwright.
+
+O gate local imediatamente anterior usou Bun `1.3.11` e também terminou com
+exit code `0`: 35 documentos, migrations, TypeScript, 880 arquivos no
+Ultracite, 339 arquivos/2.285 testes, build com 20 páginas estáticas e Knip.
+
+### 18.2 Falhas encontradas durante a requalificação
+
+As falhas intermediárias foram tratadas como diagnóstico, não ignoradas:
+
+1. CI `32829523570`: o teste de restore usava uma identidade absoluta Windows
+   que não era absoluta no Linux. O fixture passou a usar resolução portátil;
+   a guarda de Production não foi relaxada.
+2. CI `32830005948`: o primeiro hash histórico diferia apenas por CRLF/LF. O
+   migrador agora aceita somente o hash registrado ou as duas serializações
+   exatas de quebra de linha do mesmo SQL. Qualquer outra alteração continua
+   bloqueada.
+3. CI `32831183811`: o workflow entregava endpoint pooled ao setup mutador. A
+   URL direta ficou restrita a migration/setup/seed/teardown, e a URL pooled é
+   aceita somente pelo servidor Next.js quando corresponde exatamente ao mesmo
+   compute, protocolo, usuário, credencial, porta, banco e parâmetros.
+4. CI `32832837392`: todos os gates ficaram verdes, mas a action externa de
+   exclusão Neon emitiu warning Node 20. Ela foi substituída por ação local com
+   IDs allowlisted, timeouts, três tentativas, `404` idempotente e log somente
+   do status HTTP.
+5. CI `32834478030`: repetição integral verde e sem warnings, usada como prova
+   final deste relatório.
+
+Correções adicionais foram versionadas nos commits `e6bac3a`, `1b6707e`,
+`34688fd` e `1e60557`, todos descendentes do commit principal de implementação
+`36019cf`. O histórico preserva cada causa e sua regressão.
+
+## 19. Encerramento dos findings
+
+| Finding | Estado técnico | Evidência decisiva | Risco residual |
+|---|---|---|---|
+| `F-001` | `closed` | matriz RBAC, negações diretas e E2E de Student/Support/Admin | enforcement MFA em Production depende do gate humano e deploy |
+| `F-002` | `open` | código, workflow e testes do backup/restore existem | faltam bucket/role reais, dois backups, restore real, RPO e RTO |
+| `F-003` | `closed` | quatro concorrentes => três commits e uma rejeição em PostgreSQL | nenhum finding conhecido |
+| `F-004` | `closed` | geração obsoleta termina `superseded`, sem envio/retry | nenhum finding conhecido |
+| `F-005` | `closed` | assinatura, inbox idempotente, 5.040 permutações e integração PostgreSQL | ativação do webhook real permanece gate operacional |
+| `F-006` | `open` | parser e runbook implementados | DMARC público continua `p=none`; faltam janelas e progressão até `reject` |
+| `F-007` | `closed` | documentação consolidada, release-state separado e `docs:check` em CI | checker externo do candidato será obrigatório no release |
+| `F-008` | `closed` | sete caracteres rejeitados e oito aceitos em cadastro/reset/backend | nenhum finding conhecido |
+| `F-009` | `closed` | Axe `moderate+`, teclado/foco, 33 desktop e oito mobile | ampliar matriz quando novas jornadas críticas surgirem |
+| `F-010` | `open` | ecossistema Bun e política de grupos configurados | falta PR Dependabot real alterando `bun.lock` e passando CI |
+
+Além dos findings numerados, permanecem abertos: restore remoto; configuração e
+evento controlado do Resend; progressão DMARC; consolidação Sentry com release,
+source map, evento sanitizado e alerta; duas Contas Admin humanas com TOTP e
+backup code; checker do deployment candidato e smokes não destrutivos.
+
+## 20. Decisão independente da Sprint 7
+
+**Decisão:** `NO-GO` para Production em `2026-08-25`.
+
+O candidato está tecnicamente verde e todas as correções autorizadas no
+repositório foram implementadas. A decisão permanece `NO-GO` porque `F-002`,
+`F-006` e `F-010` continuam abertos e porque Sentry, restore e gates reais de
+provider ainda não foram comprovados. Um gate local ou CI não substitui essas
+provas externas.
+
+Sprint 8 não começou. Deploy, promoção de alias, migrations persistentes,
+ativação de flags, alteração de DNS/providers e venda real não foram
+autorizados nesta execução. A venda permanece validação pós-deploy e exigirá
+autorização financeira específica naquele momento.

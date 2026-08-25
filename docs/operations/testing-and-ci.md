@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
 ---
 
 # Testes e CI

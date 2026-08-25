@@ -2,8 +2,8 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
-current_sprint: 6
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
 
@@ -2008,6 +2008,11 @@ banco, provider, Playwright ou Next.js.
 
 ## Sprint 7: requalificação completa para Production
 
+**Estado em 2026-08-25T10:07:03Z:** implementação e CI do SHA candidato
+`1e60557bc39956e74c1150880ca0d573129bcf34` concluídas. Decisão independente:
+`NO-GO`, pois os gates externos listados em 7.5 e os findings `F-002`, `F-006` e
+`F-010` permanecem abertos. Ver a requalificação para causas, commits e provas.
+
 ### Resultado
 
 Reexecutar a auditoria no SHA candidato e emitir uma nova decisão independente.
@@ -2062,11 +2067,11 @@ tentativas excessivas e chamada direta sem UI.
 
 ### Tarefa 7.4: executar todos os gates locais e CI
 
-**Estado local:** `verify` completo, integração PostgreSQL, Playwright e
-`bun audit --production` passaram no working tree; foram 2.278 testes Vitest,
-45 testes PostgreSQL e 41 casos Playwright, sem vulnerabilidade conhecida,
-source map público, skip, retry ou flaky. A repetição na CI continua pendente do
-SHA candidato remoto.
+**Estado local e remoto:** `verify` completo e CI `32834478030` passaram no SHA
+candidato. Foram 2.285 testes Vitest, 45 testes PostgreSQL e 41 casos
+Playwright, sem vulnerabilidade conhecida, source map público, retry, resultado
+não aprovado ou warning. Build e Knip passaram; as duas branches Neon efêmeras
+foram excluídas.
 
 ```powershell
 bun run docs:check
@@ -2106,6 +2111,10 @@ prazo, custo afundado ou porque a correção “parece segura”.
 ---
 
 ## Sprint 8: deploy e validação pós-Production
+
+**Estado:** `NOT STARTED`. O `NO-GO` da Sprint 7 e a instrução humana de não
+fazer deploy impedem qualquer tarefa desta Sprint. A venda real continua
+permitida somente depois da promoção e estabilidade inicial em Production.
 
 ### Resultado
 
