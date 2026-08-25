@@ -705,14 +705,16 @@ Evidência do gate final:
 - browser em `4m57s`: 33 casos desktop e oito mobile, 41 aprovados, duração
   acumulada `188,98s`, zero retry e zero resultado não aprovado;
 - build e dependências em `1m10s`: Next.js `16.2.11` compilado com configuração
-  CI sintética e Knip aprovado;
+  CI sintética e Knip aprovado, com 14 configuration hints não impeditivos já
+  conhecidos;
 - limpeza: as duas branches Neon efêmeras foram removidas pela ação local
   fail-closed, sem imprimir token ou resposta e sem warning de runtime legado;
 - anotações: somente a notice informativa `41 passed (4.3m)` do Playwright.
 
 O gate local imediatamente anterior usou Bun `1.3.11` e também terminou com
 exit code `0`: 35 documentos, migrations, TypeScript, 880 arquivos no
-Ultracite, 339 arquivos/2.285 testes, build com 20 páginas estáticas e Knip.
+Ultracite, 339 arquivos/2.285 testes, build com 20 páginas estáticas e Knip com
+os mesmos 14 configuration hints não impeditivos.
 
 ### 18.2 Falhas encontradas durante a requalificação
 
@@ -733,8 +735,9 @@ As falhas intermediárias foram tratadas como diagnóstico, não ignoradas:
    exclusão Neon emitiu warning Node 20. Ela foi substituída por ação local com
    IDs allowlisted, timeouts, três tentativas, `404` idempotente e log somente
    do status HTTP.
-5. CI `32834478030`: repetição integral verde e sem warnings, usada como prova
-   final deste relatório.
+5. CI `32834478030`: repetição integral verde e sem o warning Node 20, usada
+   como prova final deste relatório. Os 14 configuration hints do Knip
+   permaneceram visíveis e não alteraram seu exit code `0`.
 
 Correções adicionais foram versionadas nos commits `e6bac3a`, `1b6707e`,
 `34688fd` e `1e60557`, todos descendentes do commit principal de implementação

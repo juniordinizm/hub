@@ -2069,9 +2069,10 @@ tentativas excessivas e chamada direta sem UI.
 
 **Estado local e remoto:** `verify` completo e CI `32834478030` passaram no SHA
 candidato. Foram 2.285 testes Vitest, 45 testes PostgreSQL e 41 casos
-Playwright, sem vulnerabilidade conhecida, source map público, retry, resultado
-não aprovado ou warning. Build e Knip passaram; as duas branches Neon efêmeras
-foram excluídas.
+Playwright, sem vulnerabilidade conhecida, sem source map público, retry ou
+resultado não aprovado. Build e Knip passaram; Knip manteve 14 configuration
+hints não impeditivos, e o warning Node 20 foi eliminado. As duas branches Neon
+efêmeras foram excluídas.
 
 ```powershell
 bun run docs:check
