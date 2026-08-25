@@ -42,6 +42,12 @@ Os pools `application` e `readiness`, em `src/db/index.ts`, registram listener
 provider ou URL. O request que originou a falha ainda deve ser tratado pelo
 worker/rota e o readiness continua sendo a confirmação de recuperação.
 
+O candidato `72265c3c2f7c6f881843096f86d77175985a5d2b` foi publicado no Staging
+no deploy `32886494503`. A rodada `32886769013` chamou `/api/cron/outbox` e
+recebeu HTTP 200 com `outcome=success`; o Issue Sentry histórico de conexão não
+teve nova ocorrência no intervalo consultado. O Issue permanece aberto para
+triagem humana, pois ausência de recorrência não é resolução automática.
+
 O inventário autenticado preserva temporariamente `hub-development` (ID
 `4511808556564480`) como projeto com histórico e `hub-production` como projeto
 Production ainda referenciado pelo deployment canônico. O alvo é um projeto
