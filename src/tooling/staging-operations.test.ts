@@ -38,12 +38,13 @@ describe("Staging operations", () => {
     const workflow = readFileSync(
       resolve(
         import.meta.dirname,
-        "../../.github/workflows/verify-staging-resend-lifecycle.yml"
+        "../../.github/workflows/run-staging-jobs.yml"
       ),
       "utf8"
     );
 
     expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("verify-resend-lifecycle");
     expect(workflow).toContain("SEND_CONTROLLED_STAGING_PASSWORD_RESET");
     expect(workflow).toContain("name: vercel-staging");
     expect(workflow).toContain("ref: staging");

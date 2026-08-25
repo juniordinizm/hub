@@ -187,10 +187,13 @@ Vercel Cron executa no deployment Production. Staging usa
 `.github/workflows/run-staging-jobs.yml`: a agenda de cinco minutos deve chamar
 Asaas, outbox, JMVStream e Resend; omitir qualquer inbox deixa o ambiente sem
 projeção equivalente. A prova manual do Resend usa
-`.github/workflows/verify-staging-resend-lifecycle.yml`, exige confirmação
+`.github/workflows/run-staging-jobs.yml`, operação manual
+`verify-resend-lifecycle`, exige confirmação
 `SEND_CONTROLLED_STAGING_PASSWORD_RESET`, roda somente no GitHub Environment
 `vercel-staging` e publica apenas estado, tipos de evento, contagem e UUID de
-correlação. O e-mail controlado, token e conteúdo nunca pertencem ao log.
+correlação. A operação compartilha um workflow que já existe na branch padrão,
+permitindo carregar a definição de `staging` sem promover código para `main`.
+O e-mail controlado, token e conteúdo nunca pertencem ao log.
 
 As quatro variáveis Asaas são opcionais no parser; o factory exige as três do adapter e a
 rota de webhook exige o token próprio. Development exige as quatro para a homologação
