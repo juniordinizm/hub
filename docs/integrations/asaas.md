@@ -204,6 +204,20 @@ isolados; o factory do adapter exige as três primeiras antes de qualquer chamad
 de webhook falha de forma segura sem um token próprio de ao menos 32 caracteres. Preview
 recusa credenciais de provider, exige checkout desabilitado e não permite ativar o
 webhook.
+
+As variáveis do Vercel são capturadas por implantação. Alterar `ASAAS_API_KEY` ou
+`ASAAS_API_BASE_URL` no ambiente `Production` não altera Functions que já estão
+publicadas; é obrigatório criar e promover uma nova implantação antes de validar a
+conta. A rotação de uma conta Asaas deve sempre ser seguida por: conferir a origem
+`https://api.asaas.com`, publicar a nova implantação, executar um checkout
+controlado sem abrir o link e confirmar o pedido no painel da conta nova. Nenhuma
+API key ou token deve aparecer em log, chat ou documento.
+
+A aplicação também versiona o namespace de `localStorage`/`sessionStorage` usado
+pela tela de compra. O namespace `v3` foi emitido no corte de 2026-08-25 para
+que tentativas persistidas antes da troca não reutilizem um `checkout_url` da
+conta anterior; pedidos antigos permanecem somente para conciliação e não são
+apagados.
 Development aceita somente a origem `https://api-sandbox.asaas.com`; Production aceita
 somente `https://api.asaas.com`. Uma barra final é tolerada, mas path, query, credenciais
 embutidas, HTTP, hostname alternativo ou cruzamento sandbox/produção são rejeitados.
