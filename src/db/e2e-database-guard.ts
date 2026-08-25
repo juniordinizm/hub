@@ -41,3 +41,47 @@ export const assertSafeE2eDatabaseEnvironment = (
     );
   }
 };
+
+const isPooledCounterpart = (directUrl: URL, runtimeUrl: URL): boolean => {
+  const normalizedRuntimeHost = runtimeUrl.hostname
+    .toLowerCase()
+    .replace("-pooler.", ".");
+
+  return (
+    runtimeUrl.hostname.toLowerCase().includes("-pooler.") &&
+    normalizedRuntimeHost === directUrl.hostname.toLowerCase() &&
+    runtimeUrl.protocol === directUrl.protocol &&
+    runtimeUrl.username === directUrl.username &&
+    runtimeUrl.password === directUrl.password &&
+    runtimeUrl.port === directUrl.port &&
+    runtimeUrl.pathname === directUrl.pathname &&
+    runtimeUrl.search === directUrl.search &&
+    runtimeUrl.hash === directUrl.hash
+  );
+};
+
+export const resolveSafeE2eRuntimeDatabaseUrl = (
+  environment: Environment
+): string => {
+  assertSafeE2eDatabaseEnvironment(environment);
+
+  const directUrlValue = environment.E2E_DATABASE_URL?.trim();
+  const runtimeUrlValue = environment.E2E_RUNTIME_DATABASE_URL?.trim();
+  if (!(directUrlValue && runtimeUrlValue)) {
+    return directUrlValue ?? "";
+  }
+
+  const directUrl = parsePostgresUrl(directUrlValue);
+  const runtimeUrl = parsePostgresUrl(runtimeUrlValue);
+  if (
+    !(directUrl && runtimeUrl) ||
+    isProductionNeonHost(runtimeUrl.hostname) ||
+    !isPooledCounterpart(directUrl, runtimeUrl)
+  ) {
+    throw new Error(
+      "E2E_RUNTIME_DATABASE_URL must be the pooled counterpart of E2E_DATABASE_URL."
+    );
+  }
+
+  return runtimeUrlValue;
+};

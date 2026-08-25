@@ -493,6 +493,11 @@ seed, teardown e global teardown. Todo processo que pode alterar o banco exige
 recusa o compute Neon Production conhecido sem registrar URL ou credencial. Uma
 `DATABASE_URL` preexistente e divergente aborta a suíte antes do seed.
 
+Na CI, `E2E_RUNTIME_DATABASE_URL` pode fornecer ao servidor Next.js a contraparte pooled
+da conexão direta. A configuração recusa outro compute, usuário, credencial, porta, banco
+ou parâmetros; processos de migration, setup, seed e teardown continuam usando somente a
+URL direta. Sem essa variável opcional, o servidor usa a URL direta descartável.
+
 Para migrar a branch descartável, use somente `bun run db:migrate:e2e`. O harness exige
 `DATABASE_URL` e `E2E_DATABASE_URL` iguais, recusa uma `DATABASE_URL_DIRECT` divergente e
 fixa as três variáveis na mesma URL antes de iniciar diretamente o migrator

@@ -222,9 +222,9 @@ inicia `next dev`. Em CI, `scripts/e2e-next-server.ts` compila a saída standalo
 copia `.next/static` e `public` para o layout esperado e inicia
 `.next/standalone/server.js`, evitando HMR e exercitando o servidor de produção
 sem depender do `next start` incompatível com `output: "standalone"`. A
-configuração está em `playwright.config.ts`. O processo web recebe somente a URL
-pooled da branch
-efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
+configuração está em `playwright.config.ts`. O processo web recebe a URL pooled da branch
+efêmera por `E2E_RUNTIME_DATABASE_URL`; migration, setup, seed e teardown recebem a URL
+direta por `DATABASE_URL` e `E2E_DATABASE_URL`. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend. Emissões de
 Certificado registram somente tópico, chave SHA-256 normalizada do destinatário e chave
@@ -235,7 +235,10 @@ responde `404` fora dela. `VERCEL_ENV` de Production/Preview ou
 As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
 quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
 `E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
-A configuração executa a guarda fail-closed antes do `globalSetup`; setup, seed e teardown
+`E2E_RUNTIME_DATABASE_URL` é opcional fora da CI; quando presente, a guarda aceita apenas
+o endpoint pooled equivalente ao mesmo compute, protocolo, usuário, credencial, porta,
+banco e parâmetros da URL direta. A configuração executa a guarda fail-closed antes do
+`globalSetup`; setup, seed e teardown
 repetem a mesma validação. Processos mutadores exigem igualdade exata entre `DATABASE_URL` e
 `E2E_DATABASE_URL`, protocolo PostgreSQL e alvo diferente do compute Production conhecido.
 O migrador E2E também fixa `DATABASE_URL_DIRECT` no mesmo alvo antes de carregar a

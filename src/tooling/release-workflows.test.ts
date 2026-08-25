@@ -201,6 +201,35 @@ describe("CI workflow", () => {
       "bun run ops:cleanup:ci-neon -- --execute"
     );
   });
+
+  it("uses direct E2E credentials for mutators and pooled credentials only for runtime", () => {
+    const workflow = readWorkflow("ci.yml");
+    const playwrightStepStart = workflow.indexOf(
+      "name: Run Chromium desktop and critical mobile journeys"
+    );
+    const playwrightStepEnd = workflow.indexOf(
+      "name: Report E2E duration and retries",
+      playwrightStepStart
+    );
+    const playwrightStep = workflow.slice(
+      playwrightStepStart,
+      playwrightStepEnd
+    );
+
+    expect(playwrightStepStart).toBeGreaterThan(-1);
+    expect(playwrightStepEnd).toBeGreaterThan(playwrightStepStart);
+    expect(playwrightStep).toContain(
+      `DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
+    );
+    expect(playwrightStep).toContain(
+      `E2E_DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
+    );
+    expect(playwrightStep).toContain(
+      `E2E_RUNTIME_DATABASE_URL: ${githubExpression(
+        "steps.neon.outputs.db_url_pooled"
+      )}`
+    );
+  });
 });
 
 describe("CI Neon branch cleanup workflow", () => {

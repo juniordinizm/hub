@@ -1,5 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
-import { assertSafeE2eDatabaseEnvironment } from "./src/db/e2e-database-guard";
+import { resolveSafeE2eRuntimeDatabaseUrl } from "./src/db/e2e-database-guard";
 
 const bunCommand = process.platform === "win32" ? "bun.cmd" : "bun";
 const e2eDatabaseUrl = process.env.E2E_DATABASE_URL;
@@ -8,7 +8,7 @@ if (!e2eDatabaseUrl) {
     "E2E_DATABASE_URL is required for the disposable E2E database."
   );
 }
-assertSafeE2eDatabaseEnvironment({
+const e2eRuntimeDatabaseUrl = resolveSafeE2eRuntimeDatabaseUrl({
   ...process.env,
   DATABASE_URL: process.env.DATABASE_URL?.trim() || e2eDatabaseUrl,
   E2E_DATABASE_URL: e2eDatabaseUrl,
@@ -33,7 +33,7 @@ const e2eApplicationEnvironment = {
   BETTER_AUTH_URL: "http://127.0.0.1:3100",
   CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
   CI: "true",
-  DATABASE_URL: e2eDatabaseUrl,
+  DATABASE_URL: e2eRuntimeDatabaseUrl,
   DATABASE_URL_DIRECT: "",
   E2E_TEST_MODE: "true",
   CRON_SECRET: "e2e-cron-secret",
@@ -47,7 +47,9 @@ const e2eApplicationEnvironment = {
 for (const [key, value] of Object.entries(e2eObjectStorageEnvironment)) {
   process.env[key] = value;
 }
-Object.assign(process.env, e2eApplicationEnvironment);
+Object.assign(process.env, e2eApplicationEnvironment, {
+  DATABASE_URL: e2eDatabaseUrl,
+});
 
 const serverCommand = process.env.CI
   ? `${bunCommand} scripts/e2e-next-server.ts`

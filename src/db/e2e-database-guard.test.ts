@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { assertSafeE2eDatabaseEnvironment } from "./e2e-database-guard";
+import {
+  assertSafeE2eDatabaseEnvironment,
+  resolveSafeE2eRuntimeDatabaseUrl,
+} from "./e2e-database-guard";
 
 const SAFE_E2E_DATABASE_URL =
   "postgresql://e2e_user:e2e_password@ep-e2e-only.sa-east-1.aws.neon.tech/e2e";
+const SAFE_POOLED_E2E_DATABASE_URL =
+  "postgresql://e2e_user:e2e_password@ep-e2e-only-pooler.sa-east-1.aws.neon.tech/e2e";
 const PRODUCTION_DATABASE_URL =
   "postgresql://owner:production-password@ep-hidden-tooth-ac843qc2-pooler.sa-east-1.aws.neon.tech/neondb";
 
@@ -66,5 +71,56 @@ describe("assertSafeE2eDatabaseEnvironment", () => {
         E2E_DATABASE_URL: SAFE_E2E_DATABASE_URL,
       })
     ).not.toThrow();
+  });
+});
+
+describe("resolveSafeE2eRuntimeDatabaseUrl", () => {
+  it("uses the direct E2E URL when a dedicated runtime URL is absent", () => {
+    expect(
+      resolveSafeE2eRuntimeDatabaseUrl({
+        DATABASE_URL: SAFE_E2E_DATABASE_URL,
+        E2E_DATABASE_URL: SAFE_E2E_DATABASE_URL,
+      })
+    ).toBe(SAFE_E2E_DATABASE_URL);
+  });
+
+  it("accepts only the pooled counterpart of the guarded direct URL", () => {
+    expect(
+      resolveSafeE2eRuntimeDatabaseUrl({
+        DATABASE_URL: SAFE_E2E_DATABASE_URL,
+        E2E_DATABASE_URL: SAFE_E2E_DATABASE_URL,
+        E2E_RUNTIME_DATABASE_URL: SAFE_POOLED_E2E_DATABASE_URL,
+      })
+    ).toBe(SAFE_POOLED_E2E_DATABASE_URL);
+  });
+
+  it("rejects a pooled runtime URL for a different Neon compute", () => {
+    expect(() =>
+      resolveSafeE2eRuntimeDatabaseUrl({
+        DATABASE_URL: SAFE_E2E_DATABASE_URL,
+        E2E_DATABASE_URL: SAFE_E2E_DATABASE_URL,
+        E2E_RUNTIME_DATABASE_URL:
+          "postgresql://e2e_user:e2e_password@ep-other-pooler.sa-east-1.aws.neon.tech/e2e",
+      })
+    ).toThrow(
+      "E2E_RUNTIME_DATABASE_URL must be the pooled counterpart of E2E_DATABASE_URL."
+    );
+  });
+
+  it("rejects a runtime URL with different credentials or database", () => {
+    for (const runtimeUrl of [
+      "postgresql://other:e2e_password@ep-e2e-only-pooler.sa-east-1.aws.neon.tech/e2e",
+      "postgresql://e2e_user:e2e_password@ep-e2e-only-pooler.sa-east-1.aws.neon.tech/other",
+    ]) {
+      expect(() =>
+        resolveSafeE2eRuntimeDatabaseUrl({
+          DATABASE_URL: SAFE_E2E_DATABASE_URL,
+          E2E_DATABASE_URL: SAFE_E2E_DATABASE_URL,
+          E2E_RUNTIME_DATABASE_URL: runtimeUrl,
+        })
+      ).toThrow(
+        "E2E_RUNTIME_DATABASE_URL must be the pooled counterpart of E2E_DATABASE_URL."
+      );
+    }
   });
 });
