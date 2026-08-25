@@ -393,7 +393,10 @@ export function PurchaseHandoffClient({
   };
 
   return (
-    <PageContainer className="min-h-screen bg-background text-foreground">
+    <PageContainer
+      as="main"
+      className="min-h-screen bg-background text-foreground"
+    >
       <section
         aria-live="polite"
         className="max-w-2xl rounded-lg border bg-card p-6"

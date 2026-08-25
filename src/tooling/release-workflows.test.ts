@@ -100,6 +100,26 @@ describe("Production cleanup workflow", () => {
 });
 
 describe("CI workflow", () => {
+  it("deletes ephemeral branches through the bounded local Neon API action", () => {
+    const workflow = readWorkflow("ci.yml");
+    const deleteAction = readAction("actions/delete-neon-branch/action.yml");
+
+    expect(
+      workflow.match(/uses: \.\/\.github\/actions\/delete-neon-branch/g)
+    ).toHaveLength(2);
+    expect(workflow).not.toContain("neondatabase/delete-branch-action");
+    expect(deleteAction).toContain("for attempt in 1 2 3");
+    expect(deleteAction).toContain("--request DELETE");
+    expect(deleteAction).toContain(
+      `Authorization: Bearer ${shellVariable("NEON_API_KEY")}`
+    );
+    expect(deleteAction).toContain('"200"|"204"|"404"');
+    expect(deleteAction).toContain(
+      `Neon branch deletion failed with HTTP ${shellVariable("status")}.`
+    );
+    expect(deleteAction).not.toContain("response_body");
+  });
+
   it("prepares inherited data only inside the two ephemeral test branches", () => {
     const workflow = readWorkflow("ci.yml");
     const neonAction = readAction("actions/create-neon-branch/action.yml");
@@ -199,6 +219,35 @@ describe("CI workflow", () => {
     );
     expect(cleanupWorkflow).toContain(
       "bun run ops:cleanup:ci-neon -- --execute"
+    );
+  });
+
+  it("uses direct E2E credentials for mutators and pooled credentials only for runtime", () => {
+    const workflow = readWorkflow("ci.yml");
+    const playwrightStepStart = workflow.indexOf(
+      "name: Run Chromium desktop and critical mobile journeys"
+    );
+    const playwrightStepEnd = workflow.indexOf(
+      "name: Report E2E duration and retries",
+      playwrightStepStart
+    );
+    const playwrightStep = workflow.slice(
+      playwrightStepStart,
+      playwrightStepEnd
+    );
+
+    expect(playwrightStepStart).toBeGreaterThan(-1);
+    expect(playwrightStepEnd).toBeGreaterThan(playwrightStepStart);
+    expect(playwrightStep).toContain(
+      `DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
+    );
+    expect(playwrightStep).toContain(
+      `E2E_DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
+    );
+    expect(playwrightStep).toContain(
+      `E2E_RUNTIME_DATABASE_URL: ${githubExpression(
+        "steps.neon.outputs.db_url_pooled"
+      )}`
     );
   });
 });

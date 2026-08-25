@@ -96,18 +96,29 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          RESTORE_R2_ACCESS_KEY_ID: ${{ secrets.RESTORE_R2_ACCESS_KEY_ID }}
+          RESTORE_R2_SECRET_ACCESS_KEY: ${{ secrets.RESTORE_R2_SECRET_ACCESS_KEY }}
+          BACKUP_R2_ACCOUNT_ID: ${{ vars.BACKUP_R2_ACCOUNT_ID }}
+          BACKUP_R2_BUCKET_NAME: ${{ vars.BACKUP_R2_BUCKET_NAME }}
           PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
-          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
+          for name in BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
               echo "${name} is required by the vercel-production environment." >&2
               exit 1
             fi
           done
+      - name: Require a recent independent Production backup
+        env:
+          BACKUP_R2_ACCOUNT_ID: ${{ vars.BACKUP_R2_ACCOUNT_ID }}
+          BACKUP_R2_BUCKET_NAME: ${{ vars.BACKUP_R2_BUCKET_NAME }}
+          RESTORE_R2_ACCESS_KEY_ID: ${{ secrets.RESTORE_R2_ACCESS_KEY_ID }}
+          RESTORE_R2_SECRET_ACCESS_KEY: ${{ secrets.RESTORE_R2_SECRET_ACCESS_KEY }}
+        run: bun run ops:check:production-backup
       - name: Set Production backup expiry
         run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create confirmed Production Neon backup
@@ -168,6 +179,18 @@ jobs:
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
             "${{ steps.deploy.outputs.url }}/api/health/ready"
+      - name: Verify unpromoted provider and migration state
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          bun run ops:check:production-release --
+          --deployment=${{ steps.deploy.outputs.url }}
+          --release-sha=${{ steps.release.outputs.sha }}
+          --require-canonical-alias=false
       - name: Promote verified deployment
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -191,3 +214,15 @@ jobs:
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             "${PRODUCTION_ORIGIN}/api/health/ready" > /dev/null
+      - name: Verify promoted provider alias and migration state
+        env:
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          bun run ops:check:production-release --
+          --deployment=${{ steps.deploy.outputs.url }}
+          --release-sha=${{ steps.release.outputs.sha }}
+          --require-canonical-alias=true

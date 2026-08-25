@@ -11,7 +11,7 @@ export const OUTBOX_TOPICS = {
 
 export type OutboxTopic = (typeof OUTBOX_TOPICS)[keyof typeof OUTBOX_TOPICS];
 
-export type OutboxPayload =
+type OutboxPayloadV1 =
   | { certificateId: string }
   | { courseId: string; userId: string }
   | { enrollmentId: string; warningKind: "1d" | "7d" }
@@ -20,7 +20,15 @@ export type OutboxPayload =
   | { orderId: string; userId: string }
   | { requestId: string };
 
-export interface OutboxMessageInput {
+export interface ExpiryWarningPayloadV2 {
+  enrollmentId: string;
+  expectedExpiresAt: string;
+  warningKind: "1d" | "7d";
+}
+
+export type OutboxPayload = OutboxPayloadV1 | ExpiryWarningPayloadV2;
+
+interface OutboxMessageBase {
   aggregateId: string;
   aggregateType:
     | "certificate"
@@ -29,10 +37,24 @@ export interface OutboxMessageInput {
     | "order"
     | "support_request";
   idempotencyKey: string;
-  payload: OutboxPayload;
+}
+
+interface OutboxMessageInputV1 extends OutboxMessageBase {
+  payload: OutboxPayloadV1;
   payloadVersion: 1;
   topic: OutboxTopic;
 }
+
+interface ExpiryWarningMessageInputV2 extends OutboxMessageBase {
+  aggregateType: "enrollment";
+  payload: ExpiryWarningPayloadV2;
+  payloadVersion: 2;
+  topic: typeof OUTBOX_TOPICS.accessExpiryWarning;
+}
+
+export type OutboxMessageInput =
+  | ExpiryWarningMessageInputV2
+  | OutboxMessageInputV1;
 
 const RETRY_BASE_DELAY_MS = 60_000;
 const RETRY_MAX_JITTER_RATIO = 0.125;
@@ -119,18 +141,30 @@ export const createPaidAccessReleasedMessage = ({
 
 export const createEnrollmentExpiryWarningMessage = ({
   enrollmentId,
+  expectedExpiresAt,
   warningKind,
 }: {
   enrollmentId: string;
+  expectedExpiresAt: Date;
   warningKind: "1d" | "7d";
-}): OutboxMessageInput => ({
-  aggregateId: enrollmentId,
-  aggregateType: "enrollment",
-  idempotencyKey: `${OUTBOX_TOPICS.accessExpiryWarning}/${enrollmentId}/${warningKind}/v1`,
-  payload: { enrollmentId, warningKind },
-  payloadVersion: 1,
-  topic: OUTBOX_TOPICS.accessExpiryWarning,
-});
+}): OutboxMessageInput => {
+  if (Number.isNaN(expectedExpiresAt.getTime())) {
+    throw new Error("Validade esperada invalida.");
+  }
+  const expectedExpiresAtIso = expectedExpiresAt.toISOString();
+  return {
+    aggregateId: enrollmentId,
+    aggregateType: "enrollment",
+    idempotencyKey: `${OUTBOX_TOPICS.accessExpiryWarning}/${enrollmentId}/${warningKind}/${expectedExpiresAt.getTime()}/v2`,
+    payload: {
+      enrollmentId,
+      expectedExpiresAt: expectedExpiresAtIso,
+      warningKind,
+    },
+    payloadVersion: 2,
+    topic: OUTBOX_TOPICS.accessExpiryWarning,
+  };
+};
 
 export const createCourseSalesOpenedMessage = ({
   interestId,
@@ -172,16 +206,66 @@ export const createSupportRequestMessage = ({
 });
 
 export const parseOutboxPayload = ({
+  idempotencyKey,
   payload,
   payloadVersion,
   topic,
 }: {
+  idempotencyKey?: string;
   payload: unknown;
   payloadVersion: number;
   topic: string;
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: validates a closed discriminated union without accepting extra fields.
 }): OutboxPayload => {
-  if (payloadVersion !== 1 || !(payload && typeof payload === "object")) {
+  if (!(payload && typeof payload === "object")) {
+    throw unsupportedPayloadVersion();
+  }
+
+  if (topic === OUTBOX_TOPICS.accessExpiryWarning) {
+    const { enrollmentId, expectedExpiresAt, warningKind } = payload as {
+      enrollmentId?: unknown;
+      expectedExpiresAt?: unknown;
+      warningKind?: unknown;
+    };
+    const validIdentity =
+      typeof enrollmentId === "string" &&
+      Boolean(enrollmentId) &&
+      (warningKind === "1d" || warningKind === "7d");
+    if (
+      payloadVersion === 1 &&
+      Object.keys(payload).length === 2 &&
+      validIdentity
+    ) {
+      return { enrollmentId, warningKind } as {
+        enrollmentId: string;
+        warningKind: "1d" | "7d";
+      };
+    }
+    if (
+      payloadVersion === 2 &&
+      Object.keys(payload).length === 3 &&
+      validIdentity &&
+      typeof expectedExpiresAt === "string" &&
+      idempotencyKey
+    ) {
+      const parsedDate = new Date(expectedExpiresAt);
+      if (
+        !Number.isNaN(parsedDate.getTime()) &&
+        parsedDate.toISOString() === expectedExpiresAt &&
+        idempotencyKey ===
+          `${OUTBOX_TOPICS.accessExpiryWarning}/${enrollmentId}/${warningKind}/${parsedDate.getTime()}/v2`
+      ) {
+        return {
+          enrollmentId,
+          expectedExpiresAt,
+          warningKind,
+        } as ExpiryWarningPayloadV2;
+      }
+    }
+    throw unsupportedPayloadVersion();
+  }
+
+  if (payloadVersion !== 1) {
     throw unsupportedPayloadVersion();
   }
 
@@ -215,20 +299,6 @@ export const parseOutboxPayload = ({
       userId
     ) {
       return { courseId, userId };
-    }
-  }
-
-  if (topic === OUTBOX_TOPICS.accessExpiryWarning) {
-    const { enrollmentId, warningKind } = payload as {
-      enrollmentId?: unknown;
-      warningKind?: unknown;
-    };
-    if (
-      typeof enrollmentId === "string" &&
-      enrollmentId &&
-      (warningKind === "1d" || warningKind === "7d")
-    ) {
-      return { enrollmentId, warningKind };
     }
   }
 
@@ -266,6 +336,47 @@ export const parseOutboxPayload = ({
   }
 
   throw unsupportedPayloadVersion();
+};
+
+const MILLISECONDS_PER_DAY = 86_400_000;
+
+export type ExpiryWarningGenerationState =
+  | "changed"
+  | "current"
+  | "expired"
+  | "inactive"
+  | "wrong_window";
+
+export const classifyExpiryWarningGeneration = ({
+  currentExpiresAt,
+  expectedExpiresAt,
+  now,
+  status,
+  warningKind,
+}: {
+  currentExpiresAt: Date;
+  expectedExpiresAt: string;
+  now: Date;
+  status: "active" | "expired" | "revoked";
+  warningKind: "1d" | "7d";
+}): ExpiryWarningGenerationState => {
+  if (status !== "active") {
+    return "inactive";
+  }
+  if (currentExpiresAt.getTime() <= now.getTime()) {
+    return "expired";
+  }
+  if (currentExpiresAt.toISOString() !== expectedExpiresAt) {
+    return "changed";
+  }
+  const daysRemaining = Math.ceil(
+    (currentExpiresAt.getTime() - now.getTime()) / MILLISECONDS_PER_DAY
+  );
+  const isCurrentWindow =
+    warningKind === "7d"
+      ? daysRemaining >= 2 && daysRemaining <= 7
+      : daysRemaining >= 0 && daysRemaining <= 1;
+  return isCurrentWindow ? "current" : "wrong_window";
 };
 
 export const getRetryDelayMs = ({

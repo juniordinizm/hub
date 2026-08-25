@@ -20,13 +20,14 @@ describe("lesson comments actions", () => {
     );
   });
 
-  it("restricts comment hiding to staff roles", async () => {
+  it("restricts comment hiding to content managers", async () => {
     const source = await readFile(
       new URL("./actions.ts", import.meta.url),
       "utf8"
     );
 
-    expect(source).toContain('requireRole(["admin", "support"])');
+    expect(source).toContain('requirePermission("manageContent")');
+    expect(source).not.toContain('requireRole(["admin", "support"])');
     expect(source).toContain("hideLessonComment");
     expect(source).toContain(
       // biome-ignore lint/suspicious/noTemplateCurlyInString: matching literal source text
@@ -34,14 +35,15 @@ describe("lesson comments actions", () => {
     );
   });
 
-  it("restricts comment restoring to staff roles", async () => {
+  it("restricts comment restoring to content managers", async () => {
     const source = await readFile(
       new URL("./actions.ts", import.meta.url),
       "utf8"
     );
 
     expect(source).toContain("restoreLessonCommentAction");
-    expect(source).toContain('requireRole(["admin", "support"])');
+    expect(source).toContain('requirePermission("manageContent")');
+    expect(source).not.toContain('requireRole(["admin", "support"])');
     expect(source).toContain("restoreLessonComment");
     // biome-ignore lint/suspicious/noTemplateCurlyInString: matching literal source text
     expect(source).toContain("revalidatePath(`/app/aulas/${result.lessonId}`)");

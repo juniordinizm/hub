@@ -40,25 +40,28 @@ export const createSupportRequest = async ({
   );
   const normalizedCourseTitle = courseTitle?.trim() || null;
 
-  const recentRequests = await getPool().query<{ count: string }>(
-    `
-      select count(*) as count
-      from support_requests
-      where user_id = $1
-        and created_at > now() - (${SUPPORT_REQUEST_WINDOW_MINUTES} * interval '1 minute')
-    `,
-    [userId]
-  );
-  const recentCount = Number(recentRequests.rows[0]?.count ?? 0);
-  if (recentCount >= SUPPORT_REQUEST_MAX_PER_WINDOW) {
-    throw new Error(
-      "Aguarde alguns minutos antes de enviar outra mensagem de suporte."
-    );
-  }
-
   const client = await getPool().connect();
   try {
     await client.query("begin");
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [`support-request:${userId}`]
+    );
+    const recentRequests = await client.query<{ count: string }>(
+      `
+        select count(*) as count
+        from support_requests
+        where user_id = $1
+          and created_at > now() - (${SUPPORT_REQUEST_WINDOW_MINUTES} * interval '1 minute')
+      `,
+      [userId]
+    );
+    const recentCount = Number(recentRequests.rows[0]?.count ?? 0);
+    if (recentCount >= SUPPORT_REQUEST_MAX_PER_WINDOW) {
+      throw new Error(
+        "Aguarde alguns minutos antes de enviar outra mensagem de suporte."
+      );
+    }
     const { rows } = await client.query<{ id: string }>(
       `
         insert into support_requests (

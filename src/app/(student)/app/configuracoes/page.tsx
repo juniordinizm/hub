@@ -73,7 +73,7 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
             </div>
           </aside>
 
-          <main className="space-y-8">
+          <div className="space-y-8">
             <section className="grid scroll-mt-24 gap-6" id="certificado">
               <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
                 <CardHeader>
@@ -174,7 +174,7 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
                 </CardContent>
               </Card>
             </section>
-          </main>
+          </div>
         </div>
       </div>
     </PageContainer>

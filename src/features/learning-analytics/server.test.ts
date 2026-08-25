@@ -2,12 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
+  requirePermission: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 vi.mock("@/lib/auth-permissions", () => ({
-  requirePermission: vi.fn(),
+  requirePermission: dependencies.requirePermission,
 }));
 
 import {
@@ -33,6 +34,9 @@ describe("learning analytics preference persistence", () => {
       "date_trunc('day', current_timestamp at time zone 'America/Sao_Paulo')"
     );
     expect(metricsQuery).not.toContain("where occurred_at >= current_date");
+    expect(dependencies.requirePermission).toHaveBeenCalledWith(
+      "manageLearningAnalytics"
+    );
   });
 
   it("records a raw event only through the opt-out-aware enrollment query", async () => {

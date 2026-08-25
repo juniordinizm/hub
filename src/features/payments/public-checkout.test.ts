@@ -28,6 +28,7 @@ vi.mock("@/lib/env", () => ({
 import {
   authorizePublicCheckoutIntent,
   createPublicCourseCheckout,
+  getPublicCheckoutMaxAttempts,
   PublicCheckoutRateLimitError,
 } from "./public-checkout";
 
@@ -36,6 +37,11 @@ const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 describe("public checkout boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("expands only the isolated E2E ceiling", () => {
+    expect(getPublicCheckoutMaxAttempts(false)).toBe(5);
+    expect(getPublicCheckoutMaxAttempts(true)).toBe(100);
   });
 
   it("starts an anonymous checkout without local buyer PII", async () => {

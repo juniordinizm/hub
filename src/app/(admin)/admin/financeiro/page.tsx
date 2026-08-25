@@ -331,6 +331,7 @@ export default async function AdminFinancePage({
                   </span>
                 </div>
                 <Progress
+                  aria-label={`Conversão geral de checkouts: ${financialHealth.checkoutConversionPercent}%`}
                   className="mt-3 h-2"
                   value={financialHealth.checkoutConversionPercent}
                 />
@@ -348,10 +349,10 @@ export default async function AdminFinancePage({
                   </div>
                 ) : (
                   <div className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-                    <p className="font-medium text-emerald-600 text-sm dark:text-emerald-400">
+                    <p className="font-medium text-foreground text-sm">
                       Webhooks sem falha
                     </p>
-                    <p className="mt-1 text-emerald-600/80 text-xs dark:text-emerald-400/80">
+                    <p className="mt-1 text-muted-foreground text-xs">
                       Os eventos recentes não indicam erro de processamento.
                     </p>
                   </div>

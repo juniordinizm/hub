@@ -1,6 +1,7 @@
 import { getPool } from "@/db";
 import { reconcileRevokedCertificateArtifacts } from "@/features/certificates/artifact-reconciliation";
 import { reconcileCertificateTemplateAssets } from "@/features/certificates/template-asset-cleanup";
+import { pruneEmailDeliveryRecords } from "@/features/email-delivery/server";
 import { sanitizeExpiredAsaasWebhookPayloads } from "@/features/payments/asaas-webhook-inbox";
 import { reconcileStagedAdminImageUploads } from "@/features/storage/staged-image-reconciliation";
 import {
@@ -13,6 +14,8 @@ interface MaintenanceResult {
   certificateTemplateAssetsRemoved: number;
   checkoutReservationsRemoved: number;
   deadlineReached: boolean;
+  emailDeliveryEventsRemoved: number;
+  emailDeliveryMessagesRemoved: number;
   expiredRateLimitsRemoved: number;
   expiredSessionsRemoved: number;
   learningAnalyticsAggregated: number;
@@ -30,6 +33,8 @@ const emptyMaintenanceResult = (): MaintenanceResult => ({
   deadlineReached: false,
   expiredRateLimitsRemoved: 0,
   expiredSessionsRemoved: 0,
+  emailDeliveryEventsRemoved: 0,
+  emailDeliveryMessagesRemoved: 0,
   learningAnalyticsAggregated: 0,
   learningAnalyticsEventsRemoved: 0,
   leaseLost: false,
@@ -47,6 +52,7 @@ export const runMaintenance = async ({
   clock?: () => number;
   deadlineAt?: number;
   isLeaseOwner?: () => Promise<boolean>;
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: maintenance is an explicit ordered sequence with a lease/deadline guard between independently auditable cleanup steps.
 } = {}): Promise<MaintenanceResult> => {
   const result = emptyMaintenanceResult();
   const canContinue = async (): Promise<boolean> => {
@@ -170,6 +176,13 @@ export const runMaintenance = async ({
     "delete from support_requests where created_at < now() - interval '90 days'"
   );
   result.supportRequestsRemoved = supportRequests.rowCount ?? 0;
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  const emailDelivery = await pruneEmailDeliveryRecords({ client: pool });
+  result.emailDeliveryEventsRemoved = emailDelivery.events;
+  result.emailDeliveryMessagesRemoved = emailDelivery.messages;
 
   if (!(await canContinue())) {
     return result;

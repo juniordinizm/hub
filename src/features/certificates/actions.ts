@@ -87,10 +87,14 @@ export const reissueCertificateAction = async (
 ): Promise<CertificateActionState> =>
   runCertificateAction({
     operation: async () => {
-      const session = await requirePermission("manageCertificates");
+      const session = await requirePermission("reissueCertificates");
+      if (session.role === "student") {
+        throw new Error("Certificate permission invariant violated.");
+      }
       const { confirmed: _confirmed, ...input } =
         parseChangeCertificateInput(formData);
       await reissueCertificate({
+        actorRole: session.role,
         actorUserId: session.user.id,
         ...input,
       });

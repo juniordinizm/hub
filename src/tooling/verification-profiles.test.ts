@@ -54,13 +54,15 @@ describe("runVerificationProfile", () => {
     expect(executed).toEqual(["db:migrations:check", "typecheck"]);
   });
 
-  it("uses isolated synthetic application values only for the build gate", () => {
+  it("isolates the local build from deployment credentials", () => {
     expect(getVerificationEnvironmentOverrides("test")).toEqual({});
     expect(getVerificationEnvironmentOverrides("build")).toEqual({
       BETTER_AUTH_SECRET: "verification-build-secret-not-for-deployment",
       BETTER_AUTH_URL: "https://verification-build.invalid",
       CERTIFICATE_PUBLIC_BASE_URL: "https://verification-build.invalid",
       NEXT_PUBLIC_APP_URL: "https://verification-build.invalid",
+      SENTRY_AUTH_TOKEN: "",
+      SENTRY_READINESS_AUTH_TOKEN: "",
     });
   });
 

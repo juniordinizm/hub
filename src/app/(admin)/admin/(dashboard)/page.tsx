@@ -30,9 +30,12 @@ import {
   getAdminDashboardData,
   getAdminOverview,
 } from "@/features/admin/server";
+import { getSupportCourseOperations } from "@/features/admin/support-server";
+import { requirePermission } from "@/lib/auth-permissions";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
+import { SupportDashboard } from "../support-dashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +67,13 @@ const metrics = [
 ] as const;
 
 export default async function AdminPage(): Promise<React.JSX.Element> {
+  const session = await requirePermission("viewAdminPanel");
+
+  if (session.role === "support") {
+    const courses = await getSupportCourseOperations();
+    return <SupportDashboard courses={courses} />;
+  }
+
   const [overview, data] = await Promise.all([
     getAdminOverview(),
     getAdminDashboardData(),
@@ -206,6 +216,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                   </span>
                 </div>
                 <Progress
+                  aria-label={`Prontidão média do catálogo: ${courseHealth.averageReadinessPercent}%`}
                   className="mt-3 h-2"
                   value={courseHealth.averageReadinessPercent}
                 />
@@ -289,6 +300,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                         </span>
                       </div>
                       <Progress
+                        aria-label={`Prontidão do curso ${course.title}: ${course.readinessPercent}%`}
                         className="h-1.5"
                         value={course.readinessPercent}
                       />

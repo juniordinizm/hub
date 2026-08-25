@@ -1,7 +1,10 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+current_migration_tag: 0067_sparkling_ghost_rider
+migration_entry_count: 68
+schema_table_count: 46
 ---
 
 # Banco e migrations
@@ -13,9 +16,45 @@ ser usados como autorização de promoção.
 
 ## Estado atual
 
-O topo local é `0062_certificate_reconciliation_indexes`. Ela adiciona índices
-para selecionar Conclusões históricas por Curso em ordem estável e consultar
-qualquer histórico de Certificado por Conta e Curso, sem reescrever dados.
+No snapshot de 23 de agosto de 2026, o topo local e o catálogo de Production
+eram `0064_certificates_preview_sha256`, com 65 entradas no journal e 43 tabelas
+da aplicação. `0063_support_requests` cria a solicitação persistida do formulário
+de suporte. `0064` adiciona `certificates.preview_sha256` como coluna opcional.
+Ambas são aditivas e não reescrevem registros existentes.
+
+Em 24 de agosto de 2026, a remediação da Sprint 1 acrescentou somente à cadeia
+local `0065_gray_siren`. A Sprint 3 acrescentou `0066_gifted_retro_girl` e a
+Sprint 4 acrescentou `0067_sparkling_ghost_rider`, totalizando 68 entradas e 46
+tabelas no snapshot. `0065`
+adiciona o indicador de segundo fator, a tabela `two_factors` e revogação de
+sessões por mudança de papel ou do indicador de segundo fator. Production
+permanece em `0064`; gerar, ensaiar e documentar `0065` não autoriza promoção.
+
+O SQL de `0065` foi aplicado dentro de transação na branch Neon descartável
+`br-plain-field-acrxo0ru`, filha direta de Production. O postflight confirmou as
+sete colunas do plugin, um índice de segredo, dois triggers, zero registros TOTP
+semeados, revogação das sessões anteriores e permanência apenas da sessão criada
+depois do challenge. Os fixtures foram removidos e a branch descartável foi
+excluída ao final; nenhum alvo persistente foi alterado.
+
+`0066` acrescenta apenas o valor terminal `superseded` ao enum da outbox, a
+coluna `superseded_at` e um índice não parcial nesse timestamp. O primeiro ensaio
+na branch descartável `br-holy-wildflower-achkx0vn` detectou e reverteu um índice
+parcial gerado que usava o novo valor do enum na mesma transação. O índice foi
+corrigido para não parcial; a migration então passou e a segunda execução
+confirmou idempotência. Nove cenários integrados de concorrência/expiração e o
+script v1 dry-run/execute passaram, fixtures foram removidos e a branch foi
+apagada e confirmada como ausente. Nenhum alvo persistente recebeu `0065` ou
+`0066` por esse ensaio.
+
+`0067` cria somente metadata de lifecycle Resend: enums fechados,
+`email_messages`, `resend_webhook_events`, FKs `set null`, constraints de hash e
+índices de fila/timeline. Não existem colunas de destinatário, remetente,
+assunto, HTML, texto, URL, token, payload ou headers. Ela passou duas vezes na
+branch descartável `br-falling-mouse-acqm8mw7`. A integração comprovou webhook
+antes da aceitação local, redução determinística de eventos conflitantes e
+deduplicação por Svix ID. Fixtures e branch foram removidos; listagem posterior
+confirmou ausência. Nenhum alvo persistente recebeu `0067`.
 
 O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
 `0000` a `0053` está aplicada à branch `production`
@@ -114,6 +153,13 @@ workflow cria um backup usando o input `parent_branch` da action Neon e confere
 via API que a branch criada descende da branch Staging configurada; se a
 ancestralidade não coincidir, a execução é interrompida.
 
+`db:seed:staging-admin` exige duas identidades e senhas distintas: o Admin
+primário e o Admin de recuperação. As duas senhas precisam de pelo menos oito
+caracteres. O comando normaliza os e-mails, executa as duas contas na mesma
+transação, revoga sessões existentes depois de atualizar credencial/papel e
+registra somente contagens sanitizadas. Ele não cria segredo TOTP nem backup
+code; cada pessoa conclui esse setup pela interface.
+
 ## Autoridades
 
 Compare sempre, nesta ordem operacional:
@@ -135,7 +181,8 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia, `0062_snapshot.json`. As migrations Asaas e
+journal é autoridade; nesta cadeia local, `0067_snapshot.json`. O snapshot de
+Production continua `0064_snapshot.json` até uma promoção protegida. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.
 
@@ -188,6 +235,11 @@ somente aditiva e não altera linhas existentes; sua promoção continua sujeita
 ao fluxo controlado deste runbook e ao advisory lock global do migrador. Ela não
 emite Certificados nem reconcilia Conclusões; o lote permanece uma ação confirmada
 de Admin depois da promoção.
+
+`0063_support_requests` cria `support_requests`, sua referência à Conta e o índice
+de consulta por usuário. `0064_certificates_preview_sha256` acrescenta o digest
+opcional usado para verificar o preview persistido do Certificado. O snapshot e o
+journal correspondentes são os artefatos autoritativos para novos diffs.
 
 ## Conexões
 
@@ -287,6 +339,9 @@ O journal aplicado em Production possui quatro hashes históricos que diferem do
 hoje versionado (`0009`, `0037`, `0038` e `0039`). O contrato fixa os hashes realmente
 aplicados e calcula os outros 40 com quebras de linha LF canônicas, evitando divergência
 artificial em checkouts Windows com CRLF sem enfraquecer a comparação linha a linha.
+O migrador E2E aplica a mesma distinção sem lista de exceções: reconstrói o arquivo
+Drizzle e aceita somente os hashes LF/CRLF do conteúdo idêntico. Diferença de SQL,
+timestamp ausente ou hash fora desse par continua exigindo recriação da branch.
 
 Em 2026-07-29, executor e CLI foram validados numa clone descartável de Production: o
 `plan` real passou em transação somente leitura, sem alterar o schema `public`; a suíte
@@ -315,7 +370,13 @@ Cria banco PostgreSQL local temporário, aplica a cadeia, roda seed duas vezes e
 
 ### `bun run test:certificates:integration`
 
-Executa concorrência de conclusão, outbox e inbox Asaas em Postgres real e requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco descartável migrado. A suíte da inbox prova claim único entre dois workers, rollback do efeito, perda de posse e terminalização da quinta tentativa abandonada. Nunca aponte para banco compartilhado.
+Executa concorrência de conclusão, outbox, inbox Asaas e assurance privilegiada
+em PostgreSQL real. Requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco
+descartável migrado. A suíte da inbox prova claim único entre dois workers,
+rollback do efeito, perda de posse e terminalização da quinta tentativa
+abandonada. A suíte de autenticação prova setup e challenge TOTP, consumo único
+de backup code, revogação de sessão por mudança de papel e lockout. Nunca aponte
+para banco compartilhado.
 
 ### `bun run db:push` e `bun run db:studio`
 
@@ -432,10 +493,17 @@ seed, teardown e global teardown. Todo processo que pode alterar o banco exige
 recusa o compute Neon Production conhecido sem registrar URL ou credencial. Uma
 `DATABASE_URL` preexistente e divergente aborta a suíte antes do seed.
 
+Na CI, `E2E_RUNTIME_DATABASE_URL` pode fornecer ao servidor Next.js a contraparte pooled
+da conexão direta. A configuração recusa outro compute, usuário, credencial, porta, banco
+ou parâmetros; processos de migration, setup, seed e teardown continuam usando somente a
+URL direta. Sem essa variável opcional, o servidor usa a URL direta descartável.
+
 Para migrar a branch descartável, use somente `bun run db:migrate:e2e`. O harness exige
 `DATABASE_URL` e `E2E_DATABASE_URL` iguais, recusa uma `DATABASE_URL_DIRECT` divergente e
-fixa as três variáveis na mesma URL antes de iniciar o Drizzle. Assim, `.env.local` não
-pode redirecionar o migrador:
+fixa as três variáveis na mesma URL antes de iniciar diretamente o migrator
+`drizzle-orm/node-postgres`. Ele não abre um processo `drizzle-kit`, evitando
+divergência de ambiente e o bloqueio observado sob Bun em migrations de baseline
+compostas somente por comentário. Assim, `.env.local` não pode redirecionar o migrador:
 
 ```powershell
 $env:E2E_DATABASE_URL = "<url-postgresql-descartavel>"

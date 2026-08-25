@@ -1,6 +1,7 @@
 import "server-only";
 import { getPool } from "@/db";
 import { renderPendingCertificate } from "@/features/certificates/server";
+import type { HostedEmailDeliveryContext } from "@/features/email/server";
 import {
   sendAccessExpiryWarningEmail,
   sendAccessReleasedEmail,
@@ -8,6 +9,10 @@ import {
   sendCourseSalesOpenedEmail,
   sendSupportRequestEmail,
 } from "@/features/email/server";
+import {
+  EMAIL_DELIVERY_TOPIC_TAGS,
+  type EmailDeliveryTopic,
+} from "@/features/email-delivery/server";
 import {
   getApplicationUrl,
   getAsaasProviderClient,
@@ -20,13 +25,18 @@ import {
 import { getAuth } from "@/lib/auth";
 import { getServerEnv } from "@/lib/env";
 import {
+  classifyExpiryWarningGeneration,
   createCertificateIssuedMessage,
   OUTBOX_TOPICS,
   type OutboxPayload,
   parseOutboxPayload,
 } from "./rules";
 import { enqueueOutboxMessage } from "./server";
-import { type ClaimedOutboxMessage, OutboxDeliveryError } from "./worker";
+import {
+  type ClaimedOutboxMessage,
+  OutboxDeliveryError,
+  OutboxSupersededError,
+} from "./worker";
 
 const unavailableAggregate = (): OutboxDeliveryError =>
   new OutboxDeliveryError("aggregate_not_deliverable", { retryable: false });
@@ -60,6 +70,22 @@ const unexpectedDeliveryFailure = (topic: string): OutboxDeliveryError => {
     return checkoutCancellationFailure();
   }
   return deliveryFailure();
+};
+
+const createEmailDeliveryContext = (
+  message: ClaimedOutboxMessage
+): HostedEmailDeliveryContext => {
+  if (!(message.topic in EMAIL_DELIVERY_TOPIC_TAGS)) {
+    throw new OutboxDeliveryError("unknown_email_delivery_topic", {
+      retryable: false,
+    });
+  }
+  return {
+    correlationId: message.id,
+    idempotencyKey: message.idempotencyKey,
+    outboxMessageId: message.id,
+    topic: message.topic as EmailDeliveryTopic,
+  };
 };
 
 interface AccountActivationDeliveryData {
@@ -145,6 +171,7 @@ const deliverAccountActivation = async ({
       [ACCOUNT_ACTIVATION_IDEMPOTENCY_HEADER]: idempotencyKey,
     };
     const emailDelivered = await runWithAccountActivationDeliveryContext({
+      emailDeliveryContext: createEmailDeliveryContext(message),
       idempotencyKey,
       operation: async () => {
         await getAuth().api.requestPasswordReset({
@@ -221,10 +248,32 @@ const getAccessReleasedDeliveryData = async ({
   return result.rows[0] ?? null;
 };
 
+interface ExpiryWarningState {
+  expires_at: Date;
+  status: "active" | "expired" | "revoked";
+}
+
+const getExpiryWarningState = async (
+  enrollmentId: string
+): Promise<ExpiryWarningState | null> => {
+  const result = await getPool().query<ExpiryWarningState>(
+    `
+      select status, expires_at
+      from enrollments
+      where id = $1
+      limit 1
+    `,
+    [enrollmentId]
+  );
+  return result.rows[0] ?? null;
+};
+
 const getExpiryWarningDeliveryData = async (enrollmentId: string) => {
   const result = await getPool().query<{
     course_id: string;
     course_title: string;
+    expires_at: Date;
+    status: "active" | "expired" | "revoked";
     student_email: string;
     student_name: string;
   }>(
@@ -232,17 +281,57 @@ const getExpiryWarningDeliveryData = async (enrollmentId: string) => {
       select
         courses.id as course_id,
         courses.title as course_title,
+        enrollments.status,
+        enrollments.expires_at,
         users.email as student_email,
         users.name as student_name
       from enrollments
       join users on users.id = enrollments.user_id
       join courses on courses.id = enrollments.course_id
-      where enrollments.id = $1 and enrollments.status = 'active'
+      where enrollments.id = $1
       limit 1
     `,
     [enrollmentId]
   );
   return result.rows[0] ?? null;
+};
+
+const expirySupersededReason = (
+  state: ReturnType<typeof classifyExpiryWarningGeneration>
+):
+  | "expiry_generation_changed"
+  | "expiry_inactive"
+  | "expiry_window_elapsed" => {
+  if (state === "changed") {
+    return "expiry_generation_changed";
+  }
+  if (state === "wrong_window") {
+    return "expiry_window_elapsed";
+  }
+  return "expiry_inactive";
+};
+
+const assertCurrentExpiryWarning = ({
+  expiresAt,
+  expectedExpiresAt,
+  status,
+  warningKind,
+}: {
+  expiresAt: Date;
+  expectedExpiresAt: string;
+  status: "active" | "expired" | "revoked";
+  warningKind: "1d" | "7d";
+}): void => {
+  const state = classifyExpiryWarningGeneration({
+    currentExpiresAt: expiresAt,
+    expectedExpiresAt,
+    now: new Date(),
+    status,
+    warningKind,
+  });
+  if (state !== "current") {
+    throw new OutboxSupersededError(expirySupersededReason(state));
+  }
 };
 
 const getCourseSalesOpenedDeliveryData = async (interestId: string) => {
@@ -338,6 +427,7 @@ const deliverCourseSalesOpened = async ({
   await sendCourseSalesOpenedEmail({
     courseSlug: data.course_slug,
     courseTitle: data.course_title,
+    deliveryContext: createEmailDeliveryContext(message),
     idempotencyKey: message.idempotencyKey,
     to: data.student_email,
     userName: data.student_name,
@@ -498,6 +588,7 @@ const deliverSupportRequest = async ({
   }
   await sendSupportRequestEmail({
     ...(data.course_title ? { courseTitle: data.course_title } : {}),
+    deliveryContext: createEmailDeliveryContext(message),
     idempotencyKey: message.idempotencyKey,
     message: data.message,
     studentEmail: data.student_email,
@@ -584,6 +675,7 @@ export const deliverOutboxMessage = async (
       await sendCertificateIssuedEmail({
         certificateCode: data.certificate_code,
         courseTitle: data.course_title,
+        deliveryContext: createEmailDeliveryContext(message),
         idempotencyKey: message.idempotencyKey,
         to: data.student_email,
         userName: data.student_name,
@@ -603,6 +695,7 @@ export const deliverOutboxMessage = async (
       await sendAccessReleasedEmail({
         courseId: payload.courseId,
         courseTitle: data.course_title,
+        deliveryContext: createEmailDeliveryContext(message),
         idempotencyKey: message.idempotencyKey,
         to: data.student_email,
         userName: data.student_name,
@@ -615,14 +708,34 @@ export const deliverOutboxMessage = async (
       "enrollmentId" in payload &&
       "warningKind" in payload
     ) {
+      if (!("expectedExpiresAt" in payload)) {
+        throw new OutboxSupersededError("expiry_payload_v1");
+      }
+      const state = await getExpiryWarningState(payload.enrollmentId);
+      if (!state) {
+        throw new OutboxSupersededError("expiry_inactive");
+      }
+      assertCurrentExpiryWarning({
+        expiresAt: state.expires_at,
+        expectedExpiresAt: payload.expectedExpiresAt,
+        status: state.status,
+        warningKind: payload.warningKind,
+      });
       const data = await getExpiryWarningDeliveryData(payload.enrollmentId);
       if (!data) {
-        throw unavailableAggregate();
+        throw new OutboxSupersededError("expiry_inactive");
       }
+      assertCurrentExpiryWarning({
+        expiresAt: data.expires_at,
+        expectedExpiresAt: payload.expectedExpiresAt,
+        status: data.status,
+        warningKind: payload.warningKind,
+      });
       await sendAccessExpiryWarningEmail({
         courseId: data.course_id,
         courseTitle: data.course_title,
         daysRemaining: payload.warningKind === "1d" ? 1 : 7,
+        deliveryContext: createEmailDeliveryContext(message),
         idempotencyKey: message.idempotencyKey,
         to: data.student_email,
         userName: data.student_name,
@@ -630,7 +743,10 @@ export const deliverOutboxMessage = async (
       return;
     }
   } catch (error) {
-    if (error instanceof OutboxDeliveryError) {
+    if (
+      error instanceof OutboxDeliveryError ||
+      error instanceof OutboxSupersededError
+    ) {
       throw error;
     }
     throw unexpectedDeliveryFailure(message.topic);

@@ -36,6 +36,7 @@ describe("certificate server actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dependencies.requirePermission.mockResolvedValue({
+      role: "admin",
       user: { id: "admin-1" },
     });
     dependencies.requireRole.mockResolvedValue({ user: { id: "admin-1" } });
@@ -127,6 +128,31 @@ describe("certificate server actions", () => {
       status: "success",
     });
     expect(command).toHaveBeenCalledOnce();
+  });
+
+  it("separates certificate reissue from issuance and revocation", async () => {
+    await issueManualCertificateAction(
+      { status: "idle" },
+      validIssueFormData()
+    );
+    await revokeCertificateAction({ status: "idle" }, validChangeFormData());
+    await reissueCertificateAction({ status: "idle" }, validChangeFormData());
+
+    expect(dependencies.requirePermission).toHaveBeenNthCalledWith(
+      1,
+      "manageCertificates"
+    );
+    expect(dependencies.requirePermission).toHaveBeenNthCalledWith(
+      2,
+      "manageCertificates"
+    );
+    expect(dependencies.requirePermission).toHaveBeenNthCalledWith(
+      3,
+      "reissueCertificates"
+    );
+    expect(dependencies.reissueCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({ actorRole: "admin" })
+    );
   });
 
   it("requires Admin and returns the typed historical reconciliation result", async () => {

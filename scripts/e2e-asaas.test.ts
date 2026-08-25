@@ -39,6 +39,19 @@ describe("E2E Asaas server", () => {
     ).toBe(404);
   });
 
+  it("derives an isolated buyer from a checkout attempt", async () => {
+    const attemptId = "00000000-0000-4000-8000-000000000001";
+    const response = await handleE2eAsaasRequest(
+      new Request(`http://127.0.0.1:4570/v3/customers/cus_e2e_${attemptId}`)
+    );
+
+    expect(await response.json()).toEqual({
+      email: "buyer-00000000000040008000000000000001@example.test",
+      id: `cus_e2e_${attemptId}`,
+      name: "Buyer E2E",
+    });
+  });
+
   it.each([
     [
       "cus_blocked_run123",

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCertificateIssuedMessage } from "./rules";
 
+const dependencies = vi.hoisted(() => ({ getPool: vi.fn() }));
+
 vi.mock("server-only", () => ({}));
+vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 
 import {
   claimOutboxMessages,
@@ -10,6 +13,8 @@ import {
   markOutboxMessageDeferred,
   markOutboxMessageDelivered,
   markOutboxMessageForRetry,
+  markOutboxMessageSuperseded,
+  pruneOutboxRecords,
   requeueDeadLetterMessage,
 } from "./server";
 
@@ -75,6 +80,16 @@ describe("outbox persistence", () => {
   });
 
   it.each([
+    {
+      mark: (query: ReturnType<typeof vi.fn>) =>
+        markOutboxMessageSuperseded({
+          client: { query } as never,
+          errorCode: "expiry_generation_changed",
+          id: "outbox-1",
+          workerId: "worker-a",
+        }),
+      name: "superseded",
+    },
     {
       mark: (query: ReturnType<typeof vi.fn>) =>
         markOutboxMessageDelivered({
@@ -151,6 +166,49 @@ describe("outbox persistence", () => {
     expect(statement).toContain("certificate.id::text");
     expect(statement).not.toContain("::uuid");
     expect(statement).toContain("certificate.render_claim_token is null");
+  });
+
+  it("marks superseded as a fenced terminal state without consuming retry or delivery", async () => {
+    const query = vi.fn().mockResolvedValue({ rowCount: 1, rows: [] });
+
+    await expect(
+      markOutboxMessageSuperseded({
+        client: { query } as never,
+        errorCode: "expiry_window_elapsed",
+        id: "outbox-1",
+        workerId: "worker-a",
+      })
+    ).resolves.toBe(true);
+
+    const statement = String(query.mock.calls[0]?.[0]);
+    expect(statement).toContain("status = 'superseded'");
+    expect(statement).toContain("superseded_at = now()");
+    expect(statement).toContain("delivered_at = null");
+    expect(statement).not.toContain("attempts =");
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      "outbox-1",
+      "worker-a",
+      "expiry_window_elapsed",
+    ]);
+  });
+
+  it("prunes superseded messages after thirty days separately", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rowCount: 2 })
+      .mockResolvedValueOnce({ rowCount: 3 })
+      .mockResolvedValueOnce({ rowCount: 4 })
+      .mockResolvedValueOnce({ rowCount: 5 });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await expect(pruneOutboxRecords()).resolves.toEqual({
+      deadLetters: 3,
+      delivered: 2,
+      reprocessAudits: 5,
+      superseded: 4,
+    });
+    expect(String(query.mock.calls[2]?.[0])).toContain("status = 'superseded'");
+    expect(String(query.mock.calls[2]?.[0])).toContain("interval '30 days'");
   });
 
   it("allows exactly one manually audited reprocess", async () => {

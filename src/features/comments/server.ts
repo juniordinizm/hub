@@ -55,7 +55,11 @@ export const ensureCanCommentOnLesson = async ({
   role: AppRole;
   userId: string;
 }): Promise<LessonAccessResult> => {
-  if (role === "admin" || role === "support") {
+  if (role === "support") {
+    throw new Error("Acesso ao conteúdo não permitido para suporte.");
+  }
+
+  if (role === "admin") {
     const { rows } = await getPool().query<{ course_id: string }>(
       `
         select m.course_id
@@ -142,7 +146,7 @@ export const getLessonComments = async ({
     role,
     userId,
   });
-  const canModerateComments = role === "admin" || role === "support";
+  const canModerateComments = role === "admin";
   const { rows } = await getPool().query<LessonCommentRow>(
     `
       select

@@ -42,6 +42,55 @@ afterEach(() => {
 });
 
 describe("StudentManagementSheet interaction states", () => {
+  it("uses an explicit contextual endpoint when support opens the sheet", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          certificates: [],
+          context: { courseId: "course-1", courseTitle: "Curso 1" },
+          student: {
+            email: "student@example.test",
+            enrollments: [],
+            name: "Student",
+            platformBlockedAt: null,
+            platformBlockedReason: null,
+            userId: "student-1",
+          },
+        }),
+        { headers: { "Content-Type": "application/json" }, status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    root = createRoot(container);
+    act(() => {
+      root?.render(
+        <StudentManagementSheet
+          capabilities={{
+            canManageCertificates: false,
+            canManageEnrollmentSupport: true,
+            canManagePlatformAccess: false,
+            canReissueCertificates: true,
+          }}
+          courseId="course-1"
+          dataUrl="/api/admin/operations/courses/course-1/students/student-1"
+          trigger={<button type="button">Consultar</button>}
+          userId="student-1"
+        />
+      );
+    });
+
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/admin/operations/courses/course-1/students/student-1",
+      expect.objectContaining({ cache: "no-store" })
+    );
+  });
+
   it("shows skeleton, inline retry, and content after a successful retry", async () => {
     let releaseFirstRequest: (response: Response) => void = () => undefined;
     const firstRequest = new Promise<Response>((resolve) => {
@@ -85,6 +134,12 @@ describe("StudentManagementSheet interaction states", () => {
     act(() => {
       root?.render(
         <StudentManagementSheet
+          capabilities={{
+            canManageCertificates: true,
+            canManageEnrollmentSupport: true,
+            canManagePlatformAccess: true,
+            canReissueCertificates: true,
+          }}
           trigger={<button type="button">Gerenciar</button>}
           userId="student-1"
         />

@@ -74,7 +74,7 @@ describe("student course read access", () => {
     await expect(
       getStudentLessonWorkspace({
         lessonId: "missing-lesson",
-        viewer: { role: "support", userId: "support-1" },
+        viewer: { role: "admin", userId: "admin-1" },
       })
     ).resolves.toBeNull();
 

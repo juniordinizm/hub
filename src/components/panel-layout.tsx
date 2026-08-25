@@ -2,7 +2,6 @@
 
 import { ArrowLeftIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { createAuthClient } from "better-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -41,6 +40,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/get-initials";
 import { route } from "@/lib/routes";
 import type { AppRole } from "@/lib/session";
@@ -53,8 +53,6 @@ interface PanelLayoutProps {
   readonly userName: string;
   readonly userRole?: AppRole;
 }
-
-const authClient = createAuthClient();
 
 function SidebarHeaderContent() {
   const { state, isMobile } = useSidebar();
@@ -234,53 +232,33 @@ function PanelLayoutInner({
         onOpenChange={handleMainSidebarOpenChange}
         open={isFocusMode ? false : isMainSidebarOpen}
       >
+        <a
+          className="fixed top-3 left-3 z-50 -translate-y-20 rounded-md bg-background px-4 py-2 font-medium text-foreground text-sm shadow-md ring-2 ring-ring transition-transform focus:translate-y-0 focus:outline-none"
+          href="#main-content"
+        >
+          Pular para o conteúdo principal
+        </a>
         <Sidebar
           className="border-sidebar-border bg-sidebar"
           collapsible="icon"
         >
-          <SidebarHeader className="mb-6 flex h-16 flex-col justify-center gap-0 px-2">
-            <SidebarHeaderContent />
-          </SidebarHeader>
-          <SidebarContent>{navContent}</SidebarContent>
-          <SidebarFooter className="gap-2 px-2 pb-2">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton
-                      className="rounded-xl data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                      size="lg"
-                    >
-                      <Avatar className="size-8 shrink-0 rounded-full">
-                        {userImage ? (
-                          <AvatarImage
-                            alt={userName}
-                            referrerPolicy="no-referrer"
-                            src={userImage}
-                          />
-                        ) : null}
-                        <AvatarFallback className="rounded-full bg-primary text-primary-foreground">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="grid flex-1 text-left text-sm leading-tight">
-                        <span className="truncate font-semibold">
-                          {userName}
-                        </span>
-                        <span className="truncate text-sidebar-foreground text-xs">
-                          {userEmail}
-                        </span>
-                      </div>
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
-                    side="top"
-                    sideOffset={4}
-                  >
-                    <DropdownMenuLabel className="p-0 font-normal">
-                      <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+          <nav
+            aria-label="Navegação principal"
+            className="flex h-full min-h-0 flex-col"
+          >
+            <SidebarHeader className="mb-6 flex h-16 flex-col justify-center gap-0 px-2">
+              <SidebarHeaderContent />
+            </SidebarHeader>
+            <SidebarContent>{navContent}</SidebarContent>
+            <SidebarFooter className="gap-2 px-2 pb-2">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuButton
+                        className="rounded-xl data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                        size="lg"
+                      >
                         <Avatar className="size-8 shrink-0 rounded-full">
                           {userImage ? (
                             <AvatarImage
@@ -297,33 +275,74 @@ function PanelLayoutInner({
                           <span className="truncate font-semibold">
                             {userName}
                           </span>
-                          <span className="truncate text-muted-foreground text-xs">
+                          <span className="truncate text-sidebar-foreground text-xs">
                             {userEmail}
                           </span>
                         </div>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                      disabled={isPending}
-                      onSelect={(e) => {
-                        e.preventDefault();
-                        handleSignOut();
-                      }}
+                      </SidebarMenuButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
+                      side="top"
+                      sideOffset={4}
                     >
-                      <HugeiconsIcon
-                        className="mr-2 size-4"
-                        icon={Logout01Icon}
-                      />
-                      <span>{isPending ? "Saindo..." : "Sair"}</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarFooter>
-          <SidebarRail />
+                      <DropdownMenuLabel className="p-0 font-normal">
+                        <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                          <Avatar className="size-8 shrink-0 rounded-full">
+                            {userImage ? (
+                              <AvatarImage
+                                alt={userName}
+                                referrerPolicy="no-referrer"
+                                src={userImage}
+                              />
+                            ) : null}
+                            <AvatarFallback className="rounded-full bg-primary text-primary-foreground">
+                              {initials}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="grid flex-1 text-left text-sm leading-tight">
+                            <span className="truncate font-semibold">
+                              {userName}
+                            </span>
+                            <span className="truncate text-muted-foreground text-xs">
+                              {userEmail}
+                            </span>
+                          </div>
+                        </div>
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {userRole === "admin" || userRole === "support" ? (
+                        <DropdownMenuItem asChild>
+                          <Link href={route("/configurar-segundo-fator")}>
+                            Segurança da conta
+                          </Link>
+                        </DropdownMenuItem>
+                      ) : null}
+                      {userRole === "admin" || userRole === "support" ? (
+                        <DropdownMenuSeparator />
+                      ) : null}
+                      <DropdownMenuItem
+                        className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        disabled={isPending}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          handleSignOut();
+                        }}
+                      >
+                        <HugeiconsIcon
+                          className="mr-2 size-4"
+                          icon={Logout01Icon}
+                        />
+                        <span>{isPending ? "Saindo..." : "Sair"}</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarFooter>
+            <SidebarRail />
+          </nav>
         </Sidebar>
         <SidebarInset className="overflow-hidden">
           <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-border/40 border-b bg-background px-4">
@@ -402,9 +421,9 @@ function PanelLayoutInner({
             </div>
           </header>
           <ScrollArea className="h-[calc(100svh-4rem)] w-full">
-            <div className="flex-1" id="main-content" tabIndex={-1}>
+            <main className="flex-1" id="main-content" tabIndex={-1}>
               {children}
-            </div>
+            </main>
           </ScrollArea>
         </SidebarInset>
       </SidebarProvider>

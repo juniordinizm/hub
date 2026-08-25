@@ -5,14 +5,20 @@ export type AuthPermission =
   | "manageCertificates"
   | "manageContent"
   | "manageEnrollmentAccess"
+  | "manageEnrollmentSupport"
   | "manageFinancialOperations"
   | "manageFinancialReviews"
   | "manageLearningAnalytics"
   | "manageSettings"
+  | "reissueCertificates"
   | "retryOutbox"
   | "retryWebhook"
   | "viewAdminPanel"
-  | "viewFinancials";
+  | "viewCourseOperations"
+  | "viewFinancials"
+  | "viewGlobalAudit"
+  | "viewScopedAudit"
+  | "viewStudentOperations";
 
 const rolePermissions: Record<AppRole, AuthPermission[]> = {
   admin: [
@@ -20,22 +26,31 @@ const rolePermissions: Record<AppRole, AuthPermission[]> = {
     "manageCertificates",
     "manageContent",
     "manageEnrollmentAccess",
+    "manageEnrollmentSupport",
     "manageFinancialOperations",
     "manageFinancialReviews",
     "manageLearningAnalytics",
     "manageSettings",
+    "reissueCertificates",
     "retryOutbox",
     "retryWebhook",
     "viewAdminPanel",
+    "viewCourseOperations",
     "viewFinancials",
+    "viewGlobalAudit",
+    "viewScopedAudit",
+    "viewStudentOperations",
   ],
   student: [],
   support: [
     "executeRefund",
-    "manageCertificates",
-    "manageEnrollmentAccess",
+    "manageEnrollmentSupport",
+    "reissueCertificates",
     "viewAdminPanel",
+    "viewCourseOperations",
     "viewFinancials",
+    "viewScopedAudit",
+    "viewStudentOperations",
   ],
 };
 

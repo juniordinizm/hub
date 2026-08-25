@@ -18,6 +18,7 @@ import { StudentCertificateOperations } from "./student-certificate-operations";
 import {
   StudentManagementSheetContent,
   type StudentSheetPayload,
+  SupportContextPanel,
 } from "./student-management-sheet";
 
 const globalPayload: StudentSheetPayload = {
@@ -71,6 +72,18 @@ const globalPayload: StudentSheetPayload = {
   },
 };
 const selectedEnrollment = globalPayload.student.enrollments[0];
+const adminCapabilities = {
+  canManageCertificates: true,
+  canManageEnrollmentSupport: true,
+  canManagePlatformAccess: true,
+  canReissueCertificates: true,
+} as const;
+const supportCapabilities = {
+  canManageCertificates: false,
+  canManageEnrollmentSupport: true,
+  canManagePlatformAccess: false,
+  canReissueCertificates: true,
+} as const;
 
 if (!selectedEnrollment) {
   throw new Error("student fixture must include an enrollment");
@@ -79,7 +92,11 @@ if (!selectedEnrollment) {
 describe("StudentManagementSheetContent", () => {
   it("shows global platform, enrollment, and certificate sections", () => {
     const markup = renderToStaticMarkup(
-      <StudentManagementSheetContent data={globalPayload} onRefresh={vi.fn()} />
+      <StudentManagementSheetContent
+        capabilities={adminCapabilities}
+        data={globalPayload}
+        onRefresh={vi.fn()}
+      />
     );
 
     expect(markup).toContain("Acesso na plataforma");
@@ -103,7 +120,11 @@ describe("StudentManagementSheetContent", () => {
       },
     };
     const markup = renderToStaticMarkup(
-      <StudentManagementSheetContent data={data} onRefresh={vi.fn()} />
+      <StudentManagementSheetContent
+        capabilities={adminCapabilities}
+        data={data}
+        onRefresh={vi.fn()}
+      />
     );
 
     expect(markup).toContain("Curso em contexto");
@@ -124,7 +145,11 @@ describe("StudentManagementSheetContent", () => {
       student: { ...globalPayload.student, enrollments: [] },
     };
     const markup = renderToStaticMarkup(
-      <StudentManagementSheetContent data={data} onRefresh={vi.fn()} />
+      <StudentManagementSheetContent
+        capabilities={adminCapabilities}
+        data={data}
+        onRefresh={vi.fn()}
+      />
     );
 
     expect(markup).toContain("Sem matrículas");
@@ -133,6 +158,9 @@ describe("StudentManagementSheetContent", () => {
   it("explains why manual issuance is unavailable without enrollment", () => {
     const markup = renderToStaticMarkup(
       <StudentCertificateOperations
+        canIssue={true}
+        canReissue={true}
+        canRevoke={true}
         certificates={[]}
         courses={[]}
         onRefresh={vi.fn()}
@@ -142,5 +170,96 @@ describe("StudentManagementSheetContent", () => {
 
     expect(markup).not.toContain("Emitir certificado manual");
     expect(markup).toContain("É necessário matricular a aluna em um Curso");
+  });
+
+  it("keeps support in course scope without platform controls", () => {
+    const supportData: StudentSheetPayload = {
+      ...globalPayload,
+      supportContext: {
+        audit: [
+          {
+            action: "enrollment.expiration_extended",
+            createdAt: "2026-05-02T00:00:00.000Z",
+            targetId: "enrollment-1",
+            targetType: "enrollment",
+          },
+        ],
+        orders: [
+          {
+            amountInCents: 10_000,
+            createdAt: "2026-05-01T00:00:00.000Z",
+            id: "order-1",
+            paidAmountInCents: 10_000,
+            refundStatus: null,
+            refundedAmountInCents: null,
+            status: "paid",
+          },
+        ],
+        progress: { completedRequiredLessons: 4, requiredLessons: 6 },
+      },
+    };
+    const markup = renderToStaticMarkup(
+      <StudentManagementSheetContent
+        capabilities={supportCapabilities}
+        data={supportData}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(markup).not.toContain("Acesso na plataforma");
+    expect(markup).not.toContain("Bloquear acesso na plataforma");
+    expect(markup).toContain("Matrículas");
+    expect(markup).toContain("Operação");
+  });
+
+  it("renders the approved scoped progress, finance and history projection", () => {
+    const context = {
+      audit: [
+        {
+          action: "enrollment.expiration_extended",
+          createdAt: "2026-05-02T00:00:00.000Z",
+          targetId: "enrollment-1",
+          targetType: "enrollment",
+        },
+      ],
+      orders: [
+        {
+          amountInCents: 10_000,
+          createdAt: "2026-05-01T00:00:00.000Z",
+          id: "order-1",
+          paidAmountInCents: 10_000,
+          refundStatus: null,
+          refundedAmountInCents: null,
+          status: "paid",
+        },
+      ],
+      progress: { completedRequiredLessons: 4, requiredLessons: 6 },
+    };
+
+    const markup = renderToStaticMarkup(
+      <SupportContextPanel context={context} />
+    );
+
+    expect(markup).toContain("4 de 6 aulas obrigatórias");
+    expect(markup).toContain("Pedido order-1");
+    expect(markup).toContain("enrollment.expiration_extended");
+  });
+
+  it("lets support reissue but never issue or revoke certificates", () => {
+    const markup = renderToStaticMarkup(
+      <StudentCertificateOperations
+        canIssue={false}
+        canReissue={true}
+        canRevoke={false}
+        certificates={globalPayload.certificates}
+        courses={globalPayload.student.enrollments}
+        onRefresh={vi.fn()}
+        userId="student-1"
+      />
+    );
+
+    expect(markup).toContain("Reemitir");
+    expect(markup).not.toContain("Emitir certificado manual");
+    expect(markup).not.toContain("Revogar");
   });
 });

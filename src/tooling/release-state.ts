@@ -27,6 +27,9 @@ const RELEASE_ENVIRONMENTS = new Set<ReleaseEnvironment>([
   "production",
   "staging",
 ]);
+const FULL_GIT_SHA = /^[0-9a-f]{40}$/i;
+const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+const LINE_BREAK = /\r?\n/;
 
 const isReleaseEnvironment = (value: string): value is ReleaseEnvironment =>
   RELEASE_ENVIRONMENTS.has(value as ReleaseEnvironment);
@@ -35,8 +38,9 @@ const assertCheckpoint = (
   name: keyof ReleaseStateInput,
   checkpoint: ReleaseCheckpointInput
 ): ReleaseCheckpoint => {
-  if (!checkpoint.commit.trim()) {
-    throw new Error(`${name}.commit is required.`);
+  const commit = checkpoint.commit.trim();
+  if (!FULL_GIT_SHA.test(commit)) {
+    throw new Error(`${name}.commit must be a full Git SHA.`);
   }
 
   if (!isReleaseEnvironment(checkpoint.environment)) {
@@ -44,7 +48,7 @@ const assertCheckpoint = (
   }
 
   return {
-    commit: checkpoint.commit.trim(),
+    commit,
     environment: checkpoint.environment,
   };
 };
@@ -54,3 +58,36 @@ export const parseReleaseState = (input: ReleaseStateInput): ReleaseState => ({
   documented: assertCheckpoint("documented", input.documented),
   verified: assertCheckpoint("verified", input.verified),
 });
+
+export const parseReleaseStateDocument = (content: string): ReleaseState => {
+  const block = content.match(FRONTMATTER)?.[1];
+  if (!block) {
+    throw new Error("release-state frontmatter is required.");
+  }
+  const metadata = new Map<string, string>();
+  for (const line of block.split(LINE_BREAK)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex < 0) {
+      continue;
+    }
+    metadata.set(
+      line.slice(0, separatorIndex).trim(),
+      line.slice(separatorIndex + 1).trim()
+    );
+  }
+
+  return parseReleaseState({
+    deployed: {
+      commit: metadata.get("deployed_commit") ?? "",
+      environment: metadata.get("deployed_environment") ?? "",
+    },
+    documented: {
+      commit: metadata.get("documented_commit") ?? "",
+      environment: metadata.get("documented_environment") ?? "",
+    },
+    verified: {
+      commit: metadata.get("verified_commit") ?? "",
+      environment: metadata.get("verified_environment") ?? "",
+    },
+  });
+};

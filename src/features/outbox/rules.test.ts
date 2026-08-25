@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyExpiryWarningGeneration,
   createAccountActivationMessage,
   createCertificateIssuedMessage,
   createCheckoutCancellationMessage,
@@ -116,24 +117,54 @@ describe("outbox message contracts", () => {
   ] as const)("keeps the enrollment warning idempotent per %s warning window", (warningKind) => {
     const message = createEnrollmentExpiryWarningMessage({
       enrollmentId: "enrollment-1",
+      expectedExpiresAt: new Date("2026-08-31T10:00:00.000Z"),
       warningKind,
     });
 
     expect(message).toEqual({
       aggregateId: "enrollment-1",
       aggregateType: "enrollment",
-      idempotencyKey: `email.access-expiry-warning/enrollment-1/${warningKind}/v1`,
-      payload: { enrollmentId: "enrollment-1", warningKind },
-      payloadVersion: 1,
+      idempotencyKey: `email.access-expiry-warning/enrollment-1/${warningKind}/1788170400000/v2`,
+      payload: {
+        enrollmentId: "enrollment-1",
+        expectedExpiresAt: "2026-08-31T10:00:00.000Z",
+        warningKind,
+      },
+      payloadVersion: 2,
       topic: "email.access-expiry-warning",
     });
     expect(parseOutboxPayload(message)).toEqual({
       enrollmentId: "enrollment-1",
+      expectedExpiresAt: "2026-08-31T10:00:00.000Z",
       warningKind,
     });
     expect(Object.keys(message.payload).join(",")).not.toMatch(
       FORBIDDEN_PAYLOAD_KEY_PATTERN
     );
+  });
+
+  it("accepts legacy expiry v1 only for compatibility and validates v2 generation", () => {
+    expect(
+      parseOutboxPayload({
+        idempotencyKey: "email.access-expiry-warning/enrollment-1/7d/v1",
+        payload: { enrollmentId: "enrollment-1", warningKind: "7d" },
+        payloadVersion: 1,
+        topic: "email.access-expiry-warning",
+      })
+    ).toEqual({ enrollmentId: "enrollment-1", warningKind: "7d" });
+    expect(() =>
+      parseOutboxPayload({
+        idempotencyKey:
+          "email.access-expiry-warning/enrollment-1/7d/1788170400001/v2",
+        payload: {
+          enrollmentId: "enrollment-1",
+          expectedExpiresAt: "2026-08-31T10:00:00.000Z",
+          warningKind: "7d",
+        },
+        payloadVersion: 2,
+        topic: "email.access-expiry-warning",
+      })
+    ).toThrow("Versao de payload nao suportada");
   });
 
   it("keeps a course sales notification bound to one interest activation", () => {
@@ -199,5 +230,47 @@ describe("outbox message contracts", () => {
   it("backs off exponentially with bounded jitter", () => {
     expect(getRetryDelayMs({ attempt: 1, random: () => 0 })).toBe(60_000);
     expect(getRetryDelayMs({ attempt: 3, random: () => 1 })).toBe(270_000);
+  });
+});
+
+describe("classifyExpiryWarningGeneration", () => {
+  const current = {
+    currentExpiresAt: new Date("2026-08-31T10:00:00.000Z"),
+    expectedExpiresAt: "2026-08-31T10:00:00.000Z",
+    now: new Date("2026-08-25T10:00:00.000Z"),
+    status: "active" as const,
+    warningKind: "7d" as const,
+  };
+
+  it("classifies current, changed, inactive, expired and wrong-window generations", () => {
+    expect(classifyExpiryWarningGeneration(current)).toBe("current");
+    expect(
+      classifyExpiryWarningGeneration({
+        ...current,
+        currentExpiresAt: new Date("2026-09-30T10:00:00.000Z"),
+      })
+    ).toBe("changed");
+    expect(
+      classifyExpiryWarningGeneration({ ...current, status: "revoked" })
+    ).toBe("inactive");
+    expect(
+      classifyExpiryWarningGeneration({
+        ...current,
+        now: new Date("2026-09-01T10:00:00.000Z"),
+      })
+    ).toBe("expired");
+    expect(
+      classifyExpiryWarningGeneration({
+        ...current,
+        now: new Date("2026-08-20T10:00:00.000Z"),
+      })
+    ).toBe("wrong_window");
+    expect(
+      classifyExpiryWarningGeneration({
+        ...current,
+        now: new Date("2026-08-30T10:00:00.000Z"),
+        warningKind: "1d",
+      })
+    ).toBe("current");
   });
 });

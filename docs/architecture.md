@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 ---
 
 # Arquitetura
@@ -57,15 +57,13 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 
 `getPool` cria um `pg.Pool`; `getDb` expõe Drizzle sobre o mesmo pool. `withVerifiedSslMode`, em `src/db/connection-url.ts`, normaliza conexões para `sslmode=verify-full` quando necessário.
 
-O topo local é `0062_certificate_reconciliation_indexes`. Essa migration é
-aditiva e cria índices para a reconciliação administrativa de Conclusões; não
-emite Certificados nem executa backfill. Sua promoção usa o fluxo controlado e o
-advisory lock global do migrador.
+O topo local da cadeia, a quantidade de entradas e a quantidade de tabelas
+exportadas são derivados do journal e do schema e declarados somente em
+[Banco e migrations](operations/database-and-migrations.md). O catálogo
+efetivamente implantado fica no [Estado de release](operations/release-state.md).
 
 No runtime, `DATABASE_URL` deve ser pooled em ambientes serverless. Migrations e tarefas administrativas devem usar `DATABASE_URL_DIRECT`. A distinção segue a documentação oficial do [Neon sobre pooling](https://neon.com/docs/connect/connection-pooling), mas os endpoints reais do projeto não foram verificados no painel.
 
-O schema possui 42 tabelas exportadas em `src/db/schema.ts`. SQL e journal
-possuem 63 entradas alinhadas, com topo local `0062_certificate_reconciliation_indexes`;
 `db:migrations:check` valida a cadeia local, enquanto
 `db:migrations:inspect` comprova separadamente o catálogo do banco alvo. A
 migration `0049` garante uma Revisão por Webhook; o estado aplicado de cada ambiente

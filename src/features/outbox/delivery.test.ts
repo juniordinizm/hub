@@ -537,6 +537,12 @@ describe("outbox email delivery", () => {
     expect(dependencies.sendCertificateIssuedEmail).toHaveBeenCalledWith({
       certificateCode: "PRT-001",
       courseTitle: "Curso de teste",
+      deliveryContext: {
+        correlationId: "outbox-1",
+        idempotencyKey: "email.certificate-issued/certificate-1/v1",
+        outboxMessageId: "outbox-1",
+        topic: "email.certificate-issued",
+      },
       idempotencyKey: "email.certificate-issued/certificate-1/v1",
       to: "student@example.test",
       userName: "Aluna Teste",
@@ -584,6 +590,12 @@ describe("outbox email delivery", () => {
     expect(dependencies.sendCourseSalesOpenedEmail).toHaveBeenCalledWith({
       courseSlug: "curso-publico",
       courseTitle: "Curso público",
+      deliveryContext: {
+        correlationId: "outbox-1",
+        idempotencyKey: "email.course-sales-opened/interest-1/v1",
+        outboxMessageId: "outbox-1",
+        topic: "email.course-sales-opened",
+      },
       idempotencyKey: "email.course-sales-opened/interest-1/v1",
       to: "student@example.test",
       userName: "Aluna Teste",
@@ -664,6 +676,12 @@ describe("outbox email delivery", () => {
     );
     expect(dependencies.sendSupportRequestEmail).toHaveBeenCalledWith({
       courseTitle: "Curso de suporte",
+      deliveryContext: {
+        correlationId: "outbox-1",
+        idempotencyKey: "email.support-request/request-1/v1",
+        outboxMessageId: "outbox-1",
+        topic: "email.support-request",
+      },
       idempotencyKey: "email.support-request/request-1/v1",
       message: "Mensagem de teste controlada.",
       studentEmail: "student@example.test",
@@ -759,6 +777,112 @@ describe("outbox email delivery", () => {
     });
 
     expect(cancelCheckout).not.toHaveBeenCalled();
+  });
+
+  it("delivers only the current v2 expiry generation in its exact window", async () => {
+    const expiresAt = new Date(Date.now() + 6 * 86_400_000);
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          course_id: "course-1",
+          course_title: "Course",
+          expires_at: expiresAt,
+          status: "active",
+          student_email: "student@example.test",
+          student_name: "Student",
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await deliverOutboxMessage({
+      aggregateId: "enrollment-1",
+      aggregateType: "enrollment",
+      attempts: 1,
+      id: "outbox-expiry",
+      idempotencyKey: `email.access-expiry-warning/enrollment-1/7d/${expiresAt.getTime()}/v2`,
+      payload: {
+        enrollmentId: "enrollment-1",
+        expectedExpiresAt: expiresAt.toISOString(),
+        warningKind: "7d",
+      },
+      payloadVersion: 2,
+      topic: "email.access-expiry-warning",
+    });
+
+    expect(String(query.mock.calls[0]?.[0])).not.toContain(
+      "enrollments.status = 'active'"
+    );
+    expect(dependencies.sendAccessExpiryWarningEmail).toHaveBeenCalledOnce();
+  });
+
+  it("supersedes legacy, changed and inactive expiry warnings before Resend", async () => {
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            course_id: "course-1",
+            course_title: "Course",
+            expires_at: new Date(Date.now() + 10 * 86_400_000),
+            status: "active",
+            student_email: "student@example.test",
+            student_name: "Student",
+          },
+        ],
+      }),
+    });
+    const expectedExpiresAt = new Date(Date.now() + 6 * 86_400_000);
+    const base = {
+      aggregateId: "enrollment-1",
+      aggregateType: "enrollment",
+      attempts: 1,
+      id: "outbox-expiry",
+      topic: "email.access-expiry-warning" as const,
+    };
+
+    await expect(
+      deliverOutboxMessage({
+        ...base,
+        idempotencyKey: "email.access-expiry-warning/enrollment-1/7d/v1",
+        payload: { enrollmentId: "enrollment-1", warningKind: "7d" },
+        payloadVersion: 1,
+      })
+    ).rejects.toMatchObject({ code: "expiry_payload_v1" });
+    await expect(
+      deliverOutboxMessage({
+        ...base,
+        idempotencyKey: `email.access-expiry-warning/enrollment-1/7d/${expectedExpiresAt.getTime()}/v2`,
+        payload: {
+          enrollmentId: "enrollment-1",
+          expectedExpiresAt: expectedExpiresAt.toISOString(),
+          warningKind: "7d",
+        },
+        payloadVersion: 2,
+      })
+    ).rejects.toMatchObject({ code: "expiry_generation_changed" });
+    dependencies.getPool.mockReturnValue({
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            expires_at: expectedExpiresAt,
+            status: "revoked",
+          },
+        ],
+      }),
+    });
+    await expect(
+      deliverOutboxMessage({
+        ...base,
+        idempotencyKey: `email.access-expiry-warning/enrollment-1/7d/${expectedExpiresAt.getTime()}/v2`,
+        payload: {
+          enrollmentId: "enrollment-1",
+          expectedExpiresAt: expectedExpiresAt.toISOString(),
+          warningKind: "7d",
+        },
+        payloadVersion: 2,
+      })
+    ).rejects.toMatchObject({ code: "expiry_inactive" });
+    expect(dependencies.sendAccessExpiryWarningEmail).not.toHaveBeenCalled();
   });
 
   it("does not try delivery for an unsupported payload version", async () => {

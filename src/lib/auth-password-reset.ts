@@ -23,25 +23,34 @@ const PASSWORD_RESET_EMAIL_DELIVERY_FAILED =
   "password_reset_email_delivery_failed";
 
 const sendPublicPasswordResetEmail = async ({
-  correlationId,
+  deliveryCorrelationId,
+  logCorrelationId,
   resetUrl,
   to,
   userName,
 }: {
-  correlationId: string;
+  deliveryCorrelationId: string;
+  logCorrelationId: string;
   resetUrl: string;
   to: string;
   userName: string;
 }): Promise<void> => {
+  const idempotencyKey = `auth.password-reset/${deliveryCorrelationId}/v1`;
   try {
     await sendPasswordResetEmail({
+      deliveryContext: {
+        correlationId: deliveryCorrelationId,
+        idempotencyKey,
+        topic: "auth.password-reset",
+      },
+      idempotencyKey,
       resetUrl,
       to,
       userName,
     });
   } catch {
     logOperationalEvent({
-      correlationId,
+      correlationId: logCorrelationId,
       errorCode: PASSWORD_RESET_EMAIL_DELIVERY_FAILED,
       operation: "auth.password_reset",
       outcome: "failure",
@@ -63,12 +72,14 @@ export const sendBetterAuthPasswordResetEmail = async (
     : undefined;
 
   if (request && !deliveryContext) {
-    const correlationId = createCorrelationId(
+    const logCorrelationId = createCorrelationId(
       request.headers.get(CORRELATION_ID_HEADER)
     );
+    const deliveryCorrelationId = createCorrelationId(null);
     after(async () => {
       await sendPublicPasswordResetEmail({
-        correlationId,
+        deliveryCorrelationId,
+        logCorrelationId,
         resetUrl: url,
         to: user.email,
         userName: user.name,
@@ -79,6 +90,9 @@ export const sendBetterAuthPasswordResetEmail = async (
 
   try {
     await sendPasswordResetEmail({
+      ...(deliveryContext?.emailDeliveryContext
+        ? { deliveryContext: deliveryContext.emailDeliveryContext }
+        : {}),
       ...(deliveryContext && idempotencyKey ? { idempotencyKey } : {}),
       resetUrl: url,
       to: user.email,

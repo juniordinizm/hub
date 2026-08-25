@@ -2,6 +2,19 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("admin actions and schema", () => {
+  it("guards every banner mutation with the settings permission", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+    const bannerSection = source.slice(
+      source.indexOf("const assertBannerLink")
+    );
+
+    expect(bannerSection).toContain('requirePermission("manageSettings")');
+    expect(bannerSection).not.toContain('requireRole(["admin", "support"])');
+  });
+
   it("returns retry delete failures as action state instead of throwing a server error", async () => {
     const source = await readFile(
       new URL("./actions.ts", import.meta.url),

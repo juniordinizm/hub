@@ -22,6 +22,7 @@ vi.mock("@/lib/env", () => ({
 }));
 
 import {
+  assertCertificateReissueTargetAllowed,
   getCertificateByCode,
   issueCompletionCertificateIfEligible,
   issueManualCertificate,
@@ -35,6 +36,25 @@ import {
 const UUID_PATTERN = /^[0-9a-f-]{36}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
+
+describe("certificate reissue authority", () => {
+  it("limits Support to the latest certificate while preserving the general Admin flow", () => {
+    expect(() =>
+      assertCertificateReissueTargetAllowed({
+        actorRole: "support",
+        latestCertificateId: "certificate-newer",
+        targetCertificateId: "certificate-old",
+      })
+    ).toThrow("Somente o certificado historico mais recente");
+    expect(() =>
+      assertCertificateReissueTargetAllowed({
+        actorRole: "admin",
+        latestCertificateId: "certificate-newer",
+        targetCertificateId: "certificate-old",
+      })
+    ).not.toThrow();
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -368,6 +388,7 @@ describe("certificate lifecycle reasons", () => {
 
     await expect(
       reissueCertificate({
+        actorRole: "support",
         actorUserId: "support-1",
         certificateId: "certificate-1",
         reasonCategory: "identity_correction",
@@ -420,6 +441,7 @@ describe("certificate lifecycle reasons", () => {
 
     await expect(
       reissueCertificate({
+        actorRole: "support",
         actorUserId: "support-1",
         certificateId: "certificate-old",
         reasonCategory: "identity_correction",

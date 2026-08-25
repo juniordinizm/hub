@@ -7,6 +7,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  getNewPasswordValidationError,
+  PASSWORD_MIN_LENGTH,
+} from "@/lib/password-policy";
 import { route } from "@/lib/routes";
 import { isSuccessfulSignUpPayload } from "./sign-up-result";
 
@@ -24,8 +28,12 @@ export function SignUpForm(): React.JSX.Element {
       formData.get("passwordConfirmation") ?? ""
     );
 
-    if (password !== passwordConfirmation) {
-      setError("As senhas precisam ser iguais.");
+    const passwordError = getNewPasswordValidationError({
+      confirmation: passwordConfirmation,
+      password,
+    });
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -101,7 +109,7 @@ export function SignUpForm(): React.JSX.Element {
           <Input
             autoComplete="new-password"
             id="password"
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             name="password"
             required
             type="password"
@@ -114,7 +122,7 @@ export function SignUpForm(): React.JSX.Element {
           <Input
             autoComplete="new-password"
             id="passwordConfirmation"
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             name="passwordConfirmation"
             required
             type="password"

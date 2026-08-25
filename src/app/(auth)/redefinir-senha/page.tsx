@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PASSWORD_MIN_LENGTH_MESSAGE } from "@/lib/password-policy";
 import { route } from "@/lib/routes";
 import { ResetPasswordForm } from "./reset-password-form";
 
@@ -28,10 +29,10 @@ export default async function ResetPasswordPage({
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
           <CardDescription>PROTEA-R Hub</CardDescription>
-          <CardTitle className="text-3xl">Definir nova senha</CardTitle>
-          <CardDescription>
-            Crie uma senha com pelo menos 10 caracteres.
-          </CardDescription>
+          <CardTitle as="h1" className="text-3xl">
+            Definir nova senha
+          </CardTitle>
+          <CardDescription>{PASSWORD_MIN_LENGTH_MESSAGE}</CardDescription>
         </CardHeader>
         <CardContent>
           <ResetPasswordForm token={token ?? ""} />

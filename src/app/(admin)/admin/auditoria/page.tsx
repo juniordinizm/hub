@@ -19,6 +19,16 @@ import { OutboxDeadLetterReprocess } from "./outbox-dead-letters";
 export const dynamic = "force-dynamic";
 
 const OPERATIONAL_ALERT_PRESENTATION = {
+  email_delivery_dead_letter: {
+    description:
+      "Há eventos do Resend que não puderam atualizar o lifecycle e exigem investigação.",
+    title: "Eventos de entrega em dead letter",
+  },
+  email_delivery_retry_stale: {
+    description:
+      "Há eventos do Resend aguardando correlação há mais de uma hora.",
+    title: "Lifecycle de e-mail atrasado",
+  },
   outbox_dead_letter: {
     description:
       "Há mensagens que esgotaram as tentativas e exigem revisão manual.",
@@ -218,7 +228,7 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               })}
             </ul>
           ) : null}
-          <dl className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-4">
+          <dl className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
             <div className="space-y-1 p-5">
               <dt className="text-muted-foreground text-sm">Outbox pendente</dt>
               <dd className="font-semibold text-2xl tabular-nums">
@@ -232,6 +242,24 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               </dd>
               <dd className="text-muted-foreground text-sm">
                 Dead letters: {data.operationalBacklog.outbox.deadLetters}
+              </dd>
+            </div>
+            <div className="space-y-1 p-5">
+              <dt className="text-muted-foreground text-sm">E-mails aceitos</dt>
+              <dd className="font-semibold text-2xl tabular-nums">
+                {data.operationalBacklog.emailDelivery.accepted}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Entregues: {data.operationalBacklog.emailDelivery.delivered}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Bounces: {data.operationalBacklog.emailDelivery.bounced} ·
+                Reclamações: {data.operationalBacklog.emailDelivery.complained}
+              </dd>
+              <dd className="text-muted-foreground text-sm">
+                Inbox em retry: {data.operationalBacklog.emailDelivery.retrying}
+                · Dead letters:{" "}
+                {data.operationalBacklog.emailDelivery.deadLetters}
               </dd>
             </div>
             <div className="space-y-1 p-5">

@@ -3,10 +3,20 @@ import { getPool } from "@/db";
 
 export interface OperationalBacklogSnapshot {
   alerts: OperationalAlert[];
+  emailDelivery: {
+    accepted: number;
+    bounced: number;
+    complained: number;
+    deadLetters: number;
+    delivered: number;
+    oldestRetryAt: Date | null;
+    retrying: number;
+  };
   outbox: {
     deadLetters: number;
     oldestReadyAt: Date | null;
     ready: number;
+    superseded: number;
   };
   payments: {
     uncertainCheckouts: number;
@@ -29,6 +39,8 @@ export interface OperationalBacklogSnapshot {
 
 export interface OperationalAlert {
   code:
+    | "email_delivery_dead_letter"
+    | "email_delivery_retry_stale"
     | "outbox_dead_letter"
     | "outbox_pending_stale"
     | "webhook_failed_stale"
@@ -40,12 +52,20 @@ export interface OperationalAlert {
 
 interface OperationalBacklogRow {
   dead_letters: string;
+  email_accepted: string;
+  email_bounced: string;
+  email_complained: string;
+  email_delivered: string;
+  email_webhook_dead_letters: string;
+  email_webhook_oldest_retry_at: Date | null;
+  email_webhook_retrying: string;
   oldest_outbox_at: Date | null;
   oldest_video_at: Date | null;
   oldest_webhook_failed_at: Date | null;
   oldest_webhook_ready_at: Date | null;
   oldest_webhook_retry_at: Date | null;
   outbox_ready: string;
+  outbox_superseded: string;
   uncertain_checkouts: string;
   uncertain_refunds: string;
   uncorrelated_orders: string;
@@ -61,6 +81,7 @@ const PENDING_VIDEO_STATUSES = "'uploading', 'processing'";
 export const OPERATIONAL_BACKLOG_THRESHOLDS_MS = {
   outboxCritical: 60 * 60 * 1000,
   outboxWarning: 15 * 60 * 1000,
+  emailDeliveryRetry: 60 * 60 * 1000,
   webhookFailed: 24 * 60 * 60 * 1000,
   webhookPayloadRetentionWarning: 25 * 24 * 60 * 60 * 1000,
   webhookReady: 15 * 60 * 1000,
@@ -171,6 +192,45 @@ const getOutboxAlerts = ({
   return alerts;
 };
 
+const getEmailDeliveryAlerts = ({
+  emailDelivery,
+  now,
+}: {
+  emailDelivery: OperationalBacklogSnapshot["emailDelivery"];
+  now: Date;
+}): OperationalAlert[] => {
+  const alerts: OperationalAlert[] = [];
+  if (emailDelivery.deadLetters > 0) {
+    alerts.push({
+      code: "email_delivery_dead_letter",
+      severity: "critical",
+    });
+  }
+  if (
+    emailDelivery.retrying > 0 &&
+    isAtLeastAge({
+      date: emailDelivery.oldestRetryAt,
+      now,
+      thresholdMs: OPERATIONAL_BACKLOG_THRESHOLDS_MS.emailDeliveryRetry,
+    })
+  ) {
+    alerts.push({ code: "email_delivery_retry_stale", severity: "high" });
+  }
+  return alerts;
+};
+
+const buildEmailDeliverySnapshot = (
+  row: OperationalBacklogRow | undefined
+): OperationalBacklogSnapshot["emailDelivery"] => ({
+  accepted: Number(row?.email_accepted ?? 0),
+  bounced: Number(row?.email_bounced ?? 0),
+  complained: Number(row?.email_complained ?? 0),
+  deadLetters: Number(row?.email_webhook_dead_letters ?? 0),
+  delivered: Number(row?.email_delivered ?? 0),
+  oldestRetryAt: row?.email_webhook_oldest_retry_at ?? null,
+  retrying: Number(row?.email_webhook_retrying ?? 0),
+});
+
 export const getOperationalBacklogSnapshot = async ({
   now = () => new Date(),
 }: {
@@ -181,6 +241,14 @@ export const getOperationalBacklogSnapshot = async ({
       (select count(*) from outbox_messages where status in (${BACKLOG_STATUSES})) as outbox_ready,
       (select min(created_at) from outbox_messages where status in (${BACKLOG_STATUSES})) as oldest_outbox_at,
       (select count(*) from outbox_messages where status = 'dead_letter') as dead_letters,
+      (select count(*) from outbox_messages where status = 'superseded') as outbox_superseded,
+      (select count(*) from resend_webhook_events where status = 'dead_letter') as email_webhook_dead_letters,
+      (select count(*) from resend_webhook_events where status = 'retrying') as email_webhook_retrying,
+      (select min(received_at) from resend_webhook_events where status = 'retrying') as email_webhook_oldest_retry_at,
+      (select count(*) from email_messages where status = 'accepted') as email_accepted,
+      (select count(*) from email_messages where status = 'bounced') as email_bounced,
+      (select count(*) from email_messages where status = 'complained') as email_complained,
+      (select count(*) from email_messages where status = 'delivered') as email_delivered,
       (select count(*) from webhook_events where provider = 'asaas' and status = 'failed') as webhooks_failed,
       (select min(created_at) from webhook_events where provider = 'asaas' and status = 'failed') as oldest_webhook_failed_at,
       (select min(created_at) from webhook_events where provider = 'asaas' and status in ('received', 'processing')) as oldest_webhook_ready_at,
@@ -207,14 +275,18 @@ export const getOperationalBacklogSnapshot = async ({
     deadLetters: Number(row?.dead_letters ?? 0),
     oldestReadyAt: row?.oldest_outbox_at ?? null,
     ready: Number(row?.outbox_ready ?? 0),
+    superseded: Number(row?.outbox_superseded ?? 0),
   };
   const currentTime = now();
+  const emailDelivery = buildEmailDeliverySnapshot(row);
 
   return {
     alerts: [
       ...getOutboxAlerts({ now: currentTime, outbox }),
+      ...getEmailDeliveryAlerts({ emailDelivery, now: currentTime }),
       ...getWebhookAlerts({ now: currentTime, webhooks }),
     ],
+    emailDelivery,
     outbox,
     videos: {
       oldestPendingAt: row?.oldest_video_at ?? null,

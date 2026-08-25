@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type ClaimedOutboxMessage,
   OutboxDeliveryError,
+  OutboxSupersededError,
   processClaimedOutboxMessage,
 } from "./worker";
 
@@ -64,6 +65,7 @@ describe("outbox worker", () => {
       markDeferred: vi.fn().mockResolvedValue(true),
       markDelivered: vi.fn().mockResolvedValue(true),
       markRetry: vi.fn().mockResolvedValue(true),
+      markSuperseded: vi.fn().mockResolvedValue(true),
     };
     callbacks[callback].mockResolvedValue(false);
 
@@ -88,6 +90,7 @@ describe("outbox worker", () => {
         markDeferred: vi.fn(),
         markDelivered,
         markRetry: vi.fn(),
+        markSuperseded: vi.fn(),
         message: claimedMessage(),
       })
     ).resolves.toBe("delivered");
@@ -110,6 +113,7 @@ describe("outbox worker", () => {
         markDeferred: vi.fn(),
         markDelivered: vi.fn(),
         markRetry,
+        markSuperseded: vi.fn(),
         message: claimedMessage({ attempts: 2 }),
         random: () => 0,
       })
@@ -136,6 +140,7 @@ describe("outbox worker", () => {
         markDeferred: vi.fn(),
         markDelivered: vi.fn(),
         markRetry: vi.fn(),
+        markSuperseded: vi.fn(),
         message: claimedMessage({ attempts: 5 }),
       })
     ).resolves.toBe("dead_letter");
@@ -162,6 +167,7 @@ describe("outbox worker", () => {
         markDeferred,
         markDelivered: vi.fn(),
         markRetry,
+        markSuperseded: vi.fn(),
         message: claimedMessage({ attempts: 5 }),
       })
     ).resolves.toBe("deferred");
@@ -170,6 +176,35 @@ describe("outbox worker", () => {
       errorCode: "course_sales_closed",
       id: "outbox-1",
     });
+    expect(markRetry).not.toHaveBeenCalled();
+  });
+
+  it("marks a superseded generation without retrying or dead-lettering", async () => {
+    const markDeadLetter = vi.fn();
+    const markRetry = vi.fn();
+    const markSuperseded = vi.fn().mockResolvedValue(true);
+
+    await expect(
+      processClaimedOutboxMessage({
+        deliver: vi
+          .fn()
+          .mockRejectedValue(
+            new OutboxSupersededError("expiry_generation_changed")
+          ),
+        markDeadLetter,
+        markDeferred: vi.fn(),
+        markDelivered: vi.fn(),
+        markRetry,
+        markSuperseded,
+        message: claimedMessage(),
+      })
+    ).resolves.toBe("superseded");
+
+    expect(markSuperseded).toHaveBeenCalledWith({
+      errorCode: "expiry_generation_changed",
+      id: "outbox-1",
+    });
+    expect(markDeadLetter).not.toHaveBeenCalled();
     expect(markRetry).not.toHaveBeenCalled();
   });
 });

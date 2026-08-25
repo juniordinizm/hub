@@ -23,6 +23,7 @@ const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   R2_SECRET_ACCESS_KEY: "r2-secret",
   RESEND_API_KEY: "resend-key",
   RESEND_FROM_EMAIL: "PROTEA-R <noreply@example.com>",
+  RESEND_WEBHOOK_SECRET: "resend-webhook-secret-at-least-32-characters",
   SCHEDULED_JOBS_ENABLED: "false",
   SUPPORT_EMAIL: "support@example.com",
 };

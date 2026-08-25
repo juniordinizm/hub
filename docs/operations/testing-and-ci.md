@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
 ---
 
 # Testes e CI
@@ -79,8 +79,20 @@ forçar essas jobs.
 `last_verified_commit` ainda existe no histórico. O checkout raso padrão do GitHub Actions traz
 apenas o commit atual e produziria um falso erro para documentos verificados em commits anteriores.
 Todas as actions são fixadas em commit imutável. O Dependabot propõe
-atualizações semanais do ecossistema `github-actions`; cada mudança de SHA
-continua passando pelos mesmos gates.
+atualizações semanais do ecossistema `github-actions` e, às segundas-feiras às
+09:00 em `America/Sao_Paulo`, do ecossistema `bun`. Dependências minor/patch são
+agrupadas por produção e desenvolvimento; majors permanecem individuais. O
+limite é cinco PRs abertos. Cada mudança continua passando pelos mesmos gates e
+o lockfile deve ser produzido pelo Bun 1.3.11.
+
+Em 24 de agosto de 2026, a API GitHub confirmou que o repositório continua
+público, todos os jobs de CI usam o runner padrão `ubuntu-24.04` e existem dois
+caches ativos somando `70.698.566` bytes. Runners padrão são gratuitos e de uso
+ilimitado em repositórios públicos; o limite relevante observado é o cache de
+10 GB por repositório. Portanto, a matriz mobile não precisa migrar para
+schedule por custo. A política de 80% continua aplicável ao cache e deve ser
+reavaliada se a visibilidade ou o tipo de runner mudar. Fonte:
+[GitHub Actions billing and usage](https://docs.github.com/en/actions/concepts/billing-and-usage).
 
 ### Limpeza dos backups de release
 
@@ -107,6 +119,26 @@ RELEASE_BACKUP_CLEANUP_CONFIRMATION=cleanup-release-backups \
 O segundo comando consulta novamente o inventário antes de excluir. Nunca
 remova branch persistente, histórica ou o último backup do ambiente para
 liberar espaço de forma ad hoc.
+
+## Backup lógico independente de Production
+
+`.github/workflows/backup-production-database.yml` executa em concorrência
+serializada a cada seis horas e por dispatch manual. Instala Bun `1.3.11`, cliente
+PostgreSQL 18 e `age` `1.3.1`; o arquivo oficial do `age` é validado por SHA-256.
+A job não usa `upload-artifact`: dump, cifra e manifesto completo nunca entram
+nos artefatos ou summary do GitHub.
+
+Os contratos locais estão em `src/tooling/production-backup*.test.ts` e
+`src/tooling/production-restore.test.ts`. Eles cobrem manifesto estrito,
+retenção UTC, cota com reserva de 20%, paginação, ordem cifra/HEAD/manifesto,
+limpeza de temporários, target descartável, hashes, lista do `pg_restore`,
+single transaction e gate de frescor. O teste estrutural falha se cron e
+`BACKUP_CADENCE_HOURS` divergirem ou se o deploy consultar o backup depois de
+criar a branch Neon ou aplicar migrations.
+
+Esses testes não provam bucket, role PostgreSQL, Bucket Lock, lifecycle, PITR ou
+RTO reais. Essas provas exigem o [runbook operacional](production-backup-restore.md)
+e evidência externa sanitizada.
 
 ## Banco efêmero da CI
 
@@ -140,6 +172,12 @@ com espera limitada entre tentativas. Integração usa `db:migrate`; E2E usa
 fixadas na mesma URL direta descartável. A criação de uma branch não garante que
 o compute Neon esteja imediatamente pronto para aceitar a primeira conexão. A quinta falha
 preserva o erro do migrador e bloqueia os gates seguintes.
+
+Cada job exclui sua branch efêmera em uma etapa `always()` pela ação local
+`.github/actions/delete-neon-branch`. A ação chama diretamente a API Neon, aceita `404`
+como resultado idempotente, limita conexão e requisição, tenta no máximo três vezes e
+registra somente o status HTTP em caso de falha. Nenhum corpo de resposta ou token é
+impresso.
 
 Quando a branch-pai ainda está em `0043`, ela contém os Pedidos de teste legados que
 `0046` deliberadamente não converte. Por isso, as duas jobs executam
@@ -179,11 +217,20 @@ execução termina sem executar migrations ou testes.
 
 ## E2E
 
-`bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador visual, e roda
-Chromium em modo headless. Localmente, o Playwright inicia `next dev`; em CI, compila e inicia
-`next start`, evitando HMR e verificando a aplicação de produção. A configuração está em
-`playwright.config.ts`. O processo web recebe somente a URL pooled da branch
-efêmera; a URL direta fica restrita à etapa anterior de migration. O bypass das
+`bun run test:e2e` inicia a aplicação em `127.0.0.1:3100`, sem abrir navegador
+visual, e roda Chromium em modo headless. `chromium-desktop` executa toda a
+suíte exceto casos marcados `@mobile-only`; `chromium-mobile`, com o perfil
+Pixel 7, executa as jornadas marcadas `@mobile`, inclusive as exclusivas de
+viewport móvel. A suíte usa um worker porque setup, fixtures e jornadas
+compartilham uma única branch Neon descartável; paralelizar casos contra esse
+estado produziria corrida entre seeds e limpezas. Localmente, o Playwright
+inicia `next dev`. Em CI, `scripts/e2e-next-server.ts` compila a saída standalone,
+copia `.next/static` e `public` para o layout esperado e inicia
+`.next/standalone/server.js`, evitando HMR e exercitando o servidor de produção
+sem depender do `next start` incompatível com `output: "standalone"`. A
+configuração está em `playwright.config.ts`. O processo web recebe a URL pooled da branch
+efêmera por `E2E_RUNTIME_DATABASE_URL`; migration, setup, seed e teardown recebem a URL
+direta por `DATABASE_URL` e `E2E_DATABASE_URL`. O bypass das
 credenciais de providers existe somente para esse runtime CI em loopback.
 E-mails transacionais são absorvidos nesse modo e nunca chegam ao Resend. Emissões de
 Certificado registram somente tópico, chave SHA-256 normalizada do destinatário e chave
@@ -194,11 +241,24 @@ responde `404` fora dela. `VERCEL_ENV` de Production/Preview ou
 As três URLs canônicas e os flags isolados são aplicados tanto ao processo Playwright
 quanto ao `webServer`, para que setup, servidor e teardown compartilhem a mesma origem.
 `E2E_DATABASE_URL` continua obrigatório e não é inferido de um banco comum.
-A configuração executa a guarda fail-closed antes do `globalSetup`; setup, seed e teardown
+`E2E_RUNTIME_DATABASE_URL` é opcional fora da CI; quando presente, a guarda aceita apenas
+o endpoint pooled equivalente ao mesmo compute, protocolo, usuário, credencial, porta,
+banco e parâmetros da URL direta. A configuração executa a guarda fail-closed antes do
+`globalSetup`; setup, seed e teardown
 repetem a mesma validação. Processos mutadores exigem igualdade exata entre `DATABASE_URL` e
 `E2E_DATABASE_URL`, protocolo PostgreSQL e alvo diferente do compute Production conhecido.
 O migrador E2E também fixa `DATABASE_URL_DIRECT` no mesmo alvo antes de carregar a
 configuração Drizzle, impedindo que `.env.local` selecione outra branch.
+Ele recusa hosts pooler e aplica cada arquivo de migration em sua própria
+transação, validando hash e timestamp do journal. Para migrations já aplicadas,
+somente os hashes SHA-256 do mesmo conteúdo com LF ou CRLF são equivalentes;
+isso permite que um parent historicamente migrado no Windows seja qualificado
+por runner Linux sem aceitar alteração de SQL. Qualquer terceiro hash permanece
+drift bloqueante. Arquivos apenas com comentários
+também são registrados, sem executar SQL vazio. Cada qualificação deve começar
+em uma branch recém-criada ou resetada a partir do parent autorizado; o teardown
+global remove objetos externos da fixture, enquanto a exclusão da branch Neon é
+a limpeza definitiva dos dados do ensaio.
 
 O Playwright também inicia `scripts/e2e-asaas.ts` em `127.0.0.1:4570`. Esse servidor
 determinístico atende somente criação de Checkout, leitura do cliente fixture e página
@@ -249,11 +309,16 @@ As jornadas atuais verificam:
 - colisões pós-pagamento da compra anônima com Conta bloqueada ou de equipe: Pedido pago,
   revisão `buyer_identity` pendente e zero Concessão, Matrícula ou outbox de acesso;
 - certificado público válido e revogado;
-- foco de teclado no formulário e navegação da sidebar;
+- foco de teclado no formulário, challenge TOTP, link de salto e navegação da
+  sidebar;
 - alertas seguros para falha simulada de leitura, material R2 indisponível e
   o índice de Aula expansível no mobile;
 - acesso expirado e acesso revogado, com ação de renovação ou suporte;
-- axe-core sem violações `critical` ou `serious` na Biblioteca e Aula da Aluna.
+- axe-core sem violações `moderate`, `serious` ou `critical` nas superfícies
+  públicas, da Aluna, do Suporte e do Admin listadas no plano mestre;
+- navegação/ficha do Suporte com links proibidos ausentes e URL direta negada;
+- confirmação de reembolso até o segundo estágio, sem executar o estorno, e
+  proteção contra Enter acidental antes da confirmação explícita.
 
 Essa cobertura full-story está implementada em `critical-journeys.spec.ts` e integrada à
 job Playwright; a CI da `main` executou verde nos releases seguintes (por exemplo `bbf89ad`, 2026-08-22). Não trate a presença
@@ -266,6 +331,9 @@ por streaming não é o contrato de autorização da jornada.
 Como todas as jornadas Chromium saem do mesmo IP do runner, `E2E_TEST_MODE=true` eleva apenas o
 limite de `POST /sign-in/email` para 20 tentativas por 10 segundos. O modo exige `CI=true`, usa a
 branch Neon efêmera e não altera o limite padrão do Better Auth em deploys.
+Pelo mesmo motivo, o checkout público permite até 100 tentativas por janela
+somente nesse modo isolado. Fora dele, inclusive em Preview, Staging e Production,
+o contrato permanece em cinco tentativas por dez minutos.
 
 ## Inventário dos testes que inspecionam fonte
 
@@ -309,7 +377,8 @@ candidatos a teste comportamental, nunca trocar uma regressão por uma string no
 Não introduza `.only` ou `.skip`. Testes de integração ficam fora da suíte unitária por configuração,
 rodam serialmente porque limpam tabelas da mesma branch descartável, e falham cedo sem sua URL;
 as jobs Neon sempre fornecem a variável exigida. Em CI,
-Playwright permite uma repetição diagnóstica, registra resultados/duração/retries em JSON e falha o
+Playwright permite uma repetição diagnóstica, registra resultados/duração/retries
+por projeto em JSON e falha o
 job se qualquer retry ocorreu. Assim, flakiness não fica verde silenciosamente. O relatório é anexado
 em toda execução para permitir acompanhar duração e estabilidade.
 

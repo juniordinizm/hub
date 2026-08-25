@@ -322,9 +322,6 @@ export interface AdminStudentSheetData {
   student: AdminStudentDetail;
 }
 
-const requireAdminReadAccess = (): Promise<void> =>
-  requirePermission("viewAdminPanel").then(() => undefined);
-
 const readCourses = async (
   courseId?: string,
   options: AdminCourseCatalogQuery = {}
@@ -1130,7 +1127,7 @@ export const getAdminDashboardData = async (): Promise<{
   modules: AdminModule[];
   orders: AdminOrder[];
 }> => {
-  await requirePermission("viewAdminPanel");
+  await requirePermission("manageContent");
   const [courses, modules, lessons, orders, coursesRevenue] = await Promise.all(
     [
       readCourses(),
@@ -1154,7 +1151,7 @@ export const getAdminStudentsData = async (
   search: string;
   students: AdminStudentSummary[];
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageEnrollmentAccess");
   const profilePage = await readStudentProfiles(options);
   const enrollments = await readEnrollments(
     undefined,
@@ -1176,7 +1173,7 @@ export const getAdminAuditData = async (): Promise<{
   operationalBacklog: OperationalBacklogSnapshot;
   outboxDeadLetters: OutboxDeadLetterMessage[];
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("viewGlobalAudit");
   const [auditLogs, outboxDeadLetters, operationalBacklog] = await Promise.all([
     readAuditLogs(),
     listOutboxDeadLetters(),
@@ -1188,7 +1185,7 @@ export const getAdminAuditData = async (): Promise<{
 export const getAdminSettingsData = async (): Promise<{
   settings: AdminSettings;
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageSettings");
   return { settings: await readSettings() };
 };
 
@@ -1203,7 +1200,7 @@ export const getAdminCourseCatalogData = async (
   lessons: AdminLesson[];
   modules: AdminModule[];
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   const requestedPage = Math.trunc(options.page ?? 1);
   const page = Number.isFinite(requestedPage)
     ? Math.min(MAX_ADMIN_COURSE_PAGE, Math.max(1, requestedPage))
@@ -1228,7 +1225,7 @@ export const getAdminCourseCatalogData = async (
 };
 
 export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   return { faqs: await readFaqs() };
 };
 
@@ -1240,7 +1237,7 @@ export const getAdminFinancialData = async (
   orders: AdminOrder[];
   paymentReviews: AdminPaymentReview[];
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("viewFinancials");
   const [orders, certificates, paymentReviews, coursesRevenue] =
     await Promise.all([
       readOrders(undefined, orderQuery),
@@ -1255,7 +1252,7 @@ export const getAdminFinancialData = async (
 export const getAdminCourseOverviewSummary = async (
   courseId: string
 ): Promise<AdminCourseOverviewSummary> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   const { rows } = await getPool().query<{
     active_enrollment_count: number;
     paid_order_count: number;
@@ -1286,7 +1283,7 @@ export const getAdminCourseDetailData = async (
   lessons: AdminLesson[];
   modules: AdminModule[];
 } | null> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   const [courses, modules, lessons, enrollments] = await Promise.all([
     readCourses(courseId),
     readModules(courseId),
@@ -1310,7 +1307,7 @@ export const getAdminCourseDetailData = async (
 export const getAdminCoursePublicationState = async (
   courseId: string
 ): Promise<{ hasDraft: boolean; hasPublished: boolean }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   const result = await getPool().query<{
     has_draft: boolean;
     has_published: boolean;
@@ -1341,7 +1338,7 @@ export const getAdminLessonEditorData = async ({
   lesson: AdminLesson;
   module: AdminModule;
 } | null> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageContent");
   const [courses, lessonEditor, assets] = await Promise.all([
     readCourses(courseId),
     readLessonEditor({ courseId, lessonId }),
@@ -1373,7 +1370,7 @@ export const getAdminLessonEditorData = async ({
 export const getAdminStudentDetail = async (
   userId: string
 ): Promise<AdminStudentDetail | null> => {
-  await requirePermission("viewAdminPanel");
+  await requirePermission("manageEnrollmentAccess");
 
   const pool = getPool();
   const result = await pool.query<{
@@ -1464,7 +1461,7 @@ export const getAdminStudentSheetData = async ({
   courseId?: string;
   userId: string;
 }): Promise<AdminStudentSheetData | null> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageEnrollmentAccess");
   const [student, certificates] = await Promise.all([
     getAdminStudentDetail(userId),
     getCertificateOperationsForUser(userId),
@@ -1512,7 +1509,7 @@ export interface AdminBanner {
 export const getAdminBannersData = async (): Promise<{
   banners: AdminBanner[];
 }> => {
-  await requireAdminReadAccess();
+  await requirePermission("manageSettings");
 
   const { rows } = await getPool().query<{
     blur_data_url: string | null;

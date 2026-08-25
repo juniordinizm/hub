@@ -29,7 +29,12 @@ describe("Vercel cron configuration", () => {
 
     expect(source).toContain('process.env.E2E_TEST_MODE === "true"');
     expect(source).toContain('isE2eTest ? "" : process.env.SENTRY_AUTH_TOKEN');
-    expect(source).toContain("isE2eTest || !process.env.SENTRY_AUTH_TOKEN");
+    expect(source).toContain(
+      "isProduction && !isE2eTest ? sentryAuthToken : undefined"
+    );
+    expect(source).toContain(
+      "disable: !sentryBuildConfiguration.uploadSourceMaps"
+    );
   });
 
   it("runs database-backed functions in the same region as production Neon", async () => {

@@ -10,6 +10,13 @@ export interface StudentSheetEnrollment {
   userId: string;
 }
 
+export interface StudentManagementCapabilities {
+  canManageCertificates: boolean;
+  canManageEnrollmentSupport: boolean;
+  canManagePlatformAccess: boolean;
+  canReissueCertificates: boolean;
+}
+
 export interface StudentSheetCertificate {
   canReissue: boolean;
   code: string;
@@ -38,5 +45,26 @@ export interface StudentSheetPayload {
     platformBlockedAt: string | null;
     platformBlockedReason: string | null;
     userId: string;
+  };
+  supportContext?: {
+    audit: Array<{
+      action: string;
+      createdAt: string;
+      targetId: string | null;
+      targetType: string;
+    }>;
+    orders: Array<{
+      amountInCents: number;
+      createdAt: string;
+      id: string;
+      paidAmountInCents: number | null;
+      refundStatus: string | null;
+      refundedAmountInCents: number | null;
+      status: string;
+    }>;
+    progress: {
+      completedRequiredLessons: number;
+      requiredLessons: number;
+    };
   };
 }

@@ -6,6 +6,7 @@ import {
   createCorrelationId,
   logOperationalEvent,
 } from "@/lib/observability";
+import { getCurrentSession } from "@/lib/session";
 
 interface AuthRouteContext {
   params: Promise<{ all?: string[] }>;
@@ -23,6 +24,34 @@ export const POST = async (
   );
   const env = getServerEnv();
   const { all = [] } = await context.params;
+  const authEndpoint = all.join("/");
+
+  if (
+    authEndpoint === "two-factor/disable" ||
+    authEndpoint === "two-factor/enable"
+  ) {
+    const session = await getCurrentSession();
+    const isPrivileged =
+      session?.role === "admin" || session?.role === "support";
+
+    if (isPrivileged && authEndpoint === "two-factor/disable") {
+      return Response.json(
+        { error: "privileged_two_factor_disable_forbidden" },
+        { status: 403 }
+      );
+    }
+
+    if (
+      isPrivileged &&
+      authEndpoint === "two-factor/enable" &&
+      session.twoFactorEnabled
+    ) {
+      return Response.json(
+        { error: "privileged_two_factor_replacement_forbidden" },
+        { status: 409 }
+      );
+    }
+  }
 
   if (
     isBlockedAuthEndpoint({
@@ -42,7 +71,7 @@ export const POST = async (
   }
 
   const response = await getAuth().handler(request);
-  const isSignIn = all.join("/") === "sign-in/email";
+  const isSignIn = authEndpoint === "sign-in/email";
 
   if (isSignIn) {
     const failed = response.status >= 400;

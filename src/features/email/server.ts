@@ -1,8 +1,19 @@
 import "server-only";
 import { render } from "@react-email/components";
 import { Resend } from "resend";
+import { getPool } from "@/db";
 import { assertDevelopmentOrStagingEmailRecipientAllowed } from "@/features/email/development-recipient";
 import { recordE2eCertificateEmailDelivery } from "@/features/email/e2e-delivery-sink";
+import {
+  beginEmailDeliveryAttempt,
+  buildResendLifecycleTags,
+  createEmailRequestFingerprint,
+  type EmailDeliveryContext,
+  markEmailAcceptanceUnknown,
+  markEmailAccepted,
+  markEmailIdempotencySatisfied,
+  markEmailProviderRejected,
+} from "@/features/email-delivery/server";
 import { isAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
 import { getServerEnv, isIsolatedE2eRuntime } from "@/lib/env";
 import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
@@ -24,6 +35,17 @@ interface EmailProviderError {
   message: string;
   name?: string;
 }
+
+export interface EmailProviderAcceptance {
+  acceptedAt: Date;
+  messageId: string;
+  provider: "resend";
+}
+
+export type HostedEmailDeliveryContext = Omit<
+  EmailDeliveryContext,
+  "templateAlias"
+>;
 
 const resolveAndAssertEmailRuntimeEnvironment = ({
   env,
@@ -111,20 +133,171 @@ export const sendTransactionalEmail = async ({
     error,
     ...(idempotencyKey ? { idempotencyKey } : {}),
   });
+  return;
+};
+
+type ResendEmailInput = Parameters<
+  InstanceType<typeof Resend>["emails"]["send"]
+>[0];
+type ResendEmailResponse = Awaited<
+  ReturnType<InstanceType<typeof Resend>["emails"]["send"]>
+>;
+
+const prepareLifecycleAttempt = async ({
+  context,
+  requestFingerprint,
+}: {
+  context: EmailDeliveryContext;
+  requestFingerprint: string;
+}) => {
+  const client = await getPool().connect();
+  let transactionOpen = false;
+  try {
+    await client.query("begin");
+    transactionOpen = true;
+    const attempt = await beginEmailDeliveryAttempt({
+      client,
+      context,
+      requestFingerprint,
+    });
+    await client.query("commit");
+    transactionOpen = false;
+    return attempt;
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("rollback");
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const resolveLifecycleProviderResponse = async ({
+  authSecret,
+  context,
+  emailMessageId,
+  response,
+}: {
+  authSecret: string;
+  context: EmailDeliveryContext;
+  emailMessageId: string;
+  response: ResendEmailResponse;
+}): Promise<EmailProviderAcceptance | undefined> => {
+  const { data, error } = response;
+  const activationConflictSatisfied =
+    error?.name === "invalid_idempotent_request" &&
+    context.topic === "auth.account-activation" &&
+    isAccountActivationEmailIdempotencyKey({
+      authSecret,
+      value: context.idempotencyKey,
+    });
+  if (activationConflictSatisfied) {
+    const accepted = await markEmailIdempotencySatisfied({
+      client: getPool(),
+      emailMessageId,
+    });
+    if (!accepted) {
+      throw new Error("resend_acceptance_unknown");
+    }
+    return;
+  }
+  if (
+    error?.name === "invalid_idempotent_request" ||
+    error?.name === "concurrent_idempotent_requests"
+  ) {
+    await markEmailAcceptanceUnknown({ client: getPool(), emailMessageId });
+    throw new Error("resend_acceptance_unresolved");
+  }
+  if (!(data?.id || error)) {
+    await markEmailAcceptanceUnknown({ client: getPool(), emailMessageId });
+    throw new Error("resend_acceptance_unknown");
+  }
+  if (error || !data?.id) {
+    await markEmailProviderRejected({ client: getPool(), emailMessageId });
+    throw new Error("resend_provider_rejected");
+  }
+  const accepted = await markEmailAccepted({
+    client: getPool(),
+    emailMessageId,
+    providerMessageId: data.id,
+  });
+  if (!accepted) {
+    throw new Error("resend_acceptance_unknown");
+  }
+  return {
+    acceptedAt: accepted.acceptedAt,
+    messageId: data.id,
+    provider: "resend",
+  };
+};
+
+const sendHostedEmailWithLifecycle = async ({
+  apiKey,
+  authSecret,
+  context,
+  email,
+}: {
+  apiKey: string;
+  authSecret: string;
+  context: EmailDeliveryContext;
+  email: ResendEmailInput;
+}): Promise<EmailProviderAcceptance | undefined> => {
+  const requestFingerprint = createEmailRequestFingerprint({
+    authSecret,
+    request: { email, idempotencyKey: context.idempotencyKey },
+  });
+  const attempt = await prepareLifecycleAttempt({
+    context,
+    requestFingerprint,
+  });
+  if (attempt.action === "accepted") {
+    return {
+      acceptedAt: attempt.acceptedAt,
+      messageId: attempt.providerMessageId,
+      provider: "resend",
+    };
+  }
+  if (attempt.action === "satisfied") {
+    return;
+  }
+  if (attempt.action === "unresolved") {
+    throw new Error("resend_acceptance_unresolved");
+  }
+  let response: ResendEmailResponse;
+  try {
+    response = await new Resend(apiKey).emails.send(email, {
+      idempotencyKey: context.idempotencyKey,
+    });
+  } catch {
+    await markEmailAcceptanceUnknown({
+      client: getPool(),
+      emailMessageId: attempt.emailMessageId,
+    });
+    throw new Error("resend_acceptance_unknown");
+  }
+  return await resolveLifecycleProviderResponse({
+    authSecret,
+    context,
+    emailMessageId: attempt.emailMessageId,
+    response,
+  });
 };
 
 export const sendHostedTemplateEmail = async ({
+  deliveryContext,
   idempotencyKey,
   replyTo,
   subject,
   to,
   ...templateVariables
 }: HostedEmailTemplateVariables & {
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey?: string;
   replyTo?: string;
   subject?: string;
   to: string;
-}): Promise<void> => {
+}): Promise<EmailProviderAcceptance | undefined> => {
   const env = getServerEnv();
 
   validateHostedTemplateVariables(templateVariables);
@@ -156,11 +329,36 @@ export const sendHostedTemplateEmail = async ({
       id: alias,
       variables,
     },
+    ...(deliveryContext
+      ? {
+          tags: buildResendLifecycleTags({
+            ...deliveryContext,
+            templateAlias: alias,
+          }),
+        }
+      : {}),
     to,
   };
+  const resolvedIdempotencyKey =
+    idempotencyKey ?? deliveryContext?.idempotencyKey;
+  if (deliveryContext) {
+    return await sendHostedEmailWithLifecycle({
+      apiKey: env.RESEND_API_KEY,
+      authSecret: env.BETTER_AUTH_SECRET,
+      context: {
+        ...deliveryContext,
+        idempotencyKey:
+          resolvedIdempotencyKey ?? deliveryContext.idempotencyKey,
+        templateAlias: alias,
+      },
+      email,
+    });
+  }
   const { error } = await new Resend(env.RESEND_API_KEY).emails.send(
     email,
-    ...(idempotencyKey ? [{ idempotencyKey }] : [])
+    ...(resolvedIdempotencyKey
+      ? [{ idempotencyKey: resolvedIdempotencyKey }]
+      : [])
   );
 
   handleEmailProviderError({
@@ -168,22 +366,26 @@ export const sendHostedTemplateEmail = async ({
     error,
     ...(idempotencyKey ? { idempotencyKey } : {}),
   });
+  return;
 };
 
 export const sendPasswordResetEmail = async ({
+  deliveryContext,
   idempotencyKey,
   resetUrl,
   to,
   userName,
 }: {
   idempotencyKey?: string;
+  deliveryContext?: HostedEmailDeliveryContext;
   resetUrl: string;
   to: string;
   userName: string;
-}): Promise<void> =>
+}): Promise<EmailProviderAcceptance | undefined> =>
   sendHostedTemplateEmail({
     ACTION_URL: resetUrl,
     ...(idempotencyKey ? { idempotencyKey } : {}),
+    ...(deliveryContext ? { deliveryContext } : {}),
     name: "auth-password-reset",
     subject: "Criar ou redefinir senha do PROTEA-R Hub",
     to,
@@ -196,18 +398,21 @@ export const sendAccessReleasedEmail = async ({
   idempotencyKey,
   to,
   userName,
+  deliveryContext,
 }: {
   courseId?: string;
   courseTitle: string;
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> => {
+}): Promise<EmailProviderAcceptance | undefined> => {
   const appUrl = getServerEnv().NEXT_PUBLIC_APP_URL;
 
-  await sendHostedTemplateEmail({
+  return await sendHostedTemplateEmail({
     ACTION_URL: `${appUrl}${courseId ? `/app/cursos/${courseId}` : "/app"}`,
     COURSE_TITLE: courseTitle,
+    ...(deliveryContext ? { deliveryContext } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     name: "access-released",
     PASSWORD_RESET_URL: `${appUrl}/recuperar-senha`,
@@ -224,21 +429,24 @@ export const sendAccessExpiryWarningEmail = async ({
   idempotencyKey,
   to,
   userName,
+  deliveryContext,
 }: {
   courseId: string;
   courseTitle: string;
   daysRemaining: number;
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> => {
+}): Promise<EmailProviderAcceptance | undefined> => {
   const formattedDaysRemaining =
     daysRemaining === 1 ? "1 dia" : `${daysRemaining} dias`;
 
-  await sendHostedTemplateEmail({
+  return await sendHostedTemplateEmail({
     ACTION_URL: `${getServerEnv().NEXT_PUBLIC_APP_URL}/app/cursos/${courseId}`,
     COURSE_TITLE: courseTitle,
     DAYS_REMAINING: formattedDaysRemaining,
+    ...(deliveryContext ? { deliveryContext } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     name: "access-expiry-warning",
     subject: `Seu acesso vence em ${formattedDaysRemaining}`,
@@ -253,16 +461,19 @@ export const sendCourseSalesOpenedEmail = async ({
   idempotencyKey,
   to,
   userName,
+  deliveryContext,
 }: {
   courseSlug: string;
   courseTitle: string;
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey: string;
   to: string;
   userName: string;
-}): Promise<void> =>
+}): Promise<EmailProviderAcceptance | undefined> =>
   sendHostedTemplateEmail({
     ACTION_URL: `${getServerEnv().NEXT_PUBLIC_APP_URL}/comprar/${encodeURIComponent(courseSlug)}`,
     COURSE_TITLE: courseTitle,
+    ...(deliveryContext ? { deliveryContext } : {}),
     USER_NAME: userName,
     idempotencyKey,
     name: "course-sales-opened",
@@ -276,13 +487,15 @@ export const sendCertificateIssuedEmail = async ({
   idempotencyKey,
   to,
   userName,
+  deliveryContext,
 }: {
   certificateCode: string;
   courseTitle: string;
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey?: string;
   to: string;
   userName: string;
-}): Promise<void> => {
+}): Promise<EmailProviderAcceptance | undefined> => {
   if (isIsolatedE2eRuntime(process.env)) {
     recordE2eCertificateEmailDelivery({
       ...(idempotencyKey ? { idempotencyKey } : {}),
@@ -291,13 +504,14 @@ export const sendCertificateIssuedEmail = async ({
     return;
   }
 
-  await sendHostedTemplateEmail({
+  return await sendHostedTemplateEmail({
     ACTION_URL: new URL(
       `/certificados/${encodeURIComponent(certificateCode)}`,
       getServerEnv().CERTIFICATE_PUBLIC_BASE_URL
     ).toString(),
     CERTIFICATE_CODE: certificateCode,
     COURSE_TITLE: courseTitle,
+    ...(deliveryContext ? { deliveryContext } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     name: "certificate-issued",
     subject: "Seu certificado PROTEA-R Hub foi emitido",
@@ -313,18 +527,21 @@ export const sendSupportRequestEmail = async ({
   studentEmail,
   studentName,
   subject,
+  deliveryContext,
 }: {
   courseTitle?: string;
+  deliveryContext?: HostedEmailDeliveryContext;
   idempotencyKey?: string;
   message: string;
   studentEmail: string;
   studentName: string;
   subject: string;
-}): Promise<void> => {
+}): Promise<EmailProviderAcceptance | undefined> => {
   const env = getServerEnv();
 
-  await sendHostedTemplateEmail({
+  return await sendHostedTemplateEmail({
     COURSE_TITLE: courseTitle ?? "Não informado",
+    ...(deliveryContext ? { deliveryContext } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     MESSAGE: message,
     name: "support-request",

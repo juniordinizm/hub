@@ -21,7 +21,8 @@ if (!databaseUrl) {
 const AUTOMATIC_CERTIFICATE_CODE = /^PRT-[0-9A-F]{32}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CONSECUTIVE_ISSUANCE_RUNS = 20;
-const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 120_000;
+const CONSECUTIVE_ISSUANCE_TIMEOUT_MS = 300_000;
+const REMOTE_LOCK_OBSERVATION_TIMEOUT_MS = 30_000;
 
 const dependencies = vi.hoisted(() => ({
   createR2ObjectReadUrl: vi.fn(),
@@ -61,6 +62,7 @@ import {
   markOutboxMessageDeferred,
   markOutboxMessageDelivered,
   markOutboxMessageForRetry,
+  markOutboxMessageSuperseded,
   requeueDeadLetterMessage,
 } from "../outbox/server";
 import { processClaimedOutboxMessage } from "../outbox/worker";
@@ -283,11 +285,12 @@ const countWaitingAdvisoryLocks = async ({
   const { rows } = await getTestPool().query<{ count: string }>(
     `
       select count(*)
-      from pg_stat_activity
-      where datname = current_database()
-        and wait_event_type = 'Lock'
-        and wait_event = 'advisory'
-        and ($1::boolean = false or lower(btrim(query)) = 'commit')
+      from pg_locks as lock
+      join pg_stat_activity as activity on activity.pid = lock.pid
+      where lock.database = (select oid from pg_database where datname = current_database())
+        and lock.locktype = 'advisory'
+        and lock.granted = false
+        and ($1::boolean = false or lower(btrim(activity.query)) = 'commit')
     `,
     [committingOnly]
   );
@@ -347,7 +350,7 @@ describe("emissao concorrente de certificado", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
-    await pool.query("truncate table outbox_messages");
+    await pool.query("truncate table outbox_messages cascade");
     await pool.query("truncate table users cascade");
   });
 
@@ -440,7 +443,7 @@ describe("emissao concorrente de certificado", () => {
         async () => {
           expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 1);
         },
-        { interval: 20, timeout: 5000 }
+        { interval: 50, timeout: REMOTE_LOCK_OBSERVATION_TIMEOUT_MS }
       );
 
       secondCompletion = completeLesson({
@@ -451,7 +454,7 @@ describe("emissao concorrente de certificado", () => {
         async () => {
           expect(await countWaitingAdvisoryLocks()).toBe(waitingBaseline + 2);
         },
-        { interval: 20, timeout: 5000 }
+        { interval: 50, timeout: REMOTE_LOCK_OBSERVATION_TIMEOUT_MS }
       );
 
       await coordinator.query(
@@ -467,7 +470,7 @@ describe("emissao concorrente de certificado", () => {
             await countWaitingAdvisoryLocks({ committingOnly: true })
           ).toBe(committingBaseline + 1);
         },
-        { interval: 20, timeout: 5000 }
+        { interval: 50, timeout: REMOTE_LOCK_OBSERVATION_TIMEOUT_MS }
       );
       await coordinator.query(
         "select pg_advisory_unlock(hashtextextended($1, 0))",
@@ -714,6 +717,7 @@ describe("emissao concorrente de certificado", () => {
       reasonDetail: "Correcao controlada de identidade.",
     });
     const replacement = await reissueCertificate({
+      actorRole: "support",
       actorUserId: fixture.userId,
       certificateId: predecessor.id,
       reasonCategory: "identity_correction",
@@ -847,6 +851,13 @@ describe("emissao concorrente de certificado", () => {
               retryDelayMs,
               workerId: retryWorkerId,
             }),
+          markSuperseded: ({ errorCode, id }) =>
+            markOutboxMessageSuperseded({
+              client: worker,
+              errorCode,
+              id,
+              workerId: retryWorkerId,
+            }),
           message: retryClaim,
         })
       ).resolves.toBe("delivered");
@@ -941,7 +952,7 @@ describe("claim persistido de renderizacao", () => {
       storeCertificatePdfIfAbsent
     );
     vi.stubGlobal("fetch", vi.fn(fetchCertificateAsset));
-    await pool.query("truncate table outbox_messages");
+    await pool.query("truncate table outbox_messages cascade");
     await pool.query("truncate table users cascade");
   });
 

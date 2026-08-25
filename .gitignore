@@ -15,6 +15,7 @@
 /.e2e-fixture.json
 /test-results/
 /playwright-report/
+/.dmarc-reports/
 
 # next.js
 /.next/

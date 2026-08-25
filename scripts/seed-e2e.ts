@@ -76,6 +76,7 @@ export interface E2eFixture {
   };
   studentWithoutGrant: { email: string; id: string; password: string };
   studentWithRevokedAccess: { email: string; id: string; password: string };
+  support: { email: string; password: string };
 }
 
 interface CertificateE2eRecord {
@@ -113,7 +114,7 @@ const createUser = async ({
 }: {
   email: string;
   name: string;
-  role: "admin" | "student";
+  role: "admin" | "student" | "support";
 }): Promise<string> => {
   const result = await getAuth().api.signUpEmail({
     body: { email, name, password: E2E_PASSWORD },
@@ -350,6 +351,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   const blockedPurchaseStudentEmail = `sbd${suffix}@example.com`;
   const noGrantEmail = `sn${suffix}@example.com`;
   const adminEmail = `ad${suffix}@example.com`;
+  const supportEmail = `su${suffix}@example.com`;
   const blockedStudentEmail = `sb${suffix}@example.com`;
   const [
     studentId,
@@ -403,6 +405,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       name: "Aluna para bloqueio apos login",
       role: "student",
     }),
+    createUser({ email: supportEmail, name: "Suporte E2E", role: "support" }),
   ]);
   const pool = getPool();
   const client = await pool.connect();
@@ -709,6 +712,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         teamId: `cus_team_${suffix}`,
       },
       runId: suffix,
+      support: { email: supportEmail, password: E2E_PASSWORD },
       studentForBlockedPurchase: {
         email: blockedPurchaseStudentEmail,
         id: blockedPurchaseStudentId,
