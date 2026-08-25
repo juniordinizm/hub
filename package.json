@@ -13,7 +13,7 @@
     "@react-email/components": "^1.0.12",
     "@sentry/core": "10.68.0",
     "@sentry/nextjs": "10.68.0",
-    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-table": "^9.1.2",
     "@tiptap/extension-link": "^3.27.1",
     "@tiptap/extension-placeholder": "^3.27.1",
     "@tiptap/extension-typography": "^3.27.1",
