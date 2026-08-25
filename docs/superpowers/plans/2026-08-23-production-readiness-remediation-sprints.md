@@ -1537,8 +1537,8 @@ de no máximo 500.
 **Automação operacional preparada em 2026-08-25:** o teste de contrato revelou
 que o scheduler externo de Staging não chamava `/api/cron/resend-webhooks`; a
 agenda foi alinhada aos quatro workers de cinco minutos. O workflow manual
-`Verify Staging Resend lifecycle` e o checker fail-closed usam somente o GitHub
-Environment `vercel-staging`, a Conta Admin controlada e a confirmação
+`Run Staging jobs`, operação `verify-resend-lifecycle`, e o checker fail-closed
+usam somente o GitHub Environment `vercel-staging`, a Conta Admin controlada e a confirmação
 `SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O aceite exige `email.sent` e
 `email.delivered` processados, estado final `delivered`, zero conflito e zero
 erro. A execução real permanece pendente até essa mudança alcançar `staging`.

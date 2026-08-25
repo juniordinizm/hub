@@ -175,8 +175,8 @@ de entrega final e alerta operacional gratuito para dead letter/retry/bounce e
 complaint.
 
 O lifecycle controlado é reproduzido por dispatch do workflow
-`Verify Staging Resend lifecycle` na branch `staging`, com a confirmação literal
-`SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O job usa a Conta Admin controlada já
+`Run Staging jobs` na branch `staging`, operação `verify-resend-lifecycle`, com a
+confirmação literal `SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O job usa a Conta Admin controlada já
 allowlisted, recusa outro origin/host/branch, gera um reset sem usar o link,
 aciona o worker autenticado e exige `email.sent` e `email.delivered` processados,
 mensagem `delivered`, zero conflito e zero erro. Não execute o script localmente,
