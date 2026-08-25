@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 ---
 
 # Observabilidade e recuperação
@@ -33,7 +33,7 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Referências circulares são substituídas por `[circular]` antes da serialização; esse marcador evita recursão sem publicar o objeto original. Não inclua dados sensíveis nos valores de outros campos.
 
-`instrumentation.ts` registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
+`src/instrumentation.ts`, ao lado de `src/app`, registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
 O inventário autenticado preserva temporariamente `hub-development` (ID
 `4511808556564480`) como projeto com histórico e `hub-production` como projeto
@@ -43,7 +43,7 @@ agora exige `SENTRY_ORG`, `SENTRY_PROJECT` e SHA Git completo quando existe
 `SENTRY_AUTH_TOKEN`; o mesmo SHA é injetado como `release`, o token fica somente
 no build e os source maps são removidos após upload.
 
-Na leitura autenticada de 2026-08-25, `hub-development` tinha 25 releases e
+Na leitura autenticada mais recente de 2026-08-25, `hub-development` tinha 29 releases e
 recebia os três environments; `hub-production` tinha uma release e zero
 ocorrência nos 14 dias consultados. O filtro Production do projeto histórico
 retornou cinco Issues/688 ocorrências, provando que o DSN efetivo ainda aponta
@@ -59,10 +59,28 @@ objetos circulares faziam o sanitizador recursar indefinidamente. O commit
 teve source map/contexto resolvido, então não serve como aceite do probe de
 readiness.
 
-A troca de slug/DSN, o evento sintético, a stack desminificada e o alerta em
-canal institucional ainda dependem do deployment candidato e da credencial
-correta. Até essas evidências existirem, Sentry permanece gate crítico aberto e
-bloqueia `GO`. A manutenção diária também expira `support_requests` após 90 dias.
+O deployment Staging `aceeaf830cf75667df8ce21e5b586d47155dd5ac`
+comprovou upload de source maps e ingestão real no projeto histórico. O evento
+`2a8b96ca952740ffb28a7fc04c7816d1`, recebido em
+`2026-08-25T15:10:44Z`, contém `environment=staging`, release igual ao SHA,
+`readiness_probe=sentry` e frame `app:///src/lib/sentry-readiness.ts:42`. O
+workflow global `Send a notification for high priority issues` foi acionado
+depois do evento, mas não possui filtro de ambiente e seu destino atual não
+comprova canal institucional monitorado.
+
+O SDK não enviou identidade, e-mail, username ou IP, mas o projeto está com
+`scrubIPAddresses=false`; a ingestão acrescentou `user.geo` com país/região
+derivados do IP de transporte. `cookies` foi normalizado como array vazio. Como
+o contrato exige ausência total de PII, não trate esse evento como sanitização
+aprovada. Habilite a remoção de IP no projeto preservado com credencial
+`project:write`, emita outro probe e confirme que o checker falha apenas enquanto
+o alerta institucional não alcança o evento. A credencial de inspeção permanece
+somente leitura e não deve ganhar permissão de mutação.
+
+A troca de slug, o endurecimento de privacidade e o alerta por ambiente em canal
+institucional continuam pendentes. Até essas evidências existirem, Sentry
+permanece gate crítico aberto e bloqueia `GO`. A manutenção diária também expira
+`support_requests` após 90 dias.
 
 O probe controlado usa `POST /api/health/sentry`, disponível somente em Staging
 ou Production quando `SENTRY_READINESS_SECRET` existe. Ele exige bearer próprio

@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -70,6 +70,11 @@ Estas decisões não são opções de implementação:
     automatizada.
 12. Mudanças editoriais nos templates Resend e remoção de React Email estão fora
     deste plano.
+13. O congelamento atual vale somente para Production. Staging/Preview pode
+    receber merge, migration, configuração e deploy controlados para fechar os
+    gates. Permanecem proibidos até novo `GO`: deploy/promoção Production,
+    alias/DNS Production, migration ou dado Production, mudança de provider
+    Production e venda real.
 
 ## 3. Estado inicial que deve ser reproduzido
 
@@ -110,10 +115,9 @@ Para cada correção:
 
 ### 4.2 Migrations
 
-- A cadeia local termina em `0065_gray_siren`, que implementa TOTP privilegiado.
-  Production continua em `0064`. As próximas migrations previstas são `0066`
-  (outbox obsoleta) e `0067` (lifecycle Resend) se nenhum outro trabalho ocupar
-  esses números.
+- A cadeia termina em `0067_sparkling_ghost_rider`. Staging recebeu `0065`,
+  `0066` e `0067` pelo workflow protegido; Development e Production continuam
+  sem essas migrations, e Production permanece em `0064`.
 - Se o topo mudar, usar os próximos números livres sem renomear migrations já
   aplicadas.
 - Gerar SQL, journal e snapshot com `bun run db:generate`; não editar metadata
@@ -268,8 +272,8 @@ possui permissão de escrita desnecessária.
 
 ### Tarefa 0.4: transformar o 403 do Sentry em diagnóstico
 
-**Ler:** `next.config.ts`, `sentry.server.config.ts`,
-`instrumentation-client.ts`, `instrumentation.ts` e
+**Ler:** `next.config.ts`, `src/instrumentation.ts`,
+`instrumentation-client.ts` e
 `src/lib/sentry-options.ts`.
 
 **Passos:**
@@ -1517,11 +1521,13 @@ de no máximo 500.
 
 **Passos:**
 
-- [ ] Implantar a rota antes de criar a inscrição.
-- [ ] Guardar o signing secret no ambiente correto e validar fingerprint, sem
+- [x] Implantar a rota antes de criar a inscrição.
+- [x] Guardar o signing secret no ambiente correto e validar fingerprint, sem
   copiá-lo para Git/log.
-- [ ] Enviar eventos controlados do provider e provar assinatura, duplicata,
-  evento antes/depois da aceitação e transição final.
+- [x] Enviar evento controlado com envelope assinado do provider e provar
+  assinatura e duplicata por `svix-id` no Staging persistente.
+- [ ] Provar com lifecycle originado pelo Resend o evento antes/depois da
+  aceitação e a transição final.
 - [ ] Confirmar que o painel chama aceite `accepted` e entrega final
   `delivered`; remover linguagem ambígua de outbox.
 - [ ] Criar alerta para inbox `dead_letter`, evento `retrying` acima de uma hora,
@@ -1551,6 +1557,14 @@ Vercel/Neon/PostgreSQL, a configuração Sentry, o probe e o checker de evento
 estão implementados e verdes localmente. Progressão DNS, corte do projeto
 Sentry, source map/evento reais e alerta recebido continuam deliberadamente
 pendentes; nenhum provider foi alterado.
+
+**Checkpoint externo de Staging em 2026-08-25:** o deployment
+`aceeaf830cf75667df8ce21e5b586d47155dd5ac` publicou a release e os source maps
+no projeto preservado. O probe real provou ambiente, release, tag e frame
+source-mapped. O gate permanece aberto porque `scrubIPAddresses=false` fez a
+ingestão derivar `user.geo`, e o workflow global acionado não filtra ambiente nem
+comprova canal institucional. DMARC continua no estágio inicial e Production
+não foi alterada.
 
 ### Resultado
 
@@ -1707,8 +1721,7 @@ não tem artefatos enviados; portanto source map real segue como gate aberto.
 
 - `next.config.ts`
 - `src/lib/sentry-options.ts`
-- `sentry.server.config.ts`
-- `sentry.edge.config.ts`
+- `src/instrumentation.ts`
 - `instrumentation-client.ts`
 - testes de configuração/sanitização
 - documentação de ambiente
@@ -1763,10 +1776,20 @@ corte de DSN, ingestão, janela de observação e rollback.
   artefato público (`.next/static`: zero `.map`). Repetir no deployment com
   upload autenticado antes de fechar o gate externo.
 
+**Evidência real de Staging em 2026-08-25:** o PR `#54` corrigiu a convenção do
+Next.js 16 ao mover `instrumentation.ts` para `src/`, ao lado de `src/app`. A CI
+`32862430399` passou e o deploy `32863445174`, tentativa 2, publicou a release
+`aceeaf830cf75667df8ce21e5b586d47155dd5ac` com source maps de browser, servidor,
+edge e `instrumentation.js`. O deployment exato
+`dpl_FZ3WPZfrjAgD6jQPR7s4zvneePNu` ficou `READY` no target `staging`, passou
+smoke direto e assumiu `preview.neurocapacitar.com.br`. Isso fecha o upload e a
+resolução em Staging, não a privacidade, o alerta institucional ou a prova
+Production.
+
 ### Tarefa 5.6: emitir e verificar um evento sintético sem PII
 
-**Estado em 2026-08-24:** rota e checker implementados localmente; emissão real
-pendente. O token de inspeção configurado foi introspectado sem exposição e tem
+**Estado em 2026-08-25:** rota e checker implementados e emissão real concluída
+em Staging. O token de inspeção configurado foi introspectado sem exposição e tem
 somente escopos de leitura/release (`alerts:read`, `event:read`, `org:read`,
 `project:read` e correlatos), não gestão.
 
@@ -1774,6 +1797,18 @@ somente escopos de leitura/release (`alerts:read`, `event:read`, `org:read`,
 projetos, releases e Issues sem 403. Isso fecha somente o acesso de inspeção;
 nenhum evento foi emitido, nenhum alerta foi acionado e nenhuma configuração do
 provider foi alterada.
+
+**Execução real posterior:** `POST /api/health/sentry` no deployment exato
+retornou `eventId=2a8b96ca952740ffb28a7fc04c7816d1` e
+`correlationId=97350600-8687-47b8-842d-f896d75bd8c5`. A leitura autenticada
+confirmou `environment=staging`, release igual ao SHA, tag
+`readiness_probe=sentry` e frame
+`app:///src/lib/sentry-readiness.ts:42`. O workflow global do projeto foi
+acionado depois do evento. A sanitização ainda reprova: a API normalizou
+`cookies=[]` e acrescentou `user.geo` porque `scrubIPAddresses` está desativado.
+O token read-only não possui `project:write`; não aumentar seu escopo. Após uma
+credencial de gestão habilitar a remoção de IP, emitir outro probe e comprovar
+também um workflow filtrado por ambiente em canal institucional.
 
 **Criar:**
 
@@ -2059,6 +2094,14 @@ red/green focado, TypeScript e Ultracite aprovados; ele passa a ser descendente
 obrigatório do próximo SHA candidato, mas não herda automaticamente a evidência
 integral da CI `32834478030`. Reexecutar os gates antes de qualquer nova decisão.
 
+**Checkpoint Staging de 2026-08-25:** PRs `#52`, `#53` e `#54` foram integrados
+somente em Staging. O CI `32862430399` aprovou os quatro jobs; o deploy
+`32863445174` aplicou `0065`–`0067`, publicou e verificou o SHA
+`aceeaf830cf75667df8ce21e5b586d47155dd5ac`. Resend tem rota, secret e inscrição
+de sete eventos, com assinatura/duplicata provadas. Sentry tem release,
+source-map e evento real provados, mas privacidade e alerta institucional ainda
+falham. Production permanece no SHA `9f2b8f1` e o resultado segue `NO-GO`.
+
 **Verificação local posterior:** no SHA documental `92ec261`, migrations,
 TypeScript, Ultracite, 339 arquivos/2.286 testes, build Next.js com 20 páginas
 estáticas, zero source map público, Knip e audit de produção passaram. A CI
@@ -2150,7 +2193,8 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
 - [ ] Resend templates/domain/webhook e lifecycle controlado verdes.
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
 - [ ] Sentry event/source map/alert verdes.
-- [ ] Smokes de endpoints públicos e readiness em deployment não promovido.
+- [x] Smokes de endpoints públicos e readiness no endereço exato antes da
+  atualização do alias de Staging.
 - [x] Não criar Checkout ou pagamento real nesta Sprint.
 
 ### Tarefa 7.6: emitir decisão
@@ -2165,8 +2209,9 @@ prazo, custo afundado ou porque a correção “parece segura”.
 
 ## Sprint 8: deploy e validação pós-Production
 
-**Estado:** `NOT STARTED`. O `NO-GO` da Sprint 7 e a instrução humana de não
-fazer deploy impedem qualquer tarefa desta Sprint. A venda real continua
+**Estado:** `NOT STARTED`. O `NO-GO` da Sprint 7 e o congelamento exclusivo de
+Production impedem qualquer tarefa desta Sprint. Staging/Preview pode continuar
+sendo usado para qualificação, mas isso não inicia a Sprint 8. A venda real continua
 permitida somente depois da promoção e estabilidade inicial em Production.
 
 ### Resultado
