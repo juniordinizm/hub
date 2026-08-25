@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
+last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -1526,13 +1526,13 @@ de no máximo 500.
   copiá-lo para Git/log.
 - [x] Enviar evento controlado com envelope assinado do provider e provar
   assinatura e duplicata por `svix-id` no Staging persistente.
-- [ ] Provar com lifecycle originado pelo Resend o evento antes/depois da
+- [x] Provar com lifecycle originado pelo Resend o evento antes/depois da
   aceitação e a transição final.
 - [ ] Confirmar que o painel chama aceite `accepted` e entrega final
   `delivered`; remover linguagem ambígua de outbox.
 - [ ] Criar alerta para inbox `dead_letter`, evento `retrying` acima de uma hora,
   crescimento de bounce/complaint e ausência de evento `accepted` por tópico.
-- [ ] Registrar IDs sanitizados, nunca endereço ou conteúdo.
+- [x] Registrar IDs sanitizados, nunca endereço ou conteúdo.
 
 **Automação operacional preparada em 2026-08-25:** o teste de contrato revelou
 que o scheduler externo de Staging não chamava `/api/cron/resend-webhooks`; a
@@ -1541,7 +1541,7 @@ agenda foi alinhada aos quatro workers de cinco minutos. O workflow manual
 usam somente o GitHub Environment `vercel-staging`, segredo próprio e a confirmação
 `SEND_CONTROLLED_STAGING_PASSWORD_RESET`. O aceite exige `email.sent` e
 `email.delivered` processados, estado final `delivered`, zero conflito e zero
-erro. A execução real permanece pendente até essa mudança alcançar `staging`.
+erro. A execução real `32880106811` passou esses critérios após o deploy `32879658351`; permanecem a corrida específica webhook/aceitação e o alerta operacional.
 
 **Primeira execução e correção:** o run `32875321220` emitiu um único request e
 falhou com estado vazio; o log runtime sanitizado confirmou
@@ -2209,7 +2209,7 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
 
 - [ ] Checker Vercel/Neon concorda com release-state candidato.
 - [ ] Backup recente, RPO/cota e restore/RTO verdes.
-- [ ] Resend templates/domain/webhook e lifecycle controlado verdes.
+- [x] Resend templates/domain/webhook e lifecycle controlado verdes.
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
 - [ ] Sentry event/source map/alert verdes.
 - [x] Smokes de endpoints públicos e readiness no endereço exato antes da
