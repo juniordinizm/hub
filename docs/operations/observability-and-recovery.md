@@ -35,6 +35,13 @@ O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-m
 
 `src/instrumentation.ts`, ao lado de `src/app`, registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
 
+Os pools `application` e `readiness`, em `src/db/index.ts`, registram listener
+`error` no `pg.Pool`. Uma conexão ociosa encerrada pelo provider não pode virar
+`uncaughtException`; o handler emite somente `database.pool`, código
+`database_pool_client_error`, status 503 e correlação UUID, sem mensagem do
+provider ou URL. O request que originou a falha ainda deve ser tratado pelo
+worker/rota e o readiness continua sendo a confirmação de recuperação.
+
 O inventário autenticado preserva temporariamente `hub-development` (ID
 `4511808556564480`) como projeto com histórico e `hub-production` como projeto
 Production ainda referenciado pelo deployment canônico. O alvo é um projeto
