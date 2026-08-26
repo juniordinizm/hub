@@ -65,6 +65,7 @@ export type ProductionBackupFailureCategory =
   | "database-read-only"
   | "database-size"
   | "database-version"
+  | "database"
   | "provider"
   | "storage"
   | "unexpected";
@@ -105,8 +106,15 @@ export const classifyProductionBackupFailure = (
   if (message.includes("provider") || message.includes("provenance")) {
     return "provider";
   }
-  if (message.includes("database") || message.includes("connection")) {
+  if (message.includes("connection")) {
     return "database-connection";
+  }
+  if (
+    message.includes("database") ||
+    message.includes("migration") ||
+    message.includes("read-only")
+  ) {
+    return "database";
   }
   if (
     message.includes("r2") ||
