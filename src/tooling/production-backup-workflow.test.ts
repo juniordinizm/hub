@@ -56,11 +56,16 @@ describe("production database backup workflow", () => {
     expect(source).toContain(
       `export PATH="/usr/lib/postgresql/18/bin:\${PATH}"`
     );
+    expect(source).toContain(
+      'echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"'
+    );
     expect(source).toContain("pg_dump --version");
     expect(source).toContain("age --version");
     expect(source).not.toContain("upload-artifact");
     expect(source).toContain("bun install --frozen-lockfile");
     expect(source).toContain("bun run ops:backup:production");
+    expect(source).toContain("command -v pg_dump");
+    expect(source).toContain("command -v pg_restore");
   });
 
   it("exposes only the guarded backup entrypoint in package scripts", async () => {
