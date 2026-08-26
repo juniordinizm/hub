@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
+last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -31,6 +31,33 @@ Resultado esperado:
 - requalificar o sistema antes de uma nova decisão `GO/NO-GO`;
 - validar uma venda real somente depois do deploy em Production, com supervisão
   humana e autorização específica no momento da execução.
+
+## Checkpoint de retorno ao fluxo normal — 2026-08-26
+
+Este checkpoint atualiza o estado das seções históricas abaixo sem alterar suas
+decisões originais. O `main` verificável é
+`63f64106eef197d59a7929fabc6d64fb239ecfe6`; Production continua servindo o
+deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
+`1c0202f935934285901f90e2b8c68f887f00222e`.
+
+- O checkout público foi exercitado e uma venda real ocorreu em Production.
+  Isso registra a validação pós-deploy informada pela operadora; não autoriza
+  uma segunda cobrança e não fecha, sozinho, e-mail, Concessão, Matrícula,
+  acesso ou reembolso.
+- O checker Vercel/Neon foi corrigido para consultar também os domínios do
+  projeto e exigir domínio customizado verificado. O deployment antigo ainda
+  não contém esse código; a próxima promoção deve usar o workflow protegido.
+- O bucket R2 dedicado e o Environment `production-backup` existem. Lock e
+  lifecycle foram confirmados com objetos descartáveis; ainda não há manifesto
+  válido porque o workflow para em `configuration-database`.
+- O bloqueio externo é exclusivamente a secret `BACKUP_DATABASE_URL`: ela deve
+  usar host direto da branch Production, banco e credenciais válidos,
+  `sslmode=verify-full` e somente parâmetros permitidos. Nenhum valor deve ser
+  colado neste chat. O relatório de requalificação atual está em
+  [2026-08-26-production-readiness-requalification.md](../../reviews/2026-08-26-production-readiness-requalification.md).
+- Os PRs/workflows diagnósticos temporários de Asaas foram fechados e suas
+  branches remotas removidas. A partir deste ponto, mudanças seguem PR, CI
+  completa, backup verde, checker e documentação; não usar `emergency_skip_*`.
 
 Base de planejamento: commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro
@@ -742,7 +769,8 @@ gate de frescor e restauração completa comprovada em PostgreSQL 18 descartáve
 
 ### Tarefa 2.1: modelar manifesto, cotas e retenção
 
-**Estado em 2026-08-24:** implementado e coberto localmente. O parser é estrito,
+**Estado em 2026-08-26:** implementação e testes verdes; provisionamento externo
+parcial. O parser é estrito,
 as chaves são determinísticas, a seleção diária/semanal usa períodos UTC e a
 projeção usa as cotas atuais do R2 Standard Free com reserva de 20%.
 
@@ -796,18 +824,14 @@ intervalos e impossibilidade gratuita.
 
 ### Tarefa 2.2: criar o backup cifrado
 
-**Estado em 2026-08-24:** implementação local concluída. O workflow, comandos,
+**Estado em 2026-08-26:** workflow e comandos publicados em `main`; a primeira
+execução externa ainda falha em `configuration-database`. O workflow, comandos,
 limpeza de temporários, versões, checksum do binário `age`, ordem
 cifra/HEAD/manifesto e source contracts estão verdes. A job remota ainda não foi
-executada porque bucket, role e GitHub Environment não foram provisionados.
-O checkpoint agregado aprovou 315 arquivos/2.154 testes, typecheck, migrations,
-Ultracite em 827 arquivos e 33 documentos canônicos.
-
-**Auditoria somente leitura em 2026-08-25:** `production-backup` ainda não existe
-nos Environments do GitHub, seus secrets/variables estão ausentes e o workflow
-retorna `404` na branch padrão. As credenciais S3 locais alcançam apenas o bucket
-da aplicação; isso não prova o bucket exclusivo de backup. Nenhuma job foi
-disparada.
+O bucket dedicado e o Environment `production-backup` foram provisionados e a
+job remota já executou. As falhas foram reduzidas a `configuration-database`;
+nenhuma credencial ou URL foi registrada nos logs. O checkpoint agregado aprovou
+CI, typecheck, migrations, Ultracite e os quatro jobs de integração/E2E/build.
 
 **Criar:**
 
@@ -885,10 +909,13 @@ HEAD/hash, e nenhum arquivo claro permanece no runner ou workspace.
 
 **Alteração externa controlada:** Cloudflare R2.
 
-**Estado em 2026-08-25:** pendente. Wrangler `4.125.0` não possui sessão
-administrativa local; nenhuma regra pôde ser lida. A documentação atual confirma
+**Estado em 2026-08-26:** lock/lifecycle provisionados e lidos de volta; a
+primeira execução verde permanece pendente. Wrangler `4.125.0` não possui sessão
+administrativa persistente neste worktree, mas a configuração foi executada no
+terminal autenticado da operadora e lida de volta. A documentação atual confirma
 R2 Standard Free em 10 GB-mês, 1 milhão Class A, 10 milhões Class B e egress
-gratuito. Nenhum bucket, objeto, token, lock ou lifecycle foi criado.
+gratuito. O bucket dedicado e objetos de teste foram confirmados via AWS CLI;
+lock recusou exclusões com exit code `254` e o `HEAD` expôs as datas de expiração.
 
 **Projeção fechada:** no modelo de 30 dias/120 runs, uma listagem por run, dois
 PUTs e um HEAD por classe resultam em cerca de 430 operações Class A e 155 Class
@@ -2228,15 +2255,16 @@ prazo, custo afundado ou porque a correção “parece segura”.
 
 ## Sprint 8: deploy e validação pós-Production
 
-**Estado:** `NOT STARTED`. O `NO-GO` da Sprint 7 e o congelamento exclusivo de
-Production impedem qualquer tarefa desta Sprint. Staging/Preview pode continuar
-sendo usado para qualificação, mas isso não inicia a Sprint 8. A venda real continua
-permitida somente depois da promoção e estabilidade inicial em Production.
+**Estado em 2026-08-26:** `PARTIAL_POST_PRODUCTION`. O `NO-GO` da Sprint 7
+mantém novas promoções protegidas suspensas, mas a janela emergencial já ocorreu:
+Production está no ar e uma venda real foi confirmada. A venda é evidência
+pós-deploy, não gate retroativo; as provas completas de e-mail, acesso,
+reembolso e encerramento da release ainda não foram documentadas.
 
 ### Resultado
 
-Promover o SHA aprovado com manutenção, observar o sistema real e executar a
-primeira venda supervisionada somente após estabilidade inicial.
+Promover somente um SHA aprovado pelo fluxo protegido, observar o sistema real e
+documentar a venda já ocorrida sem criar nova cobrança.
 
 ### Tarefa 8.1: executar o release protegido
 
@@ -2313,7 +2341,7 @@ incidente financeiro.
   implantadas e seus `last_verified_commit`.
 - [x] Acrescentar resoluções ao relatório histórico sem alterar sua decisão
   original.
-- [ ] Registrar a venda supervisionada como validação pós-deploy, não como gate
+- [x] Registrar a venda ocorrida como validação pós-deploy, não como gate
   retroativo.
 - [ ] Programar próximo restore trimestral, revisão DMARC e revisão mensal de
   cotas.

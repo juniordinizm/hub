@@ -41,6 +41,19 @@ describe("parseProductionBackupManifest", () => {
     ).toEqual(validManifest());
   });
 
+  it("parses a Neon server version with a build suffix", () => {
+    const manifest = {
+      ...validManifest(),
+      postgresServerVersion: "18.6 (3484359)",
+    };
+
+    expect(
+      parseProductionBackupManifest(manifest, {
+        knownMigrationTags: new Set(["0065_gray_siren"]),
+      }).postgresServerVersion
+    ).toBe("18.6 (3484359)");
+  });
+
   it("accepts a committed daily manifest that points to its daily copy", () => {
     const daily = {
       ...validManifest(),
