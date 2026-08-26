@@ -89,7 +89,7 @@ com zero source map público. Esse resultado continua deliberadamente separado
 da CI integrada, que criaria branches Neon efêmeras e não foi autorizada no
 checkpoint somente leitura.
 
-## Checkpoint de Staging de 25 de agosto de 2026
+## Registro histórico: checkpoint de Staging de 25 de agosto de 2026
 
 Somente Production está congelada. Staging/Preview pode receber merge,
 migration, configuração e deploy controlados para concluir a qualificação. Isso
@@ -129,10 +129,11 @@ O probe Sentry do deployment exato retornou o evento
 precisão do IP de transporte, e o workflow global existente não filtra ambiente
 nem comprova entrega em canal institucional.
 
-Production continua no commit
+Até esse checkpoint, Production permanecia no commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`, sem deploy, alias, migration,
-configuração, dado, DNS ou venda alterados por este checkpoint. A decisão
-histórica e atual permanece `NO-GO`.
+configuração, dado, DNS ou venda alterados. O checkpoint operacional atual no
+início deste documento supersede essa fotografia; a decisão de prontidão ainda
+permanece `NO-GO`.
 
 ### Atualização Resend/Sentry em Staging
 
