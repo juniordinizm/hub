@@ -70,6 +70,7 @@ export type ProductionBackupFailureCategory =
   | "database-size"
   | "database-version"
   | "database-query"
+  | `database-query-${string}`
   | `database-sqlstate-${string}`
   | "database"
   | "provider"
@@ -89,6 +90,10 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   ["database-migration", ["database migration"]],
   ["database-identity", ["database identity"]],
   ["database-inspection", ["database inspection is incomplete"]],
+  ["database-query-transaction", ["database query failed: transaction"]],
+  ["database-query-settings", ["database query failed: settings"]],
+  ["database-query-identity", ["database query failed: identity"]],
+  ["database-query-migration", ["database query failed: migration"]],
   [
     "database-schema",
     ["does not exist", "undefined table", "undefined schema"],
