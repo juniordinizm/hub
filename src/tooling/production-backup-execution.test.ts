@@ -24,6 +24,25 @@ const environment = {
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 describe("classifyProductionBackupFailure", () => {
+  it.each([
+    ["backup role is not read-only", "database-read-only"],
+    ["backup role is not a member of pg_read_all_data", "database-access"],
+    ["logical database size is invalid", "database-size"],
+    ["PostgreSQL server major is not 18", "database-version"],
+    ["database migration does not match this release", "database-migration"],
+    ["database identity is incomplete", "database-identity"],
+  ])("classifies %s as %s", (message, category) => {
+    expect(classifyProductionBackupFailure(new Error(message))).toBe(category);
+  });
+
+  it("distinguishes connection failures from precondition failures", () => {
+    expect(
+      classifyProductionBackupFailure(
+        new Error("connection terminated unexpectedly: postgresql://secret")
+      )
+    ).toBe("database-connection");
+  });
+
   it("returns a safe category without exposing provider error details", () => {
     const error = new Error(
       "Provider read failed with HTTP 500 at https://console.neon.tech/api/v2/projects/project?api_key=secret"
