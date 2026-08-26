@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 ---
 
 # Asaas
@@ -28,9 +28,10 @@ Sandbox foi removida do ambiente, a credencial Asaas real e o
 `PAYMENTS_CHECKOUT_MODE=public`, `ASAAS_WEBHOOK_ENABLED=true` e
 `SCHEDULED_JOBS_ENABLED=true`, sem novo deploy. As sondas públicas de 2026-08-21
 confirmaram checkout habilitado (GET `/api/checkouts/course` sem parâmetros => `400`) e
-webhook ativo exigindo token (POST sem token => `401`). Nenhuma venda real havia
-ocorrido até 2026-08-21; a primeira venda supervisionada, com reembolso de teste,
-permanece pendente.
+webhook ativo exigindo token (POST sem token => `401`). Em 2026-08-26, a
+operadora confirmou uma venda real pelo checkout público. A confirmação de
+e-mail, acesso, reembolso e demais estados do ciclo permanece pendente de
+registro sanitizado; não repetir cobrança para produzir evidência.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
 O release de manutenção de 2026-08-02 promoveu o código e a migration
