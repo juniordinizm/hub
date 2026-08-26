@@ -60,6 +60,7 @@ const SAFE_COMMAND_FAILURE_PATTERN =
   /^(?:pg_dump|age) failed \((?:column|connection|credentials|function|permission|query|relation|schema(?:-(?:drizzle|oid|other|public|system))?|version|unknown)\)\.$/;
 const MISSING_SCHEMA_PATTERN = /schema\s+["']([^"']+)["']\s+does not exist/;
 const MISSING_SCHEMA_OID_PATTERN = /schema\s+with\s+oid\s+\d+\s+does not exist/;
+const COMMAND_OUTPUT_TRUNCATION_MARKER = "\n...[truncated]...\n";
 
 export type BackupCommandFailureReason =
   | "column"
@@ -123,6 +124,24 @@ const classifyMissingSchema = (
     return "schema";
   }
   return;
+};
+
+export const retainCommandOutputContext = (
+  current: string,
+  chunk: string,
+  maxBytes: number = MAX_COMMAND_OUTPUT_BYTES
+): string => {
+  const combined = current + chunk;
+  if (combined.length <= maxBytes) {
+    return combined;
+  }
+  if (maxBytes <= COMMAND_OUTPUT_TRUNCATION_MARKER.length) {
+    return combined.slice(0, maxBytes);
+  }
+  const visibleLength = maxBytes - COMMAND_OUTPUT_TRUNCATION_MARKER.length;
+  const prefixLength = Math.ceil(visibleLength / 2);
+  const suffixLength = visibleLength - prefixLength;
+  return `${combined.slice(0, prefixLength)}${COMMAND_OUTPUT_TRUNCATION_MARKER}${combined.slice(-suffixLength)}`;
 };
 
 export const classifyBackupCommandFailure = (
@@ -632,15 +651,11 @@ export const runBackupCommand: BackupCommandRunner = async ({
     let stderr = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
-      if (stdout.length < MAX_COMMAND_OUTPUT_BYTES) {
-        stdout += chunk.slice(0, MAX_COMMAND_OUTPUT_BYTES - stdout.length);
-      }
+      stdout = retainCommandOutputContext(stdout, chunk);
     });
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk: string) => {
-      if (stderr.length < MAX_COMMAND_OUTPUT_BYTES) {
-        stderr += chunk.slice(0, MAX_COMMAND_OUTPUT_BYTES - stderr.length);
-      }
+      stderr = retainCommandOutputContext(stderr, chunk);
     });
     child.once("error", () =>
       reject(
