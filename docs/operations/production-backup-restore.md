@@ -1,17 +1,19 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 ---
 
 # Backup Production e restauração
 
 ## Estado e limites
 
-O código, os testes e os workflows estão implementados localmente. O bucket, as
-credenciais, a role PostgreSQL, Bucket Lock, lifecycle, primeira execução, PITR
-e restauração completa ainda exigem provisionamento e evidência externa. Até
-essas provas passarem, `F-002` e o gate do Sprint 2 permanecem abertos.
+O código, os testes e os workflows estão implementados em `main`. O bucket R2
+dedicado e o GitHub Environment `production-backup` já existem. Lock/lifecycle
+foram lidos de volta e os objetos descartáveis das três classes recusaram remoção
+durante o lock; a execução do backup ainda não produziu um manifesto válido.
+PITR, restore e RPO/RTO continuam sem prova externa. Até essas provas passarem,
+`F-002` e o gate do Sprint 2 permanecem abertos.
 
 O desenho usa exclusivamente planos gratuitos: Neon Free para origem/PITR
 disponível e Cloudflare R2 Standard Free para a cópia independente. A reserva
@@ -20,7 +22,7 @@ Class A e 8 milhões Class B. O código testa 6, 8 e 12 horas nessa ordem, mas o
 workflow executa a decisão registrada de seis horas; nunca muda a agenda em
 runtime nem habilita compra automática.
 
-Checkpoint externo somente leitura de `2026-08-25`:
+Checkpoint externo somente leitura de `2026-08-25` (histórico):
 
 - o R2 Standard Free continua oferecendo 10 GB-mês, 1 milhão de operações
   Class A, 10 milhões Class B e egress gratuito;
@@ -40,8 +42,28 @@ Checkpoint externo somente leitura de `2026-08-25`:
   Elas ajudam rollback de release, mas não substituem PITR ensaiado nem a cópia
   cifrada externa.
 
-Nenhum bucket, role, Environment, secret, regra, branch ou objeto foi criado ou
-alterado durante esse checkpoint.
+Esse checkpoint registrava o estado anterior ao provisionamento. Não o use para
+descrever o estado atual.
+
+## Estado atual — 2026-08-26
+
+- bucket dedicado: `neurocapacitar-production-backups`;
+- Environment: `production-backup`, com os nomes de secrets/variables exigidos
+  pelo workflow, sem valores versionados ou exibidos neste documento;
+- classes `frequent`, `daily` e `weekly`: lock recusou `delete-object` com exit
+  code `254` e o `HEAD` confirmou expiração configurada para cada objeto de teste;
+- execução `32929589649`: falhou antes do dump por PATH do cliente PostgreSQL;
+- execução `32931613267`: PostgreSQL 18 disponível, falha sanitizada `database`;
+- execuções posteriores até `32982879681`: alias/proveniência passaram após a
+  correção do checker; a falha restante é `configuration-database`;
+- causa operacional pendente: `BACKUP_DATABASE_URL` no Environment não atende
+  ao contrato de conexão direta (host Production exato, banco/credenciais,
+  `sslmode=verify-full` e nenhum parâmetro não permitido). Nenhuma URL ou senha
+  deve ser enviada ao chat;
+- não existe ainda um manifesto `frequent` válido, portanto o gate de release e
+  o restore permanecem fechados;
+- a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
+  exercício de duas execuções consecutivas ainda precisam de prova.
 
 Na projeção de 30 dias/120 execuções, cada run faz uma listagem e dois PUTs por
 classe; cada classe também recebe um HEAD de confirmação. Com 30 cópias diárias

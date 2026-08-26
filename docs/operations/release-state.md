@@ -1,16 +1,44 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
-deployed_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
-verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 verified_environment: production
-documented_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+documented_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 documented_environment: production
 ---
 
 # Estado de release
+
+## Checkpoint operacional atual — 2026-08-26
+
+O deployment Production observado continua `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`,
+`READY`, `target=production`, região `gru1`, com o commit
+`1c0202f935934285901f90e2b8c68f887f00222e`. O endereço canônico
+`https://app.neurocapacitar.com.br` resolve por CNAME para a infraestrutura DNS da
+Vercel e responde normalmente. O projeto Vercel é `hub`; a resposta do endpoint
+de deployment lista o alias `hub-neuro-capacitar.vercel.app`, enquanto o domínio
+customizado é comprovado pelo endpoint de domínios do projeto. O checker foi
+corrigido para usar as duas fontes e exigir `verified=true` e o `projectId` esperado.
+
+O checkout público foi exercitado em Production e houve uma venda real confirmada
+pela operadora. Isso é evidência pós-deploy do caminho comercial, não substitui a
+requalificação completa nem prova, por si só, o e-mail entregue, a Concessão,
+Matrícula, acesso ao Curso e eventual reembolso. Não repetir cobrança para obter
+essa prova.
+
+Os workers Production estão ativos: Asaas a cada minuto; JMVStream, outbox e
+webhook Resend a cada cinco minutos; matrícula e manutenção diariamente. As
+consultas recentes retornaram HTTP 200 nos quatro workers; os poucos HTTP 500 do
+último dia pertencem ao deployment anterior e foram causados pelo segredo ausente
+do webhook Resend.
+
+O `main` atual inclui as correções de fallback de upload R2 e do checker de domínio,
+mas ainda não foi promovido por um release protegido novo. A promoção continua
+dependente do backup Production verde, Sentry configurado no build e demais gates
+externos. O estado decisório atual permanece `NO-GO` para uma nova promoção.
 
 Este documento separa três fatos que não podem ser tratados como sinônimos:
 

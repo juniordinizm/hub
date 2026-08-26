@@ -68,6 +68,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Requalificação de Production Readiness em 2026-08-26, retorno ao fluxo normal e bloqueios externos](reviews/2026-08-26-production-readiness-requalification.md)
 - [Requalificação de Production Readiness, candidato técnico verde e decisão NO-GO por gates externos](reviews/2026-08-23-production-readiness-requalification.md)
 - [Auditoria histórica de Production Readiness, resultado NO-GO](reviews/2026-08-23-production-readiness-audit.md)
 - [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
