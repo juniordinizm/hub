@@ -239,6 +239,10 @@ jobs:
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
             "${{ steps.deploy.outputs.url }}/api/health/ready"
+          curl --fail-with-body --silent --show-error \
+            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+            --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
+            "${{ steps.deploy.outputs.url }}/api/health/r2"
       - name: Verify unpromoted provider and migration state
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
