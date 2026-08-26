@@ -54,6 +54,13 @@ describe("classifyProductionBackupFailure", () => {
   });
 
   it.each([
+    ["pg_dump failed.", "backup-command-pg-dump"],
+    ["age failed.", "backup-command-age"],
+  ])("identifies the failing backup command for %s", (message, category) => {
+    expect(classifyProductionBackupFailure(new Error(message))).toBe(category);
+  });
+
+  it.each([
     ["28P01", "database-credentials"],
     ["42501", "database-access"],
     ["42P01", "database-schema"],

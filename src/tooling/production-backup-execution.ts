@@ -59,6 +59,8 @@ const MAX_COMMAND_OUTPUT_BYTES = 4096;
 
 export type ProductionBackupFailureCategory =
   | "backup-command"
+  | "backup-command-age"
+  | "backup-command-pg-dump"
   | "configuration"
   | "database-access"
   | "database-connection"
@@ -101,6 +103,8 @@ export const resolveProductionBackupFailureCategory = (
 const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   readonly [ProductionBackupFailureCategory, readonly string[]]
 > = [
+  ["backup-command-pg-dump", ["pg_dump failed"]],
+  ["backup-command-age", ["age failed"]],
   ["database-read-only", ["backup role is not read-only"]],
   [
     "database-access",
