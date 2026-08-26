@@ -31,6 +31,15 @@ describe("classifyProductionBackupFailure", () => {
     ["PostgreSQL server major is not 18", "database-version"],
     ["database migration does not match this release", "database-migration"],
     ["database identity is incomplete", "database-identity"],
+    [
+      "Production backup database inspection is incomplete.",
+      "database-inspection",
+    ],
+    ["permission denied for schema drizzle", "database-access"],
+    [
+      'relation "drizzle.__drizzle_migrations" does not exist',
+      "database-schema",
+    ],
   ])("classifies %s as %s", (message, category) => {
     expect(classifyProductionBackupFailure(new Error(message))).toBe(category);
   });
