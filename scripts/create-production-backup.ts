@@ -45,13 +45,15 @@ const CANONICAL_ALIAS = "app.neurocapacitar.com.br";
 
 type BackupFailurePhase =
   | "backup-command"
-  | "configuration"
+  | "configuration-database"
+  | "configuration-migration"
+  | "configuration-storage"
   | "database-connection"
   | "database-inspection"
   | "provider"
   | "storage";
 
-let currentPhase: BackupFailurePhase = "configuration";
+let currentPhase: BackupFailurePhase = "configuration-database";
 
 const requiredEnvironmentValue = (name: string): string => {
   const value = process.env[name]?.trim();
@@ -248,9 +250,11 @@ const inspectDatabase = async (
 };
 
 const main = async (): Promise<void> => {
-  currentPhase = "configuration";
+  currentPhase = "configuration-database";
   const executionConfig = resolveProductionBackupExecutionConfig(process.env);
+  currentPhase = "configuration-storage";
   const r2Config = resolveProductionBackupR2Config(process.env);
+  currentPhase = "configuration-migration";
   const expectedMigration = await readExpectedMigration();
   currentPhase = "provider";
   const providerEvidence = await inspectProviderProvenance(executionConfig);
@@ -378,7 +382,9 @@ if (import.meta.main) {
   } catch (error: unknown) {
     const category = classifyProductionBackupFailure(error);
     const safeCategory =
-      category === "database-query" ? currentPhase : category;
+      category === "database-query" || category === "configuration"
+        ? currentPhase
+        : category;
     process.stderr.write(`Production backup failed: ${safeCategory}.\n`);
     process.exitCode = 1;
   }
