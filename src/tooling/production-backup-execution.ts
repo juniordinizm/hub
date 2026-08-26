@@ -57,8 +57,9 @@ const SUPPORTED_AGE_VERSION = "1.3.1";
 const CADENCES = new Set<BackupCadenceHours>([6, 8, 12]);
 const MAX_COMMAND_OUTPUT_BYTES = 4096;
 const SAFE_COMMAND_FAILURE_PATTERN =
-  /^(?:pg_dump|age) failed \((?:column|connection|credentials|function|permission|query|relation|schema(?:-(?:drizzle|other|public|system))?|version|unknown)\)\.$/;
+  /^(?:pg_dump|age) failed \((?:column|connection|credentials|function|permission|query|relation|schema(?:-(?:drizzle|oid|other|public|system))?|version|unknown)\)\.$/;
 const MISSING_SCHEMA_PATTERN = /schema\s+["']([^"']+)["']\s+does not exist/;
+const MISSING_SCHEMA_OID_PATTERN = /schema\s+with\s+oid\s+\d+\s+does not exist/;
 
 export type BackupCommandFailureReason =
   | "column"
@@ -70,6 +71,7 @@ export type BackupCommandFailureReason =
   | "relation"
   | "schema"
   | "schema-drizzle"
+  | "schema-oid"
   | "schema-other"
   | "schema-public"
   | "schema-system"
@@ -95,6 +97,34 @@ const BACKUP_COMMAND_FAILURE_PATTERNS: ReadonlyArray<
   ],
 ];
 
+const classifyMissingSchema = (
+  message: string
+): BackupCommandFailureReason | undefined => {
+  const missingSchema = message.match(MISSING_SCHEMA_PATTERN)?.[1];
+  if (missingSchema === "drizzle") {
+    return "schema-drizzle";
+  }
+  if (missingSchema === "public") {
+    return "schema-public";
+  }
+  if (
+    missingSchema === "information_schema" ||
+    missingSchema?.startsWith("pg_")
+  ) {
+    return "schema-system";
+  }
+  if (missingSchema) {
+    return "schema-other";
+  }
+  if (MISSING_SCHEMA_OID_PATTERN.test(message)) {
+    return "schema-oid";
+  }
+  if (message.includes("schema") && message.includes("does not exist")) {
+    return "schema";
+  }
+  return;
+};
+
 export const classifyBackupCommandFailure = (
   stderr: string
 ): BackupCommandFailureReason => {
@@ -111,24 +141,9 @@ export const classifyBackupCommandFailure = (
   if (message.includes("relation") && message.includes("does not exist")) {
     return "relation";
   }
-  const missingSchema = message.match(MISSING_SCHEMA_PATTERN)?.[1];
-  if (missingSchema) {
-    if (missingSchema === "drizzle") {
-      return "schema-drizzle";
-    }
-    if (missingSchema === "public") {
-      return "schema-public";
-    }
-    if (
-      missingSchema === "information_schema" ||
-      missingSchema.startsWith("pg_")
-    ) {
-      return "schema-system";
-    }
-    return "schema-other";
-  }
-  if (message.includes("schema") && message.includes("does not exist")) {
-    return "schema";
+  const schemaReason = classifyMissingSchema(message);
+  if (schemaReason) {
+    return schemaReason;
   }
   for (const [reason, patterns] of BACKUP_COMMAND_FAILURE_PATTERNS) {
     if (patterns.some((pattern) => message.includes(pattern))) {
@@ -150,6 +165,7 @@ export type ProductionBackupFailureCategory =
   | "backup-command-age-relation"
   | "backup-command-age-schema"
   | "backup-command-age-schema-drizzle"
+  | "backup-command-age-schema-oid"
   | "backup-command-age-schema-other"
   | "backup-command-age-schema-public"
   | "backup-command-age-schema-system"
@@ -164,6 +180,7 @@ export type ProductionBackupFailureCategory =
   | "backup-command-pg-dump-relation"
   | "backup-command-pg-dump-schema"
   | "backup-command-pg-dump-schema-drizzle"
+  | "backup-command-pg-dump-schema-oid"
   | "backup-command-pg-dump-schema-other"
   | "backup-command-pg-dump-schema-public"
   | "backup-command-pg-dump-schema-system"
@@ -234,6 +251,7 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
     "backup-command-pg-dump-schema-drizzle",
     ["pg_dump failed (schema-drizzle)"],
   ],
+  ["backup-command-pg-dump-schema-oid", ["pg_dump failed (schema-oid)"]],
   ["backup-command-pg-dump-schema-other", ["pg_dump failed (schema-other)"]],
   ["backup-command-pg-dump-schema-public", ["pg_dump failed (schema-public)"]],
   ["backup-command-pg-dump-schema-system", ["pg_dump failed (schema-system)"]],
@@ -246,6 +264,7 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   ["backup-command-age-relation", ["age failed (relation)"]],
   ["backup-command-age-schema", ["age failed (schema)"]],
   ["backup-command-age-schema-drizzle", ["age failed (schema-drizzle)"]],
+  ["backup-command-age-schema-oid", ["age failed (schema-oid)"]],
   ["backup-command-age-schema-other", ["age failed (schema-other)"]],
   ["backup-command-age-schema-public", ["age failed (schema-public)"]],
   ["backup-command-age-schema-system", ["age failed (schema-system)"]],
