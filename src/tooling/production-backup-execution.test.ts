@@ -168,11 +168,20 @@ describe("verifyProductionBackupProviderEvidence", () => {
           ],
         },
         vercel: {
-          alias: ["app.neurocapacitar.com.br"],
+          alias: ["hub-neuro-capacitar.vercel.app"],
           meta: { githubCommitSha: "c".repeat(40) },
           projectId: "project-hub",
           readyState: "READY",
           target: "production",
+        },
+        vercelDomains: {
+          domains: [
+            {
+              name: "app.neurocapacitar.com.br",
+              projectId: "project-hub",
+              verified: true,
+            },
+          ],
         },
       })
     ).toEqual({
