@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+last_verified_commit: 5fa7f2baab853a5ff37b60f533f00cb5d9f8f750
 requalification_result: no_go
 requalification_date: 2026-08-26
 ---
@@ -13,7 +13,7 @@ requalification_date: 2026-08-26
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
 real já registrou uma venda, mas a recuperação independente ainda não possui uma
 cópia válida e Sentry/DMARC continuam sem os gates externos finais. O bloqueio
-imediato reproduzível é `configuration-database` no workflow de backup.
+imediato reproduzível é `storage` no workflow de backup.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -22,7 +22,7 @@ Esta revisão atualiza o estado operacional após a janela emergencial. A decis�
 
 - repositório: `juniordinizm/hub`;
 - branch avaliada: `main`;
-- SHA de código verificado: `63f64106eef197d59a7929fabc6d64fb239ecfe6`;
+- SHA de código verificado: `5fa7f2baab853a5ff37b60f533f00cb5d9f8f750`;
 - deployment Production observado: `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`;
 - SHA atualmente servido: `1c0202f935934285901f90e2b8c68f887f00222e`;
 - horário dos últimos comandos remotos: 2026-08-26, UTC;
@@ -80,14 +80,21 @@ Execuções relevantes:
 4. `32933557220`: SQLSTATE inexistente; diagnóstico permaneceu seguro.
 5. `32934526658`: fase de conexão/consulta rotulada; falha ainda genérica.
 6. `32981304412` e `32982879681`: a proveniência Vercel/Neon passou após a
-   correção de domínio; a falha final foi `configuration-database`.
+   correção de domínio; a falha final ainda era `configuration-database`.
+7. `32993456881` e `32996629032`: a URL direta passou conexão e inspeção até o
+   checker rejeitar o formato válido `18.6 (3484359)` retornado pelo Neon.
+8. `32997132194`: o PR da correção de versão e do diagnóstico sanitizado passou
+   Quality gates, PostgreSQL integration, Browser journeys e Build/dependency
+   audit sem retry ou job skipped.
+9. `32998006707`: PostgreSQL 18.6, migration, role e inspeção passaram; a
+   primeira leitura do bucket R2 falhou e o workflow registrou `storage`.
 
-`configuration-database` ocorre antes da conexão/inspeção: a secret
-`BACKUP_DATABASE_URL` não satisfaz a validação local. O valor correto deve ser
-mantido apenas no Environment, apontar para o host direto da branch Production,
-conter banco e credenciais válidos, usar `sslmode=verify-full` e não conter
-parâmetros fora de `sslmode` e `channel_binding`. A próxima ação depende da
-edição manual dessa secret; nenhum token ou URL deve ser enviado ao chat.
+O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
+para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
+conexão/inspeção. O bloqueio atual é `storage`, na listagem do bucket dedicado;
+os secrets R2 precisam ser conferidos sem expor valores, usando Access Key ID e
+Secret Access Key de uma credencial Object Read & Write restrita ao bucket.
+Nenhum token, chave ou URL deve ser enviado ao chat.
 
 A presença nominal da secret no Environment não prova seu conteúdo nem a
 conectividade. O workflow deve ser considerado bloqueado até uma execução verde;
@@ -103,7 +110,7 @@ agendamento do exercício periódico.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `BLOCKED_CONFIGURATION_DATABASE` | bucket/lock/lifecycle e workflow publicados | corrigir `BACKUP_DATABASE_URL`, backup verde, restore/PITR/RPO/RTO |
+| 2 | `BLOCKED_STORAGE_CREDENTIALS` | bucket/lock/lifecycle publicados; Neon e versão validados | corrigir secrets R2, backup verde, restore/PITR/RPO/RTO |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
@@ -126,8 +133,8 @@ agendamento do exercício periódico.
 
 ## Condição de continuação
 
-Após a operadora atualizar `BACKUP_DATABASE_URL` sem expô-la, executar novamente
-o workflow `Backup Production database`. Se o resultado for verde, seguir para
+Após a operadora atualizar os secrets R2 sem expô-los, executar novamente o
+workflow `Backup Production database`. Se o resultado for verde, seguir para
 manifesto/restore/PITR e só então requalificar Sentry, DMARC, Dependabot e a
 promoção. Se falhar, preservar a última cópia válida (atualmente inexistente)
 e parar no novo diagnóstico sanitizado.
