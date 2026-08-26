@@ -1,0 +1,93 @@
+name: Diagnose Production R2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Probe Production R2 application credentials
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: vercel-production
+    env:
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: neuro-capacitar
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 1
+          ref: main
+      - name: Probe object write, read and delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file="$(mktemp)"
+          probe_file="$(mktemp)"
+          output_dir="$(mktemp -d)"
+          key="diagnostics/r2-credential-probe-${GITHUB_RUN_ID}.txt"
+          endpoint=""
+          cleanup() {
+            if [[ -n "${endpoint}" && -n "${R2_BUCKET_NAME:-}" && -n "${R2_ACCESS_KEY_ID:-}" && -n "${R2_SECRET_ACCESS_KEY:-}" ]]; then
+              AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+              AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+                aws s3api delete-object \
+                  --bucket "$R2_BUCKET_NAME" \
+                  --key "$key" \
+                  --endpoint-url "$endpoint" \
+                  --region auto > "$output_dir/cleanup.json" 2>&1 || true
+            fi
+            rm -f "$env_file" "$probe_file"
+            rm -rf "$output_dir"
+          }
+          trap cleanup EXIT
+
+          npx --yes vercel@57.0.0 env pull "$env_file" \
+            --environment=production \
+            --project="$VERCEL_PROJECT_ID" \
+            --scope="$VERCEL_SCOPE" \
+            --token="$VERCEL_TOKEN" \
+            --yes >/dev/null
+          set -a
+          # shellcheck disable=SC1090
+          source "$env_file"
+          set +a
+
+          : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID missing}"
+          : "${R2_BUCKET_NAME:?R2_BUCKET_NAME missing}"
+          : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID missing}"
+          : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY missing}"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          printf 'r2-credential-probe-no-sensitive-data' > "$probe_file"
+
+          AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            aws s3api put-object \
+              --bucket "$R2_BUCKET_NAME" \
+              --key "$key" \
+              --body "$probe_file" \
+              --endpoint-url "$endpoint" \
+              --region auto > "$output_dir/put.json"
+          AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            aws s3api head-object \
+              --bucket "$R2_BUCKET_NAME" \
+              --key "$key" \
+              --endpoint-url "$endpoint" \
+              --region auto > "$output_dir/head.json"
+          AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
+          AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
+            aws s3api delete-object \
+              --bucket "$R2_BUCKET_NAME" \
+              --key "$key" \
+              --endpoint-url "$endpoint" \
+              --region auto > "$output_dir/delete.json"
+
+          jq -n \
+            --arg bucket "$R2_BUCKET_NAME" \
+            --arg account_suffix "${R2_ACCOUNT_ID: -4}" \
+            '{bucket: $bucket, account_suffix: $account_suffix, put: "ok", head: "ok", delete: "ok"}'
