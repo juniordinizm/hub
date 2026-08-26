@@ -150,6 +150,24 @@ const queryDatabase = async <Result extends QueryResultRow>(
   }
 };
 
+const connectDatabase = async (pool: Pool): Promise<PoolClient> => {
+  try {
+    return await pool.connect();
+  } catch (error: unknown) {
+    const safeError = new Error(
+      "Production backup database connection failed."
+    );
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      Object.defineProperty(safeError, "code", { value: error.code });
+    }
+    throw safeError;
+  }
+};
+
 const inspectDatabase = async (
   client: PoolClient,
   expectedMigration: ExpectedMigration
@@ -236,7 +254,7 @@ const main = async (): Promise<void> => {
   const r2Client = createProductionBackupR2Client(r2Config);
   try {
     let databaseInspection: ProductionBackupDatabaseInspection;
-    const client = await pool.connect();
+    const client = await connectDatabase(pool);
     try {
       databaseInspection = await inspectDatabase(client, expectedMigration);
       assertProductionBackupDatabase(databaseInspection, expectedMigration);
