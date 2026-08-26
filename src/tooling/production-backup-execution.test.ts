@@ -133,8 +133,13 @@ describe("classifyBackupCommandFailure", () => {
     ["pg_dump: error: permission denied for table users", "permission"],
     ["pg_dump: error: connection to server failed", "connection"],
     ["pg_dump: error: password authentication failed", "credentials"],
-    ['pg_dump: error: relation "users" does not exist', "schema"],
+    ['pg_dump: error: relation "users" does not exist', "relation"],
     ["pg_dump: error: server version mismatch", "version"],
+    ['pg_dump: error: schema "missing" does not exist', "schema"],
+    ['pg_dump: error: relation "missing" does not exist', "relation"],
+    ['pg_dump: error: column "missing" does not exist', "column"],
+    ["pg_dump: error: function missing() does not exist", "function"],
+    ["pg_dump: error: query failed", "query"],
     ["unrecognized provider output", "unknown"],
   ])("classifies sanitized stderr %s as %s", (stderr, reason) => {
     expect(classifyBackupCommandFailure(stderr)).toBe(reason);

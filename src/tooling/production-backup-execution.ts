@@ -60,9 +60,13 @@ const SAFE_COMMAND_FAILURE_PATTERN =
   /^(?:pg_dump|age) failed \((?:connection|credentials|permission|schema|version|unknown)\)\.$/;
 
 export type BackupCommandFailureReason =
+  | "column"
   | "connection"
   | "credentials"
+  | "function"
   | "permission"
+  | "query"
+  | "relation"
   | "schema"
   | "unknown"
   | "version";
@@ -90,6 +94,21 @@ export const classifyBackupCommandFailure = (
   stderr: string
 ): BackupCommandFailureReason => {
   const message = stderr.toLowerCase();
+  if (message.includes("query failed")) {
+    return "query";
+  }
+  if (message.includes("column") && message.includes("does not exist")) {
+    return "column";
+  }
+  if (message.includes("function") && message.includes("does not exist")) {
+    return "function";
+  }
+  if (message.includes("relation") && message.includes("does not exist")) {
+    return "relation";
+  }
+  if (message.includes("schema") && message.includes("does not exist")) {
+    return "schema";
+  }
   for (const [reason, patterns] of BACKUP_COMMAND_FAILURE_PATTERNS) {
     if (patterns.some((pattern) => message.includes(pattern))) {
       return reason;
@@ -101,15 +120,23 @@ export const classifyBackupCommandFailure = (
 export type ProductionBackupFailureCategory =
   | "backup-command"
   | "backup-command-age"
+  | "backup-command-age-column"
   | "backup-command-age-connection"
   | "backup-command-age-credentials"
+  | "backup-command-age-function"
   | "backup-command-age-permission"
+  | "backup-command-age-query"
+  | "backup-command-age-relation"
   | "backup-command-age-schema"
   | "backup-command-age-version"
   | "backup-command-pg-dump"
+  | "backup-command-pg-dump-column"
   | "backup-command-pg-dump-connection"
   | "backup-command-pg-dump-credentials"
+  | "backup-command-pg-dump-function"
   | "backup-command-pg-dump-permission"
+  | "backup-command-pg-dump-query"
+  | "backup-command-pg-dump-relation"
   | "backup-command-pg-dump-schema"
   | "backup-command-pg-dump-version"
   | "configuration"
@@ -169,10 +196,18 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   ["backup-command-pg-dump-connection", ["pg_dump failed (connection)"]],
   ["backup-command-pg-dump-credentials", ["pg_dump failed (credentials)"]],
   ["backup-command-pg-dump-permission", ["pg_dump failed (permission)"]],
+  ["backup-command-pg-dump-column", ["pg_dump failed (column)"]],
+  ["backup-command-pg-dump-function", ["pg_dump failed (function)"]],
+  ["backup-command-pg-dump-query", ["pg_dump failed (query)"]],
+  ["backup-command-pg-dump-relation", ["pg_dump failed (relation)"]],
   ["backup-command-pg-dump-schema", ["pg_dump failed (schema)"]],
+  ["backup-command-age-column", ["age failed (column)"]],
   ["backup-command-age-connection", ["age failed (connection)"]],
   ["backup-command-age-credentials", ["age failed (credentials)"]],
   ["backup-command-age-permission", ["age failed (permission)"]],
+  ["backup-command-age-function", ["age failed (function)"]],
+  ["backup-command-age-query", ["age failed (query)"]],
+  ["backup-command-age-relation", ["age failed (relation)"]],
   ["backup-command-age-schema", ["age failed (schema)"]],
   [
     "backup-command-pg-dump-version",
