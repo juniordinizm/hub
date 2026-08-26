@@ -68,8 +68,6 @@ jobs:
           tar --extract --gzip --file "${archive}" --directory "${RUNNER_TEMP}"
           sudo install --mode 0755 "${RUNNER_TEMP}/age/age" /usr/local/bin/age
           age --version | grep --extended-regexp '^v?1[.]3[.]1$'
-      - name: Diagnose R2 upload modes
-        run: bun scripts/diagnose-production-r2-upload.ts
       - name: Create encrypted Production backup
         id: backup
         run: |

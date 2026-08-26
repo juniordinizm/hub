@@ -426,9 +426,14 @@ describe("withEncryptedProductionDump", () => {
       pgEnvironment:
         resolveProductionBackupExecutionConfig(environment).pgEnvironment,
       runCommand,
-      processEncryptedDump: async ({ dumpPath, encryptedPath }) => {
+      processEncryptedDump: async ({
+        dumpPath,
+        encryptedBody,
+        encryptedPath,
+      }) => {
         await expect(access(dumpPath)).rejects.toThrow();
         await access(encryptedPath);
+        expect(encryptedBody).toEqual(Buffer.from("age-cipher"));
         return "uploaded";
       },
     });

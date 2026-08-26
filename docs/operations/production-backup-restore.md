@@ -72,8 +72,10 @@ descrever o estado atual.
 - `33019958869`: o `pg_dump` concluiu após a correção TLS; o PUT da cifra no R2
   falhou com uma requisição streaming não reexecutável, antes de qualquer
   manifesto;
-- o cliente S3 agora configura buffer de stream de 64 KiB para permitir retry
-  seguro; a execução pós-correção ainda precisa passar;
+- o probe controlado `33022570244` confirmou que `Buffer` passa em 1, 8 e 32 MB,
+  enquanto `Readable` falha com `IncompleteBody`/`ECONNRESET`; a cifra agora é
+  carregada como `Buffer` replayável antes dos PUTs. A execução pós-correção
+  ainda precisa passar;
 - não existe ainda um manifesto `frequent` válido, portanto o gate de release e
   o restore permanecem fechados;
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
@@ -230,9 +232,9 @@ O comando guardado é `bun run ops:backup:production`. Ele:
 5. cifra para arquivo novo e apaga o dump claro;
 6. calcula tamanho e SHA-256 da cifra;
 7. recusa projeção acima de 80% do Free;
-8. envia `frequent` e as cópias diária/semanal aplicáveis com PUT condicional;
-   o cliente S3 mantém streams de até 64 KiB em buffer para que uma tentativa
-   retryable possa ser repetida sem reutilizar um stream consumido;
+8. carrega a cifra como `Buffer` replayável e envia `frequent` e as cópias
+   diária/semanal aplicáveis com PUT condicional; isso evita reutilizar um
+   `Readable` consumido quando o SDK reexecuta uma tentativa;
 9. confirma HEAD/tamanho/hash de todas as cifras;
 10. publica por último manifestos que registram somente a proveniência
     sanitizada, incluindo projeto/branch Neon, SHA realmente implantado, tamanho

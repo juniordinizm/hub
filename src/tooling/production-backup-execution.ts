@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdtemp, rm, stat, unlink } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BackupCadenceHours } from "./production-backup";
@@ -759,6 +759,7 @@ export const withEncryptedProductionDump = async <Result>({
     dumpPath: string;
     dumpSha256: string;
     encryptedBytes: number;
+    encryptedBody: Buffer;
     encryptedPath: string;
     encryptedSha256: string;
     pgDumpVersion: string;
@@ -820,13 +821,13 @@ export const withEncryptedProductionDump = async <Result>({
       failureMessage: "age failed.",
     });
     let encryptedBytes: number;
+    let encryptedBody: Buffer;
     let encryptedSha256: string;
     try {
       await unlink(dumpPath);
-      [{ size: encryptedBytes }, encryptedSha256] = await Promise.all([
-        stat(encryptedPath),
-        sha256File(encryptedPath),
-      ]);
+      encryptedBody = await readFile(encryptedPath);
+      encryptedBytes = encryptedBody.byteLength;
+      encryptedSha256 = await sha256File(encryptedPath);
     } catch {
       throw new Error("age output verification failed.");
     }
@@ -835,6 +836,7 @@ export const withEncryptedProductionDump = async <Result>({
       dumpPath,
       dumpSha256,
       encryptedBytes,
+      encryptedBody,
       encryptedPath,
       encryptedSha256,
       pgDumpVersion,
