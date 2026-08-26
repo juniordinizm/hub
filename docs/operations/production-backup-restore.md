@@ -65,6 +65,18 @@ descrever o estado atual.
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
   exercício de duas execuções consecutivas ainda precisam de prova.
 
+Formato esperado, usando placeholders que nunca devem ser substituídos neste
+arquivo:
+
+```text
+postgresql://<backup_role>:<url_encoded_password>@<PRODUCTION_DATABASE_HOST>/<database>?sslmode=verify-full
+```
+
+Use a conexão **direct** da branch Production, não a conexão pooled. Se o
+provider incluir `channel_binding=require`, ele é aceito; remova parâmetros
+adicionais como `connect_timeout`, `options` ou `application_name` antes de
+guardar a URL no secret.
+
 Na projeção de 30 dias/120 execuções, cada run faz uma listagem e dois PUTs por
 classe; cada classe também recebe um HEAD de confirmação. Com 30 cópias diárias
 e até cinco semanais, o steady state soma aproximadamente 430 operações Class A
