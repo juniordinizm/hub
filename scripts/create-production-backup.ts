@@ -313,6 +313,7 @@ const main = async (): Promise<void> => {
         encryptedSha256,
         pgDumpVersion,
       }) => {
+        currentPhase = "storage";
         const manifest: ProductionBackupManifestV1 = {
           backupId,
           cadenceHours: executionConfig.cadenceHours,
@@ -349,7 +350,6 @@ const main = async (): Promise<void> => {
             "Projected backup usage exceeds the 80 percent R2 Free reserve."
           );
         }
-        currentPhase = "storage";
         return await publishProductionBackup({
           bucketName: r2Config.bucketName,
           client: r2Client,
