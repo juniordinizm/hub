@@ -116,7 +116,9 @@ agendamento do exercício periódico.
 - não há autorização para novos `emergency_skip_backup` ou
   `emergency_skip_ci`;
 - PRs/workflows diagnósticos temporários de Asaas foram fechados; commits ficam
-  recuperáveis no histórico;
+  recuperáveis no histórico. As branches temporárias de Asaas, R2 e deploy
+  emergencial também foram removidas; a branch histórica de remediação foi
+  preservada;
 - nenhuma credencial foi adicionada a código ou documentação;
 - a venda real não é convertida em gate retroativo nem repetida;
 - o fluxo normal passa a ser PR → quatro checks CI → backup válido → checker →
