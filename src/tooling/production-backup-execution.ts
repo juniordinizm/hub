@@ -110,8 +110,22 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
     ["pg_dump failed", "pg_dump output verification failed"],
   ],
   ["backup-command-age", ["age failed", "age output verification failed"]],
-  ["backup-command-pg-dump-version", ["pg_dump major version must be 18"]],
-  ["backup-command-age-version", ["age version must be 1.3.1"]],
+  [
+    "backup-command-pg-dump-version",
+    [
+      "pg_dump major version must be 18",
+      "pg_dump version command failed",
+      "pg_dump version validation failed",
+    ],
+  ],
+  [
+    "backup-command-age-version",
+    [
+      "age version must be 1.3.1",
+      "age version command failed",
+      "age version validation failed",
+    ],
+  ],
   ["database-read-only", ["backup role is not read-only"]],
   [
     "database-access",
@@ -502,21 +516,29 @@ const verifyToolVersions = async (
   environment: NodeJS.ProcessEnv
 ): Promise<{ pgDumpVersion: string }> => {
   const [pgDump, age] = await Promise.all([
-    runCommand({
+    runBackupCommandSafely({
+      runCommand,
       arguments_: ["--version"],
       environment,
       executable: "pg_dump",
+      failureMessage: "pg_dump version command failed.",
     }),
-    runCommand({ arguments_: ["--version"], environment, executable: "age" }),
+    runBackupCommandSafely({
+      runCommand,
+      arguments_: ["--version"],
+      environment,
+      executable: "age",
+      failureMessage: "age version command failed.",
+    }),
   ]);
   const pgDumpVersion = pgDump.stdout.match(
     PG_DUMP_VERSION_OUTPUT_PATTERN
   )?.[1];
   if (!(pgDumpVersion && POSTGRES_VERSION_PATTERN.test(pgDumpVersion))) {
-    throw new Error("pg_dump major version must be 18.");
+    throw new Error("pg_dump version validation failed.");
   }
   if (age.stdout.replace(LEADING_V_PATTERN, "") !== SUPPORTED_AGE_VERSION) {
-    throw new Error(`age version must be ${SUPPORTED_AGE_VERSION}.`);
+    throw new Error("age version validation failed.");
   }
   return { pgDumpVersion };
 };
