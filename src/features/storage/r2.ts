@@ -256,6 +256,40 @@ export const createStagedAdminImageUploadUrl = async ({
   return { reference, uploadUrl };
 };
 
+export const uploadStagedAdminImageFile = async ({
+  actorUserId,
+  file,
+  reference,
+}: {
+  actorUserId: string;
+  file: File;
+  reference: StagedAdminImageReference;
+}): Promise<void> => {
+  assertStagedAdminImageOwnership({
+    actorUserId,
+    aggregateId: reference.aggregateId,
+    purpose: reference.purpose,
+    reference,
+  });
+
+  if (
+    file.size !== reference.sizeBytes ||
+    file.type !== reference.contentType
+  ) {
+    throw new Error("O arquivo enviado nao corresponde ao upload preparado.");
+  }
+
+  const config = getR2Config();
+  await getR2Client(config).send(
+    new PutObjectCommand({
+      Body: Buffer.from(await file.arrayBuffer()),
+      Bucket: config.bucketName,
+      ContentType: reference.contentType,
+      Key: config.namespace.toPhysicalKey(reference.key),
+    })
+  );
+};
+
 export const readStagedAdminImageFile = async ({
   actorUserId,
   aggregateId,
