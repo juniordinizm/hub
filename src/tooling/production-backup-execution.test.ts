@@ -66,6 +66,19 @@ describe("classifyProductionBackupFailure", () => {
     expect(classifyProductionBackupFailure(error)).toBe(category);
   });
 
+  it.each([
+    ["transaction", "database-query-transaction"],
+    ["settings", "database-query-settings"],
+    ["identity", "database-query-identity"],
+    ["migration", "database-query-migration"],
+  ])("classifies the safe query phase %s as %s", (phase, category) => {
+    expect(
+      classifyProductionBackupFailure(
+        new Error(`Production backup database query failed: ${phase}.`)
+      )
+    ).toBe(category);
+  });
+
   it("returns a safe category without exposing provider error details", () => {
     const error = new Error(
       "Provider read failed with HTTP 500 at https://console.neon.tech/api/v2/projects/project?api_key=secret"

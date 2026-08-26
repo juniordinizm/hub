@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Pool, type PoolClient } from "pg";
+import {
+  Pool,
+  type PoolClient,
+  type QueryResult,
+  type QueryResultRow,
+} from "pg";
 import {
   buildProductionBackupKeys,
   type ProductionBackupManifestV1,
@@ -123,15 +128,45 @@ const readExpectedMigration = async (): Promise<ExpectedMigration> => {
 const toBoolean = (value: boolean | string): boolean =>
   value === true || value === "on" || value === "true";
 
+const queryDatabase = async <Result extends QueryResultRow>(
+  client: PoolClient,
+  phase: "transaction" | "settings" | "identity" | "migration",
+  sql: string
+): Promise<QueryResult<Result>> => {
+  try {
+    return await client.query<Result>(sql);
+  } catch (error: unknown) {
+    const safeError = new Error(
+      `Production backup database query failed: ${phase}.`
+    );
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      Object.defineProperty(safeError, "code", { value: error.code });
+    }
+    throw safeError;
+  }
+};
+
 const inspectDatabase = async (
   client: PoolClient,
   expectedMigration: ExpectedMigration
 ): Promise<ProductionBackupDatabaseInspection> => {
-  await client.query("begin isolation level repeatable read read only");
+  await queryDatabase(
+    client,
+    "transaction",
+    "begin isolation level repeatable read read only"
+  );
   try {
-    await client.query("set local statement_timeout = '5min'");
-    await client.query("set local lock_timeout = '10s'");
-    const identity = await client.query<{
+    await queryDatabase(
+      client,
+      "settings",
+      "set local statement_timeout = '5min'"
+    );
+    await queryDatabase(client, "settings", "set local lock_timeout = '10s'");
+    const identity = await queryDatabase<{
       current_database: string;
       current_user: string;
       default_read_only: string;
@@ -139,7 +174,10 @@ const inspectDatabase = async (
       pg_read_all_data_member: boolean;
       postgres_server_version: string;
       transaction_read_only: string;
-    }>(`
+    }>(
+      client,
+      "identity",
+      `
       select
         current_database() as current_database,
         current_user as current_user,
@@ -148,13 +186,18 @@ const inspectDatabase = async (
         current_setting('server_version') as postgres_server_version,
         pg_database_size(current_database())::text as logical_database_bytes,
         pg_has_role(current_user, 'pg_read_all_data', 'member') as pg_read_all_data_member
-    `);
-    const migration = await client.query<{ created_at: string }>(`
+    `
+    );
+    const migration = await queryDatabase<{ created_at: string }>(
+      client,
+      "migration",
+      `
       select created_at::text as created_at
       from drizzle.__drizzle_migrations
       order by created_at desc
       limit 1
-    `);
+    `
+    );
     const row = identity.rows[0];
     const migrationTimestamp = Number(migration.rows[0]?.created_at);
     if (!(row && Number.isSafeInteger(migrationTimestamp))) {
