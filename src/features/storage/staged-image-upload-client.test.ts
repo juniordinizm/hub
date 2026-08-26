@@ -83,4 +83,37 @@ describe("uploadStagedAdminImage", () => {
     ).rejects.toThrow("Imagem acima do limite.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("falls back to the same-origin upload when the direct R2 request fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          reference,
+          uploadUrl: "https://r2.example.test/signed-upload",
+        })
+      )
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(Response.json({ reference }));
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["capa"], "capa.png", { type: "image/png" });
+
+    await expect(
+      uploadStagedAdminImage({
+        aggregateId: reference.aggregateId,
+        file,
+        purpose: "course-cover",
+      })
+    ).resolves.toEqual(reference);
+
+    const fallbackRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
+    const formData = fallbackRequest.body as FormData;
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/admin/uploads/images/upload",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(formData.get("file")).toBe(file);
+    expect(formData.get("reference")).toBe(JSON.stringify(reference));
+  });
 });

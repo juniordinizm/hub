@@ -50,14 +50,35 @@ export const uploadStagedAdminImage = async ({
   }
 
   const prepared = (await preparation.json()) as PreparedStagedAdminImageUpload;
-  const upload = await fetch(prepared.uploadUrl, {
-    body: file,
-    headers: { "content-type": file.type },
-    method: "PUT",
-  });
+  let directUploadSucceeded = false;
+  try {
+    const upload = await fetch(prepared.uploadUrl, {
+      body: file,
+      headers: { "content-type": file.type },
+      method: "PUT",
+    });
+    directUploadSucceeded = upload.ok;
+  } catch {
+    directUploadSucceeded = false;
+  }
 
-  if (!upload.ok) {
-    throw new Error("O R2 recusou o envio da imagem.");
+  if (!directUploadSucceeded) {
+    const formData = new FormData();
+    formData.set("file", file);
+    formData.set("reference", JSON.stringify(prepared.reference));
+    const fallbackUpload = await fetch("/api/admin/uploads/images/upload", {
+      body: formData,
+      method: "POST",
+    });
+
+    if (!fallbackUpload.ok) {
+      throw new Error(await readErrorMessage(fallbackUpload));
+    }
+
+    const fallbackConfirmed = (await fallbackUpload.json()) as {
+      reference: StagedAdminImageReference;
+    };
+    return fallbackConfirmed.reference;
   }
 
   const confirmation = await fetch("/api/admin/uploads/images/confirm", {
