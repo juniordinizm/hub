@@ -67,6 +67,10 @@ describe("classifyProductionBackupFailure", () => {
     ["pg_dump failed (connection).", "backup-command-pg-dump-connection"],
     ["pg_dump failed (credentials).", "backup-command-pg-dump-credentials"],
     ["pg_dump failed (schema).", "backup-command-pg-dump-schema"],
+    ["pg_dump failed (relation).", "backup-command-pg-dump-relation"],
+    ["pg_dump failed (column).", "backup-command-pg-dump-column"],
+    ["pg_dump failed (function).", "backup-command-pg-dump-function"],
+    ["pg_dump failed (query).", "backup-command-pg-dump-query"],
     ["pg_dump failed (version).", "backup-command-pg-dump-version"],
   ])("identifies the failing backup command for %s", (message, category) => {
     expect(classifyProductionBackupFailure(new Error(message))).toBe(category);
