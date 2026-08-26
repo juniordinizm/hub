@@ -84,8 +84,6 @@ const BACKUP_COMMAND_FAILURE_PATTERNS: ReadonlyArray<
 > = [
   ["credentials", ["password authentication failed", "no password supplied"]],
   ["permission", ["permission denied", "must be owner", "not authorized"]],
-  ["schema", ["undefined table", "undefined schema", "does not exist"]],
-  ["version", ["server version mismatch", "unsupported version"]],
   [
     "connection",
     [
@@ -96,6 +94,8 @@ const BACKUP_COMMAND_FAILURE_PATTERNS: ReadonlyArray<
       "network is unreachable",
     ],
   ],
+  ["schema", ["undefined table", "undefined schema", "does not exist"]],
+  ["version", ["server version mismatch", "unsupported version"]],
 ];
 
 const classifyMissingSchema = (
@@ -465,8 +465,10 @@ const buildPgEnvironment = (
 
   const channelBinding = databaseUrl.searchParams.get("channel_binding");
   const path = environment.PATH ?? environment.Path;
+  const rootCertificate = environment.PGSSLROOTCERT;
   return {
     ...(path ? { PATH: path } : {}),
+    ...(rootCertificate ? { PGSSLROOTCERT: rootCertificate } : {}),
     NODE_ENV: "production",
     PGDATABASE: database,
     PGHOST: databaseUrl.hostname,

@@ -138,6 +138,10 @@ describe("classifyBackupCommandFailure", () => {
   it.each([
     ["pg_dump: error: permission denied for table users", "permission"],
     ["pg_dump: error: connection to server failed", "connection"],
+    [
+      "pg_dump: error: connection to server at runner failed: file does not exist",
+      "connection",
+    ],
     ["pg_dump: error: password authentication failed", "credentials"],
     ['pg_dump: error: relation "users" does not exist', "relation"],
     ["pg_dump: error: server version mismatch", "version"],
@@ -176,6 +180,7 @@ describe("resolveProductionBackupExecutionConfig", () => {
     const result = resolveProductionBackupExecutionConfig({
       ...environment,
       PATH: "/runner/tools:/usr/local/bin",
+      PGSSLROOTCERT: "/etc/ssl/certs/ca-certificates.crt",
     });
     expect(result).toMatchObject({
       cadenceHours: 6,
@@ -188,6 +193,7 @@ describe("resolveProductionBackupExecutionConfig", () => {
       PGDATABASE: "neondb",
       PGHOST: "production.example.test",
       PGPASSWORD: "private-password",
+      PGSSLROOTCERT: "/etc/ssl/certs/ca-certificates.crt",
       PGSSLMODE: "verify-full",
       PGUSER: "backup_user",
     });

@@ -59,13 +59,18 @@ descrever o estado atual.
 - `32993456881` e `32996629032`: o contrato de conexão passou, mas a versão
   retornada pelo Neon (`18.6 (3484359)`) era rejeitada pelo checker e pelo
   parser de manifesto; essa incompatibilidade foi corrigida e passou no CI;
-- `32998006707`: PostgreSQL 18.6, migration, role e inspeção passaram até a
-  primeira leitura do R2; a falha sanitizada atual é `storage`;
-- causa operacional pendente: os secrets
-  `BACKUP_R2_ACCESS_KEY_ID`/`BACKUP_R2_SECRET_ACCESS_KEY` do Environment não
-  permitiram listar o bucket dedicado. As variables de account e bucket estão
-  corretas. Nenhuma chave, URL ou erro bruto do provider deve ser enviada ao
-  chat;
+- `33014013409` e `33015400778`: PostgreSQL 18.6, migration, role, inspeção e
+  leitura do bucket R2 passaram; o `pg_dump` falhou antes de iniciar a leitura
+  do catálogo;
+- os diagnósticos controlados `33017255733`–`33018947445` confirmaram que todas
+  as variantes falham na conexão TLS. A assinatura sanitizada combina conexão
+  ao servidor com arquivo inexistente; nenhum stderr bruto foi preservado;
+- causa operacional identificada: o libpq do runner Ubuntu tentava o CA padrão
+  ausente. O workflow agora fornece explicitamente
+  `/etc/ssl/certs/ca-certificates.crt` por `PGSSLROOTCERT`, mantendo
+  `sslmode=verify-full`;
+- a execução pós-correção ainda precisa passar; nenhuma chave, URL ou erro
+  bruto do provider deve ser enviada ao chat;
 - não existe ainda um manifesto `frequent` válido, portanto o gate de release e
   o restore permanecem fechados;
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
@@ -196,6 +201,11 @@ Configure sem passar valores pela linha de comando ou por este chat:
   `BACKUP_AGE_RECIPIENT`, `PRODUCTION_DATABASE_HOST`,
   `PRODUCTION_NEON_BRANCH_ID`, `PRODUCTION_NEON_PROJECT_ID`, `VERCEL_ORG_ID`
   e `VERCEL_PROJECT_ID`.
+
+O workflow define a variável não sensível `PGSSLROOTCERT` como
+`/etc/ssl/certs/ca-certificates.crt` no runner Ubuntu. Ela é necessária para o
+`pg_dump` validar o certificado do host quando `sslmode=verify-full` está ativo;
+não deve ser adicionada à URL nem ao secret.
 
 O recipient é público. As identidades privadas nunca entram no GitHub. O
 workflow `.github/workflows/backup-production-database.yml` usa cron literal
