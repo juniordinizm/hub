@@ -61,14 +61,41 @@ export type ProductionBackupFailureCategory =
   | "database-access"
   | "database-connection"
   | "database-identity"
+  | "database-inspection"
   | "database-migration"
   | "database-read-only"
+  | "database-schema"
   | "database-size"
   | "database-version"
   | "database"
   | "provider"
   | "storage"
   | "unexpected";
+
+const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
+  readonly [ProductionBackupFailureCategory, readonly string[]]
+> = [
+  ["database-read-only", ["backup role is not read-only"]],
+  [
+    "database-access",
+    ["pg_read_all_data", "permission denied", "not authorized"],
+  ],
+  ["database-size", ["logical database size"]],
+  ["database-version", ["postgresql server major"]],
+  ["database-migration", ["database migration"]],
+  ["database-identity", ["database identity"]],
+  ["database-inspection", ["database inspection is incomplete"]],
+  [
+    "database-schema",
+    ["does not exist", "undefined table", "undefined schema"],
+  ],
+  ["configuration", ["required", "invalid", "must be", "unsupported"]],
+  ["provider", ["provider", "provenance"]],
+  ["database-connection", ["connection"]],
+];
+
+const matchesAny = (message: string, patterns: readonly string[]): boolean =>
+  patterns.some((pattern) => message.includes(pattern));
 
 export const classifyProductionBackupFailure = (
   error: unknown
@@ -77,37 +104,10 @@ export const classifyProductionBackupFailure = (
     return "unexpected";
   }
   const message = error.message.toLowerCase();
-  if (message.includes("backup role is not read-only")) {
-    return "database-read-only";
-  }
-  if (message.includes("pg_read_all_data")) {
-    return "database-access";
-  }
-  if (message.includes("logical database size")) {
-    return "database-size";
-  }
-  if (message.includes("postgresql server major")) {
-    return "database-version";
-  }
-  if (message.includes("database migration")) {
-    return "database-migration";
-  }
-  if (message.includes("database identity")) {
-    return "database-identity";
-  }
-  if (
-    message.includes("required") ||
-    message.includes("invalid") ||
-    message.includes("must be") ||
-    message.includes("unsupported")
-  ) {
-    return "configuration";
-  }
-  if (message.includes("provider") || message.includes("provenance")) {
-    return "provider";
-  }
-  if (message.includes("connection")) {
-    return "database-connection";
+  for (const [category, patterns] of SPECIFIC_FAILURE_PATTERNS) {
+    if (matchesAny(message, patterns)) {
+      return category;
+    }
   }
   if (
     message.includes("database") ||
