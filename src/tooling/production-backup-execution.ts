@@ -50,6 +50,7 @@ const LEADING_V_PATTERN = /^v/;
 const PG_DUMP_VERSION_OUTPUT_PATTERN = /PostgreSQL\)\s+(\d+(?:\.\d+){0,2})/;
 const POSTGRES_VERSION_PATTERN = /^18(?:\.\d+){0,2}$/;
 const RELEASE_SHA_PATTERN = /^[0-9a-f]{40}$/;
+const SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
 const TRAILING_DOT_PATTERN = /\.$/;
 const SUPPORTED_AGE_VERSION = "1.3.1";
 const CADENCES = new Set<BackupCadenceHours>([6, 8, 12]);
@@ -69,6 +70,7 @@ export type ProductionBackupFailureCategory =
   | "database-size"
   | "database-version"
   | "database-query"
+  | `database-sqlstate-${string}`
   | "database"
   | "provider"
   | "storage"
@@ -133,6 +135,9 @@ const classifyDatabaseErrorCode = (
   }
   if (["42601", "42883"].includes(code ?? "")) {
     return "database-query";
+  }
+  if (code && SQLSTATE_PATTERN.test(code)) {
+    return `database-sqlstate-${code}`;
   }
   return;
 };
