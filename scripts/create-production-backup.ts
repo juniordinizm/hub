@@ -43,6 +43,16 @@ interface ExpectedMigration {
 const API_TIMEOUT_MS = 10_000;
 const CANONICAL_ALIAS = "app.neurocapacitar.com.br";
 
+type BackupFailurePhase =
+  | "backup-command"
+  | "configuration"
+  | "database-connection"
+  | "database-inspection"
+  | "provider"
+  | "storage";
+
+let currentPhase: BackupFailurePhase = "configuration";
+
 const requiredEnvironmentValue = (name: string): string => {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -238,9 +248,11 @@ const inspectDatabase = async (
 };
 
 const main = async (): Promise<void> => {
+  currentPhase = "configuration";
   const executionConfig = resolveProductionBackupExecutionConfig(process.env);
   const r2Config = resolveProductionBackupR2Config(process.env);
   const expectedMigration = await readExpectedMigration();
+  currentPhase = "provider";
   const providerEvidence = await inspectProviderProvenance(executionConfig);
   const databaseUrl = process.env.BACKUP_DATABASE_URL;
   if (!databaseUrl) {
@@ -254,14 +266,17 @@ const main = async (): Promise<void> => {
   const r2Client = createProductionBackupR2Client(r2Config);
   try {
     let databaseInspection: ProductionBackupDatabaseInspection;
+    currentPhase = "database-connection";
     const client = await connectDatabase(pool);
     try {
+      currentPhase = "database-inspection";
       databaseInspection = await inspectDatabase(client, expectedMigration);
       assertProductionBackupDatabase(databaseInspection, expectedMigration);
     } finally {
       client.release();
     }
 
+    currentPhase = "storage";
     const latestManifests = await findLatestBackupManifests({
       bucketName: r2Config.bucketName,
       client: r2Client,
@@ -282,6 +297,7 @@ const main = async (): Promise<void> => {
       throw new Error("Production backup key generation failed.");
     }
 
+    currentPhase = "backup-command";
     const completed = await withEncryptedProductionDump({
       ageRecipient: executionConfig.ageRecipient,
       pgEnvironment: executionConfig.pgEnvironment,
@@ -329,6 +345,7 @@ const main = async (): Promise<void> => {
             "Projected backup usage exceeds the 80 percent R2 Free reserve."
           );
         }
+        currentPhase = "storage";
         return await publishProductionBackup({
           bucketName: r2Config.bucketName,
           client: r2Client,
@@ -360,7 +377,9 @@ if (import.meta.main) {
     await main();
   } catch (error: unknown) {
     const category = classifyProductionBackupFailure(error);
-    process.stderr.write(`Production backup failed: ${category}.\n`);
+    const safeCategory =
+      category === "database-query" ? currentPhase : category;
+    process.stderr.write(`Production backup failed: ${safeCategory}.\n`);
     process.exitCode = 1;
   }
 }
