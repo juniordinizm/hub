@@ -103,8 +103,11 @@ export const resolveProductionBackupFailureCategory = (
 const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   readonly [ProductionBackupFailureCategory, readonly string[]]
 > = [
-  ["backup-command-pg-dump", ["pg_dump failed"]],
-  ["backup-command-age", ["age failed"]],
+  [
+    "backup-command-pg-dump",
+    ["pg_dump failed", "pg_dump output verification failed"],
+  ],
+  ["backup-command-age", ["age failed", "age output verification failed"]],
   ["database-read-only", ["backup role is not read-only"]],
   [
     "database-access",
@@ -462,6 +465,25 @@ export const runBackupCommand: BackupCommandRunner = async ({
     });
   });
 
+const runBackupCommandSafely = async ({
+  runCommand,
+  arguments_,
+  environment,
+  executable,
+  failureMessage,
+}: BackupCommandInput & {
+  failureMessage: string;
+  runCommand: BackupCommandRunner;
+}): Promise<{
+  stdout: string;
+}> => {
+  try {
+    return await runCommand({ arguments_, environment, executable });
+  } catch {
+    throw new Error(failureMessage);
+  }
+};
+
 const sha256File = async (path: string): Promise<string> =>
   await new Promise((resolve, reject) => {
     const hash = createHash("sha256");
@@ -531,7 +553,8 @@ export const withEncryptedProductionDump = async <Result>({
       runCommand,
       pgEnvironment
     );
-    await runCommand({
+    await runBackupCommandSafely({
+      runCommand,
       arguments_: [
         "--format=custom",
         "--compress=9",
@@ -542,12 +565,20 @@ export const withEncryptedProductionDump = async <Result>({
       ],
       environment: pgEnvironment,
       executable: "pg_dump",
+      failureMessage: "pg_dump failed.",
     });
-    const [{ size: dumpBytes }, dumpSha256] = await Promise.all([
-      stat(dumpPath),
-      sha256File(dumpPath),
-    ]);
-    await runCommand({
+    let dumpBytes: number;
+    let dumpSha256: string;
+    try {
+      [{ size: dumpBytes }, dumpSha256] = await Promise.all([
+        stat(dumpPath),
+        sha256File(dumpPath),
+      ]);
+    } catch {
+      throw new Error("pg_dump output verification failed.");
+    }
+    await runBackupCommandSafely({
+      runCommand,
       arguments_: [
         "--encrypt",
         "--recipient",
@@ -558,12 +589,19 @@ export const withEncryptedProductionDump = async <Result>({
       ],
       environment: pgEnvironment,
       executable: "age",
+      failureMessage: "age failed.",
     });
-    await unlink(dumpPath);
-    const [{ size: encryptedBytes }, encryptedSha256] = await Promise.all([
-      stat(encryptedPath),
-      sha256File(encryptedPath),
-    ]);
+    let encryptedBytes: number;
+    let encryptedSha256: string;
+    try {
+      await unlink(dumpPath);
+      [{ size: encryptedBytes }, encryptedSha256] = await Promise.all([
+        stat(encryptedPath),
+        sha256File(encryptedPath),
+      ]);
+    } catch {
+      throw new Error("age output verification failed.");
+    }
     const result = await processEncryptedDump({
       dumpBytes,
       dumpPath,

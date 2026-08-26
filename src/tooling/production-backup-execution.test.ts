@@ -399,7 +399,31 @@ describe("withEncryptedProductionDump", () => {
         runCommand,
         processEncryptedDump: async () => undefined,
       })
-    ).rejects.toThrow("command failed");
+    ).rejects.toThrow("pg_dump failed.");
     await expect(access(dirname(dumpPath))).rejects.toThrow();
+  });
+
+  it("labels a missing pg_dump output as a dump verification failure", async () => {
+    const runCommand: BackupCommandRunner = vi.fn(
+      ({ arguments_, executable }) => {
+        if (arguments_.includes("--version")) {
+          return Promise.resolve({
+            stdout:
+              executable === "pg_dump" ? "pg_dump (PostgreSQL) 18.6" : "1.3.1",
+          });
+        }
+        return Promise.resolve({ stdout: "" });
+      }
+    );
+
+    await expect(
+      withEncryptedProductionDump({
+        ageRecipient: environment.BACKUP_AGE_RECIPIENT,
+        pgEnvironment:
+          resolveProductionBackupExecutionConfig(environment).pgEnvironment,
+        runCommand,
+        processEncryptedDump: async () => undefined,
+      })
+    ).rejects.toThrow("pg_dump output verification failed.");
   });
 });
