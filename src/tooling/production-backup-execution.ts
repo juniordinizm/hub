@@ -58,6 +58,13 @@ const MAX_COMMAND_OUTPUT_BYTES = 4096;
 export type ProductionBackupFailureCategory =
   | "backup-command"
   | "configuration"
+  | "database-access"
+  | "database-connection"
+  | "database-identity"
+  | "database-migration"
+  | "database-read-only"
+  | "database-size"
+  | "database-version"
   | "database"
   | "provider"
   | "storage"
@@ -70,6 +77,24 @@ export const classifyProductionBackupFailure = (
     return "unexpected";
   }
   const message = error.message.toLowerCase();
+  if (message.includes("backup role is not read-only")) {
+    return "database-read-only";
+  }
+  if (message.includes("pg_read_all_data")) {
+    return "database-access";
+  }
+  if (message.includes("logical database size")) {
+    return "database-size";
+  }
+  if (message.includes("postgresql server major")) {
+    return "database-version";
+  }
+  if (message.includes("database migration")) {
+    return "database-migration";
+  }
+  if (message.includes("database identity")) {
+    return "database-identity";
+  }
   if (
     message.includes("required") ||
     message.includes("invalid") ||
@@ -80,6 +105,9 @@ export const classifyProductionBackupFailure = (
   }
   if (message.includes("provider") || message.includes("provenance")) {
     return "provider";
+  }
+  if (message.includes("connection")) {
+    return "database-connection";
   }
   if (
     message.includes("database") ||
