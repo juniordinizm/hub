@@ -89,6 +89,10 @@ conter banco e credenciais válidos, usar `sslmode=verify-full` e não conter
 parâmetros fora de `sslmode` e `channel_binding`. A próxima ação depende da
 edição manual dessa secret; nenhum token ou URL deve ser enviado ao chat.
 
+A presença nominal da secret no Environment não prova seu conteúdo nem a
+conectividade. O workflow deve ser considerado bloqueado até uma execução verde;
+não substituir essa prova por `emergency_skip_backup`.
+
 Ainda faltam: manifesto `frequent` válido, verificação de idade/RPO, restore em
 target descartável, PITR, medição de RTO, duas execuções consecutivas e
 agendamento do exercício periódico.
