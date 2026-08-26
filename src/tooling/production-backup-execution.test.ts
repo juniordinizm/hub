@@ -124,7 +124,10 @@ describe("classifyProductionBackupFailure", () => {
 
 describe("resolveProductionBackupExecutionConfig", () => {
   it("builds a libpq environment without putting the password in arguments", () => {
-    const result = resolveProductionBackupExecutionConfig(environment);
+    const result = resolveProductionBackupExecutionConfig({
+      ...environment,
+      PATH: "/runner/tools:/usr/local/bin",
+    });
     expect(result).toMatchObject({
       cadenceHours: 6,
       productionBranchId: "br-production",
@@ -132,6 +135,7 @@ describe("resolveProductionBackupExecutionConfig", () => {
     });
     expect(result).not.toHaveProperty("releaseSha");
     expect(result.pgEnvironment).toMatchObject({
+      PATH: "/runner/tools:/usr/local/bin",
       PGDATABASE: "neondb",
       PGHOST: "production.example.test",
       PGPASSWORD: "private-password",
