@@ -45,20 +45,20 @@ jobs:
           set +a
 
           : "${ASAAS_API_KEY:?ASAAS_API_KEY was not returned by Vercel}"
-          : "${ASAAS_API_BASE_URL:?ASAAS_API_BASE_URL was not returned by Vercel}"
+          asaas_base_url="https://api.asaas.com"
 
           curl --fail-with-body --silent --show-error \
             --header "accept: application/json" \
             --header "access_token: ${ASAAS_API_KEY}" \
-            "${ASAAS_API_BASE_URL%/}/v3/myAccount/accountNumber" > "$account_file"
+            "${asaas_base_url}/v3/myAccount/accountNumber" > "$account_file"
           curl --fail-with-body --silent --show-error \
             --header "accept: application/json" \
             --header "access_token: ${ASAAS_API_KEY}" \
-            "${ASAAS_API_BASE_URL%/}/v3/myAccount/status/" > "$status_file"
+            "${asaas_base_url}/v3/myAccount/status/" > "$status_file"
           curl --fail-with-body --silent --show-error \
             --header "accept: application/json" \
             --header "access_token: ${ASAAS_API_KEY}" \
-            "${ASAAS_API_BASE_URL%/}/v3/myAccount/paymentCheckoutConfig/" > "$config_file"
+            "${asaas_base_url}/v3/myAccount/paymentCheckoutConfig/" > "$config_file"
 
           jq -n \
             --argjson account "$(cat "$account_file")" \
