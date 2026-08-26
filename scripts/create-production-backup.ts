@@ -19,8 +19,10 @@ import {
   classifyProductionBackupFailure,
   type ProductionBackupDatabaseInspection,
   type ProductionBackupExecutionConfig,
+  type ProductionBackupFailurePhase,
   type ProductionBackupProviderEvidence,
   resolveProductionBackupExecutionConfig,
+  resolveProductionBackupFailureCategory,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
 } from "../src/tooling/production-backup-execution";
@@ -43,15 +45,7 @@ interface ExpectedMigration {
 const API_TIMEOUT_MS = 10_000;
 const CANONICAL_ALIAS = "app.neurocapacitar.com.br";
 
-type BackupFailurePhase =
-  | "backup-command"
-  | "configuration-database"
-  | "configuration-migration"
-  | "configuration-storage"
-  | "database-connection"
-  | "database-inspection"
-  | "provider"
-  | "storage";
+type BackupFailurePhase = ProductionBackupFailurePhase;
 
 let currentPhase: BackupFailurePhase = "configuration-database";
 
@@ -387,10 +381,10 @@ if (import.meta.main) {
     await main();
   } catch (error: unknown) {
     const category = classifyProductionBackupFailure(error);
-    const safeCategory =
-      category === "database-query" || category === "configuration"
-        ? currentPhase
-        : category;
+    const safeCategory = resolveProductionBackupFailureCategory(
+      category,
+      currentPhase
+    );
     process.stderr.write(`Production backup failed: ${safeCategory}.\n`);
     process.exitCode = 1;
   }
