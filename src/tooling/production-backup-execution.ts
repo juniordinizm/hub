@@ -56,12 +56,61 @@ const TRAILING_DOT_PATTERN = /\.$/;
 const SUPPORTED_AGE_VERSION = "1.3.1";
 const CADENCES = new Set<BackupCadenceHours>([6, 8, 12]);
 const MAX_COMMAND_OUTPUT_BYTES = 4096;
+const SAFE_COMMAND_FAILURE_PATTERN =
+  /^(?:pg_dump|age) failed \((?:connection|credentials|permission|schema|version|unknown)\)\.$/;
+
+export type BackupCommandFailureReason =
+  | "connection"
+  | "credentials"
+  | "permission"
+  | "schema"
+  | "unknown"
+  | "version";
+
+const BACKUP_COMMAND_FAILURE_PATTERNS: ReadonlyArray<
+  readonly [BackupCommandFailureReason, readonly string[]]
+> = [
+  ["credentials", ["password authentication failed", "no password supplied"]],
+  ["permission", ["permission denied", "must be owner", "not authorized"]],
+  ["schema", ["undefined table", "undefined schema", "does not exist"]],
+  ["version", ["server version mismatch", "unsupported version"]],
+  [
+    "connection",
+    [
+      "could not connect",
+      "connection to server",
+      "connection refused",
+      "timeout expired",
+      "network is unreachable",
+    ],
+  ],
+];
+
+export const classifyBackupCommandFailure = (
+  stderr: string
+): BackupCommandFailureReason => {
+  const message = stderr.toLowerCase();
+  for (const [reason, patterns] of BACKUP_COMMAND_FAILURE_PATTERNS) {
+    if (patterns.some((pattern) => message.includes(pattern))) {
+      return reason;
+    }
+  }
+  return "unknown";
+};
 
 export type ProductionBackupFailureCategory =
   | "backup-command"
   | "backup-command-age"
+  | "backup-command-age-connection"
+  | "backup-command-age-credentials"
+  | "backup-command-age-permission"
+  | "backup-command-age-schema"
   | "backup-command-age-version"
   | "backup-command-pg-dump"
+  | "backup-command-pg-dump-connection"
+  | "backup-command-pg-dump-credentials"
+  | "backup-command-pg-dump-permission"
+  | "backup-command-pg-dump-schema"
   | "backup-command-pg-dump-version"
   | "configuration"
   | "database-access"
@@ -107,15 +156,31 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
 > = [
   [
     "backup-command-pg-dump",
-    ["pg_dump failed", "pg_dump output verification failed"],
+    [
+      "pg_dump failed.",
+      "pg_dump failed (unknown)",
+      "pg_dump output verification failed",
+    ],
   ],
-  ["backup-command-age", ["age failed", "age output verification failed"]],
+  [
+    "backup-command-age",
+    ["age failed.", "age failed (unknown)", "age output verification failed"],
+  ],
+  ["backup-command-pg-dump-connection", ["pg_dump failed (connection)"]],
+  ["backup-command-pg-dump-credentials", ["pg_dump failed (credentials)"]],
+  ["backup-command-pg-dump-permission", ["pg_dump failed (permission)"]],
+  ["backup-command-pg-dump-schema", ["pg_dump failed (schema)"]],
+  ["backup-command-age-connection", ["age failed (connection)"]],
+  ["backup-command-age-credentials", ["age failed (credentials)"]],
+  ["backup-command-age-permission", ["age failed (permission)"]],
+  ["backup-command-age-schema", ["age failed (schema)"]],
   [
     "backup-command-pg-dump-version",
     [
       "pg_dump major version must be 18",
       "pg_dump version command failed",
       "pg_dump version validation failed",
+      "pg_dump failed (version)",
     ],
   ],
   [
@@ -124,6 +189,7 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
       "age version must be 1.3.1",
       "age version command failed",
       "age version validation failed",
+      "age failed (version)",
     ],
   ],
   ["database-read-only", ["backup role is not read-only"]],
@@ -469,21 +535,35 @@ export const runBackupCommand: BackupCommandRunner = async ({
       windowsHide: true,
     });
     let stdout = "";
+    let stderr = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       if (stdout.length < MAX_COMMAND_OUTPUT_BYTES) {
         stdout += chunk.slice(0, MAX_COMMAND_OUTPUT_BYTES - stdout.length);
       }
     });
-    child.stderr.resume();
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      if (stderr.length < MAX_COMMAND_OUTPUT_BYTES) {
+        stderr += chunk.slice(0, MAX_COMMAND_OUTPUT_BYTES - stderr.length);
+      }
+    });
     child.once("error", () =>
-      reject(new Error(`${executable} could not start.`))
+      reject(
+        new Error(
+          `${executable} failed (${classifyBackupCommandFailure(stderr)}).`
+        )
+      )
     );
     child.once("close", (code) => {
       if (code === 0) {
         resolve({ stdout: stdout.trim() });
       } else {
-        reject(new Error(`${executable} failed.`));
+        reject(
+          new Error(
+            `${executable} failed (${classifyBackupCommandFailure(stderr)}).`
+          )
+        );
       }
     });
   });
@@ -502,7 +582,13 @@ const runBackupCommandSafely = async ({
 }> => {
   try {
     return await runCommand({ arguments_, environment, executable });
-  } catch {
+  } catch (error: unknown) {
+    if (
+      error instanceof Error &&
+      SAFE_COMMAND_FAILURE_PATTERN.test(error.message)
+    ) {
+      throw error;
+    }
     throw new Error(failureMessage);
   }
 };
