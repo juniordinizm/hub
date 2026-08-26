@@ -13,7 +13,7 @@ requalification_date: 2026-08-26
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
 real já registrou uma venda, mas a recuperação independente ainda não possui uma
 cópia válida e Sentry/DMARC continuam sem os gates externos finais. O bloqueio
-imediato reproduzível é a conexão TLS do `pg_dump` no workflow de backup.
+imediato reproduzível é o PUT streaming da cifra no R2.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -92,16 +92,19 @@ Execuções relevantes:
 10. `33014013409`, `33015400778` e `33016894916`: a listagem R2 passou, mas o
     `pg_dump` falhou antes das fases de leitura do catálogo.
 11. A matriz sanitizada `33018097673`–`33018947445` confirmou a mesma falha em
-    dez variantes e a assinatura `connection to server ... file does not exist`.
-    O runner não tinha o CA padrão usado pelo libpq para `sslmode=verify-full`.
+   dez variantes e a assinatura `connection to server ... file does not exist`.
+   O runner não tinha o CA padrão usado pelo libpq para `sslmode=verify-full`.
+12. `33019958869`: o `pg_dump` concluiu depois de fornecer o CA; o upload da
+    cifra falhou com requisição streaming não reexecutável, antes do manifesto.
 
 O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
 para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
-conexão/inspeção. O bloqueio `storage` também foi encerrado: a listagem R2
-autenticada passou após a atualização dos secrets. O bloqueio atual é
-`backup-command-pg-dump-connection`; a correção fornece
-`PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt` ao libpq. Nenhum token, chave
-ou URL deve ser enviado ao chat.
+conexão/inspeção. O bloqueio `storage` de credenciais foi encerrado: a listagem
+R2 autenticada passou após a atualização dos secrets. O bloqueio atual é
+`backup-command-r2-stream`; `pg_dump` já passa com
+`PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt`, e o cliente S3 agora usa
+buffer de stream de 64 KiB para retry seguro. Nenhum token, chave ou URL deve
+ser enviado ao chat.
 
 A presença nominal da secret no Environment não prova seu conteúdo nem a
 conectividade. O workflow deve ser considerado bloqueado até uma execução verde;
@@ -117,7 +120,7 @@ agendamento do exercício periódico.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `BLOCKED_BACKUP_TLS_CA` | bucket/lock/lifecycle publicados; R2, Neon e versão validados | backup verde, restore/PITR/RPO/RTO |
+| 2 | `BLOCKED_BACKUP_R2_STREAM` | bucket/lock/lifecycle publicados; R2, Neon, CA e versão validados | backup verde, restore/PITR/RPO/RTO |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
@@ -140,8 +143,8 @@ agendamento do exercício periódico.
 
 ## Condição de continuação
 
-Após a correção do CA, executar novamente o workflow `Backup Production
-database`. Se o resultado for verde, seguir para manifesto/restore/PITR e só
-então requalificar Sentry, DMARC, Dependabot e a promoção. Se falhar, preservar a
-última cópia válida (atualmente inexistente) e parar no novo diagnóstico
-sanitizado.
+Após a correção do streaming R2, executar novamente o workflow `Backup
+Production database`. Se o resultado for verde, seguir para
+manifesto/restore/PITR e só então requalificar Sentry, DMARC, Dependabot e a
+promoção. Se falhar, preservar a última cópia válida (atualmente inexistente) e
+parar no novo diagnóstico sanitizado.

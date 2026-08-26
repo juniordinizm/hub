@@ -69,8 +69,11 @@ descrever o estado atual.
   ausente. O workflow agora fornece explicitamente
   `/etc/ssl/certs/ca-certificates.crt` por `PGSSLROOTCERT`, mantendo
   `sslmode=verify-full`;
-- a execução pós-correção ainda precisa passar; nenhuma chave, URL ou erro
-  bruto do provider deve ser enviada ao chat;
+- `33019958869`: o `pg_dump` concluiu após a correção TLS; o PUT da cifra no R2
+  falhou com uma requisição streaming não reexecutável, antes de qualquer
+  manifesto;
+- o cliente S3 agora configura buffer de stream de 64 KiB para permitir retry
+  seguro; a execução pós-correção ainda precisa passar;
 - não existe ainda um manifesto `frequent` válido, portanto o gate de release e
   o restore permanecem fechados;
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
@@ -221,12 +224,15 @@ O comando guardado é `bun run ops:backup:production`. Ele:
    host direto do dump formam a mesma origem;
 2. valida role read-only, PostgreSQL 18, journal e tamanho lógico positivo;
 3. executa `pg_dump` custom, compressão 9, sem owner/ACL e sem URL na lista de
-   argumentos;
+   argumentos; o libpq valida TLS com `sslmode=verify-full` e o CA bundle do
+   runner em `PGSSLROOTCERT`;
 4. calcula bytes e SHA-256 do dump;
 5. cifra para arquivo novo e apaga o dump claro;
 6. calcula tamanho e SHA-256 da cifra;
 7. recusa projeção acima de 80% do Free;
 8. envia `frequent` e as cópias diária/semanal aplicáveis com PUT condicional;
+   o cliente S3 mantém streams de até 64 KiB em buffer para que uma tentativa
+   retryable possa ser repetida sem reutilizar um stream consumido;
 9. confirma HEAD/tamanho/hash de todas as cifras;
 10. publica por último manifestos que registram somente a proveniência
     sanitizada, incluindo projeto/branch Neon, SHA realmente implantado, tamanho
