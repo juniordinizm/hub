@@ -520,6 +520,42 @@ export const getPublicMediaUrl = (key: string): string => {
   });
 };
 
+export const checkR2ObjectStorage = async (): Promise<void> => {
+  const config = getR2Config();
+  const client = getR2Client(config);
+  const key = `diagnostics/health/${randomUUID()}.txt`;
+  const physicalKey = config.namespace.toPhysicalKey(key);
+
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Body: Buffer.from("r2-healthcheck"),
+        Bucket: config.bucketName,
+        ContentType: "text/plain",
+        Key: physicalKey,
+      })
+    );
+    await client.send(
+      new HeadObjectCommand({
+        Bucket: config.bucketName,
+        Key: physicalKey,
+      })
+    );
+  } finally {
+    await client
+      .send(
+        new DeleteObjectsCommand({
+          Bucket: config.bucketName,
+          Delete: {
+            Objects: [{ Key: physicalKey }],
+            Quiet: true,
+          },
+        })
+      )
+      .catch(() => undefined);
+  }
+};
+
 export const publishR2Object = async (key: string): Promise<void> => {
   const config = getPublicR2Config();
   const physicalKey = config.namespace.toPhysicalKey(key);
