@@ -8,6 +8,7 @@ import {
   classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
   resolveProductionBackupFailureCategory,
+  retainCommandOutputContext,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
 } from "./production-backup-execution";
@@ -153,6 +154,20 @@ describe("classifyBackupCommandFailure", () => {
     ["unrecognized provider output", "unknown"],
   ])("classifies sanitized stderr %s as %s", (stderr, reason) => {
     expect(classifyBackupCommandFailure(stderr)).toBe(reason);
+  });
+});
+
+describe("retainCommandOutputContext", () => {
+  it("keeps both the beginning and end of long command output", () => {
+    const result = retainCommandOutputContext(
+      "prefix",
+      `${"x".repeat(100)}schema with OID 12345 does not exist`,
+      100
+    );
+
+    expect(result.length).toBeLessThanOrEqual(100);
+    expect(result).toContain("prefix");
+    expect(result).toContain("schema with OID 12345 does not exist");
   });
 });
 
