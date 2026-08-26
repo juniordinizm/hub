@@ -28,6 +28,7 @@ describe("production database backup workflow", () => {
     expect(source).toContain("timeout-minutes:");
     for (const name of [
       "BACKUP_DATABASE_URL",
+      "PGSSLROOTCERT",
       "BACKUP_R2_ACCESS_KEY_ID",
       "BACKUP_R2_SECRET_ACCESS_KEY",
       "BACKUP_R2_ACCOUNT_ID",

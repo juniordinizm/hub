@@ -21,6 +21,7 @@ jobs:
     env:
       BACKUP_CADENCE_HOURS: "6"
       BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      PGSSLROOTCERT: /etc/ssl/certs/ca-certificates.crt
       BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
       BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
       BACKUP_R2_ACCOUNT_ID: ${{ vars.BACKUP_R2_ACCOUNT_ID }}
