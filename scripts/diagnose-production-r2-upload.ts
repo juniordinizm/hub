@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,6 +17,14 @@ interface ProbeResult {
   httpStatus?: number;
   mode: string;
   status: "completed" | "failed";
+}
+
+interface ProbeMode {
+  body: "buffer" | "stream";
+  conditional: boolean;
+  maxAttempts?: number;
+  name: string;
+  sizeBytes: number;
 }
 
 const sanitizeErrorToken = (value: unknown): string | undefined => {
@@ -53,42 +61,62 @@ const readErrorSummary = (
 const main = async (): Promise<void> => {
   const config = resolveProductionBackupR2Config(process.env);
   const directory = await mkdtemp(join(tmpdir(), "hub-production-r2-probe-"));
-  const filePath = join(directory, "probe.bin");
-  const content = Buffer.from("r2-upload-probe-no-sensitive-data\n", "utf8");
-  await writeFile(filePath, content, { mode: 0o600, flag: "wx" });
+  const sizes = [1 * 1024, 1 * 1024 * 1024, 8 * 1024 * 1024, 32 * 1024 * 1024];
+  const filePaths = new Map<number, string>();
+  for (const sizeBytes of sizes) {
+    const filePath = join(directory, `probe-${sizeBytes}.bin`);
+    await writeFile(filePath, Buffer.alloc(sizeBytes, 0x5a), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    filePaths.set(sizeBytes, filePath);
+  }
   const results: ProbeResult[] = [];
-  const modes = [
+  const modes: ProbeMode[] = [
     {
-      contentLength: true,
+      body: "buffer",
       conditional: true,
-      name: "buffer-conditional",
-      stream: false,
+      name: "buffer-1mb",
+      sizeBytes: 1 * 1024 * 1024,
     },
     {
-      contentLength: true,
+      body: "stream",
       conditional: true,
-      name: "stream-conditional",
-      stream: true,
+      name: "stream-1mb",
+      sizeBytes: 1 * 1024 * 1024,
     },
     {
-      contentLength: true,
-      conditional: false,
-      name: "buffer-basic",
-      stream: false,
+      body: "buffer",
+      conditional: true,
+      name: "buffer-8mb",
+      sizeBytes: 8 * 1024 * 1024,
     },
     {
-      contentLength: true,
-      conditional: false,
-      name: "stream-basic",
-      stream: true,
+      body: "stream",
+      conditional: true,
+      name: "stream-8mb",
+      sizeBytes: 8 * 1024 * 1024,
     },
     {
-      contentLength: false,
-      conditional: false,
-      name: "stream-no-length",
-      stream: true,
+      body: "buffer",
+      conditional: true,
+      name: "buffer-32mb",
+      sizeBytes: 32 * 1024 * 1024,
     },
-  ] as const;
+    {
+      body: "stream",
+      conditional: true,
+      name: "stream-32mb",
+      sizeBytes: 32 * 1024 * 1024,
+    },
+    {
+      body: "stream",
+      conditional: true,
+      maxAttempts: 3,
+      name: "stream-32mb-retries",
+      sizeBytes: 32 * 1024 * 1024,
+    },
+  ];
 
   try {
     for (const mode of modes) {
@@ -98,20 +126,31 @@ const main = async (): Promise<void> => {
           secretAccessKey: config.secretAccessKey,
         },
         endpoint: config.endpoint,
-        maxAttempts: 1,
+        ...(mode.maxAttempts ? { maxAttempts: mode.maxAttempts } : {}),
         region: config.region,
         requestStreamBufferSize: 64 * 1024,
       });
       const key = `diagnostics/r2-upload-probe-${randomUUID()}.bin`;
       try {
-        const input = mode.stream ? createReadStream(filePath) : content;
+        const filePath = filePaths.get(mode.sizeBytes);
+        if (!filePath) {
+          throw new Error("diagnostic file is missing");
+        }
+        const input =
+          mode.body === "stream"
+            ? createReadStream(filePath)
+            : await readFile(filePath);
         const command = new PutObjectCommand({
           ...(mode.conditional ? { IfNoneMatch: "*" } : {}),
-          ...(mode.contentLength ? { ContentLength: content.length } : {}),
           Body: input,
           Bucket: config.bucketName,
           ContentType: "application/octet-stream",
+          ContentLength: mode.sizeBytes,
           Key: key,
+          Metadata: {
+            "backup-id": randomUUID(),
+            sha256: "a".repeat(64),
+          },
         });
         await client.send(command);
         let cleanup: ProbeResult["cleanup"] = "completed";
