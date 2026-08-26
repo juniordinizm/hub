@@ -52,6 +52,19 @@ describe("classifyProductionBackupFailure", () => {
     ).toBe("database-connection");
   });
 
+  it.each([
+    ["28P01", "database-credentials"],
+    ["42501", "database-access"],
+    ["42P01", "database-schema"],
+    ["08006", "database-connection"],
+    ["42601", "database-query"],
+  ])("classifies PostgreSQL code %s as %s", (code, category) => {
+    const error = Object.assign(new Error("database operation failed"), {
+      code,
+    });
+    expect(classifyProductionBackupFailure(error)).toBe(category);
+  });
+
   it("returns a safe category without exposing provider error details", () => {
     const error = new Error(
       "Provider read failed with HTTP 500 at https://console.neon.tech/api/v2/projects/project?api_key=secret"

@@ -60,6 +60,7 @@ export type ProductionBackupFailureCategory =
   | "configuration"
   | "database-access"
   | "database-connection"
+  | "database-credentials"
   | "database-identity"
   | "database-inspection"
   | "database-migration"
@@ -67,6 +68,7 @@ export type ProductionBackupFailureCategory =
   | "database-schema"
   | "database-size"
   | "database-version"
+  | "database-query"
   | "database"
   | "provider"
   | "storage"
@@ -97,11 +99,53 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
 const matchesAny = (message: string, patterns: readonly string[]): boolean =>
   patterns.some((pattern) => message.includes(pattern));
 
+const getErrorCode = (error: Error): string | undefined => {
+  if (!("code" in error) || typeof error.code !== "string") {
+    return;
+  }
+  return error.code;
+};
+
+const classifyDatabaseErrorCode = (
+  code: string | undefined
+): ProductionBackupFailureCategory | undefined => {
+  if (code === "28P01") {
+    return "database-credentials";
+  }
+  if (code === "42501") {
+    return "database-access";
+  }
+  if (["3D000", "3F000", "42P01"].includes(code ?? "")) {
+    return "database-schema";
+  }
+  if (
+    code?.startsWith("08") ||
+    [
+      "57P03",
+      "53300",
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ETIMEDOUT",
+      "ENOTFOUND",
+    ].includes(code ?? "")
+  ) {
+    return "database-connection";
+  }
+  if (["42601", "42883"].includes(code ?? "")) {
+    return "database-query";
+  }
+  return;
+};
+
 export const classifyProductionBackupFailure = (
   error: unknown
 ): ProductionBackupFailureCategory => {
   if (!(error instanceof Error)) {
     return "unexpected";
+  }
+  const codeCategory = classifyDatabaseErrorCode(getErrorCode(error));
+  if (codeCategory) {
+    return codeCategory;
   }
   const message = error.message.toLowerCase();
   for (const [category, patterns] of SPECIFIC_FAILURE_PATTERNS) {
@@ -114,7 +158,7 @@ export const classifyProductionBackupFailure = (
     message.includes("migration") ||
     message.includes("read-only")
   ) {
-    return "database";
+    return "database-query";
   }
   if (
     message.includes("r2") ||
