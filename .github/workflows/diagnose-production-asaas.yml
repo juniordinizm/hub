@@ -1,0 +1,67 @@
+name: Diagnose Production Asaas
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Read Production Asaas account state
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: vercel-production
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: neuro-capacitar
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 1
+          ref: main
+      - name: Read account and checkout configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          env_file="$(mktemp)"
+          account_file="$(mktemp)"
+          config_file="$(mktemp)"
+          status_file="$(mktemp)"
+          trap 'rm -f "$env_file" "$account_file" "$config_file" "$status_file"' EXIT
+
+          bunx vercel@57.0.0 env pull "$env_file" \
+            --environment=production \
+            --project="$VERCEL_PROJECT_ID" \
+            --scope="$VERCEL_SCOPE" \
+            --token="$VERCEL_TOKEN" \
+            --yes
+          set -a
+          # shellcheck disable=SC1090
+          source "$env_file"
+          set +a
+
+          : "${ASAAS_API_KEY:?ASAAS_API_KEY was not returned by Vercel}"
+          : "${ASAAS_API_BASE_URL:?ASAAS_API_BASE_URL was not returned by Vercel}"
+
+          curl --fail-with-body --silent --show-error \
+            --header "accept: application/json" \
+            --header "access_token: ${ASAAS_API_KEY}" \
+            "${ASAAS_API_BASE_URL%/}/v3/myAccount/accountNumber" > "$account_file"
+          curl --fail-with-body --silent --show-error \
+            --header "accept: application/json" \
+            --header "access_token: ${ASAAS_API_KEY}" \
+            "${ASAAS_API_BASE_URL%/}/v3/myAccount/status/" > "$status_file"
+          curl --fail-with-body --silent --show-error \
+            --header "accept: application/json" \
+            --header "access_token: ${ASAAS_API_KEY}" \
+            "${ASAAS_API_BASE_URL%/}/v3/myAccount/paymentCheckoutConfig/" > "$config_file"
+
+          jq -n \
+            --argjson account "$(cat "$account_file")" \
+            --argjson status "$(cat "$status_file")" \
+            --argjson checkout "$(cat "$config_file")" \
+            '{account_number_suffix: (($account.accountNumber // "") | tostring | .[-4:]), account_status: ($status.status // $status.registrationStatus // null), checkout_personalization_status: ($checkout.status // null), checkout_personalization_enabled: ($checkout.enabled // null)}'
