@@ -60,7 +60,9 @@ const MAX_COMMAND_OUTPUT_BYTES = 4096;
 export type ProductionBackupFailureCategory =
   | "backup-command"
   | "backup-command-age"
+  | "backup-command-age-version"
   | "backup-command-pg-dump"
+  | "backup-command-pg-dump-version"
   | "configuration"
   | "database-access"
   | "database-connection"
@@ -108,6 +110,8 @@ const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
     ["pg_dump failed", "pg_dump output verification failed"],
   ],
   ["backup-command-age", ["age failed", "age output verification failed"]],
+  ["backup-command-pg-dump-version", ["pg_dump major version must be 18"]],
+  ["backup-command-age-version", ["age version must be 1.3.1"]],
   ["database-read-only", ["backup role is not read-only"]],
   [
     "database-access",
