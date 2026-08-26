@@ -57,7 +57,7 @@ const SUPPORTED_AGE_VERSION = "1.3.1";
 const CADENCES = new Set<BackupCadenceHours>([6, 8, 12]);
 const MAX_COMMAND_OUTPUT_BYTES = 4096;
 const SAFE_COMMAND_FAILURE_PATTERN =
-  /^(?:pg_dump|age) failed \((?:connection|credentials|permission|schema|version|unknown)\)\.$/;
+  /^(?:pg_dump|age) failed \((?:column|connection|credentials|function|permission|query|relation|schema|version|unknown)\)\.$/;
 
 export type BackupCommandFailureReason =
   | "column"
