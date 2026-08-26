@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 5fa7f2baab853a5ff37b60f533f00cb5d9f8f750
+last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
 requalification_result: no_go
 requalification_date: 2026-08-26
 ---
@@ -11,9 +11,10 @@ requalification_date: 2026-08-26
 ## Resultado
 
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
-real já registrou uma venda, mas a recuperação independente ainda não possui uma
-cópia válida e Sentry/DMARC continuam sem os gates externos finais. O bloqueio
-imediato reproduzível é o PUT streaming da cifra no R2.
+real já registrou uma venda. O backup independente agora está verde e o checker
+de frescor passou, mas restore/PITR/RTO, Sentry/DMARC e outros gates externos
+continuam pendentes. O bloqueio atual é a ausência de credencial R2 read-only
+separada no Environment `vercel-production`.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -22,7 +23,7 @@ Esta revisão atualiza o estado operacional após a janela emergencial. A decis�
 
 - repositório: `juniordinizm/hub`;
 - branch avaliada: `main`;
-- SHA de código verificado: `5fa7f2baab853a5ff37b60f533f00cb5d9f8f750`;
+- SHA de código verificado: `76e77e68f9a14f2f96f3412917bf3d3c08de398c`;
 - deployment Production observado: `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`;
 - SHA atualmente servido: `1c0202f935934285901f90e2b8c68f887f00222e`;
 - horário dos últimos comandos remotos: 2026-08-26, UTC;
@@ -100,24 +101,29 @@ Execuções relevantes:
     1, 8 e 32 MB; `Readable` falhou com `IncompleteBody`/`ECONNRESET`. A causa
     é o corpo streaming não replayável no caminho S3/R2, não credencial ou
     tamanho do bucket.
+14. `33023906420`: backup completo passou em `main`; foram publicados seis
+    objetos (cifra e manifesto em `frequent`, `daily` e `weekly`) e todos os
+    HEADs foram confirmados.
+15. `ops:check:production-backup` passou com idade de 2 minutos e migration
+    `0067_sparkling_ghost_rider`. As variables R2 não sensíveis também foram
+    adicionadas ao Environment `vercel-production`.
 
 O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
 para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
-conexão/inspeção. O bloqueio `storage` de credenciais foi encerrado: a listagem
-R2 autenticada passou após a atualização dos secrets. O bloqueio atual é
-`backup-command-r2-stream`; `pg_dump` já passa com
-`PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt`, e o cliente S3 agora usa
-buffer de stream de 64 KiB para retry seguro. A correção agora carrega a cifra
-como `Buffer` replayável antes do upload. Nenhum token, chave ou URL deve ser
-enviado ao chat.
+conexão/inspeção. O bloqueio `storage` de credenciais e streaming foi encerrado:
+o backup e o checker de frescor passaram depois da atualização dos secrets e da
+correção para `Buffer` replayável. O bloqueio agora é externo: as secrets
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` não existem no
+Environment `vercel-production`. Nenhum token, chave ou URL deve ser enviado ao
+chat.
 
-A presença nominal da secret no Environment não prova seu conteúdo nem a
-conectividade. O workflow deve ser considerado bloqueado até uma execução verde;
-não substituir essa prova por `emergency_skip_backup`.
+A presença nominal de uma secret no Environment não prova seu conteúdo nem a
+conectividade. O workflow de backup está verde; não substitua o gate de release
+por `emergency_skip_backup`.
 
-Ainda faltam: manifesto `frequent` válido, verificação de idade/RPO, restore em
-target descartável, PITR, medição de RTO, duas execuções consecutivas e
-agendamento do exercício periódico.
+Ainda faltam: credencial R2 read-only separada, restore em target descartável,
+PITR, medição de RTO, duas execuções consecutivas e agendamento do exercício
+periódico.
 
 ## Matriz atual de Sprints
 
@@ -125,7 +131,7 @@ agendamento do exercício periódico.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `BLOCKED_BACKUP_R2_STREAM` | bucket/lock/lifecycle publicados; R2, Neon, CA e versão validados | backup verde, restore/PITR/RPO/RTO |
+| 2 | `BACKUP_GREEN_EXTERNAL_PROOF_PENDING` | backup, R2, Neon, CA, manifestos e checker de frescor verdes | credencial read-only, restore/PITR/RPO/RTO |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
@@ -148,8 +154,7 @@ agendamento do exercício periódico.
 
 ## Condição de continuação
 
-Após a correção do streaming R2, executar novamente o workflow `Backup
-Production database`. Se o resultado for verde, seguir para
-manifesto/restore/PITR e só então requalificar Sentry, DMARC, Dependabot e a
-promoção. Se falhar, preservar a última cópia válida (atualmente inexistente) e
-parar no novo diagnóstico sanitizado.
+Após criar a credencial R2 read-only no Environment `vercel-production`,
+executar o checker do gate, seguir para restore/PITR/RPO/RTO e só então
+requalificar Sentry, DMARC, Dependabot e a promoção. O workflow de backup já
+está verde; não há necessidade de novo bypass emergencial.
