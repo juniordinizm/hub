@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
 ---
 
 # Backup Production e restauração
@@ -11,9 +11,10 @@ last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 O código, os testes e os workflows estão implementados em `main`. O bucket R2
 dedicado e o GitHub Environment `production-backup` já existem. Lock/lifecycle
 foram lidos de volta e os objetos descartáveis das três classes recusaram remoção
-durante o lock; a execução do backup ainda não produziu um manifesto válido.
-PITR, restore e RPO/RTO continuam sem prova externa. Até essas provas passarem,
-`F-002` e o gate do Sprint 2 permanecem abertos.
+durante o lock. A execução `33023906420` produziu manifestos válidos nas três
+classes e o checker de frescor passou. PITR, restore e RPO/RTO continuam sem
+prova externa. Até essas provas passarem, `F-002` e o gate do Sprint 2
+permanecem abertos.
 
 O desenho usa exclusivamente planos gratuitos: Neon Free para origem/PITR
 disponível e Cloudflare R2 Standard Free para a cópia independente. A reserva
@@ -74,10 +75,14 @@ descrever o estado atual.
   manifesto;
 - o probe controlado `33022570244` confirmou que `Buffer` passa em 1, 8 e 32 MB,
   enquanto `Readable` falha com `IncompleteBody`/`ECONNRESET`; a cifra agora é
-  carregada como `Buffer` replayável antes dos PUTs. A execução pós-correção
-  ainda precisa passar;
-- não existe ainda um manifesto `frequent` válido, portanto o gate de release e
-  o restore permanecem fechados;
+  carregada como `Buffer` replayável antes dos PUTs;
+- `33023906420`: backup completo passou em `main`, com `pg_dump` 18.6, cifra
+  de 205748 bytes, manifestos `frequent`/`daily`/`weekly` e seis objetos
+  confirmados por HEAD;
+- o checker local `ops:check:production-backup` passou com idade de 2 minutos,
+  migration `0067_sparkling_ghost_rider` e status `fresh`;
+- o manifesto `frequent` é válido e fresco, mas o gate de release e o restore
+  permanecem fechados até usar uma credencial R2 read-only separada;
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
   exercício de duas execuções consecutivas ainda precisam de prova.
 
@@ -206,6 +211,13 @@ Configure sem passar valores pela linha de comando ou por este chat:
   `BACKUP_AGE_RECIPIENT`, `PRODUCTION_DATABASE_HOST`,
   `PRODUCTION_NEON_BRANCH_ID`, `PRODUCTION_NEON_PROJECT_ID`, `VERCEL_ORG_ID`
   e `VERCEL_PROJECT_ID`.
+
+O Environment `vercel-production` também possui as variables não sensíveis
+`BACKUP_R2_ACCOUNT_ID` e `BACKUP_R2_BUCKET_NAME`. As secrets
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` ainda não estão
+configuradas nesse Environment; sem elas o gate de release e o restore não
+podem ser considerados provados. Não reutilize as credenciais de escrita do
+workflow como solução permanente.
 
 O workflow define a variável não sensível `PGSSLROOTCERT` como
 `/etc/ssl/certs/ca-certificates.crt` no runner Ubuntu. Ela é necessária para o
