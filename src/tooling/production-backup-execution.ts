@@ -78,6 +78,26 @@ export type ProductionBackupFailureCategory =
   | "storage"
   | "unexpected";
 
+export type ProductionBackupFailurePhase =
+  | "backup-command"
+  | "configuration-database"
+  | "configuration-migration"
+  | "configuration-storage"
+  | "database-connection"
+  | "database-inspection"
+  | "provider"
+  | "storage";
+
+export const resolveProductionBackupFailureCategory = (
+  category: ProductionBackupFailureCategory,
+  phase: ProductionBackupFailurePhase
+): ProductionBackupFailureCategory | ProductionBackupFailurePhase =>
+  category === "database-query" ||
+  category === "configuration" ||
+  category === "unexpected"
+    ? phase
+    : category;
+
 const SPECIFIC_FAILURE_PATTERNS: ReadonlyArray<
   readonly [ProductionBackupFailureCategory, readonly string[]]
 > = [

@@ -6,6 +6,7 @@ import {
   type BackupCommandRunner,
   classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
+  resolveProductionBackupFailureCategory,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
 } from "./production-backup-execution";
@@ -96,6 +97,15 @@ describe("classifyProductionBackupFailure", () => {
     expect(classifyProductionBackupFailure("credential" as unknown)).toBe(
       "unexpected"
     );
+  });
+
+  it("falls back to the sanitized execution phase for unknown failures", () => {
+    expect(
+      resolveProductionBackupFailureCategory("unexpected", "storage")
+    ).toBe("storage");
+    expect(
+      resolveProductionBackupFailureCategory("storage", "database-inspection")
+    ).toBe("storage");
   });
 });
 
