@@ -55,11 +55,17 @@ descrever o estado atual.
 - execução `32929589649`: falhou antes do dump por PATH do cliente PostgreSQL;
 - execução `32931613267`: PostgreSQL 18 disponível, falha sanitizada `database`;
 - execuções posteriores até `32982879681`: alias/proveniência passaram após a
-  correção do checker; a falha restante é `configuration-database`;
-- causa operacional pendente: `BACKUP_DATABASE_URL` no Environment não atende
-  ao contrato de conexão direta (host Production exato, banco/credenciais,
-  `sslmode=verify-full` e nenhum parâmetro não permitido). Nenhuma URL ou senha
-  deve ser enviada ao chat;
+  correção do checker; a falha inicial foi `configuration-database`;
+- `32993456881` e `32996629032`: o contrato de conexão passou, mas a versão
+  retornada pelo Neon (`18.6 (3484359)`) era rejeitada pelo checker e pelo
+  parser de manifesto; essa incompatibilidade foi corrigida e passou no CI;
+- `32998006707`: PostgreSQL 18.6, migration, role e inspeção passaram até a
+  primeira leitura do R2; a falha sanitizada atual é `storage`;
+- causa operacional pendente: os secrets
+  `BACKUP_R2_ACCESS_KEY_ID`/`BACKUP_R2_SECRET_ACCESS_KEY` do Environment não
+  permitiram listar o bucket dedicado. As variables de account e bucket estão
+  corretas. Nenhuma chave, URL ou erro bruto do provider deve ser enviada ao
+  chat;
 - não existe ainda um manifesto `frequent` válido, portanto o gate de release e
   o restore permanecem fechados;
 - a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
