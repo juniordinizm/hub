@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertProductionBackupDatabase,
   type BackupCommandRunner,
+  classifyBackupCommandFailure,
   classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
   resolveProductionBackupFailureCategory,
@@ -62,6 +63,11 @@ describe("classifyProductionBackupFailure", () => {
     ["age version command failed.", "backup-command-age-version"],
     ["pg_dump version validation failed.", "backup-command-pg-dump-version"],
     ["age version validation failed.", "backup-command-age-version"],
+    ["pg_dump failed (permission).", "backup-command-pg-dump-permission"],
+    ["pg_dump failed (connection).", "backup-command-pg-dump-connection"],
+    ["pg_dump failed (credentials).", "backup-command-pg-dump-credentials"],
+    ["pg_dump failed (schema).", "backup-command-pg-dump-schema"],
+    ["pg_dump failed (version).", "backup-command-pg-dump-version"],
   ])("identifies the failing backup command for %s", (message, category) => {
     expect(classifyProductionBackupFailure(new Error(message))).toBe(category);
   });
@@ -119,6 +125,19 @@ describe("classifyProductionBackupFailure", () => {
     expect(
       resolveProductionBackupFailureCategory("storage", "database-inspection")
     ).toBe("storage");
+  });
+});
+
+describe("classifyBackupCommandFailure", () => {
+  it.each([
+    ["pg_dump: error: permission denied for table users", "permission"],
+    ["pg_dump: error: connection to server failed", "connection"],
+    ["pg_dump: error: password authentication failed", "credentials"],
+    ['pg_dump: error: relation "users" does not exist', "schema"],
+    ["pg_dump: error: server version mismatch", "version"],
+    ["unrecognized provider output", "unknown"],
+  ])("classifies sanitized stderr %s as %s", (stderr, reason) => {
+    expect(classifyBackupCommandFailure(stderr)).toBe(reason);
   });
 });
 
