@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertProductionBackupDatabase,
   type BackupCommandRunner,
+  classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
@@ -21,6 +22,27 @@ const environment = {
   PRODUCTION_NEON_PROJECT_ID: "project-production",
 };
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+describe("classifyProductionBackupFailure", () => {
+  it("returns a safe category without exposing provider error details", () => {
+    const error = new Error(
+      "Provider read failed with HTTP 500 at https://console.neon.tech/api/v2/projects/project?api_key=secret"
+    );
+
+    expect(classifyProductionBackupFailure(error)).toBe("provider");
+    expect(classifyProductionBackupFailure(error)).not.toContain("https://");
+    expect(classifyProductionBackupFailure(error)).not.toContain("secret");
+  });
+
+  it("uses unexpected for unknown failures", () => {
+    expect(classifyProductionBackupFailure(new Error("private payload"))).toBe(
+      "unexpected"
+    );
+    expect(classifyProductionBackupFailure("credential" as unknown)).toBe(
+      "unexpected"
+    );
+  });
+});
 
 describe("resolveProductionBackupExecutionConfig", () => {
   it("builds a libpq environment without putting the password in arguments", () => {

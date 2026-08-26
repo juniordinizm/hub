@@ -11,6 +11,7 @@ import {
 } from "../src/tooling/production-backup";
 import {
   assertProductionBackupDatabase,
+  classifyProductionBackupFailure,
   type ProductionBackupDatabaseInspection,
   type ProductionBackupExecutionConfig,
   type ProductionBackupProviderEvidence,
@@ -296,8 +297,9 @@ const main = async (): Promise<void> => {
 if (import.meta.main) {
   try {
     await main();
-  } catch {
-    process.stderr.write("Production backup failed.\n");
+  } catch (error: unknown) {
+    const category = classifyProductionBackupFailure(error);
+    process.stderr.write(`Production backup failed: ${category}.\n`);
     process.exitCode = 1;
   }
 }

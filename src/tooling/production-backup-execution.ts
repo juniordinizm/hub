@@ -55,6 +55,58 @@ const SUPPORTED_AGE_VERSION = "1.3.1";
 const CADENCES = new Set<BackupCadenceHours>([6, 8, 12]);
 const MAX_COMMAND_OUTPUT_BYTES = 4096;
 
+export type ProductionBackupFailureCategory =
+  | "backup-command"
+  | "configuration"
+  | "database"
+  | "provider"
+  | "storage"
+  | "unexpected";
+
+export const classifyProductionBackupFailure = (
+  error: unknown
+): ProductionBackupFailureCategory => {
+  if (!(error instanceof Error)) {
+    return "unexpected";
+  }
+  const message = error.message.toLowerCase();
+  if (
+    message.includes("required") ||
+    message.includes("invalid") ||
+    message.includes("must be") ||
+    message.includes("unsupported")
+  ) {
+    return "configuration";
+  }
+  if (message.includes("provider") || message.includes("provenance")) {
+    return "provider";
+  }
+  if (
+    message.includes("database") ||
+    message.includes("migration") ||
+    message.includes("read-only")
+  ) {
+    return "database";
+  }
+  if (
+    message.includes("r2") ||
+    message.includes("bucket") ||
+    message.includes("object") ||
+    message.includes("publish")
+  ) {
+    return "storage";
+  }
+  if (
+    message.includes("pg_dump") ||
+    message.includes("pg_restore") ||
+    message.includes("age") ||
+    message.includes("command")
+  ) {
+    return "backup-command";
+  }
+  return "unexpected";
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
