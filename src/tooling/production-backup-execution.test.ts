@@ -58,6 +58,7 @@ describe("classifyProductionBackupFailure", () => {
     ["42P01", "database-schema"],
     ["08006", "database-connection"],
     ["42601", "database-query"],
+    ["28000", "database-sqlstate-28000"],
   ])("classifies PostgreSQL code %s as %s", (code, category) => {
     const error = Object.assign(new Error("database operation failed"), {
       code,
