@@ -33,7 +33,7 @@ jobs:
           status_file="$(mktemp)"
           trap 'rm -f "$env_file" "$account_file" "$config_file" "$status_file"' EXIT
 
-          bunx vercel@57.0.0 env pull "$env_file" \
+          npx --yes vercel@57.0.0 env pull "$env_file" \
             --environment=production \
             --project="$VERCEL_PROJECT_ID" \
             --scope="$VERCEL_SCOPE" \
