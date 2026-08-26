@@ -65,14 +65,63 @@ describe("Production release provider evidence", () => {
           },
         },
         vercel: {
-          alias: ["app.neurocapacitar.com.br"],
+          alias: ["hub-neuro-capacitar.vercel.app"],
           meta: { githubCommitSha: releaseSha },
           projectId: "prj_hub",
           readyState: "READY",
           target: "production",
         },
+        vercelDomains: {
+          domains: [
+            {
+              name: "app.neurocapacitar.com.br",
+              projectId: "prj_hub",
+              verified: true,
+            },
+          ],
+        },
       })
     ).toEqual([]);
+  });
+
+  it("rejects an unverified project domain even when DNS uses Vercel", () => {
+    const errors = verifyProductionReleaseState({
+      database: {
+        journalEntryCount: 68,
+        latestMigrationTimestamp: 1_787_582_200_256,
+        readOnly: true,
+        serverMajorVersion: 18,
+      },
+      expected: {
+        canonicalAlias: "app.neurocapacitar.com.br",
+        journalEntryCount: 68,
+        latestMigrationTimestamp: 1_787_582_200_256,
+        neonBranchId: "br-production",
+        neonProjectId: "project-production",
+        releaseSha,
+        requireCanonicalAlias: true,
+        vercelProjectId: "prj_hub",
+      },
+      neon: {
+        branch: {
+          current_state: "ready",
+          id: "br-production",
+          project_id: "project-production",
+        },
+      },
+      vercel: {
+        alias: ["hub-neuro-capacitar.vercel.app"],
+        meta: { githubCommitSha: releaseSha },
+        projectId: "prj_hub",
+        readyState: "READY",
+        target: "production",
+      },
+      vercelDomains: {
+        domains: [{ name: "app.neurocapacitar.com.br", verified: false }],
+      },
+    });
+
+    expect(errors).toContain("vercel_alias_mismatch");
   });
 
   it("reports a closed mismatch list without provider payloads", () => {

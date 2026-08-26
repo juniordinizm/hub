@@ -87,14 +87,19 @@ const inspectProviderProvenance = async (
   const vercelOrgId = requiredEnvironmentValue("VERCEL_ORG_ID");
   const vercelProjectId = requiredEnvironmentValue("VERCEL_PROJECT_ID");
   const neonApiKey = requiredEnvironmentValue("NEON_API_KEY");
+  const encodedVercelProject = encodeURIComponent(vercelProjectId);
   const encodedProject = encodeURIComponent(
     executionConfig.productionProjectId
   );
   const encodedBranch = encodeURIComponent(executionConfig.productionBranchId);
-  const [vercel, neon, neonEndpoints] = await Promise.all([
+  const [vercel, vercelDomains, neon, neonEndpoints] = await Promise.all([
     readProviderJson({
       authorization: `Bearer ${vercelToken}`,
       url: `https://api.vercel.com/v13/deployments/${CANONICAL_ALIAS}?teamId=${encodeURIComponent(vercelOrgId)}&withGitRepoInfo=true`,
+    }),
+    readProviderJson({
+      authorization: `Bearer ${vercelToken}`,
+      url: `https://api.vercel.com/v9/projects/${encodedVercelProject}/domains?teamId=${encodeURIComponent(vercelOrgId)}`,
     }),
     readProviderJson({
       authorization: `Bearer ${neonApiKey}`,
@@ -116,6 +121,7 @@ const inspectProviderProvenance = async (
     neon,
     neonEndpoints,
     vercel,
+    vercelDomains,
   });
 };
 

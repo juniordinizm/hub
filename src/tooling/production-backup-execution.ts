@@ -5,6 +5,7 @@ import { mkdtemp, rm, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BackupCadenceHours } from "./production-backup";
+import { vercelVerifiedProjectDomains } from "./production-release-check";
 
 type BackupEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -310,6 +311,7 @@ export const verifyProductionBackupProviderEvidence = ({
   neon,
   neonEndpoints,
   vercel,
+  vercelDomains,
 }: {
   databaseHost: string;
   expected: {
@@ -321,6 +323,7 @@ export const verifyProductionBackupProviderEvidence = ({
   neon: unknown;
   neonEndpoints: unknown;
   vercel: unknown;
+  vercelDomains?: unknown;
 }): ProductionBackupProviderEvidence => {
   const branch = isRecord(neon) && isRecord(neon.branch) ? neon.branch : null;
   const endpoints =
@@ -335,6 +338,10 @@ export const verifyProductionBackupProviderEvidence = ({
     isRecord(vercel) && Array.isArray(vercel.alias)
       ? vercel.alias.map(stringValue).filter(Boolean)
       : [];
+  const projectDomains = vercelVerifiedProjectDomains(
+    vercelDomains,
+    expected.vercelProjectId
+  );
   const databaseEndpoint = endpoints.some(
     (endpoint) =>
       normalizeHost(stringValue(endpoint.host) ?? "") ===
@@ -350,7 +357,8 @@ export const verifyProductionBackupProviderEvidence = ({
     vercel.target === "production" &&
     stringValue(vercel.projectId ?? vercel.project) ===
       expected.vercelProjectId &&
-    aliases.includes(expected.canonicalAlias) &&
+    (aliases.includes(expected.canonicalAlias) ||
+      projectDomains.includes(expected.canonicalAlias)) &&
     Boolean(releaseSha && RELEASE_SHA_PATTERN.test(releaseSha));
   if (!(valid && releaseSha)) {
     throw new Error("Production backup provider provenance mismatched.");
