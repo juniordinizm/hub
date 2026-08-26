@@ -263,7 +263,10 @@ const parseCadence = (value: string): BackupCadenceHours => {
   return cadence as BackupCadenceHours;
 };
 
-const buildPgEnvironment = (databaseUrl: URL): NodeJS.ProcessEnv => {
+const buildPgEnvironment = (
+  databaseUrl: URL,
+  environment: BackupEnvironment
+): NodeJS.ProcessEnv => {
   const database = decodeURIComponent(databaseUrl.pathname.slice(1));
   if (!(database && databaseUrl.username && databaseUrl.password)) {
     throw new Error(
@@ -282,7 +285,9 @@ const buildPgEnvironment = (databaseUrl: URL): NodeJS.ProcessEnv => {
   }
 
   const channelBinding = databaseUrl.searchParams.get("channel_binding");
+  const path = environment.PATH ?? environment.Path;
   return {
+    ...(path ? { PATH: path } : {}),
     NODE_ENV: "production",
     PGDATABASE: database,
     PGHOST: databaseUrl.hostname,
@@ -338,7 +343,7 @@ export const resolveProductionBackupExecutionConfig = (
       "--no-owner",
       "--no-acl",
     ],
-    pgEnvironment: buildPgEnvironment(databaseUrl),
+    pgEnvironment: buildPgEnvironment(databaseUrl, environment),
     productionBranchId: requiredEnvironmentValue(
       environment,
       "PRODUCTION_NEON_BRANCH_ID"
