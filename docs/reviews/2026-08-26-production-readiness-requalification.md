@@ -96,6 +96,10 @@ Execuções relevantes:
    O runner não tinha o CA padrão usado pelo libpq para `sslmode=verify-full`.
 12. `33019958869`: o `pg_dump` concluiu depois de fornecer o CA; o upload da
     cifra falhou com requisição streaming não reexecutável, antes do manifesto.
+13. O probe controlado `33022570244` fez cinco variantes: `Buffer` passou em
+    1, 8 e 32 MB; `Readable` falhou com `IncompleteBody`/`ECONNRESET`. A causa
+    é o corpo streaming não replayável no caminho S3/R2, não credencial ou
+    tamanho do bucket.
 
 O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
 para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
@@ -103,8 +107,9 @@ conexão/inspeção. O bloqueio `storage` de credenciais foi encerrado: a listag
 R2 autenticada passou após a atualização dos secrets. O bloqueio atual é
 `backup-command-r2-stream`; `pg_dump` já passa com
 `PGSSLROOTCERT=/etc/ssl/certs/ca-certificates.crt`, e o cliente S3 agora usa
-buffer de stream de 64 KiB para retry seguro. Nenhum token, chave ou URL deve
-ser enviado ao chat.
+buffer de stream de 64 KiB para retry seguro. A correção agora carrega a cifra
+como `Buffer` replayável antes do upload. Nenhum token, chave ou URL deve ser
+enviado ao chat.
 
 A presença nominal da secret no Environment não prova seu conteúdo nem a
 conectividade. O workflow deve ser considerado bloqueado até uma execução verde;

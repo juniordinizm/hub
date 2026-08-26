@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -308,8 +307,8 @@ const main = async (): Promise<void> => {
       processEncryptedDump: async ({
         dumpBytes,
         dumpSha256,
+        encryptedBody,
         encryptedBytes,
-        encryptedPath,
         encryptedSha256,
         pgDumpVersion,
       }) => {
@@ -353,7 +352,7 @@ const main = async (): Promise<void> => {
         return await publishProductionBackup({
           bucketName: r2Config.bucketName,
           client: r2Client,
-          createEncryptedBody: () => createReadStream(encryptedPath),
+          createEncryptedBody: () => encryptedBody,
           manifest,
         });
       },
