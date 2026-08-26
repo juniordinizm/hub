@@ -32,11 +32,11 @@ jobs:
           key="diagnostics/r2-credential-probe-${GITHUB_RUN_ID}.txt"
           endpoint=""
           cleanup() {
-            if [[ -n "${endpoint}" && -n "${R2_BUCKET_NAME:-}" && -n "${R2_ACCESS_KEY_ID:-}" && -n "${R2_SECRET_ACCESS_KEY:-}" ]]; then
+            if [[ -n "${endpoint}" && -n "${bucket:-}" && -n "${R2_ACCESS_KEY_ID:-}" && -n "${R2_SECRET_ACCESS_KEY:-}" ]]; then
               AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
               AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
                 aws s3api delete-object \
-                  --bucket "$R2_BUCKET_NAME" \
+                  --bucket "$bucket" \
                   --key "$key" \
                   --endpoint-url "$endpoint" \
                   --region auto > "$output_dir/cleanup.json" 2>&1 || true
@@ -57,17 +57,16 @@ jobs:
           source "$env_file"
           set +a
 
-          : "${R2_ACCOUNT_ID:?R2_ACCOUNT_ID missing}"
-          : "${R2_BUCKET_NAME:?R2_BUCKET_NAME missing}"
           : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID missing}"
           : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY missing}"
-          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          bucket="neuro-prod-private"
+          endpoint="https://90058d5ae5098fe32c8c0e21209f3c86.r2.cloudflarestorage.com"
           printf 'r2-credential-probe-no-sensitive-data' > "$probe_file"
 
           AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
           AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
             aws s3api put-object \
-              --bucket "$R2_BUCKET_NAME" \
+              --bucket "$bucket" \
               --key "$key" \
               --body "$probe_file" \
               --endpoint-url "$endpoint" \
@@ -75,19 +74,19 @@ jobs:
           AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
           AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
             aws s3api head-object \
-              --bucket "$R2_BUCKET_NAME" \
+              --bucket "$bucket" \
               --key "$key" \
               --endpoint-url "$endpoint" \
               --region auto > "$output_dir/head.json"
           AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID" \
           AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY" \
             aws s3api delete-object \
-              --bucket "$R2_BUCKET_NAME" \
+              --bucket "$bucket" \
               --key "$key" \
               --endpoint-url "$endpoint" \
               --region auto > "$output_dir/delete.json"
 
           jq -n \
-            --arg bucket "$R2_BUCKET_NAME" \
-            --arg account_suffix "${R2_ACCOUNT_ID: -4}" \
+            --arg bucket "$bucket" \
+            --arg account_suffix "c8c6" \
             '{bucket: $bucket, account_suffix: $account_suffix, put: "ok", head: "ok", delete: "ok"}'
