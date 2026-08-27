@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
 deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
 verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 verified_environment: production
-documented_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+documented_commit: 7ae764451dd4ef5661a23dc7aab297352aedbf3d
 documented_environment: production
 ---
 
@@ -36,9 +36,12 @@ consultas recentes retornaram HTTP 200 nos quatro workers; os poucos HTTP 500 do
 do webhook Resend.
 
 O `main` atual inclui as correções de fallback de upload R2 e do checker de domínio,
-mas ainda não foi promovido por um release protegido novo. A promoção continua
-dependente do backup Production verde, Sentry configurado no build e demais gates
-externos. O estado decisório atual permanece `NO-GO` para uma nova promoção.
+mas ainda não foi promovido por um release protegido novo. O backup Production
+passou em duas execuções manuais consecutivas (`33023906420` e `33026369149`),
+com manifestos válidos e checker de frescor verde. A promoção continua dependente
+da credencial R2 read-only ausente no Environment `vercel-production`, do restore
+e dos demais gates externos. O estado decisório atual permanece `NO-GO` para uma
+nova promoção.
 
 Este documento separa três fatos que não podem ser tratados como sinônimos:
 
@@ -178,7 +181,7 @@ Estado operacional de Production verificado em 2026-08-21: manutenção `off`,
 Asaas real está configurada; Staging continua na conta Sandbox. As sondas
 públicas confirmaram checkout habilitado (GET `/api/checkouts/course` sem
 parâmetros => `400`) e webhook ativo com token (POST sem token =>
-`401`). Nenhuma venda real havia ocorrido até essa data; a primeira venda
-supervisionada permanece pendente. Resend, Neon, Vercel, R2, JMVStream, Auth e
-Asaas usam rotação manual por fingerprints; nenhum valor de secret pertence a
-este documento.
+`401`). Uma venda real foi confirmada posteriormente pela operadora; ela é
+evidência pós-deploy e não substitui a requalificação nem autoriza nova cobrança.
+Resend, Neon, Vercel, R2, JMVStream, Auth e Asaas usam rotação manual por
+fingerprints; nenhum valor de secret pertence a este documento.
