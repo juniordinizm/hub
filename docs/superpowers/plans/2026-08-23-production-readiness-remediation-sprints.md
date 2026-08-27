@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
+last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
