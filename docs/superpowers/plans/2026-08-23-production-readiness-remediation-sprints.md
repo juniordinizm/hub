@@ -827,13 +827,15 @@ intervalos e impossibilidade gratuita.
 
 ### Tarefa 2.2: criar o backup cifrado
 
-**Estado em 2026-08-26:** workflow e comandos publicados em `main`; a execução
-completa `33023906420` passou em `pg_dump`, cifra, PUT/HEAD no R2 e publicação
-dos manifestos `frequent`, `daily` e `weekly`. O workflow, comandos, limpeza de
-temporários, versões, checksum do binário `age`, ordem cifra/HEAD/manifesto e
-source contracts estão verdes. Nenhuma credencial ou URL foi registrada nos
-logs. O checkpoint agregado aprovou CI, typecheck, migrations, Ultracite e os
-quatro jobs de integração/E2E/build.
+**Estado em 2026-08-26:** workflow e comandos publicados em `main`; as
+execuções completas `33023906420` e `33026369149` passaram consecutivamente em
+`pg_dump`, cifra, PUT/HEAD no R2 e publicação de manifestos. A primeira publicou
+`frequent`, `daily` e `weekly`; a segunda publicou `frequent` e `daily` conforme
+a regra de calendário. O workflow, comandos, limpeza de temporários, versões,
+checksum do binário `age`, ordem cifra/HEAD/manifesto e source contracts estão
+verdes. Nenhuma credencial ou URL foi registrada nos logs. O checkpoint agregado
+aprovou CI, typecheck, migrations, Ultracite e os quatro jobs de
+integração/E2E/build.
 
 **Criar:**
 
@@ -1050,7 +1052,9 @@ read-only separada no Environment `vercel-production`.
 
 ### Gate da Sprint 2
 
-- [ ] Backup agendado e manual verdes.
+- [x] Backup manual verde em duas execuções consecutivas.
+- [ ] Backup agendado verde; a observação do primeiro disparo por cron ainda
+  está pendente.
 - [x] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
 - [ ] Restore R2 completo dentro do RTO e PITR exercitado.
 - [x] RPO efetivo e uso de cotas documentados abaixo de 80%.
