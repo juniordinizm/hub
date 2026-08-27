@@ -141,9 +141,10 @@ entradas de sequência do `pg_restore --list` e informar explicitamente o
 database com `--dbname` durante a restauração. Os quatro jobs do CI do PR
 correspondente passaram.
 
-O restore R2 e o RTO estão fechados. Permanecem abertos: checker protegido,
-PITR/RPO, observação de uma execução agendada, agendamento do exercício
-periódico, aceite de e-mail/acesso/refund, Sentry/DMARC e Dependabot.
+O restore R2, o PITR e os tempos medidos estão fechados. Permanecem abertos:
+checker protegido, observação de uma execução agendada, agendamento do
+exercício periódico, aceite de e-mail/acesso/refund, Sentry/DMARC e a decisão
+de merge do Dependabot.
 
 ## Matriz atual de Sprints
 
@@ -151,7 +152,7 @@ periódico, aceite de e-mail/acesso/refund, Sentry/DMARC e Dependabot.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `RESTORE_RTO_PROVEN_PITR_PENDING` | backup, R2, checker de frescor e restore descartável verdes; RTO de 105 s e target removido | checker protegido, PITR/RPO, execução agendada |
+| 2 | `PITR_RPO_PROVEN_SCHEDULE_PENDING` | backup, R2, restore e PITR descartáveis verdes; RTO de 105 s e RPO sintético de 11m49s | checker protegido, execução agendada |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
