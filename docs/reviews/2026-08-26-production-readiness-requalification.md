@@ -14,8 +14,9 @@ requalification_date: 2026-08-26
 real já registrou uma venda. O backup independente passou em duas execuções
 manuais consecutivas e o checker de frescor passou, mas a observação de uma
 execução agendada, restore/PITR/RTO, Sentry/DMARC e outros gates externos
-continuam pendentes. O bloqueio atual é a ausência de credencial R2 read-only
-separada no Environment `vercel-production`.
+continuam pendentes. As credenciais R2 read-only agora estão cadastradas no
+Environment `vercel-production`; ainda falta executar o checker protegido e o
+restore com identidade `age` e target descartável.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -116,18 +117,18 @@ O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
 para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
 conexão/inspeção. O bloqueio `storage` de credenciais e streaming foi encerrado:
 o backup e o checker de frescor passaram depois da atualização dos secrets e da
-correção para `Buffer` replayável. O bloqueio agora é externo: as secrets
-`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` não existem no
-Environment `vercel-production`. Nenhum token, chave ou URL deve ser enviado ao
-chat.
+correção para `Buffer` replayável. As secrets
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` agora existem no
+Environment `vercel-production`, mas ainda não foram exercitadas pelo checker
+protegido. Nenhum token, chave ou URL deve ser enviado ao chat.
 
 A presença nominal de uma secret no Environment não prova seu conteúdo nem a
 conectividade. O workflow de backup está verde; não substitua o gate de release
 por `emergency_skip_backup`.
 
-Ainda faltam: credencial R2 read-only separada, restore em target descartável,
-PITR, medição de RTO, observação de uma execução agendada e agendamento do
-exercício periódico.
+Ainda faltam: execução do checker protegido, restore em target descartável,
+identidade `age` offline, PITR, medição de RTO, observação de uma execução
+agendada e agendamento do exercício periódico.
 
 ## Matriz atual de Sprints
 
@@ -135,7 +136,7 @@ exercício periódico.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `BACKUP_GREEN_EXTERNAL_PROOF_PENDING` | backup, R2, Neon, CA, manifestos e checker de frescor verdes | credencial read-only, restore/PITR/RPO/RTO |
+| 2 | `BACKUP_GREEN_EXTERNAL_PROOF_PENDING` | backup, R2, Neon, CA, manifestos e checker de frescor verdes; secrets read-only cadastradas | checker protegido, restore/PITR/RPO/RTO |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
@@ -159,7 +160,7 @@ exercício periódico.
 
 ## Condição de continuação
 
-Após criar a credencial R2 read-only no Environment `vercel-production`,
+Com as secrets R2 read-only cadastradas no Environment `vercel-production`,
 executar o checker do gate, seguir para restore/PITR/RPO/RTO e só então
 requalificar Sentry, DMARC, Dependabot e a promoção. O workflow de backup já
 está verde; não há necessidade de novo bypass emergencial.
