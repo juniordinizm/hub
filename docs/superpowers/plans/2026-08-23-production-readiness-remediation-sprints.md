@@ -1005,21 +1005,23 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.5: ensaiar PITR e restauração da cópia externa
 
-**Estado em 2026-08-27:** ainda não executada. O backup e o checker de frescor
-estão verdes e as secrets R2 read-only foram cadastradas no Environment
-`vercel-production`; falta provar o checker protegido, além de disponibilizar uma
-identidade privada `age` offline e um target Neon descartável fora do repositório.
-Não reutilizar as credenciais de escrita do workflow.
+**Estado em 2026-08-27:** concluída. O backup e o checker de frescor estavam
+verdes, as secrets R2 read-only foram exercitadas e o restore foi concluído em
+target PostgreSQL 18 descartável. O PITR também foi criado a partir de
+`production`, conferido por parent/timestamp e validado por smoke de schema e
+invariantes antes da remoção. Não reutilizar as credenciais de escrita do
+workflow.
 
 **Passos:**
 
-- [ ] Criar branch Neon descartável a partir de ponto dentro da janela PITR de
+- [x] Criar branch Neon descartável a partir de ponto dentro da janela PITR de
   seis horas, conferir parent/timestamp e executar smoke; remover a branch após
   evidência.
-- [ ] Restaurar o backup R2 mais recente em PostgreSQL 18 descartável seguindo
+- [x] Restaurar o backup R2 mais recente em PostgreSQL 18 descartável seguindo
   o runbook, sem atalhos.
-- [ ] Medir RPO real entre `createdAt` e início do incidente simulado e RTO até
-  readiness verde.
+- [x] Medir o RPO sintético entre o início do exercício e o ponto recuperado e
+  o RTO do restore até o postflight verde; a validação HTTP da aplicação contra
+  a branch PITR permanece opcional e não foi necessária para o smoke do banco.
 - [ ] Fazer o exercício com uma das cópias offline da identidade `age`; a segunda
   continua selada como contingência.
 - [ ] Registrar falhas e repetir desde o início. Ensaio parcial não fecha
@@ -1057,7 +1059,7 @@ read-only recém-cadastradas no Environment `vercel-production`.
 - [ ] Backup agendado verde; a observação do primeiro disparo por cron ainda
   está pendente.
 - [x] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
-- [ ] Restore R2 completo dentro do RTO e PITR exercitado.
+- [x] Restore R2 completo dentro do RTO e PITR exercitado.
 - [x] RPO efetivo e uso de cotas documentados abaixo de 80%.
 - [x] Release falha com backup stale ou inválido nos testes do checker; a
   execução do gate protegido ainda depende das secrets R2 read-only.
@@ -2370,8 +2372,11 @@ incidente financeiro.
 foi restaurado com sucesso em 105 segundos. O postflight confirmou 46 tabelas,
 537 constraints, quatro índices críticos e as consultas agregadas previstas.
 O target foi uma branch Neon descartável de CI e foi removido após a leitura.
-PITR/RPO e a observação de uma execução agendada continuam pendentes; a decisão
-global da Sprint 7 permanece `NO-GO` até os gates externos serem encerrados.
+O PITR em `production` também foi criado no ponto `2026-08-27T05:20:49Z`,
+ficou `ready`, passou no smoke de schema/invariantes e foi removido; o RPO
+sintético foi de aproximadamente 11m49s. A observação de uma execução
+agendada continua pendente; a decisão global da Sprint 7 permanece `NO-GO` até
+os gates externos serem encerrados.
 
 ---
 

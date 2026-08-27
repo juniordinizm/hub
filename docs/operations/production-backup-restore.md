@@ -106,12 +106,20 @@ descrever o estado atual.
 - o target foi a branch Neon descartável `br-orange-bread-a630sk26` do
   projeto de CI `red-unit-15241478`; a branch foi removida depois da
   confirmação. Nenhum banco persistente foi usado como alvo;
+- a branch de release obsoleta `br-snowy-voice-acaqyyqm`, criada por um deploy
+  falho, foi removida com autorização explícita para liberar uma vaga; as
+  branches persistentes e a release mais recente permaneceram intactas;
+- o ensaio PITR criou a branch descartável `br-rough-resonance-ac8rfmvu` a
+  partir de `production` no ponto `2026-08-27T05:20:49Z`, ficou `ready` e foi
+  removida após o smoke. O schema confirmou 46 tabelas, 537 constraints, os
+  quatro índices críticos e 68 migrations; o RPO sintético foi de
+  aproximadamente 11m49s;
 - o restore local agora passa o CA explicitamente ao Pool Node, interpreta
   entradas `SEQUENCE OWNED BY`/`SEQUENCE SET` do archive e informa o database
   descartável com `--dbname`;
-- o restore R2 e o RTO estão comprovados. PITR e RPO ainda não foram medidos;
-  a execução agendada, o checker protegido e os gates Sentry/DMARC/Dependabot
-  continuam pendentes.
+- o restore R2, o PITR e os tempos medidos estão comprovados. A execução
+  agendada, o checker protegido e os gates Sentry/DMARC/Dependabot continuam
+  pendentes.
 
 Formato esperado, usando placeholders que nunca devem ser substituídos neste
 arquivo:
