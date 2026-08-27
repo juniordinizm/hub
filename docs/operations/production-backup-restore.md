@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
+last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
 ---
 
 # Backup Production e restauração
@@ -47,7 +47,7 @@ Checkpoint externo somente leitura de `2026-08-25` (histórico):
 Esse checkpoint registrava o estado anterior ao provisionamento. Não o use para
 descrever o estado atual.
 
-## Estado atual — 2026-08-26
+## Estado anterior — 2026-08-26
 
 - bucket dedicado: `neurocapacitar-production-backups`;
 - Environment: `production-backup`, com os nomes de secrets/variables exigidos
@@ -92,6 +92,26 @@ descrever o estado atual.
 - a role read-only, PITR, restauração em target descartável e medição de RPO/RTO
   ainda precisam de prova; a observação de uma execução agendada permanece
   pendente, pois as duas execuções acima foram disparadas manualmente.
+
+## Estado atual — 2026-08-27
+
+- `bun run ops:check:production-backup` retornou `fresh` para o backup
+  `e0b48105-1496-4837-b81e-af30f0063781`, migration
+  `0067_sparkling_ghost_rider`;
+- `bun run ops:restore:production-backup` concluiu com `status=restored`,
+  RTO medido de 105 segundos e 46 tabelas;
+- a consulta pós-restore no target descartável confirmou 46 tabelas, 537
+  constraints, os quatro índices críticos e as consultas agregadas de
+  usuários, cursos, pedidos e certificados;
+- o target foi a branch Neon descartável `br-orange-bread-a630sk26` do
+  projeto de CI `red-unit-15241478`; a branch foi removida depois da
+  confirmação. Nenhum banco persistente foi usado como alvo;
+- o restore local agora passa o CA explicitamente ao Pool Node, interpreta
+  entradas `SEQUENCE OWNED BY`/`SEQUENCE SET` do archive e informa o database
+  descartável com `--dbname`;
+- o restore R2 e o RTO estão comprovados. PITR e RPO ainda não foram medidos;
+  a execução agendada, o checker protegido e os gates Sentry/DMARC/Dependabot
+  continuam pendentes.
 
 Formato esperado, usando placeholders que nunca devem ser substituídos neste
 arquivo:
@@ -235,8 +255,10 @@ não deve ser adicionada à URL nem ao secret.
 No restore local em Windows, defina `PGSSLROOTCERT` para um bundle confiável de
 certificados raiz antes de executar o comando. O script preserva esse valor e o
 `PATH` da sessão ao iniciar `age` e `pg_restore`, e passa o conteúdo do CA ao
-`Pool` do Node. Não troque `verify-full` por `require` para contornar uma falha
-de certificado.
+`Pool` do Node. Para que o `node-postgres` não substitua esse objeto `ssl` ao
+interpretar a URL, o script remove apenas `sslmode` da cópia usada pelo Pool;
+as ferramentas libpq continuam recebendo `PGSSLMODE=verify-full`. Não troque
+`verify-full` por `require` para contornar uma falha de certificado.
 
 O recipient é público. As identidades privadas nunca entram no GitHub. O
 workflow `.github/workflows/backup-production-database.yml` usa cron literal
@@ -303,7 +325,7 @@ tamanho/hash, valida versões, decifra, verifica o hash do dump, inspeciona
 `pg_restore --list`, exige target vazio e executa:
 
 ```text
-pg_restore --exit-on-error --single-transaction --no-owner --no-privileges
+pg_restore --dbname <hub_restore_database> --exit-on-error --single-transaction --no-owner --no-privileges
 ```
 
 A conexão é passada por variáveis libpq, não por argumento. O postflight exige

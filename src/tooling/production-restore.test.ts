@@ -150,7 +150,7 @@ describe("restore target and archive guards", () => {
   it("rejects privileged or cross-database archive entries", () => {
     expect(() =>
       validatePgRestoreList(
-        "; Archive created at 2026-08-24\n1; 0 0 TABLE public users backup\n2; 0 0 TABLE DATA public users backup"
+        "; Archive created at 2026-08-24\n1; 0 0 TABLE public users backup\n2; 0 0 TABLE DATA public users backup\n3; 0 0 SEQUENCE OWNED BY drizzle __drizzle_migrations_id_seq backup\n4; 0 0 SEQUENCE SET drizzle __drizzle_migrations_id_seq backup"
       )
     ).not.toThrow();
     expect(() =>
@@ -159,22 +159,33 @@ describe("restore target and archive guards", () => {
     expect(() =>
       validatePgRestoreList("1; 0 0 TABLE private secrets backup")
     ).toThrow("schema");
+    expect(() =>
+      validatePgRestoreList(
+        "1; 0 0 SEQUENCE OWNED BY private __drizzle_migrations_id_seq backup"
+      )
+    ).toThrow("schema");
+    expect(() =>
+      validatePgRestoreList(
+        "1; 0 0 SEQUENCE SET private __drizzle_migrations_id_seq backup"
+      )
+    ).toThrow("schema");
   });
 });
 
 describe("restore database connection", () => {
   it("passes the configured root certificate to the Node PostgreSQL pool", () => {
-    expect(
-      buildProductionRestorePoolOptions(
-        restoreEnvironment.RESTORE_DATABASE_URL,
-        "test root certificate"
-      )
-    ).toMatchObject({
+    const options = buildProductionRestorePoolOptions(
+      restoreEnvironment.RESTORE_DATABASE_URL,
+      "test root certificate"
+    );
+
+    expect(options).toMatchObject({
       ssl: {
         ca: "test root certificate",
         rejectUnauthorized: true,
       },
     });
+    expect(options.connectionString).not.toContain("sslmode=");
   });
 });
 
@@ -215,6 +226,7 @@ describe("runProductionRestore", () => {
       downloadEncrypted: async (path) => writeFile(path, "cipher"),
       identityFile: restoreEnvironment.RESTORE_AGE_IDENTITY_FILE,
       manifest: manifest(),
+      targetDatabase: "hub_restore_drill",
       pgEnvironment: {
         NODE_ENV: "production",
         PGDATABASE: "hub_restore_drill",
@@ -230,6 +242,9 @@ describe("runProductionRestore", () => {
     expect(
       commands.filter((command) => command.includes("--single-transaction"))
     ).toHaveLength(1);
+    expect(
+      commands.some((command) => command.includes("--dbname hub_restore_drill"))
+    ).toBe(true);
     await expect(access(temporaryDirectory)).rejects.toThrow();
   });
 
@@ -245,6 +260,7 @@ describe("runProductionRestore", () => {
         },
         identityFile: restoreEnvironment.RESTORE_AGE_IDENTITY_FILE,
         manifest: manifest(),
+        targetDatabase: "hub_restore_drill",
         pgEnvironment: { NODE_ENV: "production" },
         runCommand,
         verifyRestoredDatabase: async () => ({ tableCount: 0 }),

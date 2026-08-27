@@ -27,6 +27,26 @@ const CRITICAL_INDEXES = [
 ] as const;
 const MINIMUM_APPLICATION_TABLES = 43;
 
+const sanitizeRestoreFailure = (error: unknown): string => {
+  let message = error instanceof Error ? error.message : "unknown error";
+  const sensitiveValues = [
+    process.env.RESTORE_DATABASE_URL,
+    process.env.RESTORE_R2_ACCESS_KEY_ID,
+    process.env.RESTORE_R2_SECRET_ACCESS_KEY,
+    process.env.RESTORE_AGE_IDENTITY_FILE,
+    process.env.BACKUP_R2_ACCOUNT_ID,
+    process.env.BACKUP_R2_BUCKET_NAME,
+    process.env.PRODUCTION_DATABASE_HOST,
+  ].filter((value): value is string => Boolean(value?.trim()));
+  for (const value of sensitiveValues) {
+    message = message.replaceAll(value, "<redacted>");
+  }
+  return message
+    .replace(/(?:postgres(?:ql)?|https?):\/\/[^\s"'`]+/gi, "<redacted-url>")
+    .replace(/\b[A-Za-z]:\\[^\r\n,]+/g, "<redacted-path>")
+    .slice(0, 300);
+};
+
 const readMigrationJournal = async (): Promise<MigrationJournal> => {
   const source = await readFile(
     join(import.meta.dirname, "../src/db/migrations/meta/_journal.json"),
@@ -159,6 +179,7 @@ const main = async (): Promise<void> => {
         identityFile: restoreConfig.identityFile,
         manifest,
         pgEnvironment: restoreConfig.pgEnvironment,
+        targetDatabase: restoreConfig.targetDatabase,
         verifyRestoredDatabase: async () =>
           await verifyRestoredDatabase({
             client,
@@ -186,8 +207,10 @@ const main = async (): Promise<void> => {
 if (import.meta.main) {
   try {
     await main();
-  } catch {
-    process.stderr.write("Production backup restore failed.\n");
+  } catch (error: unknown) {
+    process.stderr.write(
+      `Production backup restore failed: ${sanitizeRestoreFailure(error)}\n`
+    );
     process.exitCode = 1;
   }
 }

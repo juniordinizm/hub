@@ -61,6 +61,9 @@ const SAFE_COMMAND_FAILURE_PATTERN =
 const MISSING_SCHEMA_PATTERN = /schema\s+["']([^"']+)["']\s+does not exist/;
 const MISSING_SCHEMA_OID_PATTERN = /schema\s+with\s+oid\s+\d+\s+does not exist/;
 const COMMAND_OUTPUT_TRUNCATION_MARKER = "\n...[truncated]...\n";
+const COMMAND_FAILURE_URL_PATTERN =
+  /(?:postgres(?:ql)?|https?):\/\/[^\s"'`]+/gi;
+const COMMAND_FAILURE_PASSWORD_PATTERN = /password\s*[:=]\s*\S+/gi;
 
 export type BackupCommandFailureReason =
   | "column"
@@ -142,6 +145,25 @@ export const retainCommandOutputContext = (
   const prefixLength = Math.ceil(visibleLength / 2);
   const suffixLength = visibleLength - prefixLength;
   return `${combined.slice(0, prefixLength)}${COMMAND_OUTPUT_TRUNCATION_MARKER}${combined.slice(-suffixLength)}`;
+};
+
+const sanitizeCommandFailureDetails = (stderr: string): string =>
+  stderr
+    .trim()
+    .replace(COMMAND_FAILURE_URL_PATTERN, "<redacted-url>")
+    .replace(COMMAND_FAILURE_PASSWORD_PATTERN, "password=<redacted>")
+    .slice(0, 400);
+
+const createBackupCommandError = (
+  executable: BackupCommandInput["executable"],
+  stderr: string
+): Error => {
+  const reason = classifyBackupCommandFailure(stderr);
+  const details =
+    executable === "pg_restore" ? sanitizeCommandFailureDetails(stderr) : "";
+  return new Error(
+    `${executable} failed (${reason}).${details ? ` ${details}` : ""}`
+  );
 };
 
 export const classifyBackupCommandFailure = (
@@ -660,21 +682,13 @@ export const runBackupCommand: BackupCommandRunner = async ({
       stderr = retainCommandOutputContext(stderr, chunk);
     });
     child.once("error", () =>
-      reject(
-        new Error(
-          `${executable} failed (${classifyBackupCommandFailure(stderr)}).`
-        )
-      )
+      reject(createBackupCommandError(executable, stderr))
     );
     child.once("close", (code) => {
       if (code === 0) {
         resolve({ stdout: stdout.trim() });
       } else {
-        reject(
-          new Error(
-            `${executable} failed (${classifyBackupCommandFailure(stderr)}).`
-          )
-        );
+        reject(createBackupCommandError(executable, stderr));
       }
     });
   });
