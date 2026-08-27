@@ -10,6 +10,7 @@ import {
 } from "../src/tooling/production-backup-r2";
 import {
   assertEmptyRestoreTarget,
+  buildProductionRestorePoolOptions,
   resolveProductionRestoreConfig,
   runProductionRestore,
 } from "../src/tooling/production-restore";
@@ -121,11 +122,13 @@ const main = async (): Promise<void> => {
   if (!targetUrl) {
     throw new Error("RESTORE_DATABASE_URL is required.");
   }
-  const pool = new Pool({
-    application_name: "protea-r-production-restore-drill",
-    connectionString: targetUrl,
-    max: 1,
-  });
+  const rootCertificatePath = process.env.PGSSLROOTCERT?.trim();
+  const rootCertificate = rootCertificatePath
+    ? await readFile(rootCertificatePath, "utf8")
+    : undefined;
+  const pool = new Pool(
+    buildProductionRestorePoolOptions(targetUrl, rootCertificate)
+  );
 
   try {
     const manifest = await readProductionBackupManifest({
