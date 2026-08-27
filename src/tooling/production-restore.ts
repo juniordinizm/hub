@@ -71,19 +71,26 @@ const parseDatabaseUrl = (raw: string, name: string): URL => {
   return url;
 };
 
-const buildPgEnvironment = (url: URL): NodeJS.ProcessEnv => {
+const buildPgEnvironment = (
+  url: URL,
+  environment: RestoreEnvironment
+): NodeJS.ProcessEnv => {
   const targetDatabase = decodeURIComponent(url.pathname.slice(1));
   if (!(targetDatabase && url.username && url.password)) {
     throw new Error(
       "RESTORE_DATABASE_URL must include database and credentials."
     );
   }
+  const executablePath = environment.PATH ?? environment.Path;
+  const rootCertificate = environment.PGSSLROOTCERT?.trim();
   return {
+    ...(executablePath ? { PATH: executablePath } : {}),
     NODE_ENV: "production",
     PGDATABASE: targetDatabase,
     PGHOST: url.hostname,
     PGPASSWORD: decodeURIComponent(url.password),
     PGPORT: url.port || "5432",
+    ...(rootCertificate ? { PGSSLROOTCERT: rootCertificate } : {}),
     PGSSLMODE: "verify-full",
     PGUSER: decodeURIComponent(url.username),
   };
@@ -159,7 +166,7 @@ export const resolveProductionRestoreConfig = (
       workspaceDirectory
     ),
     manifestKey,
-    pgEnvironment: buildPgEnvironment(targetUrl),
+    pgEnvironment: buildPgEnvironment(targetUrl, environment),
     targetDatabase,
     targetHost,
   };

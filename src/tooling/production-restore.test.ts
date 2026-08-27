@@ -50,6 +50,8 @@ const restoreEnvironment = {
   BACKUP_DATABASE_URL:
     "postgresql://backup:secret@production.example.test/neondb?sslmode=verify-full",
   DEVELOPMENT_DATABASE_HOST: "development.example.test",
+  PGSSLROOTCERT: "C:\\secure\\neon-ca-bundle.pem",
+  Path: "C:\\secure\\bin",
   PRODUCTION_DATABASE_HOST: "production.example.test",
   RESTORE_AGE_IDENTITY_FILE: offlineIdentityFile,
   RESTORE_CONFIRMATION: "RESTORE_DISPOSABLE_PRODUCTION_BACKUP",
@@ -62,15 +64,19 @@ const restoreEnvironment = {
 
 describe("resolveProductionRestoreConfig", () => {
   it("accepts a confirmed isolated target and an offline identity path", () => {
-    expect(
-      resolveProductionRestoreConfig(restoreEnvironment, {
-        workspaceDirectory,
-      })
-    ).toMatchObject({
+    const config = resolveProductionRestoreConfig(restoreEnvironment, {
+      workspaceDirectory,
+    });
+
+    expect(config).toMatchObject({
       identityFile: offlineIdentityFile,
       manifestKey: restoreEnvironment.RESTORE_MANIFEST_KEY,
       targetDatabase: "hub_restore_drill",
       targetHost: "ephemeral.example.test",
+    });
+    expect(config.pgEnvironment).toMatchObject({
+      PATH: restoreEnvironment.Path,
+      PGSSLROOTCERT: restoreEnvironment.PGSSLROOTCERT,
     });
   });
 

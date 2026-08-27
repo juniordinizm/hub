@@ -232,6 +232,11 @@ O workflow define a variável não sensível `PGSSLROOTCERT` como
 `pg_dump` validar o certificado do host quando `sslmode=verify-full` está ativo;
 não deve ser adicionada à URL nem ao secret.
 
+No restore local em Windows, defina `PGSSLROOTCERT` para um bundle confiável de
+certificados raiz antes de executar o comando. O script preserva esse valor e o
+`PATH` da sessão ao iniciar `age` e `pg_restore`; não troque `verify-full` por
+`require` para contornar uma falha de certificado.
+
 O recipient é público. As identidades privadas nunca entram no GitHub. O
 workflow `.github/workflows/backup-production-database.yml` usa cron literal
 `17 */6 * * *`, dispatch manual, `cancel-in-progress: false` e summary
