@@ -221,10 +221,11 @@ Configure sem passar valores pela linha de comando ou por este chat:
 
 O Environment `vercel-production` também possui as variables não sensíveis
 `BACKUP_R2_ACCOUNT_ID` e `BACKUP_R2_BUCKET_NAME`. As secrets
-`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` ainda não estão
-configuradas nesse Environment; sem elas o gate de release e o restore não
-podem ser considerados provados. Não reutilize as credenciais de escrita do
-workflow como solução permanente.
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` foram configuradas
+nesse Environment. Isso libera a execução do checker protegido, mas a presença
+nominal não prova conteúdo nem conectividade; o gate e o restore continuam sem
+prova até serem executados. Não reutilize as credenciais de escrita do workflow
+como solução permanente.
 
 O workflow define a variável não sensível `PGSSLROOTCERT` como
 `/etc/ssl/certs/ca-certificates.crt` no runner Ubuntu. Ela é necessária para o

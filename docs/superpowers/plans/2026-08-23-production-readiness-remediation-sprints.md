@@ -52,11 +52,11 @@ deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
   lifecycle foram confirmados com objetos descartáveis. A execução
   `33023906420` publicou cifra e manifestos `frequent`, `daily` e `weekly`, e o
   checker de frescor confirmou o manifesto mais recente.
-- O bloqueio externo atual são as secrets
-  `RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY`, ainda ausentes
-  do Environment `vercel-production`. Elas devem ser credenciais R2
-  exclusivamente de leitura, separadas das credenciais de escrita do backup.
-  Nenhum valor deve ser colado neste chat. O relatório de requalificação atual está em
+- As secrets `RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` agora
+  estão cadastradas no Environment `vercel-production`. Elas são credenciais R2
+  exclusivamente de leitura, separadas das credenciais de escrita do backup;
+  a presença nominal ainda não prova conectividade. Nenhum valor deve ser colado
+  neste chat. O relatório de requalificação atual está em
   [2026-08-26-production-readiness-requalification.md](../../reviews/2026-08-26-production-readiness-requalification.md).
 - Os PRs/workflows diagnósticos temporários de Asaas, R2 e deploy foram fechados
   e não participam do fluxo atual. As referências remotas continuam preservadas
@@ -1005,12 +1005,11 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.5: ensaiar PITR e restauração da cópia externa
 
-**Estado em 2026-08-26:** ainda não executada. O backup e o checker de frescor
-estão verdes, mas o restore protegido exige as secrets R2 read-only
-`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` no Environment
-`vercel-production`, além de uma identidade privada `age` offline e um target
-Neon descartável fornecidos fora do repositório. Não reutilizar as credenciais de
-escrita do workflow.
+**Estado em 2026-08-27:** ainda não executada. O backup e o checker de frescor
+estão verdes e as secrets R2 read-only foram cadastradas no Environment
+`vercel-production`; falta provar o checker protegido, além de disponibilizar uma
+identidade privada `age` offline e um target Neon descartável fora do repositório.
+Não reutilizar as credenciais de escrita do workflow.
 
 **Passos:**
 
@@ -1028,10 +1027,10 @@ escrita do workflow.
 
 ### Tarefa 2.6: bloquear release sem backup recente
 
-**Estado em 2026-08-26:** implementado no workflow Production antes da branch
+**Estado em 2026-08-27:** implementado no workflow Production antes da branch
 Neon e das migrations. O backup válido e o checker de frescor já foram
-comprovados; a execução protegida continua pendente até existir a credencial R2
-read-only separada no Environment `vercel-production`.
+comprovados; a execução protegida ainda precisa ser exercitada com as secrets R2
+read-only recém-cadastradas no Environment `vercel-production`.
 
 **Modificar:**
 
