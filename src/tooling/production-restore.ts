@@ -29,17 +29,29 @@ export interface ProductionRestorePoolOptions {
   };
 }
 
+const removeSslModeFromConnectionString = (targetUrl: string): string => {
+  const url = new URL(targetUrl);
+  url.searchParams.delete("sslmode");
+  return url.toString();
+};
+
 export const buildProductionRestorePoolOptions = (
   targetUrl: string,
   rootCertificate?: string
-): ProductionRestorePoolOptions => ({
-  application_name: "protea-r-production-restore-drill",
-  connectionString: targetUrl,
-  max: 1,
-  ...(rootCertificate
-    ? { ssl: { ca: rootCertificate, rejectUnauthorized: true as const } }
-    : {}),
-});
+): ProductionRestorePoolOptions => {
+  const connectionString = rootCertificate
+    ? removeSslModeFromConnectionString(targetUrl)
+    : targetUrl;
+
+  return {
+    application_name: "protea-r-production-restore-drill",
+    connectionString,
+    max: 1,
+    ...(rootCertificate
+      ? { ssl: { ca: rootCertificate, rejectUnauthorized: true as const } }
+      : {}),
+  };
+};
 
 const CONFIRMATION = "RESTORE_DISPOSABLE_PRODUCTION_BACKUP";
 const AGE_IDENTITY_CONTENT_PATTERN = /^(?:AGE-SECRET-KEY-|AGE-PLUGIN-)/;
@@ -62,6 +74,26 @@ const SCHEMA_SCOPED_ARCHIVE_TYPES = new Set([
   "TRIGGER",
 ]);
 const WHITESPACE_PATTERN = /\s+/;
+
+const archiveSchemaIndex = (
+  tokens: readonly string[],
+  objectType: string
+): number => {
+  if (objectType === "TABLE" && tokens[1]?.toUpperCase() === "DATA") {
+    return 2;
+  }
+  if (
+    objectType === "SEQUENCE" &&
+    tokens[1]?.toUpperCase() === "OWNED" &&
+    tokens[2]?.toUpperCase() === "BY"
+  ) {
+    return 3;
+  }
+  if (objectType === "SEQUENCE" && tokens[1]?.toUpperCase() === "SET") {
+    return 2;
+  }
+  return 1;
+};
 
 const requiredEnvironmentValue = (
   environment: RestoreEnvironment,
@@ -222,8 +254,7 @@ export const validatePgRestoreList = (contents: string): void => {
     }
     const tokens = entry.split(WHITESPACE_PATTERN).slice(3);
     const objectType = tokens[0]?.toUpperCase();
-    const schemaIndex =
-      objectType === "TABLE" && tokens[1]?.toUpperCase() === "DATA" ? 2 : 1;
+    const schemaIndex = archiveSchemaIndex(tokens, objectType ?? "");
     const schema = tokens[schemaIndex];
     if (
       objectType &&
@@ -278,6 +309,7 @@ export const runProductionRestore = async <Result>({
   manifest,
   pgEnvironment,
   runCommand = runBackupCommand,
+  targetDatabase,
   verifyRestoredDatabase,
 }: {
   assertTargetEmpty: () => Promise<void>;
@@ -286,6 +318,7 @@ export const runProductionRestore = async <Result>({
   manifest: ProductionBackupManifestV1;
   pgEnvironment: NodeJS.ProcessEnv;
   runCommand?: BackupCommandRunner;
+  targetDatabase: string;
   verifyRestoredDatabase: () => Promise<Result>;
 }): Promise<Result> => {
   const temporaryDirectory = await mkdtemp(
@@ -328,6 +361,8 @@ export const runProductionRestore = async <Result>({
     await assertTargetEmpty();
     await runCommand({
       arguments_: [
+        "--dbname",
+        targetDatabase,
         "--exit-on-error",
         "--single-transaction",
         "--no-owner",

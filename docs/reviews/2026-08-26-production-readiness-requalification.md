@@ -12,11 +12,11 @@ requalification_date: 2026-08-26
 
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
 real já registrou uma venda. O backup independente passou em duas execuções
-manuais consecutivas e o checker de frescor passou, mas a observação de uma
-execução agendada, restore/PITR/RTO, Sentry/DMARC e outros gates externos
-continuam pendentes. As credenciais R2 read-only agora estão cadastradas no
-Environment `vercel-production`; ainda falta executar o checker protegido e o
-restore com identidade `age` e target descartável.
+manuais consecutivas, o checker de frescor passou e o restore R2 foi concluído
+em target descartável com RTO medido. A observação de uma execução agendada,
+PITR/RPO, Sentry/DMARC e outros gates externos continuam pendentes. As
+credenciais R2 read-only estão cadastradas no Environment
+`vercel-production`; ainda falta executar o checker protegido.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -126,9 +126,24 @@ A presença nominal de uma secret no Environment não prova seu conteúdo nem a
 conectividade. O workflow de backup está verde; não substitua o gate de release
 por `emergency_skip_backup`.
 
-Ainda faltam: execução do checker protegido, restore em target descartável,
-identidade `age` offline, PITR, medição de RTO, observação de uma execução
-agendada e agendamento do exercício periódico.
+## Atualização pós-restore — 2026-08-27
+
+O restore R2 foi comprovado com o manifesto `e0b48105-1496-4837-b81e-af30f0063781`
+e migration `0067_sparkling_ghost_rider`. O target Neon descartável confirmou
+46 tabelas, 537 constraints, quatro índices críticos e as consultas agregadas
+de usuários, cursos, pedidos e certificados. O RTO medido foi de 105 segundos.
+Após a confirmação, a branch descartável foi removida; nenhum banco persistente
+foi usado como alvo e nenhuma nova cobrança foi realizada.
+
+O restore exigiu três correções no caminho local: preservar o CA no Pool do
+Node sem que `sslmode` da URL o substituísse, interpretar corretamente as
+entradas de sequência do `pg_restore --list` e informar explicitamente o
+database com `--dbname` durante a restauração. Os quatro jobs do CI do PR
+correspondente passaram.
+
+O restore R2 e o RTO estão fechados. Permanecem abertos: checker protegido,
+PITR/RPO, observação de uma execução agendada, agendamento do exercício
+periódico, aceite de e-mail/acesso/refund, Sentry/DMARC e Dependabot.
 
 ## Matriz atual de Sprints
 
@@ -136,7 +151,7 @@ agendada e agendamento do exercício periódico.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `BACKUP_GREEN_EXTERNAL_PROOF_PENDING` | backup, R2, Neon, CA, manifestos e checker de frescor verdes; secrets read-only cadastradas | checker protegido, restore/PITR/RPO/RTO |
+| 2 | `RESTORE_RTO_PROVEN_PITR_PENDING` | backup, R2, checker de frescor e restore descartável verdes; RTO de 105 s e target removido | checker protegido, PITR/RPO, execução agendada |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
@@ -160,7 +175,7 @@ agendada e agendamento do exercício periódico.
 
 ## Condição de continuação
 
-Com as secrets R2 read-only cadastradas no Environment `vercel-production`,
-executar o checker do gate, seguir para restore/PITR/RPO/RTO e só então
-requalificar Sentry, DMARC, Dependabot e a promoção. O workflow de backup já
-está verde; não há necessidade de novo bypass emergencial.
+Com o restore R2 encerrado, executar o checker protegido e seguir para
+PITR/RPO e observação de uma execução agendada. Só então requalificar Sentry,
+DMARC, Dependabot e a promoção. O workflow de backup já está verde; não há
+necessidade de novo bypass emergencial.

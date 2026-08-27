@@ -38,10 +38,13 @@ do webhook Resend.
 O `main` atual inclui as correções de fallback de upload R2 e do checker de domínio,
 mas ainda não foi promovido por um release protegido novo. O backup Production
 passou em duas execuções manuais consecutivas (`33023906420` e `33026369149`),
-com manifestos válidos e checker de frescor verde. A promoção continua dependente
-do checker protegido ainda não exercitado com as secrets R2 read-only recém-
-cadastradas no Environment `vercel-production`, do restore e dos demais gates
-externos. O estado decisório atual permanece `NO-GO` para uma nova promoção.
+com manifestos válidos e checker de frescor verde. O restore R2 também foi
+comprovado no backup `e0b48105-1496-4837-b81e-af30f0063781`: RTO de 105 segundos,
+46 tabelas, 537 constraints e quatro índices críticos em target descartável,
+removido após a confirmação. A promoção continua dependente do checker protegido
+com as secrets R2 read-only, de PITR/RPO, da observação de uma execução agendada
+e dos demais gates externos. O estado decisório atual permanece `NO-GO` para uma
+nova promoção.
 
 Este documento separa três fatos que não podem ser tratados como sinônimos:
 

@@ -2361,8 +2361,17 @@ incidente financeiro.
   original.
 - [x] Registrar a venda ocorrida como validação pós-deploy, não como gate
   retroativo.
+- [x] Executar restore R2 em target Neon descartável, medir RTO e remover o
+  target após a confirmação.
 - [ ] Programar próximo restore trimestral, revisão DMARC e revisão mensal de
   cotas.
+
+**Atualização de 2026-08-27:** o backup `e0b48105-1496-4837-b81e-af30f0063781`
+foi restaurado com sucesso em 105 segundos. O postflight confirmou 46 tabelas,
+537 constraints, quatro índices críticos e as consultas agregadas previstas.
+O target foi uma branch Neon descartável de CI e foi removido após a leitura.
+PITR/RPO e a observação de uma execução agendada continuam pendentes; a decisão
+global da Sprint 7 permanece `NO-GO` até os gates externos serem encerrados.
 
 ---
 
