@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -35,8 +35,9 @@ Resultado esperado:
 ## Checkpoint de retorno ao fluxo normal — 2026-08-26
 
 Este checkpoint atualiza o estado das seções históricas abaixo sem alterar suas
-decisões originais. O `main` verificável é
-`63f64106eef197d59a7929fabc6d64fb239ecfe6`; Production continua servindo o
+decisões originais. O `main` documental atual é
+`7fcad238821298b3d4545acfd24cc74076de10d9`; o último SHA de código verificado
+é `76e77e68f9a14f2f96f3412917bf3d3c08de398c`. Production continua servindo o
 deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
 `1c0202f935934285901f90e2b8c68f887f00222e`.
 
@@ -48,12 +49,14 @@ deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
   projeto e exigir domínio customizado verificado. O deployment antigo ainda
   não contém esse código; a próxima promoção deve usar o workflow protegido.
 - O bucket R2 dedicado e o Environment `production-backup` existem. Lock e
-  lifecycle foram confirmados com objetos descartáveis; ainda não há manifesto
-  válido porque o workflow para em `configuration-database`.
-- O bloqueio externo é exclusivamente a secret `BACKUP_DATABASE_URL`: ela deve
-  usar host direto da branch Production, banco e credenciais válidos,
-  `sslmode=verify-full` e somente parâmetros permitidos. Nenhum valor deve ser
-  colado neste chat. O relatório de requalificação atual está em
+  lifecycle foram confirmados com objetos descartáveis. A execução
+  `33023906420` publicou cifra e manifestos `frequent`, `daily` e `weekly`, e o
+  checker de frescor confirmou o manifesto mais recente.
+- O bloqueio externo atual são as secrets
+  `RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY`, ainda ausentes
+  do Environment `vercel-production`. Elas devem ser credenciais R2
+  exclusivamente de leitura, separadas das credenciais de escrita do backup.
+  Nenhum valor deve ser colado neste chat. O relatório de requalificação atual está em
   [2026-08-26-production-readiness-requalification.md](../../reviews/2026-08-26-production-readiness-requalification.md).
 - Os PRs/workflows diagnósticos temporários de Asaas foram fechados e suas
   branches remotas removidas. A partir deste ponto, mudanças seguem PR, CI
@@ -824,14 +827,13 @@ intervalos e impossibilidade gratuita.
 
 ### Tarefa 2.2: criar o backup cifrado
 
-**Estado em 2026-08-26:** workflow e comandos publicados em `main`; a primeira
-execução externa ainda falha em `configuration-database`. O workflow, comandos,
-limpeza de temporários, versões, checksum do binário `age`, ordem
-cifra/HEAD/manifesto e source contracts estão verdes. A job remota ainda não foi
-O bucket dedicado e o Environment `production-backup` foram provisionados e a
-job remota já executou. As falhas foram reduzidas a `configuration-database`;
-nenhuma credencial ou URL foi registrada nos logs. O checkpoint agregado aprovou
-CI, typecheck, migrations, Ultracite e os quatro jobs de integração/E2E/build.
+**Estado em 2026-08-26:** workflow e comandos publicados em `main`; a execução
+completa `33023906420` passou em `pg_dump`, cifra, PUT/HEAD no R2 e publicação
+dos manifestos `frequent`, `daily` e `weekly`. O workflow, comandos, limpeza de
+temporários, versões, checksum do binário `age`, ordem cifra/HEAD/manifesto e
+source contracts estão verdes. Nenhuma credencial ou URL foi registrada nos
+logs. O checkpoint agregado aprovou CI, typecheck, migrations, Ultracite e os
+quatro jobs de integração/E2E/build.
 
 **Criar:**
 
@@ -909,13 +911,15 @@ HEAD/hash, e nenhum arquivo claro permanece no runner ou workspace.
 
 **Alteração externa controlada:** Cloudflare R2.
 
-**Estado em 2026-08-26:** lock/lifecycle provisionados e lidos de volta; a
-primeira execução verde permanece pendente. Wrangler `4.125.0` não possui sessão
-administrativa persistente neste worktree, mas a configuração foi executada no
-terminal autenticado da operadora e lida de volta. A documentação atual confirma
-R2 Standard Free em 10 GB-mês, 1 milhão Class A, 10 milhões Class B e egress
-gratuito. O bucket dedicado e objetos de teste foram confirmados via AWS CLI;
-lock recusou exclusões com exit code `254` e o `HEAD` expôs as datas de expiração.
+**Estado em 2026-08-26:** lock/lifecycle provisionados e lidos de volta, e a
+execução completa `33023906420` confirmou o bucket em uso. Wrangler `4.125.0`
+não possui sessão administrativa persistente neste worktree, mas a configuração
+foi executada no terminal autenticado da operadora e lida de volta. A
+documentação atual confirma R2 Standard Free em 10 GB-mês, 1 milhão Class A,
+10 milhões Class B e egress gratuito. O bucket dedicado e objetos de teste
+foram confirmados via AWS CLI; lock recusou exclusões com exit code `254` e o
+`HEAD` expôs as datas de expiração. A prova de restauração e os alertas ainda
+dependem de credenciais e configuração externa separadas.
 
 **Projeção fechada:** no modelo de 30 dias/120 runs, uma listagem por run, dois
 PUTs e um HEAD por classe resultam em cerca de 430 operações Class A e 155 Class
@@ -997,6 +1001,13 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.5: ensaiar PITR e restauração da cópia externa
 
+**Estado em 2026-08-26:** ainda não executada. O backup e o checker de frescor
+estão verdes, mas o restore protegido exige as secrets R2 read-only
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` no Environment
+`vercel-production`, além de uma identidade privada `age` offline e um target
+Neon descartável fornecidos fora do repositório. Não reutilizar as credenciais de
+escrita do workflow.
+
 **Passos:**
 
 - [ ] Criar branch Neon descartável a partir de ponto dentro da janela PITR de
@@ -1013,9 +1024,10 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.6: bloquear release sem backup recente
 
-**Estado em 2026-08-24:** implementado no workflow Production antes da branch
-Neon e das migrations, usando credencial R2 read-only separada. A prova remota
-depende do primeiro backup válido.
+**Estado em 2026-08-26:** implementado no workflow Production antes da branch
+Neon e das migrations. O backup válido e o checker de frescor já foram
+comprovados; a execução protegida continua pendente até existir a credencial R2
+read-only separada no Environment `vercel-production`.
 
 **Modificar:**
 
@@ -1039,10 +1051,11 @@ depende do primeiro backup válido.
 ### Gate da Sprint 2
 
 - [ ] Backup agendado e manual verdes.
-- [ ] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
+- [x] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
 - [ ] Restore R2 completo dentro do RTO e PITR exercitado.
-- [ ] RPO efetivo e uso de cotas documentados abaixo de 80%.
-- [ ] Release falha com backup stale ou inválido.
+- [x] RPO efetivo e uso de cotas documentados abaixo de 80%.
+- [x] Release falha com backup stale ou inválido nos testes do checker; a
+  execução do gate protegido ainda depende das secrets R2 read-only.
 
 **STOP:** dump claro persistido; identidade privada no GitHub; bucket público;
 target compartilhado aceito pelo restore; cota projetada excedida; restore
