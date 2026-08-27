@@ -234,8 +234,9 @@ não deve ser adicionada à URL nem ao secret.
 
 No restore local em Windows, defina `PGSSLROOTCERT` para um bundle confiável de
 certificados raiz antes de executar o comando. O script preserva esse valor e o
-`PATH` da sessão ao iniciar `age` e `pg_restore`; não troque `verify-full` por
-`require` para contornar uma falha de certificado.
+`PATH` da sessão ao iniciar `age` e `pg_restore`, e passa o conteúdo do CA ao
+`Pool` do Node. Não troque `verify-full` por `require` para contornar uma falha
+de certificado.
 
 O recipient é público. As identidades privadas nunca entram no GitHub. O
 workflow `.github/workflows/backup-production-database.yml` usa cron literal

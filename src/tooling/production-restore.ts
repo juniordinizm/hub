@@ -19,6 +19,28 @@ export interface ProductionRestoreConfig {
   targetHost: string;
 }
 
+export interface ProductionRestorePoolOptions {
+  application_name: string;
+  connectionString: string;
+  max: number;
+  ssl?: {
+    ca: string;
+    rejectUnauthorized: true;
+  };
+}
+
+export const buildProductionRestorePoolOptions = (
+  targetUrl: string,
+  rootCertificate?: string
+): ProductionRestorePoolOptions => ({
+  application_name: "protea-r-production-restore-drill",
+  connectionString: targetUrl,
+  max: 1,
+  ...(rootCertificate
+    ? { ssl: { ca: rootCertificate, rejectUnauthorized: true as const } }
+    : {}),
+});
+
 const CONFIRMATION = "RESTORE_DISPOSABLE_PRODUCTION_BACKUP";
 const AGE_IDENTITY_CONTENT_PATTERN = /^(?:AGE-SECRET-KEY-|AGE-PLUGIN-)/;
 const AGE_VERSION_PATTERN = /^v?1\.3\.1$/;

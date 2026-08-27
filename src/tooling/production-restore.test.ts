@@ -6,6 +6,7 @@ import type { ProductionBackupManifestV1 } from "./production-backup";
 import type { BackupCommandRunner } from "./production-backup-execution";
 import {
   assertEmptyRestoreTarget,
+  buildProductionRestorePoolOptions,
   resolveProductionRestoreConfig,
   runProductionRestore,
   validatePgRestoreList,
@@ -158,6 +159,22 @@ describe("restore target and archive guards", () => {
     expect(() =>
       validatePgRestoreList("1; 0 0 TABLE private secrets backup")
     ).toThrow("schema");
+  });
+});
+
+describe("restore database connection", () => {
+  it("passes the configured root certificate to the Node PostgreSQL pool", () => {
+    expect(
+      buildProductionRestorePoolOptions(
+        restoreEnvironment.RESTORE_DATABASE_URL,
+        "test root certificate"
+      )
+    ).toMatchObject({
+      ssl: {
+        ca: "test root certificate",
+        rejectUnauthorized: true,
+      },
+    });
   });
 });
 
