@@ -58,9 +58,11 @@ deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
   exclusivamente de leitura, separadas das credenciais de escrita do backup.
   Nenhum valor deve ser colado neste chat. O relatório de requalificação atual está em
   [2026-08-26-production-readiness-requalification.md](../../reviews/2026-08-26-production-readiness-requalification.md).
-- Os PRs/workflows diagnósticos temporários de Asaas foram fechados e suas
-  branches remotas removidas. A partir deste ponto, mudanças seguem PR, CI
-  completa, backup verde, checker e documentação; não usar `emergency_skip_*`.
+- Os PRs/workflows diagnósticos temporários de Asaas, R2 e deploy foram fechados
+  e não participam do fluxo atual. As referências remotas continuam preservadas
+  para rastreabilidade; sua remoção é uma limpeza destrutiva separada e exige
+  autorização explícita. A partir deste ponto, mudanças seguem PR, CI completa,
+  backup verde, checker e documentação; não usar `emergency_skip_*`.
 
 Base de planejamento: commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro

@@ -147,9 +147,10 @@ exercício periódico.
 
 - não há autorização para novos `emergency_skip_backup` ou
   `emergency_skip_ci`;
-- PRs/workflows diagnósticos temporários de Asaas foram fechados; commits ficam
-  recuperáveis no histórico. As branches temporárias de Asaas, R2 e deploy
-  emergencial também foram removidas; a branch histórica de remediação foi
+- PRs/workflows diagnósticos temporários de Asaas, R2 e deploy foram fechados e
+  não participam do fluxo atual. As referências de branches ainda existem no
+  remoto para preservar rastreabilidade; sua remoção é uma limpeza destrutiva
+  separada e não foi executada neste gate. A branch histórica de remediação foi
   preservada;
 - nenhuma credencial foi adicionada a código ou documentação;
 - a venda real não é convertida em gate retroativo nem repetida;
