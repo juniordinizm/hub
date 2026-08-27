@@ -11,8 +11,9 @@ requalification_date: 2026-08-26
 ## Resultado
 
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
-real já registrou uma venda. O backup independente agora está verde e o checker
-de frescor passou, mas restore/PITR/RTO, Sentry/DMARC e outros gates externos
+real já registrou uma venda. O backup independente passou em duas execuções
+manuais consecutivas e o checker de frescor passou, mas a observação de uma
+execução agendada, restore/PITR/RTO, Sentry/DMARC e outros gates externos
 continuam pendentes. O bloqueio atual é a ausência de credencial R2 read-only
 separada no Environment `vercel-production`.
 
@@ -104,9 +105,12 @@ Execuções relevantes:
 14. `33023906420`: backup completo passou em `main`; foram publicados seis
     objetos (cifra e manifesto em `frequent`, `daily` e `weekly`) e todos os
     HEADs foram confirmados.
-15. `ops:check:production-backup` passou com idade de 2 minutos e migration
-    `0067_sparkling_ghost_rider`. As variables R2 não sensíveis também foram
-    adicionadas ao Environment `vercel-production`.
+15. `33026369149`: segunda execução manual consecutiva passou em 1m03s; publicou
+    cifra e manifesto em `frequent` e `daily`, conforme a regra de calendário.
+    O manifesto mais recente é `e0b48105-1496-4837-b81e-af30f0063781`, com
+    migration `0067_sparkling_ghost_rider` e `cadenceHours=6`.
+16. `ops:check:production-backup` passou com status `fresh`. As variables R2 não
+    sensíveis também foram adicionadas ao Environment `vercel-production`.
 
 O bloqueio `configuration-database` foi encerrado: `BACKUP_DATABASE_URL` aponta
 para o host direto da branch Production, usa `sslmode=verify-full` e passou pela
@@ -122,8 +126,8 @@ conectividade. O workflow de backup está verde; não substitua o gate de releas
 por `emergency_skip_backup`.
 
 Ainda faltam: credencial R2 read-only separada, restore em target descartável,
-PITR, medição de RTO, duas execuções consecutivas e agendamento do exercício
-periódico.
+PITR, medição de RTO, observação de uma execução agendada e agendamento do
+exercício periódico.
 
 ## Matriz atual de Sprints
 

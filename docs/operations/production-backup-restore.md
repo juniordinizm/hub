@@ -11,10 +11,11 @@ last_verified_commit: 76e77e68f9a14f2f96f3412917bf3d3c08de398c
 O código, os testes e os workflows estão implementados em `main`. O bucket R2
 dedicado e o GitHub Environment `production-backup` já existem. Lock/lifecycle
 foram lidos de volta e os objetos descartáveis das três classes recusaram remoção
-durante o lock. A execução `33023906420` produziu manifestos válidos nas três
-classes e o checker de frescor passou. PITR, restore e RPO/RTO continuam sem
-prova externa. Até essas provas passarem, `F-002` e o gate do Sprint 2
-permanecem abertos.
+durante o lock. As execuções `33023906420` e `33026369149` passaram
+consecutivamente; a primeira publicou `frequent`, `daily` e `weekly`, e a segunda
+publicou `frequent` e `daily` conforme a regra de calendário. O checker de frescor
+passou. PITR, restore e RPO/RTO continuam sem prova externa. Até essas provas
+passarem, `F-002` e o gate do Sprint 2 permanecem abertos.
 
 O desenho usa exclusivamente planos gratuitos: Neon Free para origem/PITR
 disponível e Cloudflare R2 Standard Free para a cópia independente. A reserva
@@ -79,12 +80,18 @@ descrever o estado atual.
 - `33023906420`: backup completo passou em `main`, com `pg_dump` 18.6, cifra
   de 205748 bytes, manifestos `frequent`/`daily`/`weekly` e seis objetos
   confirmados por HEAD;
-- o checker local `ops:check:production-backup` passou com idade de 2 minutos,
-  migration `0067_sparkling_ghost_rider` e status `fresh`;
+- `33026369149`: segunda execução manual consecutiva passou em 1m03s, com
+  `pg_dump` 18.6, cifra de 210286 bytes e manifestos `frequent`/`daily`; a
+  classe `weekly` não é criada fora da primeira execução de segunda-feira;
+- o manifesto `frequent` mais recente (`e0b48105-1496-4837-b81e-af30f0063781`)
+  registra migration `0067_sparkling_ghost_rider`, `cadenceHours=6` e
+  `retentionClasses=[frequent,daily]`;
+- o checker local `ops:check:production-backup` passou com status `fresh`;
 - o manifesto `frequent` é válido e fresco, mas o gate de release e o restore
   permanecem fechados até usar uma credencial R2 read-only separada;
-- a role read-only, PITR, restauração em target descartável, medição de RPO/RTO e
-  exercício de duas execuções consecutivas ainda precisam de prova.
+- a role read-only, PITR, restauração em target descartável e medição de RPO/RTO
+  ainda precisam de prova; a observação de uma execução agendada permanece
+  pendente, pois as duas execuções acima foram disparadas manualmente.
 
 Formato esperado, usando placeholders que nunca devem ser substituídos neste
 arquivo:
