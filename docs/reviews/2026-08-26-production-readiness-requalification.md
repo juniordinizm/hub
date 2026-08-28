@@ -166,7 +166,7 @@ comprador, nem autoriza repetir cobrança ou iniciar reembolso.
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
-| 6 | `DEPENDABOT_PROVIDER_PENDING` | configuração Bun publicada; PRs existentes são antigos/divergentes | PR real do ecossistema Bun alterando lockfile e gates |
+| 6 | `DEPENDABOT_PROVIDER_PROVEN` | PR #71 alterou `package.json`/`bun.lock`, passou CI completa e foi mesclado; outros upgrades seguem separados | revisar os PRs restantes individualmente |
 | 7 | `NO-GO` | CI integral verde em SHAs recentes; externos abertos | repetir matriz completa no mesmo SHA após Sprints 2/5/6 |
 | 8 | `PARTIAL_POST_PRODUCTION` | deployment observado e uma venda confirmada | documentar e-mail/acesso/refund sem nova cobrança; programar revisões |
 

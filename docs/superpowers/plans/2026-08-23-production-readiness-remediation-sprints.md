@@ -1950,6 +1950,12 @@ consulta posterior confirmou HTTP 404. Permanece aberto apenas o gate externo
 de um PR Dependabot real no SHA candidato remoto; nenhum banco compartilhado foi
 usado como atalho.
 
+**Atualização de 2026-08-28:** o PR Dependabot `#71` atualizou `jsdom`, passou a
+matriz completa (Quality, PostgreSQL, Browser e Build) por dispatch manual, foi
+mesclado e a CI pós-merge da `main` terminou verde. O provedor Dependabot está
+comprovado; os PRs major/group restantes permanecem opcionais e não devem ser
+mesclados sem análise individual.
+
 ### Resultado
 
 Encerrar `F-008`, `F-009` e `F-010` com uma política única de oito caracteres,
@@ -2143,7 +2149,8 @@ banco, provider, Playwright ou Next.js.
 - [x] Chromium desktop completo e mobile crítico verdes: 41/41 em 7,7 min,
   zero skip, retry ou flaky, sobre branch Neon descartável removida após o gate.
 - [x] Teclado/foco exercitados nos fluxos destrutivos e privileged auth.
-- [ ] Dependabot reconhece `package.json` e `bun.lock` e abre PR de teste.
+- [x] Dependabot reconhece `package.json` e `bun.lock` e abre PR de teste; o PR
+  `#71` passou a matriz completa e foi mesclado com CI pós-merge verde.
 - [x] Cota Actions permanece abaixo do limite operacional: runner padrão
   ilimitado no repositório público e cache em `70.698.566` bytes de 10 GB.
 
@@ -2257,7 +2264,8 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
 ### Tarefa 7.5: executar gates externos sem venda real
 
 - [ ] Checker Vercel/Neon concorda com release-state candidato.
-- [ ] Backup recente, RPO/cota e restore/RTO verdes.
+- [x] Backup recente, RPO/cota e restore/RTO verdes; três execuções `schedule`,
+  PITR e restore R2 foram comprovados, com risco de pontualidade registrado.
 - [x] Resend templates/domain/webhook e lifecycle controlado verdes.
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
 - [ ] Sentry event/source map/alert verdes.
