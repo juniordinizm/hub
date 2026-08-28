@@ -12,11 +12,13 @@ requalification_date: 2026-08-26
 
 `NO-GO` para uma nova promoção protegida. Production está no ar e o checkout
 real já registrou uma venda. O backup independente passou em duas execuções
-manuais consecutivas, o checker de frescor passou e o restore R2 foi concluído
-em target descartável com RTO medido. A observação de uma execução agendada,
-PITR/RPO, Sentry/DMARC e outros gates externos continuam pendentes. As
-credenciais R2 read-only estão cadastradas no Environment
-`vercel-production`; ainda falta executar o checker protegido.
+manuais consecutivas, o checker de frescor passou, o restore R2 foi concluído
+em target descartável com RTO medido e três execuções `schedule` terminaram
+com sucesso. Os atrasos observados de aproximadamente 3h34, 3h59 e 5h08
+mantêm um risco de pontualidade que deve ser monitorado. Sentry/DMARC e outros
+gates externos continuam pendentes. As credenciais R2 read-only estão
+cadastradas no Environment `vercel-production`; ainda falta executar o checker
+protegido.
 
 Esta revisão atualiza o estado operacional após a janela emergencial. A decisão
 `NO-GO` histórica de 23 de agosto permanece intacta.
@@ -141,10 +143,12 @@ entradas de sequência do `pg_restore --list` e informar explicitamente o
 database com `--dbname` durante a restauração. Os quatro jobs do CI do PR
 correspondente passaram.
 
-O restore R2, o PITR e os tempos medidos estão fechados. Permanecem abertos:
-checker protegido, observação de uma execução agendada, agendamento do
-exercício periódico, aceite de e-mail/acesso/refund, Sentry/DMARC e a decisão
-de merge do Dependabot.
+O restore R2, o PITR, os tempos medidos e a existência do cron estão fechados.
+Três execuções `schedule` terminaram com sucesso; os atrasos observados de
+aproximadamente 3h34, 3h59 e 5h08 mantêm um risco de pontualidade que deve ser
+monitorado pelo freshness checker. Permanecem abertos: checker protegido,
+agendamento do exercício periódico, aceite de e-mail/acesso/refund,
+Sentry/DMARC e os demais PRs do Dependabot.
 
 ## Matriz atual de Sprints
 
@@ -152,7 +156,7 @@ de merge do Dependabot.
 |---|---|---|---|
 | 0 | `COMPLETED` | baseline, providers e cotas registrados | nenhuma ação imediata |
 | 1 | `IMPLEMENTED_EXTERNAL_PROOF_PENDING` | matriz `support`, TOTP e testes verdes | provar duas contas Admin e recuperação por backup code |
-| 2 | `PITR_RPO_PROVEN_SCHEDULE_PENDING` | backup, R2, restore e PITR descartáveis verdes; RTO de 105 s e RPO sintético de 11m49s | checker protegido, execução agendada |
+| 2 | `BACKUP_RECOVERY_PROVEN_SCHEDULER_RISK` | backup, R2, restore, PITR e três execuções `schedule` verdes; RTO de 105 s e RPO sintético de 11m49s | checker protegido, monitorar pontualidade do cron |
 | 3 | `COMPLETED_CODE` | concorrência e validade cobertas em PostgreSQL descartável | manter monitoramento |
 | 4 | `EXTERNAL_PROOF_PENDING` | Resend lifecycle controlado verde em Staging; workers Production 200 recentes | aceite/delivery no painel e alertas dead-letter/retry |
 | 5 | `EXTERNAL_GATES_PENDING` | checker e integração Sentry locais; DNS/alertas não fechados | token de upload, privacidade, alerta institucional, DMARC reject |
