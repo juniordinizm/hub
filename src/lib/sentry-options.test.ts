@@ -12,6 +12,23 @@ describe("Sentry options", () => {
     ).toMatchObject({ environment: "staging", release: "a".repeat(40) });
   });
 
+  it("disables automatic request and user data collection", () => {
+    expect(
+      getSentryOptions("https://public@example.ingest.sentry.io/1")
+    ).toMatchObject({
+      dataCollection: {
+        cookies: false,
+        databaseQueryData: false,
+        genAI: { inputs: false, outputs: false },
+        httpBodies: [],
+        httpHeaders: { request: false, response: false },
+        urlQueryParams: false,
+        userInfo: false,
+      },
+      sendDefaultPii: false,
+    });
+  });
+
   it("rejects an enabled Staging SDK without a full deployment SHA", () => {
     expect(() =>
       getSentryOptions(

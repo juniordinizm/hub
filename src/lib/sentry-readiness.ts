@@ -1,4 +1,9 @@
-import { captureException, flush, withIsolationScope } from "@sentry/nextjs";
+import {
+  captureException,
+  flush,
+  withIsolationScope,
+  withScope,
+} from "@sentry/nextjs";
 import { isFullSentryRelease } from "./sentry-deployment";
 
 type ProtectedSentryEnvironment = "production" | "staging";
@@ -41,12 +46,15 @@ export const emitSentryReadinessEvent = async ({
 
   const eventId = withIsolationScope((scope) => {
     scope.setUser(null);
-    return capture(new SentryReadinessProbeError(), {
-      tags: {
-        environment,
-        readiness_probe: "sentry",
-        release,
-      },
+    return withScope((currentScope) => {
+      currentScope.setUser(null);
+      return capture(new SentryReadinessProbeError(), {
+        tags: {
+          environment,
+          readiness_probe: "sentry",
+          release,
+        },
+      });
     });
   });
   const flushed = await flushEvents(SENTRY_FLUSH_TIMEOUT_MS);
