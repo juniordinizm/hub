@@ -31,7 +31,8 @@ export interface SentryReadinessInventory {
 const EVENT_ID = /^[0-9a-f]{32}$/i;
 const FULL_GIT_SHA = /^[0-9a-f]{40}$/i;
 const SENSITIVE_KEY =
-  /^(?:authorization|cookie|cookies|email|password|secret|signature|token|payload|signed_url|user|username)$/iu;
+  /^(?:authorization|cookie|cookies|email|ip_address|ipaddress|password|secret|signature|token|payload|signed_url|user|username)$/iu;
+const DERIVED_USER_FIELD = "geo";
 const EMAIL_VALUE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu;
 const BEARER_VALUE = /\bBearer\s+[A-Za-z0-9._~+/=-]+/iu;
 const LOCATION_QUERY = /(?:https?:\/\/|\/)[^\s?#]+[?#]/iu;
@@ -95,11 +96,22 @@ const containsSensitiveTelemetry = (value: unknown): boolean => {
   if (!isRecord(value)) {
     return false;
   }
-  return Object.entries(value).some(
-    ([key, item]) =>
+  return Object.entries(value).some(([key, item]) => {
+    if (key === "user" && isRecord(item)) {
+      return Object.entries(item).some(
+        ([userKey, userValue]) =>
+          userValue !== null &&
+          userValue !== undefined &&
+          (userKey !== DERIVED_USER_FIELD ||
+            containsSensitiveTelemetry(userValue))
+      );
+    }
+
+    return (
       (SENSITIVE_KEY.test(key) && item !== null && item !== undefined) ||
       containsSensitiveTelemetry(item)
-  );
+    );
+  });
 };
 
 const hasSourceMappedReadinessFrame = (value: unknown): boolean => {
