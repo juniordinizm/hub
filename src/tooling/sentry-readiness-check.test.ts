@@ -67,6 +67,55 @@ describe("Sentry readiness evidence", () => {
     ).toEqual([]);
   });
 
+  it("allows Sentry-derived geolocation without allowing user identity fields", () => {
+    expect(
+      verifySentryReadinessEvidence({
+        detectors,
+        event: {
+          ...event,
+          user: {
+            geo: {
+              city: "Sao Paulo",
+              country_code: "BR",
+              region: "SP",
+            },
+          },
+        },
+        expected: {
+          alertName: "Hub Production readiness",
+          environment: "staging",
+          eventId,
+          projectId: "4511808556564480",
+          release,
+        },
+        workflows,
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects identity fields that accompany derived geolocation", () => {
+    const errors = verifySentryReadinessEvidence({
+      detectors,
+      event: {
+        ...event,
+        user: {
+          email: "student@example.test",
+          geo: { country_code: "BR" },
+        },
+      },
+      expected: {
+        alertName: "Hub Production readiness",
+        environment: "staging",
+        eventId,
+        projectId: "4511808556564480",
+        release,
+      },
+      workflows,
+    });
+
+    expect(errors).toContain("event contains a sensitive attribute or value");
+  });
+
   it("rejects PII, a minified-only frame and an alert not triggered by the event", () => {
     const errors = verifySentryReadinessEvidence({
       detectors,
