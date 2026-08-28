@@ -1,7 +1,42 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const dependencies = vi.hoisted(() => ({
+  withIsolationScope: vi.fn(),
+}));
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: vi.fn(),
+  flush: vi.fn(),
+  withIsolationScope: dependencies.withIsolationScope,
+}));
+
 import { emitSentryReadinessEvent } from "./sentry-readiness";
 
 describe("Sentry readiness event", () => {
+  beforeEach(() => {
+    dependencies.withIsolationScope.mockImplementation((callback) =>
+      callback({ setUser: vi.fn() })
+    );
+  });
+
+  it("clears an inherited request user before emitting", async () => {
+    const captureException = vi.fn().mockReturnValue("event-123");
+    const flush = vi.fn().mockResolvedValue(true);
+    const setUser = vi.fn();
+    dependencies.withIsolationScope.mockImplementationOnce((callback) =>
+      callback({ setUser })
+    );
+
+    await emitSentryReadinessEvent({
+      captureException,
+      environment: "staging",
+      flush,
+      release: "a".repeat(40),
+    });
+
+    expect(setUser).toHaveBeenCalledWith(null);
+  });
+
   it("emits one constant PII-free exception with low-cardinality tags and flushes", async () => {
     const captureException = vi.fn().mockReturnValue("event-123");
     const flush = vi.fn().mockResolvedValue(true);
