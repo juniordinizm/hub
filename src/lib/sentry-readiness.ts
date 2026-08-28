@@ -1,4 +1,4 @@
-import { captureException, flush } from "@sentry/nextjs";
+import { captureException, flush, withIsolationScope } from "@sentry/nextjs";
 import { isFullSentryRelease } from "./sentry-deployment";
 
 type ProtectedSentryEnvironment = "production" | "staging";
@@ -39,12 +39,15 @@ export const emitSentryReadinessEvent = async ({
     throw new Error("Sentry readiness release must be a full Git SHA.");
   }
 
-  const eventId = capture(new SentryReadinessProbeError(), {
-    tags: {
-      environment,
-      readiness_probe: "sentry",
-      release,
-    },
+  const eventId = withIsolationScope((scope) => {
+    scope.setUser(null);
+    return capture(new SentryReadinessProbeError(), {
+      tags: {
+        environment,
+        readiness_probe: "sentry",
+        release,
+      },
+    });
   });
   const flushed = await flushEvents(SENTRY_FLUSH_TIMEOUT_MS);
   if (!flushed) {
