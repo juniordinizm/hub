@@ -117,6 +117,13 @@ ausência de PII/query, frame resolvido para `src/lib/sentry-readiness.ts` e
 workflow ativo cujo `lastTriggered` alcança o evento. HTTP 401/403, resposta
 incompleta ou timeout falham; o checker não cria nem altera alerta.
 
+O Sentry pode acrescentar `user.geo` (cidade, região e país) no processamento do
+evento, mesmo quando `scrubIPAddresses=true` e `email`/`ip_address` não foram
+enviados pelo SDK. Esse bloco derivado é o único campo `user` tolerado pelo
+checker; qualquer identidade, IP, credencial ou valor sensível continua
+reprovando o gate. A política organizacional deve permanecer ativa para que
+novos eventos não armazenem endereços IP.
+
 As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem `course_content.reorder_modules` ou `course_content.reorder_lessons`. Falhas retornam uma mensagem segura à interface e ficam nos logs como `course_module_reorder_failed` ou `course_lesson_reorder_failed`.
 
 ## Liveness, readiness e RED
