@@ -116,6 +116,47 @@ describe("Sentry readiness evidence", () => {
     expect(errors).toContain("event contains a sensitive attribute or value");
   });
 
+  it("does not treat source-map frame context as runtime telemetry", () => {
+    expect(
+      verifySentryReadinessEvidence({
+        detectors,
+        event: {
+          ...event,
+          entries: [
+            {
+              data: {
+                values: [
+                  {
+                    rawStacktrace: {
+                      frames: [
+                        {
+                          context: [[1, 'const path = "/health?probe";']],
+                          filename: "src/lib/sentry-readiness.ts",
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              type: "exception",
+            },
+          ],
+          user: {
+            geo: { country_code: "BR" },
+          },
+        },
+        expected: {
+          alertName: "Hub Production readiness",
+          environment: "staging",
+          eventId,
+          projectId: "4511808556564480",
+          release,
+        },
+        workflows,
+      })
+    ).toEqual([]);
+  });
+
   it("rejects PII, a minified-only frame and an alert not triggered by the event", () => {
     const errors = verifySentryReadinessEvidence({
       detectors,
