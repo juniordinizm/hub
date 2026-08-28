@@ -35,6 +35,13 @@ consultas recentes retornaram HTTP 200 nos quatro workers; os poucos HTTP 500 do
 último dia pertencem ao deployment anterior e foram causados pelo segredo ausente
 do webhook Resend.
 
+Uma leitura agregada somente leitura da Production em `2026-08-28T16:34:23Z`
+encontrou dois pedidos pagos nas últimas 24 horas; ambos possuíam Concessão e
+Matrícula correspondentes. No mesmo intervalo, dois efeitos da outbox e três
+mensagens de e-mail terminaram `delivered`; não houve checkout falho nem bounce
+novo. Isso comprova a projeção persistida do fluxo, mas não substitui a
+confirmação na caixa do comprador nem a evidência de reembolso.
+
 O `main` atual inclui as correções de fallback de upload R2 e do checker de domínio,
 mas ainda não foi promovido por um release protegido novo. O backup Production
 passou em duas execuções manuais consecutivas (`33023906420` e `33026369149`),
