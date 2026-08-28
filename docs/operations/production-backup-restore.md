@@ -14,8 +14,9 @@ foram lidos de volta e os objetos descartáveis das três classes recusaram remo
 durante o lock. As execuções `33023906420` e `33026369149` passaram
 consecutivamente; a primeira publicou `frequent`, `daily` e `weekly`, e a segunda
 publicou `frequent` e `daily` conforme a regra de calendário. O checker de frescor
-passou. PITR, restore e RPO/RTO continuam sem prova externa. Até essas provas
-passarem, `F-002` e o gate do Sprint 2 permanecem abertos.
+passou. PITR, restore e RPO/RTO também foram comprovados. Três execuções
+agendadas já foram observadas com sucesso; a latência do scheduler continua um
+risco operacional a ser acompanhado.
 
 O desenho usa exclusivamente planos gratuitos: Neon Free para origem/PITR
 disponível e Cloudflare R2 Standard Free para a cópia independente. A reserva
@@ -118,8 +119,18 @@ descrever o estado atual.
   entradas `SEQUENCE OWNED BY`/`SEQUENCE SET` do archive e informa o database
   descartável com `--dbname`;
 - o restore R2, o PITR e os tempos medidos estão comprovados. A execução
-  agendada, o checker protegido e os gates Sentry/DMARC/Dependabot continuam
-  pendentes.
+  agendada também foi observada: `33060433027`, `33121852706` e
+  `33167077717` terminaram `success` com `event=schedule` e no SHA da `main`;
+- o manifesto `frequent` mais recente é o backup
+  `dad0f724-1bb5-4b4c-b88e-1958d9f4f68c`, criado em
+  `2026-08-28T11:25:38Z`, com migration
+  `0067_sparkling_ghost_rider`, classes `frequent,daily` e idade dentro do
+  limite do checker;
+- as execuções automáticas observadas iniciaram com atrasos aproximados de
+  3h34, 3h59 e 5h08 em relação às janelas nominais. Isso comprova o cron, mas
+  não garante pontualidade; se a idade ultrapassar 6h30, o checker deve bloquear
+  o release e a causa deve ser investigada;
+- o checker protegido e os gates Sentry/DMARC/Dependabot continuam pendentes.
 
 Formato esperado, usando placeholders que nunca devem ser substituídos neste
 arquivo:

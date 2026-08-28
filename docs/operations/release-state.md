@@ -41,10 +41,13 @@ passou em duas execuções manuais consecutivas (`33023906420` e `33026369149`),
 com manifestos válidos e checker de frescor verde. O restore R2 também foi
 comprovado no backup `e0b48105-1496-4837-b81e-af30f0063781`: RTO de 105 segundos,
 46 tabelas, 537 constraints e quatro índices críticos em target descartável,
-removido após a confirmação. A promoção continua dependente do checker protegido
-com as secrets R2 read-only, de PITR/RPO, da observação de uma execução agendada
-e dos demais gates externos. O estado decisório atual permanece `NO-GO` para uma
-nova promoção.
+removido após a confirmação. O PITR em `production` foi criado, validado por
+parent/timestamp e smoke, e removido; o RPO sintético foi de aproximadamente
+11m49s. Três execuções agendadas (`33060433027`, `33121852706` e
+`33167077717`) terminaram `success` no SHA atual, embora com atrasos de até
+aproximadamente 5h08. A promoção continua dependente do checker protegido com as
+secrets R2 read-only e dos demais gates externos; o estado decisório permanece
+`NO-GO` para uma nova promoção.
 
 Este documento separa três fatos que não podem ser tratados como sinônimos:
 

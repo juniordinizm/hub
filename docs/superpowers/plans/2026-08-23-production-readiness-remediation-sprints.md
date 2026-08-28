@@ -1030,9 +1030,11 @@ workflow.
 ### Tarefa 2.6: bloquear release sem backup recente
 
 **Estado em 2026-08-27:** implementado no workflow Production antes da branch
-Neon e das migrations. O backup válido e o checker de frescor já foram
-comprovados; a execução protegida ainda precisa ser exercitada com as secrets R2
-read-only recém-cadastradas no Environment `vercel-production`.
+Neon e das migrations. O backup válido, o checker de frescor e três execuções
+agendadas verdes já foram comprovados; a execução protegida ainda precisa ser
+exercitada com as secrets R2 read-only cadastradas no Environment
+`vercel-production`. Os atrasos observados do cron ficam como risco operacional
+para acompanhamento, não como permissão para bypass.
 
 **Modificar:**
 
@@ -1056,8 +1058,8 @@ read-only recém-cadastradas no Environment `vercel-production`.
 ### Gate da Sprint 2
 
 - [x] Backup manual verde em duas execuções consecutivas.
-- [ ] Backup agendado verde; a observação do primeiro disparo por cron ainda
-  está pendente.
+- [x] Backup agendado verde; três disparos por cron terminaram com sucesso no
+  SHA atual. A pontualidade continua sendo monitorada pelo checker de frescor.
 - [x] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
 - [x] Restore R2 completo dentro do RTO e PITR exercitado.
 - [x] RPO efetivo e uso de cotas documentados abaixo de 80%.
