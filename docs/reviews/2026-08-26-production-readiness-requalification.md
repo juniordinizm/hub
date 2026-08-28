@@ -147,8 +147,14 @@ O restore R2, o PITR, os tempos medidos e a existência do cron estão fechados.
 Três execuções `schedule` terminaram com sucesso; os atrasos observados de
 aproximadamente 3h34, 3h59 e 5h08 mantêm um risco de pontualidade que deve ser
 monitorado pelo freshness checker. Permanecem abertos: checker protegido,
-agendamento do exercício periódico, aceite de e-mail/acesso/refund,
+agendamento do exercício periódico, confirmação externa de e-mail/acesso/refund,
 Sentry/DMARC e os demais PRs do Dependabot.
+
+Uma leitura agregada da Production em `2026-08-28T16:34:23Z` confirmou dois
+pedidos pagos nas últimas 24 horas, ambos com Concessão e Matrícula; dois efeitos
+da outbox e três mensagens de e-mail estavam `delivered`, sem checkout falho ou
+bounce novo. A evidência de banco não substitui a confirmação na caixa do
+comprador, nem autoriza repetir cobrança ou iniciar reembolso.
 
 ## Matriz atual de Sprints
 

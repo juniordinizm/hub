@@ -2367,6 +2367,8 @@ incidente financeiro.
   retroativo.
 - [x] Executar restore R2 em target Neon descartável, medir RTO e remover o
   target após a confirmação.
+- [x] Confirmar a projeção persistida do fluxo comercial em Production por
+  contagens agregadas, sem repetir cobrança.
 - [ ] Programar próximo restore trimestral, revisão DMARC e revisão mensal de
   cotas.
 
@@ -2376,9 +2378,13 @@ foi restaurado com sucesso em 105 segundos. O postflight confirmou 46 tabelas,
 O target foi uma branch Neon descartável de CI e foi removido após a leitura.
 O PITR em `production` também foi criado no ponto `2026-08-27T05:20:49Z`,
 ficou `ready`, passou no smoke de schema/invariantes e foi removido; o RPO
-sintético foi de aproximadamente 11m49s. A observação de uma execução
-agendada continua pendente; a decisão global da Sprint 7 permanece `NO-GO` até
-os gates externos serem encerrados.
+sintético foi de aproximadamente 11m49s. Três execuções agendadas terminaram
+com sucesso e o manifesto mais recente estava fresh, embora tenham ocorrido
+atrasos de até aproximadamente 5h08. Uma leitura posterior confirmou dois
+pedidos pagos nas últimas 24 horas, ambos com Concessão/Matrícula, dois efeitos
+de outbox e três e-mails `delivered`, sem checkout falho ou bounce novo. A
+confirmação na caixa do comprador, o reembolso e a decisão global da Sprint 7
+permanecem pendentes; não repetir cobrança.
 
 ---
 
