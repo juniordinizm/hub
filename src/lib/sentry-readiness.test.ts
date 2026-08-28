@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   withIsolationScope: vi.fn(),
+  withScope: vi.fn(),
 }));
 
 vi.mock("@sentry/nextjs", () => ({
   captureException: vi.fn(),
   flush: vi.fn(),
   withIsolationScope: dependencies.withIsolationScope,
+  withScope: dependencies.withScope,
 }));
 
 import { emitSentryReadinessEvent } from "./sentry-readiness";
@@ -17,6 +19,9 @@ describe("Sentry readiness event", () => {
     dependencies.withIsolationScope.mockImplementation((callback) =>
       callback({ setUser: vi.fn() })
     );
+    dependencies.withScope.mockImplementation((callback) =>
+      callback({ setUser: vi.fn() })
+    );
   });
 
   it("clears an inherited request user before emitting", async () => {
@@ -24,6 +29,24 @@ describe("Sentry readiness event", () => {
     const flush = vi.fn().mockResolvedValue(true);
     const setUser = vi.fn();
     dependencies.withIsolationScope.mockImplementationOnce((callback) =>
+      callback({ setUser })
+    );
+
+    await emitSentryReadinessEvent({
+      captureException,
+      environment: "staging",
+      flush,
+      release: "a".repeat(40),
+    });
+
+    expect(setUser).toHaveBeenCalledWith(null);
+  });
+
+  it("clears the current request scope before emitting", async () => {
+    const captureException = vi.fn().mockReturnValue("event-123");
+    const flush = vi.fn().mockResolvedValue(true);
+    const setUser = vi.fn();
+    dependencies.withScope.mockImplementationOnce((callback) =>
       callback({ setUser })
     );
 
