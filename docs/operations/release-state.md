@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
+last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
 deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
 verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
@@ -214,3 +214,22 @@ O cleanup Neon executado pelos runs `33251220857` e `33252449906` removeu
 somente backups superseded, preservando o mais recente em cada rodada. Nenhuma
 branch persistente ou dado Production foi alterado. O projeto
 `hub-production` continua preservado.
+
+## Checkpoint de reconciliação staging-first — 2026-08-29
+
+O PR `#137` foi criado a partir de `origin/staging`, incorporou `origin/main`
+sem descartar os commits de Staging e foi mesclado somente em `staging`. Os
+conflitos de Sentry, R2, backup, restore, workflows e documentação foram
+revisados; o topo remoto atual é `28cc7d9746d7f59afec7a0464d7c625c402b0a8d`.
+
+A CI pós-merge `33253781385` passou os quatro gates: Quality gates,
+PostgreSQL integration, Browser journeys e Build and dependency audit. O deploy
+`33254285118` passou backup Neon, ancestry, migrations, publicação da SHA exata
+e smoke do alias estável `preview.neurocapacitar.com.br`.
+
+A branch remota e o worktree temporários da reconciliação foram removidos após
+a verificação de limpeza. O worktree `production-normalization` permanece
+preservado porque ainda está associado à branch local ativa
+`codex/restore-node-tls`. `main`, o deployment Production e seus dados não
+foram alterados. Como o merge foi squash, a ancestralidade Git dos branches
+continua divergente mesmo com a árvore de arquivos reconciliada.

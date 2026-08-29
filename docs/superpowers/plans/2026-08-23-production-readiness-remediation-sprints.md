@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
+last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -63,6 +63,25 @@ deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
   para rastreabilidade; sua remoção é uma limpeza destrutiva separada e exige
   autorização explícita. A partir deste ponto, mudanças seguem PR, CI completa,
   backup verde, checker e documentação; não usar `emergency_skip_*`.
+
+## Checkpoint de reconciliação staging-first — 2026-08-29
+
+O PR `#137` foi trabalhado a partir de `origin/staging`, recebeu a árvore de
+`origin/main` e foi mesclado exclusivamente em `staging`. Os conflitos de
+Sentry, R2, backup, restore, workflows e documentação foram resolvidos com
+preservação dos contratos já homologados em Staging. O topo remoto resultante é
+`28cc7d9746d7f59afec7a0464d7c625c402b0a8d`.
+
+A CI `33253781385` passou os quatro gates obrigatórios, e o deploy de Staging
+`33254285118` passou backup/ancestry Neon, migrations, publicação da SHA exata
+e smoke do alias estável. A branch e o worktree temporários foram removidos
+após a checagem de conteúdo; `production-normalization` foi preservado por
+continuar associado à branch local `codex/restore-node-tls`.
+
+Este checkpoint não promove `staging` para `main` e não altera Production. O
+merge squash deixa a ancestralidade Git dos branches divergente, embora a
+árvore de arquivos esteja reconciliada. A promoção continua sendo um PR
+separado, depois da decisão dos gates restantes da auditoria de saúde.
 
 Base de planejamento: commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro
