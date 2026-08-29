@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: c1d03e85d374cc8bac0b8d80bf19d5bc9429db9f
+last_verified_commit: 79f722bf1aa328edc300729433c8528886fe1f5d
 audit_date: 2026-08-29
 ---
 
@@ -403,9 +403,9 @@ parent correto e expira. Ainda falta observar uma execução originada de CI de
 
 ### Sprint 3 — endurecer HTTP e cobertura de regressão
 
-**Estado:** `CONCLUÍDA NO CANDIDATO DE STAGING; VALIDAÇÃO REMOTA PENDENTE` —
-limite de corpo e cobertura das quatro rotas críticas estão implementados e
-testados localmente.
+**Estado:** `CONCLUÍDA EM STAGING; PROMOÇÃO PARA MAIN PENDENTE` — limite de
+corpo e cobertura das quatro rotas críticas estão implementados, testados e
+publicados no alias de Staging.
 
 - [x] Implementar leitura limitada do webhook Resend.
 - [x] Testar payload abaixo/acima do limite, stream sem `Content-Length` e
@@ -423,9 +423,11 @@ A fatia do limite foi implementada no commit
 `84d2c2dcb4780591826aba51c8ae8e15f6dbfd55`, com nove testes focados. A
 cobertura das rotas críticas foi adicionada no commit
 `5af01837acc26581d2ca165a67514308d49d6c4a`: 21 testes focados, 2.407 testes
-na suíte completa, typecheck, Ultracite, migrations e documentação verdes.
-O candidato segue o fluxo de PR para `staging`; não houve promoção para `main`
-nem alteração de Production.
+na suíte completa, typecheck, Ultracite, migrations e documentação verdes. A
+PR `#142` foi mesclada no commit `c1d03e85d374cc8bac0b8d80bf19d5bc9429db9f`;
+o CI pós-merge `33262530363` e o deploy protegido `33263104763` passaram todos
+os gates, incluindo smoke do alias `preview.neurocapacitar.com.br`. Não houve
+promoção para `main` nem alteração de Production.
 
 ### Sprint 4 — retirar o modo emergencial
 
