@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 0527164842b68e3ea804420f0ff5ee170b0fc964
+last_verified_commit: 13ccf2f08fc6c7f542e6de655f5d834180714c54
 audit_date: 2026-08-29
 ---
 
