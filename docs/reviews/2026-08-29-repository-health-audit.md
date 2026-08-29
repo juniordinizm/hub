@@ -140,20 +140,22 @@ relatórios ainda bloqueiam a progressão e o fechamento de `F-006`.
   dependem de interação com o autenticador e não podem ser inferidas pela
   existência de secrets de senha.
 
-**Resultado do gate administrativo:** não requalificado. Antes de ativar
-`PRIVILEGED_MFA_ENFORCED`, duas Contas Admin distintas precisam concluir o
-setup de TOTP em Staging; uma delas precisa provar recuperação com backup code.
-Depois, o login autenticado de ambas e a revogação de sessão devem ser
-registrados sem copiar códigos ou segredos para o repositório.
+**Resultado do gate administrativo:** adiado por decisão explícita do
+responsável em `2026-08-29`. Isso não é aprovação: o banco alvo continua sem
+TOTP e o gate não pode ser usado para ativar `PRIVILEGED_MFA_ENFORCED` ou
+autorizar uma promoção de Production. Quando retomado, duas Contas Admin
+distintas precisam concluir o setup de TOTP em Staging; uma delas precisa
+provar recuperação com backup code. Depois, o login autenticado de ambas e a
+revogação de sessão devem ser registrados sem copiar códigos ou segredos para
+o repositório.
 
 ### Decisão consolidada
 
 O estado externo permanece **AMARELO**: o gate Sentry de Staging passou, o
 registro DMARC está corretamente publicado mas ainda em observação, e o gate
-de contas administrativas está bloqueado por ausência de TOTP efetivamente
-cadastrado. Não há autorização técnica para emitir o probe de Production,
-alterar a política DMARC, consolidar projetos Sentry ou promover `main` nesta
-requalificação.
+de contas administrativas foi explicitamente adiado sem aprovação. Não há
+autorização técnica para emitir o probe de Production, alterar a política
+DMARC, consolidar projetos Sentry ou promover `main` nesta requalificação.
 
 ## Evidências verdes
 
@@ -628,6 +630,8 @@ continuam pendentes.
 - [x] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
   execução não revisada ao CI; registrar e tratar o resultado da primeira
   análise no finding `SECURITY-03`.
+- [x] Registrar o adiamento explícito da prova de Contas Admin, sem tratá-lo
+  como aprovação.
 - [ ] Confirmar duas Contas Admin, TOTP e códigos de recuperação.
 - [ ] Revisar exposição de nomes de infraestrutura nos logs públicos sem
   rotacionar credenciais desnecessariamente.
