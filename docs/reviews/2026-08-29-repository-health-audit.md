@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 79f722bf1aa328edc300729433c8528886fe1f5d
+last_verified_commit: 77d34cf4e5f05af9f4809ddc61c727a8c158df09
 audit_date: 2026-08-29
 ---
 
@@ -11,13 +11,33 @@ audit_date: 2026-08-29
 
 **Estado: AMARELO.** A aplicação pública continua respondendo e não há erro
 ativo no deployment Production atual. A árvore de arquivos de `staging` agora
-contém a reconciliação de `main` e os patches de Staging, mas ainda há gates
-operacionais antes de retomar novas features: a guarda precisa chegar ao
-workflow efetivo de `main`, a retenção Neon precisa de política definitiva e o
-run zombie continua aguardando decisão administrativa.
+contém a reconciliação de `main` e os patches de Staging; os últimos patches
+passaram CI, deploy protegido e smoke. Ainda há gates operacionais antes de
+retomar novas features em fluxo normal: promoção controlada para `main`,
+revalidação dos gates externos de Production, controles de conta e decisão
+administrativa sobre o run zombie.
 
 Production não foi alterada durante esta auditoria. Nenhuma migration,
 configuração, dado, domínio, deployment ou provider Production foi modificado.
+
+## Checkpoint de proteção do repositório e documentação — 2026-08-29
+
+O PR `#143` habilitou, no repositório público `juniordinizm/hub`, Secret
+Scanning, Push Protection, Dependabot Security Alerts e Dependabot Security
+Updates. A API confirmou os quatro estados como `enabled`; não havia alertas
+ativos de segredo ou de vulnerabilidade na consulta. O Code Scanning foi então
+configurado pelo default setup do GitHub com a suíte `default`, runner
+`standard` e linguagens autodetectadas para Actions/JavaScript-TypeScript. A
+configuração não altera o runtime nem adiciona dependência paga. A primeira
+análise e eventuais alertas continuam sendo observados separadamente.
+
+O PR `#144` atualizou este relatório para o commit verificável
+`77d34cf4e5f05af9f4809ddc61c727a8c158df09`. A CI pós-merge `33265057590` e o
+deploy protegido de Staging `33265665028` passaram todos os gates, inclusive
+backup/ancestry Neon, migrations, publicação da SHA exata e smoke do alias
+`preview.neurocapacitar.com.br`. O cleanup controlado `33265643919` removeu
+somente `br-shy-silence-ac759tip` e preservou `br-steep-darkness-acniyejp`.
+Production permaneceu intocada.
 
 ## Escopo e método
 
@@ -474,13 +494,15 @@ timestamp e rollback; decisão `GO/NO-GO` é registrada antes da promoção.
 ### Sprint 6 — segurança da conta e proteção do repositório
 
 **Estado:** `PARCIALMENTE CONCLUÍDA` — as proteções reversíveis compatíveis com
-o repositório público foram habilitadas; Code Scanning e a conferência das
-Contas Admin continuam pendentes.
+o repositório público foram habilitadas e o Code Scanning foi configurado; a
+primeira análise, a conferência das Contas Admin e os controles operacionais
+continuam pendentes.
 
 - [x] Habilitar Secret Scanning e Push Protection.
 - [x] Habilitar Dependabot Security Alerts e Security Updates.
-- [ ] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
-  execução não revisada ao CI.
+- [x] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
+  execução não revisada ao CI; aguardar a primeira análise para registrar o
+  resultado.
 - [ ] Confirmar duas Contas Admin, TOTP e códigos de recuperação.
 - [ ] Revisar exposição de nomes de infraestrutura nos logs públicos sem
   rotacionar credenciais desnecessariamente.
@@ -488,10 +510,13 @@ Contas Admin continuam pendentes.
 
 **Evidência externa de 2026-08-29:** a API do GitHub confirmou o repositório
 público `juniordinizm/hub` com `secret_scanning=enabled`,
-`secret_scanning_push_protection=enabled` e `dependabot_security_updates=enabled`.
-Não havia alertas ativos de Dependabot nem de Secret Scanning no momento da
-consulta. `code-scanning/default-setup` permanece `not-configured`; isso foi
-mantido deliberadamente para não introduzir workflow ou ruído sem revisão.
+`secret_scanning_push_protection=enabled`,
+`dependabot_security_updates=enabled` e
+`code-scanning/default-setup.state=configured`, com `query_suite=default` e
+`runner_type=standard`. Não havia alertas ativos de Dependabot nem de Secret
+Scanning no momento da consulta. O Code Scanning ainda não tinha alerta
+registrado na consulta imediatamente após a configuração; isso não é tratado
+como ausência definitiva de achados até a primeira análise.
 
 **Aceite:** proteções escolhidas habilitadas, contas administrativas conferidas,
 nenhum secret em histórico e PRs de dependência sem falha.
