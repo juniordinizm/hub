@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
+last_verified_commit: 01700ae04d9880bd2f433ce35a781d8d2ffbc146
 audit_date: 2026-08-29
 ---
 
@@ -142,6 +142,27 @@ arquivos de código ou diretórios fora do Git. O diretório
 contém código e aproximadamente 969 MB de artefatos; sua exclusão sem
 inspeção seria insegura.
 
+## Checkpoint pós-merge — 2026-08-29
+
+O PR `#135` foi mesclado por squash em `staging` no commit
+`01700ae04d9880bd2f433ce35a781d8d2ffbc146`. A CI pós-merge `33250715335`
+passou os quatro jobs: Quality gates, PostgreSQL integration, Browser journeys
+e Build and dependency audit.
+
+O dry-run de cleanup Neon identificou somente o backup superseded
+`br-dark-boat-ac54ehu3`, mantendo `br-broad-silence-aczlme90`. O execute
+`33251220857` removeu exatamente o candidato proposto.
+
+O deploy manual de Staging `33251243839`, apontado explicitamente para `staging`,
+passou todas as etapas: SHA exato, configuração, criação e ancestry do backup,
+migrations, deployment Vercel e smoke no deployment e no alias estável. O
+deployment publicou o SHA `01700ae04d9880bd2f433ce35a781d8d2ffbc146`.
+
+Esse checkpoint comprova que a quota Neon foi liberada para uma execução normal
+e que o guard aceitou o fluxo correto de Staging. Ainda falta observar uma
+execução originada de CI de `main` para comprovar o caminho rejeitado; nenhuma
+promoção ou alteração em Production ocorreu.
+
 ## Achados priorizados
 
 ### [CORRECTNESS-01] Fechar o guard de branch do deploy de Staging
@@ -156,8 +177,8 @@ inspeção seria insegura.
 - **Risco da correção:** MED — o dispatch manual legítimo precisa continuar
   permitido.
 - **Confiança:** HIGH.
-- **Estado:** correção implementada nesta branch; aguarda CI e merge em
-  `staging`.
+- **Estado:** merge e deploy de Staging concluídos; falta observar uma execução
+  automática originada de `main` para fechar a evidência negativa.
 - **Correção resumida:** exigir no `if` que o `workflow_run` tenha
   `head_branch=staging`, além do filtro declarativo, e cobrir o guard em teste
   de contrato.
@@ -173,16 +194,20 @@ inspeção seria insegura.
 - **Risco da correção:** HIGH — cleanup equivocado pode remover uma branch de
   recuperação ou de ambiente persistente.
 - **Confiança:** HIGH.
-- **Estado:** aberto.
+- **Estado:** parcialmente resolvido; um backup superseded foi removido e o
+  deploy de Staging seguinte passou, mas a política recorrente de quota ainda
+  precisa de acompanhamento.
 - **Correção resumida:** inventariar branches Neon, executar dry-run, preservar
   os ambientes persistentes e remover somente backups efêmeros expirados;
   repetir deploy e conferir ancestry.
 
 ### [DX-01] Reconciliar `main` e `staging`
 
-- **Evidência:** `origin/main=f3cd21b` e `origin/staging=7929b64` divergem desde
-  `32ddbbd`; há 87 commits exclusivos de `main` e 10 exclusivos de `staging`,
-  com diferença direta em 44 arquivos.
+- **Evidência:** no início da auditoria, `origin/main=f3cd21b` e
+  `origin/staging=7929b64` divergiam desde `32ddbbd`; havia 87 commits
+  exclusivos de `main` e 10 exclusivos de `staging`, com diferença direta em
+  44 arquivos. Após o PR `#135`, `staging` avançou para `01700ae`, mas a
+  divergência estrutural com `main` permanece.
 - **Impacto:** `staging` não contém todos os patches de backup, restore, R2 e
   release que já estão em `main`; uma promoção direta pode perder correções ou
   gerar conflito em Sentry e operações.
@@ -298,7 +323,7 @@ requalificação e a branch seguir `feature → staging → homologação → ma
 
 ### Sprint 0 — preservar evidências e fechar a higiene segura
 
-**Estado:** `PARCIALMENTE CONCLUÍDA`.
+**Estado:** `PARCIALMENTE CONCLUÍDA` — somente a execução zombie permanece.
 
 - [x] Registrar esta auditoria em `docs/reviews/`.
 - [x] Remover 29 branches remotos de PRs mescladas sem worktree ativo.
@@ -329,19 +354,22 @@ CI/deploy/smoke verdes e nenhum commit direto em `main`.
 
 ### Sprint 2 — tornar o deploy de Staging determinístico
 
-**Estado:** `ABERTA` (depende da Sprint 1).
+**Estado:** `PARCIALMENTE CONCLUÍDA` (depende da Sprint 1 para a política
+definitiva).
 
 - [x] Adicionar guarda explícita para `workflow_run.head_branch=staging` em
   `.github/workflows/deploy-staging.yml`.
 - [ ] Manter dispatch manual explicitamente apontado para `staging`.
 - [x] Adicionar teste de contrato para aceitar Staging e rejeitar `main` em
   `src/tooling/release-workflows.test.ts`.
-- [ ] Inventariar branches Neon antes de cada backup efêmero.
-- [ ] Corrigir a política de retenção de `staging-release-*` e testar dry-run.
-- [ ] Reexecutar deploy de Staging sem atingir `BRANCHES_LIMIT_EXCEEDED`.
+- [x] Inventariar branches Neon antes do backup efêmero desta release.
+- [x] Executar dry-run e execute controlado da retenção de
+  `staging-release-*`.
+- [x] Reexecutar deploy de Staging sem atingir `BRANCHES_LIMIT_EXCEEDED`.
 
-**Aceite:** um CI de `main` não cria backup/deploy de Staging; um push de
-`staging` chega a READY; a branch temporária tem parent correto e expira.
+**Aceite parcial:** um push de `staging` chega a READY, a branch temporária tem
+parent correto e expira. Ainda falta observar uma execução originada de CI de
+`main` para fechar o caminho rejeitado e definir a política definitiva.
 
 ### Sprint 3 — endurecer HTTP e cobertura de regressão
 
