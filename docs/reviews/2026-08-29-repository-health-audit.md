@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 77d34cf4e5f05af9f4809ddc61c727a8c158df09
+last_verified_commit: ed59130a17cbf7412c7354dbd598924c70f6b397
 audit_date: 2026-08-29
 ---
 
@@ -31,7 +31,7 @@ configurado pelo default setup do GitHub com a suíte `default`, runner
 configuração não altera o runtime nem adiciona dependência paga. A primeira
 análise do SHA histórico de `main` encontrou três alertas abertos de alta
 severidade: dois `js/xss-through-dom` nos iframes de JMVStream e um
-`js/double-escaping` no servidor de objetos de E2E. A correção foi preparada
+`js/double-escaping` no servidor de objetos de E2E. A correção foi mesclada
 em Staging no PR `#146`; o resultado definitivo depende de uma nova análise
 após a promoção futura para `main`.
 
@@ -41,6 +41,12 @@ deploy protegido de Staging `33265665028` passaram todos os gates, inclusive
 backup/ancestry Neon, migrations, publicação da SHA exata e smoke do alias
 `preview.neurocapacitar.com.br`. O cleanup controlado `33265643919` removeu
 somente `br-shy-silence-ac759tip` e preservou `br-steep-darkness-acniyejp`.
+Production permaneceu intocada.
+
+O PR `#146` foi validado pela CI `33267067065`, mesclado no commit
+`ed59130a17cbf7412c7354dbd598924c70f6b397` e publicado pelo deploy protegido
+`33268106032`. O cleanup `33268084085` removeu somente o backup efêmero
+`br-steep-darkness-acniyejp` e preservou `br-wandering-voice-acnkvs1o`.
 Production permaneceu intocada.
 
 ## Escopo e método
@@ -350,8 +356,8 @@ promoção ou alteração em Production ocorreu.
 - **Risco da correção:** LOW/MED — o player precisa continuar carregando e o
   contrato do mock de storage precisa permanecer compatível.
 - **Confiança:** HIGH.
-- **Estado:** correção em Staging no PR `#146`; alertas permanecem abertos no
-  SHA antigo até nova análise após promoção.
+- **Estado:** PR `#146` mesclado e publicado em Staging; alertas permanecem
+  abertos no SHA antigo até nova análise após promoção.
 - **Correção resumida:** canonicalizar somente `https://player.jmvstream.com`
   sem porta ou credenciais, usar sandbox com scripts para os iframes do editor e
   decodificar entidades XML em uma única substituição. Testes focados e suíte
@@ -518,8 +524,9 @@ timestamp e rollback; decisão `GO/NO-GO` é registrada antes da promoção.
 ### Sprint 6 — segurança da conta e proteção do repositório
 
 **Estado:** `PARCIALMENTE CONCLUÍDA` — as proteções reversíveis compatíveis com
-o repositório público foram habilitadas e o Code Scanning foi configurado; a
-primeira análise, a conferência das Contas Admin e os controles operacionais
+o repositório público foram habilitadas, o Code Scanning foi configurado e os
+alertas encontrados já têm correção publicada em Staging; a reanálise do
+branch padrão, a conferência das Contas Admin e os controles operacionais
 continuam pendentes.
 
 - [x] Habilitar Secret Scanning e Push Protection.
@@ -542,17 +549,20 @@ Scanning no momento da consulta.
 A primeira análise de JavaScript/TypeScript registrou três alertas
 abertos no SHA histórico de `main` (`js/xss-through-dom` nos componentes
 `jmvstream-duration-detector.tsx` e `lesson-video-editor-preview.tsx`, e
-`js/double-escaping` no suporte de E2E). O PR `#146` aplica validação de origem
-exata, sandbox nos iframes e decodificação XML em uma única passagem; a
-requalificação deverá confirmar o fechamento depois de a mesma árvore chegar ao
-branch analisado.
+`js/double-escaping` no suporte de E2E). O PR `#146` foi mesclado em
+`ed59130a17cbf7412c7354dbd598924c70f6b397` e o deploy protegido de Staging
+`33268106032` passou backup/ancestry Neon, migrations, publicação da SHA exata
+e smoke do alias. A requalificação deverá confirmar o fechamento dos alertas
+depois de a mesma árvore chegar ao branch analisado.
 
 **Aceite:** proteções escolhidas habilitadas, contas administrativas conferidas,
 nenhum secret em histórico e PRs de dependência sem falha.
 
 ### Sprint 7 — retomar desenvolvimento de produto
 
-**Estado:** `BLOQUEADA ATÉ SPRINTS 1–4`.
+**Estado:** `AGUARDANDO PROMOÇÃO CONTROLADA E GATES EXTERNOS` — Sprints 1–4
+e a correção Code Scanning estão publicadas em Staging, mas a promoção para
+`main` continua condicionada à requalificação.
 
 - [ ] Criar cada feature a partir de `origin/staging` reconciliado.
 - [ ] Testar localmente e abrir PR para `staging`.
