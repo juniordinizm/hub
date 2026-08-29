@@ -16,7 +16,7 @@
 - Modify: `src/app/api/webhooks/resend/route.test.ts`
 - Reference: `src/app/api/webhooks/resend/route.ts`
 
-- [ ] **Step 1: Add a test for an oversized declared body.**
+- [x] **Step 1: Add a test for an oversized declared body.**
 
 Create a `Request` with the existing Svix headers, a small body, and a
 `content-length` header equal to `262145`. Spy on the request body reader (or
@@ -32,21 +32,21 @@ expect(dependencies.connect).not.toHaveBeenCalled();
 The test must prove that the declared size is rejected before the SDK or
 database is reached.
 
-- [ ] **Step 2: Add a test for a chunked body that exceeds the limit.**
+- [x] **Step 2: Add a test for a chunked body that exceeds the limit.**
 
 Build a `ReadableStream<Uint8Array>` that enqueues one chunk of exactly
 `262144` bytes and a second one-byte chunk, with no `Content-Length` header.
 Pass it to `Request` using `duplex: "half"`. Assert the same `413` response and
 zero calls to `verify`, `connect`, and `persistResendWebhookEvent`.
 
-- [ ] **Step 3: Update the valid-body test to assert the public contract.**
+- [x] **Step 3: Update the valid-body test to assert the public contract.**
 
 Remove the assertion that `request.text()` is called, because the production
 route will consume the Web Stream. Keep the assertions that the response is
 `200`, the SDK receives the exact `rawBody`, the Svix header object contains
 only `id`, `signature`, and `timestamp`, and the normalized event is persisted.
 
-- [ ] **Step 4: Run the focused test and verify RED.**
+- [x] **Step 4: Run the focused test and verify RED.**
 
 Run:
 
@@ -65,7 +65,7 @@ changed, correct the test so it exercises the missing bounded-read behavior.
 - Modify: `src/app/api/webhooks/resend/route.ts`
 - Test: `src/app/api/webhooks/resend/route.test.ts`
 
-- [ ] **Step 1: Add a local bounded-reader result type and helper.**
+- [x] **Step 1: Add a local bounded-reader result type and helper.**
 
 Keep the helper in the route file because it has one consumer. The helper must:
 
@@ -93,7 +93,7 @@ When cancellation itself fails, ignore that cancellation error and still return
 `too_large`; the response must not become a `503` merely because a client
 closed an oversized stream.
 
-- [ ] **Step 2: Replace the unbounded `request.text()` call.**
+- [x] **Step 2: Replace the unbounded `request.text()` call.**
 
 Call the helper after environment validation and before SDK verification:
 
@@ -112,7 +112,7 @@ Do not move environment validation, signature-header validation, SDK
 verification, normalization, or the transaction flow. The SDK must continue to
 receive the exact bounded `rawBody` text for valid UTF-8 requests.
 
-- [ ] **Step 3: Run the focused test and verify GREEN.**
+- [x] **Step 3: Run the focused test and verify GREEN.**
 
 Run:
 
@@ -128,7 +128,7 @@ connection is acquired for either oversized request.
 **Files:**
 - No additional files.
 
-- [ ] **Step 1: Run formatter/linter checks.**
+- [x] **Step 1: Run formatter/linter checks.**
 
 ```text
 bun x ultracite check
@@ -137,7 +137,7 @@ bun run typecheck
 
 Expected result: both commands exit `0` with no new diagnostics.
 
-- [ ] **Step 2: Run the complete test suite and audit.**
+- [x] **Step 2: Run the complete test suite and audit.**
 
 ```text
 bun run test
@@ -147,7 +147,7 @@ bun audit --production
 Expected result: all tests pass and the production audit prints an empty
 advisory object (`{}`).
 
-- [ ] **Step 3: Run documentation and migration checks.**
+- [x] **Step 3: Run documentation and migration checks.**
 
 ```text
 bun run docs:check
@@ -157,7 +157,7 @@ bun run db:migrations:check
 Expected result: canonical documentation is valid and migrations are valid;
 no migration is expected for this change.
 
-- [ ] **Step 4: Commit the bounded-read slice.**
+- [x] **Step 4: Commit the bounded-read slice.**
 
 ```text
 git add src/app/api/webhooks/resend/route.ts src/app/api/webhooks/resend/route.test.ts
