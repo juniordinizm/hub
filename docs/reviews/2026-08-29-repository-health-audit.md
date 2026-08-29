@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: ed59130a17cbf7412c7354dbd598924c70f6b397
+last_verified_commit: 1c6062d6ce3e637be2e7521a66aed2ae2a17019f
 audit_date: 2026-08-29
 ---
 
@@ -63,6 +63,105 @@ autorizada:
 
 Nenhum secret foi impresso. Valores de ambiente foram tratados somente como
 presença, ausência ou tipo de credencial.
+
+## Requalificação externa — 2026-08-29
+
+Esta seção registra somente consultas externas de leitura e o ensaio remoto
+explicitamente não destrutivo executado em Staging. Nenhuma configuração DNS,
+Sentry, Conta, sessão, banco de dados ou deployment de Production foi alterada.
+
+### Sentry
+
+- A API da organização `neurocapacitar` confirmou dois projetos ativos:
+  `hub-web` (ID `4511808556564480`) e `hub-production` (ID
+  `4511951566798848`). O slug canônico de desenvolvimento é `hub-web`; a API
+  ainda apresenta o nome de exibição legado `hub-development`. Nenhuma
+  renomeação ou consolidação foi feita.
+- No projeto `hub-web`, o alerta `Hub Production readiness` está ativo. O
+  evento sintético de Staging `f74a01d2a4e846deb2f4a770b16d5928`, emitido para o
+  release `f9eb31ae2a4019a376660269f609518ac303faaf`, passou o checker com:
+  `match=true`, `sourceMapped=true` e `alertTriggered=true`.
+- A consulta de issues não resolvidas nos últimos 14 dias encontrou cinco
+  registros em `hub-web/staging`: dois grupos sintéticos do probe, um
+  `AccessDenied` no cron de manutenção, uma terminação inesperada de conexão no
+  outbox e um erro histórico de Server Components. Os probes sintéticos são
+  evidência do ensaio, não incidente de produto; os três demais permanecem na
+  fila de triagem e impedem declarar a observabilidade de Staging totalmente
+  verde.
+- `hub-web/production` mantém cinco issues históricas não resolvidas no
+  período, e `hub-production/production` não apresentou issue não resolvida no
+  mesmo recorte. Isso é uma fotografia de observabilidade, não prova de que a
+  árvore candidata foi servida em Production.
+- O evento próprio de Production não foi emitido: a política reserva essa
+  ação para depois de uma candidata promovida e de autorização explícita.
+
+**Resultado do gate Sentry:** Staging requalificado; Production ainda pendente
+do fluxo de promoção protegido e do probe próprio posterior.
+
+### DMARC
+
+Às `2026-08-29T19:49:38Z`, os resolvers públicos `1.1.1.1` e `8.8.8.8`
+retornaram exatamente um TXT para `_dmarc.neurocapacitar.com.br`:
+
+```text
+v=DMARC1; p=none; pct=100; rua=mailto:suporte@neurocapacitar.com.br; adkim=r; aspf=r; ri=86400
+```
+
+A publicação e a propagação estão consistentes. O estágio inicial começou em
+`2026-08-29T00:06:50Z` e só termina em `2026-09-12T00:06:50Z`; não há base
+para avançar a política antes dessa janela e dos relatórios agregados. A caixa
+de `rua` e o diretório local `.dmarc-reports` não foram disponibilizados para
+esta consulta, portanto não foi possível analisar alinhamento de remetentes,
+bounce ou complaint. O registro DNS permaneceu intocado.
+
+**Resultado do gate DMARC:** propagação confirmada; observação e análise de
+relatórios ainda bloqueiam a progressão e o fechamento de `F-006`.
+
+Em `2026-08-29`, o responsável optou por adiar esta etapa. O adiamento não é
+um aceite de risco nem autorização para saltar de `p=none` para outra política:
+o TXT permanece inalterado, `F-006` continua aberto e a progressão só poderá
+ser retomada após autorização explícita, janela completa e relatórios
+agregados suficientes.
+
+### Contas administrativas e TOTP
+
+- O ambiente GitHub `vercel-staging` contém os quatro nomes de secrets esperados
+  para as duas Contas Admin de Staging (conta primária e conta de recuperação),
+  além das variáveis de host, projeto e branch Neon. A presença dos nomes não
+  revela valores nem comprova login.
+- O workflow `Reset Staging data` foi executado em modo `plan` no run
+  `33271984257`, apontado para `staging`, e terminou com sucesso sem backup,
+  truncate, seed ou limpeza de objetos. A leitura remota encontrou a tabela
+  `two_factors` com `0` registros, logo não existe TOTP cadastrado no banco de
+  Staging no momento desta requalificação.
+- A leitura foi repetida no run `33273769544`, em
+  `2026-08-29T20:33:13Z`, contra o mesmo branch e host declarados pelo
+  ambiente `vercel-staging`; o resultado continuou `two_factors=0`. A
+  confirmação operacional de que o setup foi concluído não coincide com o
+  banco alvo. Antes de repetir o setup ou alterar credenciais, conferir se a
+  sessão foi feita no alias de Staging e se a aplicação está apontando para
+  esse mesmo branch Neon.
+- Não foi possível comprovar por leitura remota login das duas Contas Admin,
+  challenge TOTP, uso único de backup code ou revogação de sessão. Essas provas
+  dependem de interação com o autenticador e não podem ser inferidas pela
+  existência de secrets de senha.
+
+**Resultado do gate administrativo:** adiado por decisão explícita do
+responsável em `2026-08-29`. Isso não é aprovação: o banco alvo continua sem
+TOTP e o gate não pode ser usado para ativar `PRIVILEGED_MFA_ENFORCED` ou
+autorizar uma promoção de Production. Quando retomado, duas Contas Admin
+distintas precisam concluir o setup de TOTP em Staging; uma delas precisa
+provar recuperação com backup code. Depois, o login autenticado de ambas e a
+revogação de sessão devem ser registrados sem copiar códigos ou segredos para
+o repositório.
+
+### Decisão consolidada
+
+O estado externo permanece **AMARELO**: o gate Sentry de Staging passou, o
+registro DMARC está corretamente publicado mas ainda em observação, e o gate
+de contas administrativas foi explicitamente adiado sem aprovação. Não há
+autorização técnica para emitir o probe de Production, alterar a política
+DMARC, consolidar projetos Sentry ou promover `main` nesta requalificação.
 
 ## Evidências verdes
 
@@ -505,10 +604,15 @@ commit `9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
 
 ### Sprint 5 — fechar gates externos de Production Readiness
 
-**Estado:** `EM ANDAMENTO`.
+**Estado:** `EM ANDAMENTO` — Sentry de Staging passou; a progressão DMARC foi
+adiada; contas administrativas continuam com o gate adiado.
 
 - [x] Validar evento e alerta Sentry em Staging no projeto `hub-web`.
 - [x] Publicar e confirmar DMARC em `p=none; pct=100`.
+- [x] Revalidar, sem mutação, os projetos `hub-web` e `hub-production` e manter
+  ambos separados.
+- [x] Registrar o adiamento explícito da progressão DMARC, sem tratá-lo como
+  aprovação.
 - [ ] Aguardar a janela DMARC inicial e analisar relatórios agregados.
 - [ ] Progredir DMARC sem saltar etapas até `reject; pct=100` estável.
 - [ ] Emitir o evento Sentry próprio de Production somente após candidato
@@ -534,6 +638,8 @@ continuam pendentes.
 - [x] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
   execução não revisada ao CI; registrar e tratar o resultado da primeira
   análise no finding `SECURITY-03`.
+- [x] Registrar o adiamento explícito da prova de Contas Admin, sem tratá-lo
+  como aprovação.
 - [ ] Confirmar duas Contas Admin, TOTP e códigos de recuperação.
 - [ ] Revisar exposição de nomes de infraestrutura nos logs públicos sem
   rotacionar credenciais desnecessariamente.
