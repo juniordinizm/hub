@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
+last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
 deployed_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
 deployed_environment: production
 verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
@@ -153,3 +153,37 @@ parâmetros => `400`) e webhook ativo com token (POST sem token =>
 supervisionada permanece pendente. Resend, Neon, Vercel, R2, JMVStream, Auth e
 Asaas usam rotação manual por fingerprints; nenhum valor de secret pertence a
 este documento.
+
+## Atualização operacional — 2026-08-29
+
+O runtime de Staging permanece no SHA
+`f9eb31ae2a4019a376660269f609518ac303faaf`, deployment
+`dpl_5J7v7Qb7ztR5GPo3PKft77d99Y9v`, sem alteração em Production. O merge
+documental que reforça o fluxo `feature → staging → homologação → main` está
+em `staging` no merge `7929b64`; documento sozinho não exige novo deployment
+de runtime.
+
+### Sentry
+
+No projeto `hub-web`, o probe Staging gerou o evento
+`f74a01d2a4e846deb2f4a770b16d5928`, correlação
+`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`. O checker retornou código zero com
+`match=true`, `sourceMapped=true` e `alertTriggered=true`. O gate de Staging
+está fechado. O projeto `hub-production` continua preservado; não foi apagado,
+renomeado nem usado para um evento novo.
+
+### DMARC
+
+Às `2026-08-29T00:06:50Z`, `1.1.1.1` e `8.8.8.8` resolveram:
+`v=DMARC1; p=none; pct=100; rua=mailto:suporte@neurocapacitar.com.br; adkim=r; aspf=r; ri=86400`.
+A janela inicial de 14 dias termina por volta de `2026-09-12T00:06:50Z`.
+Publicação/propagação estão comprovadas; progressão e análise de relatórios
+continuam pendentes.
+
+### Jornadas de compra e e-mail
+
+Checkout, envio de confirmação, reset, login, acesso ao Curso e reembolso já
+possuem evidência operacional anterior. A repetição ponta a ponta permanece
+reservada à próxima compra real supervisionada em Production; não se deve criar
+uma cobrança apenas para repetir o teste. Até essa compra, não registrar o gate
+como nova evidência Production.

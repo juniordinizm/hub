@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
+last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
 requalification_result: no_go
 requalification_date: 2026-08-25
 current_sprint: 7
@@ -997,3 +997,27 @@ CI 32885237608 e o deploy Staging 32886494503 passaram. A rodada de workers
 Sentry de 24h manteve o Issue histórico com lastSeen=16:02:56Z e não mostrou
 nova ocorrência após o fix. O Issue continua aberto para triagem humana, sem
 resolução automática. Production continua congelada.
+
+### 22.7 Evidência posterior — Staging e DMARC
+
+A decisão histórica `NO-GO` permanece válida para Production enquanto os gates
+externos e a promoção protegida não forem concluídos. Em Staging, a nova prova
+no projeto Sentry `hub-web` usou o deployment
+`f9eb31ae2a4019a376660269f609518ac303faaf` e retornou:
+
+- evento `f74a01d2a4e846deb2f4a770b16d5928`;
+- correlação `2bb9c767-0d30-4d00-8e09-d7df89ac34f2`;
+- `match=true`, `sourceMapped=true`, `alertTriggered=true` e código de saída 0;
+- nenhum e-mail, IP ou identidade enviados pelo SDK; somente `user.geo` derivado,
+  aceito pelo contrato do checker.
+
+O DMARC foi publicado com `p=none; pct=100`, `rua` institucional e alinhamento
+relaxado. Os resolvers `1.1.1.1` e `8.8.8.8` retornaram o mesmo valor em
+`2026-08-29T00:06:50Z`; a janela de observação termina em
+`2026-09-12T00:06:50Z`. Isso fecha publicação/propagação, não a progressão até
+`reject; pct=100`.
+
+Os fluxos de confirmação de compra, reset, acesso e reembolso têm evidência
+anterior e aguardam somente a próxima compra real supervisionada para uma nova
+prova Production. Nenhuma cobrança nova deve ser criada exclusivamente para
+repetir o teste.

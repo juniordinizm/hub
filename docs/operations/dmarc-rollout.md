@@ -1,25 +1,41 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
 ---
 
 # Progressão DMARC
 
 ## Estado
 
-O analisador local está implementado. Em `2026-08-25`, Cloudflare
-(`1.1.1.1`) e Google (`8.8.8.8`) resolveram o mesmo registro público:
-`v=DMARC1; p=none;`. O domínio também mantém o SPF raiz do Lark e o seletor
-DKIM `resend._domainkey` do Resend.
+### Baseline histórico — 2026-08-25
 
-Isso confirma a política de coleta, mas não inicia uma janela válida do plano:
-o TXT atual não declara `rua`, não há data de início comprovada e nenhum lote de
-relatórios agregados foi analisado. O primeiro período de 14 dias começa somente
-depois de publicar o registro recomendado com a caixa institucional, registrar
-horário/TTL e confirmar os dois resolvers. `F-006` permanece aberto e nenhuma
-política pode avançar sem janela completa, relatórios suficientes e confirmação
-humana do valor DNS exato.
+O analisador local já estava implementado. Na fotografia de 25 de agosto,
+Cloudflare (`1.1.1.1`) e Google (`8.8.8.8`) resolveram `p=none`, mas o TXT
+ainda não declarava `rua`. Esse registro é mantido aqui como histórico e não
+descreve mais o valor público atual.
+
+### Estado atual — 2026-08-29T00:06:50Z
+
+O registro publicado na Hostinger foi confirmado pelos dois resolvers:
+
+```text
+v=DMARC1; p=none; pct=100; rua=mailto:suporte@neurocapacitar.com.br; adkim=r; aspf=r; ri=86400
+```
+
+Esse horário inicia a janela de observação de 14 dias do primeiro estágio,
+com término previsto para `2026-09-12T00:06:50Z` (aproximadamente
+11/09/2026 às 21:06 no horário de São Paulo). A publicação e a propagação
+estão confirmadas; `F-006` continua aberto até analisar relatórios suficientes
+e concluir todas as etapas até `reject; pct=100`.
+
+Antes de qualquer mudança, repetir a resolução e guardar somente o valor/TTL,
+sem anexar XML, headers ou e-mail bruto:
+
+```powershell
+Resolve-DnsName -Server 1.1.1.1 -Type TXT _dmarc.neurocapacitar.com.br
+Resolve-DnsName -Server 8.8.8.8 -Type TXT _dmarc.neurocapacitar.com.br
+```
 
 ## Coleta e análise gratuita
 
