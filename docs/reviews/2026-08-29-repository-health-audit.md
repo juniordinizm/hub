@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 01700ae04d9880bd2f433ce35a781d8d2ffbc146
+last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
 audit_date: 2026-08-29
 ---
 
@@ -10,11 +10,11 @@ audit_date: 2026-08-29
 ## Decisão operacional
 
 **Estado: AMARELO.** A aplicação pública continua respondendo e não há erro
-ativo no deployment Production atual, mas o repositório ainda não está pronto
-para receber novas features sem uma normalização curta. O principal risco não é
-uma quebra observada no checkout; é a divergência entre `main` e `staging`,
-somada a resíduos dos deploys emergenciais e à falta de uma guarda explícita no
-workflow de Staging.
+ativo no deployment Production atual. A árvore de arquivos de `staging` agora
+contém a reconciliação de `main` e os patches de Staging, mas ainda há gates
+operacionais antes de retomar novas features: a guarda precisa chegar ao
+workflow efetivo de `main`, a retenção Neon precisa de política definitiva e o
+run zombie continua aguardando decisão administrativa.
 
 Production não foi alterada durante esta auditoria. Nenhuma migration,
 configuração, dado, domínio, deployment ou provider Production foi modificado.
@@ -81,6 +81,11 @@ O deployment Production atual consultado foi
 `1c0202f935934285901f90e2b8c68f887f00222e`. O deployment Staging atual foi
 `dpl_5J7v7Qb7ztR5GPo3PKft77d99Y9v`, READY, SHA
 `f9eb31ae2a4019a376660269f609518ac303faaf`.
+
+Após a reconciliação, o workflow `Deploy Vercel staging` `33254285118`
+publicou o topo de `staging` (`28cc7d9`) e passou backup Neon, ancestry,
+migrations, publicação da SHA exata e smoke do alias estável
+`preview.neurocapacitar.com.br`. Production não foi promovida.
 
 As sondas públicas retornaram:
 
@@ -323,13 +328,17 @@ requalificação e a branch seguir `feature → staging → homologação → ma
 
 ### Sprint 0 — preservar evidências e fechar a higiene segura
 
-**Estado:** `PARCIALMENTE CONCLUÍDA` — somente a execução zombie permanece.
+**Estado:** `CONCLUÍDA COM EXCEÇÃO ADMINISTRATIVA` — somente a execução zombie
+permanece sem decisão.
 
 - [x] Registrar esta auditoria em `docs/reviews/`.
 - [x] Remover 29 branches remotos de PRs mescladas sem worktree ativo.
 - [x] Podar refs `origin/*` que apontavam para branches removidas.
 - [x] Preservar `main`, `staging`, PRs abertas/fechadas, branches locais e
   diretórios físicos não classificados.
+- [x] Remover a branch e o worktree temporários da reconciliação após o merge;
+  manter somente o worktree `production-normalization`, que ainda tem branch
+  local ativa.
 - [ ] Registrar o resultado do run zombie `32985845134` no painel GitHub ou
   aguardar expiração administrativa.
 - [x] Atualizar `last_verified_commit` dos documentos deste commit.
@@ -339,33 +348,39 @@ removida; working tree limpo após o commit; `bun run docs:check` verde.
 
 ### Sprint 1 — reconstruir a topologia staging-first
 
-**Estado:** `BLOQUEANTE / ABERTA`.
+**Estado:** `CONCLUÍDA EM STAGING; PROMOÇÃO PENDENTE`.
 
-- [ ] Criar branch de integração a partir de `origin/staging`.
-- [ ] Incorporar `origin/main` sem descartar os dez commits de Staging.
-- [ ] Revisar conflitos de Sentry, R2, backup, restore, workflows e docs.
-- [ ] Executar CI completo da integração.
-- [ ] Fazer deploy e smoke de Staging, incluindo providers de Staging.
-- [ ] Abrir PR separada da integração para `staging`.
+- [x] Criar branch de integração a partir de `origin/staging`.
+- [x] Incorporar `origin/main` sem descartar os dez commits de Staging.
+- [x] Revisar conflitos de Sentry, R2, backup, restore, workflows e docs.
+- [x] Executar CI completo da integração (`33253781385`).
+- [x] Fazer deploy e smoke de Staging, incluindo providers de Staging
+  (`33254285118`).
+- [x] Abrir PR separada da integração para `staging` (`#137`).
 - [ ] Somente após homologação abrir PR `staging → main`.
 
 **Aceite:** `origin/staging` contém os patches necessários dos dois lados,
 CI/deploy/smoke verdes e nenhum commit direto em `main`.
 
+O merge de `#137` foi squash. Portanto, a contagem de ancestralidade Git ainda
+mostra commits exclusivos em ambos os lados, embora a árvore de arquivos esteja
+reconciliada; isso não deve ser tratado como novo trabalho de produto.
+
 ### Sprint 2 — tornar o deploy de Staging determinístico
 
-**Estado:** `PARCIALMENTE CONCLUÍDA` (depende da Sprint 1 para a política
-definitiva).
+**Estado:** `PARCIALMENTE CONCLUÍDA` (a execução foi comprovada; a política
+definitiva ainda depende da promoção da guarda ao workflow de `main`).
 
 - [x] Adicionar guarda explícita para `workflow_run.head_branch=staging` em
   `.github/workflows/deploy-staging.yml`.
-- [ ] Manter dispatch manual explicitamente apontado para `staging`.
+- [x] Manter dispatch manual explicitamente apontado para `staging`.
 - [x] Adicionar teste de contrato para aceitar Staging e rejeitar `main` em
   `src/tooling/release-workflows.test.ts`.
 - [x] Inventariar branches Neon antes do backup efêmero desta release.
 - [x] Executar dry-run e execute controlado da retenção de
   `staging-release-*`.
-- [x] Reexecutar deploy de Staging sem atingir `BRANCHES_LIMIT_EXCEEDED`.
+- [x] Reexecutar deploy de Staging sem atingir `BRANCHES_LIMIT_EXCEEDED`,
+  inclusive após `#137`.
 
 **Aceite parcial:** um push de `staging` chega a READY, a branch temporária tem
 parent correto e expira. Ainda falta observar uma execução originada de CI de
