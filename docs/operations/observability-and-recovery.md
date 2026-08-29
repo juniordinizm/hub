@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
+last_verified_commit: 83bc73097b15bfddf04dfb45352e9dbae33272a3
 ---
 
 # Observabilidade e recuperação
@@ -230,6 +230,9 @@ abre conexão, não executa migration e não restaura banco.
 1. Confirme commit e estado atual do agregado.
 2. Consulte outbox/dead letter, tópico, tentativa e `lastErrorCode`, nunca o payload.
 3. Reprocessamento exige motivo. Depois de 24 horas, a idempotência do provedor pode não evitar e-mail duplicado.
+4. A rota pública rejeita corpos acima de 256 KiB com `413 payload_too_large`.
+   O limite é aplicado antes de materializar o corpo completo, inclusive quando
+   `Content-Length` está ausente ou subdeclarado; não reenvie esse payload.
 
 ## Ensaio de recuperação
 
@@ -249,6 +252,23 @@ Em 2026-07-21 UTC, a branch `recovery-drill-20260721` foi criada da branch `prod
 Esse é um ensaio real de cópia do estado corrente de produção e de recuperação forward de schema. Ele revelou o estado inicial de 23 entradas no journal e ausência de `outbox_messages`. Após aprovação explícita, `0023` e `0024` foram promovidas de forma controlada para `production`: o journal chegou a 25 entradas, a outbox existe e uma segunda execução do migrador não reaplicou schema.
 
 As branches `production` acessíveis de CI e do projeto `protear` permanecem sem proteção porque o plano Free não oferece esse recurso. O ensaio não comprova PITR em ponto histórico, cópia independente, política de retenção nem entrega de alerta. A auditoria de 23 de agosto confirmou essas lacunas como bloqueio de recuperação; elas permanecem pendentes no plano mestre e não podem depender de upgrade pago.
+
+### Atualização de Sentry em Staging — 2026-08-29
+
+O deployment Staging do SHA
+`f9eb31ae2a4019a376660269f609518ac303faaf` (`dpl_5J7v7Qb7ztR5GPo3PKft77d99Y9v`)
+emitiu o probe no projeto `hub-web`, ambiente `staging`. O evento
+`f74a01d2a4e846deb2f4a770b16d5928`, correlacionado a
+`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`, foi conferido com a credencial de
+inspeção. O checker terminou com código zero e confirmou `match=true`,
+`sourceMapped=true` e `alertTriggered=true` para o release completo.
+
+O evento não contém identidade, e-mail ou IP enviados pelo SDK; somente o
+bloco derivado `user.geo` foi acrescentado pelo Sentry e é o único bloco
+permitido pelo contrato do checker. A política organizacional de remoção de IP
+está ativa. Este fechamento vale para o gate de Staging; o evento próprio de
+Production continua reservado para depois de um candidato promovido e de uma
+autorização explícita.
 
 ## Manutenção
 

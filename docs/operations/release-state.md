@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
+last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
 deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
 verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
@@ -198,3 +198,51 @@ parâmetros => `400`) e webhook ativo com token (POST sem token =>
 evidência pós-deploy e não substitui a requalificação nem autoriza nova cobrança.
 Resend, Neon, Vercel, R2, JMVStream, Auth e Asaas usam rotação manual por
 fingerprints; nenhum valor de secret pertence a este documento.
+
+## Checkpoint de Staging após normalização — 2026-08-29
+
+O PR `#135` introduziu a guarda explícita do branch upstream no workflow de
+Staging e o PR `#136` registrou o checkpoint operacional. Ambos foram
+mesclados por squash; o topo remoto de `staging` é `83bc730`.
+
+A CI pós-merge `33251931777` passou Quality gates, PostgreSQL integration,
+Browser journeys e Build and dependency audit. O deploy manual de Staging
+`33252479223` passou criação/ancestry do backup, migrations, deployment Vercel
+e smoke do deployment e do alias estável.
+
+O cleanup Neon executado pelos runs `33251220857` e `33252449906` removeu
+somente backups superseded, preservando o mais recente em cada rodada. Nenhuma
+branch persistente ou dado Production foi alterado. O projeto
+`hub-production` continua preservado.
+
+## Checkpoint de reconciliação staging-first — 2026-08-29
+
+O PR `#137` foi criado a partir de `origin/staging`, incorporou `origin/main`
+sem descartar os commits de Staging e foi mesclado somente em `staging`. Os
+conflitos de Sentry, R2, backup, restore, workflows e documentação foram
+revisados; o topo remoto atual é `28cc7d9746d7f59afec7a0464d7c625c402b0a8d`.
+
+A CI pós-merge `33253781385` passou os quatro gates: Quality gates,
+PostgreSQL integration, Browser journeys e Build and dependency audit. O deploy
+`33254285118` passou backup Neon, ancestry, migrations, publicação da SHA exata
+e smoke do alias estável `preview.neurocapacitar.com.br`.
+
+A branch remota e o worktree temporários da reconciliação foram removidos após
+a verificação de limpeza. O worktree `production-normalization` permanece
+preservado porque ainda está associado à branch local ativa
+`codex/restore-node-tls`. `main`, o deployment Production e seus dados não
+foram alterados. Como o merge foi squash, a ancestralidade Git dos branches
+continua divergente mesmo com a árvore de arquivos reconciliada.
+
+## Fechamento documental do checkpoint — 2026-08-29
+
+O PR documental `#138` foi mesclado somente em `staging`; o topo remoto atual é
+`858eb5ab7df24a5adca2a23e692ec1c43138dc97`. A CI pós-merge `33255552588`
+passou os quatro gates. O deploy automático `33255999615` parou antes da
+publicação por `BRANCHES_LIMIT_EXCEEDED`; o cleanup controlado `33256066788`
+removeu o único backup superseded identificado e preservou o mais recente.
+O deploy manual protegido `33256090157` passou backup, ancestry, migrations,
+publicação da SHA exata e smoke do alias estável.
+
+Esse retry não alterou `main` nem Production. A quota Neon continua registrada
+como pendência de política de retenção, não como falha do código ou do deploy.

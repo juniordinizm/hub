@@ -82,7 +82,10 @@ const eventRelease = (
   return tags.get("release");
 };
 
-const containsSensitiveTelemetry = (value: unknown): boolean => {
+const containsSensitiveTelemetry = (
+  value: unknown,
+  insideStackFrame = false
+): boolean => {
   if (typeof value === "string") {
     return (
       EMAIL_VALUE.test(value) ||
@@ -91,12 +94,18 @@ const containsSensitiveTelemetry = (value: unknown): boolean => {
     );
   }
   if (Array.isArray(value)) {
-    return value.some(containsSensitiveTelemetry);
+    return value.some((item) =>
+      containsSensitiveTelemetry(item, insideStackFrame)
+    );
   }
   if (!isRecord(value)) {
     return false;
   }
   return Object.entries(value).some(([key, item]) => {
+    if (insideStackFrame && key === "context") {
+      return false;
+    }
+
     if (key === "user" && isRecord(item)) {
       return Object.entries(item).some(
         ([userKey, userValue]) =>
@@ -109,7 +118,7 @@ const containsSensitiveTelemetry = (value: unknown): boolean => {
 
     return (
       (SENSITIVE_KEY.test(key) && item !== null && item !== undefined) ||
-      containsSensitiveTelemetry(item)
+      containsSensitiveTelemetry(item, insideStackFrame || key === "frames")
     );
   });
 };

@@ -527,7 +527,7 @@ Nunca use `git add .` sem revisar `git status`. `.env.local` não deve aparecer.
 
 No GitHub:
 
-1. abra o Pull Request para `main`;
+1. abra o Pull Request para `staging`;
 2. explique o problema e a solução;
 3. informe quais testes foram executados;
 4. aguarde todos os jobs da CI;
@@ -536,6 +536,10 @@ No GitHub:
 7. verifique a interface relacionada à mudança;
 8. peça revisão quando a mudança envolver autenticação, pagamento, migration,
    storage ou autorização.
+
+Esse primeiro Pull Request só promove a alteração até `staging`. Depois do
+deploy e do smoke de Staging, abra um segundo Pull Request de `staging` para
+`main`; não use a branch de feature diretamente como candidata de Production.
 
 O Preview não testa providers. Resend, Asaas, JMVStream e R2 são
 verificados localmente em Development e novamente no candidato Production

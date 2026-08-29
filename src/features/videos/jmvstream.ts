@@ -1,4 +1,5 @@
 const JMVSTREAM_PLAYER_HOSTNAME = "player.jmvstream.com";
+const JMVSTREAM_PLAYER_ORIGIN = "https://player.jmvstream.com";
 const IFRAME_SRC_PATTERN = /\bsrc=(["'])(.*?)\1/i;
 const VIDEO_PROVIDERS = new Set(["external", "jmvstream", "panda"]);
 const JMVSTREAM_OUT_EVENT_PATTERN = /^jmvplayerout-/;
@@ -28,11 +29,30 @@ export const isJmvstreamPlayerUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
     return (
-      url.protocol === "https:" && url.hostname === JMVSTREAM_PLAYER_HOSTNAME
+      url.protocol === "https:" &&
+      url.hostname === JMVSTREAM_PLAYER_HOSTNAME &&
+      url.port === "" &&
+      url.username === "" &&
+      url.password === ""
     );
   } catch {
     return false;
   }
+};
+
+export const sanitizeJmvstreamPlayerUrl = (
+  value: string | null
+): string | null => {
+  if (!(value && isJmvstreamPlayerUrl(value))) {
+    return null;
+  }
+
+  const source = new URL(value);
+  const safeUrl = new URL(JMVSTREAM_PLAYER_ORIGIN);
+  safeUrl.pathname = source.pathname;
+  safeUrl.search = source.search;
+  safeUrl.hash = source.hash;
+  return safeUrl.href;
 };
 
 export const extractJmvstreamEmbedUrl = (
@@ -46,7 +66,7 @@ export const extractJmvstreamEmbedUrl = (
   const iframeSrc = IFRAME_SRC_PATTERN.exec(trimmedValue)?.[2];
   const candidate = iframeSrc ?? trimmedValue;
 
-  return isJmvstreamPlayerUrl(candidate) ? candidate : null;
+  return sanitizeJmvstreamPlayerUrl(candidate);
 };
 
 export const resolveLessonVideoEmbedUrl = ({

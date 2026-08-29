@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: e947bdad2bc72ef1db9de712b1c2cfe8653d43ce
 ---
 
 # Tutorial: da alteração até Production
@@ -15,21 +15,25 @@ banco por tentativa.
 
 ## O que é automático e o que é manual
 
-O fluxo tem quatro momentos diferentes:
+O fluxo tem cinco momentos diferentes:
 
 1. **Desenvolvimento local:** o código roda no computador e usa os recursos
    Development definidos no `.env.local`.
-2. **Pull Request:** o GitHub executa testes e cria um Preview Vercel protegido.
-3. **Merge:** o código entra na branch Git `main`, mas ainda não está em
-   Production.
-4. **Deploy Production:** uma pessoa executa manualmente o workflow
+2. **Pull Request para Staging:** o GitHub executa testes, cria um Preview
+   protegido e, após o merge, o deploy controlado atualiza `staging`.
+3. **Homologação:** a equipe valida o deployment e o smoke de Staging; provider
+   e gates externos são conferidos nessa etapa.
+4. **Pull Request `staging → main`:** somente o SHA já homologado entra na
+   `main`, que se torna o candidato de Production.
+5. **Deploy Production:** uma pessoa executa manualmente o workflow
    `Deploy Vercel production`.
 
 Portanto:
 
 - `git push` não altera Production;
 - abrir um Pull Request não altera Production;
-- fazer merge não altera Production;
+- fazer merge em `staging` não altera Production;
+- fazer merge de `staging` em `main` atualiza apenas o candidato, não o domínio;
 - um Preview não é Production;
 - somente o workflow manual de Production pode promover o domínio público;
 - não é necessário localizar, copiar ou digitar um SHA.
@@ -37,6 +41,10 @@ Portanto:
 O workflow resolve sozinho o SHA atual da `main`, confirma que ele possui CI
 verde, aplica migrations pendentes, testa o deployment sem domínio e somente
 depois promove.
+
+O workflow não possui mais entradas para ignorar o CI ou o backup independente.
+Se qualquer gate falhar, corrija a causa e execute novamente; não há caminho de
+exceção na interface de execução.
 
 ## Os quatro bancos
 
@@ -272,7 +280,7 @@ No GitHub:
 1. abra o repositório `juniordinizm/hub`;
 2. clique em **Pull requests**;
 3. clique em **New pull request**;
-4. escolha `main` em **base**;
+4. escolha `staging` em **base**;
 5. escolha sua branch em **compare**;
 6. clique em **Create pull request**;
 7. escreva o problema, a solução e os testes executados;
@@ -352,9 +360,9 @@ Revise no Preview somente o que ele consegue representar. Testes de provider
 acontecem no ambiente local Development, usando recursos de teste e as
 restrições do guia de Development.
 
-## Etapa 9: fazer merge
+## Etapa 9: fazer merge em Staging e homologar
 
-Faça merge somente quando:
+Faça merge do Pull Request para `staging` somente quando:
 
 - todos os checks estiverem verdes;
 - a revisão de código estiver concluída;
@@ -362,14 +370,27 @@ Faça merge somente quando:
 - a jornada afetada tiver sido testada;
 - não existir migration bloqueada pelo limite descrito acima.
 
-Use o método de merge aprovado no repositório, normalmente squash. Depois do
-merge, a branch pode ser excluída.
+Use o método de merge aprovado no repositório, normalmente squash. O merge
+dispara o CI pós-merge e o deploy controlado de Staging. Aguarde ambos e
+confirme o smoke no alias estável antes de promover.
 
-Importante: o merge ainda não publicou Production.
+Importante: nem o merge nem o deploy de Staging publicam Production.
 
-## Etapa 10: aguardar a CI da `main`
+## Etapa 10: promover o Staging para `main` e aguardar a CI
 
-Depois do merge:
+Depois que Staging estiver homologado:
+
+1. abra um novo Pull Request no GitHub;
+2. escolha `main` em **base**;
+3. escolha `staging` em **compare**;
+4. descreva o SHA/deployment já validado e os gates externos;
+5. aguarde a revisão e todos os checks do Pull Request.
+
+Faça esse merge somente quando a homologação de Staging estiver registrada e
+nenhum gate externo estiver pendente. A branch `main` passa a representar o
+candidato de Production.
+
+Depois do merge, aguarde a CI da `main`:
 
 1. abra **Actions** no GitHub;
 2. escolha o workflow **CI**;
@@ -595,6 +616,7 @@ Nunca envie:
 Antes do Pull Request:
 
 - [ ] branch própria criada a partir da `main`;
+- [ ] Pull Request aberto para `staging`;
 - [ ] jornada local testada;
 - [ ] `bun run verify` verde;
 - [ ] diff revisado;
@@ -607,6 +629,13 @@ Antes do merge:
 - [ ] Preview aplicável revisado;
 - [ ] revisão concluída;
 - [ ] nenhuma migration presa no bloqueio conhecido.
+
+Antes do Pull Request `staging → main`:
+
+- [ ] CI pós-merge de Staging verde;
+- [ ] deploy e smoke de Staging verdes;
+- [ ] gates externos aplicáveis registrados;
+- [ ] nenhuma alteração direta na `main`.
 
 Antes de Production:
 

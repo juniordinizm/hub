@@ -5,6 +5,7 @@ import {
   extractJmvstreamEmbedUrl,
   formatLessonDuration,
   getJmvstreamDurationSecondsFromMessage,
+  sanitizeJmvstreamPlayerUrl,
   shouldApplyDetectedDuration,
 } from "@/features/videos/jmvstream";
 
@@ -32,7 +33,7 @@ export function JmvstreamDurationDetector({
       return null;
     }
 
-    return extractJmvstreamEmbedUrl(embedUrl);
+    return sanitizeJmvstreamPlayerUrl(extractJmvstreamEmbedUrl(embedUrl));
   }, [embedUrl, provider]);
 
   const syncPlayer = useCallback(() => {
@@ -137,6 +138,7 @@ export function JmvstreamDurationDetector({
         <iframe
           className="sr-only"
           ref={iframeRef}
+          sandbox="allow-scripts allow-same-origin"
           src={playerUrl}
           title="Detector de duração JMVStream"
         />
