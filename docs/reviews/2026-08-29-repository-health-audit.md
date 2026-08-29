@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 5af01837acc26581d2ca165a67514308d49d6c4a
+last_verified_commit: c1d03e85d374cc8bac0b8d80bf19d5bc9429db9f
 audit_date: 2026-08-29
 ---
 
@@ -471,14 +471,25 @@ timestamp e rollback; decisão `GO/NO-GO` é registrada antes da promoção.
 
 ### Sprint 6 — segurança da conta e proteção do repositório
 
-**Estado:** `ABERTA`.
+**Estado:** `PARCIALMENTE CONCLUÍDA` — as proteções reversíveis compatíveis com
+o repositório público foram habilitadas; Code Scanning e a conferência das
+Contas Admin continuam pendentes.
 
-- [ ] Avaliar Secret Scanning, Push Protection, Dependabot alerts e Code
-  Scanning dentro do plano vigente.
+- [x] Habilitar Secret Scanning e Push Protection.
+- [x] Habilitar Dependabot Security Alerts e Security Updates.
+- [ ] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
+  execução não revisada ao CI.
 - [ ] Confirmar duas Contas Admin, TOTP e códigos de recuperação.
 - [ ] Revisar exposição de nomes de infraestrutura nos logs públicos sem
   rotacionar credenciais desnecessariamente.
 - [ ] Definir se algum PR Dependabot será tratado, sempre um por vez.
+
+**Evidência externa de 2026-08-29:** a API do GitHub confirmou o repositório
+público `juniordinizm/hub` com `secret_scanning=enabled`,
+`secret_scanning_push_protection=enabled` e `dependabot_security_updates=enabled`.
+Não havia alertas ativos de Dependabot nem de Secret Scanning no momento da
+consulta. `code-scanning/default-setup` permanece `not-configured`; isso foi
+mantido deliberadamente para não introduzir workflow ou ruído sem revisão.
 
 **Aceite:** proteções escolhidas habilitadas, contas administrativas conferidas,
 nenhum secret em histórico e PRs de dependência sem falha.
