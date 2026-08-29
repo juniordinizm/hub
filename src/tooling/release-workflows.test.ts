@@ -357,16 +357,25 @@ describe("Release backup ancestry", () => {
   });
 });
 
-describe("Emergency Production backup exception", () => {
-  it("requires an explicit confirmation and preserves the Neon rollback branch", () => {
+describe("Production release gates", () => {
+  it("requires the normal Production backup and CI gates", () => {
     const workflow = readWorkflow("deploy-vercel.yml");
 
-    expect(workflow).toContain("emergency_skip_backup:");
-    expect(workflow).toContain("emergency_skip_backup_confirmation:");
-    expect(workflow).toContain("EMERGENCY_SKIP_PRODUCTION_BACKUP");
-    expect(workflow).toContain("if: inputs.emergency_skip_backup != true");
+    expect(workflow).not.toContain("emergency_skip_backup:");
+    expect(workflow).not.toContain("emergency_skip_backup_confirmation:");
+    expect(workflow).not.toContain("emergency_skip_ci:");
+    expect(workflow).not.toContain("emergency_skip_ci_confirmation:");
+    expect(workflow).not.toContain("EMERGENCY_SKIP_PRODUCTION_BACKUP");
+    expect(workflow).not.toContain("EMERGENCY_SKIP_PRODUCTION_TESTS");
+    expect(workflow).toContain(
+      "name: Require a recent independent Production backup"
+    );
+    expect(workflow).not.toContain("if: inputs.emergency_skip_backup");
+    expect(workflow).toContain("name: Verify approved main SHA and green CI");
+    expect(workflow).toContain(
+      "No successful CI run exists for the current main SHA."
+    );
     expect(workflow).toContain("name: Create confirmed Production Neon backup");
-    expect(workflow).toContain("name: Record emergency backup exception");
     expect(workflow).toContain("name: Smoke Production public profile");
     expect(workflow).toContain("checkout_status=");
     expect(workflow).toContain("webhook_status=");
