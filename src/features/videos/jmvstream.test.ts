@@ -6,6 +6,7 @@ import {
   getJmvstreamDurationSecondsFromMessage,
   getJmvstreamPlayerEventFromMessage,
   resolveLessonVideoEmbedUrl,
+  sanitizeJmvstreamPlayerUrl,
   shouldApplyDetectedDuration,
   shouldCompleteLessonFromJmvstreamEvent,
 } from "./jmvstream";
@@ -39,6 +40,25 @@ describe("JMVStream video embeds", () => {
         embedUrl: "https://example.com/video",
         provider: "jmvstream",
       })
+    ).toBeNull();
+  });
+
+  it("returns a trusted player URL only for the exact HTTPS player origin", () => {
+    expect(
+      sanitizeJmvstreamPlayerUrl(
+        "https://player.jmvstream.com/evt/secret?autoplay=1#player"
+      )
+    ).toBe("https://player.jmvstream.com/evt/secret?autoplay=1#player");
+    expect(
+      sanitizeJmvstreamPlayerUrl("http://player.jmvstream.com/evt/secret")
+    ).toBeNull();
+    expect(
+      sanitizeJmvstreamPlayerUrl("https://player.jmvstream.com.evil.test/evt")
+    ).toBeNull();
+    expect(
+      sanitizeJmvstreamPlayerUrl(
+        "https://user:pass@player.jmvstream.com/evt/secret"
+      )
     ).toBeNull();
   });
 

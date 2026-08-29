@@ -5,6 +5,7 @@ import {
 } from "node:http";
 import { getE2eObjectStorageCorsHeaders } from "../src/features/storage/e2e-object-storage-cors";
 import { getE2eObjectStorageMetadataHeaders } from "../src/features/storage/e2e-object-storage-metadata";
+import { decodeXmlEntities } from "../src/features/storage/e2e-object-storage-xml";
 
 const PORT = 4568;
 const LEADING_SLASH_PATTERN = /^\/+/;
@@ -17,14 +18,6 @@ interface StoredObject {
 }
 
 const objects = new Map<string, StoredObject>();
-
-const decodeXml = (value: string): string =>
-  value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&apos;", "'");
 
 const getObjectId = (url: URL): string | null => {
   const path = decodeURIComponent(url.pathname).replace(
@@ -47,7 +40,7 @@ const deleteRequestedObjects = (source: string): void => {
     const key = match[1];
     if (key) {
       for (const objectId of objects.keys()) {
-        if (objectId.endsWith(`/${decodeXml(key)}`)) {
+        if (objectId.endsWith(`/${decodeXmlEntities(key)}`)) {
           objects.delete(objectId);
         }
       }
