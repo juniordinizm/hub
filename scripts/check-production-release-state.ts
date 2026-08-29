@@ -175,12 +175,17 @@ const run = async (): Promise<void> => {
     deploymentIdentifier(deployment)
   );
   const encodedTeamId = encodeURIComponent(vercelTeamId);
+  const encodedVercelProject = encodeURIComponent(vercelProjectId);
   const encodedNeonProject = encodeURIComponent(neonProjectId);
   const encodedNeonBranch = encodeURIComponent(neonBranchId);
-  const [vercel, neon, database] = await Promise.all([
+  const [vercel, vercelDomains, neon, database] = await Promise.all([
     readJson({
       authorization: `Bearer ${vercelToken}`,
       url: `https://api.vercel.com/v13/deployments/${encodedDeployment}?teamId=${encodedTeamId}&withGitRepoInfo=true`,
+    }),
+    readJson({
+      authorization: `Bearer ${vercelToken}`,
+      url: `https://api.vercel.com/v9/projects/${encodedVercelProject}/domains?teamId=${encodedTeamId}`,
     }),
     readJson({
       authorization: `Bearer ${neonApiKey}`,
@@ -202,6 +207,7 @@ const run = async (): Promise<void> => {
     },
     neon,
     vercel,
+    vercelDomains,
   });
   if (errors.length > 0) {
     throw new Error(`Production release mismatch: ${errors.join(", ")}.`);

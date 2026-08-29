@@ -23,6 +23,7 @@ interface VerifyProductionReleaseStateInput {
   expected: ProductionReleaseExpectation;
   neon: unknown;
   vercel: unknown;
+  vercelDomains?: unknown;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -30,6 +31,24 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const stringValue = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+export const vercelVerifiedProjectDomains = (
+  domains: unknown,
+  expectedProjectId?: string
+): string[] => {
+  const values =
+    isRecord(domains) && Array.isArray(domains.domains)
+      ? domains.domains.filter(isRecord)
+      : [];
+  return values
+    .filter(
+      (domain) =>
+        domain.verified === true &&
+        (!expectedProjectId || domain.projectId === expectedProjectId)
+    )
+    .map((domain) => stringValue(domain.name ?? domain.domain))
+    .filter((domain): domain is string => Boolean(domain));
+};
 
 export const verifyDocumentedReleaseCheckpoint = ({
   checkpoint,
@@ -89,7 +108,8 @@ const vercelRelease = (
 
 const verifyVercel = (
   vercel: unknown,
-  expected: ProductionReleaseExpectation
+  expected: ProductionReleaseExpectation,
+  vercelDomains: unknown
 ): string[] => {
   if (!isRecord(vercel)) {
     return ["vercel_response_incomplete"];
@@ -112,7 +132,13 @@ const verifyVercel = (
   }
   if (
     expected.requireCanonicalAlias &&
-    !vercelAliases(vercel).includes(expected.canonicalAlias)
+    !(
+      vercelAliases(vercel).includes(expected.canonicalAlias) ||
+      vercelVerifiedProjectDomains(
+        vercelDomains,
+        expected.vercelProjectId
+      ).includes(expected.canonicalAlias)
+    )
   ) {
     errors.push("vercel_alias_mismatch");
   }
@@ -166,8 +192,9 @@ export const verifyProductionReleaseState = ({
   expected,
   neon,
   vercel,
+  vercelDomains,
 }: VerifyProductionReleaseStateInput): string[] => [
-  ...verifyVercel(vercel, expected),
+  ...verifyVercel(vercel, expected, vercelDomains),
   ...verifyNeon(neon, expected),
   ...verifyDatabase(database, expected),
 ];

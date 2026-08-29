@@ -256,6 +256,40 @@ export const createStagedAdminImageUploadUrl = async ({
   return { reference, uploadUrl };
 };
 
+export const uploadStagedAdminImageFile = async ({
+  actorUserId,
+  file,
+  reference,
+}: {
+  actorUserId: string;
+  file: File;
+  reference: StagedAdminImageReference;
+}): Promise<void> => {
+  assertStagedAdminImageOwnership({
+    actorUserId,
+    aggregateId: reference.aggregateId,
+    purpose: reference.purpose,
+    reference,
+  });
+
+  if (
+    file.size !== reference.sizeBytes ||
+    file.type !== reference.contentType
+  ) {
+    throw new Error("O arquivo enviado nao corresponde ao upload preparado.");
+  }
+
+  const config = getR2Config();
+  await getR2Client(config).send(
+    new PutObjectCommand({
+      Body: Buffer.from(await file.arrayBuffer()),
+      Bucket: config.bucketName,
+      ContentType: reference.contentType,
+      Key: config.namespace.toPhysicalKey(reference.key),
+    })
+  );
+};
+
 export const readStagedAdminImageFile = async ({
   actorUserId,
   aggregateId,
@@ -518,6 +552,42 @@ export const getPublicMediaUrl = (key: string): string => {
     key,
     physicalKey: config.namespace.toPhysicalKey(key),
   });
+};
+
+export const checkR2ObjectStorage = async (): Promise<void> => {
+  const config = getR2Config();
+  const client = getR2Client(config);
+  const key = `diagnostics/health/${randomUUID()}.txt`;
+  const physicalKey = config.namespace.toPhysicalKey(key);
+
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Body: Buffer.from("r2-healthcheck"),
+        Bucket: config.bucketName,
+        ContentType: "text/plain",
+        Key: physicalKey,
+      })
+    );
+    await client.send(
+      new HeadObjectCommand({
+        Bucket: config.bucketName,
+        Key: physicalKey,
+      })
+    );
+  } finally {
+    await client
+      .send(
+        new DeleteObjectsCommand({
+          Bucket: config.bucketName,
+          Delete: {
+            Objects: [{ Key: physicalKey }],
+            Quiet: true,
+          },
+        })
+      )
+      .catch(() => undefined);
+  }
 };
 
 export const publishR2Object = async (key: string): Promise<void> => {

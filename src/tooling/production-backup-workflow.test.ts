@@ -28,6 +28,7 @@ describe("production database backup workflow", () => {
     expect(source).toContain("timeout-minutes:");
     for (const name of [
       "BACKUP_DATABASE_URL",
+      "PGSSLROOTCERT",
       "BACKUP_R2_ACCESS_KEY_ID",
       "BACKUP_R2_SECRET_ACCESS_KEY",
       "BACKUP_R2_ACCOUNT_ID",
@@ -53,11 +54,19 @@ describe("production database backup workflow", () => {
       "bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377"
     );
     expect(source).toContain("postgresql-client-18");
+    expect(source).toContain(
+      `export PATH="/usr/lib/postgresql/18/bin:\${PATH}"`
+    );
+    expect(source).toContain(
+      'echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"'
+    );
     expect(source).toContain("pg_dump --version");
     expect(source).toContain("age --version");
     expect(source).not.toContain("upload-artifact");
     expect(source).toContain("bun install --frozen-lockfile");
     expect(source).toContain("bun run ops:backup:production");
+    expect(source).toContain("command -v pg_dump");
+    expect(source).toContain("command -v pg_restore");
   });
 
   it("exposes only the guarded backup entrypoint in package scripts", async () => {

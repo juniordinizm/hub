@@ -28,6 +28,7 @@ const ACCOUNT_ID_PATTERN = /^[0-9a-f]{32}$/;
 const BUCKET_NAME_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/;
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MAX_LIST_PAGES = 100;
+const REQUEST_STREAM_BUFFER_SIZE = 64 * 1024;
 
 const requiredEnvironmentValue = (
   environment: BackupEnvironment,
@@ -83,6 +84,7 @@ export const createProductionBackupR2Client = (
     },
     endpoint: config.endpoint,
     region: config.region,
+    requestStreamBufferSize: REQUEST_STREAM_BUFFER_SIZE,
   });
 
 const metadataValue = (

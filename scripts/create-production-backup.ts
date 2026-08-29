@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Pool, type PoolClient } from "pg";
+import {
+  Pool,
+  type PoolClient,
+  type QueryResult,
+  type QueryResultRow,
+} from "pg";
 import {
   buildProductionBackupKeys,
   type ProductionBackupManifestV1,
@@ -11,10 +15,13 @@ import {
 } from "../src/tooling/production-backup";
 import {
   assertProductionBackupDatabase,
+  classifyProductionBackupFailure,
   type ProductionBackupDatabaseInspection,
   type ProductionBackupExecutionConfig,
+  type ProductionBackupFailurePhase,
   type ProductionBackupProviderEvidence,
   resolveProductionBackupExecutionConfig,
+  resolveProductionBackupFailureCategory,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
 } from "../src/tooling/production-backup-execution";
@@ -36,6 +43,10 @@ interface ExpectedMigration {
 
 const API_TIMEOUT_MS = 10_000;
 const CANONICAL_ALIAS = "app.neurocapacitar.com.br";
+
+type BackupFailurePhase = ProductionBackupFailurePhase;
+
+let currentPhase: BackupFailurePhase = "configuration-database";
 
 const requiredEnvironmentValue = (name: string): string => {
   const value = process.env[name]?.trim();
@@ -69,14 +80,19 @@ const inspectProviderProvenance = async (
   const vercelOrgId = requiredEnvironmentValue("VERCEL_ORG_ID");
   const vercelProjectId = requiredEnvironmentValue("VERCEL_PROJECT_ID");
   const neonApiKey = requiredEnvironmentValue("NEON_API_KEY");
+  const encodedVercelProject = encodeURIComponent(vercelProjectId);
   const encodedProject = encodeURIComponent(
     executionConfig.productionProjectId
   );
   const encodedBranch = encodeURIComponent(executionConfig.productionBranchId);
-  const [vercel, neon, neonEndpoints] = await Promise.all([
+  const [vercel, vercelDomains, neon, neonEndpoints] = await Promise.all([
     readProviderJson({
       authorization: `Bearer ${vercelToken}`,
       url: `https://api.vercel.com/v13/deployments/${CANONICAL_ALIAS}?teamId=${encodeURIComponent(vercelOrgId)}&withGitRepoInfo=true`,
+    }),
+    readProviderJson({
+      authorization: `Bearer ${vercelToken}`,
+      url: `https://api.vercel.com/v9/projects/${encodedVercelProject}/domains?teamId=${encodeURIComponent(vercelOrgId)}`,
     }),
     readProviderJson({
       authorization: `Bearer ${neonApiKey}`,
@@ -98,6 +114,7 @@ const inspectProviderProvenance = async (
     neon,
     neonEndpoints,
     vercel,
+    vercelDomains,
   });
 };
 
@@ -122,15 +139,63 @@ const readExpectedMigration = async (): Promise<ExpectedMigration> => {
 const toBoolean = (value: boolean | string): boolean =>
   value === true || value === "on" || value === "true";
 
+const queryDatabase = async <Result extends QueryResultRow>(
+  client: PoolClient,
+  phase: "transaction" | "settings" | "identity" | "migration",
+  sql: string
+): Promise<QueryResult<Result>> => {
+  try {
+    return await client.query<Result>(sql);
+  } catch (error: unknown) {
+    const safeError = new Error(
+      `Production backup database query failed: ${phase}.`
+    );
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      Object.defineProperty(safeError, "code", { value: error.code });
+    }
+    throw safeError;
+  }
+};
+
+const connectDatabase = async (pool: Pool): Promise<PoolClient> => {
+  try {
+    return await pool.connect();
+  } catch (error: unknown) {
+    const safeError = new Error(
+      "Production backup database connection failed."
+    );
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      typeof error.code === "string"
+    ) {
+      Object.defineProperty(safeError, "code", { value: error.code });
+    }
+    throw safeError;
+  }
+};
+
 const inspectDatabase = async (
   client: PoolClient,
   expectedMigration: ExpectedMigration
 ): Promise<ProductionBackupDatabaseInspection> => {
-  await client.query("begin isolation level repeatable read read only");
+  await queryDatabase(
+    client,
+    "transaction",
+    "begin isolation level repeatable read read only"
+  );
   try {
-    await client.query("set local statement_timeout = '5min'");
-    await client.query("set local lock_timeout = '10s'");
-    const identity = await client.query<{
+    await queryDatabase(
+      client,
+      "settings",
+      "set local statement_timeout = '5min'"
+    );
+    await queryDatabase(client, "settings", "set local lock_timeout = '10s'");
+    const identity = await queryDatabase<{
       current_database: string;
       current_user: string;
       default_read_only: string;
@@ -138,7 +203,10 @@ const inspectDatabase = async (
       pg_read_all_data_member: boolean;
       postgres_server_version: string;
       transaction_read_only: string;
-    }>(`
+    }>(
+      client,
+      "identity",
+      `
       select
         current_database() as current_database,
         current_user as current_user,
@@ -147,13 +215,18 @@ const inspectDatabase = async (
         current_setting('server_version') as postgres_server_version,
         pg_database_size(current_database())::text as logical_database_bytes,
         pg_has_role(current_user, 'pg_read_all_data', 'member') as pg_read_all_data_member
-    `);
-    const migration = await client.query<{ created_at: string }>(`
+    `
+    );
+    const migration = await queryDatabase<{ created_at: string }>(
+      client,
+      "migration",
+      `
       select created_at::text as created_at
       from drizzle.__drizzle_migrations
       order by created_at desc
       limit 1
-    `);
+    `
+    );
     const row = identity.rows[0];
     const migrationTimestamp = Number(migration.rows[0]?.created_at);
     if (!(row && Number.isSafeInteger(migrationTimestamp))) {
@@ -176,9 +249,13 @@ const inspectDatabase = async (
 };
 
 const main = async (): Promise<void> => {
+  currentPhase = "configuration-database";
   const executionConfig = resolveProductionBackupExecutionConfig(process.env);
+  currentPhase = "configuration-storage";
   const r2Config = resolveProductionBackupR2Config(process.env);
+  currentPhase = "configuration-migration";
   const expectedMigration = await readExpectedMigration();
+  currentPhase = "provider";
   const providerEvidence = await inspectProviderProvenance(executionConfig);
   const databaseUrl = process.env.BACKUP_DATABASE_URL;
   if (!databaseUrl) {
@@ -192,14 +269,17 @@ const main = async (): Promise<void> => {
   const r2Client = createProductionBackupR2Client(r2Config);
   try {
     let databaseInspection: ProductionBackupDatabaseInspection;
-    const client = await pool.connect();
+    currentPhase = "database-connection";
+    const client = await connectDatabase(pool);
     try {
+      currentPhase = "database-inspection";
       databaseInspection = await inspectDatabase(client, expectedMigration);
       assertProductionBackupDatabase(databaseInspection, expectedMigration);
     } finally {
       client.release();
     }
 
+    currentPhase = "storage";
     const latestManifests = await findLatestBackupManifests({
       bucketName: r2Config.bucketName,
       client: r2Client,
@@ -220,17 +300,19 @@ const main = async (): Promise<void> => {
       throw new Error("Production backup key generation failed.");
     }
 
+    currentPhase = "backup-command";
     const completed = await withEncryptedProductionDump({
       ageRecipient: executionConfig.ageRecipient,
       pgEnvironment: executionConfig.pgEnvironment,
       processEncryptedDump: async ({
         dumpBytes,
         dumpSha256,
+        encryptedBody,
         encryptedBytes,
-        encryptedPath,
         encryptedSha256,
         pgDumpVersion,
       }) => {
+        currentPhase = "storage";
         const manifest: ProductionBackupManifestV1 = {
           backupId,
           cadenceHours: executionConfig.cadenceHours,
@@ -270,7 +352,7 @@ const main = async (): Promise<void> => {
         return await publishProductionBackup({
           bucketName: r2Config.bucketName,
           client: r2Client,
-          createEncryptedBody: () => createReadStream(encryptedPath),
+          createEncryptedBody: () => encryptedBody,
           manifest,
         });
       },
@@ -296,8 +378,13 @@ const main = async (): Promise<void> => {
 if (import.meta.main) {
   try {
     await main();
-  } catch {
-    process.stderr.write("Production backup failed.\n");
+  } catch (error: unknown) {
+    const category = classifyProductionBackupFailure(error);
+    const safeCategory = resolveProductionBackupFailureCategory(
+      category,
+      currentPhase
+    );
+    process.stderr.write(`Production backup failed: ${safeCategory}.\n`);
     process.exitCode = 1;
   }
 }

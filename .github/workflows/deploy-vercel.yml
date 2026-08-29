@@ -16,6 +16,24 @@ on:
         required: true
         default: false
         type: boolean
+      emergency_skip_backup:
+        description: "Emergency exception: skip independent R2 backup"
+        required: true
+        default: false
+        type: boolean
+      emergency_skip_backup_confirmation:
+        description: Type EMERGENCY_SKIP_PRODUCTION_BACKUP for the approved exception
+        required: false
+        type: string
+      emergency_skip_ci:
+        description: "Emergency exception: skip the successful-CI prerequisite"
+        required: false
+        default: false
+        type: boolean
+      emergency_skip_ci_confirmation:
+        description: Type EMERGENCY_SKIP_PRODUCTION_TESTS for the approved exception
+        required: false
+        type: string
 
 concurrency:
   group: vercel-production
@@ -47,6 +65,10 @@ jobs:
         env:
           CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
           CONFIRMATION: ${{ inputs.confirmation }}
+          EMERGENCY_SKIP_BACKUP: ${{ inputs.emergency_skip_backup }}
+          EMERGENCY_SKIP_BACKUP_CONFIRMATION: ${{ inputs.emergency_skip_backup_confirmation }}
+          EMERGENCY_SKIP_CI: ${{ inputs.emergency_skip_ci }}
+          EMERGENCY_SKIP_CI_CONFIRMATION: ${{ inputs.emergency_skip_ci_confirmation }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ inputs.release_sha }}
         run: |
@@ -55,6 +77,18 @@ jobs:
           if [[ "${CONFIRM_PRODUCTION}" != "true" ]] ||
              [[ "${CONFIRMATION}" != "DEPLOY_PRODUCTION_MAINTENANCE" ]]; then
             echo "Production deployment was not explicitly confirmed." >&2
+            exit 1
+          fi
+
+          if [[ "${EMERGENCY_SKIP_BACKUP}" == "true" ]] &&
+             [[ "${EMERGENCY_SKIP_BACKUP_CONFIRMATION}" != "EMERGENCY_SKIP_PRODUCTION_BACKUP" ]]; then
+            echo "Emergency backup exception was not explicitly confirmed." >&2
+            exit 1
+          fi
+
+          if [[ "${EMERGENCY_SKIP_CI}" == "true" ]] &&
+             [[ "${EMERGENCY_SKIP_CI_CONFIRMATION}" != "EMERGENCY_SKIP_PRODUCTION_TESTS" ]]; then
+            echo "Emergency CI exception was not explicitly confirmed." >&2
             exit 1
           fi
 
@@ -71,19 +105,29 @@ jobs:
             exit 1
           fi
 
-          ci_runs="$(
-            curl --fail-with-body --silent --show-error \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=100"
-          )"
+          if [[ "${EMERGENCY_SKIP_CI}" == "true" ]]; then
+            echo "::warning::Successful-CI prerequisite skipped by explicit emergency authorization."
+            {
+              echo "### Emergency Production test exception"
+              echo "- successful CI prerequisite: SKIPPED"
+              echo "- confirmation: EMERGENCY_SKIP_PRODUCTION_TESTS"
+              echo "- follow-up: run the full CI matrix before the next release"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            ci_runs="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=100"
+            )"
 
-          if ! jq -e --arg sha "${release_sha}" \
-            '.workflow_runs | any(.head_sha == $sha and .conclusion == "success")' \
-            <<< "${ci_runs}" > /dev/null; then
-            echo "No successful CI run exists for the current main SHA." >&2
-            exit 1
+            if ! jq -e --arg sha "${release_sha}" \
+              '.workflow_runs | any(.head_sha == $sha and .conclusion == "success")' \
+              <<< "${ci_runs}" > /dev/null; then
+              echo "No successful CI run exists for the current main SHA." >&2
+              exit 1
+            fi
           fi
 
           echo "sha=${release_sha}" >> "$GITHUB_OUTPUT"
@@ -104,21 +148,37 @@ jobs:
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          EMERGENCY_SKIP_BACKUP: ${{ inputs.emergency_skip_backup }}
         run: |
           set -euo pipefail
-          for name in BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
+          required_names=(DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN)
+          if [[ "${EMERGENCY_SKIP_BACKUP}" != "true" ]]; then
+            required_names+=(BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY)
+          fi
+          for name in "${required_names[@]}"; do
             if [[ -z "${!name:-}" ]]; then
               echo "${name} is required by the vercel-production environment." >&2
               exit 1
             fi
           done
       - name: Require a recent independent Production backup
+        if: inputs.emergency_skip_backup != true
         env:
           BACKUP_R2_ACCOUNT_ID: ${{ vars.BACKUP_R2_ACCOUNT_ID }}
           BACKUP_R2_BUCKET_NAME: ${{ vars.BACKUP_R2_BUCKET_NAME }}
           RESTORE_R2_ACCESS_KEY_ID: ${{ secrets.RESTORE_R2_ACCESS_KEY_ID }}
           RESTORE_R2_SECRET_ACCESS_KEY: ${{ secrets.RESTORE_R2_SECRET_ACCESS_KEY }}
         run: bun run ops:check:production-backup
+      - name: Record emergency backup exception
+        if: inputs.emergency_skip_backup == true
+        run: |
+          echo "::warning::Independent R2 backup gate skipped by explicit emergency authorization."
+          {
+            echo "### Emergency Production backup exception"
+            echo "- independent R2 backup gate: SKIPPED"
+            echo "- confirmation: EMERGENCY_SKIP_PRODUCTION_BACKUP"
+            echo "- follow-up: run Backup Production database before the next release"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Set Production backup expiry
         run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
       - name: Create confirmed Production Neon backup
@@ -179,6 +239,10 @@ jobs:
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
             "${{ steps.deploy.outputs.url }}/api/health/ready"
+          curl --fail-with-body --silent --show-error \
+            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+            --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
+            "${{ steps.deploy.outputs.url }}/api/health/r2"
       - name: Verify unpromoted provider and migration state
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
@@ -198,22 +262,44 @@ jobs:
           bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" promote
           "${{ steps.deploy.outputs.url }}"
           --yes --token="$VERCEL_TOKEN"
-      - name: Smoke Production maintenance profile
+      - name: Smoke Production public profile
         env:
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br
         run: |
           set -euo pipefail
+
           for path in / /entrar /admin; do
             status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              "${PRODUCTION_ORIGIN}${path}")"
-            [[ "${status}" == "503" ]]
+              --location --max-redirs 3 "${PRODUCTION_ORIGIN}${path}")"
+            [[ "${status}" =~ ^(2|3)[0-9][0-9]$ ]] || {
+              echo "Public Production path ${path} returned HTTP ${status}." >&2
+              exit 1
+            }
           done
+
           curl --fail --silent --show-error \
             "${PRODUCTION_ORIGIN}/api/health" > /dev/null
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             "${PRODUCTION_ORIGIN}/api/health/ready" > /dev/null
+
+          checkout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "${PRODUCTION_ORIGIN}/api/checkouts/course")"
+          [[ "${checkout_status}" == "400" ]] || {
+            echo "Public checkout did not report enabled validation behavior (HTTP ${checkout_status})." >&2
+            exit 1
+          }
+
+          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "${PRODUCTION_ORIGIN}/api/webhooks/asaas")"
+          [[ "${webhook_status}" == "401" ]] || {
+            echo "Asaas webhook did not report enabled authentication behavior (HTTP ${webhook_status})." >&2
+            exit 1
+          }
       - name: Verify promoted provider alias and migration state
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
