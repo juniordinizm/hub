@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 83bc73097b15bfddf04dfb45352e9dbae33272a3
+last_verified_commit: 13ccf2f08fc6c7f542e6de655f5d834180714c54
 ---
 
 # Progressão DMARC
@@ -36,6 +36,14 @@ sem anexar XML, headers ou e-mail bruto:
 Resolve-DnsName -Server 1.1.1.1 -Type TXT _dmarc.neurocapacitar.com.br
 Resolve-DnsName -Server 8.8.8.8 -Type TXT _dmarc.neurocapacitar.com.br
 ```
+
+### Revalidação externa — 2026-08-29T19:49:38Z
+
+Os dois comandos acima foram executados contra os resolvers públicos e
+retornaram o mesmo TXT publicado, com `p=none`, `pct=100`, `rua` institucional,
+`adkim=r`, `aspf=r` e `ri=86400`. A propagação está consistente, mas essa
+consulta não substitui os relatórios agregados: a janela inicial continua
+aberta até `2026-09-12T00:06:50Z` e nenhuma progressão de política foi feita.
 
 ## Coleta e análise gratuita
 
