@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 72265c3c2f7c6f881843096f86d77175985a5d2b
+last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -1585,6 +1585,20 @@ ingestão derivar `user.geo`, e o workflow global acionado não filtra ambiente 
 comprova canal institucional. DMARC continua no estágio inicial e Production
 não foi alterada.
 
+**Atualização de evidência em 2026-08-29:** o deployment Staging do SHA
+`f9eb31ae2a4019a376660269f609518ac303faaf` emitiu um evento no projeto
+`hub-web` com `environment=staging`. O checker confirmou evento
+`f74a01d2a4e846deb2f4a770b16d5928`, correlação
+`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`, `match=true`, `sourceMapped=true` e
+`alertTriggered=true`, encerrando a prova técnica de Sentry em Staging. O
+projeto `hub-production` continua preservado e a prova Production ainda não
+foi emitida.
+
+O DMARC agora está publicado e propagado com `p=none; pct=100; rua=...`, com
+janela inicial de 14 dias iniciada em `2026-08-29T00:06:50Z`. A progressão até
+`reject; pct=100` continua aberta; não alterar o registro antes de analisar os
+relatórios da janela.
+
 ### Resultado
 
 Encerrar `F-006` e `F-007` e transformar Sentry de lacuna em evidência
@@ -1828,6 +1842,15 @@ acionado depois do evento. A sanitização ainda reprova: a API normalizou
 O token read-only não possui `project:write`; não aumentar seu escopo. Após uma
 credencial de gestão habilitar a remoção de IP, emitir outro probe e comprovar
 também um workflow filtrado por ambiente em canal institucional.
+
+**Revalidação posterior em 2026-08-29:** no projeto `hub-web`, o deployment
+Staging do SHA `f9eb31ae2a4019a376660269f609518ac303faaf` gerou o evento
+`f74a01d2a4e846deb2f4a770b16d5928`, correlação
+`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`. O checker terminou com código zero e
+confirmou `match=true`, `sourceMapped=true` e `alertTriggered=true`; somente
+`user.geo` derivado foi observado. O item Sentry de Staging está encerrado.
+O item Production permanece dependente do candidato aprovado e de autorização
+explícita para emissão do evento.
 
 **Criar:**
 

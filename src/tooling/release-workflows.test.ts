@@ -100,6 +100,14 @@ describe("Production cleanup workflow", () => {
 });
 
 describe("CI workflow", () => {
+  it("rejects automatic Staging deployment when the completed CI ran on main", () => {
+    const workflow = readWorkflow("deploy-staging.yml");
+
+    expect(workflow).toContain(
+      "github.event.workflow_run.head_branch == 'staging'"
+    );
+  });
+
   it("deletes ephemeral branches through the bounded local Neon API action", () => {
     const workflow = readWorkflow("ci.yml");
     const deleteAction = readAction("actions/delete-neon-branch/action.yml");

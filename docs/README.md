@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
 ---
 
 # Documentação do Hub
@@ -68,6 +68,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Auditoria de saúde do repositório e plano de normalização](reviews/2026-08-29-repository-health-audit.md)
 - [Requalificação de Production Readiness, candidato técnico verde e decisão NO-GO por gates externos](reviews/2026-08-23-production-readiness-requalification.md)
 - [Auditoria histórica de Production Readiness, resultado NO-GO](reviews/2026-08-23-production-readiness-audit.md)
 - [Revisão pós-sprint da migração Asaas](reviews/2026-07-30-asaas-sprint-review.md)
