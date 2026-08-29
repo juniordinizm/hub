@@ -8,6 +8,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import type { ProductionBackupManifestV1 } from "./production-backup";
 import {
+  createProductionBackupR2Client,
   findLatestBackupManifests,
   findLatestFrequentManifestKey,
   headProductionBackupObject,
@@ -76,6 +77,26 @@ describe("resolveProductionBackupR2Config", () => {
         R2_SECRET_ACCESS_KEY: "application-secret",
       })
     ).toThrow("BACKUP_R2_ACCOUNT_ID");
+  });
+});
+
+describe("createProductionBackupR2Client", () => {
+  it("buffers streaming request bodies for retry-safe R2 uploads", () => {
+    const client = createProductionBackupR2Client({
+      accessKeyId: "access-key",
+      bucketName: "hub-production-backups",
+      endpoint:
+        "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+      region: "auto",
+      secretAccessKey: "secret-key",
+    });
+
+    const config = (
+      client as unknown as {
+        config: { requestStreamBufferSize?: number | false };
+      }
+    ).config;
+    expect(config.requestStreamBufferSize).toBeGreaterThanOrEqual(8 * 1024);
   });
 });
 

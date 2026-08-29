@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
+last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -31,6 +31,38 @@ Resultado esperado:
 - requalificar o sistema antes de uma nova decisão `GO/NO-GO`;
 - validar uma venda real somente depois do deploy em Production, com supervisão
   humana e autorização específica no momento da execução.
+
+## Checkpoint de retorno ao fluxo normal — 2026-08-26
+
+Este checkpoint atualiza o estado das seções históricas abaixo sem alterar suas
+decisões originais. O `main` documental atual é
+`7fcad238821298b3d4545acfd24cc74076de10d9`; o último SHA de código verificado
+é `76e77e68f9a14f2f96f3412917bf3d3c08de398c`. Production continua servindo o
+deployment `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb` no SHA
+`1c0202f935934285901f90e2b8c68f887f00222e`.
+
+- O checkout público foi exercitado e uma venda real ocorreu em Production.
+  Isso registra a validação pós-deploy informada pela operadora; não autoriza
+  uma segunda cobrança e não fecha, sozinho, e-mail, Concessão, Matrícula,
+  acesso ou reembolso.
+- O checker Vercel/Neon foi corrigido para consultar também os domínios do
+  projeto e exigir domínio customizado verificado. O deployment antigo ainda
+  não contém esse código; a próxima promoção deve usar o workflow protegido.
+- O bucket R2 dedicado e o Environment `production-backup` existem. Lock e
+  lifecycle foram confirmados com objetos descartáveis. A execução
+  `33023906420` publicou cifra e manifestos `frequent`, `daily` e `weekly`, e o
+  checker de frescor confirmou o manifesto mais recente.
+- As secrets `RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` agora
+  estão cadastradas no Environment `vercel-production`. Elas são credenciais R2
+  exclusivamente de leitura, separadas das credenciais de escrita do backup;
+  a presença nominal ainda não prova conectividade. Nenhum valor deve ser colado
+  neste chat. O relatório de requalificação atual está em
+  [2026-08-26-production-readiness-requalification.md](../../reviews/2026-08-26-production-readiness-requalification.md).
+- Os PRs/workflows diagnósticos temporários de Asaas, R2 e deploy foram fechados
+  e não participam do fluxo atual. As referências remotas continuam preservadas
+  para rastreabilidade; sua remoção é uma limpeza destrutiva separada e exige
+  autorização explícita. A partir deste ponto, mudanças seguem PR, CI completa,
+  backup verde, checker e documentação; não usar `emergency_skip_*`.
 
 Base de planejamento: commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro
@@ -742,7 +774,8 @@ gate de frescor e restauração completa comprovada em PostgreSQL 18 descartáve
 
 ### Tarefa 2.1: modelar manifesto, cotas e retenção
 
-**Estado em 2026-08-24:** implementado e coberto localmente. O parser é estrito,
+**Estado em 2026-08-26:** implementação e testes verdes; provisionamento externo
+parcial. O parser é estrito,
 as chaves são determinísticas, a seleção diária/semanal usa períodos UTC e a
 projeção usa as cotas atuais do R2 Standard Free com reserva de 20%.
 
@@ -796,18 +829,15 @@ intervalos e impossibilidade gratuita.
 
 ### Tarefa 2.2: criar o backup cifrado
 
-**Estado em 2026-08-24:** implementação local concluída. O workflow, comandos,
-limpeza de temporários, versões, checksum do binário `age`, ordem
-cifra/HEAD/manifesto e source contracts estão verdes. A job remota ainda não foi
-executada porque bucket, role e GitHub Environment não foram provisionados.
-O checkpoint agregado aprovou 315 arquivos/2.154 testes, typecheck, migrations,
-Ultracite em 827 arquivos e 33 documentos canônicos.
-
-**Auditoria somente leitura em 2026-08-25:** `production-backup` ainda não existe
-nos Environments do GitHub, seus secrets/variables estão ausentes e o workflow
-retorna `404` na branch padrão. As credenciais S3 locais alcançam apenas o bucket
-da aplicação; isso não prova o bucket exclusivo de backup. Nenhuma job foi
-disparada.
+**Estado em 2026-08-26:** workflow e comandos publicados em `main`; as
+execuções completas `33023906420` e `33026369149` passaram consecutivamente em
+`pg_dump`, cifra, PUT/HEAD no R2 e publicação de manifestos. A primeira publicou
+`frequent`, `daily` e `weekly`; a segunda publicou `frequent` e `daily` conforme
+a regra de calendário. O workflow, comandos, limpeza de temporários, versões,
+checksum do binário `age`, ordem cifra/HEAD/manifesto e source contracts estão
+verdes. Nenhuma credencial ou URL foi registrada nos logs. O checkpoint agregado
+aprovou CI, typecheck, migrations, Ultracite e os quatro jobs de
+integração/E2E/build.
 
 **Criar:**
 
@@ -885,10 +915,15 @@ HEAD/hash, e nenhum arquivo claro permanece no runner ou workspace.
 
 **Alteração externa controlada:** Cloudflare R2.
 
-**Estado em 2026-08-25:** pendente. Wrangler `4.125.0` não possui sessão
-administrativa local; nenhuma regra pôde ser lida. A documentação atual confirma
-R2 Standard Free em 10 GB-mês, 1 milhão Class A, 10 milhões Class B e egress
-gratuito. Nenhum bucket, objeto, token, lock ou lifecycle foi criado.
+**Estado em 2026-08-26:** lock/lifecycle provisionados e lidos de volta, e a
+execução completa `33023906420` confirmou o bucket em uso. Wrangler `4.125.0`
+não possui sessão administrativa persistente neste worktree, mas a configuração
+foi executada no terminal autenticado da operadora e lida de volta. A
+documentação atual confirma R2 Standard Free em 10 GB-mês, 1 milhão Class A,
+10 milhões Class B e egress gratuito. O bucket dedicado e objetos de teste
+foram confirmados via AWS CLI; lock recusou exclusões com exit code `254` e o
+`HEAD` expôs as datas de expiração. A prova de restauração e os alertas ainda
+dependem de credenciais e configuração externa separadas.
 
 **Projeção fechada:** no modelo de 30 dias/120 runs, uma listagem por run, dois
 PUTs e um HEAD por classe resultam em cerca de 430 operações Class A e 155 Class
@@ -970,15 +1005,23 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.5: ensaiar PITR e restauração da cópia externa
 
+**Estado em 2026-08-27:** concluída. O backup e o checker de frescor estavam
+verdes, as secrets R2 read-only foram exercitadas e o restore foi concluído em
+target PostgreSQL 18 descartável. O PITR também foi criado a partir de
+`production`, conferido por parent/timestamp e validado por smoke de schema e
+invariantes antes da remoção. Não reutilizar as credenciais de escrita do
+workflow.
+
 **Passos:**
 
-- [ ] Criar branch Neon descartável a partir de ponto dentro da janela PITR de
+- [x] Criar branch Neon descartável a partir de ponto dentro da janela PITR de
   seis horas, conferir parent/timestamp e executar smoke; remover a branch após
   evidência.
-- [ ] Restaurar o backup R2 mais recente em PostgreSQL 18 descartável seguindo
+- [x] Restaurar o backup R2 mais recente em PostgreSQL 18 descartável seguindo
   o runbook, sem atalhos.
-- [ ] Medir RPO real entre `createdAt` e início do incidente simulado e RTO até
-  readiness verde.
+- [x] Medir o RPO sintético entre o início do exercício e o ponto recuperado e
+  o RTO do restore até o postflight verde; a validação HTTP da aplicação contra
+  a branch PITR permanece opcional e não foi necessária para o smoke do banco.
 - [ ] Fazer o exercício com uma das cópias offline da identidade `age`; a segunda
   continua selada como contingência.
 - [ ] Registrar falhas e repetir desde o início. Ensaio parcial não fecha
@@ -986,9 +1029,12 @@ temporário e evidência sanitizada.
 
 ### Tarefa 2.6: bloquear release sem backup recente
 
-**Estado em 2026-08-24:** implementado no workflow Production antes da branch
-Neon e das migrations, usando credencial R2 read-only separada. A prova remota
-depende do primeiro backup válido.
+**Estado em 2026-08-27:** implementado no workflow Production antes da branch
+Neon e das migrations. O backup válido, o checker de frescor e três execuções
+agendadas verdes já foram comprovados; a execução protegida ainda precisa ser
+exercitada com as secrets R2 read-only cadastradas no Environment
+`vercel-production`. Os atrasos observados do cron ficam como risco operacional
+para acompanhamento, não como permissão para bypass.
 
 **Modificar:**
 
@@ -1011,11 +1057,14 @@ depende do primeiro backup válido.
 
 ### Gate da Sprint 2
 
-- [ ] Backup agendado e manual verdes.
-- [ ] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
-- [ ] Restore R2 completo dentro do RTO e PITR exercitado.
-- [ ] RPO efetivo e uso de cotas documentados abaixo de 80%.
-- [ ] Release falha com backup stale ou inválido.
+- [x] Backup manual verde em duas execuções consecutivas.
+- [x] Backup agendado verde; três disparos por cron terminaram com sucesso no
+  SHA atual. A pontualidade continua sendo monitorada pelo checker de frescor.
+- [x] Cifra e manifestos sob Bucket Lock/lifecycle lidos de volta.
+- [x] Restore R2 completo dentro do RTO e PITR exercitado.
+- [x] RPO efetivo e uso de cotas documentados abaixo de 80%.
+- [x] Release falha com backup stale ou inválido nos testes do checker; a
+  execução do gate protegido ainda depende das secrets R2 read-only.
 
 **STOP:** dump claro persistido; identidade privada no GitHub; bucket público;
 target compartilhado aceito pelo restore; cota projetada excedida; restore
@@ -1585,19 +1634,23 @@ ingestão derivar `user.geo`, e o workflow global acionado não filtra ambiente 
 comprova canal institucional. DMARC continua no estágio inicial e Production
 não foi alterada.
 
-**Atualização de evidência em 2026-08-29:** o deployment Staging do SHA
-`f9eb31ae2a4019a376660269f609518ac303faaf` emitiu um evento no projeto
-`hub-web` com `environment=staging`. O checker confirmou evento
+**Atualização de evidência em 2026-08-29:** os PRs `#135` e `#136` foram
+mesclados em `staging`; a CI pós-merge passou os quatro jobs e o deploy de
+Staging `33252479223` passou backup Neon, ancestry, migrations, publicação
+Vercel e smoke no alias estável. O guard explícito de
+`workflow_run.head_branch=staging` está implantado no workflow de Staging.
+
+O cleanup controlado removeu os backups superseded
+`br-dark-boat-ac54ehu3` e `br-broad-silence-aczlme90`, preservando o mais
+recente em cada rodada. A quota permitiu execuções normais; a política
+recorrente de retenção continua em acompanhamento.
+
+O probe Sentry no projeto `hub-web` confirmou em Staging o evento
 `f74a01d2a4e846deb2f4a770b16d5928`, correlação
 `2bb9c767-0d30-4d00-8e09-d7df89ac34f2`, `match=true`, `sourceMapped=true` e
-`alertTriggered=true`, encerrando a prova técnica de Sentry em Staging. O
-projeto `hub-production` continua preservado e a prova Production ainda não
-foi emitida.
-
-O DMARC agora está publicado e propagado com `p=none; pct=100; rua=...`, com
-janela inicial de 14 dias iniciada em `2026-08-29T00:06:50Z`. A progressão até
-`reject; pct=100` continua aberta; não alterar o registro antes de analisar os
-relatórios da janela.
+`alertTriggered=true`. O DMARC está publicado em `p=none; pct=100` e a janela
+de observação inicial permanece aberta até `2026-09-12T00:06:50Z`. Production
+continua sem promoção nova.
 
 ### Resultado
 
@@ -1843,15 +1896,6 @@ O token read-only não possui `project:write`; não aumentar seu escopo. Após u
 credencial de gestão habilitar a remoção de IP, emitir outro probe e comprovar
 também um workflow filtrado por ambiente em canal institucional.
 
-**Revalidação posterior em 2026-08-29:** no projeto `hub-web`, o deployment
-Staging do SHA `f9eb31ae2a4019a376660269f609518ac303faaf` gerou o evento
-`f74a01d2a4e846deb2f4a770b16d5928`, correlação
-`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`. O checker terminou com código zero e
-confirmou `match=true`, `sourceMapped=true` e `alertTriggered=true`; somente
-`user.geo` derivado foi observado. O item Sentry de Staging está encerrado.
-O item Production permanece dependente do candidato aprovado e de autorização
-explícita para emissão do evento.
-
 **Criar:**
 
 - `src/app/api/health/sentry/route.ts`
@@ -1923,6 +1967,12 @@ source map público em `.next/static`. A branch Neon descartável foi removida e
 consulta posterior confirmou HTTP 404. Permanece aberto apenas o gate externo
 de um PR Dependabot real no SHA candidato remoto; nenhum banco compartilhado foi
 usado como atalho.
+
+**Atualização de 2026-08-28:** o PR Dependabot `#71` atualizou `jsdom`, passou a
+matriz completa (Quality, PostgreSQL, Browser e Build) por dispatch manual, foi
+mesclado e a CI pós-merge da `main` terminou verde. O provedor Dependabot está
+comprovado; os PRs major/group restantes permanecem opcionais e não devem ser
+mesclados sem análise individual.
 
 ### Resultado
 
@@ -2117,7 +2167,8 @@ banco, provider, Playwright ou Next.js.
 - [x] Chromium desktop completo e mobile crítico verdes: 41/41 em 7,7 min,
   zero skip, retry ou flaky, sobre branch Neon descartável removida após o gate.
 - [x] Teclado/foco exercitados nos fluxos destrutivos e privileged auth.
-- [ ] Dependabot reconhece `package.json` e `bun.lock` e abre PR de teste.
+- [x] Dependabot reconhece `package.json` e `bun.lock` e abre PR de teste; o PR
+  `#71` passou a matriz completa e foi mesclado com CI pós-merge verde.
 - [x] Cota Actions permanece abaixo do limite operacional: runner padrão
   ilimitado no repositório público e cache em `70.698.566` bytes de 10 GB.
 
@@ -2231,7 +2282,8 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
 ### Tarefa 7.5: executar gates externos sem venda real
 
 - [ ] Checker Vercel/Neon concorda com release-state candidato.
-- [ ] Backup recente, RPO/cota e restore/RTO verdes.
+- [x] Backup recente, RPO/cota e restore/RTO verdes; três execuções `schedule`,
+  PITR e restore R2 foram comprovados, com risco de pontualidade registrado.
 - [x] Resend templates/domain/webhook e lifecycle controlado verdes.
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
 - [ ] Sentry event/source map/alert verdes.
@@ -2251,15 +2303,16 @@ prazo, custo afundado ou porque a correção “parece segura”.
 
 ## Sprint 8: deploy e validação pós-Production
 
-**Estado:** `NOT STARTED`. O `NO-GO` da Sprint 7 e o congelamento exclusivo de
-Production impedem qualquer tarefa desta Sprint. Staging/Preview pode continuar
-sendo usado para qualificação, mas isso não inicia a Sprint 8. A venda real continua
-permitida somente depois da promoção e estabilidade inicial em Production.
+**Estado em 2026-08-26:** `PARTIAL_POST_PRODUCTION`. O `NO-GO` da Sprint 7
+mantém novas promoções protegidas suspensas, mas a janela emergencial já ocorreu:
+Production está no ar e uma venda real foi confirmada. A venda é evidência
+pós-deploy, não gate retroativo; as provas completas de e-mail, acesso,
+reembolso e encerramento da release ainda não foram documentadas.
 
 ### Resultado
 
-Promover o SHA aprovado com manutenção, observar o sistema real e executar a
-primeira venda supervisionada somente após estabilidade inicial.
+Promover somente um SHA aprovado pelo fluxo protegido, observar o sistema real e
+documentar a venda já ocorrida sem criar nova cobrança.
 
 ### Tarefa 8.1: executar o release protegido
 
@@ -2336,10 +2389,28 @@ incidente financeiro.
   implantadas e seus `last_verified_commit`.
 - [x] Acrescentar resoluções ao relatório histórico sem alterar sua decisão
   original.
-- [ ] Registrar a venda supervisionada como validação pós-deploy, não como gate
+- [x] Registrar a venda ocorrida como validação pós-deploy, não como gate
   retroativo.
+- [x] Executar restore R2 em target Neon descartável, medir RTO e remover o
+  target após a confirmação.
+- [x] Confirmar a projeção persistida do fluxo comercial em Production por
+  contagens agregadas, sem repetir cobrança.
 - [ ] Programar próximo restore trimestral, revisão DMARC e revisão mensal de
   cotas.
+
+**Atualização de 2026-08-27:** o backup `e0b48105-1496-4837-b81e-af30f0063781`
+foi restaurado com sucesso em 105 segundos. O postflight confirmou 46 tabelas,
+537 constraints, quatro índices críticos e as consultas agregadas previstas.
+O target foi uma branch Neon descartável de CI e foi removido após a leitura.
+O PITR em `production` também foi criado no ponto `2026-08-27T05:20:49Z`,
+ficou `ready`, passou no smoke de schema/invariantes e foi removido; o RPO
+sintético foi de aproximadamente 11m49s. Três execuções agendadas terminaram
+com sucesso e o manifesto mais recente estava fresh, embora tenham ocorrido
+atrasos de até aproximadamente 5h08. Uma leitura posterior confirmou dois
+pedidos pagos nas últimas 24 horas, ambos com Concessão/Matrícula, dois efeitos
+de outbox e três e-mails `delivered`, sem checkout falho ou bounce novo. A
+confirmação na caixa do comprador, o reembolso e a decisão global da Sprint 7
+permanecem pendentes; não repetir cobrança.
 
 ---
 

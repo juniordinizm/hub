@@ -29,7 +29,9 @@ type CheckoutResponse =
 type CheckoutOutcome = HandoffState | { kind: "redirect"; redirectUrl: string };
 
 const CHECKOUT_ENDPOINT = "/api/checkouts/course";
-const ATTEMPT_STORAGE_PREFIX = "hub:checkout-attempt:";
+// Bump this namespace when a provider account is rotated. Old storage keys
+// point to immutable checkout URLs and must not be reused after the cutover.
+const ATTEMPT_STORAGE_PREFIX = "hub:checkout-attempt:v3:";
 const ATTEMPT_VALUE_PREFIX = "v1:";
 const SHARED_ATTEMPT_VALUE_PREFIX = "v2:";
 const ATTEMPT_TTL_MS = 60 * 60 * 1000;

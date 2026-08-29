@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4eab1a331f2d6989e5958aa0d6b55a66438f1396
+last_verified_commit: 63f64106eef197d59a7929fabc6d64fb239ecfe6
 ---
 
 # Asaas
@@ -28,9 +28,10 @@ Sandbox foi removida do ambiente, a credencial Asaas real e o
 `PAYMENTS_CHECKOUT_MODE=public`, `ASAAS_WEBHOOK_ENABLED=true` e
 `SCHEDULED_JOBS_ENABLED=true`, sem novo deploy. As sondas públicas de 2026-08-21
 confirmaram checkout habilitado (GET `/api/checkouts/course` sem parâmetros => `400`) e
-webhook ativo exigindo token (POST sem token => `401`). Nenhuma venda real havia
-ocorrido até 2026-08-21; a primeira venda supervisionada, com reembolso de teste,
-permanece pendente.
+webhook ativo exigindo token (POST sem token => `401`). Em 2026-08-26, a
+operadora confirmou uma venda real pelo checkout público. A confirmação de
+e-mail, acesso, reembolso e demais estados do ciclo permanece pendente de
+registro sanitizado; não repetir cobrança para produzir evidência.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
 O release de manutenção de 2026-08-02 promoveu o código e a migration
@@ -204,6 +205,20 @@ isolados; o factory do adapter exige as três primeiras antes de qualquer chamad
 de webhook falha de forma segura sem um token próprio de ao menos 32 caracteres. Preview
 recusa credenciais de provider, exige checkout desabilitado e não permite ativar o
 webhook.
+
+As variáveis do Vercel são capturadas por implantação. Alterar `ASAAS_API_KEY` ou
+`ASAAS_API_BASE_URL` no ambiente `Production` não altera Functions que já estão
+publicadas; é obrigatório criar e promover uma nova implantação antes de validar a
+conta. A rotação de uma conta Asaas deve sempre ser seguida por: conferir a origem
+`https://api.asaas.com`, publicar a nova implantação, executar um checkout
+controlado sem abrir o link e confirmar o pedido no painel da conta nova. Nenhuma
+API key ou token deve aparecer em log, chat ou documento.
+
+A aplicação também versiona o namespace de `localStorage`/`sessionStorage` usado
+pela tela de compra. O namespace `v3` foi emitido no corte de 2026-08-25 para
+que tentativas persistidas antes da troca não reutilizem um `checkout_url` da
+conta anterior; pedidos antigos permanecem somente para conciliação e não são
+apagados.
 Development aceita somente a origem `https://api-sandbox.asaas.com`; Production aceita
 somente `https://api.asaas.com`. Uma barra final é tolerada, mas path, query, credenciais
 embutidas, HTTP, hostname alternativo ou cruzamento sandbox/produção são rejeitados.

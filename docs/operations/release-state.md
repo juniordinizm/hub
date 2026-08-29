@@ -1,16 +1,60 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 7929b64f9166e973a2e765252d4e10295ee15817
-deployed_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
+deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
-verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 verified_environment: production
-documented_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+documented_commit: 7ae764451dd4ef5661a23dc7aab297352aedbf3d
 documented_environment: production
 ---
 
 # Estado de release
+
+## Checkpoint operacional atual — 2026-08-26
+
+O deployment Production observado continua `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`,
+`READY`, `target=production`, região `gru1`, com o commit
+`1c0202f935934285901f90e2b8c68f887f00222e`. O endereço canônico
+`https://app.neurocapacitar.com.br` resolve por CNAME para a infraestrutura DNS da
+Vercel e responde normalmente. O projeto Vercel é `hub`; a resposta do endpoint
+de deployment lista o alias `hub-neuro-capacitar.vercel.app`, enquanto o domínio
+customizado é comprovado pelo endpoint de domínios do projeto. O checker foi
+corrigido para usar as duas fontes e exigir `verified=true` e o `projectId` esperado.
+
+O checkout público foi exercitado em Production e houve uma venda real confirmada
+pela operadora. Isso é evidência pós-deploy do caminho comercial, não substitui a
+requalificação completa nem prova, por si só, o e-mail entregue, a Concessão,
+Matrícula, acesso ao Curso e eventual reembolso. Não repetir cobrança para obter
+essa prova.
+
+Os workers Production estão ativos: Asaas a cada minuto; JMVStream, outbox e
+webhook Resend a cada cinco minutos; matrícula e manutenção diariamente. As
+consultas recentes retornaram HTTP 200 nos quatro workers; os poucos HTTP 500 do
+último dia pertencem ao deployment anterior e foram causados pelo segredo ausente
+do webhook Resend.
+
+Uma leitura agregada somente leitura da Production em `2026-08-28T16:34:23Z`
+encontrou dois pedidos pagos nas últimas 24 horas; ambos possuíam Concessão e
+Matrícula correspondentes. No mesmo intervalo, dois efeitos da outbox e três
+mensagens de e-mail terminaram `delivered`; não houve checkout falho nem bounce
+novo. Isso comprova a projeção persistida do fluxo, mas não substitui a
+confirmação na caixa do comprador nem a evidência de reembolso.
+
+O `main` atual inclui as correções de fallback de upload R2 e do checker de domínio,
+mas ainda não foi promovido por um release protegido novo. O backup Production
+passou em duas execuções manuais consecutivas (`33023906420` e `33026369149`),
+com manifestos válidos e checker de frescor verde. O restore R2 também foi
+comprovado no backup `e0b48105-1496-4837-b81e-af30f0063781`: RTO de 105 segundos,
+46 tabelas, 537 constraints e quatro índices críticos em target descartável,
+removido após a confirmação. O PITR em `production` foi criado, validado por
+parent/timestamp e smoke, e removido; o RPO sintético foi de aproximadamente
+11m49s. Três execuções agendadas (`33060433027`, `33121852706` e
+`33167077717`) terminaram `success` no SHA atual, embora com atrasos de até
+aproximadamente 5h08. A promoção continua dependente do checker protegido com as
+secrets R2 read-only e dos demais gates externos; o estado decisório permanece
+`NO-GO` para uma nova promoção.
 
 Este documento separa três fatos que não podem ser tratados como sinônimos:
 
@@ -61,7 +105,7 @@ com zero source map público. Esse resultado continua deliberadamente separado
 da CI integrada, que criaria branches Neon efêmeras e não foi autorizada no
 checkpoint somente leitura.
 
-## Checkpoint de Staging de 25 de agosto de 2026
+## Registro histórico: checkpoint de Staging de 25 de agosto de 2026
 
 Somente Production está congelada. Staging/Preview pode receber merge,
 migration, configuração e deploy controlados para concluir a qualificação. Isso
@@ -101,10 +145,11 @@ O probe Sentry do deployment exato retornou o evento
 precisão do IP de transporte, e o workflow global existente não filtra ambiente
 nem comprova entrega em canal institucional.
 
-Production continua no commit
+Até esse checkpoint, Production permanecia no commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`, sem deploy, alias, migration,
-configuração, dado, DNS ou venda alterados por este checkpoint. A decisão
-histórica e atual permanece `NO-GO`.
+configuração, dado, DNS ou venda alterados. O checkpoint operacional atual no
+início deste documento supersede essa fotografia; a decisão de prontidão ainda
+permanece `NO-GO`.
 
 ### Atualização Resend/Sentry em Staging
 
@@ -149,41 +194,23 @@ Estado operacional de Production verificado em 2026-08-21: manutenção `off`,
 Asaas real está configurada; Staging continua na conta Sandbox. As sondas
 públicas confirmaram checkout habilitado (GET `/api/checkouts/course` sem
 parâmetros => `400`) e webhook ativo com token (POST sem token =>
-`401`). Nenhuma venda real havia ocorrido até essa data; a primeira venda
-supervisionada permanece pendente. Resend, Neon, Vercel, R2, JMVStream, Auth e
-Asaas usam rotação manual por fingerprints; nenhum valor de secret pertence a
-este documento.
+`401`). Uma venda real foi confirmada posteriormente pela operadora; ela é
+evidência pós-deploy e não substitui a requalificação nem autoriza nova cobrança.
+Resend, Neon, Vercel, R2, JMVStream, Auth e Asaas usam rotação manual por
+fingerprints; nenhum valor de secret pertence a este documento.
 
-## Atualização operacional — 2026-08-29
+## Checkpoint de Staging após normalização — 2026-08-29
 
-O runtime de Staging permanece no SHA
-`f9eb31ae2a4019a376660269f609518ac303faaf`, deployment
-`dpl_5J7v7Qb7ztR5GPo3PKft77d99Y9v`, sem alteração em Production. O merge
-documental que reforça o fluxo `feature → staging → homologação → main` está
-em `staging` no merge `7929b64`; documento sozinho não exige novo deployment
-de runtime.
+O PR `#135` introduziu a guarda explícita do branch upstream no workflow de
+Staging e o PR `#136` registrou o checkpoint operacional. Ambos foram
+mesclados por squash; o topo remoto de `staging` é `83bc730`.
 
-### Sentry
+A CI pós-merge `33251931777` passou Quality gates, PostgreSQL integration,
+Browser journeys e Build and dependency audit. O deploy manual de Staging
+`33252479223` passou criação/ancestry do backup, migrations, deployment Vercel
+e smoke do deployment e do alias estável.
 
-No projeto `hub-web`, o probe Staging gerou o evento
-`f74a01d2a4e846deb2f4a770b16d5928`, correlação
-`2bb9c767-0d30-4d00-8e09-d7df89ac34f2`. O checker retornou código zero com
-`match=true`, `sourceMapped=true` e `alertTriggered=true`. O gate de Staging
-está fechado. O projeto `hub-production` continua preservado; não foi apagado,
-renomeado nem usado para um evento novo.
-
-### DMARC
-
-Às `2026-08-29T00:06:50Z`, `1.1.1.1` e `8.8.8.8` resolveram:
-`v=DMARC1; p=none; pct=100; rua=mailto:suporte@neurocapacitar.com.br; adkim=r; aspf=r; ri=86400`.
-A janela inicial de 14 dias termina por volta de `2026-09-12T00:06:50Z`.
-Publicação/propagação estão comprovadas; progressão e análise de relatórios
-continuam pendentes.
-
-### Jornadas de compra e e-mail
-
-Checkout, envio de confirmação, reset, login, acesso ao Curso e reembolso já
-possuem evidência operacional anterior. A repetição ponta a ponta permanece
-reservada à próxima compra real supervisionada em Production; não se deve criar
-uma cobrança apenas para repetir o teste. Até essa compra, não registrar o gate
-como nova evidência Production.
+O cleanup Neon executado pelos runs `33251220857` e `33252449906` removeu
+somente backups superseded, preservando o mais recente em cada rodada. Nenhuma
+branch persistente ou dado Production foi alterado. O projeto
+`hub-production` continua preservado.

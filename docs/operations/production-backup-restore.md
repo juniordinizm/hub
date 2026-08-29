@@ -1,17 +1,22 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
 ---
 
 # Backup Production e restauração
 
 ## Estado e limites
 
-O código, os testes e os workflows estão implementados localmente. O bucket, as
-credenciais, a role PostgreSQL, Bucket Lock, lifecycle, primeira execução, PITR
-e restauração completa ainda exigem provisionamento e evidência externa. Até
-essas provas passarem, `F-002` e o gate do Sprint 2 permanecem abertos.
+O código, os testes e os workflows estão implementados em `main`. O bucket R2
+dedicado e o GitHub Environment `production-backup` já existem. Lock/lifecycle
+foram lidos de volta e os objetos descartáveis das três classes recusaram remoção
+durante o lock. As execuções `33023906420` e `33026369149` passaram
+consecutivamente; a primeira publicou `frequent`, `daily` e `weekly`, e a segunda
+publicou `frequent` e `daily` conforme a regra de calendário. O checker de frescor
+passou. PITR, restore e RPO/RTO também foram comprovados. Três execuções
+agendadas já foram observadas com sucesso; a latência do scheduler continua um
+risco operacional a ser acompanhado.
 
 O desenho usa exclusivamente planos gratuitos: Neon Free para origem/PITR
 disponível e Cloudflare R2 Standard Free para a cópia independente. A reserva
@@ -20,7 +25,7 @@ Class A e 8 milhões Class B. O código testa 6, 8 e 12 horas nessa ordem, mas o
 workflow executa a decisão registrada de seis horas; nunca muda a agenda em
 runtime nem habilita compra automática.
 
-Checkpoint externo somente leitura de `2026-08-25`:
+Checkpoint externo somente leitura de `2026-08-25` (histórico):
 
 - o R2 Standard Free continua oferecendo 10 GB-mês, 1 milhão de operações
   Class A, 10 milhões Class B e egress gratuito;
@@ -40,8 +45,104 @@ Checkpoint externo somente leitura de `2026-08-25`:
   Elas ajudam rollback de release, mas não substituem PITR ensaiado nem a cópia
   cifrada externa.
 
-Nenhum bucket, role, Environment, secret, regra, branch ou objeto foi criado ou
-alterado durante esse checkpoint.
+Esse checkpoint registrava o estado anterior ao provisionamento. Não o use para
+descrever o estado atual.
+
+## Estado anterior — 2026-08-26
+
+- bucket dedicado: `neurocapacitar-production-backups`;
+- Environment: `production-backup`, com os nomes de secrets/variables exigidos
+  pelo workflow, sem valores versionados ou exibidos neste documento;
+- classes `frequent`, `daily` e `weekly`: lock recusou `delete-object` com exit
+  code `254` e o `HEAD` confirmou expiração configurada para cada objeto de teste;
+- execução `32929589649`: falhou antes do dump por PATH do cliente PostgreSQL;
+- execução `32931613267`: PostgreSQL 18 disponível, falha sanitizada `database`;
+- execuções posteriores até `32982879681`: alias/proveniência passaram após a
+  correção do checker; a falha inicial foi `configuration-database`;
+- `32993456881` e `32996629032`: o contrato de conexão passou, mas a versão
+  retornada pelo Neon (`18.6 (3484359)`) era rejeitada pelo checker e pelo
+  parser de manifesto; essa incompatibilidade foi corrigida e passou no CI;
+- `33014013409` e `33015400778`: PostgreSQL 18.6, migration, role, inspeção e
+  leitura do bucket R2 passaram; o `pg_dump` falhou antes de iniciar a leitura
+  do catálogo;
+- os diagnósticos controlados `33017255733`–`33018947445` confirmaram que todas
+  as variantes falham na conexão TLS. A assinatura sanitizada combina conexão
+  ao servidor com arquivo inexistente; nenhum stderr bruto foi preservado;
+- causa operacional identificada: o libpq do runner Ubuntu tentava o CA padrão
+  ausente. O workflow agora fornece explicitamente
+  `/etc/ssl/certs/ca-certificates.crt` por `PGSSLROOTCERT`, mantendo
+  `sslmode=verify-full`;
+- `33019958869`: o `pg_dump` concluiu após a correção TLS; o PUT da cifra no R2
+  falhou com uma requisição streaming não reexecutável, antes de qualquer
+  manifesto;
+- o probe controlado `33022570244` confirmou que `Buffer` passa em 1, 8 e 32 MB,
+  enquanto `Readable` falha com `IncompleteBody`/`ECONNRESET`; a cifra agora é
+  carregada como `Buffer` replayável antes dos PUTs;
+- `33023906420`: backup completo passou em `main`, com `pg_dump` 18.6, cifra
+  de 205748 bytes, manifestos `frequent`/`daily`/`weekly` e seis objetos
+  confirmados por HEAD;
+- `33026369149`: segunda execução manual consecutiva passou em 1m03s, com
+  `pg_dump` 18.6, cifra de 210286 bytes e manifestos `frequent`/`daily`; a
+  classe `weekly` não é criada fora da primeira execução de segunda-feira;
+- o manifesto `frequent` mais recente (`e0b48105-1496-4837-b81e-af30f0063781`)
+  registra migration `0067_sparkling_ghost_rider`, `cadenceHours=6` e
+  `retentionClasses=[frequent,daily]`;
+- o checker local `ops:check:production-backup` passou com status `fresh`;
+- o manifesto `frequent` é válido e fresco, mas o gate de release e o restore
+  permanecem fechados até usar uma credencial R2 read-only separada;
+- a role read-only, PITR, restauração em target descartável e medição de RPO/RTO
+  ainda precisam de prova; a observação de uma execução agendada permanece
+  pendente, pois as duas execuções acima foram disparadas manualmente.
+
+## Estado atual — 2026-08-27
+
+- `bun run ops:check:production-backup` retornou `fresh` para o backup
+  `e0b48105-1496-4837-b81e-af30f0063781`, migration
+  `0067_sparkling_ghost_rider`;
+- `bun run ops:restore:production-backup` concluiu com `status=restored`,
+  RTO medido de 105 segundos e 46 tabelas;
+- a consulta pós-restore no target descartável confirmou 46 tabelas, 537
+  constraints, os quatro índices críticos e as consultas agregadas de
+  usuários, cursos, pedidos e certificados;
+- o target foi a branch Neon descartável `br-orange-bread-a630sk26` do
+  projeto de CI `red-unit-15241478`; a branch foi removida depois da
+  confirmação. Nenhum banco persistente foi usado como alvo;
+- a branch de release obsoleta `br-snowy-voice-acaqyyqm`, criada por um deploy
+  falho, foi removida com autorização explícita para liberar uma vaga; as
+  branches persistentes e a release mais recente permaneceram intactas;
+- o ensaio PITR criou a branch descartável `br-rough-resonance-ac8rfmvu` a
+  partir de `production` no ponto `2026-08-27T05:20:49Z`, ficou `ready` e foi
+  removida após o smoke. O schema confirmou 46 tabelas, 537 constraints, os
+  quatro índices críticos e 68 migrations; o RPO sintético foi de
+  aproximadamente 11m49s;
+- o restore local agora passa o CA explicitamente ao Pool Node, interpreta
+  entradas `SEQUENCE OWNED BY`/`SEQUENCE SET` do archive e informa o database
+  descartável com `--dbname`;
+- o restore R2, o PITR e os tempos medidos estão comprovados. A execução
+  agendada também foi observada: `33060433027`, `33121852706` e
+  `33167077717` terminaram `success` com `event=schedule` e no SHA da `main`;
+- o manifesto `frequent` mais recente é o backup
+  `dad0f724-1bb5-4b4c-b88e-1958d9f4f68c`, criado em
+  `2026-08-28T11:25:38Z`, com migration
+  `0067_sparkling_ghost_rider`, classes `frequent,daily` e idade dentro do
+  limite do checker;
+- as execuções automáticas observadas iniciaram com atrasos aproximados de
+  3h34, 3h59 e 5h08 em relação às janelas nominais. Isso comprova o cron, mas
+  não garante pontualidade; se a idade ultrapassar 6h30, o checker deve bloquear
+  o release e a causa deve ser investigada;
+- o checker protegido e os gates Sentry/DMARC/Dependabot continuam pendentes.
+
+Formato esperado, usando placeholders que nunca devem ser substituídos neste
+arquivo:
+
+```text
+postgresql://<backup_role>:<url_encoded_password>@<PRODUCTION_DATABASE_HOST>/<database>?sslmode=verify-full
+```
+
+Use a conexão **direct** da branch Production, não a conexão pooled. Se o
+provider incluir `channel_binding=require`, ele é aceito; remova parâmetros
+adicionais como `connect_timeout`, `options` ou `application_name` antes de
+guardar a URL no secret.
 
 Na projeção de 30 dias/120 execuções, cada run faz uma listagem e dois PUTs por
 classe; cada classe também recebe um HEAD de confirmação. Com 30 cópias diárias
@@ -157,6 +258,27 @@ Configure sem passar valores pela linha de comando ou por este chat:
   `PRODUCTION_NEON_BRANCH_ID`, `PRODUCTION_NEON_PROJECT_ID`, `VERCEL_ORG_ID`
   e `VERCEL_PROJECT_ID`.
 
+O Environment `vercel-production` também possui as variables não sensíveis
+`BACKUP_R2_ACCOUNT_ID` e `BACKUP_R2_BUCKET_NAME`. As secrets
+`RESTORE_R2_ACCESS_KEY_ID` e `RESTORE_R2_SECRET_ACCESS_KEY` foram configuradas
+nesse Environment. Isso libera a execução do checker protegido, mas a presença
+nominal não prova conteúdo nem conectividade; o gate e o restore continuam sem
+prova até serem executados. Não reutilize as credenciais de escrita do workflow
+como solução permanente.
+
+O workflow define a variável não sensível `PGSSLROOTCERT` como
+`/etc/ssl/certs/ca-certificates.crt` no runner Ubuntu. Ela é necessária para o
+`pg_dump` validar o certificado do host quando `sslmode=verify-full` está ativo;
+não deve ser adicionada à URL nem ao secret.
+
+No restore local em Windows, defina `PGSSLROOTCERT` para um bundle confiável de
+certificados raiz antes de executar o comando. O script preserva esse valor e o
+`PATH` da sessão ao iniciar `age` e `pg_restore`, e passa o conteúdo do CA ao
+`Pool` do Node. Para que o `node-postgres` não substitua esse objeto `ssl` ao
+interpretar a URL, o script remove apenas `sslmode` da cópia usada pelo Pool;
+as ferramentas libpq continuam recebendo `PGSSLMODE=verify-full`. Não troque
+`verify-full` por `require` para contornar uma falha de certificado.
+
 O recipient é público. As identidades privadas nunca entram no GitHub. O
 workflow `.github/workflows/backup-production-database.yml` usa cron literal
 `17 */6 * * *`, dispatch manual, `cancel-in-progress: false` e summary
@@ -171,12 +293,15 @@ O comando guardado é `bun run ops:backup:production`. Ele:
    host direto do dump formam a mesma origem;
 2. valida role read-only, PostgreSQL 18, journal e tamanho lógico positivo;
 3. executa `pg_dump` custom, compressão 9, sem owner/ACL e sem URL na lista de
-   argumentos;
+   argumentos; o libpq valida TLS com `sslmode=verify-full` e o CA bundle do
+   runner em `PGSSLROOTCERT`;
 4. calcula bytes e SHA-256 do dump;
 5. cifra para arquivo novo e apaga o dump claro;
 6. calcula tamanho e SHA-256 da cifra;
 7. recusa projeção acima de 80% do Free;
-8. envia `frequent` e as cópias diária/semanal aplicáveis com PUT condicional;
+8. carrega a cifra como `Buffer` replayável e envia `frequent` e as cópias
+   diária/semanal aplicáveis com PUT condicional; isso evita reutilizar um
+   `Readable` consumido quando o SDK reexecuta uma tentativa;
 9. confirma HEAD/tamanho/hash de todas as cifras;
 10. publica por último manifestos que registram somente a proveniência
     sanitizada, incluindo projeto/branch Neon, SHA realmente implantado, tamanho
@@ -219,7 +344,7 @@ tamanho/hash, valida versões, decifra, verifica o hash do dump, inspeciona
 `pg_restore --list`, exige target vazio e executa:
 
 ```text
-pg_restore --exit-on-error --single-transaction --no-owner --no-privileges
+pg_restore --dbname <hub_restore_database> --exit-on-error --single-transaction --no-owner --no-privileges
 ```
 
 A conexão é passada por variáveis libpq, não por argumento. O postflight exige

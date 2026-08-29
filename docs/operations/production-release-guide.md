@@ -513,7 +513,20 @@ Não faça pagamento real, envie e-mail a cliente, crie vídeo real ou emita
 certificado artificial apenas como smoke genérico. Use dados de controle e a
 menor operação capaz de provar a mudança.
 
-### Perfil de manutenção e flags de Production
+### Flags e perfil comercial de Production
+
+Production não permanece em manutenção como estado normal. O smoke pós-promoção
+valida o perfil público e comercial: páginas públicas acessíveis, readiness verde,
+checkout habilitado e webhook Asaas exigindo autenticação.
+
+Para a liberação comercial atual, mantenha no ambiente Production:
+
+```text
+APPLICATION_MAINTENANCE_MODE=off
+PAYMENTS_CHECKOUT_MODE=public
+ASAAS_WEBHOOK_ENABLED=true
+SCHEDULED_JOBS_ENABLED=true
+```
 
 Quando a migration ou a promoção exigir manutenção, altere o ambiente
 Production na Vercel antes da operação para:

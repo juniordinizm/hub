@@ -39,7 +39,8 @@ O projeto possui cinco perfis:
 - Staging: homologação persistente em
   `https://preview.neurocapacitar.com.br`, com cadastro público e dados
   descartáveis;
-- Production: ambiente definitivo, atualmente em manutenção integral.
+- Production: ambiente definitivo, sem manutenção permanente; o estado comercial
+  é restaurado após cada operação controlada.
 
 Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
 `VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
@@ -173,6 +174,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `RESTORE_AGE_IDENTITY_FILE` | caminho absoluto offline, fora do repositório | exercício manual | caminho protegido; nunca conteúdo |
 | `RESTORE_DATABASE_URL` | alvo PostgreSQL 18 descartável `hub_restore_*` | exercício manual | sim |
 | `RESTORE_CONFIRMATION` | confirmação literal fail-closed | exercício manual | não |
+| `PGSSLROOTCERT` | caminho do bundle de CAs do cliente PostgreSQL local | restore local com `sslmode=verify-full` | caminho protegido |
 | `PROTECTED_DATABASE_HOSTS` | computes adicionais que o restore deve recusar | exercício manual | não |
 | `EXPIRY_WARNING_V1_CONFIRMATION` | confirmação literal do script pós-`0066` | Staging/Production, uso único | não |
 | `STAGING_RESEND_USES_PRODUCTION` | confirmação da estrutura Resend compartilhada | preflight Staging | `true` |
