@@ -1,4 +1,5 @@
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { sanitizeJmvstreamPlayerUrl } from "@/features/videos/jmvstream";
 
 export function LessonVideoEditorPreview({
   isProcessing = false,
@@ -11,14 +12,17 @@ export function LessonVideoEditorPreview({
 }): React.JSX.Element {
   let previewContent: React.JSX.Element;
 
-  if (previewUrl) {
+  const safePreviewUrl = sanitizeJmvstreamPlayerUrl(previewUrl);
+
+  if (safePreviewUrl) {
     previewContent = (
       <iframe
         allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
         allowFullScreen
         className="h-full w-full"
         referrerPolicy="strict-origin-when-cross-origin"
-        src={previewUrl}
+        sandbox="allow-scripts allow-same-origin"
+        src={safePreviewUrl}
         title={`Previa: ${title}`}
       />
     );
