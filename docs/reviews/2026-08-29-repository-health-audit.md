@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 13ccf2f08fc6c7f542e6de655f5d834180714c54
+last_verified_commit: 1c6062d6ce3e637be2e7521a66aed2ae2a17019f
 audit_date: 2026-08-29
 ---
 
@@ -128,6 +128,13 @@ relatórios ainda bloqueiam a progressão e o fechamento de `F-006`.
   truncate, seed ou limpeza de objetos. A leitura remota encontrou a tabela
   `two_factors` com `0` registros, logo não existe TOTP cadastrado no banco de
   Staging no momento desta requalificação.
+- A leitura foi repetida no run `33273769544`, em
+  `2026-08-29T20:33:13Z`, contra o mesmo branch e host declarados pelo
+  ambiente `vercel-staging`; o resultado continuou `two_factors=0`. A
+  confirmação operacional de que o setup foi concluído não coincide com o
+  banco alvo. Antes de repetir o setup ou alterar credenciais, conferir se a
+  sessão foi feita no alias de Staging e se a aplicação está apontando para
+  esse mesmo branch Neon.
 - Não foi possível comprovar por leitura remota login das duas Contas Admin,
   challenge TOTP, uso único de backup code ou revogação de sessão. Essas provas
   dependem de interação com o autenticador e não podem ser inferidas pela

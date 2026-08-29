@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 13ccf2f08fc6c7f542e6de655f5d834180714c54
+last_verified_commit: 1c6062d6ce3e637be2e7521a66aed2ae2a17019f
 ---
 
 # Progressão DMARC
