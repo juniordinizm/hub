@@ -29,7 +29,11 @@ ativos de segredo ou de vulnerabilidade na consulta. O Code Scanning foi então
 configurado pelo default setup do GitHub com a suíte `default`, runner
 `standard` e linguagens autodetectadas para Actions/JavaScript-TypeScript. A
 configuração não altera o runtime nem adiciona dependência paga. A primeira
-análise e eventuais alertas continuam sendo observados separadamente.
+análise do SHA histórico de `main` encontrou três alertas abertos de alta
+severidade: dois `js/xss-through-dom` nos iframes de JMVStream e um
+`js/double-escaping` no servidor de objetos de E2E. A correção foi preparada
+em Staging no PR `#146`; o resultado definitivo depende de uma nova análise
+após a promoção futura para `main`.
 
 O PR `#144` atualizou este relatório para o commit verificável
 `77d34cf4e5f05af9f4809ddc61c727a8c158df09`. A CI pós-merge `33265057590` e o
@@ -333,6 +337,26 @@ promoção ou alteração em Production ocorreu.
 - **Correção resumida:** avaliar e habilitar apenas os recursos compatíveis com
   o plano Free, sem alterar o runtime.
 
+### [SECURITY-03] Alertas Code Scanning em componentes legados de vídeo e E2E
+
+- **Evidência:** a primeira análise default do CodeQL no SHA histórico de
+  `main` encontrou os alertas `#1` e `#2` (`js/xss-through-dom`) nos sinks de
+  iframe de JMVStream e o alerta `#3` (`js/double-escaping`) no parser XML do
+  servidor de objetos de E2E.
+- **Impacto:** URL de iframe derivada de formulário não tinha uma defesa
+  explícita no componente; a decodificação em cadeia podia transformar uma
+  entidade XML aninhada em caractere estrutural.
+- **Esforço:** S.
+- **Risco da correção:** LOW/MED — o player precisa continuar carregando e o
+  contrato do mock de storage precisa permanecer compatível.
+- **Confiança:** HIGH.
+- **Estado:** correção em Staging no PR `#146`; alertas permanecem abertos no
+  SHA antigo até nova análise após promoção.
+- **Correção resumida:** canonicalizar somente `https://player.jmvstream.com`
+  sem porta ou credenciais, usar sandbox com scripts para os iframes do editor e
+  decodificar entidades XML em uma única substituição. Testes focados e suíte
+  completa passam no candidato.
+
 ### [DEPENDENCY-01] Não mesclar Dependabot sem decisão de compatibilidade
 
 - **Evidência:** PRs #68, #69, #70 e #122 falham em typecheck/build/audit por
@@ -501,8 +525,8 @@ continuam pendentes.
 - [x] Habilitar Secret Scanning e Push Protection.
 - [x] Habilitar Dependabot Security Alerts e Security Updates.
 - [x] Avaliar e configurar Code Scanning dentro do plano vigente, sem adicionar
-  execução não revisada ao CI; aguardar a primeira análise para registrar o
-  resultado.
+  execução não revisada ao CI; registrar e tratar o resultado da primeira
+  análise no finding `SECURITY-03`.
 - [ ] Confirmar duas Contas Admin, TOTP e códigos de recuperação.
 - [ ] Revisar exposição de nomes de infraestrutura nos logs públicos sem
   rotacionar credenciais desnecessariamente.
@@ -514,9 +538,14 @@ público `juniordinizm/hub` com `secret_scanning=enabled`,
 `dependabot_security_updates=enabled` e
 `code-scanning/default-setup.state=configured`, com `query_suite=default` e
 `runner_type=standard`. Não havia alertas ativos de Dependabot nem de Secret
-Scanning no momento da consulta. O Code Scanning ainda não tinha alerta
-registrado na consulta imediatamente após a configuração; isso não é tratado
-como ausência definitiva de achados até a primeira análise.
+Scanning no momento da consulta.
+A primeira análise de JavaScript/TypeScript registrou três alertas
+abertos no SHA histórico de `main` (`js/xss-through-dom` nos componentes
+`jmvstream-duration-detector.tsx` e `lesson-video-editor-preview.tsx`, e
+`js/double-escaping` no suporte de E2E). O PR `#146` aplica validação de origem
+exata, sandbox nos iframes e decodificação XML em uma única passagem; a
+requalificação deverá confirmar o fechamento depois de a mesma árvore chegar ao
+branch analisado.
 
 **Aceite:** proteções escolhidas habilitadas, contas administrativas conferidas,
 nenhum secret em histórico e PRs de dependência sem falha.
