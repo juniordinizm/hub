@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
+last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -82,6 +82,13 @@ Este checkpoint não promove `staging` para `main` e não altera Production. O
 merge squash deixa a ancestralidade Git dos branches divergente, embora a
 árvore de arquivos esteja reconciliada. A promoção continua sendo um PR
 separado, depois da decisão dos gates restantes da auditoria de saúde.
+
+O registro documental foi mesclado pelo PR `#138` em `staging`, no topo
+`858eb5ab7df24a5adca2a23e692ec1c43138dc97`, com CI `33255552588` verde. O
+deploy automático `33255999615` confirmou que a quota Neon ainda pode bloquear
+o backup efêmero; após o cleanup controlado `33256066788`, o deploy protegido
+`33256090157` passou integralmente. Nenhum desses passos promoveu `main` ou
+alterou Production.
 
 Base de planejamento: commit
 `9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro

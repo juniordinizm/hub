@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
+last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
 audit_date: 2026-08-29
 ---
 
@@ -86,6 +86,16 @@ Após a reconciliação, o workflow `Deploy Vercel staging` `33254285118`
 publicou o topo de `staging` (`28cc7d9`) e passou backup Neon, ancestry,
 migrations, publicação da SHA exata e smoke do alias estável
 `preview.neurocapacitar.com.br`. Production não foi promovida.
+
+O PR documental `#138` foi então mesclado em `staging`, produzindo o topo
+`858eb5ab7df24a5adca2a23e692ec1c43138dc97`. Sua CI pós-merge
+`33255552588` passou os quatro gates. O primeiro deploy automático
+`33255999615` falhou antes da publicação com `BRANCHES_LIMIT_EXCEEDED`, sem
+alterar Vercel ou banco; o dry-run/execute de cleanup `33256066788` removeu
+somente o backup superseded `br-young-waterfall-acf3tzj4` e preservou
+`br-misty-silence-ac6gomqq`. O deploy protegido repetido
+`33256090157` passou backup, ancestry, migrations, publicação e smoke do
+alias estável. Production permaneceu intocada.
 
 As sondas públicas retornaram:
 
@@ -380,7 +390,8 @@ definitiva ainda depende da promoção da guarda ao workflow de `main`).
 - [x] Executar dry-run e execute controlado da retenção de
   `staging-release-*`.
 - [x] Reexecutar deploy de Staging sem atingir `BRANCHES_LIMIT_EXCEEDED`,
-  inclusive após `#137`.
+  inclusive após `#137` e `#138`, usando cleanup controlado quando o limite
+  reapareceu.
 
 **Aceite parcial:** um push de `staging` chega a READY, a branch temporária tem
 parent correto e expira. Ainda falta observar uma execução originada de CI de

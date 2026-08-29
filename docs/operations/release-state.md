@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 28cc7d9746d7f59afec7a0464d7c625c402b0a8d
+last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
 deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
 deployed_environment: production
 verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
@@ -233,3 +233,16 @@ preservado porque ainda está associado à branch local ativa
 `codex/restore-node-tls`. `main`, o deployment Production e seus dados não
 foram alterados. Como o merge foi squash, a ancestralidade Git dos branches
 continua divergente mesmo com a árvore de arquivos reconciliada.
+
+## Fechamento documental do checkpoint — 2026-08-29
+
+O PR documental `#138` foi mesclado somente em `staging`; o topo remoto atual é
+`858eb5ab7df24a5adca2a23e692ec1c43138dc97`. A CI pós-merge `33255552588`
+passou os quatro gates. O deploy automático `33255999615` parou antes da
+publicação por `BRANCHES_LIMIT_EXCEEDED`; o cleanup controlado `33256066788`
+removeu o único backup superseded identificado e preservou o mais recente.
+O deploy manual protegido `33256090157` passou backup, ancestry, migrations,
+publicação da SHA exata e smoke do alias estável.
+
+Esse retry não alterou `main` nem Production. A quota Neon continua registrada
+como pendência de política de retenção, não como falha do código ou do deploy.
