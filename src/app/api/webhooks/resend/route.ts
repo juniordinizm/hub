@@ -12,6 +12,66 @@ export const runtime = "nodejs";
 
 const MAXIMUM_WEBHOOK_BODY_BYTES = 256 * 1024;
 
+type LimitedBodyResult =
+  | { kind: "ok"; body: string }
+  | { kind: "too_large" }
+  | { kind: "invalid" };
+
+const readLimitedBody = async (
+  request: Request
+): Promise<LimitedBodyResult> => {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const parsedContentLength = Number(contentLength);
+    if (
+      Number.isSafeInteger(parsedContentLength) &&
+      parsedContentLength > MAXIMUM_WEBHOOK_BODY_BYTES
+    ) {
+      return { kind: "too_large" };
+    }
+  }
+
+  if (!request.body) {
+    return { body: "", kind: "ok" };
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  try {
+    const reader = request.body.getReader();
+    while (true) {
+      const result = await reader.read();
+      if (result.done) {
+        break;
+      }
+      const chunk = result.value;
+      if (!chunk) {
+        return { kind: "invalid" };
+      }
+      totalBytes += chunk.byteLength;
+      if (totalBytes > MAXIMUM_WEBHOOK_BODY_BYTES) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Preserve the payload-size response when the client closes early.
+        }
+        return { kind: "too_large" };
+      }
+      chunks.push(chunk);
+    }
+  } catch {
+    return { kind: "invalid" };
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return { body: new TextDecoder().decode(bytes), kind: "ok" };
+};
+
 const jsonError = (error: string, status: number): Response =>
   Response.json({ error }, { status });
 
@@ -36,15 +96,14 @@ export const POST = async (request: Request): Promise<Response> => {
     return jsonError("service_unavailable", 503);
   }
 
-  let rawBody: string;
-  try {
-    rawBody = await request.text();
-  } catch {
-    return jsonError("invalid_payload", 400);
-  }
-  if (Buffer.byteLength(rawBody, "utf8") > MAXIMUM_WEBHOOK_BODY_BYTES) {
+  const bodyResult = await readLimitedBody(request);
+  if (bodyResult.kind === "too_large") {
     return jsonError("payload_too_large", 413);
   }
+  if (bodyResult.kind === "invalid") {
+    return jsonError("invalid_payload", 400);
+  }
+  const rawBody = bodyResult.body;
 
   let verifiedEvent: unknown;
   try {
