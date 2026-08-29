@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
+last_verified_commit: 84d2c2dcb4780591826aba51c8ae8e15f6dbfd55
 audit_date: 2026-08-29
 ---
 
@@ -399,19 +399,25 @@ parent correto e expira. Ainda falta observar uma execução originada de CI de
 
 ### Sprint 3 — endurecer HTTP e cobertura de regressão
 
-**Estado:** `ABERTA` (pode ser paralela à Sprint 2 depois da reconciliação).
+**Estado:** `PARCIALMENTE CONCLUÍDA` — limite de corpo implementado e testado;
+cobertura das demais rotas permanece aberta.
 
-- [ ] Implementar leitura limitada do webhook Resend.
-- [ ] Testar payload abaixo/acima do limite, stream sem `Content-Length` e
+- [x] Implementar leitura limitada do webhook Resend.
+- [x] Testar payload abaixo/acima do limite, stream sem `Content-Length` e
   assinatura inválida.
 - [ ] Criar testes das rotas de enrollments, JMVStream, maintenance e
   exportação de analytics.
 - [ ] Cobrir autorização, jobs desligados, lease ocupado, falhas sanitizadas e
   resposta de sucesso.
-- [ ] Executar `bun run check`, `bun run typecheck`, testes focados e CI completo.
+- [x] Executar `bun run check`, `bun run typecheck`, testes focados e CI completo.
 
 **Aceite:** limite de corpo é aplicado durante a leitura, assinatura continua
 válida para payload legítimo e as rotas críticas têm contrato automatizado.
+
+A fatia do limite foi implementada no commit
+`84d2c2dcb4780591826aba51c8ae8e15f6dbfd55`, com nove testes focados e a suíte
+completa verde. O commit está em branch de feature; ainda não foi promovido
+para `main` nem para Production.
 
 ### Sprint 4 — retirar o modo emergencial
 

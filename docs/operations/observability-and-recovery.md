@@ -230,6 +230,9 @@ abre conexão, não executa migration e não restaura banco.
 1. Confirme commit e estado atual do agregado.
 2. Consulte outbox/dead letter, tópico, tentativa e `lastErrorCode`, nunca o payload.
 3. Reprocessamento exige motivo. Depois de 24 horas, a idempotência do provedor pode não evitar e-mail duplicado.
+4. A rota pública rejeita corpos acima de 256 KiB com `413 payload_too_large`.
+   O limite é aplicado antes de materializar o corpo completo, inclusive quando
+   `Content-Length` está ausente ou subdeclarado; não reenvie esse payload.
 
 ## Ensaio de recuperação
 

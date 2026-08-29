@@ -36,18 +36,33 @@ const rawBody = JSON.stringify({
   type: "email.delivered",
 });
 
-const request = ({ headers = true }: { headers?: boolean } = {}): Request =>
-  new Request("https://app.example.test/api/webhooks/resend", {
-    body: rawBody,
-    headers: headers
-      ? {
-          "svix-id": "svix-event-1",
-          "svix-signature": "v1,signature",
-          "svix-timestamp": "1787572800",
-        }
-      : {},
+const MAXIMUM_WEBHOOK_BODY_BYTES = 256 * 1024;
+
+const request = ({
+  body = rawBody,
+  contentLength,
+  headers = true,
+}: {
+  body?: BodyInit | null;
+  contentLength?: string;
+  headers?: boolean;
+} = {}): Request => {
+  const requestHeaders = headers
+    ? new Headers({
+        "svix-id": "svix-event-1",
+        "svix-signature": "v1,signature",
+        "svix-timestamp": "1787572800",
+      })
+    : new Headers();
+  if (contentLength) {
+    requestHeaders.set("content-length", contentLength);
+  }
+  return new Request("https://app.example.test/api/webhooks/resend", {
+    body,
+    headers: requestHeaders,
     method: "POST",
   });
+};
 
 describe("POST /api/webhooks/resend", () => {
   beforeEach(() => {
@@ -74,13 +89,75 @@ describe("POST /api/webhooks/resend", () => {
     expect(dependencies.connect).not.toHaveBeenCalled();
   });
 
-  it("reads raw body once and passes only the exact Svix shape to the SDK", async () => {
-    const input = request();
-    const text = vi.spyOn(input, "text");
+  it("rejects an oversized declared body before consuming the stream", async () => {
+    const input = request({
+      contentLength: String(MAXIMUM_WEBHOOK_BODY_BYTES + 1),
+    });
+    const getReader = vi.spyOn(
+      input.body as ReadableStream<Uint8Array>,
+      "getReader"
+    );
     const response = await POST(input);
 
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "payload_too_large" });
+    expect(getReader).not.toHaveBeenCalled();
+    expect(dependencies.verify).not.toHaveBeenCalled();
+    expect(dependencies.connect).not.toHaveBeenCalled();
+    expect(dependencies.persistResendWebhookEvent).not.toHaveBeenCalled();
+  });
+
+  it("cancels a chunked body at the first byte above the limit", async () => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream<Uint8Array>({
+      cancel,
+      start(controller) {
+        controller.enqueue(new Uint8Array(MAXIMUM_WEBHOOK_BODY_BYTES));
+        controller.enqueue(new Uint8Array(1));
+      },
+    });
+    const input = new Request("https://app.example.test/api/webhooks/resend", {
+      body: stream,
+      duplex: "half",
+      headers: {
+        "svix-id": "svix-event-1",
+        "svix-signature": "v1,signature",
+        "svix-timestamp": "1787572800",
+      },
+      method: "POST",
+    } as RequestInit & { duplex: "half" });
+    const response = await POST(input);
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "payload_too_large" });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(dependencies.verify).not.toHaveBeenCalled();
+    expect(dependencies.connect).not.toHaveBeenCalled();
+    expect(dependencies.persistResendWebhookEvent).not.toHaveBeenCalled();
+  });
+
+  it("returns invalid_payload when the body reader cannot be acquired", async () => {
+    const input = request();
+    vi.spyOn(
+      input.body as ReadableStream<Uint8Array>,
+      "getReader"
+    ).mockImplementation(() => {
+      throw new Error("body is already locked");
+    });
+
+    const response = await POST(input);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_payload" });
+    expect(dependencies.verify).not.toHaveBeenCalled();
+    expect(dependencies.connect).not.toHaveBeenCalled();
+    expect(dependencies.persistResendWebhookEvent).not.toHaveBeenCalled();
+  });
+
+  it("passes the exact raw body and Svix headers to the SDK", async () => {
+    const response = await POST(request());
+
     expect(response.status).toBe(200);
-    expect(text).toHaveBeenCalledOnce();
     expect(dependencies.verify).toHaveBeenCalledWith({
       headers: {
         id: "svix-event-1",
