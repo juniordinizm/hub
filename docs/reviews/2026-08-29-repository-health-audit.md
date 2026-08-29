@@ -117,6 +117,12 @@ bounce ou complaint. O registro DNS permaneceu intocado.
 **Resultado do gate DMARC:** propagação confirmada; observação e análise de
 relatórios ainda bloqueiam a progressão e o fechamento de `F-006`.
 
+Em `2026-08-29`, o responsável optou por adiar esta etapa. O adiamento não é
+um aceite de risco nem autorização para saltar de `p=none` para outra política:
+o TXT permanece inalterado, `F-006` continua aberto e a progressão só poderá
+ser retomada após autorização explícita, janela completa e relatórios
+agregados suficientes.
+
 ### Contas administrativas e TOTP
 
 - O ambiente GitHub `vercel-staging` contém os quatro nomes de secrets esperados
@@ -598,13 +604,15 @@ commit `9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
 
 ### Sprint 5 — fechar gates externos de Production Readiness
 
-**Estado:** `EM ANDAMENTO` — Sentry de Staging passou; DMARC está na janela
-inicial; contas administrativas continuam bloqueadas por ausência de TOTP.
+**Estado:** `EM ANDAMENTO` — Sentry de Staging passou; a progressão DMARC foi
+adiada; contas administrativas continuam com o gate adiado.
 
 - [x] Validar evento e alerta Sentry em Staging no projeto `hub-web`.
 - [x] Publicar e confirmar DMARC em `p=none; pct=100`.
 - [x] Revalidar, sem mutação, os projetos `hub-web` e `hub-production` e manter
   ambos separados.
+- [x] Registrar o adiamento explícito da progressão DMARC, sem tratá-lo como
+  aprovação.
 - [ ] Aguardar a janela DMARC inicial e analisar relatórios agregados.
 - [ ] Progredir DMARC sem saltar etapas até `reject; pct=100` estável.
 - [ ] Emitir o evento Sentry próprio de Production somente após candidato

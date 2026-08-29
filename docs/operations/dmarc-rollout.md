@@ -45,6 +45,13 @@ retornaram o mesmo TXT publicado, com `p=none`, `pct=100`, `rua` institucional,
 consulta não substitui os relatórios agregados: a janela inicial continua
 aberta até `2026-09-12T00:06:50Z` e nenhuma progressão de política foi feita.
 
+### Decisão de adiamento — 2026-08-29
+
+A progressão foi explicitamente adiada pelo responsável. O registro continua
+em `p=none; pct=100`; isso não autoriza saltar etapas nem fecha `F-006`.
+Retomar exige janela completa, análise dos relatórios agregados e autorização
+para o valor exato do próximo TXT.
+
 ## Coleta e análise gratuita
 
 Use a caixa institucional definida em `rua`. Baixe anexos agregados XML, gzip ou
