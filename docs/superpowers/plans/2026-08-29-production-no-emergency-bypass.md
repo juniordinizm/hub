@@ -156,7 +156,7 @@ Only the Production workflow, its contract test, the release guide, the health
 report and this plan may differ. No runtime route, migration, secret, provider
 setting or Production deployment is in scope.
 
-- [ ] **Step 3: Commit the change.**
+- [x] **Step 3: Commit the change.**
 
 ```text
 git add .github/workflows/deploy-vercel.yml src/tooling/release-workflows.test.ts docs/operations/production-release-guide.md docs/reviews/2026-08-29-repository-health-audit.md docs/superpowers/plans/2026-08-29-production-no-emergency-bypass.md

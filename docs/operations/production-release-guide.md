@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 9c204a35dc8eaa5855532f83bd1fa88ff959f166
 ---
 
 # Tutorial: da alteração até Production
@@ -41,6 +41,10 @@ Portanto:
 O workflow resolve sozinho o SHA atual da `main`, confirma que ele possui CI
 verde, aplica migrations pendentes, testa o deployment sem domínio e somente
 depois promove.
+
+O workflow não possui mais entradas para ignorar o CI ou o backup independente.
+Se qualquer gate falhar, corrija a causa e execute novamente; não há caminho de
+exceção na interface de execução.
 
 ## Os quatro bancos
 

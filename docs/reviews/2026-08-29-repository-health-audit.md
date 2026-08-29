@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 84d2c2dcb4780591826aba51c8ae8e15f6dbfd55
+last_verified_commit: 9c204a35dc8eaa5855532f83bd1fa88ff959f166
 audit_date: 2026-08-29
 ---
 
@@ -421,19 +421,25 @@ para `main` nem para Production.
 
 ### Sprint 4 — retirar o modo emergencial
 
-**Estado:** `ABERTA`.
+**Estado:** `PARCIALMENTE CONCLUÍDA` — os bypasses foram removidos em Staging;
+backup/restore e uma futura promoção ainda exigem evidência própria.
 
 - [ ] Confirmar backup Production independente recente e restore documentado.
 - [ ] Confirmar CI verde para o SHA candidato.
 - [ ] Revisar os 11 runs emergenciais de 25–26/08 e manter somente a evidência
   necessária.
-- [ ] Remover ou tornar temporárias as entradas `emergency_skip_backup` e
-  `emergency_skip_ci`, sem remover o gate normal.
+- [x] Remover as entradas `emergency_skip_backup` e `emergency_skip_ci`, sem
+  remover os gates normais.
 - [ ] Promover somente por workflow protegido, com maintenance controlada.
 - [ ] Registrar smoke pós-promoção e o SHA efetivamente servido.
 
 **Aceite:** próxima release não usa exceção; backup, CI, migration, deployment
 não promovido, smoke e alias canônico passam em sequência.
+
+O workflow sem bypass está na branch de feature e será validado em Staging;
+Production continua sem alteração até um PR separado `staging → main`. O
+contrato foi testado no commit
+`9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
 
 ### Sprint 5 — fechar gates externos de Production Readiness
 
