@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: 9c204a35dc8eaa5855532f83bd1fa88ff959f166
+last_verified_commit: 5af01837acc26581d2ca165a67514308d49d6c4a
 audit_date: 2026-08-29
 ---
 
@@ -253,31 +253,35 @@ promoção ou alteração em Production ocorreu.
 
 ### [SECURITY-01] Aplicar limite de corpo antes de materializar webhook Resend
 
-- **Evidência:** `src/app/api/webhooks/resend/route.ts:39-46` executa
-  `request.text()` antes de aplicar o limite de 256 KiB.
+- **Evidência inicial:** a rota materializava `request.text()` antes de aplicar
+  o limite de 256 KiB.
 - **Impacto:** um corpo grande com headers presentes pode consumir memória e CPU
   antes de ser rejeitado; o limite declarado não protege a leitura.
 - **Esforço:** S.
 - **Risco da correção:** MED — os bytes usados pela verificação Svix precisam
   permanecer exatamente iguais.
 - **Confiança:** HIGH.
-- **Estado:** aberto.
-- **Correção resumida:** implementar leitura bounded por stream e cobrir ausência
-  ou falsidade de `Content-Length`.
+- **Estado:** implementado no candidato de Staging.
+- **Correção resumida:** `readLimitedBody` aplica o limite durante a leitura,
+  cancela o stream ao exceder 256 KiB e trata `Content-Length` ausente, inválido
+  ou acima do limite. O corpo bruto legítimo continua sendo o mesmo usado pela
+  verificação Svix.
 
 ### [TEST-01] Cobrir as fronteiras HTTP críticas
 
-- **Evidência:** não há testes diretos para exportação de analytics, cron de
-  enrollments, cron de JMVStream e cron de maintenance; existem testes apenas
-  para parte das rotas de cron/webhook.
+- **Evidência inicial:** não havia testes diretos para exportação de analytics,
+  cron de enrollments, cron de JMVStream e cron de maintenance; existiam testes
+  apenas para parte das rotas de cron/webhook.
 - **Impacto:** regressões de autorização, lease, resposta HTTP e execução
   duplicada podem chegar à produção sem teste específico.
 - **Esforço:** M.
 - **Risco da correção:** LOW.
 - **Confiança:** HIGH.
-- **Estado:** aberto.
-- **Correção resumida:** adicionar testes de 401/403, jobs desabilitados, lease
-  ocupado, erros sanitizados e respostas de sucesso.
+- **Estado:** implementado no candidato de Staging.
+- **Correção resumida:** quatro contratos de rota agora cobrem resposta de
+  autorização/jobs desligados antes do lease, lease ocupado, sucesso,
+  contexto de deadline/owner, CSV escapado e códigos de falha encaminhados à
+  observabilidade sem materializar o erro bruto na resposta.
 
 ### [DOCS-01] Atualizar metadados de verificação documental
 
@@ -399,15 +403,16 @@ parent correto e expira. Ainda falta observar uma execução originada de CI de
 
 ### Sprint 3 — endurecer HTTP e cobertura de regressão
 
-**Estado:** `PARCIALMENTE CONCLUÍDA` — limite de corpo implementado e testado;
-cobertura das demais rotas permanece aberta.
+**Estado:** `CONCLUÍDA NO CANDIDATO DE STAGING; VALIDAÇÃO REMOTA PENDENTE` —
+limite de corpo e cobertura das quatro rotas críticas estão implementados e
+testados localmente.
 
 - [x] Implementar leitura limitada do webhook Resend.
 - [x] Testar payload abaixo/acima do limite, stream sem `Content-Length` e
   assinatura inválida.
-- [ ] Criar testes das rotas de enrollments, JMVStream, maintenance e
+- [x] Criar testes das rotas de enrollments, JMVStream, maintenance e
   exportação de analytics.
-- [ ] Cobrir autorização, jobs desligados, lease ocupado, falhas sanitizadas e
+- [x] Cobrir autorização, jobs desligados, lease ocupado, falhas sanitizadas e
   resposta de sucesso.
 - [x] Executar `bun run check`, `bun run typecheck`, testes focados e CI completo.
 
@@ -415,14 +420,18 @@ cobertura das demais rotas permanece aberta.
 válida para payload legítimo e as rotas críticas têm contrato automatizado.
 
 A fatia do limite foi implementada no commit
-`84d2c2dcb4780591826aba51c8ae8e15f6dbfd55`, com nove testes focados e a suíte
-completa verde. O commit está em branch de feature; ainda não foi promovido
-para `main` nem para Production.
+`84d2c2dcb4780591826aba51c8ae8e15f6dbfd55`, com nove testes focados. A
+cobertura das rotas críticas foi adicionada no commit
+`5af01837acc26581d2ca165a67514308d49d6c4a`: 21 testes focados, 2.407 testes
+na suíte completa, typecheck, Ultracite, migrations e documentação verdes.
+O candidato segue o fluxo de PR para `staging`; não houve promoção para `main`
+nem alteração de Production.
 
 ### Sprint 4 — retirar o modo emergencial
 
-**Estado:** `PARCIALMENTE CONCLUÍDA` — os bypasses foram removidos em Staging;
-backup/restore e uma futura promoção ainda exigem evidência própria.
+**Estado:** `PARCIALMENTE CONCLUÍDA` — os bypasses foram removidos e o deploy
+protegido de Staging passou; backup/restore Production e futura promoção ainda
+exigem evidência própria.
 
 - [ ] Confirmar backup Production independente recente e restore documentado.
 - [ ] Confirmar CI verde para o SHA candidato.
@@ -436,10 +445,11 @@ backup/restore e uma futura promoção ainda exigem evidência própria.
 **Aceite:** próxima release não usa exceção; backup, CI, migration, deployment
 não promovido, smoke e alias canônico passam em sequência.
 
-O workflow sem bypass está na branch de feature e será validado em Staging;
-Production continua sem alteração até um PR separado `staging → main`. O
-contrato foi testado no commit
-`9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
+O workflow sem bypass está em Staging. O CI pós-merge `33260689568` e o deploy
+protegido `33261310675` passaram backup, ancestry, migrations, publicação da
+SHA exata e smoke do alias `preview.neurocapacitar.com.br`. Production continua
+sem alteração até um PR separado `staging → main`. O contrato foi testado no
+commit `9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
 
 ### Sprint 5 — fechar gates externos de Production Readiness
 

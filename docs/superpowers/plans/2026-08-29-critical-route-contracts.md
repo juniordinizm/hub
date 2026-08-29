@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: e947bdad2bc72ef1db9de712b1c2cfe8653d43ce
+last_verified_commit: 5af01837acc26581d2ca165a67514308d49d6c4a
 ---
 
 # Plano de cobertura das rotas críticas
@@ -28,11 +28,11 @@ da rota.
 
 ## Critérios de aceite
 
-- [ ] Cada rota agendada retorna imediatamente a resposta do guard, incluindo
+- [x] Cada rota agendada retorna imediatamente a resposta do guard, incluindo
   não autorizado e jobs desligados, sem adquirir lease.
-- [ ] Cada rota agendada cobre lease ocupado, sucesso e falha encaminhada ao
+- [x] Cada rota agendada cobre lease ocupado, sucesso e falha encaminhada ao
   `observeOperation` com `failureErrorCode` e provider/operation corretos.
-- [ ] A exportação cobre CSV, escaping, headers `no-store`/download e a
+- [x] A exportação cobre CSV, escaping, headers `no-store`/download e a
   propagação de uma negativa de autorização sem gerar arquivo.
 - [ ] `bun run test` completo, typecheck, Ultracite, docs e migrations passam.
 
