@@ -360,6 +360,28 @@ describe("assertProductionBackupDatabase", () => {
     ).not.toThrow();
   });
 
+  it("accepts the current Neon alphanumeric build suffix", () => {
+    expect(() =>
+      assertProductionBackupDatabase(
+        {
+          currentDatabase: "neondb",
+          currentUser: "backup_user",
+          defaultReadOnly: true,
+          logicalDatabaseBytes: 2048,
+          migrationTag: "0065_gray_siren",
+          migrationTimestamp: 1_787_541_858_811,
+          pgReadAllDataMember: true,
+          postgresServerVersion: "18.6 (c5250a2)",
+          transactionReadOnly: true,
+        },
+        {
+          migrationTag: "0065_gray_siren",
+          migrationTimestamp: 1_787_541_858_811,
+        }
+      )
+    ).not.toThrow();
+  });
+
   it.each([
     ["write transaction", { transactionReadOnly: false }],
     ["write default", { defaultReadOnly: false }],
