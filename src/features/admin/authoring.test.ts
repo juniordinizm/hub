@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   confirmLessonResourceUpload,
+  consumeLessonResourceUpload,
   consumeStagedAdminImageUpload,
   deletePublicR2Objects,
   deleteJmvstreamAssetsForLesson,
@@ -13,10 +14,13 @@ const {
   uploadCourseCoverFile,
   publishR2Object,
   readStagedAdminImageFile,
+  getLessonResourceUpload,
+  logLessonResourceUploadEvent,
   connect,
   release,
 } = vi.hoisted(() => ({
   confirmLessonResourceUpload: vi.fn(),
+  consumeLessonResourceUpload: vi.fn(),
   consumeStagedAdminImageUpload: vi.fn(),
   deletePublicR2Objects: vi.fn(),
   deleteJmvstreamAssetsForLesson: vi.fn(),
@@ -28,6 +32,8 @@ const {
   uploadCourseCoverFile: vi.fn(),
   publishR2Object: vi.fn(),
   readStagedAdminImageFile: vi.fn(),
+  getLessonResourceUpload: vi.fn(),
+  logLessonResourceUploadEvent: vi.fn(),
   connect: vi.fn(),
   release: vi.fn(),
 }));
@@ -52,6 +58,13 @@ vi.mock("@/features/storage/r2", () => ({
 }));
 vi.mock("@/features/storage/staged-image-upload-registry", () => ({
   consumeStagedAdminImageUpload,
+}));
+vi.mock("@/features/storage/lesson-resource-upload-registry", () => ({
+  consumeLessonResourceUpload,
+  getLessonResourceUpload,
+}));
+vi.mock("@/features/storage/lesson-resource-upload-observability", () => ({
+  logLessonResourceUploadEvent,
 }));
 
 import {
@@ -139,6 +152,7 @@ const setDefaultMocks = (): void => {
     (sql: string) => versioningQueryResult(sql) ?? { rows: [] }
   );
   confirmLessonResourceUpload.mockResolvedValue(undefined);
+  consumeLessonResourceUpload.mockResolvedValue(undefined);
   consumeStagedAdminImageUpload.mockImplementation(
     async ({ operation }: { operation: (file: File) => Promise<unknown> }) =>
       await operation(
@@ -156,6 +170,7 @@ const setDefaultMocks = (): void => {
   readStagedAdminImageFile.mockResolvedValue(
     new File([new Uint8Array([1])], "cover.png", { type: "image/png" })
   );
+  getLessonResourceUpload.mockResolvedValue(null);
   connect.mockResolvedValue({ query, release });
 };
 
@@ -528,6 +543,7 @@ describe("admin authoring", () => {
     formData.set("title", "Aula completa");
     formData.set("textDocument", JSON.stringify(textDocument));
     formData.append("resourceStorage[]", "r2");
+    formData.append("resourceId[]", "resource-1");
     formData.append("resourceLabel[]", "Apostila");
     formData.append("resourceUrl[]", "");
     formData.append("resourceKey[]", "lessons/lesson-1/resources/upload.pdf");
@@ -535,6 +551,24 @@ describe("admin authoring", () => {
     formData.append("resourceContentType[]", "application/pdf");
     formData.append("resourcePreview[]", "");
     formData.append("resourceSizeBytes[]", "1024");
+    getLessonResourceUpload.mockResolvedValue({
+      actorUserId: "admin-1",
+      expiresAt: new Date("2026-08-30T17:00:00.000Z"),
+      lessonId: "lesson-1",
+      reference: {
+        contentType: "application/pdf",
+        fileName: "apostila.pdf",
+        id: "resource-1",
+        key: "lessons/lesson-1/resources/upload.pdf",
+        label: "apostila.pdf",
+        sizeBytes: 1024,
+        storage: "r2",
+      },
+      status: "uploaded",
+    });
+    consumeLessonResourceUpload.mockRejectedValueOnce(
+      new Error("session consume unavailable")
+    );
 
     await saveLesson({ actorUserId: "admin-1", formData });
 
@@ -543,6 +577,20 @@ describe("admin authoring", () => {
       key: "lessons/lesson-1/resources/upload.pdf",
       sizeBytes: 1024,
     });
+    expect(consumeLessonResourceUpload).toHaveBeenCalledWith({
+      actorUserId: "admin-1",
+      lessonId: "lesson-1",
+      resourceId: "resource-1",
+    });
+    expect(logLessonResourceUploadEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "lesson_resource_upload_consume_failed",
+        lessonId: "lesson-1",
+        resourceId: "resource-1",
+        stage: "consume",
+        success: false,
+      })
+    );
   });
 
   it("saves lesson content while preserving its existing uploaded video", async () => {

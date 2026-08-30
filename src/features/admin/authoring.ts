@@ -34,6 +34,15 @@ import {
   readCourseCoverFile,
 } from "@/features/storage/course-cover-upload";
 import {
+  assertLessonResourceUploadReferenceMatches,
+  type LessonResourceUploadReference,
+} from "@/features/storage/lesson-resource-upload";
+import { logLessonResourceUploadEvent } from "@/features/storage/lesson-resource-upload-observability";
+import {
+  consumeLessonResourceUpload,
+  getLessonResourceUpload,
+} from "@/features/storage/lesson-resource-upload-registry";
+import {
   confirmLessonResourceUpload,
   deletePublicR2Objects,
   deleteR2Objects,
@@ -902,34 +911,112 @@ const isJmvstreamAssetReferencedByPublishedVersion = async (
   return Boolean(rows[0]);
 };
 
-const confirmLessonResourceUploads = async (
-  contentJson: unknown
-): Promise<void> => {
+const confirmLessonResourceUploads = async ({
+  actorUserId,
+  contentJson,
+  lessonId,
+  previousR2Keys,
+}: {
+  actorUserId: string;
+  contentJson: unknown;
+  lessonId: string | null;
+  previousR2Keys: string[];
+}): Promise<string[]> => {
   const content = parseLessonContent(contentJson);
 
   if (content?.type !== "text" || !("resources" in content)) {
+    return [];
+  }
+
+  const newUploadIds: string[] = [];
+  for (const resource of content.resources ?? []) {
+    if (resource.storage !== "r2") {
+      continue;
+    }
+
+    const isExistingResource = previousR2Keys.includes(resource.key);
+    if (!isExistingResource) {
+      if (!lessonId) {
+        throw new Error(
+          "O upload do material precisa estar vinculado a uma aula."
+        );
+      }
+
+      const upload = await getLessonResourceUpload({
+        actorUserId,
+        lessonId,
+        resourceId: resource.id,
+      });
+      if (!(upload && upload.status === "uploaded")) {
+        throw new Error(
+          "Confirme o upload do material antes de salvar a aula."
+        );
+      }
+
+      assertLessonResourceUploadReferenceMatches({
+        expected: upload.reference,
+        received: resource as LessonResourceUploadReference,
+      });
+      newUploadIds.push(resource.id);
+    }
+
+    await confirmLessonResourceUpload({
+      contentType: resource.contentType,
+      key: resource.key,
+      sizeBytes: resource.sizeBytes,
+    });
+    if (resource.preview) {
+      await confirmLessonResourceUpload({
+        contentType: resource.preview.contentType,
+        key: resource.preview.key,
+        sizeBytes: resource.preview.sizeBytes,
+      });
+    }
+  }
+
+  return newUploadIds;
+};
+
+const consumeUploadedLessonResources = async ({
+  actorUserId,
+  lessonId,
+  resourceIds,
+}: {
+  actorUserId: string;
+  lessonId: string | null;
+  resourceIds: string[];
+}): Promise<void> => {
+  if (!(lessonId && resourceIds.length > 0)) {
     return;
   }
 
   await Promise.all(
-    (content.resources ?? [])
-      .filter((resource) => resource.storage === "r2")
-      .flatMap((resource) => [
-        confirmLessonResourceUpload({
-          contentType: resource.contentType,
-          key: resource.key,
-          sizeBytes: resource.sizeBytes,
-        }),
-        ...(resource.preview
-          ? [
-              confirmLessonResourceUpload({
-                contentType: resource.preview.contentType,
-                key: resource.preview.key,
-                sizeBytes: resource.preview.sizeBytes,
-              }),
-            ]
-          : []),
-      ])
+    resourceIds.map(async (resourceId) => {
+      try {
+        await consumeLessonResourceUpload({
+          actorUserId,
+          lessonId,
+          resourceId,
+        });
+        logLessonResourceUploadEvent({
+          correlationId: randomUUID(),
+          httpStatus: 200,
+          lessonId,
+          resourceId,
+          stage: "consume",
+          success: true,
+        });
+      } catch {
+        logLessonResourceUploadEvent({
+          correlationId: randomUUID(),
+          errorCode: "lesson_resource_upload_consume_failed",
+          lessonId,
+          resourceId,
+          stage: "consume",
+          success: false,
+        });
+      }
+    })
   );
 };
 
@@ -1333,6 +1420,15 @@ export const saveLesson = async ({
     formData,
     lessonId: existingLessonId,
   });
+  const previousR2Keys = existingLessonId
+    ? await getLessonR2ObjectKeys(existingLessonId)
+    : [];
+  const uploadedLessonResourceIds = await confirmLessonResourceUploads({
+    actorUserId,
+    contentJson,
+    lessonId: existingLessonId,
+    previousR2Keys,
+  });
   const {
     hasVideoContent,
     shouldDeleteJmvstreamAsset,
@@ -1346,8 +1442,6 @@ export const saveLesson = async ({
   if (!(hasVideoContent || contentJson)) {
     throw new Error("Adicione video ou texto antes de salvar a aula.");
   }
-
-  await confirmLessonResourceUploads(contentJson);
 
   const durationBreakdown = calculateLessonDurationBreakdown({
     textDocument: contentJson?.document ?? null,
@@ -1388,10 +1482,6 @@ export const saveLesson = async ({
     isRequired,
   ];
   const moduleCourseId = module.courseId;
-  const previousR2Keys = existingLessonId
-    ? await getLessonR2ObjectKeys(existingLessonId)
-    : [];
-
   if (existingLessonId) {
     const previousCourseId = await getCourseIdForLesson(existingLessonId);
     await getPool().query(
@@ -1482,6 +1572,12 @@ export const saveLesson = async ({
       await recalculateCourseWorkloadHours(moduleCourseId);
     }
   }
+
+  await consumeUploadedLessonResources({
+    actorUserId,
+    lessonId: existingLessonId,
+    resourceIds: uploadedLessonResourceIds,
+  });
 
   return { courseId: moduleCourseId, lessonId: savedLessonId };
 };
