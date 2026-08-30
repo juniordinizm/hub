@@ -8,6 +8,7 @@ import {
   classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
   resolveProductionBackupFailureCategory,
+  resolveProductionBackupMigration,
   retainCommandOutputContext,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
@@ -312,6 +313,39 @@ describe("verifyProductionBackupProviderEvidence", () => {
         ...overrides,
       })
     ).toThrow();
+  });
+});
+
+describe("resolveProductionBackupMigration", () => {
+  it("maps the database timestamp to a known migration entry", () => {
+    expect(
+      resolveProductionBackupMigration(1_787_582_200_256, [
+        {
+          migrationTag: "0067_sparkling_ghost_rider",
+          migrationTimestamp: 1_787_582_200_256,
+        },
+        {
+          migrationTag: "0068_staged_lesson_resource_uploads",
+          migrationTimestamp: 1_788_105_814_330,
+        },
+      ])
+    ).toEqual({
+      migrationTag: "0067_sparkling_ghost_rider",
+      migrationTimestamp: 1_787_582_200_256,
+    });
+  });
+
+  it("rejects a database timestamp absent from the local migration journal", () => {
+    expect(() =>
+      resolveProductionBackupMigration(1_788_108_979_083, [
+        {
+          migrationTag: "0067_sparkling_ghost_rider",
+          migrationTimestamp: 1_787_582_200_256,
+        },
+      ])
+    ).toThrow(
+      "Production backup database migration is not known by this release."
+    );
   });
 });
 
