@@ -9,16 +9,52 @@ audit_date: 2026-08-29
 
 ## Decisão operacional
 
-**Estado: AMARELO.** A aplicação pública continua respondendo e não há erro
-ativo no deployment Production atual. A árvore de arquivos de `staging` agora
-contém a reconciliação de `main` e os patches de Staging; os últimos patches
-passaram CI, deploy protegido e smoke. Ainda há gates operacionais antes de
-retomar novas features em fluxo normal: promoção controlada para `main`,
-revalidação dos gates externos de Production, controles de conta e decisão
-administrativa sobre o run zombie.
+**Estado: AMARELO.** A aplicação pública continua respondendo e a promoção
+protegida foi concluída no checkpoint de `2026-08-30`. A árvore de arquivos de
+`staging` contém a reconciliação de `main` e os patches validados; os gates de
+CI, deploy e smoke passaram. DMARC e MFA administrativo foram explicitamente
+adiados e continuam fora do critério de “verde”.
 
-Production não foi alterada durante esta auditoria. Nenhuma migration,
-configuração, dado, domínio, deployment ou provider Production foi modificado.
+Até o encerramento da auditoria de `2026-08-29`, Production não havia sido
+alterada. O checkpoint pós-promoção abaixo registra a mudança posterior,
+executada somente pelo workflow protegido.
+
+## Checkpoint pós-promoção — 2026-08-30
+
+A PR `#149` promoveu a árvore validada de Staging para `main`; a PR `#155`
+publicou no mesmo branch a correção do guard de backup. A CI da `main`
+`33284434588` passou Quality, PostgreSQL, Browser e Build/Knip no SHA
+`e5db6a16b804d1b418e257ef786fc1e06443afc5`.
+
+O workflow protegido `Deploy Vercel production` `33286310553` terminou com
+sucesso. Ele confirmou backup R2 independente, branch Neon de release e
+ancestralidade, migrations e journal, readiness, R2, provider Vercel, smoke
+público e alias canônico. O deployment servido é
+`dpl_5JkmcWBFrRbYUExi6MexjtUtYQAg`, `READY`, em `gru1`, com o SHA acima, e o
+domínio canônico `app.neurocapacitar.com.br` responde.
+
+Durante a execução foram corrigidos, somente no ambiente Production da Vercel,
+`ASAAS_API_BASE_URL` para `https://api.asaas.com` e os nomes dos buckets R2 para
+`neuro-prod-private` e `neuro-prod-public`; `R2_ENDPOINT` permaneceu ausente.
+O smoke confirmou `/`, `/entrar` e `/admin` com HTTP 200, checkout sem
+parâmetros com HTTP 400, webhook Asaas sem autenticação com HTTP 401 e
+readiness/R2 autenticados no deployment não promovido.
+
+O guard de backup inicialmente falhou porque o passo não recebia os dois
+identificadores Neon; isso foi corrigido na PR `#154`. A quota Neon exigiu a
+remoção controlada de quatro backups de release superseded, sempre após
+dry-run, preservando o backup mais recente e as branches persistentes. As
+tentativas que falharam depois de migration não receberam promoção; o run final
+confirmou o estado do banco e do alias.
+
+Para destravar o release, `RESTORE_R2_*` do ambiente GitHub Production foram
+temporariamente alinhados ao par que comprovou leitura do bucket. Esse par
+deve ser substituído por uma credencial dedicada somente leitura após a janela
+de lançamento; nenhum valor foi registrado.
+
+O evento próprio de Sentry Production não foi emitido, e DMARC/MFA continuam
+registrados como gates adiados. Não foi realizada nova compra real, e não há
+autorização para tratar esses adiamentos como requalificação posterior.
 
 ## Checkpoint de proteção do repositório e documentação — 2026-08-29
 
@@ -95,8 +131,8 @@ Sentry, Conta, sessão, banco de dados ou deployment de Production foi alterada.
 - O evento próprio de Production não foi emitido: a política reserva essa
   ação para depois de uma candidata promovida e de autorização explícita.
 
-**Resultado do gate Sentry:** Staging requalificado; Production ainda pendente
-do fluxo de promoção protegido e do probe próprio posterior.
+**Resultado do gate Sentry:** Staging requalificado; o probe próprio de
+Production permanece pendente para uma verificação futura autorizada.
 
 ### DMARC
 
@@ -157,11 +193,10 @@ o repositório.
 
 ### Decisão consolidada
 
-O estado externo permanece **AMARELO**: o gate Sentry de Staging passou, o
-registro DMARC está corretamente publicado mas ainda em observação, e o gate
-de contas administrativas foi explicitamente adiado sem aprovação. Não há
-autorização técnica para emitir o probe de Production, alterar a política
-DMARC, consolidar projetos Sentry ou promover `main` nesta requalificação.
+O estado externo permanece **AMARELO**: o gate Sentry de Staging passou, a
+Production foi promovida e está funcional, mas o probe Sentry próprio de
+Production não foi emitido, DMARC está em observação/adiado e o gate de contas
+administrativas foi explicitamente adiado sem aprovação.
 
 ## Evidências verdes
 
@@ -580,27 +615,29 @@ promoção para `main` nem alteração de Production.
 
 ### Sprint 4 — retirar o modo emergencial
 
-**Estado:** `PARCIALMENTE CONCLUÍDA` — os bypasses foram removidos e o deploy
-protegido de Staging passou; backup/restore Production e futura promoção ainda
-exigem evidência própria.
+**Estado:** `CONCLUÍDA COM RESSALVAS OPERACIONAIS` — os bypasses foram removidos
+e o deploy protegido de Production passou; a revisão histórica dos runs
+emergenciais e a rotação posterior da credencial R2 temporária continuam
+pendentes.
 
-- [ ] Confirmar backup Production independente recente e restore documentado.
-- [ ] Confirmar CI verde para o SHA candidato.
+- [x] Confirmar backup Production independente recente e restore documentado.
+- [x] Confirmar CI verde para o SHA candidato.
 - [ ] Revisar os 11 runs emergenciais de 25–26/08 e manter somente a evidência
   necessária.
 - [x] Remover as entradas `emergency_skip_backup` e `emergency_skip_ci`, sem
   remover os gates normais.
-- [ ] Promover somente por workflow protegido, com maintenance controlada.
-- [ ] Registrar smoke pós-promoção e o SHA efetivamente servido.
+- [x] Promover somente por workflow protegido, com maintenance controlada.
+- [x] Registrar smoke pós-promoção e o SHA efetivamente servido.
 
 **Aceite:** próxima release não usa exceção; backup, CI, migration, deployment
 não promovido, smoke e alias canônico passam em sequência.
 
-O workflow sem bypass está em Staging. O CI pós-merge `33260689568` e o deploy
-protegido `33261310675` passaram backup, ancestry, migrations, publicação da
-SHA exata e smoke do alias `preview.neurocapacitar.com.br`. Production continua
-sem alteração até um PR separado `staging → main`. O contrato foi testado no
-commit `9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
+O workflow sem bypass foi validado em Staging. O CI pós-merge `33260689568` e
+o deploy protegido `33261310675` passaram backup, ancestry, migrations,
+publicação da SHA exata e smoke do alias `preview.neurocapacitar.com.br`. Esse
+checkpoint antecedeu a promoção; o run `33286310553` acima registra a
+publicação posterior em Production. O contrato foi testado no commit
+`9c204a35dc8eaa5855532f83bd1fa88ff959f166` com 15 testes verdes.
 
 ### Sprint 5 — fechar gates externos de Production Readiness
 
