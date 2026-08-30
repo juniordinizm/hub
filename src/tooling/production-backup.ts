@@ -44,7 +44,8 @@ const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const MIGRATION_TAG_PATTERN = /^\d{4}_[a-z0-9_]+$/;
 const NEON_BRANCH_ID_PATTERN = /^br-[a-z0-9-]+$/;
 const NEON_PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9-]+$/;
-const POSTGRES_18_VERSION_PATTERN = /^18(?:\.\d+){0,2}(?:\s+\(\d+\))?$/;
+const POSTGRES_18_VERSION_PATTERN =
+  /^18(?:\.\d+){0,2}(?:\s+\([0-9A-Za-z._-]+\))?$/;
 const RELEASE_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const UTC_TIMESTAMP_PATTERN =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
