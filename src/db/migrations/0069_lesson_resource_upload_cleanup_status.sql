@@ -1,0 +1,2 @@
+ALTER TABLE "staged_lesson_resource_uploads" DROP CONSTRAINT "staged_lesson_resource_uploads_status_check";--> statement-breakpoint
+ALTER TABLE "staged_lesson_resource_uploads" ADD CONSTRAINT "staged_lesson_resource_uploads_status_check" CHECK ("staged_lesson_resource_uploads"."status" in ('prepared', 'uploaded', 'cleaning', 'consumed'));

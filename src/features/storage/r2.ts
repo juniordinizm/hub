@@ -12,6 +12,10 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { CourseCoverImage } from "@/features/storage/course-cover";
 import type { CourseCoverFile } from "@/features/storage/course-cover-upload";
+import type {
+  LessonResourceUploadReference,
+  PreparedLessonResourceUpload,
+} from "@/features/storage/lesson-resource-upload";
 import { buildPublicMediaUrl } from "@/features/storage/public-media";
 import { resolveR2ClientEndpoint } from "@/features/storage/r2-endpoint";
 import { createR2ObjectNamespace } from "@/features/storage/r2-object-namespace";
@@ -30,7 +34,7 @@ import {
 } from "@/features/storage/staged-image-upload";
 import { getServerEnv } from "@/lib/env";
 
-const UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
+export const R2_UPLOAD_URL_EXPIRES_SECONDS = 10 * 60;
 const DOWNLOAD_URL_EXPIRES_SECONDS = 5 * 60;
 const DELETE_OBJECTS_BATCH_SIZE = 1000;
 
@@ -46,22 +50,7 @@ interface PublicR2Config extends R2Config {
   publicBucketName: string;
 }
 
-interface R2LessonResource {
-  contentType: string;
-  fileName: string;
-  id: string;
-  key: string;
-  label: string;
-  preview?: {
-    contentType: "image/webp";
-    height: number;
-    key: string;
-    sizeBytes: number;
-    width: number;
-  };
-  sizeBytes: number;
-  storage: "r2";
-}
+type R2LessonResource = LessonResourceUploadReference;
 
 const requireEnvValue = (value: string | undefined, key: string): string => {
   if (!value) {
@@ -137,8 +126,10 @@ export const createLessonResourceUploadUrl = async ({
     | undefined;
   sizeBytes: number;
 }): Promise<{
+  expiresAt: string;
   resource: R2LessonResource;
   previewUploadUrl?: string;
+  reference: R2LessonResource;
   uploadUrl: string;
 }> => {
   validateLessonAttachmentUpload({ contentType, fileName, sizeBytes });
@@ -146,7 +137,6 @@ export const createLessonResourceUploadUrl = async ({
     validateLessonImagePreviewUpload(preview);
   }
 
-  const config = getR2Config();
   const nonce = randomUUID();
   const key = buildLessonResourceObjectKey({
     fileName,
@@ -176,38 +166,63 @@ export const createLessonResourceUploadUrl = async ({
     sizeBytes,
     storage: "r2",
   };
+  const prepared = await createLessonResourceUploadUrlForReference({
+    reference: resource,
+  });
+
+  return { ...prepared, resource };
+};
+
+export const createLessonResourceUploadUrlForReference = async ({
+  reference,
+}: {
+  reference: R2LessonResource;
+}): Promise<PreparedLessonResourceUpload> => {
+  validateLessonAttachmentUpload({
+    contentType: reference.contentType,
+    fileName: reference.fileName,
+    sizeBytes: reference.sizeBytes,
+  });
+  if (reference.preview) {
+    validateLessonImagePreviewUpload(reference.preview);
+  }
+
+  const config = getR2Config();
   const client = getR2Client(config);
   const uploadUrl = await getSignedUrl(
     client,
     new PutObjectCommand({
       Bucket: config.bucketName,
-      ContentType: contentType,
-      Key: config.namespace.toPhysicalKey(key),
+      ContentType: reference.contentType,
+      Key: config.namespace.toPhysicalKey(reference.key),
     }),
     {
-      expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+      expiresIn: R2_UPLOAD_URL_EXPIRES_SECONDS,
       signableHeaders: new Set(["content-type"]),
     }
   );
-  const previewUploadUrl =
-    preview && previewKey
-      ? await getSignedUrl(
-          client,
-          new PutObjectCommand({
-            Bucket: config.bucketName,
-            ContentType: preview.contentType,
-            Key: config.namespace.toPhysicalKey(previewKey),
-          }),
-          {
-            expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
-            signableHeaders: new Set(["content-type"]),
-          }
-        )
-      : undefined;
+  const previewUploadUrl = reference.preview
+    ? await getSignedUrl(
+        client,
+        new PutObjectCommand({
+          Bucket: config.bucketName,
+          ContentType: reference.preview.contentType,
+          Key: config.namespace.toPhysicalKey(reference.preview.key),
+        }),
+        {
+          expiresIn: R2_UPLOAD_URL_EXPIRES_SECONDS,
+          signableHeaders: new Set(["content-type"]),
+        }
+      )
+    : undefined;
+  const expiresAt = new Date(
+    Date.now() + R2_UPLOAD_URL_EXPIRES_SECONDS * 1000
+  ).toISOString();
 
   return {
-    resource,
+    expiresAt,
     ...(previewUploadUrl ? { previewUploadUrl } : {}),
+    reference,
     uploadUrl,
   };
 };
@@ -248,7 +263,7 @@ export const createStagedAdminImageUploadUrl = async ({
       Key: config.namespace.toPhysicalKey(reference.key),
     }),
     {
-      expiresIn: UPLOAD_URL_EXPIRES_SECONDS,
+      expiresIn: R2_UPLOAD_URL_EXPIRES_SECONDS,
       signableHeaders: new Set(["content-type"]),
     }
   );

@@ -1701,6 +1701,67 @@ export const stagedAdminImageUploads = pgTable(
   ]
 );
 
+export const stagedLessonResourceUploads = pgTable(
+  "staged_lesson_resource_uploads",
+  {
+    resourceId: text("resource_id").primaryKey(),
+    objectKey: text("object_key").notNull().unique(),
+    previewObjectKey: text("preview_object_key"),
+    lessonId: uuid("lesson_id")
+      .notNull()
+      .references(() => lessons.id, { onDelete: "cascade" }),
+    actorUserId: text("actor_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    fileName: text("file_name").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    previewContentType: text("preview_content_type"),
+    previewSizeBytes: integer("preview_size_bytes"),
+    previewWidth: integer("preview_width"),
+    previewHeight: integer("preview_height"),
+    status: text("status").default("prepared").notNull(),
+    expiresAt: timestamp("expires_at", tz)
+      .default(sql`now() + interval '24 hours'`)
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "staged_lesson_resource_uploads_status_check",
+      sql`${table.status} in ('prepared', 'uploaded', 'cleaning', 'consumed')`
+    ),
+    check(
+      "staged_lesson_resource_uploads_size_check",
+      sql`${table.sizeBytes} > 0`
+    ),
+    check(
+      "staged_lesson_resource_uploads_preview_check",
+      sql`(
+        ${table.previewObjectKey} is null
+        and ${table.previewContentType} is null
+        and ${table.previewSizeBytes} is null
+        and ${table.previewWidth} is null
+        and ${table.previewHeight} is null
+      ) or (
+        ${table.previewObjectKey} is not null
+        and ${table.previewContentType} = 'image/webp'
+        and ${table.previewSizeBytes} > 0
+        and ${table.previewWidth} > 0
+        and ${table.previewHeight} > 0
+      )`
+    ),
+    index("staged_lesson_resource_uploads_expiry_idx").on(
+      table.status,
+      table.expiresAt
+    ),
+    index("staged_lesson_resource_uploads_lesson_actor_idx").on(
+      table.lessonId,
+      table.actorUserId
+    ),
+  ]
+);
+
 export const appSettings = pgTable("app_settings", {
   id: text("id").primaryKey(),
   certificateSignerName: text("certificate_signer_name"),

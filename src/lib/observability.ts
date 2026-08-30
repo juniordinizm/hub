@@ -17,6 +17,8 @@ export interface OperationalEvent {
   operation: string;
   outcome: OperationalOutcome;
   provider?: "asaas" | "database" | "jmvstream" | "r2" | "resend";
+  resourceId?: string;
+  sizeBytes?: number;
 }
 
 type OperationalAttributeValue = number | string | undefined;

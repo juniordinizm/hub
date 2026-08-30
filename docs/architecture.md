@@ -113,7 +113,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 ### Publicação de mídia
 
 - JMVStream: app inicia multipart, navegador envia partes diretamente às URLs assinadas, app confirma e sincroniza player.
-- R2 privado: app assina upload/download por objeto; navegador transfere sem proxy de payload.
+- R2 privado: app assina upload/download por objeto; navegador transfere sem proxy de payload. Anexos de Aula registram uma sessão vinculada à Aula/Admin, reemitem a URL para a mesma chave uma vez e usam fallback server-side somente até 4 MiB; a confirmação por HEAD precede o salvamento.
 - R2 público: `publishR2Object` copia do bucket privado para o público; URL pública vem de `R2_PUBLIC_BASE_URL`.
 
 ### Certificado, analytics e manutenção

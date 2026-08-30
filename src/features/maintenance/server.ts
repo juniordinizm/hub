@@ -3,6 +3,7 @@ import { reconcileRevokedCertificateArtifacts } from "@/features/certificates/ar
 import { reconcileCertificateTemplateAssets } from "@/features/certificates/template-asset-cleanup";
 import { pruneEmailDeliveryRecords } from "@/features/email-delivery/server";
 import { sanitizeExpiredAsaasWebhookPayloads } from "@/features/payments/asaas-webhook-inbox";
+import { reconcileExpiredLessonResourceUploads } from "@/features/storage/lesson-resource-upload-cleanup";
 import { reconcileStagedAdminImageUploads } from "@/features/storage/staged-image-reconciliation";
 import {
   APP_CURRENT_DATE_SQL,
@@ -16,6 +17,7 @@ interface MaintenanceResult {
   deadlineReached: boolean;
   emailDeliveryEventsRemoved: number;
   emailDeliveryMessagesRemoved: number;
+  expiredLessonResourceUploadsRemoved: number;
   expiredRateLimitsRemoved: number;
   expiredSessionsRemoved: number;
   learningAnalyticsAggregated: number;
@@ -35,6 +37,7 @@ const emptyMaintenanceResult = (): MaintenanceResult => ({
   expiredSessionsRemoved: 0,
   emailDeliveryEventsRemoved: 0,
   emailDeliveryMessagesRemoved: 0,
+  expiredLessonResourceUploadsRemoved: 0,
   learningAnalyticsAggregated: 0,
   learningAnalyticsEventsRemoved: 0,
   leaseLost: false,
@@ -210,6 +213,14 @@ export const runMaintenance = async ({
   result.stagedAdminImagesRemoved = await reconcileStagedAdminImageUploads({
     shouldContinue: canContinue,
   });
+
+  if (!(await canContinue())) {
+    return result;
+  }
+  result.expiredLessonResourceUploadsRemoved =
+    await reconcileExpiredLessonResourceUploads({
+      shouldContinue: canContinue,
+    });
 
   if (!(await canContinue())) {
     return result;
