@@ -7,8 +7,11 @@ const workflowPath = join(
   root,
   ".github/workflows/backup-production-database.yml"
 );
+const deployWorkflowPath = join(root, ".github/workflows/deploy-vercel.yml");
 const packagePath = join(root, "package.json");
 const CRON_PATTERN = /cron:\s*["']([^"']+)["']/g;
+const githubVariableReference = (name: string): string =>
+  `${name}: ${String.fromCharCode(36)}{{ vars.${name} }}`;
 
 describe("production database backup workflow", () => {
   it("keeps one literal six-hour schedule synchronized with the public cadence", async () => {
@@ -75,6 +78,21 @@ describe("production database backup workflow", () => {
     };
     expect(packageJson.scripts?.["ops:backup:production"]).toBe(
       "bun scripts/create-production-backup.ts"
+    );
+  });
+
+  it("passes Production Neon identity to the freshness guard", async () => {
+    const source = await readFile(deployWorkflowPath, "utf8");
+    const freshnessStep = source.slice(
+      source.indexOf("- name: Require a recent independent Production backup"),
+      source.indexOf("- name: Set Production backup expiry")
+    );
+
+    expect(freshnessStep).toContain(
+      githubVariableReference("PRODUCTION_NEON_BRANCH_ID")
+    );
+    expect(freshnessStep).toContain(
+      githubVariableReference("PRODUCTION_NEON_PROJECT_ID")
     );
   });
 });
