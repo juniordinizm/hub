@@ -2,9 +2,9 @@
 status: runbook
 owner: engineering
 last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
-current_migration_tag: 0067_sparkling_ghost_rider
-migration_entry_count: 68
-schema_table_count: 46
+current_migration_tag: 0069_lesson_resource_upload_cleanup_status
+migration_entry_count: 70
+schema_table_count: 47
 ---
 
 # Banco e migrations
@@ -55,6 +55,20 @@ branch descartável `br-falling-mouse-acqm8mw7`. A integração comprovou webhoo
 antes da aceitação local, redução determinística de eventos conflitantes e
 deduplicação por Svix ID. Fixtures e branch foram removidos; listagem posterior
 confirmou ausência. Nenhum alvo persistente recebeu `0067`.
+
+`0068_staged_lesson_resource_uploads` adiciona a sessão persistida para anexos de
+Aula: chave estável, Aula, Admin, tipo, nome, tamanho, preview, estado e expiração,
+com FKs e índices de limpeza. A migration não altera conteúdo de Aula nem objetos
+existentes. O código usa a sessão para reemitir a URL da mesma chave, confirmar o
+HEAD antes do salvamento e limitar o fallback server-side a 4 MiB. Antes de
+qualquer promoção, aplique-as primeiro em uma branch Neon descartável e confirme o
+topo `0069`, as 47 tabelas, as FKs e a ausência de registros/objetos de teste
+fora do namespace do ambiente.
+
+`0069_lesson_resource_upload_cleanup_status` adiciona o estado transitório
+`cleaning`, usado para impedir que uma sessão expirada seja reutilizada enquanto
+o R2 é reconciliado. Falhas ao apagar no provider deixam a sessão para uma nova
+tentativa; o estado não altera conteúdo salvo.
 
 O repositório usa cadeia Drizzle forward-only. Em 2026-08-02, a cadeia
 `0000` a `0053` está aplicada à branch `production`
@@ -181,7 +195,7 @@ valida nele a paridade do catálogo de Certificados com `schema.ts`. Os snapshot
 `0038` e `0039` permanecem como histórico forward-only da recuperação de
 metadata, pois sua aplicação externa não pode ser descartada com segurança.
 Para checks e novos diffs, somente o snapshot correspondente ao topo atual do
-journal é autoridade; nesta cadeia local, `0067_snapshot.json`. O snapshot de
+journal é autoridade; nesta cadeia local, `0069_snapshot.json`. O snapshot de
 Production continua `0064_snapshot.json` até uma promoção protegida. As migrations Asaas e
 da compra pública `0044` a `0052` foram geradas, ensaiadas em banco descartável e
 promovidas para Production em 2026-07-31.

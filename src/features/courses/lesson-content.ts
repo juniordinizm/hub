@@ -131,7 +131,7 @@ const isLessonResourceKey = ({
 const createR2ResourceFromForm = ({
   contentType,
   fileName,
-  index,
+  id,
   key,
   label,
   lessonId,
@@ -140,7 +140,7 @@ const createR2ResourceFromForm = ({
 }: {
   contentType: string;
   fileName: string;
-  index: number;
+  id: string;
   key: string;
   label: string;
   lessonId?: string | undefined;
@@ -166,7 +166,7 @@ const createR2ResourceFromForm = ({
   return {
     contentType,
     fileName,
-    id: `resource-${index}`,
+    id,
     key,
     label: label || fileName,
     ...(preview ? { preview } : {}),
@@ -209,11 +209,11 @@ const parseR2ResourcePreviewFromForm = ({
 };
 
 const createExternalResourceFromForm = ({
-  index,
+  id,
   label,
   rawUrl,
 }: {
-  index: number;
+  id: string;
   label: string;
   rawUrl: string;
 }): LessonResource | null => {
@@ -228,7 +228,7 @@ const createExternalResourceFromForm = ({
   }
 
   return {
-    id: `resource-${index}`,
+    id,
     label: label || "Material da aula",
     url,
   };
@@ -346,6 +346,7 @@ const normalizeResourcesFromForm = ({
   lessonId?: string | undefined;
 }): LessonResource[] => {
   const storages = readStringList(formData, "resourceStorage[]");
+  const ids = readStringList(formData, "resourceId[]");
   const labels = readStringList(formData, "resourceLabel[]");
   const urls = readStringList(formData, "resourceUrl[]");
   const keys = readStringList(formData, "resourceKey[]");
@@ -358,6 +359,7 @@ const normalizeResourcesFromForm = ({
 
   for (let index = 0; index < maxLength; index += 1) {
     const storage = normalizeStorage(storages[index] ?? "");
+    const id = ids[index] || `resource-${resources.length + 1}`;
     const label = labels[index] ?? "";
 
     const resource =
@@ -365,7 +367,7 @@ const normalizeResourcesFromForm = ({
         ? createR2ResourceFromForm({
             contentType: contentTypes[index] ?? "",
             fileName: fileNames[index] ?? "",
-            index: resources.length + 1,
+            id,
             key: keys[index] ?? "",
             label,
             lessonId,
@@ -373,7 +375,7 @@ const normalizeResourcesFromForm = ({
             size: sizes[index] ?? "",
           })
         : createExternalResourceFromForm({
-            index: resources.length + 1,
+            id,
             label,
             rawUrl: urls[index] ?? "",
           });
