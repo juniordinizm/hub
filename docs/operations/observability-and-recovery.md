@@ -19,7 +19,7 @@ Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos.
 | Auth | `auth.sign_in`, exceção de request e fallback de interface | Engenharia | alta se login indisponível | localizar `correlationId`, consultar Sentry e Better Auth |
 | Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração Asaas e Pedido sem PII |
 | Webhook e concessão | `webhook.asaas`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
-| Player e upload | `cron.jmvstream`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) |
+| Player e upload | `cron.jmvstream`, eventos `lesson-resource-upload.*`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) e preservar o `correlationId` |
 | Certificado e e-mail | outbox, dead letter, rota pública, verificação de hash e exceção | Operações | alta se emissão não notifica ou PDF válido/pronto fica indisponível | conferir agregado, outbox, R2 e Resend; não editar snapshot nem divulgar URL assinada |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
 | Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
@@ -29,7 +29,7 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 ## Correlação, logs e exceções
 
-`proxy`, em `src/proxy.ts`, aceita apenas UUID v4 em `x-correlation-id` ou gera um novo. O valor segue para a requisição e a resposta. `logOperationalEvent`, em `src/lib/observability.ts`, emite JSON com `correlationId`, `operation`, `outcome`, `durationMs`, `errorCode`, `provider` e, quando seguro, `aggregateId`.
+`proxy`, em `src/proxy.ts`, aceita apenas UUID v4 em `x-correlation-id` ou gera um novo. O valor segue para a requisição e a resposta. `logOperationalEvent`, em `src/lib/observability.ts`, emite JSON com `correlationId`, `operation`, `outcome`, `durationMs`, `errorCode`, `provider` e, quando seguro, `aggregateId`. O fluxo de anexos emite `lesson-resource-upload.prepare`, `.reissue`, `.confirm`, `.fallback` e `.consume`, com Aula, recurso e tamanho; nunca registra URL assinada, query `X-Amz-*`, nome do arquivo, conteúdo ou credenciais.
 
 O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Referências circulares são substituídas por `[circular]` antes da serialização; esse marcador evita recursão sem publicar o objeto original. Não inclua dados sensíveis nos valores de outros campos.
 
@@ -216,6 +216,8 @@ abre conexão, não executa migration e não restaura banco.
 1. Para JMVStream, confira `videoHash`, estado local, cron e etapa: parte, complete, processamento, sync ou delete.
 2. Preserve sessão, ETags e IDs. A divergência `gallery` permanece bloqueio no guia de [JMVStream](../integrations/jmvstream.md).
 3. Para R2, registre somente bucket/chave; teste HEAD privado e GET público conforme publicação. Não limpe objetos sem reconciliar referência.
+4. Para anexos de Aula, `prepare` 4xx/5xx indica autenticação, validação, banco ou assinatura; preflight 403 indica origem/método/header fora da política; PUT 403 sem CORS indica URL expirada ou assinatura inválida; falha de rede dispara reemissão e uma segunda tentativa. Fallback server-side só é permitido até 4 MiB; não encaminhe arquivos maiores pelo Hub.
+5. A confirmação exige HEAD do objeto e só então marca a sessão como `uploaded`. Se o salvamento falhar, mantenha a sessão para retry; a manutenção remove apenas sessões expiradas sem referência no conteúdo da Aula.
 
 ### Certificado público
 

@@ -76,6 +76,7 @@ describe("lesson content", () => {
     const formData = new FormData();
     formData.set("textDocument", JSON.stringify(richTextDocument));
     formData.set("resourceStorage[]", "r2");
+    formData.set("resourceId[]", "resource-upload-session");
     formData.set("resourceLabel[]", "Apostila");
     formData.set(
       "resourceKey[]",
@@ -107,7 +108,7 @@ describe("lesson content", () => {
         {
           contentType: "application/pdf",
           fileName: "apostila.pdf",
-          id: "resource-1",
+          id: "resource-upload-session",
           key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
           label: "Apostila",
           preview: {

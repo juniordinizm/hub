@@ -477,6 +477,20 @@
       "when": 1787582200256,
       "tag": "0067_sparkling_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1788105814330,
+      "tag": "0068_staged_lesson_resource_uploads",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1788108979083,
+      "tag": "0069_lesson_resource_upload_cleanup_status",
+      "breakpoints": true
     }
   ]
 }

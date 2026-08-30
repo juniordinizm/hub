@@ -84,9 +84,12 @@ import {
   getResourceExtension as getSharedResourceExtension,
 } from "@/features/courses/resource-presentation";
 import {
+  type LessonResourceUploadPreview,
+  uploadLessonResource,
+} from "@/features/storage/lesson-resource-upload-client";
+import {
   LESSON_ATTACHMENT_ACCEPT,
   LESSON_RESOURCE_IMAGE_PREVIEW,
-  validateLessonAttachmentUpload,
 } from "@/features/storage/r2-objects";
 import { cn } from "@/lib/utils";
 
@@ -443,6 +446,12 @@ export function SortableLessonResourceItem({
         value={resource.storage}
         {...formProps}
       />
+      <input
+        name="resourceId[]"
+        type="hidden"
+        value={resource.id}
+        {...formProps}
+      />
       {resource.storage === "r2" ? (
         <>
           <input
@@ -719,17 +728,16 @@ export function LessonResourcesFields({
     setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
     try {
-      const signedUpload = await prepareSignedResourceUpload({
+      const preview = await createImagePreview(file);
+      const reference = await uploadLessonResource({
         file,
         lessonId,
+        preview,
       });
-      await uploadSignedResource({ file, signedUpload });
 
-      const newResource = toEditableResource(signedUpload.payload.resource);
-      if (newResource.storage === "r2" && signedUpload.preview) {
-        newResource.localPreviewUrl = URL.createObjectURL(
-          signedUpload.preview.blob
-        );
+      const newResource = toEditableResource(reference);
+      if (newResource.storage === "r2" && preview) {
+        newResource.localPreviewUrl = URL.createObjectURL(preview.blob);
       }
 
       setResources((current) => [...current, newResource]);
@@ -883,12 +891,6 @@ type EditableLessonResource =
       localPreviewUrl?: string;
     };
 
-interface SignedUploadPayload {
-  previewUploadUrl?: string;
-  resource: Extract<EditableLessonResource, { storage: "r2" }>;
-  uploadUrl: string;
-}
-
 const createEmptyExternalResource = (): EditableLessonResource => ({
   id: `resource-${crypto.randomUUID()}`,
   label: "",
@@ -907,9 +909,6 @@ const toEditableResource = (
         storage: "external",
         url: resource.url,
       };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 const whitespacePattern = /\s/;
 
@@ -935,134 +934,11 @@ const normalizeExternalUrl = (value: string): string | null => {
   }
 };
 
-const isSignedUploadPayload = (
-  value: unknown
-): value is SignedUploadPayload => {
-  if (
-    !isRecord(value) ||
-    typeof value.uploadUrl !== "string" ||
-    !(
-      value.previewUploadUrl === undefined ||
-      typeof value.previewUploadUrl === "string"
-    )
-  ) {
-    return false;
-  }
-
-  const resource = value.resource;
-
-  return (
-    isRecord(resource) &&
-    resource.storage === "r2" &&
-    typeof resource.contentType === "string" &&
-    typeof resource.fileName === "string" &&
-    typeof resource.id === "string" &&
-    typeof resource.key === "string" &&
-    typeof resource.label === "string" &&
-    typeof resource.sizeBytes === "number"
-  );
-};
-
-const prepareSignedResourceUpload = async ({
-  file,
-  lessonId,
-}: {
-  file: File;
-  lessonId: string;
-}): Promise<{
-  payload: SignedUploadPayload;
-  preview: GeneratedImagePreview | null;
-}> => {
-  validateLessonAttachmentUpload({
-    contentType: file.type,
-    fileName: file.name,
-    sizeBytes: file.size,
-  });
-
-  const preview = await createImagePreview(file);
-  const signedResponse = await fetch(
-    `/api/admin/lessons/${lessonId}/resources/upload-url`,
-    {
-      body: JSON.stringify({
-        contentType: file.type,
-        fileName: file.name,
-        ...(preview
-          ? {
-              preview: {
-                contentType: preview.contentType,
-                height: preview.height,
-                sizeBytes: preview.blob.size,
-                width: preview.width,
-              },
-            }
-          : {}),
-        sizeBytes: file.size,
-      }),
-      headers: { "Content-Type": "application/json" },
-      method: "POST",
-    }
-  );
-  const signedPayload: unknown = await signedResponse.json();
-
-  if (!(signedResponse.ok && isSignedUploadPayload(signedPayload))) {
-    throw new Error(readUploadError(signedPayload));
-  }
-
-  if (preview && !signedPayload.previewUploadUrl) {
-    throw new Error("Upload de preview indisponivel.");
-  }
-
-  return { payload: signedPayload, preview };
-};
-
-const uploadSignedResource = async ({
-  file,
-  signedUpload,
-}: {
-  file: File;
-  signedUpload: {
-    payload: SignedUploadPayload;
-    preview: GeneratedImagePreview | null;
-  };
-}): Promise<void> => {
-  const uploadResponse = await fetch(signedUpload.payload.uploadUrl, {
-    body: file,
-    headers: { "Content-Type": file.type },
-    method: "PUT",
-  });
-
-  if (!uploadResponse.ok) {
-    throw new Error("Nao foi possivel enviar o arquivo para o R2.");
-  }
-
-  if (signedUpload.preview && signedUpload.payload.previewUploadUrl) {
-    const previewUploadResponse = await fetch(
-      signedUpload.payload.previewUploadUrl,
-      {
-        body: signedUpload.preview.blob,
-        headers: { "Content-Type": signedUpload.preview.contentType },
-        method: "PUT",
-      }
-    );
-
-    if (!previewUploadResponse.ok) {
-      throw new Error("Nao foi possivel enviar o preview para o R2.");
-    }
-  }
-};
-
-interface GeneratedImagePreview {
-  blob: Blob;
-  contentType: "image/webp";
-  height: number;
-  width: number;
-}
-
 const imagePreviewTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 const createImagePreview = async (
   file: File
-): Promise<GeneratedImagePreview | null> => {
+): Promise<LessonResourceUploadPreview | null> => {
   if (!imagePreviewTypes.has(file.type)) {
     return null;
   }
@@ -1141,11 +1017,3 @@ const canvasToBlob = async (canvas: HTMLCanvasElement): Promise<Blob> =>
       0.78
     );
   });
-
-const readUploadError = (value: unknown): string => {
-  if (isRecord(value) && typeof value.error === "string") {
-    return value.error;
-  }
-
-  return "Nao foi possivel preparar o upload.";
-};

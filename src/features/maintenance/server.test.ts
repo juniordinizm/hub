@@ -9,6 +9,7 @@ const dependencies = vi.hoisted(() => ({
   reconcileCertificateTemplateAssets: vi.fn(),
   reconcileRevokedCertificateArtifacts: vi.fn(),
   reconcileStagedAdminImageUploads: vi.fn(),
+  reconcileExpiredLessonResourceUploads: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -27,6 +28,10 @@ vi.mock("@/features/certificates/template-asset-cleanup", () => ({
 vi.mock("@/features/storage/staged-image-reconciliation", () => ({
   reconcileStagedAdminImageUploads:
     dependencies.reconcileStagedAdminImageUploads,
+}));
+vi.mock("@/features/storage/lesson-resource-upload-cleanup", () => ({
+  reconcileExpiredLessonResourceUploads:
+    dependencies.reconcileExpiredLessonResourceUploads,
 }));
 
 import { runMaintenance } from "./server";
@@ -67,6 +72,7 @@ describe("runMaintenance", () => {
     dependencies.reconcileRevokedCertificateArtifacts.mockResolvedValue(7);
     dependencies.reconcileCertificateTemplateAssets.mockResolvedValue(9);
     dependencies.reconcileStagedAdminImageUploads.mockResolvedValue(8);
+    dependencies.reconcileExpiredLessonResourceUploads.mockResolvedValue(10);
     dependencies.pruneEmailDeliveryRecords.mockResolvedValueOnce({
       events: 13,
       messages: 14,
@@ -93,6 +99,7 @@ describe("runMaintenance", () => {
       expiredSessionsRemoved: 2,
       emailDeliveryEventsRemoved: 13,
       emailDeliveryMessagesRemoved: 14,
+      expiredLessonResourceUploadsRemoved: 10,
       learningAnalyticsAggregated: 5,
       learningAnalyticsEventsRemoved: 6,
       leaseLost: false,
@@ -180,6 +187,7 @@ describe("runMaintenance", () => {
           expiredSessionsRemoved: 2,
           emailDeliveryEventsRemoved: 13,
           emailDeliveryMessagesRemoved: 14,
+          expiredLessonResourceUploadsRemoved: 10,
           learningAnalyticsAggregated: 5,
           learningAnalyticsEventsRemoved: 6,
           leaseLost: false,
