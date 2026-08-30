@@ -1,18 +1,46 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
-deployed_commit: 1c0202f935934285901f90e2b8c68f887f00222e
+last_verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+deployed_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
 deployed_environment: production
-verified_commit: 1c0202f935934285901f90e2b8c68f887f00222e
+verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
 verified_environment: production
-documented_commit: 7ae764451dd4ef5661a23dc7aab297352aedbf3d
+documented_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
 documented_environment: production
 ---
 
 # Estado de release
 
-## Checkpoint operacional atual — 2026-08-26
+## Checkpoint operacional atual — 2026-08-30
+
+O deployment Production atual é `dpl_5JkmcWBFrRbYUExi6MexjtUtYQAg`,
+`READY`, região `gru1`, servido pelo commit
+`e5db6a16b804d1b418e257ef786fc1e06443afc5`. O workflow protegido
+`33286310553` passou backup R2 independente, branch Neon de release e
+ancestralidade, migrations, readiness, R2, provider, smoke público e alias
+canônico `app.neurocapacitar.com.br`.
+
+O smoke público confirmou HTTP 200 para `/`, `/entrar` e `/admin`, HTTP 200 em
+`/api/health`, HTTP 400 para checkout sem parâmetros, HTTP 401 para webhook
+Asaas sem autenticação e readiness/R2 autenticados no deployment não promovido.
+As variáveis Production `ASAAS_API_BASE_URL`, `R2_ACCOUNT_ID`,
+`R2_BUCKET_NAME` e `R2_PUBLIC_BUCKET_NAME` foram corrigidas antes da publicação;
+`R2_ENDPOINT` não está configurado. Production não está em manutenção.
+
+As tentativas anteriores pararam antes da promoção por backup stale, quota Neon
+e configuração de provider. As migrations podem ter avançado antes de falhas
+posteriores; o run final auditou o journal e confirmou `database=match`. A
+retenção removeu somente branches `production-release-*` superseded após
+dry-run, preservando a mais recente e as branches persistentes.
+
+DMARC continua em `p=none; pct=100` e sua progressão foi adiada; o probe Sentry
+próprio de Production não foi emitido; e a prova de TOTP das Contas Admin foi
+adiada. Esses itens são riscos documentados, não evidência de prontidão verde.
+O par `RESTORE_R2_*` foi temporariamente alinhado a uma credencial que comprovou
+leitura do bucket e deve ser rotacionado para uma chave dedicada somente leitura.
+
+## Histórico operacional — 2026-08-26
 
 O deployment Production observado continua `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`,
 `READY`, `target=production`, região `gru1`, com o commit
