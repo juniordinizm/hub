@@ -49,7 +49,8 @@ export type BackupCommandRunner = (
 const AGE_RECIPIENT_PATTERN = /^age1(?!pq1)[0-9a-z]{50,100}$/;
 const LEADING_V_PATTERN = /^v/;
 const PG_DUMP_VERSION_OUTPUT_PATTERN = /PostgreSQL\)\s+(\d+(?:\.\d+){0,2})/;
-const POSTGRES_VERSION_PATTERN = /^18(?:\.\d+){0,2}(?:\s+\(\d+\))?$/;
+const POSTGRES_VERSION_PATTERN =
+  /^18(?:\.\d+){0,2}(?:\s+\([0-9A-Za-z._-]+\))?$/;
 const RELEASE_SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SQLSTATE_PATTERN = /^[0-9A-Z]{5}$/;
 const TRAILING_DOT_PATTERN = /\.$/;
