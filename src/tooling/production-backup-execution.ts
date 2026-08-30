@@ -36,6 +36,27 @@ export interface ProductionBackupDatabaseInspection {
   transactionReadOnly: boolean;
 }
 
+export interface ProductionBackupMigration {
+  migrationTag: string;
+  migrationTimestamp: number;
+}
+
+export const resolveProductionBackupMigration = (
+  migrationTimestamp: number,
+  migrations: readonly ProductionBackupMigration[]
+): ProductionBackupMigration => {
+  const migration = migrations.find(
+    ({ migrationTimestamp: candidateTimestamp }) =>
+      candidateTimestamp === migrationTimestamp
+  );
+  if (!migration) {
+    throw new Error(
+      "Production backup database migration is not known by this release."
+    );
+  }
+  return migration;
+};
+
 export interface BackupCommandInput {
   arguments_: readonly string[];
   environment: NodeJS.ProcessEnv;
