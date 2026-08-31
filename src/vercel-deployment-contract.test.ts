@@ -2,24 +2,23 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 const MOVING_GITHUB_ACTION_TAG_PATTERN = /uses:\s+[^#\n]+@v\d+(?:\s|$)/;
-const WORKFLOW_RUN_TRIGGER_PATTERN = /\n {2}workflow_run:/;
 
 describe("Vercel deployment contract", () => {
-  it("keeps validation independent from deployment and removes the container release", async () => {
+  it("keeps one provider-free CI job with local PostgreSQL", async () => {
     const source = await readFile(".github/workflows/ci.yml", "utf8");
 
-    expect(source).toContain("Quality gates");
-    expect(source).toContain("PostgreSQL integration");
-    expect(source).toContain("Browser journeys");
-    expect(source).toContain("Build and dependency audit");
+    expect(source).toContain("name: CI");
     expect(source).toContain("branches: [main, staging]");
-    expect(source).not.toContain("Vercel preview candidate");
-    expect(source).not.toContain("ARM64 production image");
+    expect(source).toContain("services:");
+    expect(source).toContain("postgres:18-alpine");
+    expect(source).toContain("create database hub_integration");
+    expect(source).toContain("create database hub_e2e");
+    expect(source).not.toContain("NEON_CI_API_KEY");
     expect(source).not.toContain("docker/build-push-action");
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
   });
 
-  it("deploys Staging separately only after a successful CI run", async () => {
+  it("migrates Staging separately without creating a duplicate Vercel deployment", async () => {
     const ciSource = await readFile(".github/workflows/ci.yml", "utf8");
     const source = await readFile(
       ".github/workflows/deploy-staging.yml",
@@ -27,74 +26,80 @@ describe("Vercel deployment contract", () => {
     );
 
     expect(ciSource).not.toContain("vercel deploy");
-    expect(source).toContain("workflow_run:");
-    expect(source).toContain("github.event.workflow_run.conclusion");
-    expect(source).toContain(
-      'vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes'
-    );
-    expect(source).toContain("--target=staging");
+    expect(source).toContain("push:");
+    expect(source).toContain("branches: [staging]");
+    expect(source).not.toContain("workflow_run:");
+    expect(source).not.toContain("vercel deploy");
     expect(source).toContain("db:migrate:staging");
-    expect(source).not.toContain("Create Staging Neon backup");
     expect(source).toContain("preview.neurocapacitar.com.br");
-    expect(source).not.toContain("vercel@57.0.0 curl");
-    expect(source).not.toContain("vercel@57.0.0 pull");
+    expect(source).toContain("workflow_dispatch:");
     expect(source).toContain("name: vercel-staging");
-    expect(source).toContain("githubCommitRef=");
-    expect(source).toContain("githubCommitSha=");
-    expect(source).toContain("VERCEL_SCOPE: neuro-capacitar");
     expect(source).toContain("HEALTHCHECK_SECRET");
     expect(source).toContain("DATABASE_URL_DIRECT");
   });
 
-  it("derives an approved main SHA before production migration and promotion", async () => {
+  it("derives a Staging or hotfix candidate, gates migrations, and promotes one staged deployment", async () => {
     const source = await readFile(
       ".github/workflows/deploy-vercel.yml",
       "utf8"
     );
 
     expect(source).toContain("workflow_dispatch:");
-    expect(source).toContain("      release_sha:");
-    expect(source).toContain("      confirmation:");
-    expect(source).toContain("confirm_production:");
-    expect(source).toContain("actions: read");
-    expect(source).toContain("Verify approved main SHA and green CI");
-    expect(source).toContain(["ref: ", "{{ inputs.release_sha }}"].join("$"));
-    expect(source).toContain(['release_sha="', '{RELEASE_SHA}"'].join("$"));
-    expect(source).toContain("steps.release.outputs.sha");
+    expect(source).toContain("      mode:");
+    expect(source).toContain("release-staging");
+    expect(source).toContain("hotfix");
+    expect(source).toContain("contents: write");
+    expect(source).toContain("pull-requests: read");
+    expect(source).toContain("checks: read");
     expect(source).toContain("git merge-base --is-ancestor");
-    expect(source).toContain("origin/main");
-    expect(source).toContain("actions/workflows/ci.yml/runs");
-    expect(source).not.toMatch(WORKFLOW_RUN_TRIGGER_PATTERN);
-    expect(source).toContain("environment:");
-    expect(source).toContain("name: vercel-production");
-    expect(source).toContain("timeout-minutes: 30");
-    expect(source).toContain("DEPLOYMENT_GIT_REF: main");
-    expect(source).toContain('--meta "githubCommitRef=');
-    expect(source).toContain("githubCommitSha=");
-    expect(source).toContain("VERCEL_SCOPE: neuro-capacitar");
-    expect(source).toContain("VERCEL_AUTOMATION_BYPASS_SECRET");
-    expect(source.match(/--scope="\$VERCEL_SCOPE"/g)).toHaveLength(2);
-    expect(source).toContain("cancel-in-progress: false");
-    expect(source).toContain("bun run db:migrate:production");
+    expect(source).toContain("check-runs?check_name=CI");
     expect(source).toContain(
-      "bun run db:migrations:inspect -- --environment=vercel-production"
+      ["commits/", String.fromCharCode(36), "{staging_sha}", "/pulls"].join("")
     );
-    expect(source).toContain("--prod --skip-domain");
-    expect(source).toContain("curl --fail-with-body --silent --show-error");
-    expect(source).toContain("x-vercel-protection-bypass");
-    expect(source).toContain('vercel@57.0.0 --scope="$VERCEL_SCOPE" promote');
-    expect(source).not.toContain("vercel@57.0.0 curl");
-    expect(source).not.toContain("vercel@57.0.0 pull");
-    expect(source).not.toContain("--prebuilt");
-    expect(source.indexOf("bun run db:migrate:production")).toBeLessThan(
-      source.indexOf("--prod --skip-domain")
+    expect(source).toContain(
+      "No successful CI check exists for the Staging candidate"
     );
-    expect(source.indexOf("--prod --skip-domain")).toBeLessThan(
-      source.indexOf("x-vercel-protection-bypass")
+    expect(source).toContain("Verify exact Staging deployment");
+    expect(source).toContain("githubCommitSha");
+    expect(source).toContain(
+      "https://api.vercel.com/v13/deployments/app.neurocapacitar.com.br"
     );
-    expect(source.indexOf("x-vercel-protection-bypass")).toBeLessThan(
-      source.indexOf('vercel@57.0.0 --scope="$VERCEL_SCOPE" promote')
+    expect(source).toContain("name: Await automatic Production deployment");
+    expect(source).toContain("git push origin");
+    expect(source).not.toContain("deploy --yes --prod");
+    expect(source).toContain(
+      "name: Require a recent independent Production backup"
     );
+    expect(source).toContain("suspend_timeout: 300");
+    expect(source).toContain(
+      "if: steps.release.outputs.has_migrations == 'true'"
+    );
+    expect(source).toContain("name: Smoke Production public profile");
+    expect(source).toContain("Hotfix Production requires a successful CI run");
+    expect(source).toContain("Hotfix Production requires the hotfix label");
+    expect(source).toContain(
+      "Hotfix Production cannot include database migrations"
+    );
+    expect(source).not.toContain("release_sha:");
+    expect(source).not.toContain("confirm_production:");
+    expect(source).not.toContain("EMERGENCY_SKIP_PRODUCTION");
+    expect(
+      source.indexOf("Await automatic Production deployment")
+    ).toBeLessThan(source.indexOf("Apply Production migrations"));
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
+  });
+
+  it("keeps the Production backup freshness gate before backup creation and migration", async () => {
+    const source = await readFile(
+      ".github/workflows/deploy-vercel.yml",
+      "utf8"
+    );
+    const gate = source.indexOf("bun run ops:check:production-backup");
+    const branch = source.indexOf("Create confirmed Production Neon backup");
+    const migration = source.indexOf("Apply Production migrations");
+
+    expect(gate).toBeGreaterThan(0);
+    expect(gate).toBeLessThan(branch);
+    expect(gate).toBeLessThan(migration);
   });
 });

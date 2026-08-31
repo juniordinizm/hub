@@ -1114,7 +1114,7 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
 
   const studentSheet = page.getByRole("dialog");
   await expect(
-    studentSheet.getByRole("heading", { name: "Gerenciar aluna" })
+    studentSheet.getByRole("heading", { name: fixture.studentWithGrant.name })
   ).toBeVisible();
   await studentSheet.getByRole("tab", { name: "Certificados" }).click();
   await expect(

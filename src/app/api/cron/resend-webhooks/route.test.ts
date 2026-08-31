@@ -7,8 +7,7 @@ describe("Resend webhook cron route", () => {
       new URL("./route.ts", import.meta.url),
       "utf8"
     );
-    expect(source).toContain('jobName: "resend-webhooks"');
-    expect(source).toContain("runResendWebhookWorker");
+    expect(source).toContain("runResendWebhookJob");
     expect(source).toContain('operation: "cron.resend_webhooks"');
     expect(source).toContain('provider: "resend"');
     expect(source).toContain("getScheduledJobEarlyResponse(request)");

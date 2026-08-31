@@ -58,7 +58,7 @@ Para Asaas, `POST /api/webhooks/asaas` compara somente o header `asaas-access-to
 o segredo server-only, limita o corpo antes de JSON e persiste eventos estruturalmente
 válidos antes de responder `200`. Duplicata também responde `200`; falha de banco não.
 O worker genérico separado possui claim, posse, stale-lock recovery, retry e conclusão
-CAS. A rota cron está agendada a cada minuto em `vercel.json`, sob kill switch, lease e
+CAS. A rota cron está agendada a cada quinze minutos em `vercel.json`, sob kill switch, lease e
 deadline; está ativa em Production desde 2026-08-21.
 Payload vencido nunca volta ao worker: a manutenção sanitiza a evidência bruta e
 terminaliza qualquer evento não concluído com código seguro.

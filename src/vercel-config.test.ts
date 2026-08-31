@@ -3,11 +3,12 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const cronRoutes = [
-  ["asaas-webhooks", 300],
-  ["enrollments", 800],
-  ["jmvstream", 300],
-  ["outbox", 300],
-  ["maintenance", 800],
+  ["asaas-webhooks", 300, "runAsaasWebhookJob"],
+  ["enrollments", 800, "runWithScheduledJobLease"],
+  ["jmvstream", 300, "runWithScheduledJobLease"],
+  ["outbox", 300, "runOutboxJob"],
+  ["resend-webhooks", 300, "runResendWebhookJob"],
+  ["maintenance", 800, "runWithScheduledJobLease"],
 ] as const;
 
 describe("Vercel cron configuration", () => {
@@ -39,6 +40,7 @@ describe("Vercel cron configuration", () => {
 
   it("runs database-backed functions in the same region as production Neon", async () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
+      ignoreCommand?: string;
       regions?: string[];
     };
     const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
@@ -49,30 +51,42 @@ describe("Vercel cron configuration", () => {
     expect(packageJson.engines?.node).toBe("24.x");
   });
 
-  it("schedules JMVStream player reconciliation", async () => {
+  it("lets only main and staging reach the Git Integration build", async () => {
+    const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
+      ignoreCommand?: string;
+    };
+
+    expect(config.ignoreCommand).toContain("VERCEL_GIT_COMMIT_REF");
+    expect(config.ignoreCommand).toContain('= "main"');
+    expect(config.ignoreCommand).toContain('= "staging"');
+    expect(config.ignoreCommand).toContain("exit 0");
+    expect(config.ignoreCommand).toContain("exit 1");
+  });
+
+  it("schedules JMVStream player reconciliation every fifteen minutes", async () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
       crons?: Array<{ path: string; schedule: string }>;
     };
 
     expect(config.crons).toContainEqual({
       path: "/api/cron/jmvstream",
-      schedule: "*/5 * * * *",
+      schedule: "*/15 * * * *",
     });
   });
 
-  it("schedules the Asaas webhook inbox worker every minute", async () => {
+  it("schedules the Asaas webhook inbox worker every fifteen minutes", async () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
       crons?: Array<{ path: string; schedule: string }>;
     };
 
     expect(config.crons).toContainEqual({
       path: "/api/cron/asaas-webhooks",
-      schedule: "* * * * *",
+      schedule: "*/15 * * * *",
     });
   });
 
   it("gives every cron a Node runtime and an explicit Pro duration budget", async () => {
-    for (const [jobName, duration] of cronRoutes) {
+    for (const [jobName, duration, workerName] of cronRoutes) {
       const source = await readFile(
         resolve("src/app/api/cron", jobName, "route.ts"),
         "utf8"
@@ -81,7 +95,7 @@ describe("Vercel cron configuration", () => {
       expect(source).toContain('export const runtime = "nodejs"');
       expect(source).toContain(`export const maxDuration = ${duration}`);
       expect(source).toContain("getScheduledJobEarlyResponse");
-      expect(source).toContain("runWithScheduledJobLease");
+      expect(source).toContain(workerName);
       expect(source).not.toContain("pg_advisory_lock");
     }
   });

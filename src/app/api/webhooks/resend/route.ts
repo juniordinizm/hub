@@ -5,7 +5,14 @@ import {
   normalizeResendWebhookEvent,
   persistResendWebhookEvent,
 } from "@/features/email-delivery/resend-webhook";
+import { runResendWebhookJob } from "@/features/email-delivery/resend-webhook-job";
+import { scheduleAfterResponse } from "@/features/operations/background-drain";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -76,6 +83,9 @@ const jsonError = (error: string, status: number): Response =>
   Response.json({ error }, { status });
 
 export const POST = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   const svixId = request.headers.get("svix-id");
   const svixTimestamp = request.headers.get("svix-timestamp");
   const svixSignature = request.headers.get("svix-signature");
@@ -138,6 +148,19 @@ export const POST = async (request: Request): Promise<Response> => {
     await persistResendWebhookEvent({ client, event });
     await client.query("commit");
     transactionOpen = false;
+    scheduleAfterResponse(() =>
+      observeOperation({
+        correlationId,
+        execute: () =>
+          runResendWebhookJob({
+            deadlineMs: 45_000,
+            limit: 1,
+          }).then(() => undefined),
+        failureErrorCode: "resend_webhook_background_failed",
+        operation: "webhook.resend.drain",
+        provider: "resend",
+      }).catch(() => undefined)
+    );
     return Response.json({ ok: true }, { status: 200 });
   } catch {
     if (transactionOpen) {

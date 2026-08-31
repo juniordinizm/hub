@@ -3,10 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   getServerEnv: vi.fn(),
   persistAsaasWebhook: vi.fn(),
+  runAsaasWebhookJob: vi.fn(),
+  runOutboxJob: vi.fn(),
+  scheduleAfterResponse: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/env", () => ({ getServerEnv: dependencies.getServerEnv }));
+vi.mock("@/features/operations/background-drain", () => ({
+  scheduleAfterResponse: dependencies.scheduleAfterResponse,
+}));
+vi.mock("@/features/payments/asaas-webhook-job", () => ({
+  runAsaasWebhookJob: dependencies.runAsaasWebhookJob,
+}));
+vi.mock("@/features/outbox/outbox-job", () => ({
+  runOutboxJob: dependencies.runOutboxJob,
+}));
 vi.mock("@/features/payments/asaas-webhook-inbox", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/payments/asaas-webhook-inbox")
@@ -50,6 +62,8 @@ describe("POST /api/webhooks/asaas", () => {
       duplicate: false,
       id: "inbox-1",
     });
+    dependencies.runAsaasWebhookJob.mockResolvedValue({});
+    dependencies.runOutboxJob.mockResolvedValue({});
   });
 
   it("rejects before token, body and persistence when disabled", async () => {
@@ -118,6 +132,27 @@ describe("POST /api/webhooks/asaas", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
     expect(dependencies.persistAsaasWebhook).toHaveBeenCalledWith({
       payload: JSON.parse(validBody),
+    });
+    expect(dependencies.scheduleAfterResponse).toHaveBeenCalledOnce();
+  });
+
+  it("kicks the payment and outbox workers after the inbox write", async () => {
+    dependencies.scheduleAfterResponse.mockImplementation((callback) =>
+      callback()
+    );
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+
+    await vi.waitFor(() => {
+      expect(dependencies.runAsaasWebhookJob).toHaveBeenCalledWith({
+        deadlineMs: 45_000,
+        limit: 1,
+      });
+      expect(dependencies.runOutboxJob).toHaveBeenCalledWith({
+        deadlineMs: 15_000,
+        limit: 5,
+      });
     });
   });
 

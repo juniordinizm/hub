@@ -5,6 +5,7 @@ const dependencies = vi.hoisted(() => ({
   getServerEnv: vi.fn(),
   persistResendWebhookEvent: vi.fn(),
   release: vi.fn(),
+  scheduleAfterResponse: vi.fn(),
   verify: vi.fn(),
 }));
 
@@ -27,6 +28,9 @@ vi.mock("@/features/email-delivery/resend-webhook", async () => {
     persistResendWebhookEvent: dependencies.persistResendWebhookEvent,
   };
 });
+vi.mock("@/features/operations/background-drain", () => ({
+  scheduleAfterResponse: dependencies.scheduleAfterResponse,
+}));
 
 import { POST } from "./route";
 
@@ -175,6 +179,7 @@ describe("POST /api/webhooks/resend", () => {
         providerMessageId: "resend-message-1",
       }),
     });
+    expect(dependencies.scheduleAfterResponse).toHaveBeenCalledOnce();
   });
 
   it("returns 400 with zero writes for an invalid signature", async () => {

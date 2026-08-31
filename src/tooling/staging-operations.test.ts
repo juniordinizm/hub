@@ -18,7 +18,7 @@ describe("Staging operations", () => {
     expect(script).not.toMatch(BUN_COMMAND_NAME);
   });
 
-  it("runs every five-minute inbox worker in the Staging scheduler", () => {
+  it("keeps the Staging worker operation manual and includes JMVStream recovery", () => {
     const workflow = readFileSync(
       resolve(
         import.meta.dirname,
@@ -27,7 +27,8 @@ describe("Staging operations", () => {
       "utf8"
     );
 
-    expect(workflow).toContain('"*/5 * * * *"');
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("schedule:");
     expect(workflow).toContain('call_job "/api/cron/asaas-webhooks"');
     expect(workflow).toContain('call_job "/api/cron/outbox"');
     expect(workflow).toContain('call_job "/api/cron/jmvstream"');
