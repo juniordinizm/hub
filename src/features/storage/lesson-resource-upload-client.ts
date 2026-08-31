@@ -224,8 +224,9 @@ const putExact = async ({
   uploadUrl: string;
 }): Promise<void> => {
   try {
+    const bodyBuffer = await body.arrayBuffer();
     const response = await fetch(uploadUrl, {
-      body,
+      body: bodyBuffer,
       headers: { "Content-Type": contentType },
       method: "PUT",
     });
