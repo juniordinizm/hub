@@ -17,6 +17,8 @@ jobs:
     name: Reconcile Production-only changes into Staging
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    environment:
+      name: vercel-staging
     env:
       GH_TOKEN: ${{ github.token }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}

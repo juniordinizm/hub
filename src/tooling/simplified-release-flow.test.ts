@@ -90,6 +90,7 @@ describe("simplified release flow", () => {
     const workflow = read(".github/workflows/prepare-production-release.yml");
 
     expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("name: vercel-staging");
     expect(workflow).toContain("git merge-base --is-ancestor");
     expect(workflow).toContain("sync/production-into-staging-");
     expect(workflow).toContain("git merge --no-edit origin/main");
