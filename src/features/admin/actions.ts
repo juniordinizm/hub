@@ -276,7 +276,7 @@ export const saveLessonAction = async (
 
   try {
     const saved = await observeOperation({
-      aggregateId: submittedLessonId || undefined,
+      ...(submittedLessonId ? { aggregateId: submittedLessonId } : {}),
       correlationId,
       execute: async () => {
         const session = await requireRole(["admin"]);
@@ -300,6 +300,12 @@ export const saveLessonAction = async (
   } catch (error) {
     return getLessonSaveActionFailure(error, correlationId);
   }
+};
+
+export const saveLessonFormAction = async (
+  formData: FormData
+): Promise<void> => {
+  await saveLessonAction(formData);
 };
 
 export const ensureJmvstreamCourseFolderAction = async (
