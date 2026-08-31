@@ -1,23 +1,23 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
-deployed_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+deployed_commit: d3943758755a49f09e4e3118044a17a91b2e6794
 deployed_environment: production
-verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
 verified_environment: production
-documented_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+documented_commit: d3943758755a49f09e4e3118044a17a91b2e6794
 documented_environment: production
 ---
 
 # Estado de release
 
-## Checkpoint operacional atual — 2026-08-30
+## Checkpoint operacional atual — 2026-08-31
 
-O deployment Production atual é `dpl_5JkmcWBFrRbYUExi6MexjtUtYQAg`,
-`READY`, região `gru1`, servido pelo commit
-`e5db6a16b804d1b418e257ef786fc1e06443afc5`. O workflow protegido
-`33286310553` passou backup R2 independente, branch Neon de release e
+O deployment Production atual é `dpl_7e1MJPLuBXfTtNPUWTPaxEyV4n5u`, `READY`,
+região `gru1`, servido pelo commit
+`d3943758755a49f09e4e3118044a17a91b2e6794`. O workflow protegido
+`33365064384` passou backup R2 independente, branch Neon de release e
 ancestralidade, migrations, readiness, R2, provider, smoke público e alias
 canônico `app.neurocapacitar.com.br`.
 
@@ -203,8 +203,11 @@ não tiver passado pelo smoke test do ambiente correspondente.
 ## Higiene de branches e providers
 
 `main` e `staging` são branches persistentes. O fluxo aprovado é
-`staging → main → Deploy Vercel production`; não habilite exclusão automática
-de `staging` após merge. Branches de feature mescladas devem ser removidas
+`feature → staging → main → Deploy Vercel production`; `main` continua sendo a
+branch padrão e Production. A branch `staging` não é apagada após merge. Um
+hotfix pode avançar `main` sozinho; antes da próxima release, incorpore `main`
+em `staging`, teste a árvore combinada e só depois promova por fast-forward.
+Branches de feature mescladas devem ser removidas
 depois da confirmação do merge; worktrees abandonados devem ser removidos
 somente após conferir seu branch e status. Stashes permanecem até que cada
 patch seja classificado como recuperável ou explicitamente obsoleto.

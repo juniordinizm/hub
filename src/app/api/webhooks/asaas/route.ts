@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
+import { scheduleAfterResponse } from "@/features/operations/background-drain";
+import { runOutboxJob } from "@/features/outbox/outbox-job";
 import {
   AsaasWebhookInputError,
   persistAsaasWebhook,
   verifyAsaasWebhookToken,
 } from "@/features/payments/asaas-webhook-inbox";
+import { runAsaasWebhookJob } from "@/features/payments/asaas-webhook-job";
 import { getServerEnv } from "@/lib/env";
+import {
+  CORRELATION_ID_HEADER,
+  createCorrelationId,
+} from "@/lib/observability";
+import { observeOperation } from "@/lib/observe-operation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +60,9 @@ const readBoundedBody = async (request: Request): Promise<string> => {
 };
 
 export const POST = async (request: Request): Promise<Response> => {
+  const correlationId = createCorrelationId(
+    request.headers.get(CORRELATION_ID_HEADER)
+  );
   let expectedToken: string | undefined;
   try {
     const environment = getServerEnv();
@@ -106,6 +117,34 @@ export const POST = async (request: Request): Promise<Response> => {
       { status: error instanceof AsaasWebhookInputError ? 400 : 503 }
     );
   }
+
+  scheduleAfterResponse(() =>
+    observeOperation({
+      correlationId,
+      execute: async () => {
+        const results = await Promise.allSettled([
+          runAsaasWebhookJob({
+            deadlineMs: 45_000,
+            limit: 1,
+          }),
+          runOutboxJob({
+            deadlineMs: 15_000,
+            limit: 5,
+          }),
+        ]);
+        const rejected = results.find(
+          (result): result is PromiseRejectedResult =>
+            result.status === "rejected"
+        );
+        if (rejected) {
+          throw rejected.reason;
+        }
+      },
+      failureErrorCode: "asaas_webhook_background_failed",
+      operation: "webhook.asaas.drain",
+      provider: "asaas",
+    }).catch(() => undefined)
+  );
 
   return NextResponse.json({ ok: true }, { status: 200 });
 };

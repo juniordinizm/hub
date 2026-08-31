@@ -7,9 +7,7 @@ const dependencies = vi.hoisted(() => ({
   observeOperation: vi.fn(
     async ({ execute }: { execute: () => Promise<unknown> }) => await execute()
   ),
-  processAsaasWebhookEvent: vi.fn(),
-  runAsaasWebhookWorker: vi.fn(),
-  runWithScheduledJobLease: vi.fn(),
+  runAsaasWebhookJob: vi.fn(),
 }));
 
 vi.mock("next/server", () => ({
@@ -17,17 +15,11 @@ vi.mock("next/server", () => ({
     json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
   },
 }));
-vi.mock("@/features/operations/scheduled-job-lease", () => ({
-  runWithScheduledJobLease: dependencies.runWithScheduledJobLease,
-}));
 vi.mock("@/features/operations/scheduled-job-request", () => ({
   getScheduledJobEarlyResponse: dependencies.getScheduledJobEarlyResponse,
 }));
-vi.mock("@/features/payments/asaas-webhook-processor", () => ({
-  processAsaasWebhookEvent: dependencies.processAsaasWebhookEvent,
-}));
-vi.mock("@/features/payments/asaas-webhook-worker", () => ({
-  runAsaasWebhookWorker: dependencies.runAsaasWebhookWorker,
+vi.mock("@/features/payments/asaas-webhook-job", () => ({
+  runAsaasWebhookJob: dependencies.runAsaasWebhookJob,
 }));
 vi.mock("@/lib/env", () => ({
   getServerEnv: dependencies.getServerEnv,
@@ -72,8 +64,7 @@ describe("Asaas webhook cron route", () => {
       reason: "asaas_webhook_disabled",
       skipped: true,
     });
-    expect(dependencies.runWithScheduledJobLease).not.toHaveBeenCalled();
-    expect(dependencies.runAsaasWebhookWorker).not.toHaveBeenCalled();
+    expect(dependencies.runAsaasWebhookJob).not.toHaveBeenCalled();
   });
 
   it("uses the shared request guard before acquiring the database lease", async () => {
@@ -87,11 +78,10 @@ describe("Asaas webhook cron route", () => {
 
     expect(response).toBe(earlyResponse);
     expect(dependencies.getScheduledJobEarlyResponse).toHaveBeenCalledOnce();
-    expect(dependencies.runWithScheduledJobLease).not.toHaveBeenCalled();
+    expect(dependencies.runAsaasWebhookJob).not.toHaveBeenCalled();
   });
 
   it("runs the real processor under the configured lease and deadline", async () => {
-    const isLeaseOwner = vi.fn(async () => true);
     const workerResult = {
       deadlineReached: false,
       failed: 0,
@@ -101,34 +91,11 @@ describe("Asaas webhook cron route", () => {
       retried: 0,
     };
     dependencies.getScheduledJobEarlyResponse.mockReturnValue(null);
-    dependencies.runAsaasWebhookWorker.mockResolvedValue(workerResult);
-    dependencies.runWithScheduledJobLease.mockImplementation(
-      async ({
-        execute,
-      }: {
-        execute: (context: {
-          deadlineAt: number;
-          isLeaseOwner: () => Promise<boolean>;
-        }) => Promise<unknown>;
-      }) => ({
-        acquired: true,
-        value: await execute({ deadlineAt: 123_456, isLeaseOwner }),
-      })
-    );
+    dependencies.runAsaasWebhookJob.mockResolvedValue(workerResult);
 
     const response = await GET(createRequest());
 
-    expect(dependencies.runWithScheduledJobLease).toHaveBeenCalledWith({
-      deadlineMs: 270_000,
-      execute: expect.any(Function),
-      jobName: "asaas-webhooks",
-      leaseMs: 360_000,
-    });
-    expect(dependencies.runAsaasWebhookWorker).toHaveBeenCalledWith({
-      deadlineAt: 123_456,
-      processor: dependencies.processAsaasWebhookEvent,
-      shouldContinue: isLeaseOwner,
-    });
+    expect(dependencies.runAsaasWebhookJob).toHaveBeenCalledWith();
     await expect(response.json()).resolves.toEqual({
       ok: true,
       ...workerResult,
@@ -137,8 +104,9 @@ describe("Asaas webhook cron route", () => {
 
   it("returns a safe successful skip when another invocation owns the lease", async () => {
     dependencies.getScheduledJobEarlyResponse.mockReturnValue(null);
-    dependencies.runWithScheduledJobLease.mockResolvedValue({
-      acquired: false,
+    dependencies.runAsaasWebhookJob.mockResolvedValue({
+      reason: "already_running",
+      skipped: true,
     });
 
     const response = await GET(createRequest());
@@ -149,12 +117,12 @@ describe("Asaas webhook cron route", () => {
       reason: "already_running",
       skipped: true,
     });
-    expect(dependencies.runAsaasWebhookWorker).not.toHaveBeenCalled();
+    expect(dependencies.runAsaasWebhookJob).toHaveBeenCalledOnce();
   });
 
   it("propagates worker failures through sanitized Asaas observability", async () => {
     dependencies.getScheduledJobEarlyResponse.mockReturnValue(null);
-    dependencies.runWithScheduledJobLease.mockRejectedValue(
+    dependencies.runAsaasWebhookJob.mockRejectedValue(
       new Error("payload contains private data")
     );
 

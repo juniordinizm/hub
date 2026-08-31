@@ -24,12 +24,15 @@ describe("scheduled jobs", () => {
     expect(isScheduledJobName("toString")).toBe(false);
   });
 
-  it("runs the Asaas inbox worker every minute inside the function budget", () => {
+  it("runs recoverable inbox workers every fifteen minutes", () => {
     expect(scheduledJobs.asaasWebhooks).toEqual({
       deadlineMs: 270_000,
       leaseMs: 360_000,
       path: "/api/cron/asaas-webhooks",
-      schedule: "* * * * *",
+      schedule: "*/15 * * * *",
     });
+    expect(scheduledJobs.jmvstream.schedule).toBe("*/15 * * * *");
+    expect(scheduledJobs.outbox.schedule).toBe("*/15 * * * *");
+    expect(scheduledJobs["resend-webhooks"].schedule).toBe("*/15 * * * *");
   });
 });

@@ -12,7 +12,7 @@ describe("Production release backup freshness gate", () => {
     const source = await readFile(workflowPath, "utf8");
     const gate = source.indexOf("bun run ops:check:production-backup");
     const branch = source.indexOf("Create confirmed Production Neon backup");
-    const migration = source.indexOf("Apply production migrations");
+    const migration = source.indexOf("Apply Production migrations");
     expect(gate).toBeGreaterThan(0);
     expect(gate).toBeLessThan(branch);
     expect(gate).toBeLessThan(migration);

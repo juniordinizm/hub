@@ -81,7 +81,7 @@ Até lá, a documentação descreve o payload real do código e não promete com
 
 ## Sincronização e limpeza
 
-- cron `/api/cron/jmvstream` chama `syncPendingJmvstreamPlayers` a cada cinco minutos;
+- cron `/api/cron/jmvstream` chama `syncPendingJmvstreamPlayers` a cada quinze minutos;
 - a execução adquire advisory lock de sessão; uma segunda invocação retorna
   `skipped` sem repetir chamadas externas;
 - `expireStaleJmvstreamUploads` marca sessões abandonadas;
@@ -103,6 +103,11 @@ Até lá, a documentação descreve o payload real do código e não promete com
 ## Segurança
 
 URLs assinadas são temporárias; credenciais ficam server-only. Validar tipo/tamanho antes de iniciar. Não logar token, URLs assinadas completas ou payload com credenciais.
+
+O cron JMVStream permanece ativo em Production para reconciliar vídeos que ainda
+estão em processamento, mas não roda automaticamente em Staging. Em Staging,
+use `Run Staging jobs` durante a homologação. O intervalo de quinze minutos
+reduz despertares do Neon sem remover a recuperação automática.
 
 ## Retomada de reprodução
 

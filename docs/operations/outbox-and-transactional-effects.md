@@ -83,9 +83,9 @@ esta intenção quando `activationRequired=true`.
 
 ## Entrega, concorrência e idempotência
 
-`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada cinco minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
+`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada quinze minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
 O worker da inbox Asaas é separado da outbox e roda por
-`GET /api/cron/asaas-webhooks` a cada minuto, mas reutiliza o mesmo guard de
+`GET /api/cron/asaas-webhooks` a cada quinze minutos, mas reutiliza o mesmo guard de
 `CRON_SECRET`, kill switch e padrão de lease/deadline.
 
 - A rota só executa com `SCHEDULED_JOBS_ENABLED=true` e adquire um lease

@@ -41,6 +41,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 - [Ambiente e desenvolvimento local](operations/environment-and-local-development.md)
 - [Desenvolvimento compartilhado](operations/shared-development-and-release-guide.md)
+- [Fluxo canônico de release](operations/release-flow.md)
 - [Tutorial: da alteração até Production](operations/production-release-guide.md)
 - [Banco e migrations](operations/database-and-migrations.md)
 - [Deploy e incidentes](operations/deploy-and-incidents.md)

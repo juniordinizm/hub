@@ -82,6 +82,7 @@ jobs:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: staging-reset-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
+          suspend_timeout: 300
           parent_branch: ${{ vars.STAGING_NEON_BRANCH_ID }}
           project_id: ${{ vars.STAGING_NEON_PROJECT_ID }}
       - name: Verify Staging backup ancestry

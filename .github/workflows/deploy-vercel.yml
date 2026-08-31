@@ -3,19 +3,18 @@ name: Deploy Vercel production
 on:
   workflow_dispatch:
     inputs:
-      release_sha:
-        description: Full 40-character SHA from main
+      mode:
+        description: Release mode
         required: true
+        default: release-staging
+        type: choice
+        options:
+          - release-staging
+          - hotfix
+      reason:
+        description: Required reason for a Production hotfix
+        required: false
         type: string
-      confirmation:
-        description: Type DEPLOY_PRODUCTION_MAINTENANCE
-        required: true
-        type: string
-      confirm_production:
-        description: Confirm migration and deployment to Production
-        required: true
-        default: false
-        type: boolean
 
 concurrency:
   group: vercel-production
@@ -23,75 +22,176 @@ concurrency:
 
 permissions:
   actions: read
-  contents: read
+  contents: write
+  pull-requests: read
 
 jobs:
   deploy:
-    name: Migrate and deploy approved main SHA
+    name: Promote an approved Staging candidate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
       name: vercel-production
     env:
-      DEPLOYMENT_GIT_REF: main
+      GH_TOKEN: ${{ github.token }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_SCOPE: neuro-capacitar
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
-          ref: ${{ inputs.release_sha }}
-      - name: Verify approved main SHA and green CI
+          ref: main
+
+      - name: Resolve Production and candidate SHAs
         id: release
         env:
-          CONFIRM_PRODUCTION: ${{ inputs.confirm_production }}
-          CONFIRMATION: ${{ inputs.confirmation }}
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_SHA: ${{ inputs.release_sha }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          HOTFIX_REASON: ${{ inputs.reason }}
         run: |
           set -euo pipefail
 
-          if [[ "${CONFIRM_PRODUCTION}" != "true" ]] ||
-             [[ "${CONFIRMATION}" != "DEPLOY_PRODUCTION_MAINTENANCE" ]]; then
-            echo "Production deployment was not explicitly confirmed." >&2
-            exit 1
-          fi
+          git fetch --no-tags origin main staging
+          main_sha="$(git rev-parse origin/main)"
+          staging_sha="$(git rev-parse origin/staging)"
 
-          release_sha="${RELEASE_SHA}"
-          if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "release_sha must be a lowercase 40-character Git SHA." >&2
-            exit 1
-          fi
-
-          git fetch --no-tags origin main
-          if [[ "$(git rev-parse HEAD)" != "${release_sha}" ]] ||
-             ! git merge-base --is-ancestor "${release_sha}" origin/main; then
-            echo "release_sha must be a commit contained in origin/main." >&2
-            exit 1
-          fi
-
-          ci_runs="$(
+          deployments_json="$(
             curl --fail-with-body --silent --show-error \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&status=success&per_page=100"
+              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=20"
+          )"
+          production_sha="$(
+            jq -er '
+              [.deployments[]
+               | select((.readyState == "READY" or .state == "READY") and .target == "production")
+               | .meta.githubCommitSha // empty
+               | select(test("^[0-9a-f]{40}$"))]
+              | .[0] // empty
+            ' <<< "${deployments_json}"
           )"
 
-          if ! jq -e --arg sha "${release_sha}" \
-            '.workflow_runs | any(.head_sha == $sha and .conclusion == "success")' \
-            <<< "${ci_runs}" > /dev/null; then
-            echo "No successful CI run exists for the current main SHA." >&2
+          if [[ "${RELEASE_MODE}" == "release-staging" ]]; then
+            if ! git merge-base --is-ancestor "${main_sha}" "${staging_sha}"; then
+              echo "Production has commits not present in Staging. Run Prepare Production Release first." >&2
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "${production_sha}" "${staging_sha}"; then
+              echo "The Staging candidate does not descend from the current Production deployment." >&2
+              exit 1
+            fi
+            candidate_sha="${staging_sha}"
+          elif [[ "${RELEASE_MODE}" == "hotfix" ]]; then
+            if [[ -z "${HOTFIX_REASON//[[:space:]]/}" ]]; then
+              echo "A reason is required for a Production hotfix." >&2
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor "${production_sha}" "${main_sha}"; then
+              echo "The hotfix main branch must descend from the current Production deployment." >&2
+              exit 1
+            fi
+            pull_requests="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${main_sha}/pulls"
+            )"
+            if ! jq -e '
+              any(.[];
+                .base.ref == "main" and
+                .merged_at != null and
+                (.head.ref | startswith("hotfix/")))
+            ' <<< "${pull_requests}" > /dev/null; then
+              echo "Hotfix Production requires a merged hotfix/* pull request into main." >&2
+              exit 1
+            fi
+            hotfix_head_sha="$(
+              jq -er '
+                [.[]
+                 | select(.base.ref == "main" and .merged_at != null and (.head.ref | startswith("hotfix/")))
+                 | .head.sha]
+                | .[0] // empty
+              ' <<< "${pull_requests}"
+            )"
+            ci_runs="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Accept: application/vnd.github+json" \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${hotfix_head_sha}&status=success&per_page=20"
+            )"
+            if ! jq -e --arg sha "${hotfix_head_sha}" \
+              '.workflow_runs | any(.[]; .head_sha == $sha and .conclusion == "success")' \
+              <<< "${ci_runs}" > /dev/null; then
+              echo "Hotfix Production requires a successful CI run for the hotfix head." >&2
+              exit 1
+            fi
+            if ! git diff --quiet "${production_sha}" "${main_sha}" -- src/db/migrations src/db/schema.ts; then
+              echo "Hotfix Production cannot include database migrations." >&2
+              exit 1
+            fi
+            candidate_sha="${main_sha}"
+          else
+            echo "Unsupported release mode: ${RELEASE_MODE}" >&2
             exit 1
           fi
 
-          echo "sha=${release_sha}" >> "$GITHUB_OUTPUT"
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+          git checkout --detach "${candidate_sha}"
+
+          if git diff --quiet "${production_sha}" "${candidate_sha}" -- src/db/migrations src/db/schema.ts; then
+            has_migrations=false
+          else
+            has_migrations=true
+          fi
+
+          {
+            echo "candidate_sha=${candidate_sha}"
+            echo "production_sha=${production_sha}"
+            echo "has_migrations=${has_migrations}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c624218d6 # v2.2.0
         with:
           bun-version: 1.3.11
+
       - run: bun install --frozen-lockfile
-      - name: Verify production deployment configuration
+
+      - name: Verify exact Staging deployment
+        if: inputs.mode == 'release-staging'
+        env:
+          HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
+          STAGING_ORIGIN: https://preview.neurocapacitar.com.br
+          CANDIDATE_SHA: ${{ steps.release.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          deployments_json="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&limit=100"
+          )"
+          if ! jq -e --arg sha "${CANDIDATE_SHA}" '
+            any(.deployments[];
+              (.readyState == "READY" or .state == "READY") and
+              .meta.githubCommitSha == $sha and
+              .meta.githubCommitRef == "staging")
+          ' <<< "${deployments_json}" > /dev/null; then
+            echo "No READY Vercel Staging deployment exists for the candidate SHA." >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+            "${STAGING_ORIGIN}/api/health/ready" > /dev/null
+          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "${STAGING_ORIGIN}/api/webhooks/resend")"
+          [[ "${webhook_status}" == "400" ]]
+
+      - name: Verify Production release configuration
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
@@ -103,17 +203,42 @@ jobs:
           PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           set -euo pipefail
           required_names=(DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN)
           for name in "${required_names[@]}"; do
             if [[ -z "${!name:-}" ]]; then
-              echo "${name} is required by the vercel-production environment." >&2
+              echo "${name} is required for a Production migration release." >&2
               exit 1
             fi
           done
+
+      - name: Advance main to the approved Staging candidate
+        if: inputs.mode == 'release-staging'
+        env:
+          CANDIDATE_SHA: ${{ steps.release.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          git push origin "${CANDIDATE_SHA}:refs/heads/main"
+
+      - name: Build unpromoted Production deployment
+        id: deploy
+        env:
+          DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          deployment_url="$(
+            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes --prod --skip-domain \
+              --meta "githubCommitRef=main" \
+              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
+              --token="$VERCEL_TOKEN" \
+              --no-color
+          )"
+          [[ "${deployment_url}" =~ ^https://[a-zA-Z0-9.-]+\.vercel\.app$ ]]
+          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
+
       - name: Require a recent independent Production backup
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           BACKUP_R2_ACCOUNT_ID: ${{ vars.BACKUP_R2_ACCOUNT_ID }}
           BACKUP_R2_BUCKET_NAME: ${{ vars.BACKUP_R2_BUCKET_NAME }}
@@ -122,18 +247,25 @@ jobs:
           RESTORE_R2_ACCESS_KEY_ID: ${{ secrets.RESTORE_R2_ACCESS_KEY_ID }}
           RESTORE_R2_SECRET_ACCESS_KEY: ${{ secrets.RESTORE_R2_SECRET_ACCESS_KEY }}
         run: bun run ops:check:production-backup
+
       - name: Set Production backup expiry
+        if: steps.release.outputs.has_migrations == 'true'
         run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Create confirmed Production Neon backup
+        if: steps.release.outputs.has_migrations == 'true'
         id: backup
         uses: neondatabase/create-branch-action@72ed4f69a12b6be9c16aebfad893f6a21e9aba8b # v6.4.0
         with:
           api_key: ${{ secrets.NEON_API_KEY }}
           branch_name: production-release-${{ github.run_id }}-${{ github.run_attempt }}
           expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
+          suspend_timeout: 300
           parent_branch: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           project_id: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+
       - name: Verify Production Neon backup ancestry
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
@@ -148,110 +280,90 @@ jobs:
               "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches/${BACKUP_BRANCH_ID}" \
               | jq -er '.branch.parent_id'
           )"
-          [[ "${actual_parent}" == "${PRODUCTION_NEON_BRANCH_ID}" ]] || {
-            echo "Production backup does not descend from the configured Production branch." >&2
-            exit 1
-          }
-      - name: Apply production migrations
+          [[ "${actual_parent}" == "${PRODUCTION_NEON_BRANCH_ID}" ]]
+
+      - name: Apply Production migrations
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
         run: bun run db:migrate:production
-      - name: Audit production migration state
+
+      - name: Audit Production migration state
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
         run: bun run db:migrations:inspect -- --environment=vercel-production
-      - name: Build unpromoted Production deployment
-        id: deploy
-        env:
-          DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.sha }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          deployment_url="$(
-            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes --prod --skip-domain \
-              --meta "githubCommitRef=${DEPLOYMENT_GIT_REF}" \
-              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
-              --token="$VERCEL_TOKEN"
-          )"
-          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
-      - name: Smoke unpromoted Production readiness
+
+      - name: Smoke unpromoted Production deployment
         env:
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
+          set -euo pipefail
           curl --fail-with-body --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
-            "${{ steps.deploy.outputs.url }}/api/health/ready"
+            "${{ steps.deploy.outputs.url }}/api/health/ready" > /dev/null
           curl --fail-with-body --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
-            "${{ steps.deploy.outputs.url }}/api/health/r2"
-      - name: Verify unpromoted provider and migration state
+            "${{ steps.deploy.outputs.url }}/api/health/r2" > /dev/null
+
+      - name: Verify staged Production provider and migration state
+        if: steps.release.outputs.has_migrations == 'true'
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: >-
           bun run ops:check:production-release --
           --deployment=${{ steps.deploy.outputs.url }}
-          --release-sha=${{ steps.release.outputs.sha }}
+          --release-sha=${{ steps.release.outputs.candidate_sha }}
           --require-canonical-alias=false
+
       - name: Promote verified deployment
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: >-
           bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" promote
           "${{ steps.deploy.outputs.url }}"
           --yes --token="$VERCEL_TOKEN"
+
       - name: Smoke Production public profile
         env:
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
           PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br
         run: |
           set -euo pipefail
-
           for path in / /entrar /admin; do
             status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
               --location --max-redirs 3 "${PRODUCTION_ORIGIN}${path}")"
-            [[ "${status}" =~ ^(2|3)[0-9][0-9]$ ]] || {
-              echo "Public Production path ${path} returned HTTP ${status}." >&2
-              exit 1
-            }
+            [[ "${status}" =~ ^(2|3)[0-9][0-9]$ ]]
           done
-
-          curl --fail --silent --show-error \
-            "${PRODUCTION_ORIGIN}/api/health" > /dev/null
+          curl --fail --silent --show-error "${PRODUCTION_ORIGIN}/api/health" > /dev/null
           curl --fail --silent --show-error \
             --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
             "${PRODUCTION_ORIGIN}/api/health/ready" > /dev/null
-
           checkout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
             "${PRODUCTION_ORIGIN}/api/checkouts/course")"
-          [[ "${checkout_status}" == "400" ]] || {
-            echo "Public checkout did not report enabled validation behavior (HTTP ${checkout_status})." >&2
-            exit 1
-          }
-
+          [[ "${checkout_status}" == "400" ]]
           webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
             --request POST \
             --header 'Content-Type: application/json' \
             --data '{}' \
             "${PRODUCTION_ORIGIN}/api/webhooks/asaas")"
-          [[ "${webhook_status}" == "401" ]] || {
-            echo "Asaas webhook did not report enabled authentication behavior (HTTP ${webhook_status})." >&2
-            exit 1
-          }
-      - name: Verify promoted provider alias and migration state
-        env:
-          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
-          PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: >-
-          bun run ops:check:production-release --
-          --deployment=${{ steps.deploy.outputs.url }}
-          --release-sha=${{ steps.release.outputs.sha }}
-          --require-canonical-alias=true
+          [[ "${webhook_status}" == "401" ]]
+
+      - name: Verify promoted deployment metadata
+        run: |
+          set -euo pipefail
+          deployment_json="$(
+            bunx vercel@57.0.0 inspect "${{ steps.deploy.outputs.url }}" \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          jq -e \
+            --arg sha "${{ steps.release.outputs.candidate_sha }}" \
+            '.readyState == "READY" and .meta.githubCommitSha == $sha and (.aliases | index("hub-neuro-capacitar.vercel.app") != null or .aliases | index("app.neurocapacitar.com.br") != null)' \
+            <<< "${deployment_json}" > /dev/null

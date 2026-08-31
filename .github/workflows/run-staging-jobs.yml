@@ -15,13 +15,8 @@ on:
         description: Type SEND_CONTROLLED_STAGING_PASSWORD_RESET for lifecycle verification
         required: false
         type: string
-  schedule:
-    - cron: "*/5 * * * *"
-    - cron: "0 10 * * *"
-    - cron: "0 4 * * *"
-
 concurrency:
-  group: staging-jobs-${{ github.event.schedule || 'manual' }}
+  group: staging-jobs-manual
   cancel-in-progress: false
 
 permissions:
@@ -29,7 +24,7 @@ permissions:
 
 jobs:
   run:
-    if: github.event_name == 'schedule' || inputs.operation == 'run-jobs'
+    if: inputs.operation == 'run-jobs'
     runs-on: ubuntu-24.04
     environment:
       name: vercel-staging
@@ -39,7 +34,6 @@ jobs:
     steps:
       - name: Invoke authenticated Staging workers
         env:
-          SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
           if [[ -z "${CRON_SECRET:-}" ]]; then
@@ -54,18 +48,12 @@ jobs:
               "${STAGING_ORIGIN}${path}"
           }
           failed=0
-          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "*/5 * * * *" ]]; then
-            call_job "/api/cron/asaas-webhooks" || failed=1
-            call_job "/api/cron/outbox" || failed=1
-            call_job "/api/cron/jmvstream" || failed=1
-            call_job "/api/cron/resend-webhooks" || failed=1
-          fi
-          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "0 10 * * *" ]]; then
-            call_job "/api/cron/enrollments" || failed=1
-          fi
-          if [[ -z "${SCHEDULE}" || "${SCHEDULE}" == "0 4 * * *" ]]; then
-            call_job "/api/cron/maintenance" || failed=1
-          fi
+          call_job "/api/cron/asaas-webhooks" || failed=1
+          call_job "/api/cron/outbox" || failed=1
+          call_job "/api/cron/jmvstream" || failed=1
+          call_job "/api/cron/resend-webhooks" || failed=1
+          call_job "/api/cron/enrollments" || failed=1
+          call_job "/api/cron/maintenance" || failed=1
           exit "${failed}"
 
   verify-resend-lifecycle:
