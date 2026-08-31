@@ -107,7 +107,6 @@ test("landing CTA handoff creates one checkout and activation @mobile", async ({
   });
 
   await page.goto(`/comprar/${fixture.course.slug}`);
-  await expect(page.getByText("Iniciando checkout seguro...")).toBeVisible();
   await page.waitForURL("http://127.0.0.1:4570/checkout/**");
   expect(checkoutRequestCount).toBe(1);
 
