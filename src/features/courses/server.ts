@@ -1494,6 +1494,7 @@ export const recordLessonWatchProgress = async ({
   lessonId: string;
   userId: string;
 }): Promise<{
+  certificateIssued: boolean;
   completed: boolean;
   courseId: string;
   nextLessonId: string | null;
@@ -1520,6 +1521,7 @@ export const recordLessonWatchProgress = async ({
 
   if (data.lesson.videoProvider !== "jmvstream") {
     return {
+      certificateIssued: false,
       completed: data.lesson.isCompleted,
       courseId: data.course.id,
       nextLessonId: data.nextLessonId,
@@ -1617,6 +1619,7 @@ export const recordLessonWatchProgress = async ({
 
   if (!(shouldCompleteByVideo || data.lesson.isCompleted)) {
     return {
+      certificateIssued: false,
       completed: false,
       courseId: data.course.id,
       nextLessonId: data.nextLessonId,
@@ -1626,12 +1629,14 @@ export const recordLessonWatchProgress = async ({
 
   const result = data.lesson.isCompleted
     ? {
+        certificateIssued: false,
         courseId: data.course.id,
         nextLessonId: data.nextLessonId,
       }
     : await completeLesson({ userId, lessonId });
 
   return {
+    certificateIssued: result.certificateIssued,
     completed: true,
     courseId: result.courseId,
     nextLessonId: result.nextLessonId,

@@ -87,7 +87,7 @@ export const recordLessonWatchProgressAction = async ({
     userId: session.user.id,
   });
 
-  if (result.completed) {
+  if (result.certificateIssued) {
     scheduleOutboxDrainAfterResponse();
   }
 
