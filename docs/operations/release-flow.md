@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+last_verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 ---
 
 # Fluxo de release do Hub
@@ -130,6 +130,13 @@ Production não deve compartilhar cota com CI. A CI usa PostgreSQL local. O
 plano de separação futura mantém Production e Non-production em projetos Neon
 distintos, ambos com limite de compute conservador e scale-to-zero quando
 aplicável.
+
+Branches temporárias de recuperação são criadas pelo helper
+`scripts/create-neon-recovery-branch.ts`. A requisição envia somente nome,
+parent e `expires_at`; não envia `endpoints`, portanto não provisiona compute.
+Release Production usa expiração de 14 dias, reset de Staging usa sete dias e
+backup de cleanup Production usa 14 dias. O inventário e a exclusão de
+branches antigas continuam operações manuais, sempre começando por dry-run.
 
 ## Checklist de segurança
 

@@ -7,6 +7,7 @@ import {
   restoreCourse,
   setCourseAvailability,
 } from "@/features/courses/availability-server";
+import { scheduleOutboxDrainAfterResponse } from "@/features/outbox/background-drain";
 import { requireRole } from "@/lib/session";
 
 const PRESETS = new Set<CourseAvailabilityPreset>([
@@ -52,6 +53,12 @@ export const saveCourseAvailabilityAction = async (
       preset,
       showInCatalog: formData.get("showInCatalog") === "on",
     });
+    if (
+      result.checkoutCancellationsEnqueued > 0 ||
+      result.notificationsEnqueued > 0
+    ) {
+      scheduleOutboxDrainAfterResponse({ aggregateId: courseId });
+    }
     revalidateCourseAvailability(courseId);
     return {
       checkoutCancellationsEnqueued: result.checkoutCancellationsEnqueued,

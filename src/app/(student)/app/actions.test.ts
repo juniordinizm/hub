@@ -6,6 +6,7 @@ const dependencies = vi.hoisted(() => ({
   redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireSession: vi.fn(),
+  scheduleOutboxDrainAfterResponse: vi.fn(),
   setCourseSaleInterest: vi.fn(),
 }));
 
@@ -27,6 +28,10 @@ vi.mock("@/features/learning-analytics/server", () => ({
 }));
 vi.mock("@/features/support/server", () => ({
   createSupportRequest: dependencies.createSupportRequest,
+}));
+vi.mock("@/features/outbox/background-drain", () => ({
+  scheduleOutboxDrainAfterResponse:
+    dependencies.scheduleOutboxDrainAfterResponse,
 }));
 vi.mock("@/lib/session", () => ({
   requireSession: dependencies.requireSession,
@@ -66,6 +71,9 @@ describe("completeLessonAction", () => {
     expect(dependencies.redirect).toHaveBeenCalledWith(
       "/app/cursos/course-1?certificate=issued"
     );
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 
   it("keeps the course URL clean when no certificate was issued", async () => {
@@ -174,6 +182,9 @@ describe("sendSupportRequestAction", () => {
       subject: "Dúvida controlada",
       userId: "student-1",
     });
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 
   it("rejects the request without subject or message", async () => {

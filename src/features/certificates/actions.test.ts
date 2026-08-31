@@ -8,6 +8,7 @@ const dependencies = vi.hoisted(() => ({
   requirePermission: vi.fn(),
   requireRole: vi.fn(),
   revokeCertificate: vi.fn(),
+  scheduleOutboxDrainAfterResponse: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
@@ -22,6 +23,10 @@ vi.mock("./server", () => ({
     dependencies.reconcileHistoricalCourseCertificates,
   reissueCertificate: dependencies.reissueCertificate,
   revokeCertificate: dependencies.revokeCertificate,
+}));
+vi.mock("@/features/outbox/background-drain", () => ({
+  scheduleOutboxDrainAfterResponse:
+    dependencies.scheduleOutboxDrainAfterResponse,
 }));
 
 import {
@@ -153,6 +158,9 @@ describe("certificate server actions", () => {
     expect(dependencies.reissueCertificate).toHaveBeenCalledWith(
       expect.objectContaining({ actorRole: "admin" })
     );
+    expect(dependencies.scheduleOutboxDrainAfterResponse).toHaveBeenCalledTimes(
+      2
+    );
   });
 
   it("requires Admin and returns the typed historical reconciliation result", async () => {
@@ -177,5 +185,8 @@ describe("certificate server actions", () => {
     expect(dependencies.revalidatePath).toHaveBeenCalledWith(
       "/admin/cursos/course-1"
     );
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 });
