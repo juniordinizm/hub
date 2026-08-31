@@ -413,8 +413,8 @@ export function CreateLessonDraftForm({
             <Input name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Descrição</FieldLabel>
-            <Textarea name="description" required />
+            <FieldLabel>Descrição (opcional)</FieldLabel>
+            <Textarea name="description" />
           </Field>
         </FieldGroup>
       </DialogBody>
