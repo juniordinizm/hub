@@ -193,12 +193,10 @@ export const createLessonResourceUploadUrlForReference = async ({
     client,
     new PutObjectCommand({
       Bucket: config.bucketName,
-      ContentType: reference.contentType,
       Key: config.namespace.toPhysicalKey(reference.key),
     }),
     {
       expiresIn: R2_UPLOAD_URL_EXPIRES_SECONDS,
-      signableHeaders: new Set(["content-type"]),
     }
   );
   const previewUploadUrl = reference.preview
@@ -206,12 +204,10 @@ export const createLessonResourceUploadUrlForReference = async ({
         client,
         new PutObjectCommand({
           Bucket: config.bucketName,
-          ContentType: reference.preview.contentType,
           Key: config.namespace.toPhysicalKey(reference.preview.key),
         }),
         {
           expiresIn: R2_UPLOAD_URL_EXPIRES_SECONDS,
-          signableHeaders: new Set(["content-type"]),
         }
       )
     : undefined;

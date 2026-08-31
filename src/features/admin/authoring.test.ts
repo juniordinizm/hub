@@ -541,7 +541,10 @@ describe("admin authoring", () => {
     formData.set("lessonId", "lesson-1");
     formData.set("moduleId", "module-1");
     formData.set("title", "Aula completa");
-    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
     formData.append("resourceStorage[]", "r2");
     formData.append("resourceId[]", "resource-1");
     formData.append("resourceLabel[]", "Apostila");
