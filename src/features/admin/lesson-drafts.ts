@@ -1,5 +1,7 @@
+import { LessonAuthoringError } from "@/features/admin/lesson-authoring-errors";
+
 export interface LessonDraftInput {
-  description: string;
+  description: string | null;
   moduleId: string;
   sortOrder: number;
   title: string;
@@ -18,10 +20,14 @@ export const normalizeLessonDraftInput = (
 ): LessonDraftInput => {
   const moduleId = readString(formData, "moduleId");
   const title = readString(formData, "title");
-  const description = readString(formData, "description");
+  const description = readString(formData, "description") || null;
 
-  if (!(moduleId && title && description)) {
-    throw new Error("Informe modulo, titulo e subtitulo da aula.");
+  if (!moduleId) {
+    throw new LessonAuthoringError("Informe o módulo da aula.");
+  }
+
+  if (!title) {
+    throw new LessonAuthoringError("Informe o título da aula.", "title");
   }
 
   return {

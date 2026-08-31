@@ -438,7 +438,6 @@ describe("admin authoring", () => {
     const formData = new FormData();
     formData.set("moduleId", "module-1");
     formData.set("title", " Aula inicial ");
-    formData.set("description", " Subtitulo ");
     formData.set("sortOrder", "3");
 
     const result = await createLessonDraft({
@@ -449,14 +448,7 @@ describe("admin authoring", () => {
     expect(result).toEqual({ courseId: "course-1", lessonId: "lesson-1" });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into lessons"),
-      [
-        "module-1",
-        "course-publication-draft",
-        "Aula inicial",
-        "Subtitulo",
-        3,
-        "draft",
-      ]
+      ["module-1", "course-publication-draft", "Aula inicial", null, 3, "draft"]
     );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
@@ -517,6 +509,44 @@ describe("admin authoring", () => {
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "lesson.created", "lesson", "lesson-created"]
     );
+  });
+
+  it("rejects a lesson without a title before processing its content", async () => {
+    const formData = new FormData();
+    formData.set("moduleId", "module-1");
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toMatchObject({
+      field: "title",
+      message: "Informe o título da aula.",
+    });
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty lesson before reading or confirming stored resources", async () => {
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-empty");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula sem conteúdo");
+    formData.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toMatchObject({
+      field: "content",
+      message:
+        "A aula não pode ser salva sem conteúdo. Adicione pelo menos um vídeo, um texto com conteúdo ou um material anexado.",
+    });
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("select content_json from lessons")
+      )
+    ).toBe(false);
   });
 
   it("confirms an uploaded lesson resource before persisting its metadata", async () => {

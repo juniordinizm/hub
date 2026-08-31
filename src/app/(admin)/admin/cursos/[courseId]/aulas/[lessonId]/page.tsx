@@ -6,7 +6,7 @@ import {
 } from "@/components/lesson-kind-controls";
 import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { saveLessonAction } from "@/features/admin/actions";
+import { saveLessonFormAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminLessonEditorData } from "@/features/admin/server";
 import { getLessonComments } from "@/features/comments/server";
@@ -88,7 +88,7 @@ export default async function AdminLessonEditPage({
               </TabsList>
             </div>
 
-            <form action={saveLessonAction} id={LESSON_EDITOR_FORM_ID}>
+            <form action={saveLessonFormAction} id={LESSON_EDITOR_FORM_ID}>
               <TabsContent
                 className="m-0 border-none p-0 focus-visible:ring-0 data-[state=inactive]:hidden"
                 forceMount
