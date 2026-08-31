@@ -317,7 +317,6 @@ jobs:
                 --scope="$VERCEL_SCOPE" \
                 --token="$VERCEL_TOKEN" \
                 --environment=production \
-                --status=BUILDING,READY,ERROR,CANCELED \
                 --limit=100 \
                 --format=json \
                 --no-color 2>/dev/null

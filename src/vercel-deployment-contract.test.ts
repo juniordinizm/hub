@@ -64,6 +64,7 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("vercel@57.0.0 inspect app.neurocapacitar.com.br");
     expect(source).toContain("vercel@57.0.0 list hub");
     expect(source).not.toContain("api.vercel.com/v6/deployments");
+    expect(source).not.toContain("--status=BUILDING,READY,ERROR,CANCELED");
     expect(source).toContain("name: Await automatic Production deployment");
     expect(source).toContain("git push origin");
     expect(source).not.toContain("deploy --yes --prod");
