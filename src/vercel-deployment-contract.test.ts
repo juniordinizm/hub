@@ -54,6 +54,9 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("git merge-base --is-ancestor");
     expect(source).toContain("check-runs?check_name=CI");
     expect(source).toContain(
+      ["commits/", String.fromCharCode(36), "{staging_sha}", "/pulls"].join("")
+    );
+    expect(source).toContain(
       "No successful CI check exists for the Staging candidate"
     );
     expect(source).toContain("Verify exact Staging deployment");

@@ -76,19 +76,55 @@ jobs:
               echo "Production has commits not present in Staging. Run Prepare Production Release first." >&2
               exit 1
             fi
-            ci_checks="$(
-              curl --fail-with-body --silent --show-error \
-                --header "Accept: application/vnd.github+json" \
-                --header "Authorization: Bearer ${GH_TOKEN}" \
-                --header "X-GitHub-Api-Version: 2022-11-28" \
-                "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${staging_sha}/check-runs?check_name=CI&per_page=100"
-            )"
-            if ! jq -e '
-              any(.check_runs[];
-                .name == "CI" and
-                .status == "completed" and
-                .conclusion == "success")
-            ' <<< "${ci_checks}" > /dev/null; then
+            ci_check_ok=false
+            if [[ "${staging_sha}" == "${production_sha}" ]]; then
+              ci_check_ok=true
+            else
+              ci_checks="$(
+                curl --fail-with-body --silent --show-error \
+                  --header "Accept: application/vnd.github+json" \
+                  --header "Authorization: Bearer ${GH_TOKEN}" \
+                  --header "X-GitHub-Api-Version: 2022-11-28" \
+                  "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${staging_sha}/check-runs?check_name=CI&per_page=100"
+              )"
+              ci_check_ok="$(jq -r '
+                any((.check_runs // [])[];
+                  .name == "CI" and
+                  .status == "completed" and
+                  .conclusion == "success")
+              ' <<< "${ci_checks}")"
+              if [[ "${ci_check_ok}" != "true" ]]; then
+                merged_prs="$(
+                  curl --fail-with-body --silent --show-error \
+                    --header "Accept: application/vnd.github+json" \
+                    --header "Authorization: Bearer ${GH_TOKEN}" \
+                    --header "X-GitHub-Api-Version: 2022-11-28" \
+                    "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${staging_sha}/pulls"
+                )"
+                candidate_ci_head_sha="$(jq -er '
+                  [.[]
+                   | select(.base.ref == "staging" and .merged_at != null)
+                   | .head.sha]
+                  | .[0] // empty
+                ' <<< "${merged_prs}")" || candidate_ci_head_sha=""
+                if [[ -n "${candidate_ci_head_sha}" ]]; then
+                  candidate_ci_checks="$(
+                    curl --fail-with-body --silent --show-error \
+                      --header "Accept: application/vnd.github+json" \
+                      --header "Authorization: Bearer ${GH_TOKEN}" \
+                      --header "X-GitHub-Api-Version: 2022-11-28" \
+                      "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${candidate_ci_head_sha}/check-runs?check_name=CI&per_page=100"
+                  )"
+                  ci_check_ok="$(jq -r '
+                    any((.check_runs // [])[];
+                      .name == "CI" and
+                      .status == "completed" and
+                      .conclusion == "success")
+                  ' <<< "${candidate_ci_checks}")"
+                fi
+              fi
+            fi
+            if [[ "${ci_check_ok}" != "true" ]]; then
               echo "No successful CI check exists for the Staging candidate." >&2
               exit 1
             fi

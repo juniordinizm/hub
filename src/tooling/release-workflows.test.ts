@@ -102,4 +102,28 @@ describe("CI and deployment workflow contracts", () => {
     expect(stagingJobs).toContain('call_job "/api/cron/jmvstream"');
     expect(stagingJobs).not.toContain('cron: "*/5 * * * *"');
   });
+
+  it("ties destructive Production cleanup to the current main CI check", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("checks: read");
+    expect(workflow).toContain("check-runs?check_name=CI");
+    expect(workflow).toContain(
+      ["commits/", String.fromCharCode(36), "{release_sha}", "/pulls"].join("")
+    );
+    expect(workflow).not.toContain("actions/workflows/ci.yml/runs?branch=main");
+  });
+
+  it("keeps Development migrations tied to the current main CI check", () => {
+    const workflow = readWorkflow("migrate-development.yml");
+
+    expect(workflow).toContain("checks: read");
+    expect(workflow).toContain("check-runs?check_name=CI");
+    expect(workflow).toContain(
+      ["commits/", String.fromCharCode(36), "{release_sha}", "/pulls"].join("")
+    );
+    expect(workflow).toContain(
+      "No successful CI check exists for the current main SHA"
+    );
+  });
 });
