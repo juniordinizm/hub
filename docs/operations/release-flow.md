@@ -24,6 +24,11 @@ Um PR normal deve ter `staging` como base. O merge em `staging` publica o
 mesmo SHA no Custom Environment `staging` da Vercel, disponível em
 `https://preview.neurocapacitar.com.br`.
 
+Como `main` é a branch padrão do GitHub, a CI também roda PRs direcionados a
+ela, mas falha deliberadamente para PRs normais e orienta a trocar a base para
+`staging`. A exceção exige simultaneamente uma branch `hotfix/*` e o label
+`hotfix`.
+
 Depois de uma release normal, `main` e `staging` apontam para o mesmo commit.
 A promoção de `staging` para `main` usa fast-forward; não se deve criar um
 segundo PR de release, fazer squash da promoção ou criar uma branch de
@@ -44,6 +49,11 @@ Novos PRs ainda podem entrar em `staging`. Antes da próxima release, execute
 workflow cria uma branch `sync/production-into-staging-*`, incorpora `main`,
 dispara a CI e abre um PR para `staging`. Resolva conflitos somente nessa PR,
 homologue a árvore combinada e só então execute `Deploy Vercel production`.
+
+Quando o merge automático encontra conflitos, o workflow preserva `staging`,
+publica uma variante da branch de sincronização baseada em `main` e abre o PR
+já com a divergência visível. A resolução continua restrita ao PR; não se
+editam branches persistentes diretamente.
 
 Hotfixes não podem conter migrations. Uma alteração de banco segue o fluxo
 normal de Staging, backup e promoção.
@@ -80,10 +90,11 @@ promoção. Falha de build, migration ou smoke não deve alterar o tráfego púb
 
 ## Vercel
 
-O Git Integration publica somente `staging`. Feature branches não geram
-previews automáticos porque a CI já executa o build. Production é publicada
-pelo workflow de release com `--skip-domain`, para permitir verificação antes
-da promoção.
+O Git Integration publica `staging` e também cria a build Production quando o
+workflow avança `main`. Feature branches não geram previews automáticos porque
+o `ignoreCommand` encerra essas builds. O domínio Production não é
+autoatribuído durante a build; o workflow aguarda a build do SHA exato, executa
+os gates e promove o mesmo deployment.
 
 Não execute `vercel deploy` manualmente para corrigir uma variável de ambiente
 ou repetir uma release. Atualize a variável no ambiente correto e use o

@@ -53,8 +53,12 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("git merge-base --is-ancestor");
     expect(source).toContain("Verify exact Staging deployment");
     expect(source).toContain("githubCommitSha");
+    expect(source).toContain(
+      "https://api.vercel.com/v13/deployments/app.neurocapacitar.com.br"
+    );
+    expect(source).toContain("name: Await automatic Production deployment");
     expect(source).toContain("git push origin");
-    expect(source).toContain("--prod --skip-domain");
+    expect(source).not.toContain("deploy --yes --prod");
     expect(source).toContain(
       "name: Require a recent independent Production backup"
     );
@@ -67,9 +71,9 @@ describe("Vercel deployment contract", () => {
     expect(source).not.toContain("release_sha:");
     expect(source).not.toContain("confirm_production:");
     expect(source).not.toContain("EMERGENCY_SKIP_PRODUCTION");
-    expect(source.indexOf("--prod --skip-domain")).toBeLessThan(
-      source.indexOf("Apply Production migrations")
-    );
+    expect(
+      source.indexOf("Await automatic Production deployment")
+    ).toBeLessThan(source.indexOf("Apply Production migrations"));
     expect(source).not.toMatch(MOVING_GITHUB_ACTION_TAG_PATTERN);
   });
 

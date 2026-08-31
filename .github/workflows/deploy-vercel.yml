@@ -57,19 +57,17 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           staging_sha="$(git rev-parse origin/staging)"
 
-          deployments_json="$(
+          production_deployment_json="$(
             curl --fail-with-body --silent --show-error \
               --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=20"
+              "https://api.vercel.com/v13/deployments/app.neurocapacitar.com.br?teamId=${VERCEL_ORG_ID}"
           )"
           production_sha="$(
             jq -er '
-              [.deployments[]
-               | select((.readyState == "READY" or .state == "READY") and .target == "production")
-               | .meta.githubCommitSha // empty
-               | select(test("^[0-9a-f]{40}$"))]
-              | .[0] // empty
-            ' <<< "${deployments_json}"
+              select(.target == "production" and (.aliasAssigned == true or .aliasAssigned == "true"))
+              | .meta.githubCommitSha // empty
+              | select(test("^[0-9a-f]{40}$"))
+            ' <<< "${production_deployment_json}"
           )"
 
           if [[ "${RELEASE_MODE}" == "release-staging" ]]; then
@@ -157,6 +155,7 @@ jobs:
           bun-version: 1.3.11
 
       - run: bun install --frozen-lockfile
+        if: steps.release.outputs.has_migrations == 'true'
 
       - name: Verify exact Staging deployment
         if: inputs.mode == 'release-staging'
@@ -191,7 +190,6 @@ jobs:
           [[ "${webhook_status}" == "400" ]]
 
       - name: Verify Production release configuration
-        if: steps.release.outputs.has_migrations == 'true'
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
@@ -203,12 +201,16 @@ jobs:
           PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
           PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+          HAS_MIGRATIONS: ${{ steps.release.outputs.has_migrations }}
         run: |
           set -euo pipefail
-          required_names=(DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN)
+          required_names=(HEALTHCHECK_SECRET VERCEL_AUTOMATION_BYPASS_SECRET VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN)
+          if [[ "${HAS_MIGRATIONS}" == "true" ]]; then
+            required_names+=(DATABASE_URL_DIRECT NEON_API_KEY RESTORE_R2_ACCESS_KEY_ID RESTORE_R2_SECRET_ACCESS_KEY BACKUP_R2_ACCOUNT_ID BACKUP_R2_BUCKET_NAME PRODUCTION_NEON_BRANCH_ID PRODUCTION_NEON_PROJECT_ID)
+          fi
           for name in "${required_names[@]}"; do
             if [[ -z "${!name:-}" ]]; then
-              echo "${name} is required for a Production migration release." >&2
+              echo "${name} is required by the vercel-production environment." >&2
               exit 1
             fi
           done
@@ -221,21 +223,52 @@ jobs:
           set -euo pipefail
           git push origin "${CANDIDATE_SHA}:refs/heads/main"
 
-      - name: Build unpromoted Production deployment
+      - name: Await automatic Production deployment
         id: deploy
         env:
-          DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.candidate_sha }}
+          CANDIDATE_SHA: ${{ steps.release.outputs.candidate_sha }}
         run: |
           set -euo pipefail
-          deployment_url="$(
-            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes --prod --skip-domain \
-              --meta "githubCommitRef=main" \
-              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
-              --token="$VERCEL_TOKEN" \
-              --no-color
-          )"
-          [[ "${deployment_url}" =~ ^https://[a-zA-Z0-9.-]+\.vercel\.app$ ]]
-          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
+          for attempt in $(seq 1 120); do
+            deployments_json="$(
+              curl --fail-with-body --silent --show-error \
+                --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+                "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=100"
+            )"
+            deployment_json="$(
+              jq -er --arg sha "${CANDIDATE_SHA}" '
+                [.deployments[]
+                 | select(.target == "production" and .meta.githubCommitRef == "main" and .meta.githubCommitSha == $sha)]
+                | sort_by(.created)
+                | last // empty
+              ' <<< "${deployments_json}"
+            )" || deployment_json=""
+
+            if [[ -n "${deployment_json}" ]]; then
+              state="$(jq -r '.readyState // .state // "UNKNOWN"' <<< "${deployment_json}")"
+              case "${state}" in
+                READY)
+                  deployment_id="$(jq -er '.id' <<< "${deployment_json}")"
+                  deployment_hostname="$(jq -er '.url' <<< "${deployment_json}")"
+                  [[ "${deployment_hostname}" =~ ^[a-zA-Z0-9.-]+\.vercel\.app$ ]]
+                  echo "id=${deployment_id}" >> "$GITHUB_OUTPUT"
+                  echo "url=https://${deployment_hostname}" >> "$GITHUB_OUTPUT"
+                  exit 0
+                  ;;
+                ERROR|CANCELED|CANCELLED)
+                  jq -r '"Vercel Production deployment failed: " + (.errorCode // .errorMessage // .readyState // .state // "unknown error")' <<< "${deployment_json}" >&2
+                  exit 1
+                  ;;
+              esac
+            fi
+
+            if [[ "${attempt}" -lt 120 ]]; then
+              sleep 10
+            fi
+          done
+
+          echo "Timed out waiting for the automatic Vercel Production deployment for ${CANDIDATE_SHA}." >&2
+          exit 1
 
       - name: Require a recent independent Production backup
         if: steps.release.outputs.has_migrations == 'true'

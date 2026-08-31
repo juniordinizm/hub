@@ -40,6 +40,7 @@ describe("Vercel cron configuration", () => {
 
   it("runs database-backed functions in the same region as production Neon", async () => {
     const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
+      ignoreCommand?: string;
       regions?: string[];
     };
     const packageJson = JSON.parse(await readFile("package.json", "utf8")) as {
@@ -48,6 +49,18 @@ describe("Vercel cron configuration", () => {
 
     expect(config.regions).toEqual(["gru1"]);
     expect(packageJson.engines?.node).toBe("24.x");
+  });
+
+  it("lets only main and staging reach the Git Integration build", async () => {
+    const config = JSON.parse(await readFile("vercel.json", "utf8")) as {
+      ignoreCommand?: string;
+    };
+
+    expect(config.ignoreCommand).toContain("VERCEL_GIT_COMMIT_REF");
+    expect(config.ignoreCommand).toContain('= "main"');
+    expect(config.ignoreCommand).toContain('= "staging"');
+    expect(config.ignoreCommand).toContain("exit 0");
+    expect(config.ignoreCommand).toContain("exit 1");
   });
 
   it("schedules JMVStream player reconciliation every fifteen minutes", async () => {

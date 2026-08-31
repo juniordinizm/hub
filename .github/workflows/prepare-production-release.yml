@@ -19,11 +19,74 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
           ref: staging
+
+      - name: Inspect branch divergence and current Staging deployment
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main staging
+          for name in VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_TOKEN; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "${name} is required to inspect the current Staging deployment." >&2
+              exit 1
+            fi
+          done
+
+          main_sha="$(git rev-parse origin/main)"
+          staging_sha="$(git rev-parse origin/staging)"
+          merge_base="$(git merge-base origin/main origin/staging)"
+          main_only="$(git log --format='%h %s' origin/staging..origin/main || true)"
+          staging_only="$(git log --format='%h %s' origin/main..origin/staging || true)"
+          main_migrations="$(git diff --name-only origin/staging..origin/main -- src/db/migrations src/db/schema.ts || true)"
+          staging_migrations="$(git diff --name-only origin/main..origin/staging -- src/db/migrations src/db/schema.ts || true)"
+          if git merge-tree --write-tree origin/staging origin/main > /dev/null 2>&1; then
+            conflict_status="none detected"
+          else
+            conflict_status="potential conflicts detected"
+          fi
+
+          staging_deployment_json="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v13/deployments/preview.neurocapacitar.com.br?teamId=${VERCEL_ORG_ID}"
+          )"
+          staging_deployment_id="$(jq -r '.id // "unavailable"' <<< "${staging_deployment_json}")"
+          staging_deployment_state="$(jq -r '.readyState // .state // "unknown"' <<< "${staging_deployment_json}")"
+          staging_deployment_sha="$(jq -r '.meta.githubCommitSha // "unavailable"' <<< "${staging_deployment_json}")"
+
+          {
+            echo "### Production → Staging reconciliation inspection"
+            echo
+            echo "- main: `${main_sha}`"
+            echo "- staging: `${staging_sha}`"
+            echo "- merge-base: `${merge_base}`"
+            echo "- merge-tree: ${conflict_status}"
+            echo "- current Staging deployment: `${staging_deployment_id}` (${staging_deployment_state}), SHA `${staging_deployment_sha}`"
+            echo
+            echo "#### Commits only in main"
+            echo '```text'
+            printf '%s\n' "${main_only:-none}"
+            echo '```'
+            echo "#### Commits only in staging"
+            echo '```text'
+            printf '%s\n' "${staging_only:-none}"
+            echo '```'
+            echo "#### Migration paths only in main"
+            echo '```text'
+            printf '%s\n' "${main_migrations:-none}"
+            echo '```'
+            echo "#### Migration paths only in staging"
+            echo '```text'
+            printf '%s\n' "${staging_migrations:-none}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Detect branch divergence
         id: divergence
@@ -48,20 +111,41 @@ jobs:
           set -euo pipefail
           sync_branch="sync/production-into-staging-${GITHUB_RUN_ID}"
           git switch --create "${sync_branch}" origin/staging
-          git merge --no-edit origin/main
+          if git merge --no-edit origin/main; then
+            conflict_mode=false
+          elif [[ -n "$(git ls-files --unmerged)" ]]; then
+            git merge --abort
+            conflict_branch="${sync_branch}-conflict"
+            git switch --detach origin/main
+            git switch --create "${conflict_branch}"
+            sync_branch="${conflict_branch}"
+            conflict_mode=true
+          else
+            echo "The Production-to-Staging merge failed for a reason other than a conflict." >&2
+            exit 1
+          fi
           git push --set-upstream origin "${sync_branch}"
           echo "name=${sync_branch}" >> "$GITHUB_OUTPUT"
-
-      - name: Start CI for the merged candidate
-        if: steps.divergence.outputs.needed == 'true'
-        run: gh workflow run ci.yml --repo "${GITHUB_REPOSITORY}" --ref "${{ steps.branch.outputs.name }}"
+          echo "conflict=${conflict_mode}" >> "$GITHUB_OUTPUT"
 
       - name: Open the reconciliation pull request
         if: steps.divergence.outputs.needed == 'true'
+        env:
+          CONFLICT_MODE: ${{ steps.branch.outputs.conflict }}
         run: |
+          set -euo pipefail
+          if [[ "${CONFLICT_MODE}" == "true" ]]; then
+            body="This PR incorporates the current Production-only commits into Staging. The branches have potential merge conflicts; resolve them only in this PR, wait for CI on the resolved tree, merge with a merge commit, redeploy Staging, and re-homologate before running Release Production."
+          else
+            body="This PR incorporates the current Production-only commits into Staging. Wait for CI, merge with a merge commit, redeploy Staging, and re-homologate before running Release Production."
+          fi
           gh pr create \
             --repo "${GITHUB_REPOSITORY}" \
             --base staging \
             --head "${{ steps.branch.outputs.name }}" \
             --title "release: reconcile Production hotfixes into Staging" \
-            --body "This PR incorporates the current Production-only commits into Staging before the next release. Wait for CI, merge with a merge commit, redeploy Staging, and re-homologate before running Release Production."
+            --body "${body}"
+
+      - name: Start CI for the reconciliation candidate
+        if: steps.divergence.outputs.needed == 'true'
+        run: gh workflow run ci.yml --repo "${GITHUB_REPOSITORY}" --ref "${{ steps.branch.outputs.name }}"

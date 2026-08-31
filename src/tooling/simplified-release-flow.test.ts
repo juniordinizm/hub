@@ -71,7 +71,7 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("hotfix");
     expect(workflow).toContain("git merge-base --is-ancestor");
     expect(workflow).toContain("git push origin");
-    expect(workflow).toContain("--skip-domain");
+    expect(workflow).toContain("Await automatic Production deployment");
     expect(workflow).toContain("Verify exact Staging deployment");
     expect(workflow).toContain("githubCommitSha");
     expect(workflow).toContain(
@@ -88,6 +88,8 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("git merge-base --is-ancestor");
     expect(workflow).toContain("sync/production-into-staging-");
     expect(workflow).toContain("git merge --no-edit origin/main");
+    expect(workflow).toContain("git merge --abort");
+    expect(workflow).toContain("conflict");
     expect(workflow).toContain("gh pr create");
     expect(workflow).toContain("--base staging");
     expect(workflow).toContain("gh workflow run ci.yml");

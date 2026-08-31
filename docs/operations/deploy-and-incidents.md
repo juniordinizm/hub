@@ -9,8 +9,9 @@ last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
 ## Regra de deploy
 
 Staging é publicado automaticamente quando `staging` recebe um merge. O
-GitHub Actions não executa um segundo deploy Vercel. Production é publicada
-somente pelo workflow `Deploy Vercel production`.
+GitHub Actions não executa um segundo deploy Vercel. Production recebe uma
+build automática quando o workflow avança `main`, mas o domínio só muda quando
+`Deploy Vercel production` promove o deployment validado.
 
 O domínio Production permanece no deployment anterior até o candidato staged
 passar readiness, R2, migrations quando aplicáveis e smoke público.

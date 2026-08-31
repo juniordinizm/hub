@@ -173,7 +173,7 @@ describe("release workflow contracts", () => {
     expect(source).toContain("hotfix");
     expect(source).toContain("git merge-base --is-ancestor");
     expect(source).toContain("git push origin");
-    expect(source).toContain("--skip-domain");
+    expect(source).toContain("Await automatic Production deployment");
     expect(source).toContain("https://app.neurocapacitar.com.br");
     expect(source).toContain("name: Smoke Production public profile");
     expect(source).toContain("checkout_status=");
