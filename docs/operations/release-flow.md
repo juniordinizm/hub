@@ -29,6 +29,11 @@ ela, mas falha deliberadamente para PRs normais e orienta a trocar a base para
 `staging`. A exceção exige simultaneamente uma branch `hotfix/*` e o label
 `hotfix`.
 
+No GitHub, o ruleset geral mantém `main` e `staging` protegidas contra deleção,
+force-push e merges sem o check `CI`; um ruleset separado exige Pull Request
+para `staging`. `main` é avançada somente pelo workflow de release depois dos
+gates descritos abaixo. Não faça push manual em `main`.
+
 Depois de uma release normal, `main` e `staging` apontam para o mesmo commit.
 A promoção de `staging` para `main` usa fast-forward; não se deve criar um
 segundo PR de release, fazer squash da promoção ou criar uma branch de

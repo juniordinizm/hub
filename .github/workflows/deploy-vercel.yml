@@ -65,7 +65,7 @@ jobs:
           )"
           production_sha="$(
             jq -er '
-              select(.target == "production" and (.aliasAssigned == true or .aliasAssigned == "true"))
+              select(.target == "production")
               | .meta.githubCommitSha // empty
               | select(test("^[0-9a-f]{40}$"))
             ' <<< "${production_deployment_json}"
