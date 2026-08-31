@@ -61,9 +61,9 @@ describe("Vercel deployment contract", () => {
     );
     expect(source).toContain("Verify exact Staging deployment");
     expect(source).toContain("githubCommitSha");
-    expect(source).toContain(
-      "https://api.vercel.com/v13/deployments/app.neurocapacitar.com.br"
-    );
+    expect(source).toContain("vercel@57.0.0 inspect app.neurocapacitar.com.br");
+    expect(source).toContain("vercel@57.0.0 list hub");
+    expect(source).not.toContain("api.vercel.com/v6/deployments");
     expect(source).toContain("name: Await automatic Production deployment");
     expect(source).toContain("git push origin");
     expect(source).not.toContain("deploy --yes --prod");

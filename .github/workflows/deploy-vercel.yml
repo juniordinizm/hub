@@ -46,6 +46,10 @@ jobs:
           fetch-depth: 0
           ref: main
 
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+
       - name: Resolve Production and candidate SHAs
         id: release
         env:
@@ -58,17 +62,32 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           staging_sha="$(git rev-parse origin/staging)"
 
-          production_deployment_json="$(
-            curl --fail-with-body --silent --show-error \
-              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-              "https://api.vercel.com/v13/deployments/app.neurocapacitar.com.br?teamId=${VERCEL_ORG_ID}"
+          production_inspect_json="$(
+            bunx vercel@57.0.0 inspect app.neurocapacitar.com.br \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          production_url="$(jq -er '.url' <<< "${production_inspect_json}")"
+          deployments_json="$(
+            bunx vercel@57.0.0 list hub \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --environment=production \
+              --status=READY \
+              --limit=100 \
+              --format=json \
+              --no-color 2>/dev/null
           )"
           production_sha="$(
-            jq -er '
-              select(.target == "production")
-              | .meta.githubCommitSha // empty
-              | select(test("^[0-9a-f]{40}$"))
-            ' <<< "${production_deployment_json}"
+            jq -er --arg url "${production_url}" '
+              [.deployments[]
+               | select(.url == $url and .target == "production")
+               | .meta.githubCommitSha // empty
+               | select(test("^[0-9a-f]{40}$"))]
+              | .[0] // empty
+            ' <<< "${deployments_json}"
           )"
 
           if [[ "${RELEASE_MODE}" == "release-staging" ]]; then
@@ -204,10 +223,6 @@ jobs:
             echo "has_migrations=${has_migrations}"
           } >> "$GITHUB_OUTPUT"
 
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: 1.3.11
-
       - run: bun install --frozen-lockfile
         if: steps.release.outputs.has_migrations == 'true'
 
@@ -219,14 +234,27 @@ jobs:
           CANDIDATE_SHA: ${{ steps.release.outputs.candidate_sha }}
         run: |
           set -euo pipefail
-          deployments_json="$(
-            curl --fail-with-body --silent --show-error \
-              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&limit=100"
+          staging_inspect_json="$(
+            bunx vercel@57.0.0 inspect preview.neurocapacitar.com.br \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
           )"
-          if ! jq -e --arg sha "${CANDIDATE_SHA}" '
+          staging_url="$(jq -er '.url' <<< "${staging_inspect_json}")"
+          deployments_json="$(
+            bunx vercel@57.0.0 list hub \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --environment=preview \
+              --status=READY \
+              --limit=100 \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          if ! jq -e --arg sha "${CANDIDATE_SHA}" --arg url "${staging_url}" '
             any(.deployments[];
-              (.readyState == "READY" or .state == "READY") and
+              .url == $url and
               .meta.githubCommitSha == $sha and
               .meta.githubCommitRef == "staging")
           ' <<< "${deployments_json}" > /dev/null; then
@@ -285,27 +313,30 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 120); do
             deployments_json="$(
-              curl --fail-with-body --silent --show-error \
-                --header "Authorization: Bearer ${VERCEL_TOKEN}" \
-                "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_ORG_ID}&target=production&limit=100"
+              bunx vercel@57.0.0 list hub \
+                --scope="$VERCEL_SCOPE" \
+                --token="$VERCEL_TOKEN" \
+                --environment=production \
+                --status=BUILDING,READY,ERROR,CANCELED \
+                --limit=100 \
+                --format=json \
+                --no-color 2>/dev/null
             )"
             deployment_json="$(
               jq -er --arg sha "${CANDIDATE_SHA}" '
                 [.deployments[]
                  | select(.target == "production" and .meta.githubCommitRef == "main" and .meta.githubCommitSha == $sha)]
-                | sort_by(.created)
+                | sort_by(.createdAt)
                 | last // empty
               ' <<< "${deployments_json}"
             )" || deployment_json=""
 
             if [[ -n "${deployment_json}" ]]; then
-              state="$(jq -r '.readyState // .state // "UNKNOWN"' <<< "${deployment_json}")"
+              state="$(jq -r '.state // .readyState // "UNKNOWN"' <<< "${deployment_json}")"
               case "${state}" in
                 READY)
-                  deployment_id="$(jq -er '.id' <<< "${deployment_json}")"
                   deployment_hostname="$(jq -er '.url' <<< "${deployment_json}")"
                   [[ "${deployment_hostname}" =~ ^[a-zA-Z0-9.-]+\.vercel\.app$ ]]
-                  echo "id=${deployment_id}" >> "$GITHUB_OUTPUT"
                   echo "url=https://${deployment_hostname}" >> "$GITHUB_OUTPUT"
                   exit 0
                   ;;
@@ -441,16 +472,41 @@ jobs:
           [[ "${webhook_status}" == "401" ]]
 
       - name: Verify promoted deployment metadata
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
         run: |
           set -euo pipefail
           deployment_json="$(
-            bunx vercel@57.0.0 inspect "${{ steps.deploy.outputs.url }}" \
+            bunx vercel@57.0.0 inspect "${DEPLOYMENT_URL}" \
               --scope="$VERCEL_SCOPE" \
               --token="$VERCEL_TOKEN" \
               --format=json \
               --no-color 2>/dev/null
           )"
+          deployment_hostname="${DEPLOYMENT_URL#https://}"
+          canonical_json="$(
+            bunx vercel@57.0.0 inspect app.neurocapacitar.com.br \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          canonical_hostname="$(jq -er '.url' <<< "${canonical_json}")"
+          [[ "${canonical_hostname}" == "${deployment_hostname}" ]]
+          jq -e '.readyState == "READY" and .target == "production"' \
+            <<< "${deployment_json}" > /dev/null
+          deployments_json="$(
+            bunx vercel@57.0.0 list hub \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --environment=production \
+              --status=READY \
+              --limit=100 \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
           jq -e \
             --arg sha "${{ steps.release.outputs.candidate_sha }}" \
-            '.readyState == "READY" and .meta.githubCommitSha == $sha and (.aliases | index("hub-neuro-capacitar.vercel.app") != null or .aliases | index("app.neurocapacitar.com.br") != null)' \
-            <<< "${deployment_json}" > /dev/null
+            --arg url "${deployment_hostname}" \
+            'any(.deployments[]; .url == $url and .target == "production" and .meta.githubCommitSha == $sha)' \
+            <<< "${deployments_json}" > /dev/null
