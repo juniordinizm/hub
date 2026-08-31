@@ -26,6 +26,10 @@ import {
   parseSetEnrollmentExpirationInput,
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
+import {
+  getLessonSaveActionFailure,
+  type LessonSaveActionResult,
+} from "@/features/admin/lesson-authoring-errors";
 import { buildAdminLessonEditPath } from "@/features/admin/lesson-drafts";
 import { parseCertificateTemplateSubmission } from "@/features/certificates/render-snapshot";
 import { CertificateTemplateDomainError } from "@/features/certificates/template-errors";
@@ -264,17 +268,44 @@ export const createLessonDraftAction = async (
   redirect(buildAdminLessonEditPath({ courseId, lessonId }) as any);
 };
 
-export const saveLessonAction = async (formData: FormData): Promise<void> => {
-  const session = await requireRole(["admin"]);
-  const { courseId, lessonId } = await saveLesson({
-    actorUserId: session.user.id,
-    formData,
-  });
+export const saveLessonAction = async (
+  formData: FormData
+): Promise<LessonSaveActionResult> => {
+  const correlationId = await getActionCorrelationId();
+  const submittedLessonId = String(formData.get("lessonId") ?? "").trim();
 
-  revalidateAdmin();
-  if (lessonId && courseId) {
-    revalidatePath(buildAdminLessonEditPath({ courseId, lessonId }));
+  try {
+    const saved = await observeOperation({
+      ...(submittedLessonId ? { aggregateId: submittedLessonId } : {}),
+      correlationId,
+      execute: async () => {
+        const session = await requireRole(["admin"]);
+        return await saveLesson({ actorUserId: session.user.id, formData });
+      },
+      failureErrorCode: "lesson_save_failed",
+      operation: "admin.lesson.save",
+      provider: "database",
+    });
+
+    revalidateAdmin();
+    if (saved.lessonId && saved.courseId) {
+      revalidatePath(
+        buildAdminLessonEditPath({
+          courseId: saved.courseId,
+          lessonId: saved.lessonId,
+        })
+      );
+    }
+    return { ok: true };
+  } catch (error) {
+    return getLessonSaveActionFailure(error, correlationId);
   }
+};
+
+export const saveLessonFormAction = async (
+  formData: FormData
+): Promise<void> => {
+  await saveLessonAction(formData);
 };
 
 export const ensureJmvstreamCourseFolderAction = async (

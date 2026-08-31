@@ -10,22 +10,22 @@ describe("lesson drafts", () => {
     const formData = new FormData();
     formData.set("moduleId", "module-1");
     formData.set("title", " Aula inicial ");
-    formData.set("description", " Subtitulo da aula ");
     formData.set("sortOrder", "3");
 
     expect(normalizeLessonDraftInput(formData)).toEqual({
-      description: "Subtitulo da aula",
+      description: null,
       moduleId: "module-1",
       sortOrder: 3,
       title: "Aula inicial",
     });
   });
 
-  it("requires module, title, and subtitle before creating the editor page", () => {
+  it("requires module and title before creating the editor page", () => {
     const formData = new FormData();
+    formData.set("moduleId", "module-1");
 
     expect(() => normalizeLessonDraftInput(formData)).toThrow(
-      "Informe modulo, titulo e subtitulo da aula."
+      "Informe o título da aula."
     );
   });
 

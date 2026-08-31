@@ -533,13 +533,17 @@ export const normalizeLessonContentFromForm = ({
 }): LessonContent | null => {
   const document = parseTextDocument(readString(formData, "textDocument"));
 
-  if (!(document && hasTextContent(document))) {
+  if (!document) {
     return null;
   }
 
   const resources = validateLessonResourcesPolicy(
     normalizeResourcesFromForm({ formData, lessonId })
   );
+
+  if (!(hasTextContent(document) || resources.length > 0)) {
+    return null;
+  }
 
   return {
     type: "text",
@@ -560,11 +564,11 @@ const parseRichTextLessonContent = (
     return null;
   }
 
-  if (!hasTextContent(candidate.document)) {
+  const resources = normalizeResources(candidate.resources);
+
+  if (!(hasTextContent(candidate.document) || resources?.length)) {
     return null;
   }
-
-  const resources = normalizeResources(candidate.resources);
 
   return {
     type: "text",
@@ -601,7 +605,10 @@ export const getLessonContentReadiness = ({
 
   return hasVideo || hasText
     ? { isReady: true, missingLabel: null }
-    : { isReady: false, missingLabel: "Adicionar video ou texto" };
+    : {
+        isReady: false,
+        missingLabel: "Adicionar video, texto ou material",
+      };
 };
 
 export const getLessonContentStorageKeys = (value: unknown): string[] => {

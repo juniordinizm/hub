@@ -28,7 +28,7 @@ describe("lesson resource upload client", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the prepared Content-Type on the signed PUT and confirms it", async () => {
+  it("sends a replayable ArrayBuffer with the prepared Content-Type", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(Response.json(prepared("https://r2.test/u1")))
@@ -44,7 +44,7 @@ describe("lesson resource upload client", () => {
       2,
       "https://r2.test/u1",
       expect.objectContaining({
-        body: expect.any(File),
+        body: expect.any(ArrayBuffer),
         headers: { "Content-Type": "application/pdf" },
         method: "PUT",
       })
@@ -194,7 +194,7 @@ describe("lesson resource upload client", () => {
       3,
       "https://r2.test/p1",
       expect.objectContaining({
-        body: preview.blob,
+        body: expect.any(ArrayBuffer),
         headers: { "Content-Type": "image/webp" },
         method: "PUT",
       })
