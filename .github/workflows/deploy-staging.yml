@@ -28,10 +28,8 @@ jobs:
     env:
       DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
       HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       STAGING_DATABASE_HOST: ${{ vars.STAGING_DATABASE_HOST }}
       STAGING_NEON_BRANCH_ID: ${{ vars.STAGING_NEON_BRANCH_ID }}
-      STAGING_NEON_PROJECT_ID: ${{ vars.STAGING_NEON_PROJECT_ID }}
       STAGING_OPERATION_CONFIRMATION: staging
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
@@ -65,66 +63,12 @@ jobs:
       - name: Verify Staging workflow configuration
         run: |
           set -euo pipefail
-          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY STAGING_DATABASE_HOST STAGING_NEON_BRANCH_ID STAGING_NEON_PROJECT_ID VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
+          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET STAGING_DATABASE_HOST STAGING_NEON_BRANCH_ID VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
             if [[ -z "${!name:-}" ]]; then
               echo "${name} is required by vercel-staging." >&2
               exit 1
             fi
           done
-      - name: Set backup expiry
-        run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+7 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
-      - name: Create Staging Neon backup without compute
-        id: backup
-        env:
-          BACKUP_BRANCH_NAME: staging-release-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-
-          payload="$(
-            jq -cn \
-              --arg branch_name "${BACKUP_BRANCH_NAME}" \
-              --arg parent_branch "${STAGING_NEON_BRANCH_ID}" \
-              --arg expires_at "${NEON_BACKUP_EXPIRES_AT}" \
-              '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]}'
-          )"
-          response_file="$(mktemp)"
-          trap 'rm -f "${response_file}"' EXIT
-          http_status="$(
-            curl --silent --show-error \
-              --output "${response_file}" \
-              --write-out "%{http_code}" \
-              --request POST \
-              --header "Authorization: Bearer ${NEON_API_KEY}" \
-              --header "Content-Type: application/json" \
-              --data "${payload}" \
-              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches"
-          )"
-          if [[ "${http_status}" != 2* ]]; then
-            echo "Neon branch backup request failed with HTTP ${http_status}." >&2
-            jq -c . "${response_file}" >&2 || cat "${response_file}" >&2
-            exit 1
-          fi
-          response="$(
-            cat "${response_file}"
-          )"
-          branch_id="$(jq -er '.branch.id' <<< "${response}")"
-          echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"
-      - name: Verify Staging Neon backup ancestry
-        env:
-          BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}
-        run: |
-          set -euo pipefail
-          actual_parent="$(
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer ${NEON_API_KEY}" \
-              --header "Accept: application/json" \
-              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches/${BACKUP_BRANCH_ID}" \
-              | jq -er '.branch.parent_id'
-          )"
-          [[ "${actual_parent}" == "${STAGING_NEON_BRANCH_ID}" ]] || {
-            echo "Staging backup does not descend from the configured Staging branch." >&2
-            exit 1
-          }
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
       - name: Deploy exact SHA to the Staging target
