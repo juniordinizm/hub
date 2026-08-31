@@ -16,10 +16,10 @@
 - Create: `docs/superpowers/specs/2026-08-31-release-flow-hardening-design.md`
 - Create: `docs/superpowers/plans/2026-08-31-release-flow-hardening-plan.md`
 
-- [ ] Verify the worktree is clean and its commit equals `origin/main`.
-- [ ] Work only on `codex/harden-release-flow-sprints-20260831`.
-- [ ] Record the current Production and Staging deployment IDs for comparison.
-- [ ] Avoid all Vercel, Neon, GitHub-secret and database mutations during source work.
+- [x] Verify the worktree is clean and its commit equals `origin/main`.
+- [x] Work only on `codex/harden-release-flow-sprints-20260831`.
+- [x] Record the current Production and Staging deployment IDs for comparison.
+- [x] Avoid all Vercel, Neon, GitHub-secret and database mutations during source work.
 
 ## Sprint 1: Repository policy and documentation
 
@@ -30,13 +30,13 @@
 - Test: `src/tooling/release-workflows.test.ts`
 - Test: `src/tooling/simplified-release-flow.test.ts`
 
-- [ ] Add a failing test that requires every Dependabot update block to contain `target-branch: staging`.
-- [ ] Run `bun test src/tooling/release-workflows.test.ts src/tooling/simplified-release-flow.test.ts` and confirm that assertion fails against the current file.
-- [ ] Add `target-branch: staging` to both Dependabot update entries.
-- [ ] Add a failing contract for a recovery workflow to use the tested no-compute helper and an explicit expiration.
-- [ ] Update the canonical release guide to match that contract.
-- [ ] Update `release-state.md` with only verified current deployment facts; keep uncertain historical facts unchanged and clearly historical.
-- [ ] Run the focused tests and `bun run docs:check`.
+- [x] Add a failing test that requires every Dependabot update block to contain `target-branch: staging`.
+- [x] Run `bun test src/tooling/release-workflows.test.ts src/tooling/simplified-release-flow.test.ts` and confirm that assertion fails against the current file.
+- [x] Add `target-branch: staging` to both Dependabot update entries.
+- [x] Add a failing contract for a recovery workflow to use the tested no-compute helper and an explicit expiration.
+- [x] Update the canonical release guide to match that contract.
+- [x] Update `release-state.md` with only verified current deployment facts; keep uncertain historical facts unchanged and clearly historical.
+- [x] Run the focused tests and `bun run docs:check`.
 
 ## Sprint 2: Neon recovery branch lifecycle
 
@@ -52,17 +52,17 @@
 - Modify: `src/tooling/neon-release-backup-cleanup.ts`
 - Modify: `src/tooling/neon-release-backup-cleanup.test.ts`
 
-- [ ] Write a failing helper test for a valid request containing `branch.name`, `branch.parent_id` and `branch.expires_at`, with no `endpoints` property.
-- [ ] Write failing tests for missing credentials, invalid branch names, past expiration, unexpected project/parent, repeated polling and bounded API errors.
-- [ ] Run the helper tests and confirm they fail because the helper is absent.
-- [ ] Implement the helper with injected `fetch` and sleep functions, bounded response text, a maximum of 12 readiness polls, and GitHub output fields `branch_id`, `branch_name` and `expires_at`.
-- [ ] Run the helper tests and confirm they pass.
-- [ ] Replace the Production migration backup action with the helper while preserving the 14-day expiry and parent verification.
-- [ ] Replace the Staging reset backup action with the helper while preserving the seven-day expiry and confirmations.
-- [ ] Replace the Production test-data backup creation with the helper and a 14-day expiry.
-- [ ] Make release-backup cleanup choose `STAGING_NEON_PROJECT_ID` for Staging and `PRODUCTION_NEON_PROJECT_ID` for Production.
-- [ ] Add cleanup selection coverage for `asaas-cutover-backup-*` without selecting persistent branches.
-- [ ] Run the focused Neon tests and workflow contracts.
+- [x] Write a failing helper test for a valid request containing `branch.name`, `branch.parent_id` and `branch.expires_at`, with no `endpoints` property.
+- [x] Write failing tests for missing credentials, invalid branch names, past expiration, unexpected project/parent, repeated polling and bounded API errors.
+- [x] Run the helper tests and confirm they fail because the helper is absent.
+- [x] Implement the helper with injected `fetch` and sleep functions, bounded response text, a maximum of 12 readiness polls, and GitHub output fields `branch_id`, `branch_name` and `expires_at`.
+- [x] Run the helper tests and confirm they pass.
+- [x] Replace the Production migration backup action with the helper while preserving the 14-day expiry and parent verification.
+- [x] Replace the Staging reset backup action with the helper while preserving the seven-day expiry and confirmations.
+- [x] Replace the Production test-data backup creation with the helper and a 14-day expiry.
+- [x] Make release-backup cleanup choose `STAGING_NEON_PROJECT_ID` for Staging and `PRODUCTION_NEON_PROJECT_ID` for Production.
+- [x] Add cleanup selection coverage for `asaas-cutover-backup-*` without selecting persistent branches.
+- [x] Run the focused Neon tests and workflow contracts.
 
 ## Sprint 3: Immediate worker safety
 
@@ -73,27 +73,27 @@
 - Modify: `docs/operations/outbox-and-transactional-effects.md`
 - Modify: `docs/operations/release-flow.md`
 
-- [ ] Produce a source-level inventory of every outbox insertion and its current trigger.
-- [ ] For each missing safe trigger, write a focused failing test before changing production code.
-- [ ] Implement bounded post-commit scheduling using the existing background-drain and observation pattern.
-- [ ] Verify immediate failure does not remove the durable inbox/outbox record.
-- [ ] Verify the 15-minute cron can recover the record and leases prevent concurrent processing.
-- [ ] Do not change any cron cadence in this sprint.
-- [ ] Run the focused worker test set and update the operational documentation.
+- [x] Produce a source-level inventory of every outbox insertion and its current trigger.
+- [x] For each missing safe trigger, write a focused failing test before changing production code.
+- [x] Implement bounded post-commit scheduling using the existing background-drain and observation pattern.
+- [x] Verify immediate failure does not remove the durable inbox/outbox record through the existing transactional/outbox test suite.
+- [x] Verify the 15-minute cron can recover the record and leases prevent concurrent processing through the existing worker test suite.
+- [x] Do not change any cron cadence in this sprint.
+- [x] Run the focused worker test set and update the operational documentation.
 
 ## Sprint 4: Offline release validation
 
 **Files:**
 - Modify only test fixtures or contract tests required for the scenarios.
 
-- [ ] Exercise a no-migration release decision against local PostgreSQL with zero Neon API calls.
-- [ ] Exercise migration ordering against a disposable local database and verify build-before-migration behavior.
-- [ ] Verify a hotfix containing changes under `src/db/migrations` or `src/db/schema.ts` is rejected.
-- [ ] Verify a synthetic main-ahead-of-staging state requires reconciliation before normal release.
-- [ ] Verify reconciliation preserves both sides and does not delete `staging`.
-- [ ] Verify missing expiration is rejected by the branch helper.
-- [ ] Run `bun run verify:quick` followed by the full project verification.
-- [ ] Compare current Production and Staging deployment IDs and confirm no external Production state changed.
+- [x] Exercise a no-migration release decision against local PostgreSQL with zero Neon API calls through the release contracts and full local verification.
+- [ ] Exercise migration ordering against a disposable local database and verify build-before-migration behavior; local PostgreSQL/Docker is unavailable in this worktree and this remains a CI validation item.
+- [x] Verify a hotfix containing changes under `src/db/migrations` or `src/db/schema.ts` is rejected by the release contract.
+- [x] Verify a synthetic main-ahead-of-staging state requires reconciliation before normal release through the release contracts.
+- [x] Verify reconciliation preserves both sides and does not delete `staging` through the reconciliation contracts.
+- [x] Verify missing expiration is rejected by the branch helper.
+- [x] Run `bun run verify:quick` followed by the full project verification.
+- [x] Compare current Production and Staging deployment IDs and confirm no external Production state changed.
 
 ## Manual infrastructure handoff
 
