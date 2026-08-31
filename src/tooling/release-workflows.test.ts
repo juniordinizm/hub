@@ -65,6 +65,10 @@ describe("CI and deployment workflow contracts", () => {
     expect(workflow).toContain("git merge --no-edit origin/main");
     expect(workflow).toContain("git merge --abort");
     expect(workflow).toContain("gh workflow run ci.yml");
+    expect(workflow).toContain(
+      "vercel@57.0.0 inspect preview.neurocapacitar.com.br"
+    );
+    expect(workflow).not.toContain("api.vercel.com/v13/deployments");
     expect(workflow).toContain("--base staging");
     expect(workflow).toContain("gh pr create");
   });
@@ -135,6 +139,7 @@ describe("CI and deployment workflow contracts", () => {
       "cleanup-neon-release-backups.yml",
       "deploy-staging.yml",
       "deploy-vercel.yml",
+      "prepare-production-release.yml",
     ]) {
       expect(readWorkflow(workflowName)).toContain(setupBunRef);
     }
