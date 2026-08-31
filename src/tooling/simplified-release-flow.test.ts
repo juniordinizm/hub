@@ -73,9 +73,9 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("check-runs?check_name=CI");
     expect(workflow).toContain("git push origin");
     expect(workflow).toContain("Await automatic Production deployment");
-    expect(workflow).toContain("verify-staging:");
+    expect(workflow).toContain("verify_staging:");
     expect(workflow).toContain("name: Verify exact Staging deployment");
-    expect(workflow).toContain("needs: verify-staging");
+    expect(workflow).toContain("needs: verify_staging");
     expect(workflow).toContain("githubCommitSha");
     expect(workflow).toContain(
       "Hotfix Production requires a successful CI run"

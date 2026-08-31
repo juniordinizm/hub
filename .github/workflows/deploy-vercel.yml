@@ -27,7 +27,7 @@ permissions:
   pull-requests: read
 
 jobs:
-  verify-staging:
+  verify_staging:
     name: Verify exact Staging deployment
     if: inputs.mode == 'release-staging'
     runs-on: ubuntu-24.04
@@ -102,8 +102,8 @@ jobs:
 
   deploy:
     name: Promote an approved Staging candidate
-    if: always() && (inputs.mode == 'hotfix' || needs.verify-staging.result == 'success')
-    needs: verify-staging
+    if: always() && (inputs.mode == 'hotfix' || needs.verify_staging.result == 'success')
+    needs: verify_staging
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
@@ -114,7 +114,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_SCOPE: neuro-capacitar
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERIFIED_STAGING_SHA: ${{ needs.verify-staging.outputs.candidate_sha }}
+      VERIFIED_STAGING_SHA: ${{ needs.verify_staging.outputs.candidate_sha }}
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
