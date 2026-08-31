@@ -126,4 +126,17 @@ describe("CI and deployment workflow contracts", () => {
       "No successful CI check exists for the current main SHA"
     );
   });
+
+  it("pins every migrated workflow to the valid setup-bun commit", () => {
+    const setupBunRef =
+      "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6";
+
+    for (const workflowName of [
+      "cleanup-neon-release-backups.yml",
+      "deploy-staging.yml",
+      "deploy-vercel.yml",
+    ]) {
+      expect(readWorkflow(workflowName)).toContain(setupBunRef);
+    }
+  });
 });

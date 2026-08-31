@@ -14,13 +14,17 @@ banco, R2 e outbox.
 Estado operacional atual:
 
 - Production responde em `https://app.neurocapacitar.com.br` pela Vercel;
+- o fluxo vigente de branch, CI e promoção está em
+  [Fluxo de release](release-flow.md), que prevalece sobre os registros
+  históricos abaixo;
 - o último deploy Production auditado foi o workflow `30239346714`, concluído
   com sucesso para o SHA `a668d70826d7ea76c6d5ead17fe5c31f5c854d78`;
 - a cadeia local e Production contém 44 migrations, até
   `0043_staged_admin_image_uploads`;
 - o ambiente local Development passa pelo preflight isolado;
 - CI, migration Development e deploy Production usam workflows separados;
-- push e merge não promovem Production automaticamente;
+- push em `main` pode criar uma build Production staged, mas não troca o
+  domínio até a promoção controlada;
 - o SHA de release é derivado da `main`, sem cópia ou digitação manual.
 
 Para releases atuais, use o
