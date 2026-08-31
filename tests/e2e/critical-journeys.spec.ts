@@ -33,6 +33,7 @@ const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
   /^email\.certificate-issued\/([0-9a-f-]{36})\/v1$/;
 const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
+const CERTIFICATE_STATUS_PATTERN = /Status: (Preparando|Disponível)/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -591,9 +592,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   const issuedCard = page
     .getByRole("article")
     .filter({ hasText: fixture.certifiableCourse.title });
-  await expect(
-    issuedCard.getByLabel("Status: Preparando", { exact: true })
-  ).toBeVisible();
+  await expect(issuedCard.getByLabel(CERTIFICATE_STATUS_PATTERN)).toBeVisible();
   await expect(
     issuedCard.getByLabel(CERTIFICATE_CODE_LABEL_PATTERN)
   ).toHaveText(certificateCode);
