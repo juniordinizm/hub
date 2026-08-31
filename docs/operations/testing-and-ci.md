@@ -35,6 +35,12 @@ dois bancos independentes:
 As URLs usam `sslmode=disable` somente dentro do runner descartável. Nenhuma
 URL Neon, segredo financeiro ou dado real é usado pela CI.
 
+O modo E2E usa uma regra de rate limit de login isolada para acomodar os
+projetos desktop e mobile que executam contra o mesmo endereço do runner. Ela
+permite até 100 tentativas em dez segundos somente quando `E2E_TEST_MODE=true`.
+O limite normal de autenticação não é alterado e essa variável não é usada em
+Staging ou Production.
+
 ## Ordem dos gates
 
 1. checkout completo para validação documental;

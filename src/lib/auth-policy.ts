@@ -139,7 +139,7 @@ export interface BetterAuthInfraConfig {
 }
 
 const E2E_SIGN_IN_RATE_LIMIT = {
-  max: 20,
+  max: 100,
   window: 10,
 } as const;
 
