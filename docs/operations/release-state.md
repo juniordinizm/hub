@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
-deployed_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+last_verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+deployed_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 deployed_environment: production
-verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 verified_environment: production
-documented_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+documented_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 documented_environment: production
 ---
 
@@ -14,12 +14,24 @@ documented_environment: production
 
 ## Checkpoint operacional atual — 2026-08-31
 
-O deployment Production atual é `dpl_7e1MJPLuBXfTtNPUWTPaxEyV4n5u`, `READY`,
+O deployment Production atual é `dpl_74TPMVyUzPXw2hrzu28JVDWVx5rR`, `READY`,
 região `gru1`, servido pelo commit
-`d3943758755a49f09e4e3118044a17a91b2e6794`. O workflow protegido
-`33365064384` passou backup R2 independente, branch Neon de release e
-ancestralidade, migrations, readiness, R2, provider, smoke público e alias
-canônico `app.neurocapacitar.com.br`.
+`a73d56fe599895a3a611c3ad89a8e05aab87ec8e`. O workflow
+`33428545203` passou a verificação isolada de Staging, build automática
+Production, readiness, R2, promoção sem rebuild, smoke público e metadata do
+deployment.
+
+O deployment Staging atual é `dpl_12hYTP238yuHAm2bXcWzJwzwTmLq`, `READY`,
+`source=git`, no mesmo SHA `a73d56fe599895a3a611c3ad89a8e05aab87ec8e`, servido
+por `preview.neurocapacitar.com.br`. A migration de Staging passou no workflow
+`33428103348`; o verify autenticado passou em `33428384797`.
+
+`main` e `staging` estão alinhadas no mesmo SHA. O verify read-only de
+reconciliação `33428772944` confirmou que não há commits Production-only. O
+Git Integration da Vercel está conectado ao repositório; `staging` gera um
+deployment por merge e `main` gera uma build Production staged. O auto-assign
+de domínios Production está desativado, e o workflow manual de Staging foi
+reativado somente depois que a definição sem schedule chegou a `main`.
 
 O smoke público confirmou HTTP 200 para `/`, `/entrar` e `/admin`, HTTP 200 em
 `/api/health`, HTTP 400 para checkout sem parâmetros, HTTP 401 para webhook
@@ -28,11 +40,11 @@ As variáveis Production `ASAAS_API_BASE_URL`, `R2_ACCOUNT_ID`,
 `R2_BUCKET_NAME` e `R2_PUBLIC_BUCKET_NAME` foram corrigidas antes da publicação;
 `R2_ENDPOINT` não está configurado. Production não está em manutenção.
 
-As tentativas anteriores pararam antes da promoção por backup stale, quota Neon
-e configuração de provider. As migrations podem ter avançado antes de falhas
-posteriores; o run final auditou o journal e confirmou `database=match`. A
-retenção removeu somente branches `production-release-*` superseded após
-dry-run, preservando a mais recente e as branches persistentes.
+As tentativas de transição anteriores pararam antes da promoção por configuração
+de action, token Vercel e isolamento de secret; nenhuma alterou Production. A
+release final não continha migration, portanto não criou branch Neon de release
+nem executou alteração de banco Production. Branches temporárias dos PRs e do
+diagnóstico foram removidas após a confirmação.
 
 DMARC continua em `p=none; pct=100` e sua progressão foi adiada; o probe Sentry
 próprio de Production não foi emitido; e a prova de TOTP das Contas Admin foi
