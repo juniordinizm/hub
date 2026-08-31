@@ -95,6 +95,10 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("git merge --no-edit origin/main");
     expect(workflow).toContain("git merge --abort");
     expect(workflow).toContain("conflict");
+    expect(workflow).toContain(
+      "vercel@57.0.0 inspect preview.neurocapacitar.com.br"
+    );
+    expect(workflow).not.toContain("api.vercel.com/v13/deployments");
     expect(workflow).not.toContain("git push --delete origin staging");
     expect(workflow).not.toContain("git branch --delete staging");
     expect(workflow).toContain("gh pr create");
