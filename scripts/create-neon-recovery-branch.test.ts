@@ -124,6 +124,32 @@ describe("createNeonRecoveryBranch", () => {
     ).rejects.toThrow("parent branch does not match");
   });
 
+  it("does not truncate a successful Neon response before parsing it", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          branch: {
+            current_state: "ready",
+            expires_at: validOptions.expiresAt,
+            id: "br-recovery",
+            name: validOptions.branchName,
+            parent_id: validOptions.parentBranchId,
+            project_id: validOptions.projectId,
+          },
+          provider_metadata: "x".repeat(400),
+        }),
+        { status: 201 }
+      )
+    );
+
+    await expect(
+      createNeonRecoveryBranch({
+        ...validOptions,
+        fetchImpl,
+      })
+    ).resolves.toMatchObject({ branchId: "br-recovery" });
+  });
+
   it("bounds Neon API error diagnostics", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()

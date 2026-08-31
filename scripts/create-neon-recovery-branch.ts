@@ -74,19 +74,14 @@ const validateOptions = (
   };
 };
 
-const boundedResponseText = async (response: Response): Promise<string> => {
-  const body = await response.text();
-  return body.slice(0, 300);
-};
-
 const readJson = async (
   response: Response,
   operation: string
 ): Promise<unknown> => {
-  const body = await boundedResponseText(response);
+  const body = await response.text();
   if (!response.ok) {
     throw new Error(
-      `Neon API ${operation} failed with HTTP ${response.status}: ${body}`
+      `Neon API ${operation} failed with HTTP ${response.status}: ${body.slice(0, 300)}`
     );
   }
   if (!body) {
