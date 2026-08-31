@@ -12,6 +12,18 @@ Uma alteração de domínio não chama um provedor externo dentro da transação
 
 O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/features/outbox/server.ts`, o consumidor em `src/features/outbox/runner.ts` e o adaptador Resend em `src/features/outbox/delivery.ts`.
 
+Nas operações iniciadas por uma requisição, a intenção continua sendo gravada
+antes do commit e o provedor só é chamado depois dele. Quando há uma entrega
+que deve ser rápida, a ação agenda `scheduleOutboxDrainAfterResponse` depois
+que a transação terminou. Esse drain é limitado a cinco mensagens e quinze
+segundos; uma falha não altera nem remove a intenção durável. O cron de outbox
+continua sendo a recuperação para indisponibilidade, timeout ou queda do
+processo. Em particular, conclusão de aula que emite certificado, suporte,
+alteração de disponibilidade do curso e comandos administrativos de certificado
+usam o drain imediato. Manutenção de matrículas e entregas encadeadas do
+próprio worker permanecem cron/worker-only para evitar recursão e concorrência
+desnecessárias.
+
 ## Catálogo aprovado
 
 `certificate.render` é idempotente por certificado. A entrega reivindica um Certificado `pending` e `valid` com token persistido e lease de dez minutos, sem manter conexão Postgres durante o trabalho externo. Ela gera o PDF privado e tenta criá-lo com PUT condicional; uma disputa relê o objeto vencedor e usa o hash desses bytes. Depois salva hash e chave R2, muda para `ready` somente se ainda possuir o token e se o Certificado continuar válido, e só então enfileira `email.certificate-issued`. Falha recuperável libera o claim condicionalmente. O lease aplica fencing à conclusão do artefato, não execução exatamente uma vez: depois da expiração pode haver IO duplicado, mas o token antigo não sobrescreve o objeto nem altera o estado final. Uma tentativa repetida encontra o mesmo certificado/artefato e não cria novo documento ou e-mail; a unicidade da chave da outbox torna o enfileiramento do e-mail idempotente.
@@ -83,7 +95,7 @@ esta intenção quando `activationRequired=true`.
 
 ## Entrega, concorrência e idempotência
 
-`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada quinze minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
+`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada quinze minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção. O drain iniciado após a resposta reutiliza o mesmo `runOutboxJob`, lease, limite e transições; ele não substitui o cron.
 O worker da inbox Asaas é separado da outbox e roda por
 `GET /api/cron/asaas-webhooks` a cada quinze minutos, mas reutiliza o mesmo guard de
 `CRON_SECRET`, kill switch e padrão de lease/deadline.
@@ -195,6 +207,8 @@ dias para `delivered` e 180 dias para `dead_letter`.
   `certificate-issuance.integration.test.ts`;
 - idempotência de ativação: `src/lib/account-activation-idempotency.ts`,
   `src/lib/auth-password-reset.ts` e testes correspondentes;
+- drain imediato: `src/features/outbox/background-drain.ts` e os testes das ações
+  de aluno, disponibilidade de curso e certificado;
 - provedor: [documentação de idempotência da Resend](https://resend.com/docs/dashboard/emails/idempotency-keys).
 
 Todo tópico novo precisa definir versão de payload, chave idempotente, dona operacional, retenção, classificação de PII e runbook antes de ser gravado na outbox.

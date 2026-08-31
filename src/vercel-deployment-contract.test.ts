@@ -76,7 +76,9 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain(
       "name: Require a recent independent Production backup"
     );
-    expect(source).toContain("suspend_timeout: 300");
+    expect(source).toContain("scripts/create-neon-recovery-branch.ts");
+    expect(source).toContain("NEON_EXPIRES_AT");
+    expect(source).not.toContain("suspend_timeout: 300");
     expect(source).toContain(
       "if: steps.release.outputs.has_migrations == 'true'"
     );

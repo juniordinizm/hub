@@ -8,7 +8,52 @@ const readWorkflow = (fileName: string): string =>
     "utf8"
   );
 
+const readRepositoryFile = (fileName: string): string =>
+  readFileSync(resolve(import.meta.dirname, `../../${fileName}`), "utf8");
+
+const DEPENDABOT_UPDATE_BLOCK_PATTERN = /\n\s{2}- package-ecosystem:/;
+const EMPTY_STAGING_WORKER_ENV_PATTERN =
+  /name: Invoke authenticated Staging workers[\r\n]+\s+env:\s*[\r\n]+\s+run:/;
+
 describe("CI and deployment workflow contracts", () => {
+  it("routes every Dependabot update to Staging", () => {
+    const source = readRepositoryFile(".github/dependabot.yml");
+    const updateBlocks = source.split(DEPENDABOT_UPDATE_BLOCK_PATTERN).slice(1);
+
+    expect(updateBlocks).toHaveLength(2);
+    for (const block of updateBlocks) {
+      expect(block).toContain("target-branch: staging");
+    }
+  });
+
+  it("keeps the manual Staging jobs workflow schema-valid", () => {
+    const source = readWorkflow("run-staging-jobs.yml");
+    expect(source).not.toMatch(EMPTY_STAGING_WORKER_ENV_PATTERN);
+  });
+
+  it("uses an expiring no-compute helper for temporary Neon recovery branches", () => {
+    for (const workflowName of [
+      "deploy-vercel.yml",
+      "reset-staging.yml",
+      "cleanup-production-test-data.yml",
+    ]) {
+      const source = readWorkflow(workflowName);
+      expect(source).toContain("scripts/create-neon-recovery-branch.ts");
+      expect(source).not.toContain("neondatabase/create-branch-action");
+      expect(source).toContain("NEON_EXPIRES_AT");
+    }
+  });
+
+  it("selects the cleanup project from the selected Neon environment", () => {
+    const source = readWorkflow("cleanup-neon-release-backups.yml");
+    const expression = [
+      "NEON_RELEASE_PROJECT_ID: ",
+      String.fromCharCode(36),
+      "{{ inputs.environment == 'staging' && vars.STAGING_NEON_PROJECT_ID || vars.PRODUCTION_NEON_PROJECT_ID }}",
+    ].join("");
+    expect(source).toContain(expression);
+  });
+
   it("runs CI only for pull requests and manual verification", () => {
     const workflow = readWorkflow("ci.yml");
 

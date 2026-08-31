@@ -2,10 +2,12 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
   - package-ecosystem: bun
     directory: /
+    target-branch: staging
     open-pull-requests-limit: 5
     schedule:
       day: monday

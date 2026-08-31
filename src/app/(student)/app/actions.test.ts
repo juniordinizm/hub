@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   completeLesson: vi.fn(),
   createSupportRequest: vi.fn(),
+  recordLessonWatchProgress: vi.fn(),
   redirect: vi.fn(),
   revalidatePath: vi.fn(),
   requireSession: vi.fn(),
+  scheduleOutboxDrainAfterResponse: vi.fn(),
   setCourseSaleInterest: vi.fn(),
 }));
 
@@ -20,7 +22,7 @@ vi.mock("@/features/courses/preview", () => ({
 }));
 vi.mock("@/features/courses/server", () => ({
   completeLesson: dependencies.completeLesson,
-  recordLessonWatchProgress: vi.fn(),
+  recordLessonWatchProgress: dependencies.recordLessonWatchProgress,
 }));
 vi.mock("@/features/learning-analytics/server", () => ({
   setLearningAnalyticsPreference: vi.fn(),
@@ -28,12 +30,17 @@ vi.mock("@/features/learning-analytics/server", () => ({
 vi.mock("@/features/support/server", () => ({
   createSupportRequest: dependencies.createSupportRequest,
 }));
+vi.mock("@/features/outbox/background-drain", () => ({
+  scheduleOutboxDrainAfterResponse:
+    dependencies.scheduleOutboxDrainAfterResponse,
+}));
 vi.mock("@/lib/session", () => ({
   requireSession: dependencies.requireSession,
 }));
 
 import {
   completeLessonAction,
+  recordLessonWatchProgressAction,
   sendSupportRequestAction,
   setCourseSaleInterestAction,
 } from "./actions";
@@ -66,6 +73,9 @@ describe("completeLessonAction", () => {
     expect(dependencies.redirect).toHaveBeenCalledWith(
       "/app/cursos/course-1?certificate=issued"
     );
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 
   it("keeps the course URL clean when no certificate was issued", async () => {
@@ -150,6 +160,57 @@ describe("setCourseSaleInterestAction", () => {
   });
 });
 
+describe("recordLessonWatchProgressAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    dependencies.requireSession.mockResolvedValue({
+      role: "student",
+      user: { id: "student-1" },
+    });
+  });
+
+  it("drains the outbox only when video completion emitted a certificate", async () => {
+    dependencies.recordLessonWatchProgress.mockResolvedValue({
+      certificateIssued: false,
+      completed: true,
+      courseId: "course-1",
+      nextLessonId: null,
+      watchedPercent: 100,
+    });
+
+    await expect(
+      recordLessonWatchProgressAction({
+        currentSeconds: 60,
+        durationSeconds: 60,
+        eventName: "jmvplayerout-end",
+        lessonId: "lesson-1",
+      })
+    ).resolves.toMatchObject({ completed: true });
+
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).not.toHaveBeenCalled();
+
+    dependencies.recordLessonWatchProgress.mockResolvedValueOnce({
+      certificateIssued: true,
+      completed: true,
+      courseId: "course-1",
+      nextLessonId: null,
+      watchedPercent: 100,
+    });
+
+    await recordLessonWatchProgressAction({
+      currentSeconds: 60,
+      durationSeconds: 60,
+      eventName: "jmvplayerout-end",
+      lessonId: "lesson-1",
+    });
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
+  });
+});
+
 describe("sendSupportRequestAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -174,6 +235,9 @@ describe("sendSupportRequestAction", () => {
       subject: "Dúvida controlada",
       userId: "student-1",
     });
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 
   it("rejects the request without subject or message", async () => {

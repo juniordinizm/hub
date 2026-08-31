@@ -10,6 +10,7 @@ import {
   recordLessonWatchProgress,
 } from "@/features/courses/server";
 import { setLearningAnalyticsPreference } from "@/features/learning-analytics/server";
+import { scheduleOutboxDrainAfterResponse } from "@/features/outbox/background-drain";
 import { createSupportRequest } from "@/features/support/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
@@ -34,6 +35,10 @@ export const completeLessonAction = async (formData: FormData) => {
     userId: session.user.id,
     lessonId,
   });
+
+  if (result.certificateIssued) {
+    scheduleOutboxDrainAfterResponse();
+  }
 
   if (result.nextLessonId) {
     redirect(route(`/app/aulas/${result.nextLessonId}`));
@@ -74,13 +79,19 @@ export const recordLessonWatchProgressAction = async ({
     throw new Error("Aula invalida.");
   }
 
-  return recordLessonWatchProgress({
+  const result = await recordLessonWatchProgress({
     currentSeconds,
     durationSeconds,
     eventName,
     lessonId,
     userId: session.user.id,
   });
+
+  if (result.certificateIssued) {
+    scheduleOutboxDrainAfterResponse();
+  }
+
+  return result;
 };
 
 export const sendSupportRequestAction = async (
@@ -106,6 +117,7 @@ export const sendSupportRequestAction = async (
     subject,
     userId: session.user.id,
   });
+  scheduleOutboxDrainAfterResponse();
 };
 
 export const setLearningAnalyticsPreferenceAction = async (
