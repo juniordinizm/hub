@@ -27,8 +27,83 @@ permissions:
   pull-requests: read
 
 jobs:
+  verify-staging:
+    name: Verify exact Staging deployment
+    if: inputs.mode == 'release-staging'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: vercel-staging
+    outputs:
+      candidate_sha: ${{ steps.staging.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
+      STAGING_ORIGIN: https://preview.neurocapacitar.com.br
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      VERCEL_SCOPE: neuro-capacitar
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          fetch-depth: 0
+          ref: staging
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.11
+
+      - name: Confirm Staging deployment and smoke
+        id: staging
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin staging
+          staging_sha="$(git rev-parse origin/staging)"
+          [[ "$(git rev-parse HEAD)" == "${staging_sha}" ]]
+
+          staging_inspect_json="$(
+            bunx vercel@57.0.0 inspect preview.neurocapacitar.com.br \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          staging_url="$(jq -er '.url' <<< "${staging_inspect_json}")"
+          deployments_json="$(
+            bunx vercel@57.0.0 list hub \
+              --scope="$VERCEL_SCOPE" \
+              --token="$VERCEL_TOKEN" \
+              --environment=preview \
+              --status=READY \
+              --limit=100 \
+              --format=json \
+              --no-color 2>/dev/null
+          )"
+          if ! jq -e --arg sha "${staging_sha}" --arg url "${staging_url}" '
+            any(.deployments[];
+              .url == $url and
+              .meta.githubCommitSha == $sha and
+              .meta.githubCommitRef == "staging")
+          ' <<< "${deployments_json}" > /dev/null; then
+            echo "No READY Vercel Staging deployment exists for the current SHA." >&2
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+            "${STAGING_ORIGIN}/api/health/ready" > /dev/null
+          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "${STAGING_ORIGIN}/api/webhooks/resend")"
+          [[ "${webhook_status}" == "400" ]]
+          echo "sha=${staging_sha}" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Promote an approved Staging candidate
+    if: always() && (inputs.mode == 'hotfix' || needs.verify-staging.result == 'success')
+    needs: verify-staging
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment:
@@ -39,6 +114,7 @@ jobs:
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
       VERCEL_SCOPE: neuro-capacitar
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERIFIED_STAGING_SHA: ${{ needs.verify-staging.outputs.candidate_sha }}
 
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -61,6 +137,11 @@ jobs:
           git fetch --no-tags origin main staging
           main_sha="$(git rev-parse origin/main)"
           staging_sha="$(git rev-parse origin/staging)"
+          if [[ "${RELEASE_MODE}" == "release-staging" ]] &&
+             [[ "${staging_sha}" != "${VERIFIED_STAGING_SHA}" ]]; then
+            echo "Staging changed after its verification; restart the release." >&2
+            exit 1
+          fi
 
           production_inspect_json="$(
             bunx vercel@57.0.0 inspect app.neurocapacitar.com.br \
@@ -225,51 +306,6 @@ jobs:
 
       - run: bun install --frozen-lockfile
         if: steps.release.outputs.has_migrations == 'true'
-
-      - name: Verify exact Staging deployment
-        if: inputs.mode == 'release-staging'
-        env:
-          HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
-          STAGING_ORIGIN: https://preview.neurocapacitar.com.br
-          CANDIDATE_SHA: ${{ steps.release.outputs.candidate_sha }}
-        run: |
-          set -euo pipefail
-          staging_inspect_json="$(
-            bunx vercel@57.0.0 inspect preview.neurocapacitar.com.br \
-              --scope="$VERCEL_SCOPE" \
-              --token="$VERCEL_TOKEN" \
-              --format=json \
-              --no-color 2>/dev/null
-          )"
-          staging_url="$(jq -er '.url' <<< "${staging_inspect_json}")"
-          deployments_json="$(
-            bunx vercel@57.0.0 list hub \
-              --scope="$VERCEL_SCOPE" \
-              --token="$VERCEL_TOKEN" \
-              --environment=preview \
-              --status=READY \
-              --limit=100 \
-              --format=json \
-              --no-color 2>/dev/null
-          )"
-          if ! jq -e --arg sha "${CANDIDATE_SHA}" --arg url "${staging_url}" '
-            any(.deployments[];
-              .url == $url and
-              .meta.githubCommitSha == $sha and
-              .meta.githubCommitRef == "staging")
-          ' <<< "${deployments_json}" > /dev/null; then
-            echo "No READY Vercel Staging deployment exists for the candidate SHA." >&2
-            exit 1
-          fi
-          curl --fail --silent --show-error \
-            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
-            "${STAGING_ORIGIN}/api/health/ready" > /dev/null
-          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data '{}' \
-            "${STAGING_ORIGIN}/api/webhooks/resend")"
-          [[ "${webhook_status}" == "400" ]]
 
       - name: Verify Production release configuration
         env:

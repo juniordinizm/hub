@@ -59,7 +59,12 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain(
       "No successful CI check exists for the Staging candidate"
     );
-    expect(source).toContain("Verify exact Staging deployment");
+    expect(source).toContain("verify-staging:");
+    expect(source).toContain("name: Verify exact Staging deployment");
+    expect(source).toContain("needs: verify-staging");
+    expect(source).toContain(
+      "if: always() && (inputs.mode == 'hotfix' || needs.verify-staging.result == 'success')"
+    );
     expect(source).toContain("githubCommitSha");
     expect(source).toContain("vercel@57.0.0 inspect app.neurocapacitar.com.br");
     expect(source).toContain("vercel@57.0.0 list hub");
