@@ -190,26 +190,13 @@ describe("CI workflow", () => {
     );
     expect(stagingWorkflow).toContain("db:migrate:staging");
     expect(stagingWorkflow).toContain("--target=staging");
-    const neonProjectExpression = ["$", "{STAGING_NEON_PROJECT_ID}"].join("");
-    const branchOutputExpression = [
-      'echo "branch_id=',
-      "$",
-      '{branch_id}" >> "',
-      "$",
-      '{GITHUB_OUTPUT}"',
-    ].join("");
-    expect(stagingWorkflow).toContain(
-      `https://console.neon.tech/api/v2/projects/${neonProjectExpression}/branches`
+    expect(stagingWorkflow).not.toContain("STAGING_NEON_PROJECT_ID");
+    expect(stagingWorkflow).not.toContain("NEON_API_KEY");
+    expect(stagingWorkflow).not.toContain("staging-release-");
+    expect(stagingWorkflow).not.toContain("Create Staging Neon backup");
+    expect(stagingWorkflow).not.toContain(
+      "Verify Staging Neon backup ancestry"
     );
-    expect(stagingWorkflow).toContain(
-      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]"
-    );
-    expect(stagingWorkflow).toContain(branchOutputExpression);
-    expect(stagingWorkflow).toContain('--write-out "%{http_code}"');
-    expect(stagingWorkflow).toContain(
-      "Neon branch backup request failed with HTTP"
-    );
-    expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");
     expect(stagingWorkflow).not.toContain(
       `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
     );
@@ -309,17 +296,12 @@ describe("Release backup cleanup workflow", () => {
 });
 
 describe("Release backup ancestry", () => {
-  it("fails closed when a Staging backup does not descend from Staging", () => {
+  it("does not create a backup during a routine Staging deployment", () => {
     const workflow = readWorkflow("deploy-staging.yml");
 
-    expect(workflow).toContain("name: Verify Staging Neon backup ancestry");
-    expect(workflow).toContain("BACKUP_BRANCH_ID:");
-    expect(workflow).toContain(".branch.parent_id");
-    expect(workflow).toContain(
-      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
-        "STAGING_NEON_BRANCH_ID"
-      )}" ]]`
-    );
+    expect(workflow).not.toContain("name: Set backup expiry");
+    expect(workflow).not.toContain("name: Create Staging Neon backup");
+    expect(workflow).not.toContain("name: Verify Staging Neon backup ancestry");
   });
 
   it("creates and verifies a Production backup from Production", () => {
