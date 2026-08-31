@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: a95be66d7645e17d3bf83528ffa065b7ced38861
 ---
 
 # Outbox e efeitos transacionais

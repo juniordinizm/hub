@@ -17,14 +17,17 @@ documented_environment: production
 Production está no deployment `dpl_74TPMVyUzPXw2hrzu28JVDWVx5rR`, estado
 `READY`, região `gru1`, servido pelo commit
 `a73d56fe599895a3a611c3ad89a8e05aab87ec8e`. Staging está no deployment
-`dpl_12hYTP238yuHAm2bXcWzJwzwTmLq`, também `READY`, servido pelo mesmo SHA e
-disponível em `preview.neurocapacitar.com.br`.
+`dpl_8iuX2uxQTcpaUAKjoYCEGPCadhtM`, estado `READY`, servido pelo commit
+`a95be66d7645e17d3bf83528ffa065b7ced38861` e disponível em
+`preview.neurocapacitar.com.br`.
 
 O workflow protegido `33428545203` confirmou o deployment exato de Staging,
 avançou `main` por fast-forward, aguardou a build Production automática,
 executou os gates sem migration, fez smoke no deployment não promovido,
-promoveu o mesmo artefato e confirmou seus metadados. Production e Staging
-terminam alinhadas no mesmo SHA.
+promoveu o mesmo artefato e confirmou seus metadados. Depois, o PR `#185`
+publicou o endurecimento em Staging; o workflow `33443124148` aplicou as
+migrations sem alteração de schema. Production continua em `a73d56f` e
+Staging em `a95be66` até a próxima promoção manual.
 
 Os endpoints públicos `/api/health` de Production e Staging retornaram HTTP
 200 na última verificação. A Vercel está configurada com `main` como branch de
@@ -40,7 +43,8 @@ execução porque não havia credencial Sentry disponível para consulta.
 O cron JMVStream permanece em quinze minutos, assim como os workers de Asaas,
 outbox e Resend. O backup PostgreSQL Production permanece agendado a cada seis
 horas. Nenhuma branch Neon é criada pela CI ou por um deploy comum; branches de
-recuperação são uma pendência de endurecimento descrita no guia operacional.
+recuperação são criadas somente em operações explícitas, com expiração e sem
+endpoint de compute.
 
 Permanecem pendentes a substituição do token temporário da Vercel, o inventário
 das branches Neon, o ajuste dos computes e a separação de Production e

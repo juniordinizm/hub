@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+last_verified_commit: a95be66d7645e17d3bf83528ffa065b7ced38861
 ---
 
 # Testes e CI
