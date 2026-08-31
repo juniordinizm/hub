@@ -8,7 +8,22 @@ const readWorkflow = (fileName: string): string =>
     "utf8"
   );
 
+const readRepositoryFile = (fileName: string): string =>
+  readFileSync(resolve(import.meta.dirname, `../../${fileName}`), "utf8");
+
+const DEPENDABOT_UPDATE_BLOCK_PATTERN = /\n\s{2}- package-ecosystem:/;
+
 describe("CI and deployment workflow contracts", () => {
+  it("routes every Dependabot update to Staging", () => {
+    const source = readRepositoryFile(".github/dependabot.yml");
+    const updateBlocks = source.split(DEPENDABOT_UPDATE_BLOCK_PATTERN).slice(1);
+
+    expect(updateBlocks).toHaveLength(2);
+    for (const block of updateBlocks) {
+      expect(block).toContain("target-branch: staging");
+    }
+  });
+
   it("runs CI only for pull requests and manual verification", () => {
     const workflow = readWorkflow("ci.yml");
 

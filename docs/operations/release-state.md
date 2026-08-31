@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
-deployed_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+last_verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+deployed_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 deployed_environment: production
-verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 verified_environment: production
-documented_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+documented_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 documented_environment: production
 ---
 
@@ -14,31 +14,39 @@ documented_environment: production
 
 ## Checkpoint operacional atual — 2026-08-31
 
-O deployment Production atual é `dpl_7e1MJPLuBXfTtNPUWTPaxEyV4n5u`, `READY`,
-região `gru1`, servido pelo commit
-`d3943758755a49f09e4e3118044a17a91b2e6794`. O workflow protegido
-`33365064384` passou backup R2 independente, branch Neon de release e
-ancestralidade, migrations, readiness, R2, provider, smoke público e alias
-canônico `app.neurocapacitar.com.br`.
+Production está no deployment `dpl_74TPMVyUzPXw2hrzu28JVDWVx5rR`, estado
+`READY`, região `gru1`, servido pelo commit
+`a73d56fe599895a3a611c3ad89a8e05aab87ec8e`. Staging está no deployment
+`dpl_12hYTP238yuHAm2bXcWzJwzwTmLq`, também `READY`, servido pelo mesmo SHA e
+disponível em `preview.neurocapacitar.com.br`.
 
-O smoke público confirmou HTTP 200 para `/`, `/entrar` e `/admin`, HTTP 200 em
-`/api/health`, HTTP 400 para checkout sem parâmetros, HTTP 401 para webhook
-Asaas sem autenticação e readiness/R2 autenticados no deployment não promovido.
-As variáveis Production `ASAAS_API_BASE_URL`, `R2_ACCOUNT_ID`,
-`R2_BUCKET_NAME` e `R2_PUBLIC_BUCKET_NAME` foram corrigidas antes da publicação;
-`R2_ENDPOINT` não está configurado. Production não está em manutenção.
+O workflow protegido `33428545203` confirmou o deployment exato de Staging,
+avançou `main` por fast-forward, aguardou a build Production automática,
+executou os gates sem migration, fez smoke no deployment não promovido,
+promoveu o mesmo artefato e confirmou seus metadados. Production e Staging
+terminam alinhadas no mesmo SHA.
 
-As tentativas anteriores pararam antes da promoção por backup stale, quota Neon
-e configuração de provider. As migrations podem ter avançado antes de falhas
-posteriores; o run final auditou o journal e confirmou `database=match`. A
-retenção removeu somente branches `production-release-*` superseded após
-dry-run, preservando a mais recente e as branches persistentes.
+Os endpoints públicos `/api/health` de Production e Staging retornaram HTTP
+200 na última verificação. A Vercel está configurada com `main` como branch de
+Production, `staging` como branch de homologação e sem autoatribuição do
+domínio Production durante a build. Não houve deployment manual paralelo
+criado pelo workflow.
 
-DMARC continua em `p=none; pct=100` e sua progressão foi adiada; o probe Sentry
-próprio de Production não foi emitido; e a prova de TOTP das Contas Admin foi
-adiada. Esses itens são riscos documentados, não evidência de prontidão verde.
-O par `RESTORE_R2_*` foi temporariamente alinhado a uma credencial que comprovou
-leitura do bucket e deve ser rotacionado para uma chave dedicada somente leitura.
+O caminho sem migration foi comprovado. O caminho com migration, a simulação
+de hotfix exclusivo e a reconciliação com divergência ainda precisam de uma
+validação controlada em Staging. A auditoria Sentry não foi concluída nesta
+execução porque não havia credencial Sentry disponível para consulta.
+
+O cron JMVStream permanece em quinze minutos, assim como os workers de Asaas,
+outbox e Resend. O backup PostgreSQL Production permanece agendado a cada seis
+horas. Nenhuma branch Neon é criada pela CI ou por um deploy comum; branches de
+recuperação são uma pendência de endurecimento descrita no guia operacional.
+
+Permanecem pendentes a substituição do token temporário da Vercel, o inventário
+das branches Neon, o ajuste dos computes e a separação de Production e
+Non-production em projetos Neon distintos. Esses itens não impedem o estado
+atual, mas devem ser concluídos antes de considerar a migração operacional
+encerrada.
 
 ## Histórico operacional — 2026-08-26
 
