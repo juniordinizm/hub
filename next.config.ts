@@ -1,6 +1,9 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
-import { resolveR2ClientEndpoint } from "./src/features/storage/r2-endpoint";
+import {
+  resolveR2BucketOrigin,
+  resolveR2ClientEndpoint,
+} from "./src/features/storage/r2-endpoint";
 import { getAllowedDevOrigins } from "./src/lib/allowed-dev-origins";
 import { buildContentSecurityPolicy } from "./src/lib/content-security-policy";
 import { resolveSentryBuildConfiguration } from "./src/lib/sentry-deployment";
@@ -29,10 +32,15 @@ const e2eObjectStorageOrigin = process.env.R2_ENDPOINT
       }).endpoint
     ).origin
   : null;
+const r2BucketOrigin = resolveR2BucketOrigin({
+  accountId: process.env.R2_ACCOUNT_ID,
+  bucketName: process.env.R2_BUCKET_NAME,
+});
 const contentSecurityPolicy = buildContentSecurityPolicy({
-  additionalConnectOrigins: e2eObjectStorageOrigin
-    ? [e2eObjectStorageOrigin]
-    : [],
+  additionalConnectOrigins: [
+    ...(r2BucketOrigin ? [r2BucketOrigin] : []),
+    ...(e2eObjectStorageOrigin ? [e2eObjectStorageOrigin] : []),
+  ],
   isProduction,
 });
 const publicCertificatePdfContentSecurityPolicy = contentSecurityPolicy.replace(

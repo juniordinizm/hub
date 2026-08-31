@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { resolveR2ClientEndpoint } from "./r2-endpoint";
+import { resolveR2BucketOrigin, resolveR2ClientEndpoint } from "./r2-endpoint";
 
 describe("R2 client endpoint", () => {
+  it("builds the virtual-hosted origin used by browser uploads", () => {
+    expect(
+      resolveR2BucketOrigin({
+        accountId: "90058d5ae5098fe32c8c0e21209f3c86",
+        bucketName: "hub-development-private",
+      })
+    ).toBe(
+      "https://hub-development-private.90058d5ae5098fe32c8c0e21209f3c86.r2.cloudflarestorage.com"
+    );
+  });
+
   it("uses the Cloudflare endpoint outside E2E", () => {
     expect(
       resolveR2ClientEndpoint({
