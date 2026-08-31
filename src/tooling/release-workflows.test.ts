@@ -24,6 +24,29 @@ describe("CI and deployment workflow contracts", () => {
     }
   });
 
+  it("uses an expiring no-compute helper for temporary Neon recovery branches", () => {
+    for (const workflowName of [
+      "deploy-vercel.yml",
+      "reset-staging.yml",
+      "cleanup-production-test-data.yml",
+    ]) {
+      const source = readWorkflow(workflowName);
+      expect(source).toContain("scripts/create-neon-recovery-branch.ts");
+      expect(source).not.toContain("neondatabase/create-branch-action");
+      expect(source).toContain("NEON_EXPIRES_AT");
+    }
+  });
+
+  it("selects the cleanup project from the selected Neon environment", () => {
+    const source = readWorkflow("cleanup-neon-release-backups.yml");
+    const expression = [
+      "NEON_RELEASE_PROJECT_ID: ",
+      String.fromCharCode(36),
+      "{{ inputs.environment == 'staging' && vars.STAGING_NEON_PROJECT_ID || vars.PRODUCTION_NEON_PROJECT_ID }}",
+    ].join("");
+    expect(source).toContain(expression);
+  });
+
   it("runs CI only for pull requests and manual verification", () => {
     const workflow = readWorkflow("ci.yml");
 

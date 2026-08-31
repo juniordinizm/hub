@@ -166,14 +166,15 @@ jobs:
               fi
             done
           fi
-      - name: Create and confirm Neon backup branch
+      - name: Set cleanup backup expiry
         if: inputs.mode == 'execute'
-        id: backup
+        run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+14 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+      - name: Verify Production source branch
+        if: inputs.mode == 'execute'
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: |
           set -euo pipefail
-
           source_branch="$(
             curl --fail-with-body --silent --show-error \
               --header "Accept: application/json" \
@@ -187,51 +188,16 @@ jobs:
              .branch.id == $branch and
              .branch.current_state == "ready"' \
             <<< "${source_branch}" > /dev/null
-
-          backup_name="asaas-cutover-backup-$(date -u +%Y%m%dT%H%M%SZ)"
-          backup_branch="$(
-            jq -n \
-              --arg name "${backup_name}" \
-              --arg parent "${PRODUCTION_NEON_BRANCH_ID}" \
-              '{branch:{name:$name,parent_id:$parent}}' |
-            curl --fail-with-body --silent --show-error \
-              --request POST \
-              --header "Accept: application/json" \
-              --header "Authorization: Bearer ${NEON_API_KEY}" \
-              --header "Content-Type: application/json" \
-              --data @- \
-              "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches"
-          )"
-          backup_id="$(jq -er '.branch.id' <<< "${backup_branch}")"
-
-          backup_ready=false
-          for _attempt in {1..12}; do
-            backup_branch="$(
-              curl --fail-with-body --silent --show-error \
-                --header "Accept: application/json" \
-                --header "Authorization: Bearer ${NEON_API_KEY}" \
-                "https://console.neon.tech/api/v2/projects/${PRODUCTION_NEON_PROJECT_ID}/branches/${backup_id}"
-            )"
-            if jq -e \
-              --arg project "${PRODUCTION_NEON_PROJECT_ID}" \
-              --arg parent "${PRODUCTION_NEON_BRANCH_ID}" \
-              --arg backup "${backup_id}" \
-              '.branch.project_id == $project and
-               .branch.parent_id == $parent and
-               .branch.id == $backup and
-               .branch.current_state == "ready"' \
-              <<< "${backup_branch}" > /dev/null; then
-              backup_ready=true
-              break
-            fi
-            sleep 5
-          done
-          if [[ "${backup_ready}" != "true" ]]; then
-            echo "Neon backup branch was not confirmed ready." >&2
-            exit 1
-          fi
-          echo "backup_branch_id=${backup_id}" >> "$GITHUB_OUTPUT"
-          echo "Neon backup branch confirmed: ${backup_id}"
+      - name: Create and confirm Neon backup branch
+        if: inputs.mode == 'execute'
+        id: backup
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_BRANCH_NAME: asaas-cutover-backup-${{ github.run_id }}-${{ github.run_attempt }}
+          NEON_EXPIRES_AT: ${{ env.NEON_BACKUP_EXPIRES_AT }}
+          NEON_PARENT_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+        run: bun scripts/create-neon-recovery-branch.ts
       - name: Run Production cleanup
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}

@@ -77,14 +77,13 @@ jobs:
       - name: Create Staging backup before execute
         if: inputs.mode == 'execute'
         id: backup
-        uses: neondatabase/create-branch-action@72ed4f69a12b6be9c16aebfad893f6a21e9aba8b # v6.4.0
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
-          branch_name: staging-reset-${{ github.run_id }}-${{ github.run_attempt }}
-          expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
-          suspend_timeout: 300
-          parent_branch: ${{ vars.STAGING_NEON_BRANCH_ID }}
-          project_id: ${{ vars.STAGING_NEON_PROJECT_ID }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_BRANCH_NAME: staging-reset-${{ github.run_id }}-${{ github.run_attempt }}
+          NEON_EXPIRES_AT: ${{ env.NEON_BACKUP_EXPIRES_AT }}
+          NEON_PARENT_BRANCH_ID: ${{ vars.STAGING_NEON_BRANCH_ID }}
+          NEON_PROJECT_ID: ${{ vars.STAGING_NEON_PROJECT_ID }}
+        run: bun scripts/create-neon-recovery-branch.ts
       - name: Verify Staging backup ancestry
         if: inputs.mode == 'execute'
         env:

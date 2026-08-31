@@ -39,7 +39,7 @@ jobs:
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_RELEASE_PARENT_BRANCH_ID: ${{ inputs.environment == 'staging' && vars.STAGING_NEON_BRANCH_ID || vars.PRODUCTION_NEON_BRANCH_ID }}
-      NEON_RELEASE_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+      NEON_RELEASE_PROJECT_ID: ${{ inputs.environment == 'staging' && vars.STAGING_NEON_PROJECT_ID || vars.PRODUCTION_NEON_PROJECT_ID }}
       RELEASE_BACKUP_CLEANUP_CONFIRMATION: ${{ inputs.confirmation }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0

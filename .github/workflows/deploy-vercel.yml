@@ -408,14 +408,13 @@ jobs:
       - name: Create confirmed Production Neon backup
         if: steps.release.outputs.has_migrations == 'true'
         id: backup
-        uses: neondatabase/create-branch-action@72ed4f69a12b6be9c16aebfad893f6a21e9aba8b # v6.4.0
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
-          branch_name: production-release-${{ github.run_id }}-${{ github.run_attempt }}
-          expires_at: ${{ env.NEON_BACKUP_EXPIRES_AT }}
-          suspend_timeout: 300
-          parent_branch: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
-          project_id: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_BRANCH_NAME: production-release-${{ github.run_id }}-${{ github.run_attempt }}
+          NEON_EXPIRES_AT: ${{ env.NEON_BACKUP_EXPIRES_AT }}
+          NEON_PARENT_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+          NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+        run: bun scripts/create-neon-recovery-branch.ts
 
       - name: Verify Production Neon backup ancestry
         if: steps.release.outputs.has_migrations == 'true'
