@@ -12,6 +12,8 @@ const readRepositoryFile = (fileName: string): string =>
   readFileSync(resolve(import.meta.dirname, `../../${fileName}`), "utf8");
 
 const DEPENDABOT_UPDATE_BLOCK_PATTERN = /\n\s{2}- package-ecosystem:/;
+const EMPTY_STAGING_WORKER_ENV_PATTERN =
+  /name: Invoke authenticated Staging workers[\r\n]+\s+env:\s*[\r\n]+\s+run:/;
 
 describe("CI and deployment workflow contracts", () => {
   it("routes every Dependabot update to Staging", () => {
@@ -22,6 +24,11 @@ describe("CI and deployment workflow contracts", () => {
     for (const block of updateBlocks) {
       expect(block).toContain("target-branch: staging");
     }
+  });
+
+  it("keeps the manual Staging jobs workflow schema-valid", () => {
+    const source = readWorkflow("run-staging-jobs.yml");
+    expect(source).not.toMatch(EMPTY_STAGING_WORKER_ENV_PATTERN);
   });
 
   it("uses an expiring no-compute helper for temporary Neon recovery branches", () => {

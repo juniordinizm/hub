@@ -33,7 +33,6 @@ jobs:
       STAGING_ORIGIN: https://preview.neurocapacitar.com.br
     steps:
       - name: Invoke authenticated Staging workers
-        env:
         run: |
           set -euo pipefail
           if [[ -z "${CRON_SECRET:-}" ]]; then
