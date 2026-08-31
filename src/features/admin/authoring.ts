@@ -1440,7 +1440,9 @@ export const saveLesson = async ({
   } = await getLessonVideoFormState({ formData, lessonId: existingLessonId });
 
   if (!(hasVideoContent || contentJson)) {
-    throw new Error("Adicione video ou texto antes de salvar a aula.");
+    throw new Error(
+      "Adicione video, texto ou material antes de salvar a aula."
+    );
   }
 
   const durationBreakdown = calculateLessonDurationBreakdown({
