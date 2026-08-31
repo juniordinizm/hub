@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
+import { LessonAuthoringError } from "@/features/admin/lesson-authoring-errors";
 import { normalizeLessonDraftInput } from "@/features/admin/lesson-drafts";
 import { resolveLessonVideoFormState } from "@/features/admin/lesson-video-form";
 import {
@@ -89,6 +90,45 @@ const readString = (formData: FormData, key: string): string =>
 const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   const value = Number(formData.get(key));
   return Number.isFinite(value) ? value : fallback;
+};
+
+const normalizeLessonContentForSave = ({
+  formData,
+  lessonId,
+}: {
+  formData: FormData;
+  lessonId: string;
+}): ReturnType<typeof normalizeLessonContentFromForm> => {
+  try {
+    return normalizeLessonContentFromForm({ formData, lessonId });
+  } catch (error) {
+    if (error instanceof LessonAuthoringError) {
+      throw error;
+    }
+
+    if (error instanceof Error) {
+      throw new LessonAuthoringError(error.message, "content");
+    }
+
+    throw error;
+  }
+};
+
+const assertLessonHasContent = ({
+  contentJson,
+  hasVideoContent,
+}: {
+  contentJson: ReturnType<typeof normalizeLessonContentFromForm>;
+  hasVideoContent: boolean;
+}): void => {
+  if (hasVideoContent || contentJson) {
+    return;
+  }
+
+  throw new LessonAuthoringError(
+    "A aula não pode ser salva sem conteúdo. Adicione pelo menos um vídeo, um texto com conteúdo ou um material anexado.",
+    "content"
+  );
 };
 
 const readLessonRequired = (formData: FormData): boolean => {
@@ -306,7 +346,9 @@ const assertDraftModule = async (moduleId: string): Promise<void> => {
   );
 
   if (!rows[0]) {
-    throw new Error("Modulo nao pertence a uma versao em rascunho.");
+    throw new LessonAuthoringError(
+      "Modulo nao pertence a uma versao em rascunho."
+    );
   }
 };
 
@@ -341,7 +383,9 @@ const assertLessonTargetPublicationIsEditable = async ({
     return modulePublicationStatus;
   }
 
-  throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
+  throw new LessonAuthoringError(
+    "Prepare alteracoes antes de editar conteudo publicado."
+  );
 };
 
 export const assertLessonPublicationIsEditable = async (
@@ -359,7 +403,9 @@ export const assertLessonPublicationIsEditable = async (
   );
 
   if (!rows[0]) {
-    throw new Error("Prepare alteracoes antes de editar conteudo publicado.");
+    throw new LessonAuthoringError(
+      "Prepare alteracoes antes de editar conteudo publicado."
+    );
   }
 };
 
@@ -911,6 +957,76 @@ const isJmvstreamAssetReferencedByPublishedVersion = async (
   return Boolean(rows[0]);
 };
 
+const assertSafeLessonResourceUploadReference = ({
+  expected,
+  received,
+}: {
+  expected: LessonResourceUploadReference;
+  received: LessonResourceUploadReference;
+}): void => {
+  try {
+    assertLessonResourceUploadReferenceMatches({ expected, received });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new LessonAuthoringError(error.message, "content");
+    }
+
+    throw error;
+  }
+};
+
+const confirmSingleLessonResourceUpload = async ({
+  actorUserId,
+  lessonId,
+  previousR2Keys,
+  resource,
+}: {
+  actorUserId: string;
+  lessonId: string | null;
+  previousR2Keys: string[];
+  resource: LessonResourceUploadReference;
+}): Promise<boolean> => {
+  const isExistingResource = previousR2Keys.includes(resource.key);
+  if (!isExistingResource) {
+    if (!lessonId) {
+      throw new LessonAuthoringError(
+        "O upload do material precisa estar vinculado a uma aula."
+      );
+    }
+
+    const upload = await getLessonResourceUpload({
+      actorUserId,
+      lessonId,
+      resourceId: resource.id,
+    });
+    if (!(upload && upload.status === "uploaded")) {
+      throw new LessonAuthoringError(
+        "Confirme o upload do material antes de salvar a aula."
+      );
+    }
+
+    assertSafeLessonResourceUploadReference({
+      expected: upload.reference,
+      received: resource,
+    });
+  }
+
+  await confirmLessonResourceUpload({
+    contentType: resource.contentType,
+    key: resource.key,
+    sizeBytes: resource.sizeBytes,
+  });
+  if (resource.preview) {
+    await confirmLessonResourceUpload({
+      contentType: resource.preview.contentType,
+      key: resource.preview.key,
+      sizeBytes: resource.preview.sizeBytes,
+    });
+  }
+
+  return !isExistingResource;
+};
+
 const confirmLessonResourceUploads = async ({
   actorUserId,
   contentJson,
@@ -934,43 +1050,14 @@ const confirmLessonResourceUploads = async ({
       continue;
     }
 
-    const isExistingResource = previousR2Keys.includes(resource.key);
-    if (!isExistingResource) {
-      if (!lessonId) {
-        throw new Error(
-          "O upload do material precisa estar vinculado a uma aula."
-        );
-      }
-
-      const upload = await getLessonResourceUpload({
-        actorUserId,
-        lessonId,
-        resourceId: resource.id,
-      });
-      if (!(upload && upload.status === "uploaded")) {
-        throw new Error(
-          "Confirme o upload do material antes de salvar a aula."
-        );
-      }
-
-      assertLessonResourceUploadReferenceMatches({
-        expected: upload.reference,
-        received: resource as LessonResourceUploadReference,
-      });
-      newUploadIds.push(resource.id);
-    }
-
-    await confirmLessonResourceUpload({
-      contentType: resource.contentType,
-      key: resource.key,
-      sizeBytes: resource.sizeBytes,
+    const isNewUpload = await confirmSingleLessonResourceUpload({
+      actorUserId,
+      lessonId,
+      previousR2Keys,
+      resource,
     });
-    if (resource.preview) {
-      await confirmLessonResourceUpload({
-        contentType: resource.preview.contentType,
-        key: resource.preview.key,
-        sizeBytes: resource.preview.sizeBytes,
-      });
+    if (isNewUpload) {
+      newUploadIds.push(resource.id);
     }
   }
 
@@ -1357,7 +1444,7 @@ export const createLessonDraft = async ({
   const courseId = module?.courseId;
 
   if (!(courseId && module)) {
-    throw new Error("Modulo invalido.");
+    throw new LessonAuthoringError("Modulo invalido.");
   }
 
   const inserted = await getPool().query<{ id: string }>(
@@ -1413,22 +1500,20 @@ export const saveLesson = async ({
   lessonId: string;
 }> => {
   const existingLessonId = readString(formData, "lessonId");
+  const title = readString(formData, "title");
+
+  if (!title) {
+    throw new LessonAuthoringError("Informe o título da aula.", "title");
+  }
+
   await assertExistingLessonPublicationIsEditable(existingLessonId);
 
   let savedLessonId = existingLessonId;
-  const contentJson = normalizeLessonContentFromForm({
+  const contentJson = normalizeLessonContentForSave({
     formData,
     lessonId: existingLessonId,
   });
-  const previousR2Keys = existingLessonId
-    ? await getLessonR2ObjectKeys(existingLessonId)
-    : [];
-  const uploadedLessonResourceIds = await confirmLessonResourceUploads({
-    actorUserId,
-    contentJson,
-    lessonId: existingLessonId,
-    previousR2Keys,
-  });
+
   const {
     hasVideoContent,
     shouldDeleteJmvstreamAsset,
@@ -1439,9 +1524,17 @@ export const saveLesson = async ({
     videoProvider,
   } = await getLessonVideoFormState({ formData, lessonId: existingLessonId });
 
-  if (!(hasVideoContent || contentJson)) {
-    throw new Error("Adicione video ou texto antes de salvar a aula.");
-  }
+  assertLessonHasContent({ contentJson, hasVideoContent });
+
+  const previousR2Keys = existingLessonId
+    ? await getLessonR2ObjectKeys(existingLessonId)
+    : [];
+  const uploadedLessonResourceIds = await confirmLessonResourceUploads({
+    actorUserId,
+    contentJson,
+    lessonId: existingLessonId,
+    previousR2Keys,
+  });
 
   const durationBreakdown = calculateLessonDurationBreakdown({
     textDocument: contentJson?.document ?? null,
@@ -1460,12 +1553,12 @@ export const saveLesson = async ({
   const module = await getCourseAndPublicationForModule(moduleId);
 
   if (!module) {
-    throw new Error("Modulo invalido.");
+    throw new LessonAuthoringError("Modulo invalido.");
   }
   const values = [
     moduleId,
     module.coursePublicationId,
-    readString(formData, "title"),
+    title,
     readString(formData, "description") || null,
     videoProvider,
     videoExternalId,

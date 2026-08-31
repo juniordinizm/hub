@@ -34,7 +34,7 @@ describe("Vercel deployment contract", () => {
     );
     expect(source).toContain("--target=staging");
     expect(source).toContain("db:migrate:staging");
-    expect(source).toContain("Create Staging Neon backup");
+    expect(source).not.toContain("Create Staging Neon backup");
     expect(source).toContain("preview.neurocapacitar.com.br");
     expect(source).not.toContain("vercel@57.0.0 curl");
     expect(source).not.toContain("vercel@57.0.0 pull");

@@ -25,6 +25,7 @@ export function LessonSidebarActions({
   formId,
   initialStatus,
 }: LessonSidebarActionsProps): React.JSX.Element {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState(initialStatus);
   const [isPending, startTransition] = useTransition();
 
@@ -42,18 +43,24 @@ export function LessonSidebarActions({
 
     const formData = new FormData(form);
     formData.set("status", status);
+    setErrorMessage(null);
 
     const toastId = toast.loading("Salvando aula...");
 
     startTransition(async () => {
       try {
-        await saveLessonAction(formData);
+        const result = await saveLessonAction(formData);
+        if (!result.ok) {
+          setErrorMessage(result.message);
+          toast.error(result.message, { id: toastId });
+          return;
+        }
+
         toast.success("Aula salva com sucesso!", { id: toastId });
-      } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Erro ao salvar a aula",
-          { id: toastId }
-        );
+      } catch {
+        const message = "Não foi possível salvar a aula. Tente novamente.";
+        setErrorMessage(message);
+        toast.error(message, { id: toastId });
       }
     });
   };
@@ -88,6 +95,15 @@ export function LessonSidebarActions({
         <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
         {isPending ? "Salvando..." : "Salvar aula"}
       </Button>
+      {errorMessage ? (
+        <div
+          aria-live="assertive"
+          className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-destructive text-sm"
+          role="alert"
+        >
+          {errorMessage}
+        </div>
+      ) : null}
     </div>
   );
 }

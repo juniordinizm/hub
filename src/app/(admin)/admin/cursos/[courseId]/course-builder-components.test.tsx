@@ -213,6 +213,26 @@ describe("CreateModuleDialog", () => {
   });
 });
 
+describe("lesson draft form requirements", () => {
+  it("requires only the lesson title", () => {
+    const document = new DOMParser().parseFromString(
+      renderToStaticMarkup(
+        <CreateLessonDraftForm moduleId={moduleData.id} nextSortOrder={2} />
+      ),
+      "text/html"
+    );
+
+    expect(
+      document
+        .querySelector('textarea[name="description"]')
+        ?.hasAttribute("required")
+    ).toBe(false);
+    expect(
+      document.querySelector('input[name="title"]')?.hasAttribute("required")
+    ).toBe(true);
+  });
+});
+
 describe("course builder copy", () => {
   it("uses accented Portuguese throughout the visible authoring flow", () => {
     const videoLesson = {

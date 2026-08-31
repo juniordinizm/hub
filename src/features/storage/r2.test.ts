@@ -58,7 +58,7 @@ describe("R2 lesson resource signing", () => {
     state.getServerEnv.mockReturnValue(env);
   });
 
-  it("signs the exact bucket, key, content type and ten-minute expiry", async () => {
+  it("signs the exact bucket and key without binding browser Content-Type", async () => {
     const prepared = await createLessonResourceUploadUrl({
       contentType: "application/pdf",
       fileName: "material.pdf",
@@ -70,13 +70,13 @@ describe("R2 lesson resource signing", () => {
     expect(prepared.reference.key).toMatch(RESOURCE_KEY_PATTERN);
     expect(state.signed[0]?.command.input).toMatchObject({
       Bucket: "neuro-prod-private",
-      ContentType: "application/pdf",
       Key: prepared.reference.key,
     });
+    expect(state.signed[0]?.command.input).not.toHaveProperty("ContentType");
     expect(state.signed[0]?.options).toMatchObject({
       expiresIn: 10 * 60,
-      signableHeaders: new Set(["content-type"]),
     });
+    expect(state.signed[0]?.options).not.toHaveProperty("signableHeaders");
   });
 
   it("reissues a signed URL without changing the prepared object key", async () => {
@@ -97,8 +97,8 @@ describe("R2 lesson resource signing", () => {
     expect(prepared.reference).toEqual(reference);
     expect(state.signed[0]?.command.input).toMatchObject({
       Bucket: "neuro-prod-private",
-      ContentType: "application/pdf",
       Key: reference.key,
     });
+    expect(state.signed[0]?.command.input).not.toHaveProperty("ContentType");
   });
 });
