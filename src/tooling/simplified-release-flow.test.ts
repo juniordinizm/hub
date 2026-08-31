@@ -28,6 +28,21 @@ describe("simplified release flow", () => {
     expect(workflow).not.toContain("db:prepare:ci-migration");
   });
 
+  it("rejects normal PRs targeting main and documents the allowed exception", () => {
+    const workflow = read(".github/workflows/ci.yml");
+    const template = read(".github/pull_request_template.md");
+
+    expect(workflow).toContain("name: Enforce the pull request flow");
+    expect(workflow).toContain("PR_BASE_BRANCH");
+    expect(workflow).toContain("PR_HEAD_BRANCH");
+    expect(workflow).toContain("^hotfix/");
+    expect(workflow).toContain([",", "$", "{PR_LABELS},"].join(""));
+    expect(workflow).toContain("PRs normais devem usar staging como base");
+    expect(template).toContain("PR normal: base `staging`");
+    expect(template).toContain("branch `hotfix/*`, base `main`");
+    expect(template).toContain("label `hotfix`");
+  });
+
   it("keeps Staging deployment on Vercel Git Integration without a workflow_run deploy", () => {
     const workflow = read(".github/workflows/deploy-staging.yml");
 

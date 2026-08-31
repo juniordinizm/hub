@@ -45,6 +45,22 @@ jobs:
         with:
           bun-version: 1.3.11
 
+      - name: Enforce the pull request flow
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_BRANCH: ${{ github.head_ref }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          if [[ "${PR_BASE_BRANCH}" == "main" ]] && {
+            [[ ! "${PR_HEAD_BRANCH}" =~ ^hotfix/ ]] ||
+            [[ ",${PR_LABELS}," != *",hotfix,"* ]]
+          }; then
+            echo "PRs normais devem usar staging como base. Apenas hotfix/* com o label hotfix pode usar main." >&2
+            exit 1
+          fi
+
       - run: bun install --frozen-lockfile
 
       - name: Run static and unit verification
