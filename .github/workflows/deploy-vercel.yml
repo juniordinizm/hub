@@ -100,15 +100,16 @@ jobs:
               any(.[];
                 .base.ref == "main" and
                 .merged_at != null and
-                (.head.ref | startswith("hotfix/")))
+                (.head.ref | startswith("hotfix/")) and
+                (.labels | any(.[]; .name == "hotfix")))
             ' <<< "${pull_requests}" > /dev/null; then
-              echo "Hotfix Production requires a merged hotfix/* pull request into main." >&2
+              echo "Hotfix Production requires the hotfix label on a merged hotfix/* pull request into main." >&2
               exit 1
             fi
             hotfix_head_sha="$(
               jq -er '
                 [.[]
-                 | select(.base.ref == "main" and .merged_at != null and (.head.ref | startswith("hotfix/")))
+                 | select(.base.ref == "main" and .merged_at != null and (.head.ref | startswith("hotfix/")) and (.labels | any(.[]; .name == "hotfix")))
                  | .head.sha]
                 | .[0] // empty
               ' <<< "${pull_requests}"

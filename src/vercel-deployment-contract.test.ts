@@ -68,6 +68,7 @@ describe("Vercel deployment contract", () => {
     );
     expect(source).toContain("name: Smoke Production public profile");
     expect(source).toContain("Hotfix Production requires a successful CI run");
+    expect(source).toContain("Hotfix Production requires the hotfix label");
     expect(source).not.toContain("release_sha:");
     expect(source).not.toContain("confirm_production:");
     expect(source).not.toContain("EMERGENCY_SKIP_PRODUCTION");

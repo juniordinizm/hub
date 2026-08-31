@@ -77,6 +77,7 @@ describe("simplified release flow", () => {
     expect(workflow).toContain(
       "Hotfix Production requires a successful CI run"
     );
+    expect(workflow).toContain("Hotfix Production requires the hotfix label");
     expect(workflow).not.toContain("release_sha:");
     expect(workflow).not.toContain("confirm_production:");
   });
