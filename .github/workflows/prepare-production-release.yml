@@ -109,7 +109,7 @@ jobs:
         id: branch
         run: |
           set -euo pipefail
-          sync_branch="sync/production-into-staging-${GITHUB_RUN_ID}"
+          sync_branch="sync/production-into-staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git switch --create "${sync_branch}" origin/staging
           if git merge --no-edit origin/main; then
             conflict_mode=false

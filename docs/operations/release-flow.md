@@ -77,13 +77,14 @@ repete a CI.
 1. Homologue o deployment atual de Staging.
 2. Execute `Deploy Vercel production` com `mode=release-staging`.
 3. O workflow confirma que `main` é ancestral de `staging`.
-4. `main` avança por fast-forward para o SHA homologado.
-5. O workflow cria uma build Production sem domínio.
-6. Sem migration, não há branch Neon de release nem migration de banco.
-7. Com migration, o workflow exige backup independente recente, cria branch de
+4. O workflow confirma que o SHA candidato possui um check `CI` verde.
+5. `main` avança por fast-forward para o SHA homologado.
+6. O workflow aguarda a build Production automática sem domínio.
+7. Sem migration, não há branch Neon de release nem migration de banco.
+8. Com migration, o workflow exige backup independente recente, cria branch de
    recuperação sem compute, aplica a migration e audita o journal.
-8. Readiness, R2 e smoke público precisam passar antes da promoção.
-9. A promoção usa o mesmo deployment validado, sem rebuild.
+9. Readiness, R2 e smoke público precisam passar antes da promoção.
+10. A promoção usa o mesmo deployment validado, sem rebuild.
 
 O domínio Production permanece apontando para a versão anterior até a etapa de
 promoção. Falha de build, migration ou smoke não deve alterar o tráfego público.

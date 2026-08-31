@@ -70,6 +70,7 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("release-staging");
     expect(workflow).toContain("hotfix");
     expect(workflow).toContain("git merge-base --is-ancestor");
+    expect(workflow).toContain("check-runs?check_name=CI");
     expect(workflow).toContain("git push origin");
     expect(workflow).toContain("Await automatic Production deployment");
     expect(workflow).toContain("Verify exact Staging deployment");
@@ -78,6 +79,9 @@ describe("simplified release flow", () => {
       "Hotfix Production requires a successful CI run"
     );
     expect(workflow).toContain("Hotfix Production requires the hotfix label");
+    expect(workflow).toContain(
+      "Hotfix Production cannot include database migrations"
+    );
     expect(workflow).not.toContain("release_sha:");
     expect(workflow).not.toContain("confirm_production:");
   });
@@ -91,6 +95,8 @@ describe("simplified release flow", () => {
     expect(workflow).toContain("git merge --no-edit origin/main");
     expect(workflow).toContain("git merge --abort");
     expect(workflow).toContain("conflict");
+    expect(workflow).not.toContain("git push --delete origin staging");
+    expect(workflow).not.toContain("git branch --delete staging");
     expect(workflow).toContain("gh pr create");
     expect(workflow).toContain("--base staging");
     expect(workflow).toContain("gh workflow run ci.yml");

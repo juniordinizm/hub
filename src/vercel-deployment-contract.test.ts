@@ -50,7 +50,12 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("hotfix");
     expect(source).toContain("contents: write");
     expect(source).toContain("pull-requests: read");
+    expect(source).toContain("checks: read");
     expect(source).toContain("git merge-base --is-ancestor");
+    expect(source).toContain("check-runs?check_name=CI");
+    expect(source).toContain(
+      "No successful CI check exists for the Staging candidate"
+    );
     expect(source).toContain("Verify exact Staging deployment");
     expect(source).toContain("githubCommitSha");
     expect(source).toContain(
@@ -69,6 +74,9 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("name: Smoke Production public profile");
     expect(source).toContain("Hotfix Production requires a successful CI run");
     expect(source).toContain("Hotfix Production requires the hotfix label");
+    expect(source).toContain(
+      "Hotfix Production cannot include database migrations"
+    );
     expect(source).not.toContain("release_sha:");
     expect(source).not.toContain("confirm_production:");
     expect(source).not.toContain("EMERGENCY_SKIP_PRODUCTION");
