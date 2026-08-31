@@ -1,7 +1,7 @@
 # Release Flow Hardening Design
 
-**Date:** 2026-08-31  
-**Status:** Approved for implementation  
+**Date:** 2026-08-31
+**Status:** Approved for implementation
 **Scope:** operational simplification follow-up
 
 ## Goal
@@ -116,4 +116,3 @@ The following remain operator-controlled:
 - Canonical documentation matches the implementation.
 - Existing CI, build, migration checks and contract tests remain green.
 - No Production deployment or database mutation occurs during validation.
-
