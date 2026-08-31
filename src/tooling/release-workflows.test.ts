@@ -36,6 +36,7 @@ describe("CI and deployment workflow contracts", () => {
     expect(workflow).toContain(
       "postgresql://postgres:postgres@127.0.0.1:5432/hub_e2e?sslmode=disable"
     );
+    expect(workflow).toContain("bun run db:migrate:e2e");
     expect(workflow).toContain("bun run test:certificates:integration");
     expect(workflow).toContain("bun run test:e2e");
     expect(workflow).toContain("bun run build");

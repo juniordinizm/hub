@@ -74,7 +74,8 @@ jobs:
         env:
           DATABASE_URL: ${{ env.INTEGRATION_DATABASE_URL }}
           DATABASE_URL_DIRECT: ${{ env.INTEGRATION_DATABASE_URL }}
-        run: bun run db:migrate
+          E2E_DATABASE_URL: ${{ env.INTEGRATION_DATABASE_URL }}
+        run: bun run db:migrate:e2e
 
       - name: Run PostgreSQL integration tests
         env:
