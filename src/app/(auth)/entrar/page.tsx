@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getServerEnv } from "@/lib/env";
 import { route } from "@/lib/routes";
 import { getCurrentSession } from "@/lib/session";
 import { SignInForm } from "./sign-in-form";
@@ -23,13 +22,6 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
   const session = await getCurrentSession();
 
   if (session && !(session.role === "student" && session.platformBlockedAt)) {
-    if (
-      session.role !== "student" &&
-      getServerEnv().PRIVILEGED_MFA_ENFORCED &&
-      !session.twoFactorEnabled
-    ) {
-      redirect(route("/configurar-segundo-fator"));
-    }
     redirect(route(session.role === "student" ? "/app" : "/admin"));
   }
 

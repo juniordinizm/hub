@@ -312,16 +312,6 @@ function PanelLayoutInner({
                         </div>
                       </DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      {userRole === "admin" || userRole === "support" ? (
-                        <DropdownMenuItem asChild>
-                          <Link href={route("/configurar-segundo-fator")}>
-                            Segurança da conta
-                          </Link>
-                        </DropdownMenuItem>
-                      ) : null}
-                      {userRole === "admin" || userRole === "support" ? (
-                        <DropdownMenuSeparator />
-                      ) : null}
                       <DropdownMenuItem
                         className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                         disabled={isPending}

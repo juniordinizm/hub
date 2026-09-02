@@ -93,6 +93,15 @@ Para testar somente integração, configure uma URL PostgreSQL descartável e
 execute `bun run test:certificates:integration`. Para E2E, use as URLs e os
 servidores locais definidos no `playwright.config.ts`.
 
+Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplicação
+herdadas do processo e restaura o ambiente ao final de cada teste. Isso impede
+que `.env.local` altere silenciosamente o resultado da suíte. O contrato fica em
+`src/testing/hermetic-environment.test.ts`.
+
+O audit de produção também mantém `browserslist` fixado pelo override do
+`package.json`; rode `bun audit --production` depois de qualquer alteração no
+lockfile.
+
 ## Contratos obrigatórios
 
 Os testes de workflow devem detectar regressão quando:

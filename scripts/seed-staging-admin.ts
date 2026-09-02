@@ -4,8 +4,8 @@ import { config } from "dotenv";
 import { Pool } from "pg";
 import { withVerifiedSslMode } from "../src/db/connection-url";
 import {
-  resolveStagingAdminSeedAccounts,
-  seedStagingAdminAccounts,
+  resolveStagingAdminSeedAccount,
+  seedStagingAdminAccount,
 } from "../src/db/staging-admin-seed";
 import { assertStagingTarget } from "../src/db/staging-target";
 
@@ -29,7 +29,7 @@ assertStagingTarget({
   expectedHost: process.env.STAGING_DATABASE_HOST,
 });
 readRequiredEnvironment("BETTER_AUTH_SECRET");
-const accounts = resolveStagingAdminSeedAccounts(process.env);
+const account = resolveStagingAdminSeedAccount(process.env);
 const pool = new Pool({
   application_name: "protea-r-staging-admin-seed",
   connectionString: withVerifiedSslMode(directDatabaseUrl),
@@ -39,8 +39,8 @@ const client = await pool.connect();
 let outcome: { created: number; updated: number };
 
 try {
-  outcome = await seedStagingAdminAccounts({
-    accounts,
+  outcome = await seedStagingAdminAccount({
+    account,
     client: {
       query: async (text, values) => await client.query(text, values),
     },
@@ -53,5 +53,5 @@ try {
 }
 
 process.stdout.write(
-  `Staging Admin accounts ready: ${outcome.created} created, ${outcome.updated} updated; sessions revoked.\n`
+  `Staging Admin ready: ${outcome.created} created, ${outcome.updated} updated; session revoked.\n`
 );

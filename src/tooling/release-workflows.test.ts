@@ -191,3 +191,31 @@ describe("CI and deployment workflow contracts", () => {
     }
   });
 });
+
+describe("Production Sentry readiness workflow", () => {
+  it("requires explicit confirmation and checks the emitted Production event", () => {
+    const workflow = readWorkflow("verify-production-sentry.yml");
+
+    expect(workflow).toContain("name: Verify Sentry Production readiness");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("release_sha:");
+    expect(workflow).toContain("confirmation:");
+    expect(workflow).toContain(
+      [
+        "CONFIRMATION: ",
+        String.fromCharCode(36),
+        "{{ inputs.confirmation }}",
+      ].join("")
+    );
+    expect(workflow).toContain("EMIT_SENTRY_PRODUCTION_READINESS");
+    expect(workflow).toContain("name: vercel-production");
+    expect(workflow).toContain(
+      "PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br"
+    );
+    expect(workflow).toContain("SENTRY_READINESS_SECRET");
+    expect(workflow).toContain("SENTRY_READINESS_AUTH_TOKEN");
+    expect(workflow).toContain("bun run ops:check:sentry-readiness");
+    expect(workflow).toContain("--environment=production");
+    expect(workflow).not.toContain("vercel deploy");
+  });
+});

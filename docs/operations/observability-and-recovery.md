@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 83bc73097b15bfddf04dfb45352e9dbae33272a3
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Observabilidade e recuperação
@@ -116,6 +116,14 @@ aguarda no máximo um minuto, exige evento no projeto/ambiente/release corretos,
 ausência de PII/query, frame resolvido para `src/lib/sentry-readiness.ts` e
 workflow ativo cujo `lastTriggered` alcança o evento. HTTP 401/403, resposta
 incompleta ou timeout falham; o checker não cria nem altera alerta.
+
+Para a prova específica de Production, use o workflow manual
+`Verify Sentry Production readiness`. Informe o SHA completo atualmente servido
+e a confirmação literal `EMIT_SENTRY_PRODUCTION_READINESS`. O workflow usa o
+Environment `vercel-production`, emite um único evento controlado no domínio
+canônico e executa o checker com `--environment=production`; ele não faz deploy,
+não altera configurações do Sentry e não cria cobrança. Não execute essa prova
+como smoke genérico nem sem autorização para gerar o evento operacional.
 
 O Sentry pode acrescentar `user.geo` (cidade, região e país) no processamento do
 evento, mesmo quando `scrubIPAddresses=true` e `email`/`ip_address` não foram

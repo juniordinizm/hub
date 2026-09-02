@@ -55,6 +55,10 @@ independente.
 Staging não é apagado ou recriado a cada release. O banco mantém seus dados de
 sandbox; reset é uma operação manual protegida e não copia dados reais.
 
+O seed `db:seed:staging-admin` mantém uma única conta Admin controlada, com senha
+de pelo menos oito caracteres, transação única e revogação das sessões existentes.
+Não há conta de recuperação nem seed de fator adicional.
+
 ## Production
 
 O workflow de Production detecta migrations entre o deployment promovido e o
@@ -79,6 +83,11 @@ Com migration:
 
 Migrations Production são forward-only e devem ser compatíveis com o código
 anterior durante a janela entre alteração do banco e promoção.
+
+A migration histórica `0065_gray_siren` contém estruturas de uma tentativa de MFA
+administrativo. Elas permanecem no schema e no histórico para evitar uma remoção
+destrutiva, mas não são registradas no adaptador Better Auth nem usadas pelo
+runtime atual. Não crie uma nova migration para removê-las sem decisão explícita.
 
 ## Backup e restore
 

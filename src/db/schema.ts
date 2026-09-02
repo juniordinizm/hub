@@ -228,6 +228,7 @@ export const users = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
+    // Legacy columns retained so future migration diffs do not propose a drop.
     twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     ...timestamps,
   },
@@ -236,6 +237,7 @@ export const users = pgTable(
   ]
 );
 
+// Legacy Better Auth storage retained for migration history; not registered by the app.
 export const twoFactors = pgTable(
   "two_factors",
   {

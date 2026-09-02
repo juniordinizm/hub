@@ -195,15 +195,6 @@ describe("server environment", () => {
     expect(getServerEnv().AUTH_PUBLIC_SIGNUP_ENABLED).toBe(false);
   });
 
-  it("keeps privileged MFA rollout disabled until explicitly activated", () => {
-    setEnv("NODE_ENV", "development");
-    setEnv("PRIVILEGED_MFA_ENFORCED", undefined);
-    expect(getServerEnv().PRIVILEGED_MFA_ENFORCED).toBe(false);
-
-    setEnv("PRIVILEGED_MFA_ENFORCED", "true");
-    expect(getServerEnv().PRIVILEGED_MFA_ENFORCED).toBe(true);
-  });
-
   it("only permits E2E mode in CI", () => {
     setEnv("NODE_ENV", "development");
     setEnv("E2E_TEST_MODE", "true");

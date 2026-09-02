@@ -52,6 +52,20 @@ Non-production em projetos Neon distintos. Esses itens não impedem o estado
 atual, mas devem ser concluídos antes de considerar a migração operacional
 encerrada.
 
+## Atualização de escopo — MFA administrativo
+
+MFA administrativo não faz parte do produto atual. A implementação ativa foi
+removida na árvore candidata, e o login de `admin` e `support` usa sessão Better
+Auth, RBAC, bloqueio de Conta e as confirmações próprias de cada operação. As
+estruturas históricas da migration `0065` permanecem no schema e no histórico
+para evitar uma remoção destrutiva; não são registradas no adaptador nem lidas
+pelo runtime. Esta alteração ainda não foi publicada em Production.
+
+O workflow manual `Verify Sentry Production readiness` e o
+[checklist de pendências externas](external-readiness-checklist.md) documentam
+as provas de Sentry, e-mail/DMARC, R2 e CI que ainda dependem de acesso humano a
+providers. A ausência de MFA não é um gate de release.
+
 ## Histórico operacional — 2026-08-26
 
 O deployment Production observado continua `dpl_8TdrhAsLdPF6BCDSuw5ArE8VCkFb`,

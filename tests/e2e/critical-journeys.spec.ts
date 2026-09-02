@@ -389,33 +389,6 @@ test("student dashboard has no moderate or higher accessibility violations", asy
   await assertNoBlockingAccessibilityViolations(page, "student dashboard");
 });
 
-test("TOTP challenge preserves tab order and returns focus after error @mobile", async ({
-  page,
-}) => {
-  await page.goto("/verificar-segundo-fator");
-  const codeInput = page.getByLabel("Código do autenticador");
-  const confirmButton = page.getByRole("button", { name: "Confirmar" });
-  const backupButton = page.getByRole("button", {
-    name: "Usar código de recuperação",
-  });
-
-  await page.keyboard.press("Tab");
-  await expect(codeInput).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(confirmButton).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(backupButton).toBeFocused();
-
-  await codeInput.fill("000000");
-  await confirmButton.click();
-  await expect(
-    page
-      .getByRole("alert")
-      .filter({ hasText: "Não foi possível validar o código" })
-  ).toBeVisible();
-  await expect(codeInput).toBeFocused();
-});
-
 test("student lesson has no moderate or higher accessibility violations", async ({
   page,
 }) => {

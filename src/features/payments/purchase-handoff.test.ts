@@ -38,7 +38,6 @@ const createSession = (overrides: Partial<AppSession> = {}): AppSession => ({
   platformBlockedAt: null,
   platformBlockedReason: null,
   role: "student",
-  twoFactorEnabled: false,
   user: {
     email: "aluna@example.com",
     id: "student-1",

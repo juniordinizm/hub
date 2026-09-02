@@ -3,15 +3,8 @@ import { dash, sentinel } from "@better-auth/infra";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { twoFactor } from "better-auth/plugins/two-factor";
 import { getDb } from "@/db";
-import {
-  accounts,
-  sessions,
-  twoFactors,
-  users,
-  verifications,
-} from "@/db/schema";
+import { accounts, sessions, users, verifications } from "@/db/schema";
 import { sendBetterAuthPasswordResetEmail } from "@/lib/auth-password-reset";
 import {
   getBetterAuthRateLimitConfig,
@@ -20,7 +13,6 @@ import {
 import { getServerEnv } from "@/lib/env";
 import { AUTH_PASSWORD_POLICY } from "@/lib/password-policy";
 import { parseTrustedOrigins } from "@/lib/trusted-origins";
-import { TWO_FACTOR_SERVER_OPTIONS } from "@/lib/two-factor-policy";
 
 const createAuth = () => {
   const env = getServerEnv();
@@ -62,7 +54,6 @@ const createAuth = () => {
       schema: {
         accounts,
         sessions,
-        twoFactors,
         users,
         verifications,
       },
@@ -75,11 +66,7 @@ const createAuth = () => {
         await sendBetterAuthPasswordResetEmail(input, request);
       },
     },
-    plugins: [
-      ...infraPlugins,
-      twoFactor(TWO_FACTOR_SERVER_OPTIONS),
-      nextCookies(),
-    ],
+    plugins: [...infraPlugins, nextCookies()],
   });
 };
 
