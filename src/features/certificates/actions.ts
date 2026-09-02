@@ -13,6 +13,7 @@ import {
   reissueCertificate,
   revokeCertificate,
 } from "@/features/certificates/server";
+import { scheduleOutboxDrainAfterResponse } from "@/features/outbox/background-drain";
 import { requirePermission } from "@/lib/auth-permissions";
 import { requireRole } from "@/lib/session";
 import type { CertificateActionState } from "./action-state";
@@ -60,6 +61,7 @@ export const issueManualCertificateAction = async (
         actorUserId: session.user.id,
         ...input,
       });
+      scheduleOutboxDrainAfterResponse();
     },
     successMessage: "Certificado emitido.",
   });
@@ -98,6 +100,7 @@ export const reissueCertificateAction = async (
         actorUserId: session.user.id,
         ...input,
       });
+      scheduleOutboxDrainAfterResponse();
     },
     successMessage: "Certificado reemitido.",
   });
@@ -121,6 +124,7 @@ export const reconcileHistoricalCertificatesAction = async (
       actorUserId: session.user.id,
       courseId,
     });
+    scheduleOutboxDrainAfterResponse({ aggregateId: courseId });
     revalidatePath(`/admin/cursos/${courseId}`);
     return {
       ...result,

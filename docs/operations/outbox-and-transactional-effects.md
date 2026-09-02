@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: a95be66d7645e17d3bf83528ffa065b7ced38861
 ---
 
 # Outbox e efeitos transacionais
@@ -11,6 +11,18 @@ last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
 Uma alteração de domínio não chama um provedor externo dentro da transação do banco. Ela grava uma intenção durável em `outbox_messages`; o consumidor entrega essa intenção depois do commit. Isso evita perder um e-mail quando o processo cai entre o commit e a chamada externa.
 
 O contrato está em `src/features/outbox/rules.ts`, a persistência em `src/features/outbox/server.ts`, o consumidor em `src/features/outbox/runner.ts` e o adaptador Resend em `src/features/outbox/delivery.ts`.
+
+Nas operações iniciadas por uma requisição, a intenção continua sendo gravada
+antes do commit e o provedor só é chamado depois dele. Quando há uma entrega
+que deve ser rápida, a ação agenda `scheduleOutboxDrainAfterResponse` depois
+que a transação terminou. Esse drain é limitado a cinco mensagens e quinze
+segundos; uma falha não altera nem remove a intenção durável. O cron de outbox
+continua sendo a recuperação para indisponibilidade, timeout ou queda do
+processo. Em particular, conclusão de aula que emite certificado, suporte,
+alteração de disponibilidade do curso e comandos administrativos de certificado
+usam o drain imediato. Manutenção de matrículas e entregas encadeadas do
+próprio worker permanecem cron/worker-only para evitar recursão e concorrência
+desnecessárias.
 
 ## Catálogo aprovado
 
@@ -83,9 +95,9 @@ esta intenção quando `activationRequired=true`.
 
 ## Entrega, concorrência e idempotência
 
-`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada cinco minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção.
+`runOutboxWorker` é chamado por `GET /api/cron/outbox` a cada quinze minutos. A rota exige `Authorization: Bearer <CRON_SECRET>` em produção. O drain iniciado após a resposta reutiliza o mesmo `runOutboxJob`, lease, limite e transições; ele não substitui o cron.
 O worker da inbox Asaas é separado da outbox e roda por
-`GET /api/cron/asaas-webhooks` a cada minuto, mas reutiliza o mesmo guard de
+`GET /api/cron/asaas-webhooks` a cada quinze minutos, mas reutiliza o mesmo guard de
 `CRON_SECRET`, kill switch e padrão de lease/deadline.
 
 - A rota só executa com `SCHEDULED_JOBS_ENABLED=true` e adquire um lease
@@ -195,6 +207,8 @@ dias para `delivered` e 180 dias para `dead_letter`.
   `certificate-issuance.integration.test.ts`;
 - idempotência de ativação: `src/lib/account-activation-idempotency.ts`,
   `src/lib/auth-password-reset.ts` e testes correspondentes;
+- drain imediato: `src/features/outbox/background-drain.ts` e os testes das ações
+  de aluno, disponibilidade de curso e certificado;
 - provedor: [documentação de idempotência da Resend](https://resend.com/docs/dashboard/emails/idempotency-keys).
 
 Todo tópico novo precisa definir versão de payload, chave idempotente, dona operacional, retenção, classificação de PII e runbook antes de ser gravado na outbox.

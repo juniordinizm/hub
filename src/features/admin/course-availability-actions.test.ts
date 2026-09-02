@@ -5,6 +5,7 @@ const dependencies = vi.hoisted(() => ({
   revalidatePath: vi.fn(),
   requireRole: vi.fn(),
   restoreCourse: vi.fn(),
+  scheduleOutboxDrainAfterResponse: vi.fn(),
   setCourseAvailability: vi.fn(),
 }));
 
@@ -13,6 +14,10 @@ vi.mock("@/features/courses/availability-server", () => ({
   archiveCourse: dependencies.archiveCourse,
   restoreCourse: dependencies.restoreCourse,
   setCourseAvailability: dependencies.setCourseAvailability,
+}));
+vi.mock("@/features/outbox/background-drain", () => ({
+  scheduleOutboxDrainAfterResponse:
+    dependencies.scheduleOutboxDrainAfterResponse,
 }));
 vi.mock("@/lib/session", () => ({ requireRole: dependencies.requireRole }));
 
@@ -52,6 +57,9 @@ describe("Course availability actions", () => {
       preset: "sales_paused",
       showInCatalog: true,
     });
+    expect(
+      dependencies.scheduleOutboxDrainAfterResponse
+    ).toHaveBeenCalledOnce();
   });
 
   it("keeps archive and restore as explicit commands", async () => {

@@ -1,4 +1,9 @@
 import { getPool } from "@/db";
+import {
+  getLessonResourceUploadCorrelationId,
+  logLessonResourceUploadEvent,
+} from "@/features/storage/lesson-resource-upload-observability";
+import { registerLessonResourceUpload } from "@/features/storage/lesson-resource-upload-registry";
 import { createLessonResourceUploadUrl } from "@/features/storage/r2";
 import { requireRole } from "@/lib/session";
 
@@ -65,15 +70,21 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ lessonId: string }> }
 ): Promise<Response> {
-  await requireRole(["admin"]);
+  const session = await requireRole(["admin"]);
 
   const { lessonId } = await context.params;
+  const correlationId = getLessonResourceUploadCorrelationId(request);
 
   if (!(lessonId && (await lessonExists(lessonId)))) {
     return Response.json({ error: "Aula nao encontrada." }, { status: 404 });
   }
 
-  const body: unknown = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return Response.json({ error: "Dados invalidos." }, { status: 400 });
+  }
 
   if (!isRecord(body)) {
     return Response.json({ error: "Dados invalidos." }, { status: 400 });
@@ -97,10 +108,41 @@ export async function POST(
       sizeBytes,
     });
 
-    return Response.json(signedUpload);
+    await registerLessonResourceUpload({
+      actorUserId: session.user.id,
+      lessonId,
+      reference: signedUpload.reference,
+    });
+    logLessonResourceUploadEvent({
+      correlationId,
+      httpStatus: 200,
+      lessonId,
+      resourceId: signedUpload.reference.id,
+      sizeBytes: signedUpload.reference.sizeBytes,
+      stage: "prepare",
+      success: true,
+    });
+
+    return Response.json({
+      expiresAt: signedUpload.expiresAt,
+      ...(signedUpload.previewUploadUrl
+        ? { previewUploadUrl: signedUpload.previewUploadUrl }
+        : {}),
+      reference: signedUpload.reference,
+      uploadUrl: signedUpload.uploadUrl,
+    });
   } catch (error) {
+    logLessonResourceUploadEvent({
+      correlationId,
+      errorCode: "lesson_resource_upload_prepare_failed",
+      httpStatus: 400,
+      lessonId,
+      stage: "prepare",
+      success: false,
+    });
     return Response.json(
       {
+        correlationId,
         error:
           error instanceof Error
             ? error.message

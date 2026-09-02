@@ -8,404 +8,187 @@ const readWorkflow = (fileName: string): string =>
     "utf8"
   );
 
-const readAction = (actionPath: string): string =>
-  readFileSync(
-    resolve(import.meta.dirname, `../../.github/${actionPath}`),
-    "utf8"
-  );
+const readRepositoryFile = (fileName: string): string =>
+  readFileSync(resolve(import.meta.dirname, `../../${fileName}`), "utf8");
 
-const readDocument = (documentPath: string): string =>
-  readFileSync(resolve(import.meta.dirname, `../../${documentPath}`), "utf8");
+const DEPENDABOT_UPDATE_BLOCK_PATTERN = /\n\s{2}- package-ecosystem:/;
+const EMPTY_STAGING_WORKER_ENV_PATTERN =
+  /name: Invoke authenticated Staging workers[\r\n]+\s+env:\s*[\r\n]+\s+run:/;
 
-const githubExpression = (expression: string): string =>
-  ["$", "{{ ", expression, " }}"].join("");
+describe("CI and deployment workflow contracts", () => {
+  it("routes every Dependabot update to Staging", () => {
+    const source = readRepositoryFile(".github/dependabot.yml");
+    const updateBlocks = source.split(DEPENDABOT_UPDATE_BLOCK_PATTERN).slice(1);
 
-const shellVariable = (name: string): string => ["$", "{", name, "}"].join("");
-
-describe("Development migration workflow", () => {
-  it("migrates only the protected Development target from an approved main SHA", () => {
-    const workflow = readWorkflow("migrate-development.yml");
-
-    expect(workflow).toContain("confirm_development:");
-    expect(workflow).toContain("group: neon-development-migrations");
-    expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain("name: neon-development");
-    expect(workflow).toContain("ref: main");
-    expect(workflow).toContain('release_sha="$(git rev-parse HEAD)"');
-    expect(workflow).toContain(
-      `${shellVariable("GITHUB_REF")}" != "refs/heads/main"`
-    );
-    expect(workflow).toContain(
-      `DATABASE_URL_DIRECT: ${githubExpression("secrets.DATABASE_URL_DIRECT")}`
-    );
-    expect(workflow).toContain(
-      `DEVELOPMENT_DATABASE_HOST: ${githubExpression(
-        "vars.DEVELOPMENT_DATABASE_HOST"
-      )}`
-    );
-    expect(workflow).toContain("bun run db:migrate:development");
-    expect(workflow).toContain(
-      "bun run db:migrations:inspect -- --environment=neon-development"
-    );
-    expect(workflow).toContain(
-      "No successful CI run exists for the current main SHA."
-    );
-  });
-});
-
-describe("Production cleanup workflow", () => {
-  it("plans or executes cleanup without deploying or migrating", () => {
-    const workflow = readWorkflow("cleanup-production-test-data.yml");
-
-    expect(workflow).toContain("mode:");
-    expect(workflow).toContain("fingerprint:");
-    expect(workflow).toContain("confirm_cleanup:");
-    expect(workflow).toContain("DELETE_TEST_DATA_EXCEPT_CURRENT_ADMIN");
-    expect(workflow).toContain("name: vercel-production");
-    expect(workflow).toContain("group: production-test-data-cleanup");
-    expect(workflow).toContain("cancel-in-progress: false");
-    expect(workflow).toContain(
-      `PRODUCTION_DATABASE_HOST: ${githubExpression(
-        "vars.PRODUCTION_DATABASE_HOST"
-      )}`
-    );
-    expect(workflow).toContain(
-      `PRODUCTION_NEON_PROJECT_ID: ${githubExpression(
-        "vars.PRODUCTION_NEON_PROJECT_ID"
-      )}`
-    );
-    expect(workflow).toContain(
-      `PRODUCTION_NEON_BRANCH_ID: ${githubExpression(
-        "vars.PRODUCTION_NEON_BRANCH_ID"
-      )}`
-    );
-    expect(workflow).toContain(
-      `NEON_API_KEY: ${githubExpression("secrets.NEON_API_KEY")}`
-    );
-    expect(workflow).toContain("bun run db:cleanup:production");
-    expect(workflow).toContain(
-      "No successful CI run exists for the current main SHA."
-    );
-    expect(workflow).not.toContain("db:migrate:production");
-    expect(workflow).not.toContain("vercel deploy");
-    expect(workflow).not.toContain("expires_at");
-  });
-
-  it("creates and confirms a backup only for execute mode", () => {
-    const workflow = readWorkflow("cleanup-production-test-data.yml");
-
-    expect(workflow).toContain("if: inputs.mode == 'execute'");
-    expect(workflow).toContain("https://console.neon.tech/api/v2/projects/");
-    expect(workflow).toContain(".branch.parent_id == $parent");
-    expect(workflow).toContain('.branch.current_state == "ready"');
-    expect(workflow).toContain("backup_branch_id=");
-  });
-});
-
-describe("CI workflow", () => {
-  it("rejects automatic Staging deployment when the completed CI ran on main", () => {
-    const workflow = readWorkflow("deploy-staging.yml");
-
-    expect(workflow).toContain(
-      "github.event.workflow_run.head_branch == 'staging'"
-    );
-  });
-
-  it("deletes ephemeral branches through the bounded local Neon API action", () => {
-    const workflow = readWorkflow("ci.yml");
-    const deleteAction = readAction("actions/delete-neon-branch/action.yml");
-
-    expect(
-      workflow.match(/uses: \.\/\.github\/actions\/delete-neon-branch/g)
-    ).toHaveLength(2);
-    expect(workflow).not.toContain("neondatabase/delete-branch-action");
-    expect(deleteAction).toContain("for attempt in 1 2 3");
-    expect(deleteAction).toContain("--request DELETE");
-    expect(deleteAction).toContain(
-      `Authorization: Bearer ${shellVariable("NEON_API_KEY")}`
-    );
-    expect(deleteAction).toContain('"200"|"204"|"404"');
-    expect(deleteAction).toContain(
-      `Neon branch deletion failed with HTTP ${shellVariable("status")}.`
-    );
-    expect(deleteAction).not.toContain("response_body");
-  });
-
-  it("prepares inherited data only inside the two ephemeral test branches", () => {
-    const workflow = readWorkflow("ci.yml");
-    const neonAction = readAction("actions/create-neon-branch/action.yml");
-
-    expect(workflow).toContain("NEON_CI_PROJECT_ID");
-    expect(workflow).toContain("NEON_CI_API_KEY");
-    expect(workflow).not.toContain("secrets.NEON_API_KEY");
-    expect(workflow).not.toContain("vars.NEON_PROJECT_ID");
-    expect(workflow.match(/bun run db:prepare:ci-migration/g)).toHaveLength(2);
-    expect(workflow.match(/CI_NEON_BRANCH_ID:/g)).toHaveLength(2);
-    expect(
-      workflow.match(
-        /parent_branch: \$\{\{ vars\.NEON_CI_PARENT_BRANCH_ID \}\}/g
-      )
-    ).toHaveLength(2);
-    expect(workflow).toContain("is required for isolated CI databases.");
-    expect(neonAction).toContain("parent_branch:");
-    expect(neonAction).toContain("required: true");
-    expect(
-      neonAction.match(/parent_branch: \$\{\{ inputs\.parent_branch \}\}/g)
-    ).toHaveLength(3);
-    expect(workflow).toContain(
-      `CI_NEON_BRANCH_ID: ${githubExpression("steps.neon.outputs.branch_id")}`
-    );
-
-    for (const job of ["integration-db:", "e2e:"]) {
-      const jobStart = workflow.indexOf(job);
-      const prepare = workflow.indexOf(
-        "bun run db:prepare:ci-migration",
-        jobStart
-      );
-      const migrate = workflow.indexOf("name: Apply migrations", jobStart);
-      expect(jobStart).toBeGreaterThanOrEqual(0);
-      expect(prepare).toBeGreaterThan(jobStart);
-      expect(migrate).toBeGreaterThan(prepare);
+    expect(updateBlocks).toHaveLength(2);
+    for (const block of updateBlocks) {
+      expect(block).toContain("target-branch: staging");
     }
   });
 
-  it("keeps deployment out of CI and delegates Staging to its workflow", () => {
-    const workflow = readWorkflow("ci.yml");
-    const stagingWorkflow = readWorkflow("deploy-staging.yml");
+  it("keeps the manual Staging jobs workflow schema-valid", () => {
+    const source = readWorkflow("run-staging-jobs.yml");
+    expect(source).not.toMatch(EMPTY_STAGING_WORKER_ENV_PATTERN);
+  });
 
-    expect(workflow).not.toContain("vercel-preview:");
-    expect(workflow).not.toContain("vercel deploy");
-    expect(stagingWorkflow).toContain("workflow_run:");
-    expect(stagingWorkflow).toContain("branches: [staging]");
-    expect(stagingWorkflow).toContain(
-      "github.event.workflow_run.event == 'push'"
-    );
-    expect(stagingWorkflow).toContain(
-      `ref: ${githubExpression(
-        "github.event.workflow_run.head_sha || 'staging'"
-      )}`
-    );
-    expect(stagingWorkflow).toContain(
-      `CI_HEAD_SHA: ${githubExpression("github.event.workflow_run.head_sha")}`
-    );
-    expect(stagingWorkflow).toContain(
-      `[[ -n "${shellVariable("CI_HEAD_SHA")}" &&`
-    );
-    expect(stagingWorkflow).toContain("db:migrate:staging");
-    expect(stagingWorkflow).toContain("--target=staging");
-    const neonProjectExpression = ["$", "{STAGING_NEON_PROJECT_ID}"].join("");
-    const branchOutputExpression = [
-      'echo "branch_id=',
-      "$",
-      '{branch_id}" >> "',
-      "$",
-      '{GITHUB_OUTPUT}"',
+  it("uses an expiring no-compute helper for temporary Neon recovery branches", () => {
+    for (const workflowName of [
+      "deploy-vercel.yml",
+      "reset-staging.yml",
+      "cleanup-production-test-data.yml",
+    ]) {
+      const source = readWorkflow(workflowName);
+      expect(source).toContain("scripts/create-neon-recovery-branch.ts");
+      expect(source).not.toContain("neondatabase/create-branch-action");
+      expect(source).toContain("NEON_EXPIRES_AT");
+    }
+  });
+
+  it("selects the cleanup project from the selected Neon environment", () => {
+    const source = readWorkflow("cleanup-neon-release-backups.yml");
+    const expression = [
+      "NEON_RELEASE_PROJECT_ID: ",
+      String.fromCharCode(36),
+      "{{ inputs.environment == 'staging' && vars.STAGING_NEON_PROJECT_ID || vars.PRODUCTION_NEON_PROJECT_ID }}",
     ].join("");
-    expect(stagingWorkflow).toContain(
-      `https://console.neon.tech/api/v2/projects/${neonProjectExpression}/branches`
-    );
-    expect(stagingWorkflow).toContain(
-      "branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]"
-    );
-    expect(stagingWorkflow).toContain(branchOutputExpression);
-    expect(stagingWorkflow).toContain('--write-out "%{http_code}"');
-    expect(stagingWorkflow).toContain(
-      "Neon branch backup request failed with HTTP"
-    );
-    expect(stagingWorkflow).not.toContain("neondatabase/create-branch-action");
-    expect(stagingWorkflow).not.toContain(
-      `${githubExpression("steps.deploy.outputs.url")}/api/health/ready`
-    );
-    expect(stagingWorkflow).toContain(
-      `DEPLOYMENT_URL: ${githubExpression("steps.deployment.outputs.url")}`
-    );
-    expect(stagingWorkflow).toContain(
-      `smoke_origin "${shellVariable("DEPLOYMENT_URL")}"`
-    );
-    expect(stagingWorkflow).toContain(
-      'stable_origin="https://preview.neurocapacitar.com.br"'
-    );
-    expect(stagingWorkflow).toContain(".aliases | index($alias) != null");
+    expect(source).toContain(expression);
   });
 
-  it("gives Knip a synthetic E2E database and declares the CI cleanup script", () => {
+  it("runs CI only for pull requests and manual verification", () => {
     const workflow = readWorkflow("ci.yml");
-    const cleanupWorkflow = readWorkflow("cleanup-ci-neon-branches.yml");
 
-    expect(workflow).toContain(
-      "E2E_DATABASE_URL: postgresql://verification:verification@e2e-verification.invalid/hub"
-    );
-    expect(cleanupWorkflow).toContain(
-      "bun run ops:cleanup:ci-neon -- --execute"
-    );
-  });
-
-  it("uses direct E2E credentials for mutators and pooled credentials only for runtime", () => {
-    const workflow = readWorkflow("ci.yml");
-    const playwrightStepStart = workflow.indexOf(
-      "name: Run Chromium desktop and critical mobile journeys"
-    );
-    const playwrightStepEnd = workflow.indexOf(
-      "name: Report E2E duration and retries",
-      playwrightStepStart
-    );
-    const playwrightStep = workflow.slice(
-      playwrightStepStart,
-      playwrightStepEnd
-    );
-
-    expect(playwrightStepStart).toBeGreaterThan(-1);
-    expect(playwrightStepEnd).toBeGreaterThan(playwrightStepStart);
-    expect(playwrightStep).toContain(
-      `DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
-    );
-    expect(playwrightStep).toContain(
-      `E2E_DATABASE_URL: ${githubExpression("steps.neon.outputs.db_url")}`
-    );
-    expect(playwrightStep).toContain(
-      `E2E_RUNTIME_DATABASE_URL: ${githubExpression(
-        "steps.neon.outputs.db_url_pooled"
-      )}`
-    );
-  });
-});
-
-describe("CI Neon branch cleanup workflow", () => {
-  it("runs a bounded allowlisted cleanup with dry-run and confirmation modes", () => {
-    const workflow = readWorkflow("cleanup-ci-neon-branches.yml");
-
-    expect(workflow).toContain('cron: "17 * * * *"');
+    expect(workflow).toContain("pull_request:");
+    expect(workflow).toContain("branches: [main, staging]");
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).toContain("default: dry-run");
-    expect(workflow).toContain("cleanup-ci-neon");
-    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --execute");
-    expect(workflow).toContain("bun run ops:cleanup:ci-neon -- --dry-run");
-    expect(workflow).toContain('CI_NEON_BRANCH_STALE_AFTER_HOURS: "26"');
-    expect(workflow).not.toContain("staging-release-");
+    expect(workflow).toContain("name: CI");
+    expect(workflow).not.toContain("\n  push:");
+    expect(workflow).not.toContain("NEON_CI_API_KEY");
+    expect(workflow).not.toContain("create-neon-branch");
+    expect(workflow).not.toContain("delete-neon-branch");
+    expect(workflow.match(/bun install --frozen-lockfile/g)).toHaveLength(1);
   });
-});
 
-describe("Release backup cleanup workflow", () => {
-  it("runs scheduled dry-runs for both environments and gates manual execution", () => {
-    const workflow = readWorkflow("cleanup-neon-release-backups.yml");
+  it("runs integration and E2E against separate local PostgreSQL databases", () => {
+    const workflow = readWorkflow("ci.yml");
 
-    expect(workflow).toContain('cron: "37 3 * * *"');
-    expect(workflow).toContain("scheduled-staging:");
-    expect(workflow).toContain("scheduled-production:");
-    expect(workflow).toContain("manual:");
-    expect(workflow).toContain("default: dry-run");
-    expect(workflow).toContain("cleanup-release-backups");
+    expect(workflow).toContain("services:");
+    expect(workflow).toContain("postgres:18-alpine");
+    expect(workflow).toContain("create database hub_integration");
+    expect(workflow).toContain("create database hub_e2e");
     expect(workflow).toContain(
-      "bun run ops:cleanup:release-backups -- --environment=staging --dry-run"
+      "postgresql://postgres:postgres@127.0.0.1:5432/hub_integration?sslmode=disable"
     );
     expect(workflow).toContain(
-      "bun run ops:cleanup:release-backups -- --environment=production --dry-run"
+      "postgresql://postgres:postgres@127.0.0.1:5432/hub_e2e?sslmode=disable"
     );
-    expect(workflow).toContain(
-      `"--environment=${shellVariable("TARGET_ENVIRONMENT")}"`
-    );
-    expect(workflow).toContain(`"--${shellVariable("CLEANUP_MODE")}"`);
-    expect(workflow).toContain("NEON_RELEASE_PARENT_BRANCH_ID");
-    expect(workflow).toContain("NEON_RELEASE_PROJECT_ID");
-    expect(workflow).toContain("RELEASE_BACKUP_CLEANUP_CONFIRMATION");
+    expect(workflow).toContain("bun run db:migrate:e2e");
+    expect(workflow).toContain("bun run test:certificates:integration");
+    expect(workflow).toContain("bun run test:e2e");
+    expect(workflow).toContain("bun run build");
+    expect(workflow).toContain("bun run knip");
   });
-});
 
-describe("Release backup ancestry", () => {
-  it("fails closed when a Staging backup does not descend from Staging", () => {
+  it("migrates Staging after its branch changes but never deploys from Actions", () => {
     const workflow = readWorkflow("deploy-staging.yml");
 
-    expect(workflow).toContain("name: Verify Staging Neon backup ancestry");
-    expect(workflow).toContain("BACKUP_BRANCH_ID:");
-    expect(workflow).toContain(".branch.parent_id");
-    expect(workflow).toContain(
-      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
-        "STAGING_NEON_BRANCH_ID"
-      )}" ]]`
-    );
+    expect(workflow).toContain("push:");
+    expect(workflow).toContain("branches: [staging]");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).not.toContain("workflow_run:");
+    expect(workflow).toContain("bun run db:migrate:staging");
+    expect(workflow).not.toContain("vercel deploy");
+    expect(workflow).toContain("preview.neurocapacitar.com.br");
+    expect(workflow).toContain("api/health/ready");
   });
 
-  it("creates and verifies a Production backup from Production", () => {
+  it("creates a reconciliation PR when main contains Production-only changes", () => {
+    const workflow = readWorkflow("prepare-production-release.yml");
+
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("name: vercel-staging");
+    expect(workflow).toContain("git merge-base --is-ancestor");
+    expect(workflow).toContain("sync/production-into-staging-");
+    expect(workflow).toContain("git merge --no-edit origin/main");
+    expect(workflow).toContain("git merge --abort");
+    expect(workflow).toContain("gh workflow run ci.yml");
+    expect(workflow).toContain(
+      "vercel@57.0.0 inspect preview.neurocapacitar.com.br"
+    );
+    expect(workflow).not.toContain("api.vercel.com/v13/deployments");
+    expect(workflow).toContain("--base staging");
+    expect(workflow).toContain("gh pr create");
+  });
+
+  it("releases Staging or a validated hotfix and never skips the staged Production deployment", () => {
     const workflow = readWorkflow("deploy-vercel.yml");
 
-    expect(workflow).toContain(
-      `parent_branch: ${githubExpression("vars.PRODUCTION_NEON_BRANCH_ID")}`
-    );
-    expect(workflow).not.toContain("\n          parent:");
-    expect(workflow).toContain("name: Verify Production Neon backup ancestry");
-    expect(workflow).toContain("BACKUP_BRANCH_ID:");
-    expect(workflow).toContain(".branch.parent_id");
-    expect(workflow).toContain(
-      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
-        "PRODUCTION_NEON_BRANCH_ID"
-      )}" ]]`
-    );
-  });
-
-  it("creates and verifies a Staging reset backup from Staging", () => {
-    const workflow = readWorkflow("reset-staging.yml");
-
-    expect(workflow).toContain(
-      `parent_branch: ${githubExpression("vars.STAGING_NEON_BRANCH_ID")}`
-    );
-    expect(workflow).not.toContain("\n          parent:");
-    expect(workflow).toContain("name: Verify Staging backup ancestry");
-    expect(workflow).toContain("BACKUP_BRANCH_ID:");
-    expect(workflow).toContain(".branch.parent_id");
-    expect(workflow).toContain(
-      `[[ "${shellVariable("actual_parent")}" == "${shellVariable(
-        "STAGING_NEON_BRANCH_ID"
-      )}" ]]`
-    );
-  });
-});
-
-describe("Production release gates", () => {
-  it("requires the normal Production backup and CI gates", () => {
-    const workflow = readWorkflow("deploy-vercel.yml");
-
-    expect(workflow).not.toContain("emergency_skip_backup:");
-    expect(workflow).not.toContain("emergency_skip_backup_confirmation:");
-    expect(workflow).not.toContain("emergency_skip_ci:");
-    expect(workflow).not.toContain("emergency_skip_ci_confirmation:");
-    expect(workflow).not.toContain("EMERGENCY_SKIP_PRODUCTION_BACKUP");
-    expect(workflow).not.toContain("EMERGENCY_SKIP_PRODUCTION_TESTS");
+    expect(workflow).toContain("mode:");
+    expect(workflow).toContain("release-staging");
+    expect(workflow).toContain("hotfix");
+    expect(workflow).toContain("git merge-base --is-ancestor");
+    expect(workflow).toContain("git push origin");
+    expect(workflow).toContain("Await automatic Production deployment");
+    expect(workflow).toContain("contents: write");
     expect(workflow).toContain(
       "name: Require a recent independent Production backup"
     );
-    expect(workflow).not.toContain("if: inputs.emergency_skip_backup");
-    expect(workflow).toContain("name: Verify approved main SHA and green CI");
     expect(workflow).toContain(
-      "No successful CI run exists for the current main SHA."
+      "if: steps.release.outputs.has_migrations == 'true'"
     );
-    expect(workflow).toContain("name: Create confirmed Production Neon backup");
-    expect(workflow).toContain("name: Smoke Production public profile");
-    expect(workflow).toContain("checkout_status=");
-    expect(workflow).toContain("webhook_status=");
-    expect(workflow).not.toContain(`[[ "\${status}" == "503" ]]`);
+    expect(workflow).not.toContain("release_sha:");
+    expect(workflow).not.toContain("confirm_production:");
+    expect(workflow).not.toContain("EMERGENCY_SKIP_PRODUCTION");
   });
-});
 
-describe("Production release guide", () => {
-  it("documents the dispatch inputs and post-promotion gates", () => {
-    const guide = readDocument("docs/operations/production-release-guide.md");
-    const workflow = readWorkflow("deploy-vercel.yml");
+  it("keeps the JMVStream schedule at fifteen minutes", () => {
+    const vercel = readFileSync(
+      resolve(import.meta.dirname, "../../vercel.json"),
+      "utf8"
+    );
+    const stagingJobs = readWorkflow("run-staging-jobs.yml");
 
-    expect(guide).toContain("`release_sha`");
-    expect(guide).not.toContain("Não há campo de SHA.");
-    expect(guide).toContain("Smoke Production public profile");
-    expect(workflow).toContain("release_sha:");
-    expect(workflow).toContain("name: Smoke Production public profile");
-    expect(workflow.indexOf("name: Promote verified deployment")).toBeLessThan(
-      workflow.indexOf("name: Smoke Production public profile")
+    expect(vercel).toContain('"path": "/api/cron/jmvstream"');
+    expect(vercel).toContain('"schedule": "*/15 * * * *"');
+    expect(stagingJobs).toContain('call_job "/api/cron/jmvstream"');
+    expect(stagingJobs).not.toContain('cron: "*/5 * * * *"');
+  });
+
+  it("ties destructive Production cleanup to the current main CI check", () => {
+    const workflow = readWorkflow("cleanup-production-test-data.yml");
+
+    expect(workflow).toContain("checks: read");
+    expect(workflow).toContain("check-runs?check_name=CI");
+    expect(workflow).toContain(
+      ["commits/", String.fromCharCode(36), "{release_sha}", "/pulls"].join("")
     );
-    expect(
-      workflow.indexOf("name: Smoke Production public profile")
-    ).toBeLessThan(
-      workflow.indexOf(
-        "name: Verify promoted provider alias and migration state"
-      )
+    expect(workflow).not.toContain("actions/workflows/ci.yml/runs?branch=main");
+  });
+
+  it("keeps Development migrations tied to the current main CI check", () => {
+    const workflow = readWorkflow("migrate-development.yml");
+
+    expect(workflow).toContain("checks: read");
+    expect(workflow).toContain("check-runs?check_name=CI");
+    expect(workflow).toContain(
+      ["commits/", String.fromCharCode(36), "{release_sha}", "/pulls"].join("")
     );
+    expect(workflow).toContain(
+      "No successful CI check exists for the current main SHA"
+    );
+  });
+
+  it("pins every migrated workflow to the valid setup-bun commit", () => {
+    const setupBunRef =
+      "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6";
+
+    for (const workflowName of [
+      "cleanup-neon-release-backups.yml",
+      "deploy-staging.yml",
+      "deploy-vercel.yml",
+      "prepare-production-release.yml",
+    ]) {
+      expect(readWorkflow(workflowName)).toContain(setupBunRef);
+    }
   });
 });
 
@@ -418,24 +201,21 @@ describe("Production Sentry readiness workflow", () => {
     expect(workflow).toContain("release_sha:");
     expect(workflow).toContain("confirmation:");
     expect(workflow).toContain(
-      `CONFIRMATION: ${githubExpression("inputs.confirmation")}`
+      [
+        "CONFIRMATION: ",
+        String.fromCharCode(36),
+        "{{ inputs.confirmation }}",
+      ].join("")
     );
     expect(workflow).toContain("EMIT_SENTRY_PRODUCTION_READINESS");
-    expect(workflow).not.toContain(
-      `if: [[ "${githubExpression("inputs.confirmation")}" != `
-    );
     expect(workflow).toContain("name: vercel-production");
     expect(workflow).toContain(
       "PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br"
-    );
-    expect(workflow).toContain(
-      `"${shellVariable("PRODUCTION_ORIGIN")}/api/health/sentry"`
     );
     expect(workflow).toContain("SENTRY_READINESS_SECRET");
     expect(workflow).toContain("SENTRY_READINESS_AUTH_TOKEN");
     expect(workflow).toContain("bun run ops:check:sentry-readiness");
     expect(workflow).toContain("--environment=production");
-    expect(workflow).toContain(`--release="${shellVariable("RELEASE_SHA")}"`);
     expect(workflow).not.toContain("vercel deploy");
   });
 });

@@ -179,14 +179,15 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 
 As seis rotas cron, inclusive `/api/cron/asaas-webhooks` e
 `/api/cron/resend-webhooks`, compartilham
-`CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`. O worker Asaas está agendado a cada minuto em
-UTC, mas deve permanecer desabilitado até migrations, configuração e homologação do
-ambiente alvo.
+`CRON_SECRET` e `SCHEDULED_JOBS_ENABLED`. Os workers Asaas, JMVStream, outbox e
+Resend estão agendados a cada quinze minutos em UTC. Os
+workers devem permanecer desabilitados até migrations, configuração e
+homologação do ambiente alvo.
 
 Vercel Cron executa no deployment Production. Staging usa
-`.github/workflows/run-staging-jobs.yml`: a agenda de cinco minutos deve chamar
-Asaas, outbox, JMVStream e Resend; omitir qualquer inbox deixa o ambiente sem
-projeção equivalente. A prova manual do Resend usa
+`.github/workflows/run-staging-jobs.yml` manualmente durante homologação; a
+operação chama Asaas, outbox, JMVStream, Resend, enrollments e maintenance.
+Omitir qualquer inbox deixa o ambiente sem projeção equivalente. A prova manual do Resend usa
 `.github/workflows/run-staging-jobs.yml`, operação manual
 `verify-resend-lifecycle`, exige confirmação
 `SEND_CONTROLLED_STAGING_PASSWORD_RESET`, roda somente no GitHub Environment

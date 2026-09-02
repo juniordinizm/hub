@@ -1,61 +1,70 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
-deployed_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+last_verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+deployed_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 deployed_environment: production
-verified_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 verified_environment: production
-documented_commit: e5db6a16b804d1b418e257ef786fc1e06443afc5
+documented_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
 documented_environment: production
 ---
 
 # Estado de release
 
-## Checkpoint operacional atual — 2026-08-30
+## Checkpoint operacional atual — 2026-08-31
 
-O deployment Production atual é `dpl_5JkmcWBFrRbYUExi6MexjtUtYQAg`,
+Production está no deployment `dpl_74TPMVyUzPXw2hrzu28JVDWVx5rR`, estado
 `READY`, região `gru1`, servido pelo commit
-`e5db6a16b804d1b418e257ef786fc1e06443afc5`. O workflow protegido
-`33286310553` passou backup R2 independente, branch Neon de release e
-ancestralidade, migrations, readiness, R2, provider, smoke público e alias
-canônico `app.neurocapacitar.com.br`.
+`a73d56fe599895a3a611c3ad89a8e05aab87ec8e`. Staging está no deployment
+`dpl_8iuX2uxQTcpaUAKjoYCEGPCadhtM`, estado `READY`, servido pelo commit
+`a95be66d7645e17d3bf83528ffa065b7ced38861` e disponível em
+`preview.neurocapacitar.com.br`.
 
-O smoke público confirmou HTTP 200 para `/`, `/entrar` e `/admin`, HTTP 200 em
-`/api/health`, HTTP 400 para checkout sem parâmetros, HTTP 401 para webhook
-Asaas sem autenticação e readiness/R2 autenticados no deployment não promovido.
-As variáveis Production `ASAAS_API_BASE_URL`, `R2_ACCOUNT_ID`,
-`R2_BUCKET_NAME` e `R2_PUBLIC_BUCKET_NAME` foram corrigidas antes da publicação;
-`R2_ENDPOINT` não está configurado. Production não está em manutenção.
+O workflow protegido `33428545203` confirmou o deployment exato de Staging,
+avançou `main` por fast-forward, aguardou a build Production automática,
+executou os gates sem migration, fez smoke no deployment não promovido,
+promoveu o mesmo artefato e confirmou seus metadados. Depois, o PR `#185`
+publicou o endurecimento em Staging; o workflow `33443124148` aplicou as
+migrations sem alteração de schema. Production continua em `a73d56f` e
+Staging em `a95be66` até a próxima promoção manual.
 
-As tentativas anteriores pararam antes da promoção por backup stale, quota Neon
-e configuração de provider. As migrations podem ter avançado antes de falhas
-posteriores; o run final auditou o journal e confirmou `database=match`. A
-retenção removeu somente branches `production-release-*` superseded após
-dry-run, preservando a mais recente e as branches persistentes.
+Os endpoints públicos `/api/health` de Production e Staging retornaram HTTP
+200 na última verificação. A Vercel está configurada com `main` como branch de
+Production, `staging` como branch de homologação e sem autoatribuição do
+domínio Production durante a build. Não houve deployment manual paralelo
+criado pelo workflow.
 
-DMARC continua em `p=none; pct=100` e sua progressão foi adiada; o probe Sentry
-próprio de Production não foi emitido. Esses itens são riscos documentados, não
-evidência de prontidão verde. MFA administrativo foi retirado do escopo do
-produto em 2026-09-01 e não é um gate de release.
-O par `RESTORE_R2_*` foi temporariamente alinhado a uma credencial que comprovou
-leitura do bucket e deve ser rotacionado para uma chave dedicada somente leitura.
+O caminho sem migration foi comprovado. O caminho com migration, a simulação
+de hotfix exclusivo e a reconciliação com divergência ainda precisam de uma
+validação controlada em Staging. A auditoria Sentry não foi concluída nesta
+execução porque não havia credencial Sentry disponível para consulta.
 
-## Atualização de escopo — 2026-09-01
+O cron JMVStream permanece em quinze minutos, assim como os workers de Asaas,
+outbox e Resend. O backup PostgreSQL Production permanece agendado a cada seis
+horas. Nenhuma branch Neon é criada pela CI ou por um deploy comum; branches de
+recuperação são criadas somente em operações explícitas, com expiração e sem
+endpoint de compute.
 
-A implementação ativa de MFA administrativo foi removida por decisão de produto.
-O login de `admin` e `support` usa sessão Better Auth, RBAC, bloqueio de Conta e
-as confirmações próprias de cada operação. As estruturas históricas da migration
-`0065` permanecem no schema e no histórico para evitar uma remoção destrutiva;
-não são registradas no adaptador nem lidas pelo runtime.
-Essa alteração está na árvore candidata local; não houve deploy, migration ou
-alteração de configuração em Production.
+Permanecem pendentes a substituição do token temporário da Vercel, o inventário
+das branches Neon, o ajuste dos computes e a separação de Production e
+Non-production em projetos Neon distintos. Esses itens não impedem o estado
+atual, mas devem ser concluídos antes de considerar a migração operacional
+encerrada.
 
-As pendências externas que continuam relevantes são: emitir e verificar o probe
-Sentry em Production, concluir a observação de DMARC/e-mail, rotacionar a
-credencial `RESTORE_R2_*` para uma chave dedicada somente leitura e repetir a
-CI, integração e E2E no SHA candidato. Até essas evidências serem registradas, a
-decisão para nova promoção permanece `NO-GO`.
+## Atualização de escopo — MFA administrativo
+
+MFA administrativo não faz parte do produto atual. A implementação ativa foi
+removida na árvore candidata, e o login de `admin` e `support` usa sessão Better
+Auth, RBAC, bloqueio de Conta e as confirmações próprias de cada operação. As
+estruturas históricas da migration `0065` permanecem no schema e no histórico
+para evitar uma remoção destrutiva; não são registradas no adaptador nem lidas
+pelo runtime. Esta alteração ainda não foi publicada em Production.
+
+O workflow manual `Verify Sentry Production readiness` e o
+[checklist de pendências externas](external-readiness-checklist.md) documentam
+as provas de Sentry, e-mail/DMARC, R2 e CI que ainda dependem de acesso humano a
+providers. A ausência de MFA não é um gate de release.
 
 ## Histórico operacional — 2026-08-26
 
@@ -220,8 +229,11 @@ não tiver passado pelo smoke test do ambiente correspondente.
 ## Higiene de branches e providers
 
 `main` e `staging` são branches persistentes. O fluxo aprovado é
-`staging → main → Deploy Vercel production`; não habilite exclusão automática
-de `staging` após merge. Branches de feature mescladas devem ser removidas
+`feature → staging → main → Deploy Vercel production`; `main` continua sendo a
+branch padrão e Production. A branch `staging` não é apagada após merge. Um
+hotfix pode avançar `main` sozinho; antes da próxima release, incorpore `main`
+em `staging`, teste a árvore combinada e só depois promova por fast-forward.
+Branches de feature mescladas devem ser removidas
 depois da confirmação do merge; worktrees abandonados devem ser removidos
 somente após conferir seu branch e status. Stashes permanecem até que cada
 patch seja classificado como recuperável ou explicitamente obsoleto.

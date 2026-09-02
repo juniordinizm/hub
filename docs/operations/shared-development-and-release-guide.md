@@ -7,30 +7,32 @@ last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
 # Desenvolvimento compartilhado
 
 Este guia explica, em linguagem operacional, como preparar o computador e
-desenvolver sem atingir Production. Para publicar uma mudança, use o
-[tutorial da alteração até Production](production-release-guide.md), que é a
-autoridade do procedimento diário de release.
+desenvolver sem atingir Production. O procedimento de branch e release está no
+[Fluxo canônico de release](release-flow.md), que é a autoridade vigente.
 
 Não copie segredos para este documento, chat, issue ou commit. Os nomes dos
 recursos podem ser registrados; senhas, tokens e URLs de banco não.
 
 ## Antes de começar
 
-O projeto possui cinco ambientes com finalidades diferentes:
+O projeto possui quatro ambientes operacionais principais:
 
 | Ambiente | Para que serve | Banco | Providers |
 |---|---|---|---|
 | Development | desenvolvimento local com recursos de teste compartilhados | branch persistente `development` | recursos reais, mas exclusivos de Development |
-| E2E | jornadas automatizadas da CI | branch efêmera apagada após o teste | storage S3 local descartável; e-mail absorvido |
-| Preview | smoke de cada PR/push | branch persistente `vercel-preview`, vazia | providers proibidos |
+| E2E | jornadas automatizadas da CI | PostgreSQL local descartável do runner | storage S3 local descartável; e-mail absorvido |
 | Staging | homologação pré-produção na URL de teste | branch Neon configurada pelo Environment `vercel-staging` | providers de Staging; R2 Development com namespace `staging/` |
 | Production | aplicação pública | branch `production` | recursos definitivos |
 
 `development` é o ambiente usado pelo código rodando localmente; seus recursos
 persistentes são compartilhados apenas entre estações autorizadas. `staging` é a
-etapa de pré-produção para homologação manual. A branch Git `main` representa o
-candidato de Production, mas o merge sozinho não publica o domínio: a promoção
-continua protegida pelo workflow manual `Deploy Vercel production`.
+etapa de pré-produção para homologação manual. A branch Git `main` continua
+representando Production; `staging` recebe os PRs normais e a promoção ocorre
+somente pelo workflow `Deploy Vercel production`.
+
+Deployments automáticos de feature branches/Preview não são necessários para o
+fluxo normal. A CI já executa o build e o Custom Environment Staging recebe a
+árvore depois do merge.
 
 Branch Git e branch Neon são independentes. Trocar de branch com `git switch`
 não muda o banco. `bun run dev` usa a URL presente no `.env.local`.

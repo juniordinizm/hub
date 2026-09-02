@@ -19,9 +19,11 @@ import {
   type ProductionBackupDatabaseInspection,
   type ProductionBackupExecutionConfig,
   type ProductionBackupFailurePhase,
+  type ProductionBackupMigration,
   type ProductionBackupProviderEvidence,
   resolveProductionBackupExecutionConfig,
   resolveProductionBackupFailureCategory,
+  resolveProductionBackupMigration,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
 } from "../src/tooling/production-backup-execution";
@@ -34,11 +36,6 @@ import {
 
 interface MigrationJournal {
   entries: Array<{ tag: string; when: number }>;
-}
-
-interface ExpectedMigration {
-  migrationTag: string;
-  migrationTimestamp: number;
 }
 
 const API_TIMEOUT_MS = 10_000;
@@ -118,7 +115,7 @@ const inspectProviderProvenance = async (
   });
 };
 
-const readExpectedMigration = async (): Promise<ExpectedMigration> => {
+const readMigrationJournal = async (): Promise<MigrationJournal> => {
   const journalPath = join(
     import.meta.dirname,
     "../src/db/migrations/meta/_journal.json"
@@ -126,14 +123,16 @@ const readExpectedMigration = async (): Promise<ExpectedMigration> => {
   const journal = JSON.parse(
     await readFile(journalPath, "utf8")
   ) as MigrationJournal;
-  const latest = journal.entries.at(-1);
-  if (!(latest?.tag && Number.isSafeInteger(latest.when))) {
+  if (
+    !Array.isArray(journal.entries) ||
+    journal.entries.length === 0 ||
+    journal.entries.some(
+      ({ tag, when }) => !(tag && Number.isSafeInteger(when))
+    )
+  ) {
     throw new Error("Local migration journal is invalid.");
   }
-  return {
-    migrationTag: latest.tag,
-    migrationTimestamp: latest.when,
-  };
+  return journal;
 };
 
 const toBoolean = (value: boolean | string): boolean =>
@@ -181,7 +180,7 @@ const connectDatabase = async (pool: Pool): Promise<PoolClient> => {
 
 const inspectDatabase = async (
   client: PoolClient,
-  expectedMigration: ExpectedMigration
+  knownMigrations: readonly ProductionBackupMigration[]
 ): Promise<ProductionBackupDatabaseInspection> => {
   await queryDatabase(
     client,
@@ -232,12 +231,16 @@ const inspectDatabase = async (
     if (!(row && Number.isSafeInteger(migrationTimestamp))) {
       throw new Error("Production backup database inspection is incomplete.");
     }
+    const migrationEntry = resolveProductionBackupMigration(
+      migrationTimestamp,
+      knownMigrations
+    );
     return {
       currentDatabase: row.current_database,
       currentUser: row.current_user,
       defaultReadOnly: toBoolean(row.default_read_only),
       logicalDatabaseBytes: Number(row.logical_database_bytes),
-      migrationTag: expectedMigration.migrationTag,
+      migrationTag: migrationEntry.migrationTag,
       migrationTimestamp,
       pgReadAllDataMember: row.pg_read_all_data_member,
       postgresServerVersion: row.postgres_server_version,
@@ -254,7 +257,11 @@ const main = async (): Promise<void> => {
   currentPhase = "configuration-storage";
   const r2Config = resolveProductionBackupR2Config(process.env);
   currentPhase = "configuration-migration";
-  const expectedMigration = await readExpectedMigration();
+  const migrationJournal = await readMigrationJournal();
+  const knownMigrations = migrationJournal.entries.map(({ tag, when }) => ({
+    migrationTag: tag,
+    migrationTimestamp: when,
+  }));
   currentPhase = "provider";
   const providerEvidence = await inspectProviderProvenance(executionConfig);
   const databaseUrl = process.env.BACKUP_DATABASE_URL;
@@ -273,8 +280,14 @@ const main = async (): Promise<void> => {
     const client = await connectDatabase(pool);
     try {
       currentPhase = "database-inspection";
-      databaseInspection = await inspectDatabase(client, expectedMigration);
-      assertProductionBackupDatabase(databaseInspection, expectedMigration);
+      databaseInspection = await inspectDatabase(client, knownMigrations);
+      assertProductionBackupDatabase(
+        databaseInspection,
+        resolveProductionBackupMigration(
+          databaseInspection.migrationTimestamp,
+          knownMigrations
+        )
+      );
     } finally {
       client.release();
     }
@@ -324,8 +337,8 @@ const main = async (): Promise<void> => {
           encryptedObjectKey: frequentKey.encryptedObjectKey,
           encryptedSha256,
           encryption: "age-x25519",
-          migrationTag: expectedMigration.migrationTag,
-          migrationTimestamp: expectedMigration.migrationTimestamp,
+          migrationTag: databaseInspection.migrationTag,
+          migrationTimestamp: databaseInspection.migrationTimestamp,
           logicalDatabaseBytes: databaseInspection.logicalDatabaseBytes,
           pgDumpVersion,
           postgresServerVersion: databaseInspection.postgresServerVersion,
@@ -364,7 +377,7 @@ const main = async (): Promise<void> => {
         bytes: completed.encryptedBytes,
         classes: retentionClasses,
         createdAt: createdAt.toISOString(),
-        migration: expectedMigration.migrationTag,
+        migration: databaseInspection.migrationTag,
         objectCount: completed.result.objectCount,
         status: "completed",
       })}\n`

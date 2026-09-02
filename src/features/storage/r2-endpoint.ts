@@ -1,9 +1,35 @@
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+const R2_ACCOUNT_ID_PATTERN = /^[a-f0-9]{32}$/i;
+const R2_BUCKET_NAME_PATTERN = /^(?=.{3,63}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i;
 
 export interface R2ClientEndpoint {
   endpoint: string;
   forcePathStyle: boolean;
 }
+
+export const resolveR2BucketOrigin = ({
+  accountId,
+  bucketName,
+}: {
+  accountId?: string | undefined;
+  bucketName?: string | undefined;
+}): string | null => {
+  const normalizedAccountId = accountId?.trim();
+  const normalizedBucketName = bucketName?.trim();
+
+  if (
+    !(
+      normalizedAccountId &&
+      normalizedBucketName &&
+      R2_ACCOUNT_ID_PATTERN.test(normalizedAccountId) &&
+      R2_BUCKET_NAME_PATTERN.test(normalizedBucketName)
+    )
+  ) {
+    return null;
+  }
+
+  return `https://${normalizedBucketName}.${normalizedAccountId}.r2.cloudflarestorage.com`;
+};
 
 export const resolveR2ClientEndpoint = ({
   accountId,

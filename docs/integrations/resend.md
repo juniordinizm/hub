@@ -100,7 +100,7 @@ destinatário, remetente, assunto, tags completas ou headers. Duplicata por
 `svix-id` retorna 200, schema assinado inválido vira dead letter mínimo e falha
 de banco retorna 503.
 
-O cron `/api/cron/resend-webhooks` processa a inbox a cada cinco minutos com
+O cron `/api/cron/resend-webhooks` processa a inbox a cada quinze minutos com
 lease próprio. Eventos fora de ordem usam precedência determinística e nunca
 acionam reenvio ou alteram Conta, Matrícula ou Pedido. Retenção: eventos
 processados/ignorados 180 dias, dead letter 365 dias e mensagens terminais 365

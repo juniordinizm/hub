@@ -3,7 +3,7 @@ export const scheduledJobs = {
     deadlineMs: 270 * 1000,
     leaseMs: 6 * 60 * 1000,
     path: "/api/cron/asaas-webhooks",
-    schedule: "* * * * *",
+    schedule: "*/15 * * * *",
   },
   enrollments: {
     deadlineMs: 12 * 60 * 1000,
@@ -15,19 +15,19 @@ export const scheduledJobs = {
     deadlineMs: 270 * 1000,
     leaseMs: 6 * 60 * 1000,
     path: "/api/cron/jmvstream",
-    schedule: "*/5 * * * *",
+    schedule: "*/15 * * * *",
   },
   outbox: {
     deadlineMs: 270 * 1000,
     leaseMs: 6 * 60 * 1000,
     path: "/api/cron/outbox",
-    schedule: "*/5 * * * *",
+    schedule: "*/15 * * * *",
   },
   "resend-webhooks": {
     deadlineMs: 270 * 1000,
     leaseMs: 6 * 60 * 1000,
     path: "/api/cron/resend-webhooks",
-    schedule: "*/5 * * * *",
+    schedule: "*/15 * * * *",
   },
   maintenance: {
     deadlineMs: 12 * 60 * 1000,

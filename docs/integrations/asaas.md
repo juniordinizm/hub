@@ -19,7 +19,7 @@ controlada dos dados descartáveis; o journal chegou a `0052`, a Conta Admin foi
 preservada e todas as tabelas operacionais ficaram vazias. O adapter está conectado às entradas
 autenticada e pública de checkout, e a inbox durável
 recebe e deduplica webhooks antes do processor financeiro transacional. O worker é
-chamado a cada minuto pela rota cron protegida, com lease de seis minutos e prazo interno
+chamado a cada quinze minutos pela rota cron protegida, com lease de seis minutos e prazo interno
 de 270 segundos. Checkout, pagamento PIX/cartão, cancelamento, expiração, reembolso,
 conciliação e recuperação após indisponibilidade foram comprovados no Sandbox. O corte
 comercial de Production aconteceu depois do deployment `177259f` de 2026-08-20: a chave
@@ -374,7 +374,7 @@ Esse desenho considera o timeout e os retries descritos
 em [Recebimento de webhooks Asaas](https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook).
 
 `claimAsaasWebhookEvents`, `processClaimedAsaasWebhookEvent` e
-`runAsaasWebhookWorker` formam a infraestrutura genérica agendada a cada minuto. O claim usa
+`runAsaasWebhookWorker` formam a infraestrutura genérica agendada a cada quinze minutos. O claim usa
 `FOR UPDATE SKIP LOCKED`, posse por worker, recuperação de lock após dez minutos, lote
 máximo de 50, cinco tentativas e backoff exponencial iniciado em um minuto. Conclusão
 `processed`/`ignored`, retry e falha usam CAS pela mesma posse e guardam somente códigos
@@ -403,7 +403,9 @@ enriquecimento necessário.
 `GET /api/cron/asaas-webhooks` usa o guard compartilhado de `CRON_SECRET` e
 `SCHEDULED_JOBS_ENABLED`, adquire lease persistente de seis minutos e entrega ao worker o
 prazo interno de 270 segundos e a verificação de posse. Sobreposição retorna sucesso
-seguro sem processar. A agenda `* * * * *` em `vercel.json` é UTC.
+seguro sem processar. A agenda `*/15 * * * *` em `vercel.json` é UTC. O webhook
+também agenda um drain curto após persistir a inbox; o cron continua sendo a
+recuperação periódica.
 O agendamento está ativo em Production desde 2026-08-21 (`SCHEDULED_JOBS_ENABLED=true`), e o retry administrativo de evento Asaas `failed` com payload presente está implementado como action (`retryFailedAsaasWebhookAction`, permissão `retryWebhook`) e exposto no painel de operações financeiras do Admin, exigindo motivo e gravando `asaas_webhook.requeued`.
 
 ## Eventos, valor e acesso

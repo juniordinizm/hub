@@ -54,6 +54,19 @@ describe("parseProductionBackupManifest", () => {
     ).toBe("18.6 (3484359)");
   });
 
+  it("parses the current Neon alphanumeric build suffix", () => {
+    const manifest = {
+      ...validManifest(),
+      postgresServerVersion: "18.6 (c5250a2)",
+    };
+
+    expect(
+      parseProductionBackupManifest(manifest, {
+        knownMigrationTags: new Set(["0065_gray_siren"]),
+      }).postgresServerVersion
+    ).toBe("18.6 (c5250a2)");
+  });
+
   it("accepts a committed daily manifest that points to its daily copy", () => {
     const daily = {
       ...validManifest(),

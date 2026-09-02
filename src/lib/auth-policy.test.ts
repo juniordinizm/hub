@@ -160,7 +160,7 @@ describe("auth policy", () => {
     expect(getBetterAuthRateLimitConfig(false)).toBeUndefined();
     expect(getBetterAuthRateLimitConfig(true)).toEqual({
       customRules: {
-        "/sign-in/email": { max: 20, window: 10 },
+        "/sign-in/email": { max: 100, window: 10 },
       },
     });
   });

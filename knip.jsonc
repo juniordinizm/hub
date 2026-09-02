@@ -38,7 +38,7 @@
     "test-availability.ts",
     "tools/**"
   ],
-  "ignoreBinaries": ["lefthook", "scripts/cleanup-ci-neon-branches.ts"],
+  "ignoreBinaries": ["lefthook"],
   "ignoreDependencies": [
     "@biomejs/biome",
     "@types/*",

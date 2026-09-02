@@ -131,38 +131,34 @@ describe("release workflow contracts", () => {
   const readWorkflow = (name: string): string =>
     readFileSync(join(process.cwd(), ".github", "workflows", name), "utf8");
 
-  it("keeps CI provider-free and validates both persistent branches", () => {
+  it("keeps CI provider-free with one local PostgreSQL job", () => {
     const source = readWorkflow("ci.yml");
     expect(source).toContain("branches: [main, staging]");
     expect(source).not.toContain("vercel-preview:");
     expect(source).not.toContain("vercel deploy");
-    expect(source).not.toContain("Preview Neon");
-    expect(source).toContain("integration-db:");
-    expect(source).toContain("e2e:");
-    expect(source).toContain("build-and-knip:");
+    expect(source).not.toContain("NEON_CI_API_KEY");
+    expect(source).toContain("services:");
+    expect(source).toContain("postgres:18-alpine");
+    expect(source).toContain("create database hub_integration");
+    expect(source).toContain("create database hub_e2e");
   });
 
-  it("deploys the exact successful Staging SHA after backup and migration", () => {
+  it("migrates Staging after its branch changes without deploying from Actions", () => {
     const source = readWorkflow("deploy-staging.yml");
-    expect(source).toContain("workflow_run:");
+    expect(source).not.toContain("workflow_run:");
     expect(source).toContain("branches: [staging]");
-    expect(source).toContain("github.event.workflow_run.head_sha");
     expect(source).toContain("name: vercel-staging");
     expect(source).toContain("origin/staging");
-    expect(source.indexOf("Create Staging Neon backup")).toBeLessThan(
-      source.indexOf("db:migrate:staging")
-    );
-    expect(source).toContain("--target=staging");
+    expect(source).toContain("db:migrate:staging");
+    expect(source).not.toContain("vercel deploy");
     expect(source).toContain("preview.neurocapacitar.com.br");
-    expect(source).toContain("x-robots-tag:.*noindex");
-    expect(source).toContain("sitemap.xml");
   });
 
-  it("schedules only authenticated stable-domain Staging jobs", () => {
+  it("keeps Staging jobs manual and preserves the JMVStream operation", () => {
     const source = readWorkflow("run-staging-jobs.yml");
-    expect(source).toContain('cron: "*/5 * * * *"');
-    expect(source).toContain('cron: "0 10 * * *"');
-    expect(source).toContain('cron: "0 4 * * *"');
+    expect(source).toContain("workflow_dispatch:");
+    expect(source).not.toContain("schedule:");
+    expect(source).toContain('call_job "/api/cron/jmvstream"');
     expect(source).toContain("https://preview.neurocapacitar.com.br");
     expect(source).toContain(
       ["Authorization: Bearer ", "{CRON_SECRET}"].join("$")
@@ -171,14 +167,13 @@ describe("release workflow contracts", () => {
     expect(source).toContain("--output /dev/null");
   });
 
-  it("requires explicit Production SHA, commercial smoke, and backup", () => {
+  it("requires a release mode, fast-forward validation, staged deployment, and smoke", () => {
     const source = readWorkflow("deploy-vercel.yml");
-    expect(source).toContain("release_sha:");
-    expect(source).toContain("DEPLOY_PRODUCTION_MAINTENANCE");
+    expect(source).toContain("release-staging");
+    expect(source).toContain("hotfix");
     expect(source).toContain("git merge-base --is-ancestor");
-    expect(
-      source.indexOf("Create confirmed Production Neon backup")
-    ).toBeLessThan(source.indexOf("db:migrate:production"));
+    expect(source).toContain("git push origin");
+    expect(source).toContain("Await automatic Production deployment");
     expect(source).toContain("https://app.neurocapacitar.com.br");
     expect(source).toContain("name: Smoke Production public profile");
     expect(source).toContain("checkout_status=");

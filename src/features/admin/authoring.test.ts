@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   confirmLessonResourceUpload,
+  consumeLessonResourceUpload,
   consumeStagedAdminImageUpload,
   deletePublicR2Objects,
   deleteJmvstreamAssetsForLesson,
@@ -13,10 +14,13 @@ const {
   uploadCourseCoverFile,
   publishR2Object,
   readStagedAdminImageFile,
+  getLessonResourceUpload,
+  logLessonResourceUploadEvent,
   connect,
   release,
 } = vi.hoisted(() => ({
   confirmLessonResourceUpload: vi.fn(),
+  consumeLessonResourceUpload: vi.fn(),
   consumeStagedAdminImageUpload: vi.fn(),
   deletePublicR2Objects: vi.fn(),
   deleteJmvstreamAssetsForLesson: vi.fn(),
@@ -28,6 +32,8 @@ const {
   uploadCourseCoverFile: vi.fn(),
   publishR2Object: vi.fn(),
   readStagedAdminImageFile: vi.fn(),
+  getLessonResourceUpload: vi.fn(),
+  logLessonResourceUploadEvent: vi.fn(),
   connect: vi.fn(),
   release: vi.fn(),
 }));
@@ -52,6 +58,13 @@ vi.mock("@/features/storage/r2", () => ({
 }));
 vi.mock("@/features/storage/staged-image-upload-registry", () => ({
   consumeStagedAdminImageUpload,
+}));
+vi.mock("@/features/storage/lesson-resource-upload-registry", () => ({
+  consumeLessonResourceUpload,
+  getLessonResourceUpload,
+}));
+vi.mock("@/features/storage/lesson-resource-upload-observability", () => ({
+  logLessonResourceUploadEvent,
 }));
 
 import {
@@ -139,6 +152,7 @@ const setDefaultMocks = (): void => {
     (sql: string) => versioningQueryResult(sql) ?? { rows: [] }
   );
   confirmLessonResourceUpload.mockResolvedValue(undefined);
+  consumeLessonResourceUpload.mockResolvedValue(undefined);
   consumeStagedAdminImageUpload.mockImplementation(
     async ({ operation }: { operation: (file: File) => Promise<unknown> }) =>
       await operation(
@@ -156,6 +170,7 @@ const setDefaultMocks = (): void => {
   readStagedAdminImageFile.mockResolvedValue(
     new File([new Uint8Array([1])], "cover.png", { type: "image/png" })
   );
+  getLessonResourceUpload.mockResolvedValue(null);
   connect.mockResolvedValue({ query, release });
 };
 
@@ -423,7 +438,6 @@ describe("admin authoring", () => {
     const formData = new FormData();
     formData.set("moduleId", "module-1");
     formData.set("title", " Aula inicial ");
-    formData.set("description", " Subtitulo ");
     formData.set("sortOrder", "3");
 
     const result = await createLessonDraft({
@@ -434,14 +448,7 @@ describe("admin authoring", () => {
     expect(result).toEqual({ courseId: "course-1", lessonId: "lesson-1" });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into lessons"),
-      [
-        "module-1",
-        "course-publication-draft",
-        "Aula inicial",
-        "Subtitulo",
-        3,
-        "draft",
-      ]
+      ["module-1", "course-publication-draft", "Aula inicial", null, 3, "draft"]
     );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
@@ -504,6 +511,44 @@ describe("admin authoring", () => {
     );
   });
 
+  it("rejects a lesson without a title before processing its content", async () => {
+    const formData = new FormData();
+    formData.set("moduleId", "module-1");
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toMatchObject({
+      field: "title",
+      message: "Informe o título da aula.",
+    });
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty lesson before reading or confirming stored resources", async () => {
+    const formData = new FormData();
+    formData.set("lessonId", "lesson-empty");
+    formData.set("moduleId", "module-1");
+    formData.set("title", "Aula sem conteúdo");
+    formData.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
+
+    await expect(
+      saveLesson({ actorUserId: "admin-1", formData })
+    ).rejects.toMatchObject({
+      field: "content",
+      message:
+        "A aula não pode ser salva sem conteúdo. Adicione pelo menos um vídeo, um texto com conteúdo ou um material anexado.",
+    });
+    expect(confirmLessonResourceUpload).not.toHaveBeenCalled();
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("select content_json from lessons")
+      )
+    ).toBe(false);
+  });
+
   it("confirms an uploaded lesson resource before persisting its metadata", async () => {
     query.mockImplementation((sql: string) => {
       const versioningResult = versioningQueryResult(sql);
@@ -526,8 +571,12 @@ describe("admin authoring", () => {
     formData.set("lessonId", "lesson-1");
     formData.set("moduleId", "module-1");
     formData.set("title", "Aula completa");
-    formData.set("textDocument", JSON.stringify(textDocument));
+    formData.set(
+      "textDocument",
+      JSON.stringify({ type: "doc", content: [{ type: "paragraph" }] })
+    );
     formData.append("resourceStorage[]", "r2");
+    formData.append("resourceId[]", "resource-1");
     formData.append("resourceLabel[]", "Apostila");
     formData.append("resourceUrl[]", "");
     formData.append("resourceKey[]", "lessons/lesson-1/resources/upload.pdf");
@@ -535,6 +584,24 @@ describe("admin authoring", () => {
     formData.append("resourceContentType[]", "application/pdf");
     formData.append("resourcePreview[]", "");
     formData.append("resourceSizeBytes[]", "1024");
+    getLessonResourceUpload.mockResolvedValue({
+      actorUserId: "admin-1",
+      expiresAt: new Date("2026-08-30T17:00:00.000Z"),
+      lessonId: "lesson-1",
+      reference: {
+        contentType: "application/pdf",
+        fileName: "apostila.pdf",
+        id: "resource-1",
+        key: "lessons/lesson-1/resources/upload.pdf",
+        label: "apostila.pdf",
+        sizeBytes: 1024,
+        storage: "r2",
+      },
+      status: "uploaded",
+    });
+    consumeLessonResourceUpload.mockRejectedValueOnce(
+      new Error("session consume unavailable")
+    );
 
     await saveLesson({ actorUserId: "admin-1", formData });
 
@@ -543,6 +610,20 @@ describe("admin authoring", () => {
       key: "lessons/lesson-1/resources/upload.pdf",
       sizeBytes: 1024,
     });
+    expect(consumeLessonResourceUpload).toHaveBeenCalledWith({
+      actorUserId: "admin-1",
+      lessonId: "lesson-1",
+      resourceId: "resource-1",
+    });
+    expect(logLessonResourceUploadEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "lesson_resource_upload_consume_failed",
+        lessonId: "lesson-1",
+        resourceId: "resource-1",
+        stage: "consume",
+        success: false,
+      })
+    );
   });
 
   it("saves lesson content while preserving its existing uploaded video", async () => {

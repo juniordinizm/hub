@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { scheduledJobs } from "@/config/scheduled-jobs";
-import { runWithScheduledJobLease } from "@/features/operations/scheduled-job-lease";
 import { getScheduledJobEarlyResponse } from "@/features/operations/scheduled-job-request";
-import { runOutboxWorker } from "@/features/outbox/runner";
+import { runOutboxJob } from "@/features/outbox/outbox-job";
 import {
   CORRELATION_ID_HEADER,
   createCorrelationId,
@@ -24,21 +22,7 @@ export const GET = async (request: Request): Promise<Response> => {
 
   const result = await observeOperation({
     correlationId,
-    execute: async () => {
-      const lease = await runWithScheduledJobLease({
-        deadlineMs: scheduledJobs.outbox.deadlineMs,
-        execute: ({ deadlineAt, isLeaseOwner }) =>
-          runOutboxWorker({
-            deadlineAt,
-            shouldContinue: isLeaseOwner,
-          }),
-        jobName: "outbox",
-        leaseMs: scheduledJobs.outbox.leaseMs,
-      });
-      return lease.acquired
-        ? lease.value
-        : { reason: "already_running", skipped: true };
-    },
+    execute: () => runOutboxJob(),
     failureErrorCode: "outbox_worker_failed",
     operation: "cron.outbox",
   });

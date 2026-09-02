@@ -44,7 +44,10 @@ describe("lesson content", () => {
         videoExternalId: "hash",
         videoProvider: "jmvstream",
       })
-    ).toEqual({ isReady: false, missingLabel: "Adicionar video ou texto" });
+    ).toEqual({
+      isReady: false,
+      missingLabel: "Adicionar video, texto ou material",
+    });
   });
 
   it("stores rich text documents and external lesson resources for text lessons", () => {
@@ -76,6 +79,7 @@ describe("lesson content", () => {
     const formData = new FormData();
     formData.set("textDocument", JSON.stringify(richTextDocument));
     formData.set("resourceStorage[]", "r2");
+    formData.set("resourceId[]", "resource-upload-session");
     formData.set("resourceLabel[]", "Apostila");
     formData.set(
       "resourceKey[]",
@@ -107,7 +111,7 @@ describe("lesson content", () => {
         {
           contentType: "application/pdf",
           fileName: "apostila.pdf",
-          id: "resource-1",
+          id: "resource-upload-session",
           key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
           label: "Apostila",
           preview: {
@@ -122,6 +126,52 @@ describe("lesson content", () => {
         },
       ],
     });
+  });
+
+  it("stores an R2 attachment as the only lesson content", () => {
+    const emptyDocument = { type: "doc", content: [{ type: "paragraph" }] };
+    const formData = new FormData();
+    formData.set("textDocument", JSON.stringify(emptyDocument));
+    formData.set("resourceStorage[]", "r2");
+    formData.set("resourceId[]", "resource-upload-session");
+    formData.set("resourceLabel[]", "Apostila");
+    formData.set(
+      "resourceKey[]",
+      "lessons/lesson-1/resources/upload-1-apostila.pdf"
+    );
+    formData.set("resourceFileName[]", "apostila.pdf");
+    formData.set("resourceContentType[]", "application/pdf");
+    formData.set("resourceSizeBytes[]", "1024");
+
+    const content = normalizeLessonContentFromForm({
+      formData,
+      lessonId: "lesson-1",
+    });
+
+    expect(content).toEqual({
+      type: "text",
+      document: emptyDocument,
+      resources: [
+        {
+          contentType: "application/pdf",
+          fileName: "apostila.pdf",
+          id: "resource-upload-session",
+          key: "lessons/lesson-1/resources/upload-1-apostila.pdf",
+          label: "Apostila",
+          sizeBytes: 1024,
+          storage: "r2",
+        },
+      ],
+    });
+    expect(parseLessonContent(content)).toEqual(content);
+    expect(
+      getLessonContentReadiness({
+        contentJson: content,
+        videoEmbedUrl: null,
+        videoExternalId: null,
+        videoProvider: null,
+      })
+    ).toEqual({ isReady: true, missingLabel: null });
   });
 
   it("reads stored R2 lesson attachments", () => {
@@ -394,6 +444,9 @@ describe("lesson content", () => {
         videoExternalId: null,
         videoProvider: null,
       })
-    ).toEqual({ isReady: false, missingLabel: "Adicionar video ou texto" });
+    ).toEqual({
+      isReady: false,
+      missingLabel: "Adicionar video, texto ou material",
+    });
   });
 });

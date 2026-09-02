@@ -101,10 +101,11 @@ alterou Production.
 
 A requalificação atual está registrada em
 [2026-09-01-production-readiness-requalification.md](../../reviews/2026-09-01-production-readiness-requalification.md).
-O workflow de Production passou a exigir que `release_sha` seja exatamente o
-SHA atual de `origin/main`, mantendo rollback de aplicação separado do fluxo de
-migrations. O guia de release foi alinhado ao workflow e ganhou teste de
-contrato para a ordem dos gates.
+O fluxo de Production vigente valida o deployment exato de Staging, verifica o
+check `CI`, avança `main` por fast-forward e aguarda a build automática antes de
+promover o mesmo artefato. Não há entrada manual de `release_sha`; rollback de
+aplicação continua separado do fluxo de migrations. O guia de release foi
+alinhado ao fluxo canônico e ganhou testes de contrato.
 
 O workflow manual `Verify Sentry Production readiness` foi adicionado para
 emitir e verificar, sob confirmação literal, um único evento no domínio

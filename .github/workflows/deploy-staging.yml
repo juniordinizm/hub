@@ -1,216 +1,78 @@
-name: Deploy Vercel staging
+name: Prepare Vercel staging
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [staging]
   workflow_dispatch:
 
 concurrency:
-  group: vercel-staging
+  group: vercel-staging-operations
   cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  deploy:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'staging')
+  migrate:
+    name: Apply Staging migrations
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 15
     environment:
       name: vercel-staging
     env:
       DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
       HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       STAGING_DATABASE_HOST: ${{ vars.STAGING_DATABASE_HOST }}
       STAGING_NEON_BRANCH_ID: ${{ vars.STAGING_NEON_BRANCH_ID }}
-      STAGING_NEON_PROJECT_ID: ${{ vars.STAGING_NEON_PROJECT_ID }}
       STAGING_OPERATION_CONFIRMATION: staging
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      VERCEL_SCOPE: neuro-capacitar
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || 'staging' }}
-      - name: Verify exact current Staging SHA
-        id: release
-        env:
-          CI_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin staging
-          release_sha="$(git rev-parse HEAD)"
-          staging_sha="$(git rev-parse origin/staging)"
-          if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]] ||
-             [[ "${release_sha}" != "${staging_sha}" ]] ||
-             [[ -n "${CI_HEAD_SHA}" && "${release_sha}" != "${CI_HEAD_SHA}" ]]; then
-            echo "Deployment SHA must equal the current origin/staging SHA." >&2
-            exit 1
-          fi
-          echo "sha=${release_sha}" >> "$GITHUB_OUTPUT"
+          fetch-depth: 1
+          ref: staging
+
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.11
+
       - run: bun install --frozen-lockfile
-      - name: Verify Staging workflow configuration
+
+      - name: Verify exact Staging target
         run: |
           set -euo pipefail
-          for name in DATABASE_URL_DIRECT HEALTHCHECK_SECRET NEON_API_KEY STAGING_DATABASE_HOST STAGING_NEON_BRANCH_ID STAGING_NEON_PROJECT_ID VERCEL_ORG_ID VERCEL_PROJECT_ID VERCEL_SCOPE VERCEL_TOKEN; do
+          for name in DATABASE_URL_DIRECT STAGING_DATABASE_HOST STAGING_NEON_BRANCH_ID STAGING_OPERATION_CONFIRMATION; do
             if [[ -z "${!name:-}" ]]; then
-              echo "${name} is required by vercel-staging." >&2
+              echo "${name} is required by the Staging migration." >&2
               exit 1
             fi
           done
-      - name: Set backup expiry
-        run: echo "NEON_BACKUP_EXPIRES_AT=$(date -u --date '+7 days' +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
-      - name: Create Staging Neon backup without compute
-        id: backup
-        env:
-          BACKUP_BRANCH_NAME: staging-release-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
+          git fetch --no-tags origin staging
+          [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/staging)" ]]
 
-          payload="$(
-            jq -cn \
-              --arg branch_name "${BACKUP_BRANCH_NAME}" \
-              --arg parent_branch "${STAGING_NEON_BRANCH_ID}" \
-              --arg expires_at "${NEON_BACKUP_EXPIRES_AT}" \
-              '{branch:{name:$branch_name,parent_id:$parent_branch,expires_at:$expires_at},endpoints:[]}'
-          )"
-          response_file="$(mktemp)"
-          trap 'rm -f "${response_file}"' EXIT
-          http_status="$(
-            curl --silent --show-error \
-              --output "${response_file}" \
-              --write-out "%{http_code}" \
-              --request POST \
-              --header "Authorization: Bearer ${NEON_API_KEY}" \
-              --header "Content-Type: application/json" \
-              --data "${payload}" \
-              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches"
-          )"
-          if [[ "${http_status}" != 2* ]]; then
-            echo "Neon branch backup request failed with HTTP ${http_status}." >&2
-            jq -c . "${response_file}" >&2 || cat "${response_file}" >&2
-            exit 1
-          fi
-          response="$(
-            cat "${response_file}"
-          )"
-          branch_id="$(jq -er '.branch.id' <<< "${response}")"
-          echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"
-      - name: Verify Staging Neon backup ancestry
-        env:
-          BACKUP_BRANCH_ID: ${{ steps.backup.outputs.branch_id }}
-        run: |
-          set -euo pipefail
-          actual_parent="$(
-            curl --fail --silent --show-error \
-              --header "Authorization: Bearer ${NEON_API_KEY}" \
-              --header "Accept: application/json" \
-              "https://console.neon.tech/api/v2/projects/${STAGING_NEON_PROJECT_ID}/branches/${BACKUP_BRANCH_ID}" \
-              | jq -er '.branch.parent_id'
-          )"
-          [[ "${actual_parent}" == "${STAGING_NEON_BRANCH_ID}" ]] || {
-            echo "Staging backup does not descend from the configured Staging branch." >&2
-            exit 1
-          }
       - name: Apply guarded Staging migrations
         run: bun run db:migrate:staging
-      - name: Deploy exact SHA to the Staging target
-        id: deployment
-        env:
-          DEPLOYMENT_GIT_SHA: ${{ steps.release.outputs.sha }}
+
+  verify:
+    name: Verify current Staging deployment
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: vercel-staging
+    env:
+      HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
+      STAGING_ORIGIN: https://preview.neurocapacitar.com.br
+    steps:
+      - name: Smoke Staging
         run: |
           set -euo pipefail
-          deployment_url="$(
-            bunx vercel@57.0.0 --scope="$VERCEL_SCOPE" deploy --yes \
-              --target=staging \
-              --meta "githubCommitRef=staging" \
-              --meta "githubCommitSha=${DEPLOYMENT_GIT_SHA}" \
-              --token="$VERCEL_TOKEN" \
-              --no-color
-          )"
-          if [[ ! "${deployment_url}" =~ ^https://[a-zA-Z0-9.-]+\.vercel\.app$ ]]; then
-            echo "Vercel did not return a valid deployment URL." >&2
-            exit 1
-          fi
-          echo "url=${deployment_url}" >> "$GITHUB_OUTPUT"
-      - name: Smoke exact deployment and stable Staging domain
-        env:
-          DEPLOYMENT_URL: ${{ steps.deployment.outputs.url }}
-        run: |
-          set -euo pipefail
-
-          smoke_origin() {
-            local origin="$1"
-            local headers
-            local sitemap_status
-            local webhook_status
-            headers="$(mktemp)"
-
-            if ! curl --fail --silent --show-error --dump-header "${headers}" \
-              "${origin}/" > /dev/null; then
-              rm -f "${headers}"
-              return 1
-            fi
-            if ! grep -iq '^x-robots-tag:.*noindex' "${headers}"; then
-              rm -f "${headers}"
-              return 1
-            fi
-            sitemap_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              "${origin}/sitemap.xml")"
-            if [[ "${sitemap_status}" != "404" ]]; then
-              rm -f "${headers}"
-              return 1
-            fi
-            if ! curl --fail --silent --show-error \
-              --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
-              "${origin}/api/health/ready" > /dev/null; then
-              rm -f "${headers}"
-              return 1
-            fi
-            webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-              --request POST \
-              --header 'Content-Type: application/json' \
-              --data '{}' \
-              "${origin}/api/webhooks/resend")"
-            rm -f "${headers}"
-            [[ "${webhook_status}" == "400" ]]
-          }
-
-          smoke_origin "${DEPLOYMENT_URL}"
-
-          deployment_json="$(
-            bunx vercel@57.0.0 inspect "${DEPLOYMENT_URL}" \
-              --scope="$VERCEL_SCOPE" \
-              --token="$VERCEL_TOKEN" \
-              --format=json \
-              --no-color 2>/dev/null
-          )"
-          jq -e \
-            --arg alias "preview.neurocapacitar.com.br" \
-            '.target == "staging" and .readyState == "READY" and (.aliases | index($alias) != null)' \
-            <<< "${deployment_json}" > /dev/null
-
-          stable_origin="https://preview.neurocapacitar.com.br"
-          for attempt in $(seq 1 12); do
-            if smoke_origin "${stable_origin}"; then
-              exit 0
-            fi
-            if [[ "${attempt}" -lt 12 ]]; then
-              sleep 5
-            fi
-          done
-          echo "Stable Staging smoke did not converge to a healthy deployment." >&2
-          exit 1
+          curl --fail --silent --show-error \
+            --header "Authorization: Bearer ${HEALTHCHECK_SECRET}" \
+            "${STAGING_ORIGIN}/api/health/ready" > /dev/null
+          webhook_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "${STAGING_ORIGIN}/api/webhooks/resend")"
+          [[ "${webhook_status}" == "400" ]]

@@ -8,6 +8,7 @@ import {
   classifyProductionBackupFailure,
   resolveProductionBackupExecutionConfig,
   resolveProductionBackupFailureCategory,
+  resolveProductionBackupMigration,
   retainCommandOutputContext,
   verifyProductionBackupProviderEvidence,
   withEncryptedProductionDump,
@@ -315,6 +316,39 @@ describe("verifyProductionBackupProviderEvidence", () => {
   });
 });
 
+describe("resolveProductionBackupMigration", () => {
+  it("maps the database timestamp to a known migration entry", () => {
+    expect(
+      resolveProductionBackupMigration(1_787_582_200_256, [
+        {
+          migrationTag: "0067_sparkling_ghost_rider",
+          migrationTimestamp: 1_787_582_200_256,
+        },
+        {
+          migrationTag: "0068_staged_lesson_resource_uploads",
+          migrationTimestamp: 1_788_105_814_330,
+        },
+      ])
+    ).toEqual({
+      migrationTag: "0067_sparkling_ghost_rider",
+      migrationTimestamp: 1_787_582_200_256,
+    });
+  });
+
+  it("rejects a database timestamp absent from the local migration journal", () => {
+    expect(() =>
+      resolveProductionBackupMigration(1_788_108_979_083, [
+        {
+          migrationTag: "0067_sparkling_ghost_rider",
+          migrationTimestamp: 1_787_582_200_256,
+        },
+      ])
+    ).toThrow(
+      "Production backup database migration is not known by this release."
+    );
+  });
+});
+
 describe("assertProductionBackupDatabase", () => {
   it("accepts only PostgreSQL 18, the read-all role and the expected migration", () => {
     expect(() =>
@@ -350,6 +384,28 @@ describe("assertProductionBackupDatabase", () => {
           migrationTimestamp: 1_787_541_858_811,
           pgReadAllDataMember: true,
           postgresServerVersion: "18.6 (3484359)",
+          transactionReadOnly: true,
+        },
+        {
+          migrationTag: "0065_gray_siren",
+          migrationTimestamp: 1_787_541_858_811,
+        }
+      )
+    ).not.toThrow();
+  });
+
+  it("accepts the current Neon alphanumeric build suffix", () => {
+    expect(() =>
+      assertProductionBackupDatabase(
+        {
+          currentDatabase: "neondb",
+          currentUser: "backup_user",
+          defaultReadOnly: true,
+          logicalDatabaseBytes: 2048,
+          migrationTag: "0065_gray_siren",
+          migrationTimestamp: 1_787_541_858_811,
+          pgReadAllDataMember: true,
+          postgresServerVersion: "18.6 (c5250a2)",
           transactionReadOnly: true,
         },
         {
