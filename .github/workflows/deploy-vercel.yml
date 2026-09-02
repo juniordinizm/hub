@@ -24,6 +24,7 @@ permissions:
   actions: read
   checks: read
   contents: write
+  deployments: read
   pull-requests: read
 
 jobs:
@@ -40,10 +41,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       HEALTHCHECK_SECRET: ${{ secrets.HEALTHCHECK_SECRET }}
       STAGING_ORIGIN: https://preview.neurocapacitar.com.br
-      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-      VERCEL_SCOPE: neuro-capacitar
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -62,30 +59,42 @@ jobs:
           staging_sha="$(git rev-parse origin/staging)"
           [[ "$(git rev-parse HEAD)" == "${staging_sha}" ]]
 
-          staging_inspect_json="$(
-            bunx vercel@57.0.0 inspect preview.neurocapacitar.com.br \
-              --scope="$VERCEL_SCOPE" \
-              --token="$VERCEL_TOKEN" \
-              --format=json \
-              --no-color 2>/dev/null
+          staging_deployments_json="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments?sha=${staging_sha}&environment=staging&per_page=100"
           )"
-          staging_url="$(jq -er '.url' <<< "${staging_inspect_json}")"
-          deployments_json="$(
-            bunx vercel@57.0.0 list hub \
-              --scope="$VERCEL_SCOPE" \
-              --token="$VERCEL_TOKEN" \
-              --status=READY \
-              --limit=100 \
-              --format=json \
-              --no-color 2>/dev/null
+          staging_deployment_id="$(
+            jq -er --arg sha "${staging_sha}" '
+              [.[]
+               | select(.sha == $sha and .environment == "staging" and .creator.login == "vercel[bot]")
+               | .id]
+              | .[0] // empty
+            ' <<< "${staging_deployments_json}"
           )"
-          if ! jq -e --arg sha "${staging_sha}" --arg url "${staging_url}" '
-            any(.deployments[];
-              .url == $url and
-              .meta.githubCommitSha == $sha and
-              .meta.githubCommitRef == "staging")
-          ' <<< "${deployments_json}" > /dev/null; then
+          if [[ -z "${staging_deployment_id}" ]]; then
             echo "No READY Vercel Staging deployment exists for the current SHA." >&2
+            exit 1
+          fi
+          staging_statuses_json="$(
+            curl --fail-with-body --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/deployments/${staging_deployment_id}/statuses?per_page=100"
+          )"
+          staging_deployment_url="$(
+            jq -er '
+              [.[]
+               | select(.state == "success")
+               | .environment_url // empty]
+              | .[0] // empty
+            ' <<< "${staging_statuses_json}"
+          )"
+          if [[ ! "${staging_deployment_url}" =~ ^https://[a-zA-Z0-9.-]+\.vercel\.app$ ]]; then
+            echo "Vercel Staging deployment has no successful deployment URL." >&2
             exit 1
           fi
           curl --fail --silent --show-error \

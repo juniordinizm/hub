@@ -49,6 +49,7 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("release-staging");
     expect(source).toContain("hotfix");
     expect(source).toContain("contents: write");
+    expect(source).toContain("deployments: read");
     expect(source).toContain("pull-requests: read");
     expect(source).toContain("checks: read");
     expect(source).toContain("git merge-base --is-ancestor");
@@ -70,6 +71,9 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("vercel@57.0.0 list hub");
     expect(source).toContain("--status=READY");
     expect(source).not.toContain("--environment=preview");
+    expect(source).toContain("/deployments?sha=");
+    expect(source).toContain("environment=staging");
+    expect(source).toContain("/statuses?per_page=100");
     expect(source).not.toContain("api.vercel.com/v6/deployments");
     expect(source).not.toContain("--status=BUILDING,READY,ERROR,CANCELED");
     expect(source).toContain("name: Await automatic Production deployment");
