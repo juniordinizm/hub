@@ -617,6 +617,11 @@ export const verifyProductionBackupProviderEvidence = ({
     vercelDomains,
     expected.vercelProjectId
   );
+  const databaseEndpointHostMatches = endpoints.some(
+    (endpoint) =>
+      normalizeHost(stringValue(endpoint.host) ?? "") ===
+      normalizeHost(databaseHost)
+  );
   const databaseEndpoint = endpoints.some(
     (endpoint) =>
       normalizeHost(stringValue(endpoint.host) ?? "") ===
@@ -643,7 +648,8 @@ export const verifyProductionBackupProviderEvidence = ({
           branch.project_id === expected.neonProjectId,
       ],
       ["neon_branch_state", branch?.current_state === "ready"],
-      ["neon_database_endpoint", databaseEndpoint],
+      ["neon_database_endpoint_host", databaseEndpointHostMatches],
+      ["neon_database_endpoint_active", databaseEndpoint],
       ["vercel_response", isRecord(vercel)],
       [
         "vercel_state",
