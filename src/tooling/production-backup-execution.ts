@@ -478,6 +478,9 @@ const requiredEnvironmentValue = (
 const normalizeHost = (host: string): string =>
   host.trim().toLowerCase().replace(TRAILING_DOT_PATTERN, "");
 
+const isNeonEndpointAvailable = (state: unknown): boolean =>
+  state === "active" || state === "idle";
+
 const parseCadence = (value: string): BackupCadenceHours => {
   const cadence = Number(value);
   if (!CADENCES.has(cadence as BackupCadenceHours)) {
@@ -617,15 +620,11 @@ export const verifyProductionBackupProviderEvidence = ({
     vercelDomains,
     expected.vercelProjectId
   );
-  const databaseEndpointHostMatches = endpoints.some(
-    (endpoint) =>
-      normalizeHost(stringValue(endpoint.host) ?? "") ===
-      normalizeHost(databaseHost)
-  );
   const databaseEndpoint = endpoints.some(
     (endpoint) =>
       normalizeHost(stringValue(endpoint.host) ?? "") ===
-        normalizeHost(databaseHost) && endpoint.current_state === "active"
+        normalizeHost(databaseHost) &&
+      isNeonEndpointAvailable(endpoint.current_state)
   );
   const valid =
     branch?.id === expected.neonBranchId &&
@@ -641,44 +640,7 @@ export const verifyProductionBackupProviderEvidence = ({
       projectDomains.includes(expected.canonicalAlias)) &&
     Boolean(releaseSha && RELEASE_SHA_PATTERN.test(releaseSha));
   if (!(valid && releaseSha)) {
-    const failedChecks = [
-      [
-        "neon_branch_identity",
-        branch?.id === expected.neonBranchId &&
-          branch.project_id === expected.neonProjectId,
-      ],
-      ["neon_branch_state", branch?.current_state === "ready"],
-      ["neon_database_endpoint_host", databaseEndpointHostMatches],
-      ["neon_database_endpoint_active", databaseEndpoint],
-      ["vercel_response", isRecord(vercel)],
-      [
-        "vercel_state",
-        isRecord(vercel) &&
-          (vercel.readyState === "READY" || vercel.state === "READY"),
-      ],
-      ["vercel_target", isRecord(vercel) && vercel.target === "production"],
-      [
-        "vercel_project",
-        isRecord(vercel) &&
-          stringValue(vercel.projectId ?? vercel.project) ===
-            expected.vercelProjectId,
-      ],
-      [
-        "vercel_alias",
-        aliases.includes(expected.canonicalAlias) ||
-          projectDomains.includes(expected.canonicalAlias),
-      ],
-      [
-        "vercel_release_sha",
-        Boolean(releaseSha && RELEASE_SHA_PATTERN.test(releaseSha)),
-      ],
-    ]
-      .filter(([, passed]) => !passed)
-      .map(([name]) => name)
-      .join(", ");
-    throw new Error(
-      `Production backup provider provenance mismatched (${failedChecks || "unknown"}).`
-    );
+    throw new Error("Production backup provider provenance mismatched.");
   }
   return {
     releaseSha,

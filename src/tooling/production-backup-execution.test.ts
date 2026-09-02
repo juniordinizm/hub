@@ -224,7 +224,10 @@ describe("resolveProductionBackupExecutionConfig", () => {
 });
 
 describe("verifyProductionBackupProviderEvidence", () => {
-  it("derives the deployed commit and proves the dump host belongs to the declared Neon branch", () => {
+  it.each([
+    "active",
+    "idle",
+  ] as const)("derives the deployed commit and proves the dump host belongs to the declared Neon branch when the endpoint is %s", (currentState) => {
     expect(
       verifyProductionBackupProviderEvidence({
         databaseHost: "production.example.test",
@@ -244,7 +247,7 @@ describe("verifyProductionBackupProviderEvidence", () => {
         neonEndpoints: {
           endpoints: [
             {
-              current_state: "active",
+              current_state: currentState,
               host: "production.example.test",
               type: "read_write",
             },
