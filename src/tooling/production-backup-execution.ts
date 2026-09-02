@@ -478,6 +478,9 @@ const requiredEnvironmentValue = (
 const normalizeHost = (host: string): string =>
   host.trim().toLowerCase().replace(TRAILING_DOT_PATTERN, "");
 
+const isNeonEndpointAvailable = (state: unknown): boolean =>
+  state === "active" || state === "idle";
+
 const parseCadence = (value: string): BackupCadenceHours => {
   const cadence = Number(value);
   if (!CADENCES.has(cadence as BackupCadenceHours)) {
@@ -620,7 +623,8 @@ export const verifyProductionBackupProviderEvidence = ({
   const databaseEndpoint = endpoints.some(
     (endpoint) =>
       normalizeHost(stringValue(endpoint.host) ?? "") ===
-        normalizeHost(databaseHost) && endpoint.current_state === "active"
+        normalizeHost(databaseHost) &&
+      isNeonEndpointAvailable(endpoint.current_state)
   );
   const valid =
     branch?.id === expected.neonBranchId &&
