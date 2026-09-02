@@ -405,7 +405,13 @@ if (import.meta.main) {
       category,
       currentPhase
     );
-    process.stderr.write(`Production backup failed: ${safeCategory}.\n`);
+    const safeDetail =
+      currentPhase === "provider" && error instanceof Error
+        ? ` ${error.message}`
+        : "";
+    process.stderr.write(
+      `Production backup failed: ${safeCategory}.${safeDetail}\n`
+    );
     process.exitCode = 1;
   }
 }
