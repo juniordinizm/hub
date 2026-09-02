@@ -74,7 +74,6 @@ jobs:
             bunx vercel@57.0.0 list hub \
               --scope="$VERCEL_SCOPE" \
               --token="$VERCEL_TOKEN" \
-              --environment=preview \
               --status=READY \
               --limit=100 \
               --format=json \
