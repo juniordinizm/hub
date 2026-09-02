@@ -5,11 +5,6 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { profiles, users } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
-import { getServerEnv } from "@/lib/env";
-import {
-  getPrivilegedAssuranceRedirect,
-  resolvePrivilegedAssurance,
-} from "@/lib/privileged-assurance";
 import { route } from "@/lib/routes";
 
 export type AppRole = "admin" | "support" | "student";
@@ -18,7 +13,6 @@ export interface AppSession {
   platformBlockedAt: Date | null;
   platformBlockedReason: string | null;
   role: AppRole;
-  twoFactorEnabled: boolean;
   user: {
     id: string;
     name: string;
@@ -40,7 +34,6 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
       platformBlockedAt: profiles.platformBlockedAt,
       platformBlockedReason: profiles.platformBlockedReason,
       role: profiles.role,
-      twoFactorEnabled: users.twoFactorEnabled,
     })
     .from(users)
     .leftJoin(profiles, eq(profiles.userId, users.id))
@@ -56,22 +49,7 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
       email: session.user.email,
     },
     role: profile?.role ?? "student",
-    twoFactorEnabled: profile?.twoFactorEnabled ?? false,
   };
-};
-
-const requirePrivilegedAssurance = (session: AppSession): void => {
-  const assurance = resolvePrivilegedAssurance({
-    hasActiveSession: true,
-    mfaEnforced: getServerEnv().PRIVILEGED_MFA_ENFORCED,
-    role: session.role,
-    twoFactorEnabled: session.twoFactorEnabled,
-  });
-  const redirectTo = getPrivilegedAssuranceRedirect(assurance);
-
-  if (redirectTo) {
-    redirect(route(redirectTo));
-  }
 };
 
 export const requireSession = async (): Promise<AppSession> => {
@@ -97,8 +75,6 @@ export const requireRole = async <Role extends AppRole>(
   if (!allowedRole) {
     redirect(route("/app"));
   }
-
-  requirePrivilegedAssurance(session);
 
   return { ...session, role: allowedRole };
 };

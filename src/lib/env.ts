@@ -69,10 +69,6 @@ const serverEnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   PAYMENTS_CHECKOUT_MODE: z.enum(["disabled", "authenticated", "public"]),
-  PRIVILEGED_MFA_ENFORCED: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((value) => value === "true"),
   R2_ACCESS_KEY_ID: optionalNonEmptyString,
   R2_ACCOUNT_ID: optionalNonEmptyString,
   R2_BUCKET_NAME: optionalNonEmptyString,
@@ -267,7 +263,6 @@ export const getServerEnv = () => {
     NEXT_PUBLIC_SENTRY_RELEASE: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
     NODE_ENV: process.env.NODE_ENV,
     PAYMENTS_CHECKOUT_MODE: process.env.PAYMENTS_CHECKOUT_MODE,
-    PRIVILEGED_MFA_ENFORCED: process.env.PRIVILEGED_MFA_ENFORCED,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
     R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
     R2_BUCKET_NAME: process.env.R2_BUCKET_NAME,

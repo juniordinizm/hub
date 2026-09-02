@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Testes e CI
@@ -83,7 +83,17 @@ atualizações semanais do ecossistema `github-actions` e, às segundas-feiras �
 09:00 em `America/Sao_Paulo`, do ecossistema `bun`. Dependências minor/patch são
 agrupadas por produção e desenvolvimento; majors permanecem individuais. O
 limite é cinco PRs abertos. Cada mudança continua passando pelos mesmos gates e
-o lockfile deve ser produzido pelo Bun 1.3.11.
+o lockfile deve ser produzido pelo Bun 1.3.11. O override de `browserslist` em
+`package.json` mantém a versão `4.28.8` por causa dos avisos de segurança
+conhecidos para versões anteriores; qualquer atualização desse pacote deve
+repetir `bun audit --production` e a suíte de contrato de dependências.
+
+A suíte unitária carrega `tests/setup.ts` antes dos arquivos de teste. O setup remove
+variáveis de configuração da aplicação herdadas do processo, preserva apenas o
+ambiente de ferramentas e restaura essa base antes e depois de cada teste. Isso
+impede que `.env.local`, credenciais locais ou outro teste alterem o resultado da
+suíte. A configuração de integração é separada e continua recebendo somente a
+URL descartável declarada pelo workflow.
 
 Em 24 de agosto de 2026, a API GitHub confirmou que o repositório continua
 público, todos os jobs de CI usam o runner padrão `ubuntu-24.04` e existem dois
@@ -309,8 +319,7 @@ As jornadas atuais verificam:
 - colisões pós-pagamento da compra anônima com Conta bloqueada ou de equipe: Pedido pago,
   revisão `buyer_identity` pendente e zero Concessão, Matrícula ou outbox de acesso;
 - certificado público válido e revogado;
-- foco de teclado no formulário, challenge TOTP, link de salto e navegação da
-  sidebar;
+- foco de teclado no formulário, link de salto e navegação da sidebar;
 - alertas seguros para falha simulada de leitura, material R2 indisponível e
   o índice de Aula expansível no mobile;
 - acesso expirado e acesso revogado, com ação de renovação ou suporte;

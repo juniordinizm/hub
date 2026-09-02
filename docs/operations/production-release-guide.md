@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: e947bdad2bc72ef1db9de712b1c2cfe8653d43ce
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Tutorial: da alteração até Production
@@ -36,11 +36,16 @@ Portanto:
 - fazer merge de `staging` em `main` atualiza apenas o candidato, não o domínio;
 - um Preview não é Production;
 - somente o workflow manual de Production pode promover o domínio público;
-- não é necessário localizar, copiar ou digitar um SHA.
+- o formulário do workflow exige o `release_sha` completo do commit aprovado em
+  `main`;
+- o workflow valida o formato do SHA, confirma que ele está contido em
+  `origin/main` e exige uma CI verde para esse mesmo SHA.
 
-O workflow resolve sozinho o SHA atual da `main`, confirma que ele possui CI
-verde, aplica migrations pendentes, testa o deployment sem domínio e somente
-depois promove.
+Depois dessa validação, o workflow aplica migrations pendentes, testa o
+deployment sem domínio e somente depois promove. O workflow normal exige a
+candidata atual de `origin/main`; um rollback de aplicação deve promover um
+deployment anterior compatível pelo runbook, sem executar migrations antigas por
+este workflow.
 
 O workflow não possui mais entradas para ignorar o CI ou o backup independente.
 Se qualquer gate falhar, corrija a causa e execute novamente; não há caminho de
@@ -404,7 +409,8 @@ recusa um commit sem CI verde na própria `main`.
 Na `main`, os gates são repetidos, mas o Preview Vercel não é reconstruído. O
 workflow Production criará e testará o deployment definitivo antes da promoção.
 
-Não precisa copiar o SHA. O workflow fará essa conferência.
+O SHA precisa ser copiado integralmente do commit aprovado. O workflow fará a
+conferência de pertencimento, CI e proveniência antes de alterar o ambiente.
 
 ## Etapa 11: sincronizar Development quando houver migration
 
@@ -453,17 +459,19 @@ No GitHub:
 2. escolha **Deploy Vercel production**;
 3. clique em **Run workflow**;
 4. mantenha a branch em `main`;
-5. marque `confirm_production`;
-6. clique em **Run workflow** uma única vez.
+5. preencha `release_sha` com o SHA completo aprovado em `main`;
+6. preencha `confirmation` com `DEPLOY_PRODUCTION_MAINTENANCE`;
+7. marque `confirm_production`;
+8. clique em **Run workflow** uma única vez.
 
-Não há campo de SHA. Não abra um segundo run enquanto o primeiro estiver ativo.
+Não abra um segundo run enquanto o primeiro estiver ativo.
 
 ## Etapa 13: acompanhar o deploy
 
 O workflow executa:
 
-1. checkout da `main`;
-2. confirmação de que o checkout ainda é a `main` remota atual;
+1. checkout do `release_sha` informado;
+2. confirmação de que o SHA está contido em `origin/main` e possui CI verde;
 3. prova de CI verde para o SHA;
 4. instalação das dependências;
 5. verificação dos secrets operacionais;
@@ -477,7 +485,9 @@ O workflow executa:
 12. checker somente leitura confirma deployment Vercel `READY`, projeto/SHA,
     branch Neon `ready`, PostgreSQL 18 e journal/marker da candidata;
 13. promoção para `app.neurocapacitar.com.br`;
-14. repetição do checker exigindo o alias canônico no mesmo deployment.
+14. step `Smoke Production public profile` confirma páginas públicas, readiness,
+    checkout público e autenticação do webhook Asaas;
+15. repetição do checker exigindo o alias canônico no mesmo deployment.
 
 Durante o deploy, o checker compara o SHA candidato diretamente com Vercel,
 Neon e o journal PostgreSQL. Ele não exige que
@@ -512,6 +522,12 @@ Depois de todos os steps verdes:
 6. confira os logs da Vercel pelo horário, SHA ou `correlationId`;
 7. quando houver provider, confira o painel correspondente;
 8. registre o resultado no Pull Request ou registro de release.
+
+Quando a requalificação exigir prova sintética do Sentry, use o workflow manual
+`Verify Sentry Production readiness` com o SHA servido e a confirmação literal
+`EMIT_SENTRY_PRODUCTION_READINESS`. Ele emite um único evento controlado e
+confere release, environment, source map, privacidade e alerta; não substitui o
+smoke do deploy nem deve ser executado sem autorização operacional.
 
 Não faça pagamento real, envie e-mail a cliente, crie vídeo real ou emita
 certificado artificial apenas como smoke genérico. Use dados de controle e a

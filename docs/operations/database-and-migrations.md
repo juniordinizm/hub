@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 1e60557bc39956e74c1150880ca0d573129bcf34
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 current_migration_tag: 0067_sparkling_ghost_rider
 migration_entry_count: 68
 schema_table_count: 46
@@ -25,12 +25,12 @@ Ambas são aditivas e não reescrevem registros existentes.
 Em 24 de agosto de 2026, a remediação da Sprint 1 acrescentou somente à cadeia
 local `0065_gray_siren`. A Sprint 3 acrescentou `0066_gifted_retro_girl` e a
 Sprint 4 acrescentou `0067_sparkling_ghost_rider`, totalizando 68 entradas e 46
-tabelas no snapshot. `0065`
-adiciona o indicador de segundo fator, a tabela `two_factors` e revogação de
-sessões por mudança de papel ou do indicador de segundo fator. Production
-permanece em `0064`; gerar, ensaiar e documentar `0065` não autoriza promoção.
+tabelas no snapshot. `0065` registra estruturas históricas de uma tentativa de
+MFA administrativo. A aplicação atual não registra essas estruturas no adaptador
+Better Auth, e nenhuma migration histórica é removida. Production permanece em
+`0064`; gerar, ensaiar e documentar migrations não autoriza promoção.
 
-O SQL de `0065` foi aplicado dentro de transação na branch Neon descartável
+O SQL histórico de `0065` foi aplicado dentro de transação na branch Neon descartável
 `br-plain-field-acrxo0ru`, filha direta de Production. O postflight confirmou as
 sete colunas do plugin, um índice de segredo, dois triggers, zero registros TOTP
 semeados, revogação das sessões anteriores e permanência apenas da sessão criada
@@ -153,12 +153,11 @@ workflow cria um backup usando o input `parent_branch` da action Neon e confere
 via API que a branch criada descende da branch Staging configurada; se a
 ancestralidade não coincidir, a execução é interrompida.
 
-`db:seed:staging-admin` exige duas identidades e senhas distintas: o Admin
-primário e o Admin de recuperação. As duas senhas precisam de pelo menos oito
-caracteres. O comando normaliza os e-mails, executa as duas contas na mesma
+`db:seed:staging-admin` exige uma identidade e senha de Admin. A senha precisa de
+pelo menos oito caracteres. O comando normaliza o e-mail, executa o seed em uma
 transação, revoga sessões existentes depois de atualizar credencial/papel e
-registra somente contagens sanitizadas. Ele não cria segredo TOTP nem backup
-code; cada pessoa conclui esse setup pela interface.
+registra somente contagens sanitizadas. Ele não cria segredo ou código adicional
+de autenticação.
 
 ## Autoridades
 
@@ -370,13 +369,12 @@ Cria banco PostgreSQL local temporário, aplica a cadeia, roda seed duas vezes e
 
 ### `bun run test:certificates:integration`
 
-Executa concorrência de conclusão, outbox, inbox Asaas e assurance privilegiada
+Executa concorrência de conclusão, outbox e inbox Asaas
 em PostgreSQL real. Requer `CERTIFICATE_CONCURRENCY_DATABASE_URL` de banco
 descartável migrado. A suíte da inbox prova claim único entre dois workers,
 rollback do efeito, perda de posse e terminalização da quinta tentativa
-abandonada. A suíte de autenticação prova setup e challenge TOTP, consumo único
-de backup code, revogação de sessão por mudança de papel e lockout. Nunca aponte
-para banco compartilhado.
+abandonada. A suíte de autenticação prova revogação de sessão por mudança de
+papel. Nunca aponte para banco compartilhado.
 
 ### `bun run db:push` e `bun run db:studio`
 

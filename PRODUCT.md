@@ -118,10 +118,10 @@ Alunas, Matrículas e finanças; operar validade e bloqueio de Matrícula; reemi
 somente o Certificado mais recente; e executar reembolso integral. Autoria,
 configuração, moderação, analytics detalhado, decisão financeira, conciliação,
 retry, bloqueio de plataforma, emissão e revogação permanecem exclusivas de
-`admin`. As projeções e as mutações aplicam essa matriz no servidor; o rollout do
-TOTP privilegiado ainda depende da preparação de duas Contas Admin antes de ativar
-o gate em Production. Não há workflow de anonimização ou solicitações de dados no
-produto atual.
+`admin`. As projeções e as mutações aplicam essa matriz no servidor. MFA
+administrativo não faz parte do produto atual; uma adoção futura exigirá decisão e
+especificação próprias. Não há workflow de anonimização ou solicitações de dados
+no produto atual.
 
 ## Critérios de qualidade
 

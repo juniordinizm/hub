@@ -65,9 +65,11 @@ jobs:
           fi
 
           git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
           if [[ "$(git rev-parse HEAD)" != "${release_sha}" ]] ||
-             ! git merge-base --is-ancestor "${release_sha}" origin/main; then
-            echo "release_sha must be a commit contained in origin/main." >&2
+             ! git merge-base --is-ancestor "${release_sha}" origin/main ||
+             [[ "${release_sha}" != "${main_sha}" ]]; then
+            echo "release_sha must equal the current origin/main SHA." >&2
             exit 1
           fi
 

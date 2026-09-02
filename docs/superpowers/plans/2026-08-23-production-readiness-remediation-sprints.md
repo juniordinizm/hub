@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: 858eb5ab7df24a5adca2a23e692ec1c43138dc97
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -31,6 +31,13 @@ Resultado esperado:
 - requalificar o sistema antes de uma nova decisão `GO/NO-GO`;
 - validar uma venda real somente depois do deploy em Production, com supervisão
   humana e autorização específica no momento da execução.
+
+> **Override de escopo — 2026-09-01:** MFA administrativo não será adotado neste
+> momento. A implementação ativa, as páginas, a enforcement flag e o seed de
+> recuperação foram removidos. As estruturas históricas da migration `0065`
+> permanecem somente para evitar uma remoção destrutiva. As tarefas históricas
+> de TOTP abaixo estão superseded e não devem ser reexecutadas; o plano vigente
+> cobre RBAC, sessão, backup, observabilidade, e-mail, CI e requalificação.
 
 ## Checkpoint de retorno ao fluxo normal — 2026-08-26
 
@@ -90,8 +97,30 @@ o backup efêmero; após o cleanup controlado `33256066788`, o deploy protegido
 `33256090157` passou integralmente. Nenhum desses passos promoveu `main` ou
 alterou Production.
 
+## Checkpoint de implementação local — 2026-09-01
+
+A requalificação atual está registrada em
+[2026-09-01-production-readiness-requalification.md](../../reviews/2026-09-01-production-readiness-requalification.md).
+O workflow de Production passou a exigir que `release_sha` seja exatamente o
+SHA atual de `origin/main`, mantendo rollback de aplicação separado do fluxo de
+migrations. O guia de release foi alinhado ao workflow e ganhou teste de
+contrato para a ordem dos gates.
+
+O workflow manual `Verify Sentry Production readiness` foi adicionado para
+emitir e verificar, sob confirmação literal, um único evento no domínio
+canônico. A emissão em Production, a análise DMARC, a rotação da credencial R2
+e os gates operacionais externos continuam pendentes. MFA administrativo foi
+retirado do escopo e não é gate desta execução.
+
+A suíte unitária agora usa `tests/setup.ts` para remover configuração da
+aplicação herdada do processo e restaurar a base entre testes. A mudança foi
+validada com 351 arquivos e 2.414 testes aprovados. O executor deve continuar
+refazendo os gates externos quando iniciar em outro SHA. O audit de produção
+também encontrou dois avisos HIGH em `browserslist@4.28.2`; o pacote foi fixado
+em `4.28.8` por override e o audit foi repetido sem vulnerabilidades.
+
 Base de planejamento: commit
-`9f2b8f177e7531f1c19242099f403c55b3820d08`. Se o executor iniciar em outro
+`a3b0e20ed663e455ecdc5367310592b3d073d6f6`. Se o executor iniciar em outro
 commit, deve refazer o baseline, conferir migrations e atualizar os caminhos ou
 símbolos que tenham mudado antes de editar.
 
@@ -110,11 +139,11 @@ Estas decisões não são opções de implementação:
    banner, FAQ, configuração, provider, analytics detalhado, moderação,
    conciliação, extrato, decisão de Revisão, retry de webhook/outbox, bloqueio de
    plataforma, concessão manual, emissão ou revogação de Certificado.
-5. Reembolso integral exige sessão privilegiada com TOTP, senha atual, ID exato
-   do Pedido, motivo e auditoria. Não reduzir as proteções existentes em
+5. Reembolso integral exige sessão privilegiada, senha atual, ID exato do Pedido,
+   motivo e auditoria. Não reduzir as proteções existentes em
    `src/features/payments/refunds.ts`.
-6. `admin` e `support` exigem TOTP e códigos de recuperação. Mudança de papel
-   revoga todas as sessões da Conta.
+6. `admin` e `support` exigem sessão Better Auth válida, RBAC e regras de bloqueio.
+   Mudança de papel revoga todas as sessões da Conta.
 7. Neon continua no Free. Recuperação combina PITR disponível no plano e cópia
    lógica cifrada fora do Neon, em bucket R2 privado e dedicado.
 8. RPO alvo é 6 horas e RTO alvo é 4 horas. Se a medição real não couber nas
@@ -401,12 +430,12 @@ finding do Sprint 5, não falso bloqueio do baseline.
 
 ---
 
-## Sprint 1: RBAC granular de `support` e assurance privilegiada
+## Sprint 1: RBAC granular de `support` (MFA histórico superseded)
 
 ### Resultado
 
 Encerrar `F-001` e implementar a fronteira aprovada de `support`, com negação
-servidor-side e TOTP obrigatório para `admin` e `support`.
+server-side. MFA administrativo não pertence ao escopo vigente.
 
 ### Tarefa 1.1: congelar a matriz de permissões em teste
 
@@ -587,7 +616,10 @@ type AuthPermission =
 **Aceite:** requisições diretas de `support` recebem negação antes de consulta ou
 mutação proibida.
 
-### Tarefa 1.4: adicionar o schema e o plugin TOTP do Better Auth
+### Tarefa 1.4 [SUPERSEDED]: schema e plugin TOTP do Better Auth
+
+> Registro histórico somente. Não executar, recriar ou reativar esta tarefa: o
+> produto decidiu não adotar MFA administrativo neste momento.
 
 **Referência de versão:** Better Auth instalado `1.6.25`; confirmar a
 documentação e o código instalado antes de implementar.
@@ -684,7 +716,10 @@ negação de TOTP válido durante o bloqueio. A fixture foi removida pelo teste 
 branch foi apagada e confirmada como ausente. Nenhum segredo, QR, código ou URL
 de conexão foi retido na evidência.
 
-### Tarefa 1.5: implementar setup, challenge e recuperação
+### Tarefa 1.5 [SUPERSEDED]: setup, challenge e recuperação
+
+> Registro histórico somente. Não executar, recriar ou reativar esta tarefa: as
+> páginas, a enforcement flag e o seed de recuperação já foram removidos.
 
 **Estado:** implementado em código e testes de UI/contrato. A prova operacional
 com duas Contas Admin reais e consumo de backup code permanece no gate da Sprint.
@@ -764,8 +799,8 @@ segredo, QR e códigos não entram na evidência.
 **Passos:**
 
 - [x] Provar que `executeRefund` continua disponível a `admin` e `support`.
-- [x] Provar a sequência TOTP da sessão => senha atual => token de confirmação
-  de dez minutos => ID completo do Pedido => motivo => chamada Asaas.
+- [x] Provar a sequência sessão => senha atual => token de confirmação de dez
+  minutos => ID completo do Pedido => motivo => chamada Asaas.
 - [x] Manter limite de cinco falhas de senha em quinze minutos, uso único do
   token e audit logs `refund.*`.
 - [x] Garantir que `support` vê a Revisão financeira, mas não recebe controles
@@ -779,15 +814,12 @@ segredo, QR e códigos não entram na evidência.
 - [x] Navegação e consultas de `support` contêm somente as quatro superfícies
   aprovadas.
 - [x] Todas as mutações proibidas negadas por teste servidor-side.
-- [x] TOTP, backup code, lockout e revogação por mudança de papel exercitados.
-- [ ] Duas Contas Admin aptas e recuperação real por backup code comprovada antes
-  do enforcement de Production.
+- [x] Revogação de sessão por mudança de papel exercitada.
 - [x] Reembolso integral preserva todas as confirmações.
 - [x] Migration ensaiada em branch descartável e gates comuns verdes.
 
-**STOP:** qualquer rota proibida retorna dados a `support`; TOTP pode ser
-ignorado; backup code aparece em log; migration invalida login da aplicação
-anterior; sessão sobrevive a mudança de papel.
+**STOP:** qualquer rota proibida retorna dados a `support`; migration invalida
+login da aplicação anterior; sessão sobrevive a mudança de papel.
 
 ---
 
@@ -2102,7 +2134,7 @@ projects: [
 ]
 ```
 
-Marcar `@mobile` apenas nas jornadas críticas: login/TOTP, compra pública,
+Marcar `@mobile` apenas nas jornadas críticas: login, compra pública,
 dashboard/Aula da Aluna, Certificado, navegação e ficha de Aluna do `support` e
 reembolso com confirmações. Desktop continua executando toda a suíte aplicável
 ao viewport.
@@ -2115,7 +2147,7 @@ um smoke mobile representativo. Nunca silenciar falha para economizar minutos.
 
 ### Tarefa 6.4: completar teclado, foco e dialogs
 
-**Estado local:** login, TOTP, link de salto, sidebar mobile, ficha da Aluna,
+**Estado local:** login, link de salto, sidebar mobile, ficha da Aluna,
 crop de Certificado e confirmação de reembolso receberam asserções de foco,
 Escape, região viva ou Enter seguro. A fronteira do Suporte também verifica
 links ausentes e redirect 307 da URL Admin proibida. A execução funcional dessas
@@ -2123,7 +2155,7 @@ asserções foi exercitada no banco E2E descartável conforme a requalificação
 
 **Modificar/criar testes E2E:**
 
-- login e challenge TOTP em ordem de tabulação;
+- login em ordem de tabulação;
 - skip/foco no conteúdo principal;
 - sidebar desktop/mobile e retorno de foco ao trigger;
 - `StudentManagementSheet`, dialogs de expiração, Certificado e reembolso;
@@ -2256,7 +2288,7 @@ compatibilidade sejam medidos sobre o mesmo SHA candidato.
 - [x] Criar branch Neon descartável do mesmo parent usado pela CI.
 - [ ] Aplicar toda a cadeia até o topo duas vezes.
 - [x] Executar integração de suporte concorrente, expiração, lifecycle Resend,
-  auth/2FA e Certificados.
+  autenticação e Certificados.
 - [ ] Confirmar marker, journal, tabelas, enums, triggers, constraints e índices.
 - [ ] Restaurar o backup Production mais recente em outro target descartável e
   executar a mesma compatibilidade.
@@ -2273,11 +2305,11 @@ conciliação/extrato/decisão financeira e retries.
 
 **Permissão obrigatória de `support`:** dashboard operacional, Cursos agregados,
 Alunas/contexto, validade/bloqueio de Matrícula, histórico restrito,
-Financeiro read-only, reemissão mais recente e refund integral com todos os
-fatores.
+Financeiro read-only, reemissão mais recente e refund integral com todas as
+confirmações exigidas.
 
-Testar sessão antiga após mudança de papel, TOTP ausente, backup code usado,
-tentativas excessivas e chamada direta sem UI.
+Testar sessão antiga após mudança de papel, credencial inválida, tentativas
+excessivas e chamada direta sem UI.
 
 ### Tarefa 7.4: executar todos os gates locais e CI
 
@@ -2366,7 +2398,7 @@ manter manutenção e executar forward-fix revisado.
 
 Durante a janela definida no release:
 
-- login de `student`, `support` e `admin`, incluindo TOTP;
+- login de `student`, `support` e `admin`;
 - readiness, logs e Sentry sem nova falha inexplicada;
 - crons e leases; outbox e inbox Resend sem backlog stale;
 - webhook Resend assinado e eventos controlados convergentes;
@@ -2398,8 +2430,8 @@ Registrar antes:
 4. confirmar aceite e `delivered` do e-mail sem copiar seu conteúdo/token;
 5. abrir o Curso como a Aluna controlada;
 6. verificar ausência de erro novo no Sentry e backlogs;
-7. pelo fluxo oficial de `executeRefund`, confirmar TOTP, senha, ID completo e
-   motivo e solicitar reembolso integral;
+7. pelo fluxo oficial de `executeRefund`, confirmar senha, ID completo e motivo e
+   solicitar reembolso integral;
 8. aguardar confirmação financeira autoritativa e provar revogação do acesso;
 9. `support` não executa conciliação manual. Se houver incerteza, Admin segue o
    runbook e consulta o provider antes de qualquer retry;
@@ -2462,8 +2494,8 @@ permanecem pendentes; não repetir cobrança.
 ### Aplicação e RBAC
 
 Promover deployment anterior compatível. Migrations e trigger de revogação de
-sessão permanecem. Assurance falha fechada; se UI 2FA quebrar, manter manutenção
-e corrigir, não liberar privileged routes sem segundo fator.
+sessão permanecem. Sessão e RBAC falham fechados; se a autorização quebrar,
+manter manutenção e corrigir, sem liberar rotas privilegiadas.
 
 ### Backup
 
@@ -2505,7 +2537,7 @@ Interromper imediatamente se ocorrer qualquer um destes casos:
 - uma alternativa ativa cobrança, upgrade ou trial como dependência;
 - migration não é compatível com a aplicação anterior;
 - `support` alcança capacidade proibida por rota direta;
-- TOTP ou reautenticação de refund pode ser ignorado;
+- senha ou confirmação de refund pode ser ignorada;
 - backup não restaura, excede cota ou perde a última cópia válida;
 - webhook não valida o corpo bruto ou pode provocar reenvio;
 - DMARC quebra remetente legítimo;

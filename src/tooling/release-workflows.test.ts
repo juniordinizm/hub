@@ -14,6 +14,9 @@ const readAction = (actionPath: string): string =>
     "utf8"
   );
 
+const readDocument = (documentPath: string): string =>
+  readFileSync(resolve(import.meta.dirname, `../../${documentPath}`), "utf8");
+
 const githubExpression = (expression: string): string =>
   ["$", "{{ ", expression, " }}"].join("");
 
@@ -380,5 +383,59 @@ describe("Production release gates", () => {
     expect(workflow).toContain("checkout_status=");
     expect(workflow).toContain("webhook_status=");
     expect(workflow).not.toContain(`[[ "\${status}" == "503" ]]`);
+  });
+});
+
+describe("Production release guide", () => {
+  it("documents the dispatch inputs and post-promotion gates", () => {
+    const guide = readDocument("docs/operations/production-release-guide.md");
+    const workflow = readWorkflow("deploy-vercel.yml");
+
+    expect(guide).toContain("`release_sha`");
+    expect(guide).not.toContain("Não há campo de SHA.");
+    expect(guide).toContain("Smoke Production public profile");
+    expect(workflow).toContain("release_sha:");
+    expect(workflow).toContain("name: Smoke Production public profile");
+    expect(workflow.indexOf("name: Promote verified deployment")).toBeLessThan(
+      workflow.indexOf("name: Smoke Production public profile")
+    );
+    expect(
+      workflow.indexOf("name: Smoke Production public profile")
+    ).toBeLessThan(
+      workflow.indexOf(
+        "name: Verify promoted provider alias and migration state"
+      )
+    );
+  });
+});
+
+describe("Production Sentry readiness workflow", () => {
+  it("requires explicit confirmation and checks the emitted Production event", () => {
+    const workflow = readWorkflow("verify-production-sentry.yml");
+
+    expect(workflow).toContain("name: Verify Sentry Production readiness");
+    expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("release_sha:");
+    expect(workflow).toContain("confirmation:");
+    expect(workflow).toContain(
+      `CONFIRMATION: ${githubExpression("inputs.confirmation")}`
+    );
+    expect(workflow).toContain("EMIT_SENTRY_PRODUCTION_READINESS");
+    expect(workflow).not.toContain(
+      `if: [[ "${githubExpression("inputs.confirmation")}" != `
+    );
+    expect(workflow).toContain("name: vercel-production");
+    expect(workflow).toContain(
+      "PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br"
+    );
+    expect(workflow).toContain(
+      `"${shellVariable("PRODUCTION_ORIGIN")}/api/health/sentry"`
+    );
+    expect(workflow).toContain("SENTRY_READINESS_SECRET");
+    expect(workflow).toContain("SENTRY_READINESS_AUTH_TOKEN");
+    expect(workflow).toContain("bun run ops:check:sentry-readiness");
+    expect(workflow).toContain("--environment=production");
+    expect(workflow).toContain(`--release="${shellVariable("RELEASE_SHA")}"`);
+    expect(workflow).not.toContain("vercel deploy");
   });
 });

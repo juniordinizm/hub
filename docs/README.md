@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 83bc73097b15bfddf04dfb45352e9dbae33272a3
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Documentação do Hub
@@ -52,6 +52,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Observabilidade e recuperação](operations/observability-and-recovery.md)
 - [Backup Production e restauração](operations/production-backup-restore.md)
 - [Progressão DMARC](operations/dmarc-rollout.md)
+- [Checklist das pendências externas](operations/external-readiness-checklist.md)
 
 ### Decisões
 
@@ -68,6 +69,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Requalificação de Production Readiness em 2026-09-01](reviews/2026-09-01-production-readiness-requalification.md)
 - [Auditoria de saúde do repositório e plano de normalização](reviews/2026-08-29-repository-health-audit.md)
 - [Requalificação de Production Readiness em 2026-08-26, retorno ao fluxo normal e bloqueios externos](reviews/2026-08-26-production-readiness-requalification.md)
 - [Requalificação de Production Readiness, candidato técnico verde e decisão NO-GO por gates externos](reviews/2026-08-23-production-readiness-requalification.md)

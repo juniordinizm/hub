@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Registro de decisões de produto
@@ -204,8 +204,9 @@ actions e regras de domínio não mudam.
 ## DEC-DISC-014
 
 **Tema:** escopo definitivo do papel `support`.
-**Estado:** aprovado em 2026-08-23 e implementado em código no Sprint 1;
-rollout TOTP de Production pendente.
+**Estado:** aprovado em 2026-08-23 e implementado em código no Sprint 1.
+Em 2026-09-01, o produto decidiu não adotar MFA administrativo neste momento;
+a implementação ativa foi removida e as migrations históricas foram preservadas.
 
 `support` é uma função operacional distinta de `student` e `admin`, autorizada a:
 
@@ -216,8 +217,8 @@ rollout TOTP de Production pendente.
   auditoria;
 - consultar toda a operação financeira da plataforma, incluindo receita,
   Pedidos, disputas, reembolsos e Revisões;
-- executar reembolso integral após TOTP, confirmação recente de senha, digitação
-  do identificador do Pedido, motivo e auditoria;
+- executar reembolso integral após confirmação recente de senha, digitação do
+  identificador do Pedido, motivo e auditoria;
 - reemitir somente o Certificado existente mais recente da Aluna no Curso.
 
 `support` não pode administrar Curso, conteúdo, preço, disponibilidade, template,
@@ -229,14 +230,11 @@ auditoria global.
 
 O alvo usa capacidades positivas granulares e autorização em cada página, Route
 Handler, Server Action, projeção e exportação. Navegação oculta não substitui a
-negação no servidor. A matriz central, as projeções operacionais, as mutações e o
-TOTP estão implementados no branch de remediação. A ativação do enforcement em
-Production permanece condicionada a duas Contas Admin aptas e recuperação real
-por backup code. O finding continua classificado como `F-001` até esse gate; a
-especificação de
-[remediação de Production](superpowers/specs/2026-08-23-production-readiness-remediation-design.md)
-é a autoridade detalhada até o encerramento. Admin e `support` usam TOTP quando o
-enforcement está ativo; mudança de papel revoga sessões existentes.
+negação no servidor. A matriz central, as projeções operacionais e as mutações
+estão implementadas no branch de remediação. Admin e `support` usam sessão Better
+Auth e RBAC; MFA administrativo não é requisito do produto atual. Uma adoção
+futura exigirá nova decisão e especificação próprias. Mudança de papel revoga
+sessões existentes.
 
 ## DEC-DISC-015
 

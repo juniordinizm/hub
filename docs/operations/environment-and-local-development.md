@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Ambiente e desenvolvimento local
@@ -80,8 +80,6 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `STAGING_OPERATION_CONFIRMATION` | literal `staging` | comandos de Staging | não |
 | `STAGING_ADMIN_EMAIL` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | dado interno |
 | `STAGING_ADMIN_PASSWORD` | seed idempotente do Admin inicial | `seed-staging-admin.ts` | sim |
-| `STAGING_RECOVERY_ADMIN_EMAIL` | seed idempotente do segundo Admin do rollout TOTP | `seed-staging-admin.ts` | dado interno |
-| `STAGING_RECOVERY_ADMIN_PASSWORD` | seed idempotente do segundo Admin do rollout TOTP | `seed-staging-admin.ts` | sim |
 | `DEVELOPMENT_DATABASE_HOST` | preflight e seed Development | confirmação do endpoint Neon | identificador protegido |
 | `SHARED_DEVELOPMENT_SEED_CONFIRMATION` | seed Development | confirmação literal `development` | não |
 | `DEVELOPMENT_ADMIN_EMAIL` | seed Development | Conta Admin fictícia | dado interno |
@@ -98,7 +96,6 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `BETTER_AUTH_TRUSTED_ORIGINS` | origens extras | `parseTrustedOrigins` | não |
 | `BETTER_AUTH_URL` | explícita em Production; derivada do hostname Vercel em Preview | Better Auth | não |
 | `AUTH_PUBLIC_SIGNUP_ENABLED` | opcional, default `false` | rota Better Auth | não |
-| `PRIVILEGED_MFA_ENFORCED` | opcional, default `false`; `true` após rollout TOTP de Admin/Suporte | assurance servidor-side | não |
 | `BETTER_AUTH_API_KEY` | Infra opcional | Dash/Sentinel | sim |
 | `BETTER_AUTH_API_URL` | Infra opcional | Dash/Sentinel | não |
 | `BETTER_AUTH_KV_URL` | Infra opcional | Dash/Sentinel | pode conter credencial |

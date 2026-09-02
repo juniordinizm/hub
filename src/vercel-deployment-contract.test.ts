@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const MOVING_GITHUB_ACTION_TAG_PATTERN = /uses:\s+[^#\n]+@v\d+(?:\s|$)/;
 const WORKFLOW_RUN_TRIGGER_PATTERN = /\n {2}workflow_run:/;
+const shellVariable = (name: string): string => ["$", "{", name, "}"].join("");
 
 describe("Vercel deployment contract", () => {
   it("keeps validation independent from deployment and removes the container release", async () => {
@@ -63,6 +64,15 @@ describe("Vercel deployment contract", () => {
     expect(source).toContain("steps.release.outputs.sha");
     expect(source).toContain("git merge-base --is-ancestor");
     expect(source).toContain("origin/main");
+    expect(source).toContain('main_sha="$(git rev-parse origin/main)"');
+    expect(source).toContain(
+      `[[ "${shellVariable("release_sha")}" != "${shellVariable(
+        "main_sha"
+      )}" ]]`
+    );
+    expect(source).toContain(
+      "release_sha must equal the current origin/main SHA."
+    );
     expect(source).toContain("actions/workflows/ci.yml/runs");
     expect(source).not.toMatch(WORKFLOW_RUN_TRIGGER_PATTERN);
     expect(source).toContain("environment:");

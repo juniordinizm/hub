@@ -35,10 +35,27 @@ retenção removeu somente branches `production-release-*` superseded após
 dry-run, preservando a mais recente e as branches persistentes.
 
 DMARC continua em `p=none; pct=100` e sua progressão foi adiada; o probe Sentry
-próprio de Production não foi emitido; e a prova de TOTP das Contas Admin foi
-adiada. Esses itens são riscos documentados, não evidência de prontidão verde.
+próprio de Production não foi emitido. Esses itens são riscos documentados, não
+evidência de prontidão verde. MFA administrativo foi retirado do escopo do
+produto em 2026-09-01 e não é um gate de release.
 O par `RESTORE_R2_*` foi temporariamente alinhado a uma credencial que comprovou
 leitura do bucket e deve ser rotacionado para uma chave dedicada somente leitura.
+
+## Atualização de escopo — 2026-09-01
+
+A implementação ativa de MFA administrativo foi removida por decisão de produto.
+O login de `admin` e `support` usa sessão Better Auth, RBAC, bloqueio de Conta e
+as confirmações próprias de cada operação. As estruturas históricas da migration
+`0065` permanecem no schema e no histórico para evitar uma remoção destrutiva;
+não são registradas no adaptador nem lidas pelo runtime.
+Essa alteração está na árvore candidata local; não houve deploy, migration ou
+alteração de configuração em Production.
+
+As pendências externas que continuam relevantes são: emitir e verificar o probe
+Sentry em Production, concluir a observação de DMARC/e-mail, rotacionar a
+credencial `RESTORE_R2_*` para uma chave dedicada somente leitura e repetir a
+CI, integração e E2E no SHA candidato. Até essas evidências serem registradas, a
+decisão para nova promoção permanece `NO-GO`.
 
 ## Histórico operacional — 2026-08-26
 

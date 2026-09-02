@@ -1,4 +1,4 @@
-export type SignInOutcome = "authenticated" | "failure" | "two_factor_required";
+export type SignInOutcome = "authenticated" | "failure";
 
 export const getSignInOutcome = (payload: unknown): SignInOutcome => {
   if (typeof payload !== "object" || payload === null) {
@@ -9,16 +9,11 @@ export const getSignInOutcome = (payload: unknown): SignInOutcome => {
     code?: unknown;
     error?: unknown;
     message?: unknown;
-    twoFactorRedirect?: unknown;
     user?: unknown;
   };
 
   if (data.code || data.error) {
     return "failure";
-  }
-
-  if (data.twoFactorRedirect === true) {
-    return "two_factor_required";
   }
 
   return typeof data.user === "object" && data.user !== null

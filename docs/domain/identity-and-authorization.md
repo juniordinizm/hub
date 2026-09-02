@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 ---
 
 # Identidade e autorização
@@ -12,12 +12,13 @@ Define Conta, sessão, perfil, papéis, permissões e bloqueios. Termos comercia
 
 ## Modelo e estados
 
-- `users`: identidade Better Auth e indicador de segundo fator habilitado.
+- `users`: identidade Better Auth e credenciais básicas da Conta.
 - `accounts`: credenciais e provedores da identidade.
 - `sessions`: sessões revogáveis.
 - `verifications`: tokens de verificação e recuperação.
-- `two_factors`: segredo TOTP cifrado, códigos de recuperação cifrados e
-  orçamento de falhas do Better Auth.
+- `two_factors`: estrutura legada de uma tentativa anterior de autenticação,
+  mantida apenas para preservar o histórico de migrations; não é registrada nem
+  consultada pela aplicação atual.
 - `profiles`: papel, bloqueio de plataforma e dados complementares da Aluna.
 - papéis: `admin`, `support`, `student`.
 
@@ -74,8 +75,7 @@ Essa matriz central já representa a fronteira aprovada no
 shell; toda leitura e mutação de domínio ainda exige sua capacidade específica.
 Páginas, Route Handlers, Server Actions e projeções aplicam essas capacidades no
 servidor. `support` usa consultas próprias por Curso e não executa primeiro uma
-consulta ampla para filtrá-la depois. O finding `F-001` permanece aberto somente
-até concluir o rollout operacional do TOTP e o gate completo do Sprint 1.
+consulta ampla para filtrá-la depois.
 
 A ficha contextual de `support` combina somente dados da Aluna no Curso
 selecionado: estado e validade da Matrícula, bloqueio contextual, progresso das
@@ -93,28 +93,19 @@ separada para o Suporte iniciar o fluxo explícito de estorno autorizado.
 
 Server Actions e páginas devem checar a capacidade apropriada; esconder botão não é autorização.
 
-### Assurance de Admin/Suporte
+### Segurança de Admin/Suporte
 
-O plugin two-factor do Better Auth `1.6.25` usa issuer `PROTEA-R Hub`, impede
-persistência útil de dispositivo confiável e bloqueia a Conta por quinze minutos
-após cinco falhas consecutivas. `resolvePrivilegedAssurance`, em
-`src/lib/privileged-assurance.ts`, trata uma sessão ativa de `admin` ou `support`
-com TOTP habilitado como verificada: o Better Auth apaga a sessão criada por senha
-antes do challenge e cria outra somente após TOTP ou backup code válido.
+MFA administrativo não faz parte do produto atual. `admin` e `support` entram
+com sessão Better Auth válida e são autorizados pela matriz RBAC, pelas regras de
+bloqueio e pelas confirmações próprias de cada operação sensível. Uma adoção
+futura de MFA exigirá nova decisão de produto, especificação, implementação e
+requalificação; a tabela legada `two_factors` não representa um recurso ativo.
 
-`requireRole` e, por consequência, `requirePermission` aplicam essa assurance em
-cada fronteira servidor-side. Com `PRIVILEGED_MFA_ENFORCED=true`, uma Conta
-privilegiada sem TOTP só alcança `/configurar-segundo-fator`; estudantes não mudam.
-O default permanece `false` exclusivamente para o rollout: duas Contas Admin
-distintas devem concluir setup, e uma delas deve provar recuperação por backup
-code, antes de ativar o gate em Production.
+O servidor verifica a sessão, o papel, o bloqueio e a capacidade da operação em
+cada fronteira sensível.
 
-A configuração exige senha atual, apresenta QR e segredo manual, mostra códigos
-de recuperação uma única vez e valida TOTP sem confiar no dispositivo. O login
-aceita TOTP ou backup code com mensagem genérica. Recuperação reconfirma a senha,
-obtém a URI do segredo existente e substitui todo o conjunto de backup codes. Os
-endpoints de desativação e de segundo `enable` são negados a `admin` e `support`
-antes de delegar ao Better Auth.
+Os fluxos sensíveis continuam exigindo as confirmações próprias da operação e
+auditoria. A tabela legada `two_factors` não é lida nem escrita pela aplicação.
 
 ### REG-IDA-004 Bloqueio de plataforma prevalece sobre Matrículas
 
@@ -178,9 +169,9 @@ Factory, parser, processor e delivery implementam
 ## Autenticação
 
 `getAuth`, em `src/lib/auth.ts`, configura Better Auth com adaptador Drizzle para
-`users`, `accounts`, `sessions`, `verifications` e `twoFactors`; e-mail e senha;
+`users`, `accounts`, `sessions` e `verifications`; e-mail e senha;
 token de redefinição por uma hora; revogação das sessões após redefinição;
-origens confiáveis de `parseTrustedOrigins`; o plugin `twoFactor`; e
+origens confiáveis de `parseTrustedOrigins`; e
 `nextCookies()` como último plugin.
 
 ### REG-IDA-007 Senha tem mínimo único de oito caracteres
@@ -204,19 +195,16 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
 - permissão não deve ser recebida do cliente;
 - e-mail, ID de usuário e papel não devem ser aceitos como prova de identidade sem sessão;
 - redefinição revoga sessões existentes;
-- mudança de papel ou do indicador de segundo fator revoga sessões existentes;
+- mudança de papel revoga sessões existentes;
 - credenciais e secrets nunca entram em logs ou documentação versionada.
 
 ## Evidências
 
 - schema: `roleEnum`, `users`, `sessions`, `accounts`, `verifications`,
-  `twoFactors` e `profiles` em `src/db/schema.ts`;
-- implementação: `getAuth`, `canPerform`, `resolvePrivilegedAssurance`,
+  `profiles` e estruturas legadas de migration em `src/db/schema.ts`;
+- implementação: `getAuth`, `canPerform`,
   `isBlockedAuthEndpoint` e `getBootstrapAdminDecision`;
 - testes: `src/lib/auth-policy.test.ts`, `src/lib/session.test.ts`,
-  `src/lib/privileged-assurance.test.ts`,
-  `src/lib/better-auth-two-factor-installed-contract.test.ts`,
-  `src/db/two-factor-schema-contract.test.ts`,
   `src/lib/trusted-origins.test.ts` e `src/lib/allowed-dev-origins.test.ts`;
 - rotas: `src/app/api/auth/[...all]/route.ts`,
   `src/app/api/auth/redirect/route.ts` e
@@ -231,6 +219,6 @@ As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessã
 - [DEC-DISC-007](../decisions.md#dec-disc-007): identidade de checkout e verificação,
   aprovadas e integradas ao processor Asaas; homologação externa pendente.
 - [DEC-DISC-014](../decisions.md#dec-disc-014): matriz granular de `support`,
-  projeções por Curso e negações diretas implementadas; rollout operacional do
-  TOTP e gate completo do Sprint 1 permanecem pendentes;
+  projeções por Curso e negações diretas implementadas; MFA administrativo está
+  fora do escopo atual;
 - racional histórico para Better Auth e autenticação por e-mail e senha não localizado.
