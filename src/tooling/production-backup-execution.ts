@@ -636,7 +636,43 @@ export const verifyProductionBackupProviderEvidence = ({
       projectDomains.includes(expected.canonicalAlias)) &&
     Boolean(releaseSha && RELEASE_SHA_PATTERN.test(releaseSha));
   if (!(valid && releaseSha)) {
-    throw new Error("Production backup provider provenance mismatched.");
+    const failedChecks = [
+      [
+        "neon_branch_identity",
+        branch?.id === expected.neonBranchId &&
+          branch.project_id === expected.neonProjectId,
+      ],
+      ["neon_branch_state", branch?.current_state === "ready"],
+      ["neon_database_endpoint", databaseEndpoint],
+      ["vercel_response", isRecord(vercel)],
+      [
+        "vercel_state",
+        isRecord(vercel) &&
+          (vercel.readyState === "READY" || vercel.state === "READY"),
+      ],
+      ["vercel_target", isRecord(vercel) && vercel.target === "production"],
+      [
+        "vercel_project",
+        isRecord(vercel) &&
+          stringValue(vercel.projectId ?? vercel.project) ===
+            expected.vercelProjectId,
+      ],
+      [
+        "vercel_alias",
+        aliases.includes(expected.canonicalAlias) ||
+          projectDomains.includes(expected.canonicalAlias),
+      ],
+      [
+        "vercel_release_sha",
+        Boolean(releaseSha && RELEASE_SHA_PATTERN.test(releaseSha)),
+      ],
+    ]
+      .filter(([, passed]) => !passed)
+      .map(([name]) => name)
+      .join(", ");
+    throw new Error(
+      `Production backup provider provenance mismatched (${failedChecks || "unknown"}).`
+    );
   }
   return {
     releaseSha,

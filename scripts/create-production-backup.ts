@@ -55,9 +55,11 @@ const requiredEnvironmentValue = (name: string): string => {
 
 const readProviderJson = async ({
   authorization,
+  label,
   url,
 }: {
   authorization: string;
+  label: string;
   url: string;
 }): Promise<unknown> => {
   const response = await fetch(url, {
@@ -65,7 +67,9 @@ const readProviderJson = async ({
     signal: AbortSignal.timeout(API_TIMEOUT_MS),
   });
   if (!response.ok) {
-    throw new Error(`Provider read failed with HTTP ${response.status}.`);
+    throw new Error(
+      `Provider read (${label}) failed with HTTP ${response.status}.`
+    );
   }
   return (await response.json()) as unknown;
 };
@@ -85,18 +89,22 @@ const inspectProviderProvenance = async (
   const [vercel, vercelDomains, neon, neonEndpoints] = await Promise.all([
     readProviderJson({
       authorization: `Bearer ${vercelToken}`,
+      label: "Vercel deployment",
       url: `https://api.vercel.com/v13/deployments/${CANONICAL_ALIAS}?teamId=${encodeURIComponent(vercelOrgId)}&withGitRepoInfo=true`,
     }),
     readProviderJson({
       authorization: `Bearer ${vercelToken}`,
+      label: "Vercel domains",
       url: `https://api.vercel.com/v9/projects/${encodedVercelProject}/domains?teamId=${encodeURIComponent(vercelOrgId)}`,
     }),
     readProviderJson({
       authorization: `Bearer ${neonApiKey}`,
+      label: "Neon branch",
       url: `https://console.neon.tech/api/v2/projects/${encodedProject}/branches/${encodedBranch}`,
     }),
     readProviderJson({
       authorization: `Bearer ${neonApiKey}`,
+      label: "Neon endpoints",
       url: `https://console.neon.tech/api/v2/projects/${encodedProject}/branches/${encodedBranch}/endpoints`,
     }),
   ]);
