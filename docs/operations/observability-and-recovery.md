@@ -113,9 +113,15 @@ bun run ops:check:sentry-readiness -- --event-id=<32-hex> --environment=staging 
 O processo lê `SENTRY_READINESS_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
 `SENTRY_PROJECT_ID` e `SENTRY_READINESS_ALERT_NAME` do ambiente seguro. Ele
 aguarda no máximo um minuto, exige evento no projeto/ambiente/release corretos,
-ausência de PII/query, frame resolvido para `src/lib/sentry-readiness.ts` e
-workflow ativo cujo `lastTriggered` alcança o evento. HTTP 401/403, resposta
-incompleta ou timeout falham; o checker não cria nem altera alerta.
+ausência de PII/query no payload de telemetria, frame resolvido para
+`src/lib/sentry-readiness.ts` e workflow ativo cujo campo `environment` seja
+exatamente `production` (ou `staging`, na prova correspondente) e cujo
+`lastTriggered` alcance o evento. Metadados administrativos que a API do Sentry
+anexa à resposta, como `release.lastCommit`, e coleções vazias normalizadas,
+como `cookies=[]`, não são payload da aplicação e não reprovam a privacidade;
+cookies não vazios, identidade, e-mail, token ou query no payload continuam
+reprovando. HTTP 401/403, resposta incompleta ou timeout falham; o checker não
+cria nem altera alerta.
 
 Para a prova específica de Production, use o workflow manual
 `Verify Sentry Production readiness`. Informe o SHA completo atualmente servido
