@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Desenvolvimento compartilhado
@@ -36,6 +36,18 @@ fluxo normal. A CI já executa o build e o Custom Environment Staging recebe a
 
 Branch Git e branch Neon são independentes. Trocar de branch com `git switch`
 não muda o banco. `bun run dev` usa a URL presente no `.env.local`.
+
+## Base para novas branches
+
+Antes de criar trabalho novo, atualize as referências remotas e derive a branch
+de `origin/staging`, que é a base canônica do fluxo normal:
+
+`git fetch origin staging`
+`git switch -c feature/nome-descritivo origin/staging`
+
+Não use a branch local `staging` sem comparar seu SHA com
+`origin/staging`. Um worktree vinculado ou uma alteração local não
+classificada deve ser preservado até que seu destino seja decidido.
 
 ### Estado atual
 

@@ -1,12 +1,12 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # PROTEA-R Hub
 
-Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, comércio Asaas em preparação para o corte de produção, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
+Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, comércio Asaas em Production, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
 
 ## Antes de começar
 
@@ -102,5 +102,7 @@ O [status Vercel-first](docs/operations/vercel-migration-status.md) é registro
 histórico da migração concluída, não o procedimento diário.
 
 A jornada E2E completa de conclusão, emissão, renderização, e-mail absorvido,
-download privado e validação pública está implementada no repositório. A execução
-da CI para este commit permanece pendente; não é evidência de promoção ou deploy.
+download privado e validação pública está implementada no repositório. A CI
+remota do SHA atual de `main` foi confirmada no run `33716424503`, incluindo
+integração PostgreSQL, E2E, build e Knip. Esse resultado é evidência do commit;
+não substitui o fluxo de promoção protegido.

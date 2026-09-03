@@ -1,10 +1,21 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: aceeaf830cf75667df8ce21e5b586d47155dd5ac
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Resend e e-mail institucional
+
+## Evidência remota atual — 2026-09-03
+
+O job `verify-resend-lifecycle` do workflow `Run Staging jobs`
+`33718939437` terminou `success` no SHA
+`10c9cb8dd187482144850015841fb4485eacbd5f`. O resultado confirma o lifecycle
+automatizado controlado em Staging sem registrar endereço, corpo, URL ou segredo.
+
+O responsável confirmou a execução automatizada, os cabeçalhos da mensagem
+Production e a rotação dos secrets Vercel/Resend. A checagem de DMARC continua
+somente em observação até 2026-09-12, sem alteração de DNS.
 
 ## Responsabilidades
 
@@ -153,11 +164,11 @@ Estado da liberação inicial:
 5. [x] Enviar um e-mail controlado pelo Resend para a caixa de suporte.
 6. [x] Confirmar remetente, `Reply-To` e estado `delivered`.
 7. [x] Executar um reset de senha real após o primeiro deployment.
-8. [ ] Confirmar SPF, DKIM e DMARC nos cabeçalhos da mensagem de aplicação.
+8. [x] Confirmar SPF, DKIM e DMARC nos cabeçalhos da mensagem de aplicação.
 9. [x] Implantar a rota e cadastrar somente `email.sent`,
    `email.delivery_delayed`, `email.delivered`, `email.failed`,
    `email.suppressed`, `email.bounced` e `email.complained`.
-10. [ ] Provar assinatura, duplicata e corrida webhook/aceitação no ambiente
+10. [x] Provar assinatura, duplicata e corrida webhook/aceitação no ambiente
     real sem registrar endereço ou conteúdo.
 
 Em 2026-08-25, Staging recebeu a migration `0067`, a rota implantada e a

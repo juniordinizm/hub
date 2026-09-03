@@ -337,9 +337,7 @@ Cada executor deve ler o plano inteiro. Estados permitidos: `TODO`, `IN PROGRESS
 | 008 | módulos mais profundos | P2 | L | 003 | TODO |
 | 009 | UX resiliente e acessível | P2 | L | 003, 006 | TODO |
 | 010 | versão de conteúdo/coorte | P1 decisão | L | 003 | TODO |
-| 011 | avaliações | P2 decisão | L | 010 | TODO |
 | 012 | analytics/reengajamento | P2 | L | 005, 010 | TODO |
-| 013 | autoria/portabilidade | P3 | L | 008, 010 | TODO |
 
 ### Fase 0: restaurar confiança no estado atual
 
@@ -359,12 +357,7 @@ Cada executor deve ler o plano inteiro. Estados permitidos: `TODO`, `IN PROGRESS
 ### Fase 2: decidir o que “aprender” significa no Hub
 
 10. [Ratificar conclusão, versões de conteúdo e coortes](./010-learning-policy-content-versions-and-cohorts.md)
-11. [Decidir avaliações e evidência de aprendizagem](./011-assessments-and-learning-evidence.md)
 12. [Modelar analytics de aprendizagem e reengajamento](./012-learning-analytics-and-reengagement.md)
-
-### Fase 3: melhorar autoria, somente após uso comprovado
-
-13. [Evoluir autoria e portabilidade de curso](./013-authoring-and-course-portability.md)
 
 ## Dependências
 
@@ -382,9 +375,7 @@ Cada executor deve ler o plano inteiro. Estados permitidos: `TODO`, `IN PROGRESS
   └─> 009 UX/acessibilidade
 
 010 política pedagógica
-  ├─> 011 avaliações
-  ├─> 012 analytics
-  └─> 013 autoria/versionamento
+  └─> 012 analytics
 ```
 
 ## Decisões que exigem ratificação humana
