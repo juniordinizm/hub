@@ -1,18 +1,42 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
-deployed_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+last_verified_commit: 4a4ddc94e0c1f61cd49e6b1a1afb4e90bfc148e6
+deployed_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 deployed_environment: production
-verified_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 verified_environment: production
-documented_commit: a73d56fe599895a3a611c3ad89a8e05aab87ec8e
+documented_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 documented_environment: production
 ---
 
 # Estado de release
 
-## Checkpoint operacional atual — 2026-08-31
+## Checkpoint operacional atual — 2026-09-03
+
+Production está no deployment `dpl_E17vxVRp27EDVVmW5sEQgTYFpXb5`, estado
+`READY`, região `gru1`, servido pelo commit
+`10c9cb8dd187482144850015841fb4485eacbd5f`. O alias gerado pela Vercel é
+`hub-cu5h002j5-neuro-capacitar.vercel.app`; o domínio canônico continua sendo
+`app.neurocapacitar.com.br`.
+
+O remoto mantém `main` no SHA Production `10c9cb8` e `staging` no commit
+`4a4ddc9`, resultante do PR #194. A CI completa do PR passou; a mudança de
+retenção de artifacts e proteção do workflow Sentry aguarda o fluxo normal de
+promoção antes de ser tratada como presente em Production.
+
+Os Environments `vercel-production` e `vercel-staging` estão restritos,
+respectivamente, às branches `main` e `staging`. Essa proteção é necessária
+porque os workflows manuais não devem executar código de uma branch arbitrária
+com secrets de ambiente.
+
+Resend, Sentry e R2/restore estão encerrados conforme as evidências operacionais
+registradas. DMARC permanece deliberadamente em observação; não há autorização
+para alterar DNS ou repetir o exercício de R2/restore.
+
+MFA administrativo permanece fora do produto e não é gate de release.
+
+## Histórico operacional — 2026-08-31
 
 Production está no deployment `dpl_74TPMVyUzPXw2hrzu28JVDWVx5rR`, estado
 `READY`, região `gru1`, servido pelo commit
