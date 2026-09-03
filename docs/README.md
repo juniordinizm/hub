@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Documentação do Hub
@@ -99,6 +99,10 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 ### Plano mestre em execução
 
 - [Plano mestre de remediação da prontidão de Production](superpowers/plans/2026-08-23-production-readiness-remediation-sprints.md)
+
+### Plano de manutenção proposto
+
+- [Sprints de limpeza e organização do repositório](superpowers/plans/2026-09-03-repository-cleanup-sprints.md)
 
 ## Material não canônico
 
