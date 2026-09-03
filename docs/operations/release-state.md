@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 5f9665c9d5356814381959d9ba1b543de0a441ee
+last_verified_commit: 35e838c21f2ad94fefe2aec187db5068f2726c0e
 deployed_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 deployed_environment: production
 verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 verified_environment: production
-documented_commit: 5f9665c9d5356814381959d9ba1b543de0a441ee
+documented_commit: 35e838c21f2ad94fefe2aec187db5068f2726c0e
 documented_environment: production
 ---
 
@@ -21,9 +21,10 @@ Production está no deployment `dpl_E17vxVRp27EDVVmW5sEQgTYFpXb5`, estado
 O commit atual de `main` é `10c9cb8dd187482144850015841fb4485eacbd5f`.
 
 O remoto mantém `main` no SHA Production
-`10c9cb8dd187482144850015841fb4485eacbd5f` e `staging` no commit
-`5f9665c9d5356814381959d9ba1b543de0a441ee`. A CI completa do candidato
-passou os gates obrigatórios; o status Vercel do mesmo SHA informa
+`10c9cb8dd187482144850015841fb4485eacbd5f`. O último checkpoint verificado de
+`staging` é o merge commit `35e838c21f2ad94fefe2aec187db5068f2726c0e`, no qual o
+PR `#200` foi mesclado. A CI completa do candidato passou os gates obrigatórios;
+o status Vercel do mesmo SHA informa
 `Deployment has completed`. O fluxo de promoção permanece separado da
 homologação.
 

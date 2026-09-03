@@ -67,7 +67,7 @@ const releaseFlowMaintenanceCronPattern =
 const currentMainShaPattern =
   /O commit atual de \x60main\x60 \u00e9 \x60([0-9a-f]{40})\x60/u;
 const currentStagingShaPattern =
-  /\x60staging\x60 no\s+commit\s+\x60([0-9a-f]{40})\x60/u;
+  /O \u00faltimo checkpoint verificado de\s+\x60staging\x60\s+\u00e9 o merge commit\s+\x60([0-9a-f]{40})\x60/u;
 const releaseMetadataCommitPattern =
   /^(?:last_verified_commit|documented_commit): [0-9a-f]{40}$/gmu;
 const workflowEvidencePattern =
@@ -132,12 +132,16 @@ describe("Operational documentation contracts", () => {
     expect(backupRunbook).toMatch(workflowEvidencePattern);
     expect(resendIntegration).toContain(currentMainSha);
     expect(resendIntegration).toMatch(workflowEvidencePattern);
-    const currentStagingSha = releaseState.match(currentStagingShaPattern)?.[1];
-    expect(currentStagingSha).toBeDefined();
-    if (!currentStagingSha) {
-      throw new Error("release-state is missing its current staging SHA");
+    const lastVerifiedStagingSha = releaseState.match(
+      currentStagingShaPattern
+    )?.[1];
+    expect(lastVerifiedStagingSha).toBeDefined();
+    if (!lastVerifiedStagingSha) {
+      throw new Error(
+        "release-state is missing its last verified staging checkpoint"
+      );
     }
-    expect(readme).toContain(currentStagingSha);
+    expect(readme).toContain(lastVerifiedStagingSha);
   });
 
   it("does not present historical operational gaps as current", () => {
