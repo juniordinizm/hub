@@ -2,8 +2,8 @@
 status: proposed
 execution_status: active
 owner: engineering
-last_verified_commit: 1ee5677600e19f0657cd65072ca7d8cb6d9ab847
-current_sprint: 6
+last_verified_commit: cc31c6daba08a10fa2523e562a540e8476a52dd8
+current_sprint: 7
 ---
 
 # Repository Cleanup Sprints Implementation Plan
@@ -217,15 +217,15 @@ Evidência já obtida:
 - [x] Não executar `git clean`, `git reset`, `git checkout --` ou remoção do worktree enquanto houver item não classificado.
 - [x] Cinco itens não rastreados foram comparados por hash com `origin/staging` e confirmados como cópias exatas; foram temporariamente restaurados por serem dependências do worktree antigo e depois removidos junto com o snapshot autorizado. O relatório `docs/reviews/2026-09-01-production-readiness-requalification.md` também foi descartado por ser uma versão antiga e contraditória.
 - [x] Verificações da árvore antiga: `bun run typecheck` passou, `bun run test` passou com 351 arquivos/2.414 testes e `bun run build` passou com configuração sintética; `bun run check` parou em quatro erros de formatação de arquivos restaurados com CRLF e `bun audit --production` encontrou cinco vulnerabilidades no lockfile antigo.
-- [ ] Para mudanças necessárias, criar commits pequenos na própria branch e abrir uma PR para `staging`; para mudanças já incorporadas, preservar somente a documentação/teste que ainda não existe; para descarte, remover arquivos apenas depois de registrar a decisão e confirmar que não há dado local.
-- [ ] Rodar no próprio worktree, depois da classificação:
+- [x] Não houve mudança adicional necessária: as alterações candidatas foram classificadas individualmente, os itens equivalentes já estavam em `origin/staging` e o restante foi descartado por autorização; nenhuma PR adicional foi aberta a partir desse snapshot.
+- [x] A validação equivalente da árvore vigente passou nas PRs #194 e #197; não foi repetida no snapshot descartado depois da classificação, porque ele não seria incorporado:
 
   ```powershell
   bun run verify:quick
   bun run docs:check
   ```
 
-- [ ] Critério de saída: worktree limpo e branch publicada em PR, ou trabalho totalmente preservado em commits/documentação antes da remoção do worktree.
+- [x] Critério de saída: não havia trabalho exclusivo válido a publicar; o snapshot foi removido somente depois da classificação, com a decisão registrada neste plano e sem perda de conteúdo necessário.
 
 ### Tarefa 2.2 — revisar `codex/recover-stash-panel`
 
@@ -287,7 +287,7 @@ Evidência já obtida:
 
 - Sprint 1 concluído: PRs #158, #192, #68, #69, #70 e #6 foram fechadas sem merge; suas branches remotas foram removidas; nenhuma dependência ou código de aplicação foi atualizado por esse lote.
 - Sprint 2 concluído: os snapshots `production-readiness-implementation` e `recover-stash-panel` foram revisados e removidos após autorização; nenhum conteúdo foi incorporado sem nova PR baseada em `staging`.
-- Estado atual: 2 branches locais, 2 branches remotas (`main` e `staging`), 0 PRs abertas e 1 worktree.
+- Estado antes da publicação deste checkpoint: 2 branches locais, 2 branches remotas (`main` e `staging`), 0 PRs abertas e 1 worktree.
 - O worktree principal mantém somente as alterações documentais desta limpeza e o `skills-lock.json` preexistente.
 - Sprint 4/5/6 avançaram: policies de Environment, retenção de artifact, documentação de release e caches regeneráveis foram tratados; 438 artifacts ativos (361.135.814 bytes) e o object store aguardam retenção segura.
 
@@ -297,7 +297,7 @@ Evidência já obtida:
 - Nenhum dos 11 diffs rastreados desse worktree deve ser incorporado como está: o fluxo de release é uma alternativa não publicada, o lockfile antigo contém cinco vulnerabilidades, `vitest.config.ts` omite `scripts/**/*.test.ts` e o plano mestre reintroduz TOTP contra a decisão vigente.
 - Os cinco arquivos auxiliares não rastreados eram cópias exatas de `origin/staging`; o relatório de 2026-09-01 era uma versão antiga que ainda tratava MFA como gate e foi descartado junto com o snapshot.
 - A árvore antiga passou `bun run typecheck`, `bun run test` (351 arquivos/2.414 testes) e `bun run build` com ambiente sintético; `bun run check` não ficou verde por CRLF nos arquivos auxiliares restaurados e `bun audit --production` encontrou cinco vulnerabilidades do snapshot antigo.
-- O workflow de Sentry presente tanto no snapshot quanto em `origin/staging` usa `workflow_dispatch` sem política de branch no Environment e executa código selecionável com secrets de Production; isso é um risco atual separado, que exige PR de segurança própria antes de ser considerado resolvido.
+- A revisão encontrou risco no workflow de Sentry: `workflow_dispatch` podia selecionar uma referência e usar secrets de Production. A PR #194 corrigiu o fluxo em `staging` com execução somente em `main`, checkout explícito de `main` e policy `main` no Environment `vercel-production`; `main` ainda depende do workflow oficial de release para receber essa correção.
 - `codex/recover-stash-panel` também não tem commits exclusivos em relação à árvore atual, não possui PR nem remoto e substitui o `PanelLayout` atual por uma versão antiga; o logout recuperado altera Admin e Student, não tem spec nem teste próprio e não deve ser incorporado.
 - Decisão executada: os dois snapshots foram removidos após confirmação/autorização; nenhum deles foi incorporado.
 
@@ -408,7 +408,7 @@ Evidência já obtida:
 
 ### Tarefa 5.1 — atualizar o índice e o plano de manutenção
 
-- [ ] Manter este plano listado em `docs/README.md` na árvore remota; o link existe no checkout local, mas o plano ainda não foi publicado em uma PR própria.
+- [x] Manter este plano listado em `docs/README.md` na árvore remota; PR #197 foi aprovada pelo CI e mergeada em `staging` no commit `cc31c6daba08a10fa2523e562a540e8476a52dd8`.
 - [x] Atualizar `last_verified_commit` dos documentos alterados somente para commits existentes que contenham as afirmações verificadas.
 - [x] Não marcar sprint como concluído apenas por marcar checkbox; o plano registra commits, comandos e resultados.
 - [x] Executar:
@@ -417,7 +417,7 @@ Evidência já obtida:
   bun run docs:check
   ```
 
-- [x] Critério de saída parcial: `docs:check` aceita front matter, commits e referências; a publicação remota deste plano continua pendente.
+- [x] Critério de saída: `docs:check` aceita front matter, commits e referências; o plano está publicado na árvore remota e o índice aponta para ele.
 
 ### Tarefa 5.2 — corrigir o estado atual do projeto
 
@@ -433,7 +433,7 @@ Evidência já obtida:
 
 - [x] Acrescentar a este plano checkpoints com data, contagem de branches, PRs, worktrees, artifacts e refs stale.
 - [x] Registrar os descartes com motivo e os itens preservados com razão operacional.
-- [ ] Critério de saída: um estagiário consegue entender o estado do repositório sem consultar o histórico inteiro do Git; depende da publicação remota do plano.
+- [x] Critério de saída: um estagiário consegue entender o estado do repositório sem consultar o histórico inteiro do Git; o plano publicado reúne decisões, evidências, itens preservados e pendências.
 
 ## 10. Sprint 6 — caches locais e manutenção do object store
 
@@ -515,10 +515,24 @@ Evidência já obtida:
   - artifacts têm retenção explícita;
   - secrets são auditados por nome e nunca publicados;
   - branches históricas só são mantidas quando há valor de recuperação identificado.
-- [ ] Criar um checklist curto para a próxima limpeza trimestral com os comandos de inventário e os critérios deste plano.
-- [ ] Critério final parcial: a organização do repositório pode ser verificada em uma única execução dos gates e do inventário; a publicação remota deste plano e a política de retenção final ainda estão pendentes.
+- [x] Criar um checklist curto para a próxima limpeza trimestral com os comandos de inventário e os critérios deste plano:
+  1. Registrar `git status --short --branch`, `git branch -vv`, `git worktree list --porcelain` e `git ls-remote --heads origin`.
+  2. Listar PRs abertas e comparar cada branch com `staging`; nenhuma remoção ocorre antes de classificar commits, arquivos não rastreados, worktrees e dependências externas.
+  3. Executar `git remote prune origin --dry-run` e `git worktree prune --dry-run -v`; só então remover refs comprovadamente obsoletas.
+  4. Auditar workflows, environments, variables e secrets apenas por nomes; nunca imprimir valores nem remover integração sem consumidor identificado.
+  5. Rodar `bun run verify:quick`, `bun run check`, `bun run docs:check` e os gates da CI antes de declarar a limpeza concluída.
+  6. Manter artifacts e objetos Git durante a janela de recuperação; depois repetir `git fsck`, revisar reflogs e pedir autorização explícita para manutenção do object store.
+- [x] Critério de saída documental: a organização pode ser verificada em uma execução dos gates e do inventário; a única manutenção deliberadamente futura é o GC após a janela de recuperação, e environments/artifacts históricos foram retidos por segurança operacional.
 
-## 12. Critérios de encerramento do plano
+## 12. Checkpoint pós-publicação — 2026-09-03
+
+- PR #197 publicou este plano em `staging`; a atualização desta seção documenta o estado depois da remoção do branch e do worktree temporários usados para a publicação.
+- Estado esperado após o descarte dos temporários: branches locais e remotas somente `main` e `staging`, nenhuma PR aberta, somente o worktree principal, `git remote prune origin --dry-run` limpo e `git worktree prune --dry-run -v` limpo.
+- `.env.local`, `.agents` e histórico Git foram preservados. Caches regeneráveis foram removidos; artifacts históricos do GitHub Actions não foram apagados em lote.
+- Environments legados com histórico ou secrets continuam retidos até decisão específica sobre a integração Vercel; o ambiente de produção e o de staging já têm policies de branch aplicadas.
+- Pendências reais: DMARC em observação; manutenção do object store somente depois da janela mínima de recuperação e revisão de reflogs; a referência pedagógica ausente em `plans/README.md` depende de decisão de produto.
+
+## 13. Critérios de encerramento do plano
 
 O plano só pode ser marcado como `accepted`/concluído quando todos os itens forem verdadeiros:
 
