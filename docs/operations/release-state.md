@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
+last_verified_commit: 5f9665c9d5356814381959d9ba1b543de0a441ee
 deployed_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 deployed_environment: production
 verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 verified_environment: production
-documented_commit: e121349ad0a625857037617a71259c7f4e22b1ce
+documented_commit: 5f9665c9d5356814381959d9ba1b543de0a441ee
 documented_environment: production
 ---
 
@@ -20,9 +20,12 @@ Production está no deployment `dpl_E17vxVRp27EDVVmW5sEQgTYFpXb5`, estado
 `app.neurocapacitar.com.br`.
 O commit atual de `main` é `10c9cb8dd187482144850015841fb4485eacbd5f`.
 
-O remoto mantém `main` no SHA Production `10c9cb8` e `staging` no
-commit `5019411`. A CI completa do candidato passou os gates obrigatórios;
-o fluxo de promoção permanece separado da homologação.
+O remoto mantém `main` no SHA Production
+`10c9cb8dd187482144850015841fb4485eacbd5f` e `staging` no commit
+`5f9665c9d5356814381959d9ba1b543de0a441ee`. A CI completa do candidato
+passou os gates obrigatórios; o status Vercel do mesmo SHA informa
+`Deployment has completed`. O fluxo de promoção permanece separado da
+homologação.
 
 A CI `33716424503` terminou `success` nesse SHA, cobrindo verificação
 estática/unitária, integração PostgreSQL local, E2E, build, Knip e audit.
