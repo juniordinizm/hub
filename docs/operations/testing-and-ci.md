@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: a95be66d7645e17d3bf83528ffa065b7ced38861
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Testes e CI
@@ -97,6 +97,11 @@ Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplica�
 herdadas do processo e restaura o ambiente ao final de cada teste. Isso impede
 que `.env.local` altere silenciosamente o resultado da suíte. O contrato fica em
 `src/testing/hermetic-environment.test.ts`.
+
+O artifact `playwright-report` contém somente evidência de teste e possui
+retenção explícita de 14 dias no workflow de CI. Evidências de backup e release
+não devem ser colocadas nesse artifact; cada uma precisa de retenção e runbook
+próprios.
 
 O audit de produção também mantém `browserslist` fixado pelo override do
 `package.json`; rode `bun audit --production` depois de qualquer alteração no

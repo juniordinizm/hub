@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Observabilidade e recuperação
@@ -130,6 +130,13 @@ Environment `vercel-production`, emite um único evento controlado no domínio
 canônico e executa o checker com `--environment=production`; ele não faz deploy,
 não altera configurações do Sentry e não cria cobrança. Não execute essa prova
 como smoke genérico nem sem autorização para gerar o evento operacional.
+
+O Environment `vercel-production` aceita deployments somente a partir da branch
+protegida `main`, e o workflow fixa o checkout nessa branch. Essa combinação é
+obrigatória porque um workflow manual pode ser disparado a partir de outro ref;
+sem essa restrição, código selecionável poderia executar com secrets de
+Production. Se a política de branch do Environment desaparecer, interrompa a
+prova e corrija a proteção antes de executar o workflow.
 
 O Sentry pode acrescentar `user.geo` (cidade, região e país) no processamento do
 evento, mesmo quando `scrubIPAddresses=true` e `email`/`ip_address` não foram

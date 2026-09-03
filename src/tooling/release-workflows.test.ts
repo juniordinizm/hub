@@ -209,6 +209,8 @@ describe("Production Sentry readiness workflow", () => {
     );
     expect(workflow).toContain("EMIT_SENTRY_PRODUCTION_READINESS");
     expect(workflow).toContain("name: vercel-production");
+    expect(workflow).toContain("if: github.ref == 'refs/heads/main'");
+    expect(workflow).toContain("ref: main");
     expect(workflow).toContain(
       "PRODUCTION_ORIGIN: https://app.neurocapacitar.com.br"
     );
@@ -217,5 +219,22 @@ describe("Production Sentry readiness workflow", () => {
     expect(workflow).toContain("bun run ops:check:sentry-readiness");
     expect(workflow).toContain("--environment=production");
     expect(workflow).not.toContain("vercel deploy");
+  });
+});
+
+describe("CI artifact retention", () => {
+  it("expires Playwright artifacts after fourteen days", () => {
+    const workflow = readWorkflow("ci.yml");
+    const artifactStart = workflow.indexOf("name: Upload Playwright report");
+    const artifactEnd = workflow.indexOf(
+      "name: Build with synthetic CI configuration",
+      artifactStart
+    );
+
+    expect(artifactStart).toBeGreaterThanOrEqual(0);
+    expect(artifactEnd).toBeGreaterThan(artifactStart);
+    expect(workflow.slice(artifactStart, artifactEnd)).toContain(
+      "retention-days: 14"
+    );
   });
 });
