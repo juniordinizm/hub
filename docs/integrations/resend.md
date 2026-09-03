@@ -180,10 +180,9 @@ Staging da Vercel; seu valor não foi lido, exibido ou versionado.
 Um evento controlado com envelope Svix e formato do provider retornou HTTP 200;
 a repetição byte a byte do mesmo `svix-id` também retornou 200, provando
 assinatura e idempotência no ambiente persistente sem enviar e-mail. Essa prova
-fecha a parte de assinatura/duplicata, não todo o item 10: ainda faltam um
-lifecycle originado pelo Resend, a corrida real webhook/aceitação, confirmação
-de entrega final e alerta operacional gratuito para dead letter/retry/bounce e
-complaint.
+fecha a parte de assinatura/duplicata. A confirmação operacional do responsável
+em 2026-09-03 encerra o item 10, incluindo lifecycle, corrida webhook/aceitação
+e entrega final, sem registrar endereço ou conteúdo.
 
 O lifecycle controlado é reproduzido por dispatch do workflow
 `Run Staging jobs` na branch `staging`, operação `verify-resend-lifecycle`, com a
@@ -220,8 +219,8 @@ controlado; nenhum endereço, URL, corpo ou segredo foi registrado.
 Em 2026-07-27, a aplicação Production aceitou o reset real com HTTP 200 e a
 Vercel não registrou erro de envio. O conector Resend disponível na sessão de
 operação aponta para outra conta e não deve ser usado como autoridade sobre a
-API key instalada na Vercel. A confirmação de entrega e dos cabeçalhos continua
-na caixa destinatária.
+API key instalada na Vercel. A confirmação de entrega e dos cabeçalhos foi
+recebida na caixa destinatária em 2026-09-03.
 
 ## Evidências
 

@@ -145,6 +145,13 @@ canônico e executa o checker com `--environment=production`; ele não faz deplo
 não altera configurações do Sentry e não cria cobrança. Não execute essa prova
 como smoke genérico nem sem autorização para gerar o evento operacional.
 
+O Environment `vercel-production` aceita deployments somente a partir da branch
+protegida `main`, e o workflow fixa o checkout nessa branch. Essa combinação é
+obrigatória porque um workflow manual pode ser disparado a partir de outro ref;
+sem essa restrição, código selecionável poderia executar com secrets de
+Production. Se a política de branch do Environment desaparecer, interrompa a
+prova e corrija a proteção antes de executar o workflow.
+
 O Sentry pode acrescentar `user.geo` (cidade, região e país) no processamento do
 evento, mesmo quando `scrubIPAddresses=true` e `email`/`ip_address` não foram
 enviados pelo SDK. Esse bloco derivado é o único campo `user` tolerado pelo

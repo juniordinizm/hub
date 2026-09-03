@@ -598,8 +598,8 @@ Resumo da fronteira:
 - migration e deploy Production acontecem juntos no workflow manual
   `Deploy Vercel production`;
 - não é necessário copiar ou digitar SHA;
-- o auto-delete de branches após merge permanece desabilitado para não remover
-  `staging`; branches de feature são limpas manualmente após a confirmação.
+- o GitHub remove automaticamente a branch de feature depois do merge; `main` e
+  `staging` continuam protegidas e não são removidas por essa política.
 
 ## Quando parar e pedir ajuda
 

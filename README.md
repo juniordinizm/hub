@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
 ---
 
 # PROTEA-R Hub
@@ -90,11 +90,14 @@ Cloudflare R2. Push e merge não publicam Production automaticamente: a promoç�
 usa um workflow manual que aplica migrations pendentes, testa um deployment sem
 domínio e só então o promove.
 
-A [auditoria de Production Readiness de 23 de agosto de 2026](docs/reviews/2026-08-23-production-readiness-audit.md)
-registrou `NO-GO` para uma nova decisão de release até o encerramento dos dez
-findings e dos gates de recuperação/Sentry. Esse veredito não afirma que o
-deployment existente esteja indisponível; impede tratá-lo como evidência
-suficiente para a próxima promoção.
+O remoto mantém `main` em `10c9cb8` e `staging` em
+`5019411`; a CI completa da última mudança de organização passou os gates
+obrigatórios. Production continua servindo o deployment verificado do SHA
+`10c9cb8`, e o fluxo de promoção permanece separado da homologação.
+
+Na requalificação operacional atual, Resend, Sentry e R2/restore estão
+encerrados conforme as evidências registradas. DMARC permanece deliberadamente
+em observação; essa observação não autoriza alterar DNS ou fazer nova promoção.
 
 Para publicar qualquer mudança, siga o
 [tutorial de alteração até Production](docs/operations/production-release-guide.md).
@@ -105,4 +108,6 @@ A jornada E2E completa de conclusão, emissão, renderização, e-mail absorvido
 download privado e validação pública está implementada no repositório. A CI
 remota do SHA atual de `main` foi confirmada no run `33716424503`, incluindo
 integração PostgreSQL, E2E, build e Knip. Esse resultado é evidência do commit;
-não substitui o fluxo de promoção protegido.
+continua sendo a evidência obrigatória do commit candidato; um commit local
+isolado não é tratado como promoção ou deploy e não substitui o fluxo de
+promoção protegido.

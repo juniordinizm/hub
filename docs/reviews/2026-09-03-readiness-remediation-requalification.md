@@ -42,7 +42,7 @@ prova positiva. Nenhum valor de secret foi lido ou registrado.
 
 ### Sprint 0 — baseline protegido
 
-- worktree atual isolado na branch `juniordinizm/docs-readiness-review`;
+- worktree atual isolado na branch de revisão da remediação;
 - `origin/main` e o SHA candidato confirmados;
 - o worktree antigo vinculado à branch local de staging foi preservado porque
   contém alteração local não classificada em `skills-lock.json`;

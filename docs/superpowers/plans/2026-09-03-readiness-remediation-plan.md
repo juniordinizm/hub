@@ -1,3 +1,9 @@
+---
+status: accepted
+owner: engineering
+last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
+---
+
 # Readiness and Operational Hygiene Remediation Implementation Plan
 
 > For agentic workers: Use TDD for behavior changes, preserve DMARC as observation-only, and stop before any unclassified destructive action.
@@ -18,7 +24,8 @@ Tech Stack: Bun 1.3.11, Knip 6, Vitest, TypeScript, Next.js 16 App Router, GitHu
 - Não remover branch, worktree, artifact ou objeto Git antes de verificar o alvo literal e sua recuperabilidade.
 - Não executar deploy, migration, seed, cobrança, restore ou envio de e-mail para testar uma hipótese já coberta por evidência.
 - Toda alteração comportamental segue RED, GREEN, refactor e verificação.
-- Commits e push não fazem parte deste plano sem pedido explícito.
+- Commits e push ficaram fora do escopo inicial; após autorização explícita, a
+  branch foi publicada e o PR #199 foi aberto com base em `staging`.
 
 ## Sprint 0 — baseline protegido
 

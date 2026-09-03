@@ -1,12 +1,12 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
 deployed_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 deployed_environment: production
 verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 verified_environment: production
-documented_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+documented_commit: e121349ad0a625857037617a71259c7f4e22b1ce
 documented_environment: production
 ---
 
@@ -14,34 +14,41 @@ documented_environment: production
 
 ## Checkpoint operacional atual — 2026-09-03
 
+Production está no deployment `dpl_E17vxVRp27EDVVmW5sEQgTYFpXb5`, estado
+`READY`, região `gru1`, servido pelo commit
+`10c9cb8dd187482144850015841fb4485eacbd5f`. O domínio canônico continua sendo
+`app.neurocapacitar.com.br`.
 O commit atual de `main` é `10c9cb8dd187482144850015841fb4485eacbd5f`.
+
+O remoto mantém `main` no SHA Production `10c9cb8` e `staging` no
+commit `5019411`. A CI completa do candidato passou os gates obrigatórios;
+o fluxo de promoção permanece separado da homologação.
+
 A CI `33716424503` terminou `success` nesse SHA, cobrindo verificação
 estática/unitária, integração PostgreSQL local, E2E, build, Knip e audit.
 O workflow `Verify Sentry Production readiness`
 `33718401953` também terminou `success` no mesmo SHA.
+O workflow `Backup Production database` `33778673874`
+terminou `success` no mesmo SHA. O job `verify-resend-lifecycle` do
+workflow `Run Staging jobs` `33718939437` terminou `success` no
+mesmo SHA.
 
-O workflow `Backup Production database` `33778673874` terminou `success` no
-mesmo SHA. O job `verify-resend-lifecycle` do workflow `Run Staging jobs`
-`33718939437` terminou `success` no mesmo SHA e confirma o lifecycle controlado
-do Resend em Staging. Esses registros são evidências sanitizadas de execução;
-não contêm secrets, payloads, URLs assinadas ou PII.
-
-Os registros mais recentes de deployment do GitHub para `vercel-production` e
+Os registros de deployment mais recentes de `vercel-production` e
 `vercel-staging` no mesmo SHA têm status `success`. Uma tentativa
 anterior de `vercel-production` terminou `failure` e não é tratada como
-evidência de sucesso. Isso não substitui a requalificação de uma nova promoção
-nem autoriza alteração de DNS, cobrança, restore ou migration fora do fluxo
-protegido.
-
-O DMARC permanece em observação com política `p=none; pct=100`; nenhum registro
-foi alterado nesta remediação. A progressão segue exclusivamente o
-[runbook de observação DMARC](dmarc-rollout.md).
+evidência de sucesso. Os Environments `vercel-production` e
+`vercel-staging` permanecem restritos, respectivamente, a
+`main` e `staging`.
 
 Os itens externos 1 a 8 foram confirmados pelo responsável em 2026-09-03:
 R2 restore, lock/lifecycle, restore Neon, cabeçalhos Production e rotação de
 secrets Resend estão confirmados. O registro é uma confirmação operacional
-sanitizada, sem valores de secrets, payloads, URLs assinadas ou PII. A
-checklist externa continua sendo a autoridade para o acompanhamento.
+sanitizada, sem valores de secrets, payloads, URLs assinadas ou PII.
+
+O DMARC permanece em observação com política `p=none; pct=100`; nenhum registro
+foi alterado nesta remediação. A progressão segue exclusivamente o
+[runbook de observação DMARC](dmarc-rollout.md). MFA administrativo permanece
+fora do produto e não é gate de release.
 
 ## Histórico operacional — 2026-08-31
 

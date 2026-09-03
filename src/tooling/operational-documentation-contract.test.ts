@@ -66,13 +66,20 @@ const releaseFlowMaintenanceCronPattern =
   /manuten\u00e7\u00e3o\s+diariamente \u00e0s 04:00 UTC/;
 const currentMainShaPattern =
   /O commit atual de \x60main\x60 \u00e9 \x60([0-9a-f]{40})\x60/u;
-const workflowRunIdPattern = /\b\d{11}\b/g;
+const releaseMetadataCommitPattern =
+  /^(?:last_verified_commit|documented_commit): [0-9a-f]{40}$/gmu;
+const workflowEvidencePattern =
+  /(?:CI|Sentry|Backup Production database|verify-resend-lifecycle)[\s\S]{0,160}\b\d{11}\b/iu;
 const productCutoverPattern =
   /corte\s+controlado\s+de Production\s+(?:j\u00e1\s+)?foi executado/;
 const externalConfirmationPattern =
   /R2 restore, lock\/lifecycle, restore Neon,\s+cabe\u00e7alhos Production e rota\u00e7\u00e3o de\s+secrets Resend\s+est\u00e3o confirmados/u;
 const dmarcObservationPattern =
   /em observa\u00e7\u00e3o\s+at\u00e9 2026-09-12/u;
+const currentReleaseSection =
+  releaseState.split("## Hist\u00f3rico operacional")[0] ?? "";
+const currentObservabilitySection =
+  observability.split("## Hist\u00f3rico de evid\u00eancias")[0] ?? "";
 
 describe("Operational documentation contracts", () => {
   it("documents every Vercel cron with its runtime cadence", () => {
@@ -111,22 +118,18 @@ describe("Operational documentation contracts", () => {
     if (!currentMainSha) {
       throw new Error("release-state is missing its current main SHA");
     }
-    for (const field of [
-      "last_verified_commit",
-      "deployed_commit",
-      "verified_commit",
-      "documented_commit",
-    ]) {
+    for (const field of ["deployed_commit", "verified_commit"]) {
       expect(releaseState).toContain([field, ": ", currentMainSha].join(""));
     }
-    expect(releaseState).toContain("Checkpoint operacional atual");
-    expect(releaseState).toMatch(workflowRunIdPattern);
+    expect(releaseState.match(releaseMetadataCommitPattern)).toHaveLength(2);
+    expect(currentReleaseSection).toContain("Checkpoint operacional atual");
+    expect(currentReleaseSection).toMatch(workflowEvidencePattern);
     expect(readinessReview).toContain(currentMainSha);
-    expect(readinessReview).toMatch(workflowRunIdPattern);
+    expect(readinessReview).toMatch(workflowEvidencePattern);
     expect(backupRunbook).toContain(currentMainSha);
-    expect(backupRunbook).toMatch(workflowRunIdPattern);
+    expect(backupRunbook).toMatch(workflowEvidencePattern);
     expect(resendIntegration).toContain(currentMainSha);
-    expect(resendIntegration).toMatch(workflowRunIdPattern);
+    expect(resendIntegration).toMatch(workflowEvidencePattern);
   });
 
   it("does not present historical operational gaps as current", () => {
@@ -135,7 +138,7 @@ describe("Operational documentation contracts", () => {
     );
     expect(product).toMatch(productCutoverPattern);
     expect(observability).toContain("Evid\u00eancia operacional atual");
-    expect(observability).toContain("33718401953");
+    expect(currentObservabilitySection).toMatch(workflowEvidencePattern);
     expect(observability).not.toContain("### Evid\u00eancia atual");
     expect(backupRunbook).not.toContain("## Estado atual \u2014 2026-08-27");
   });

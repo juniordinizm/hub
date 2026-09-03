@@ -13,9 +13,10 @@ confirmed CI `33716424503`, Sentry readiness `33718401953`, backup
 `33718939437`, all with `success` on that SHA.
 
 The remaining unchecked items are provider-side or intentionally manual:
-credential rotation/scope, Neon inventory and compute policy, disposable
-migration-order validation, mailbox headers and DMARC observation. No Production
-promotion, restore, migration or secret mutation was executed from this branch.
+Neon inventory and compute policy, disposable migration-order validation and
+DMARC observation. The operator confirmed R2 credential scope, restore,
+mailbox headers and Vercel/Resend secret rotation. No Production promotion,
+migration or secret mutation was executed from this branch.
 
 **Architecture:** Repository policy and workflow contracts remain versioned in GitHub. Temporary Neon recovery branches are created by a tested REST client with an expiration and no compute endpoint. Inboxes, outbox records, leases and 15-minute workers remain the reliability boundary while immediate processing is added only where an audit proves it is safe.
 

@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const knipConfiguration = readFileSync("knip.jsonc", "utf8");
-const hookInstaller = readFileSync("scripts/install-git-hooks.ts", "utf8");
-const packageManifest = readFileSync("package.json", "utf8");
+const repositoryRoot = resolve(import.meta.dirname, "../..");
+const readRepositoryFile = (fileName: string): string =>
+  readFileSync(resolve(repositoryRoot, fileName), "utf8");
+const knipConfiguration = readRepositoryFile("knip.jsonc");
+const hookInstaller = readRepositoryFile("scripts/install-git-hooks.ts");
+const packageManifest = readRepositoryFile("package.json");
 
 const getArrayBody = (key: string): string => {
   const match = knipConfiguration.match(
