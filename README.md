@@ -90,8 +90,8 @@ Cloudflare R2. Push e merge não publicam Production automaticamente: a promoç�
 usa um workflow manual que aplica migrations pendentes, testa um deployment sem
 domínio e só então o promove.
 
-O remoto mantém `main` em `10c9cb8dd187482144850015841fb4485eacbd5f` e `staging` em
-`5f9665c9d5356814381959d9ba1b543de0a441ee`; a CI completa da última mudança de organização passou os gates
+O último checkpoint verificado de `staging` é o merge commit
+`35e838c21f2ad94fefe2aec187db5068f2726c0e`; a CI completa da última mudança de organização passou os gates
 obrigatórios. Production continua servindo o deployment verificado do SHA
 `10c9cb8`, e o fluxo de promoção permanece separado da homologação.
 

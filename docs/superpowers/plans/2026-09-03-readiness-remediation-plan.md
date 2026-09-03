@@ -27,6 +27,9 @@ Tech Stack: Bun 1.3.11, Knip 6, Vitest, TypeScript, Next.js 16 App Router, GitHu
 - Commits e push ficaram fora do escopo inicial; após autorização explícita, a
   branch foi publicada e o PR #199 foi mergeado em `staging` no commit
   `5f9665c9d5356814381959d9ba1b543de0a441ee`.
+- O checkpoint documental seguinte foi publicado no PR #200 e mergeado em
+  `staging` no merge commit `35e838c21f2ad94fefe2aec187db5068f2726c0e`; o workflow
+  pós-merge validou o alvo e aplicou as migrations de Staging com sucesso.
 
 ## Sprint 0 — baseline protegido
 
