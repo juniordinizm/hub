@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Checklist das pendências externas
@@ -9,6 +9,20 @@ last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
 Este runbook explica como fechar os gates que o código não consegue provar
 sozinho. Ele deve ser executado por uma pessoa júnior acompanhada por uma
 supervisora quando houver acesso a Production, DNS, GitHub secrets ou dinheiro.
+
+## Estado de evidências — 2026-09-03
+
+Não repita operações que já possuem prova recente:
+
+- CI `33716424503`, Sentry `33718401953`, backup `33778673874` e lifecycle
+  controlado do Resend `33718939437` terminaram `success` no SHA atual;
+- Sentry, backup e lifecycle automatizado do Resend estão registrados nos
+  respectivos runbooks;
+- os conectores Resend e Cloudflare disponíveis não retornaram o domínio ou
+  bucket correspondente ao projeto e não foram tratados como autoridade;
+- os itens externos 1 a 8 estão confirmados pelo responsável, incluindo escopo R2,
+  restore descartável, lock/lifecycle, cabeçalhos Production e rotação Resend;
+- DMARC permanece em observação e não deve ser alterado por esta checklist.
 
 ## Regra importante sobre MFA
 

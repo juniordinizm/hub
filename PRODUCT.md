@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 9f2b8f177e7531f1c19242099f403c55b3820d08
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Produto PROTEA-R Hub
@@ -41,8 +41,9 @@ handoff cria o Checkout sem formulário local e mantém `/` protegida. O worker 
 identidade fora da transação e trata Conta de equipe, bloqueio e revogação sem liberar
 acesso. A execução E2E em PostgreSQL descartável e o handoff público no Sandbox foram
 homologados. Uma compra pública em 3x, o bloqueio de identidade revogada e o reembolso
-integral do parcelamento foram homologados manualmente no Sandbox de Staging; somente o
-corte controlado de Production permanece pendente.
+integral do parcelamento foram homologados manualmente no Sandbox de Staging. O corte
+controlado de Production já foi executado; novas promoções continuam dependentes do
+fluxo protegido e da requalificação externa vigente.
 
 ### Aprendizagem
 
@@ -72,8 +73,9 @@ corte controlado de Production permanece pendente.
 - vídeo JMVStream, texto rico, anexos e imagens R2;
 - catálogo, Matrícula, expiração, bloqueio, progresso e analytics técnico minimizado;
 - comentários com uma camada de resposta e moderação;
-- núcleo Asaas anterior da compra autenticada, inbox/worker, conciliação e reembolso
-  integral implementados e homologados em Sandbox, ainda sem corte de Production;
+- núcleo Asaas da compra autenticada, inbox/worker, conciliação e reembolso integral
+  implementados e homologados em Sandbox; o corte controlado de Production já ocorreu,
+  e novas promoções seguem a requalificação externa vigente;
 - API, jornada pública e revisão de identidade implementadas, cobertas por E2E em
   PostgreSQL descartável e homologadas no handoff Sandbox;
 - oferta comercial por Curso com Pix, cartão ou ambos, preço único entre os métodos e

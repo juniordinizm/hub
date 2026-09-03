@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 36019cf0a609a7283046d71c694f16d8afd6fec3
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Comércio e acesso
@@ -146,11 +146,10 @@ Admin pode usar preview; a mutação de experiência da Aluna continua proibida 
 
 `extendEnrollmentExpiration` e `setEnrollmentExpiration` alteram a janela efetiva, registram `enrollment_expiration_adjustments` e eventos.
 
-**Autorização atual:** `manageEnrollmentAccess`, concedida a Admin e `support`.
-O alvo aprovado no [DEC-DISC-014](../decisions.md#dec-disc-014) mantém essa
-capacidade ampla somente para Admin e cria uma capacidade restrita para `support`
-ajustar validade e bloquear/restaurar a Matrícula com motivo e auditoria. A
-separação ainda não está implementada.
+**Autorização atual:** `manageEnrollmentAccess` permanece exclusiva de Admin.
+Conforme o [DEC-DISC-014](../decisions.md#dec-disc-014), `support` usa
+`manageEnrollmentSupport` para ajustar validade e bloquear/restaurar a Matrícula
+com motivo e auditoria.
 
 **Invariantes:**
 

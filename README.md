@@ -1,12 +1,12 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4a4ddc94e0c1f61cd49e6b1a1afb4e90bfc148e6
+last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
 ---
 
 # PROTEA-R Hub
 
-Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, comércio via Asaas, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
+Plataforma de cursos da PROTEA-R: catálogo e aprendizagem para Alunas, autoria e operação para Admin/Suporte, comércio Asaas em Production, vídeo via JMVStream, mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon.
 
 ## Antes de começar
 
@@ -91,7 +91,7 @@ usa um workflow manual que aplica migrations pendentes, testa um deployment sem
 domínio e só então o promove.
 
 O remoto mantém `main` em `10c9cb8` e `staging` em
-`4a4ddc9`; a CI completa da última mudança de organização passou os gates
+`5019411`; a CI completa da última mudança de organização passou os gates
 obrigatórios. Production continua servindo o deployment verificado do SHA
 `10c9cb8`, e o fluxo de promoção permanece separado da homologação.
 
@@ -106,5 +106,8 @@ histórico da migração concluída, não o procedimento diário.
 
 A jornada E2E completa de conclusão, emissão, renderização, e-mail absorvido,
 download privado e validação pública está implementada no repositório. A CI
+remota do SHA atual de `main` foi confirmada no run `33716424503`, incluindo
+integração PostgreSQL, E2E, build e Knip. Esse resultado é evidência do commit;
 continua sendo a evidência obrigatória do commit candidato; um commit local
-isolado não é tratado como promoção ou deploy.
+isolado não é tratado como promoção ou deploy e não substitui o fluxo de
+promoção protegido.

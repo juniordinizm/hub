@@ -4,6 +4,20 @@
 
 **Goal:** Finish the remaining safe improvements to the GitHub, Vercel and Neon release flow without changing Production during implementation.
 
+## Execution evidence — 2026-09-03
+
+The repository-side work in this plan is present in the current history and was
+rechecked against `origin/main` at `10c9cb8dd187482144850015841fb4485eacbd5f`. Remote evidence
+confirmed CI `33716424503`, Sentry readiness `33718401953`, backup
+`33778673874` and the controlled Staging Resend lifecycle
+`33718939437`, all with `success` on that SHA.
+
+The remaining unchecked items are provider-side or intentionally manual:
+Neon inventory and compute policy, disposable migration-order validation and
+DMARC observation. The operator confirmed R2 credential scope, restore,
+mailbox headers and Vercel/Resend secret rotation. No Production promotion,
+migration or secret mutation was executed from this branch.
+
 **Architecture:** Repository policy and workflow contracts remain versioned in GitHub. Temporary Neon recovery branches are created by a tested REST client with an expiration and no compute endpoint. Inboxes, outbox records, leases and 15-minute workers remain the reliability boundary while immediate processing is added only where an audit proves it is safe.
 
 **Tech Stack:** GitHub Actions, GitHub rulesets, Vercel Git Integration, Neon REST API, Bun, TypeScript, Vitest, Next.js.

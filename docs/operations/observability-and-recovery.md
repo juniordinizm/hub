@@ -8,7 +8,16 @@ last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 
 ## Objetivo e limites
 
-Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos. Ele cobre processo, Postgres, filas persistidas e integrações assíncronas. Não prova backup, proteção de branch ou alertas ativos em produção: cada item exige confirmação no painel do provedor.
+Este runbook torna falhas detectáveis sem registrar dados pessoais ou segredos. Ele cobre processo, Postgres, filas persistidas e integrações assíncronas. O código, isoladamente, não prova estado externo de backup, proteção de branch ou alertas ativos em produção; cada item exige confirmação no painel do provedor e registro sanitizado.
+
+## Evidência operacional atual — 2026-09-03
+
+No SHA `10c9cb8dd187482144850015841fb4485eacbd5f`, a CI `33716424503`, a prova Sentry
+`33718401953`, o backup `33778673874` e o job controlado de lifecycle
+do Resend `33718939437` terminaram `success`. Os Environments do GitHub
+restringem `vercel-production` a `main` e `vercel-staging` a
+`staging`. O responsável confirmou R2, restore descartável, cabeçalhos da caixa
+Production e rotação de secrets Resend; DMARC permanece em observação.
 
 **Admin > Auditoria** mostra apenas contagens e idade de backlog. Nunca expõe payload, token, e-mail ou URL assinada.
 
@@ -41,6 +50,11 @@ Os pools `application` e `readiness`, em `src/db/index.ts`, registram listener
 `database_pool_client_error`, status 503 e correlação UUID, sem mensagem do
 provider ou URL. O request que originou a falha ainda deve ser tratado pelo
 worker/rota e o readiness continua sendo a confirmação de recuperação.
+
+## Histórico de evidências
+
+Os registros abaixo preservam diagnósticos e decisões de checkpoints anteriores.
+Não representam o estado operacional atual acima.
 
 O candidato `72265c3c2f7c6f881843096f86d77175985a5d2b` foi publicado no Staging
 no deploy `32886494503`. A rodada `32886769013` chamou `/api/cron/outbox` e
@@ -268,7 +282,7 @@ abre conexão, não executa migration e não restaura banco.
 5. Exercite rollback operacional: aplicação anterior compatível ou forward-fix revisado. Não execute rollback SQL destrutivo.
 6. Revogue URL e apague a branch temporária depois da conferência.
 
-### Evidência atual
+### Evidência histórica — 2026-07-21
 
 Em 2026-07-21 UTC, a branch `recovery-drill-20260721` foi criada da branch `production` do projeto Neon `protear`, recebeu `bun run db:migrate`, passou no smoke sem PII e foi removida. A cópia preservou 2 Contas e zero registros nas tabelas de Pedido, Matrícula, webhook e Certificado; após a migration, o journal chegou a 25 entradas e `outbox_messages` existia.
 

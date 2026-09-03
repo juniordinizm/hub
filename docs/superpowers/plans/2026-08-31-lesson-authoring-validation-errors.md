@@ -4,6 +4,18 @@
 
 **Goal:** Make lesson descriptions optional while preserving title/content validation and show safe, actionable save errors instead of the production Server Components message.
 
+## Execution evidence — 2026-09-03
+
+The implementation described by this plan is present in commit
+`df4902e` (`fix(authoring): make lesson validation actionable`). The focused
+verification executed with Bun 1.3.11 passed 5 test files and 35 tests:
+lesson error mapping, draft normalization, authoring validation, creation-form
+requirements and sidebar feedback.
+
+Implementation and GREEN checks are marked above. RED-phase checkboxes remain
+open because this checkout does not retain the original failing-run output.
+Staging/Production rollout steps remain open and were not executed.
+
 **Architecture:** Keep persistence in the existing authoring service, add a small lesson-specific error/result contract for expected failures, and adapt the save Server Action to return serializable results. The lesson editor will consume that result in its existing transition, showing both a toast and a persistent accessible alert; unknown failures will keep a correlation ID and a safe fallback message.
 
 **Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Server Actions, Vitest, PostgreSQL/Neon, existing operational correlation logging.
@@ -30,7 +42,7 @@
 - Create: `src/features/admin/lesson-authoring-errors.ts`
 - Test: `src/features/admin/lesson-authoring-errors.test.ts`
 
-- [ ] **Step 1: Write the failing unit tests**
+- [x] **Step 1: Write the failing unit tests**
 
 Create the tests with these behaviors:
 
@@ -82,7 +94,7 @@ pnpm test -- src/features/admin/lesson-authoring-errors.test.ts
 
 Expected: FAIL because the error contract module does not exist yet.
 
-- [ ] **Step 3: Implement the smallest safe contract**
+- [x] **Step 3: Implement the smallest safe contract**
 
 Create the field union, error class, result union, and mapper. The implementation must keep expected messages only when the error is the lesson-specific class and must use this fallback for every other exception:
 
@@ -126,11 +138,11 @@ export const getLessonSaveActionFailure = (
 };
 ```
 
-- [ ] **Step 4: Run the focused test to verify it passes**
+- [x] **Step 4: Run the focused test to verify it passes**
 
 Run the same `pnpm test -- src/features/admin/lesson-authoring-errors.test.ts` command. Expected: 2 tests pass.
 
-- [ ] **Step 5: Commit the contract**
+- [x] **Step 5: Commit the contract**
 
 ```text
 git add src/features/admin/lesson-authoring-errors.ts src/features/admin/lesson-authoring-errors.test.ts
@@ -145,7 +157,7 @@ git commit -m "feat(authoring): add safe lesson action errors"
 - Modify: `src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx:395-427`
 - Test: `src/app/(admin)/admin/cursos/[courseId]/course-builder-components.test.tsx`
 
-- [ ] **Step 1: Add failing coverage for a title-only draft and optional UI field**
+- [x] **Step 1: Add failing coverage for a title-only draft and optional UI field**
 
 Change the normalization test to omit `description` and expect:
 
@@ -188,7 +200,7 @@ pnpm test -- src/features/admin/lesson-drafts.test.ts "src/app/(admin)/admin/cur
 
 Expected: FAIL because the server still rejects blank descriptions and the textarea still has `required`.
 
-- [ ] **Step 3: Implement title-only draft validation**
+- [x] **Step 3: Implement title-only draft validation**
 
 In `LessonDraftInput`, change `description` to `string | null`. Normalize blank input with `readString(...) || null`, validate module and title independently, and throw `LessonAuthoringError` for the missing title. The normalizer must return:
 
@@ -203,11 +215,11 @@ In `LessonDraftInput`, change `description` to `string | null`. Normalize blank 
 
 In `CreateLessonDraftForm`, remove `required` from the description textarea and render the label as `Descrição (opcional)`.
 
-- [ ] **Step 4: Run the focused tests to verify they pass**
+- [x] **Step 4: Run the focused tests to verify they pass**
 
 Run the same focused command. Expected: all lesson-draft and course-builder tests pass.
 
-- [ ] **Step 5: Commit the input change**
+- [x] **Step 5: Commit the input change**
 
 ```text
 git add src/features/admin/lesson-drafts.ts src/features/admin/lesson-drafts.test.ts "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.tsx" "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.test.tsx"
@@ -220,7 +232,7 @@ git commit -m "fix(authoring): make lesson description optional"
 - Modify: `src/features/admin/authoring.ts:1-40,300-370,914-960,1408-1570`
 - Test: `src/features/admin/authoring.test.ts:496-530` and new validation cases near the save tests
 
-- [ ] **Step 1: Add failing service tests**
+- [x] **Step 1: Add failing service tests**
 
 Add a test with a valid draft module and no title that expects `LessonAuthoringError` with field `title` and asserts no upload confirmation occurs:
 
@@ -262,7 +274,7 @@ pnpm test -- src/features/admin/authoring.test.ts
 
 Expected: FAIL because empty title is not server-validated, the content error is a plain `Error`, and validation currently happens after upload confirmation.
 
-- [ ] **Step 3: Implement safe validation ordering**
+- [x] **Step 3: Implement safe validation ordering**
 
 Import `LessonAuthoringError` in `authoring.ts`. In `saveLesson`, read and validate the trimmed title before persistence:
 
@@ -279,11 +291,11 @@ Normalize lesson content inside a boundary that converts the content module’s 
 
 Use `LessonAuthoringError` for the safe lesson-domain failures already in this path: invalid draft module/publication, invalid lesson module, missing lesson upload association, and unconfirmed lesson material. Leave database/provider failures as ordinary unknown exceptions so the action mapper sanitizes them.
 
-- [ ] **Step 4: Run the focused service tests to verify they pass**
+- [x] **Step 4: Run the focused service tests to verify they pass**
 
 Run the same `pnpm test -- src/features/admin/authoring.test.ts` command. Expected: all authoring tests pass, including the existing resource-only lesson behavior.
 
-- [ ] **Step 5: Commit the validation change**
+- [x] **Step 5: Commit the validation change**
 
 ```text
 git add src/features/admin/authoring.ts src/features/admin/authoring.test.ts
@@ -298,7 +310,7 @@ git commit -m "fix(authoring): validate lesson requirements before save"
 - Test: `src/features/admin/lesson-authoring-errors.test.ts`
 - Create: `src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-actions.test.tsx`
 
-- [ ] **Step 1: Add failing action/UI coverage**
+- [x] **Step 1: Add failing action/UI coverage**
 
 Extend the error-contract test to verify the typed result has `ok: false` for expected errors and the fallback has the correlation code without the original exception.
 
@@ -325,7 +337,7 @@ pnpm test -- src/features/admin/lesson-authoring-errors.test.ts "src/app/(admin)
 
 Expected: FAIL because `saveLessonAction` still returns `void` and the sidebar does not handle a result or render an alert.
 
-- [ ] **Step 3: Adapt the Server Action to return a serializable result**
+- [x] **Step 3: Adapt the Server Action to return a serializable result**
 
 Import `getLessonSaveActionFailure`, `LessonSaveActionResult`, and the existing correlation helper. Implement the action around the existing authoring call:
 
@@ -367,7 +379,7 @@ export const saveLessonAction = async (
 
 The final implementation must revalidate the returned `{ courseId, lessonId }` only after the save succeeds. Expected errors return safe messages; unknown errors return the correlation-based fallback.
 
-- [ ] **Step 4: Update the sidebar feedback**
+- [x] **Step 4: Update the sidebar feedback**
 
 Keep the current native `checkValidity`, pending transition, and toast loading behavior. Add `errorMessage` state, clear it before each attempt and after success, then branch on the action result:
 
@@ -385,11 +397,11 @@ toast.success("Aula salva com sucesso!", { id: toastId });
 
 For a transport-level exception outside the Server Action result, show only `Não foi possível salvar a aula. Tente novamente.`. Render the error below the controls with `role="alert"` and `aria-live="assertive"`; do not render an exception message or a Next.js digest.
 
-- [ ] **Step 5: Run the focused action/UI tests to verify they pass**
+- [x] **Step 5: Run the focused action/UI tests to verify they pass**
 
 Run the same focused command. Expected: all contract and sidebar feedback tests pass.
 
-- [ ] **Step 6: Commit the action/UI change**
+- [x] **Step 6: Commit the action/UI change**
 
 ```text
 git add src/features/admin/actions.ts src/features/admin/lesson-authoring-errors.test.ts "src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-actions.tsx" "src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-actions.test.tsx"
@@ -401,7 +413,7 @@ git commit -m "fix(authoring): show lesson save validation errors"
 **Files:**
 - No source changes unless a verification failure identifies a required correction.
 
-- [ ] **Step 1: Run all focused regression tests**
+- [x] **Step 1: Run all focused regression tests**
 
 ```text
 pnpm test -- src/features/admin/lesson-authoring-errors.test.ts src/features/admin/lesson-drafts.test.ts src/features/admin/authoring.test.ts "src/app/(admin)/admin/cursos/[courseId]/course-builder-components.test.tsx" "src/app/(admin)/admin/cursos/[courseId]/aulas/[lessonId]/lesson-sidebar-actions.test.tsx"
@@ -409,7 +421,7 @@ pnpm test -- src/features/admin/lesson-authoring-errors.test.ts src/features/adm
 
 Expected: all selected suites pass.
 
-- [ ] **Step 2: Run repository type and quality checks**
+- [x] **Step 2: Run repository type and quality checks**
 
 ```text
 pnpm type-check
