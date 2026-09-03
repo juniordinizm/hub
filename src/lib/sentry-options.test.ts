@@ -71,6 +71,21 @@ describe("Sentry options", () => {
     expect(event?.user).toBeUndefined();
   });
 
+  it("removes nested user identities from event contexts", () => {
+    const options = getSentryOptions(
+      "https://public@example.ingest.sentry.io/1"
+    );
+    const event = options.beforeSend?.({
+      contexts: {
+        request_context: {
+          user: { id: "user-1" },
+        },
+      },
+    } as unknown as Parameters<NonNullable<typeof options.beforeSend>>[0]);
+
+    expect(event?.contexts?.request_context).not.toHaveProperty("user");
+  });
+
   it("redacts certificate public codes from request paths", () => {
     const options = getSentryOptions(
       "https://public@example.ingest.sentry.io/1"
