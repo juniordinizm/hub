@@ -25,7 +25,8 @@ Tech Stack: Bun 1.3.11, Knip 6, Vitest, TypeScript, Next.js 16 App Router, GitHu
 - Não executar deploy, migration, seed, cobrança, restore ou envio de e-mail para testar uma hipótese já coberta por evidência.
 - Toda alteração comportamental segue RED, GREEN, refactor e verificação.
 - Commits e push ficaram fora do escopo inicial; após autorização explícita, a
-  branch foi publicada e o PR #199 foi aberto com base em `staging`.
+  branch foi publicada e o PR #199 foi mergeado em `staging` no commit
+  `5f9665c9d5356814381959d9ba1b543de0a441ee`.
 
 ## Sprint 0 — baseline protegido
 

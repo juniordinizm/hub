@@ -66,6 +66,8 @@ const releaseFlowMaintenanceCronPattern =
   /manuten\u00e7\u00e3o\s+diariamente \u00e0s 04:00 UTC/;
 const currentMainShaPattern =
   /O commit atual de \x60main\x60 \u00e9 \x60([0-9a-f]{40})\x60/u;
+const currentStagingShaPattern =
+  /\x60staging\x60 no\s+commit\s+\x60([0-9a-f]{40})\x60/u;
 const releaseMetadataCommitPattern =
   /^(?:last_verified_commit|documented_commit): [0-9a-f]{40}$/gmu;
 const workflowEvidencePattern =
@@ -130,6 +132,12 @@ describe("Operational documentation contracts", () => {
     expect(backupRunbook).toMatch(workflowEvidencePattern);
     expect(resendIntegration).toContain(currentMainSha);
     expect(resendIntegration).toMatch(workflowEvidencePattern);
+    const currentStagingSha = releaseState.match(currentStagingShaPattern)?.[1];
+    expect(currentStagingSha).toBeDefined();
+    if (!currentStagingSha) {
+      throw new Error("release-state is missing its current staging SHA");
+    }
+    expect(readme).toContain(currentStagingSha);
   });
 
   it("does not present historical operational gaps as current", () => {
