@@ -46,6 +46,11 @@ nomes abaixo. Nunca revele os valores:
 - variables: `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_ID` e
   `SENTRY_READINESS_ALERT_NAME`.
 
+No Sentry, o alerta cujo nome está em `SENTRY_READINESS_ALERT_NAME` deve estar
+ativo, ligado ao projeto `SENTRY_PROJECT` e ter o campo **Environment** definido
+exatamente como `production` (minúsculas). Deixar o campo vazio, usar
+`Production` ou manter um alerta global não fecha este gate.
+
 O workflow correto é `.github/workflows/verify-production-sentry.yml`, chamado
 **Verify Sentry Production readiness**. Execute a versão que já esteja na branch
 aprovada pela equipe, normalmente `main`.
