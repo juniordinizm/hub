@@ -278,6 +278,10 @@ export function ModuleForm({
   moduleData?: ModuleData;
   nextSortOrder?: number;
 }): React.JSX.Element {
+  const releaseDelayDaysId = moduleData
+    ? `module-${moduleData.id}-release-delay-days`
+    : "new-module-release-delay-days";
+
   return (
     <div className="flex flex-col gap-4">
       <AutoCloseDialogForm
@@ -322,24 +326,30 @@ export function ModuleForm({
                 />
                 Imediatamente
               </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  defaultChecked={(moduleData?.releaseDelayDays ?? 0) > 0}
-                  name="releaseMode"
-                  type="radio"
-                  value="delayed"
-                />
-                Após
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    defaultChecked={(moduleData?.releaseDelayDays ?? 0) > 0}
+                    name="releaseMode"
+                    type="radio"
+                    value="delayed"
+                  />
+                  Após
+                </label>
+                <label className="sr-only" htmlFor={releaseDelayDaysId}>
+                  Dias para liberar o módulo
+                </label>
                 <Input
                   className="w-24"
                   defaultValue={moduleData?.releaseDelayDays || 8}
+                  id={releaseDelayDaysId}
                   min={1}
                   name="releaseDelayDays"
                   step={1}
                   type="number"
                 />
                 dias
-              </label>
+              </div>
               <p className="text-muted-foreground text-xs">
                 Cada dia equivale a 24 horas desde o início do acesso da Aluna.
               </p>

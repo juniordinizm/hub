@@ -235,6 +235,18 @@ describe("module content release controls", () => {
     );
     expect(immediate?.hasAttribute("checked")).toBe(true);
     expect(delayed?.hasAttribute("checked")).toBe(false);
+    expect(immediate?.closest("label")?.textContent?.trim()).toBe(
+      "Imediatamente"
+    );
+    expect(delayed?.closest("label")?.textContent?.trim()).toBe("Após");
+    const delayDaysLabel = Array.from(
+      document.querySelectorAll<HTMLLabelElement>("label")
+    ).find(
+      (label) => label.textContent?.trim() === "Dias para liberar o módulo"
+    );
+    expect(delayDays?.id).not.toBe("");
+    expect(delayDaysLabel?.htmlFor).toBe(delayDays?.id);
+    expect(delayDays?.closest("label")).toBeNull();
     expect(delayDays?.getAttribute("value")).toBe("8");
     expect(delayDays?.getAttribute("min")).toBe("1");
     expect(delayDays?.getAttribute("step")).toBe("1");
