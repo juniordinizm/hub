@@ -79,6 +79,7 @@ import {
 
 const COURSE_ACTIVATION_UPDATE_PATTERN =
   /update courses\s+set status = 'active'/i;
+const SENSITIVE_IDENTITY_PATTERN = /student|user|email/i;
 
 const coverImage = {
   original: {
@@ -195,6 +196,15 @@ describe("admin authoring", () => {
       if (sql.includes("select cover_image_json from courses")) {
         return { rows: [{ cover_image_json: coverImage }] };
       }
+      if (sql.includes("has_scheduled_release_history")) {
+        return { rows: [{ has_scheduled_release_history: false }] };
+      }
+      if (sql.includes("as publication_status")) {
+        return { rows: [] };
+      }
+      if (sql.includes("content_release_mode = 'scheduled'")) {
+        return { rows: [] };
+      }
 
       return { rows: [] };
     });
@@ -211,6 +221,113 @@ describe("admin authoring", () => {
         COURSE_ACTIVATION_UPDATE_PATTERN.test(String(sql))
       )
     ).toBe(false);
+  });
+
+  it("rolls back a publication before cover or status effects when an existing lesson becomes more restrictive", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("for update")
+      ) {
+        return { rows: [{ id: "publication-draft" }] };
+      }
+      if (sql.includes("from lessons") && sql.includes("video_provider")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select cover_image_json from courses")) {
+        return { rows: [{ cover_image_json: coverImage }] };
+      }
+      if (sql.includes("has_scheduled_release_history")) {
+        return { rows: [{ has_scheduled_release_history: true }] };
+      }
+      if (sql.includes("as publication_status")) {
+        return {
+          rows: [
+            {
+              curriculum_key: "curriculum-1",
+              lesson_title: "Introdução",
+              module_title: "Comece aqui",
+              publication_status: "published",
+              release_delay_days: 0,
+            },
+            {
+              curriculum_key: "curriculum-1",
+              lesson_title: "Introdução",
+              module_title: "Conteúdo futuro",
+              publication_status: "draft",
+              release_delay_days: 8,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      publishCoursePublication({ actorUserId: "admin-1", courseId: "course-1" })
+    ).rejects.toThrow(
+      'A Aula "Introdução" passaria de D+0 para D+8 no Módulo "Conteúdo futuro"'
+    );
+
+    expect(publishR2Object).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith("rollback");
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("set status = 'retired'")
+      )
+    ).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("set status = 'published'")
+      )
+    ).toBe(false);
+  });
+
+  it("rejects a required lesson unavailable for an entire scheduled enrollment without exposing student data", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("for update")
+      ) {
+        return { rows: [{ id: "publication-draft" }] };
+      }
+      if (sql.includes("from lessons") && sql.includes("video_provider")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select cover_image_json from courses")) {
+        return { rows: [{ cover_image_json: coverImage }] };
+      }
+      if (sql.includes("has_scheduled_release_history")) {
+        return { rows: [{ has_scheduled_release_history: false }] };
+      }
+      if (sql.includes("as publication_status")) {
+        return { rows: [] };
+      }
+      if (sql.includes("content_release_mode = 'scheduled'")) {
+        return {
+          rows: [
+            {
+              lesson_title: "Encerramento",
+              module_title: "Conclusão",
+              release_delay_days: 30,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const publication = publishCoursePublication({
+      actorUserId: "admin-1",
+      courseId: "course-1",
+    });
+
+    await expect(publication).rejects.toThrow(
+      'A Aula "Encerramento" do Módulo "Conclusão" ficaria indisponível durante toda a validade de uma Matrícula agendada.'
+    );
+    await expect(publication).rejects.not.toThrow(SENSITIVE_IDENTITY_PATTERN);
+    expect(publishR2Object).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith("rollback");
   });
 
   it("creates a draft course, records it, then syncs its JMVStream folder", async () => {
@@ -318,6 +435,21 @@ describe("admin authoring", () => {
   });
 
   it("does not change Course availability through the generic save lifecycle", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("as should_publish")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 12,
+              max_release_delay_days: 0,
+              sales_status: "closed",
+              should_publish: false,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
     const formData = new FormData();
     formData.set("courseId", "course-1");
     formData.set("title", "Curso existente");
@@ -348,6 +480,100 @@ describe("admin authoring", () => {
       "course-1",
     ]);
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith("course-1");
+  });
+
+  it("rolls back before mutating an open Course when the reduced access duration no longer fits", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("as should_publish")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 12,
+              max_release_delay_days: 28,
+              sales_status: "open",
+              should_publish: true,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Curso existente");
+    formData.set("accessDurationMonths", "1");
+    formData.set("price", "100,00");
+
+    await expect(
+      saveCourse({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+
+    expect(query).toHaveBeenCalledWith("rollback");
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("update courses"))
+    ).toBe(false);
+    expect(publishR2Object).not.toHaveBeenCalled();
+    expect(ensureJmvstreamCourseFolder).not.toHaveBeenCalled();
+  });
+
+  it("does not apply the reduction guard when an open Course keeps its current duration", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("as should_publish")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 1,
+              max_release_delay_days: 28,
+              sales_status: "open",
+              should_publish: true,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Curso existente");
+    formData.set("accessDurationMonths", "1");
+    formData.set("price", "100,00");
+
+    await expect(
+      saveCourse({ actorUserId: "admin-1", formData })
+    ).resolves.toEqual({ courseId: "course-1" });
+  });
+
+  it("allows reducing access duration while sales are closed", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("as should_publish")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 12,
+              max_release_delay_days: 28,
+              sales_status: "closed",
+              should_publish: true,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Curso existente");
+    formData.set("accessDurationMonths", "1");
+    formData.set("price", "100,00");
+
+    await expect(
+      saveCourse({ actorUserId: "admin-1", formData })
+    ).resolves.toEqual({ courseId: "course-1" });
+
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("update courses"))
+    ).toBe(true);
   });
 
   it("updates a module and recalculates both affected courses", async () => {

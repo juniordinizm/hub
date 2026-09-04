@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertScheduleFitsAccessDuration,
   buildContentReleaseScheduleSnapshot,
   hasDelayedModules,
   resolveLessonAvailability,
@@ -179,6 +180,79 @@ describe("module content release rules", () => {
         version: 1,
         clock: "elapsed_24h",
         modules: [{ title: "Inválido", sortOrder: 1, releaseDelayDays: -1 }],
+      })
+    ).toThrow("Atraso de liberação inválido.");
+  });
+
+  it("requires the latest release to occur before the conservative access window", () => {
+    const fits = buildContentReleaseScheduleSnapshot([
+      { title: "Primeiro", sortOrder: 1, releaseDelayDays: 0 },
+      { title: "Último", sortOrder: 2, releaseDelayDays: 27 },
+    ]);
+    const doesNotFit = buildContentReleaseScheduleSnapshot([
+      { title: "Último", sortOrder: 1, releaseDelayDays: 28 },
+    ]);
+
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: 1,
+        snapshot: fits,
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: 1,
+        snapshot: doesNotFit,
+      })
+    ).toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+  });
+
+  it.each([
+    0,
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+  ])("rejects invalid access duration months %j", (accessDurationMonths) => {
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths,
+        snapshot: { version: 1, clock: "elapsed_24h", modules: [] },
+      })
+    ).toThrow("Duração comercial inválida.");
+  });
+
+  it("rejects invalid schedule snapshots and delays", () => {
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: 1,
+        snapshot: null as unknown as Parameters<
+          typeof assertScheduleFitsAccessDuration
+        >[0]["snapshot"],
+      })
+    ).toThrow("Cronograma de conteúdo inválido.");
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: 1,
+        snapshot: {
+          version: 1,
+          clock: "elapsed_24h",
+          modules: [null],
+        } as unknown as Parameters<
+          typeof assertScheduleFitsAccessDuration
+        >[0]["snapshot"],
+      })
+    ).toThrow("Cronograma de conteúdo inválido.");
+    expect(() =>
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: 1,
+        snapshot: {
+          version: 1,
+          clock: "elapsed_24h",
+          modules: [{ title: "Inválido", sortOrder: 1, releaseDelayDays: -1 }],
+        },
       })
     ).toThrow("Atraso de liberação inválido.");
   });

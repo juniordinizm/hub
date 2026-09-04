@@ -2,6 +2,10 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { getPool } from "@/db";
+import {
+  findContentReleaseRegressions,
+  type PublishedLessonRelease,
+} from "@/features/admin/course-publication-release-policy";
 import { LessonAuthoringError } from "@/features/admin/lesson-authoring-errors";
 import { normalizeLessonDraftInput } from "@/features/admin/lesson-drafts";
 import { resolveLessonVideoFormState } from "@/features/admin/lesson-video-form";
@@ -11,6 +15,7 @@ import {
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
+import { assertScheduleFitsAccessDuration } from "@/features/courses/module-content-release";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import { parseCourseWorkloadOverride } from "@/features/courses/workload";
@@ -481,6 +486,114 @@ export const publishCoursePublication = async ({
       "select cover_image_json from courses where id = $1 for update",
       [courseId]
     );
+
+    const scheduledReleaseHistory = await client.query<{
+      has_scheduled_release_history: boolean;
+    }>(
+      `
+        select exists (
+          select 1
+          from enrollment_events
+          where course_id = $1
+            and event_type = 'content_release_scheduled'
+        ) as has_scheduled_release_history
+      `,
+      [courseId]
+    );
+    const publicationLessons = await client.query<{
+      curriculum_key: string;
+      lesson_title: string;
+      module_title: string;
+      publication_status: "draft" | "published";
+      release_delay_days: number;
+    }>(
+      `
+        select cp.status as publication_status,
+               l.curriculum_key::text as curriculum_key,
+               l.title as lesson_title,
+               m.title as module_title,
+               m.sort_order as module_sort_order,
+               l.sort_order as lesson_sort_order,
+               m.release_delay_days
+        from lessons l
+        join course_publications cp on cp.id = l.course_publication_id
+        join modules m
+          on m.id = l.module_id
+         and m.course_publication_id = cp.id
+        where cp.course_id = $1
+          and (cp.status = 'published' or cp.id = $2)
+        order by case cp.status when 'published' then 0 else 1 end,
+                 m.sort_order,
+                 l.sort_order
+      `,
+      [courseId, coursePublicationId]
+    );
+    const toPublishedLessonRelease = (row: {
+      curriculum_key: string;
+      lesson_title: string;
+      module_title: string;
+      release_delay_days: number;
+    }): PublishedLessonRelease => ({
+      curriculumKey: row.curriculum_key,
+      lessonTitle: row.lesson_title,
+      moduleTitle: row.module_title,
+      releaseDelayDays: row.release_delay_days,
+    });
+    const previous = publicationLessons.rows
+      .filter(({ publication_status }) => publication_status === "published")
+      .map(toPublishedLessonRelease);
+    const next = publicationLessons.rows
+      .filter(({ publication_status }) => publication_status === "draft")
+      .map(toPublishedLessonRelease);
+    const regressions = findContentReleaseRegressions({
+      hasScheduledReleaseHistory:
+        scheduledReleaseHistory.rows[0]?.has_scheduled_release_history ?? false,
+      next,
+      previous,
+    });
+    const firstRegression = regressions[0];
+    if (firstRegression) {
+      throw new Error(
+        `Não foi possível publicar: A Aula "${firstRegression.lessonTitle}" passaria de D+${firstRegression.previousDelayDays} para D+${firstRegression.nextDelayDays} no Módulo "${firstRegression.nextModuleTitle}". Depois do início das Matrículas, atrasos só podem ser reduzidos.`
+      );
+    }
+
+    const incompatibleScheduledEnrollment = await client.query<{
+      lesson_title: string;
+      module_title: string;
+      release_delay_days: number;
+    }>(
+      `
+        select m.title as module_title,
+               l.title as lesson_title,
+               m.release_delay_days
+        from enrollments e
+        join modules m on m.course_publication_id = $2
+        join lessons l
+          on l.module_id = m.id
+         and l.course_publication_id = $2
+        where e.course_id = $1
+          and e.status = 'active'
+          and e.content_release_mode = 'scheduled'
+          and e.content_release_started_at is not null
+          and m.status = 'active'
+          and m.release_delay_days > 0
+          and l.status = 'active'
+          and l.is_required
+          and e.content_release_started_at
+                + (m.release_delay_days * interval '1 day') >= e.expires_at
+        order by m.sort_order, l.sort_order
+        limit 1
+      `,
+      [courseId, coursePublicationId]
+    );
+    const firstUnavailableLesson = incompatibleScheduledEnrollment.rows[0];
+    if (firstUnavailableLesson) {
+      throw new Error(
+        `Não foi possível publicar: A Aula "${firstUnavailableLesson.lesson_title}" do Módulo "${firstUnavailableLesson.module_title}" ficaria indisponível durante toda a validade de uma Matrícula agendada.`
+      );
+    }
+
     await publishCourseCover(
       parseCourseCoverImage(courseCover.rows[0]?.cover_image_json)
     );
@@ -1140,32 +1253,76 @@ const updateExistingCourse = async ({
 }): Promise<void> => {
   let uploadedCoverImage: CourseCoverImage | null = null;
   let didPersistCourse = false;
+  let nextCoverImage: CourseCoverImage | null = null;
+  const client = await getPool().connect();
 
   try {
-    const coverImage = coverFile
-      ? await uploadCourseCoverFile({ courseId, file: coverFile })
-      : parseCourseCoverFormField(formData);
-    uploadedCoverImage = coverFile ? coverImage : null;
-    const thumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
-
-    const publicationState = await getPool().query<{
+    await client.query("begin");
+    const publicationState = await client.query<{
+      access_duration_months: number;
+      max_release_delay_days: number;
+      sales_status: "closed" | "open";
       should_publish: boolean;
     }>(
       `
-        select (status = 'active' or catalog_visibility = 'listed') as should_publish
-        from courses
-        where id = $1
+        select (c.status = 'active' or c.catalog_visibility = 'listed') as should_publish,
+               c.access_duration_months,
+               c.sales_status,
+               coalesce((
+                 select max(m.release_delay_days)
+                 from modules m
+                 join course_publications cp on cp.id = m.course_publication_id
+                 where cp.course_id = c.id
+                   and cp.status = 'published'
+                   and m.status = 'active'
+               ), 0)::int as max_release_delay_days
+        from courses c
+        where c.id = $1
         limit 1
+        for update
       `,
       [courseId]
     );
-    if (publicationState.rows[0]?.should_publish) {
-      await publishCourseCover(coverImage);
-    } else {
-      await cleanupPublishedCourseCover(coverImage);
+    const currentCourse = publicationState.rows[0];
+    if (!currentCourse) {
+      throw new Error("Curso não encontrado.");
+    }
+    if (
+      currentCourse.sales_status === "open" &&
+      values.accessDurationMonths < currentCourse.access_duration_months
+    ) {
+      assertScheduleFitsAccessDuration({
+        accessDurationMonths: values.accessDurationMonths,
+        snapshot: {
+          clock: "elapsed_24h",
+          modules: [
+            {
+              releaseDelayDays: currentCourse.max_release_delay_days,
+              sortOrder: 1,
+              title: "Cronograma publicado",
+            },
+          ],
+          version: 1,
+        },
+      });
     }
 
-    await getPool().query(
+    nextCoverImage = coverFile
+      ? await uploadCourseCoverFile({ courseId, file: coverFile })
+      : parseCourseCoverFormField(formData);
+    uploadedCoverImage = coverFile ? nextCoverImage : null;
+    const thumbnailUrl = getCourseCoverUrl({
+      courseId,
+      coverImage: nextCoverImage,
+    });
+
+    if (currentCourse.should_publish) {
+      await publishCourseCover(nextCoverImage);
+    } else {
+      await cleanupPublishedCourseCover(nextCoverImage);
+    }
+
+    await client.query(
       `
          update courses
          set title = $1,
@@ -1192,19 +1349,22 @@ const updateExistingCourse = async ({
         values.paymentAllowCreditCard,
         values.paymentMaxInstallmentCount,
         thumbnailUrl,
-        coverImage ? JSON.stringify(coverImage) : null,
+        nextCoverImage ? JSON.stringify(nextCoverImage) : null,
         values.accessDurationMonths,
         courseId,
       ]
     );
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id)
+        values ($1, $2, $3, $4)
+      `,
+      [actorUserId, "course.updated", "course", courseId]
+    );
+    await client.query("commit");
     didPersistCourse = true;
-    await audit({
-      action: "course.updated",
-      actorUserId,
-      targetId: courseId,
-      targetType: "course",
-    });
   } catch (error) {
+    await client.query("rollback");
     if (!didPersistCourse) {
       await Promise.all([
         cleanupUploadedCourseCover(uploadedCoverImage),
@@ -1212,11 +1372,11 @@ const updateExistingCourse = async ({
       ]);
     }
     throw error;
+  } finally {
+    client.release();
   }
 
-  const nextCoverKeys = getCourseCoverStorageKeys(
-    coverFile ? uploadedCoverImage : parseCourseCoverFormField(formData)
-  );
+  const nextCoverKeys = getCourseCoverStorageKeys(nextCoverImage);
   const removedKeys = previousCoverKeys.filter(
     (key) => !nextCoverKeys.includes(key)
   );

@@ -45,6 +45,48 @@ const assertValidDelay = (releaseDelayDays: number): void => {
   }
 };
 
+export const assertScheduleFitsAccessDuration = ({
+  accessDurationMonths,
+  snapshot,
+}: {
+  accessDurationMonths: number;
+  snapshot: ContentReleaseScheduleSnapshot;
+}): void => {
+  const conservativeAccessDays = accessDurationMonths * 28;
+  if (
+    !Number.isSafeInteger(accessDurationMonths) ||
+    accessDurationMonths <= 0 ||
+    !Number.isSafeInteger(conservativeAccessDays)
+  ) {
+    throw new Error("Duração comercial inválida.");
+  }
+  if (
+    snapshot?.version !== 1 ||
+    snapshot.clock !== "elapsed_24h" ||
+    !Array.isArray(snapshot.modules)
+  ) {
+    throw new Error("Cronograma de conteúdo inválido.");
+  }
+
+  let maxReleaseDelayDays = 0;
+  for (const module of snapshot.modules as (ContentReleaseScheduleModule | null)[]) {
+    if (!module) {
+      throw new Error("Cronograma de conteúdo inválido.");
+    }
+    assertValidDelay(module.releaseDelayDays);
+    maxReleaseDelayDays = Math.max(
+      maxReleaseDelayDays,
+      module.releaseDelayDays
+    );
+  }
+
+  if (maxReleaseDelayDays >= conservativeAccessDays) {
+    throw new Error(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+  }
+};
+
 const getAvailableAt = (anchor: Date, releaseDelayDays: number): Date => {
   assertValidDate(anchor, "Âncora");
   assertValidDelay(releaseDelayDays);

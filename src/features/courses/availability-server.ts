@@ -16,12 +16,15 @@ import {
   parseCourseLaunchLandingUrl,
   resolveCourseAvailability,
 } from "./availability";
+import { assertScheduleFitsAccessDuration } from "./module-content-release";
 
 interface LockedCourseAvailabilityRow {
+  access_duration_months: number;
   catalog_visibility: CourseCatalogVisibility;
   has_commercial_history: boolean;
   has_published_publication: boolean;
   id: string;
+  max_release_delay_days: number;
   payment_allow_credit_card: boolean;
   payment_allow_pix: boolean;
   price_in_cents: number;
@@ -58,6 +61,7 @@ const readLockedCourse = async (
              c.status,
              c.catalog_visibility,
              c.sales_status,
+             c.access_duration_months,
              c.price_in_cents,
              c.payment_allow_pix,
              c.payment_allow_credit_card,
@@ -65,6 +69,14 @@ const readLockedCourse = async (
                select 1 from course_publications cp
                where cp.course_id = c.id and cp.status = 'published'
              ) as has_published_publication,
+             coalesce((
+               select max(m.release_delay_days)
+               from modules m
+               join course_publications cp on cp.id = m.course_publication_id
+               where cp.course_id = c.id
+                 and cp.status = 'published'
+                 and m.status = 'active'
+             ), 0)::int as max_release_delay_days,
              (
                exists (
                  select 1 from orders o
@@ -204,6 +216,23 @@ const validateTarget = ({
     throw new Error(
       "Configure uma oferta comercial válida antes de abrir vendas."
     );
+  }
+
+  if (target.preset === "available") {
+    assertScheduleFitsAccessDuration({
+      accessDurationMonths: course.access_duration_months,
+      snapshot: {
+        clock: "elapsed_24h",
+        modules: [
+          {
+            releaseDelayDays: course.max_release_delay_days,
+            sortOrder: 1,
+            title: "Cronograma publicado",
+          },
+        ],
+        version: 1,
+      },
+    });
   }
 };
 
