@@ -61,12 +61,12 @@ describe("module content release rules", () => {
   it("lets completed lessons bypass both locks", () => {
     expect(
       resolveLessonAvailability({
-        contentReleaseMode: "scheduled",
-        contentReleaseStartedAt: anchor,
-        releaseDelayDays: 8,
+        moduleRelease: {
+          kind: "time_locked",
+          availableAt: new Date(anchor.getTime() + 8 * day),
+        },
         isCompleted: true,
-        isSequenceAvailable: false,
-        now: anchor,
+        sequenceAvailable: false,
       })
     ).toEqual({ kind: "available" });
   });
@@ -74,12 +74,12 @@ describe("module content release rules", () => {
   it("lets time locks take precedence over sequence locks", () => {
     expect(
       resolveLessonAvailability({
-        contentReleaseMode: "scheduled",
-        contentReleaseStartedAt: anchor,
-        releaseDelayDays: 8,
+        moduleRelease: {
+          kind: "time_locked",
+          availableAt: new Date(anchor.getTime() + 8 * day),
+        },
         isCompleted: false,
-        isSequenceAvailable: false,
-        now: new Date(anchor.getTime() + day),
+        sequenceAvailable: false,
       })
     ).toEqual({
       kind: "time_locked",
@@ -100,7 +100,7 @@ describe("module content release rules", () => {
         { title: "Segundo", sortOrder: 2, releaseDelayDays: 8 },
       ],
     });
-    expect(hasDelayedModules(snapshot.modules)).toBe(true);
+    expect(hasDelayedModules(snapshot)).toBe(true);
   });
 
   it("rejects unsafe delays and invalid dates", () => {
@@ -112,6 +112,21 @@ describe("module content release rules", () => {
         now: anchor,
       })
     ).toThrow("Atraso de liberação inválido.");
+    for (const releaseDelayDays of [
+      -1,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+    ]) {
+      expect(() =>
+        resolveModuleContentRelease({
+          contentReleaseMode: "full_access",
+          contentReleaseStartedAt: null,
+          releaseDelayDays,
+          now: anchor,
+        })
+      ).toThrow("Atraso de liberação inválido.");
+    }
     expect(() =>
       resolveModuleContentRelease({
         contentReleaseMode: "scheduled",
@@ -128,5 +143,26 @@ describe("module content release rules", () => {
         now: anchor,
       })
     ).toThrow("Data de liberação inválida.");
+    expect(() =>
+      resolveModuleContentRelease({
+        contentReleaseMode: "full_access",
+        contentReleaseStartedAt: null,
+        releaseDelayDays: 0,
+        now: new Date("invalid"),
+      })
+    ).toThrow("Relógio inválida.");
+  });
+
+  it("detects delays from a validated snapshot", () => {
+    expect(
+      hasDelayedModules({ version: 1, clock: "elapsed_24h", modules: [] })
+    ).toBe(false);
+    expect(() =>
+      hasDelayedModules({
+        version: 1,
+        clock: "elapsed_24h",
+        modules: [{ title: "Inválido", sortOrder: 1, releaseDelayDays: -1 }],
+      })
+    ).toThrow("Atraso de liberação inválido.");
   });
 });

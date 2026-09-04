@@ -2,16 +2,19 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 
 export type ContentReleaseMode = "full_access" | "scheduled";
 
-export interface ModuleContentRelease {
+export interface ModuleContentReleaseInput {
   contentReleaseMode: ContentReleaseMode;
   contentReleaseStartedAt: Date | null;
   now: Date;
   releaseDelayDays: number;
 }
 
-export type LessonAvailability =
+export type ModuleContentRelease =
   | { kind: "available" }
-  | { kind: "time_locked"; availableAt: Date }
+  | { kind: "time_locked"; availableAt: Date };
+
+export type LessonAvailability =
+  | ModuleContentRelease
   | { kind: "sequence_locked" };
 
 export interface ContentReleaseScheduleModule {
@@ -56,7 +59,7 @@ export const resolveModuleContentRelease = ({
   contentReleaseStartedAt,
   releaseDelayDays,
   now,
-}: ModuleContentRelease): LessonAvailability => {
+}: ModuleContentReleaseInput): ModuleContentRelease => {
   assertValidDate(now, "Relógio");
   assertValidDelay(releaseDelayDays);
 
@@ -77,23 +80,23 @@ export const resolveModuleContentRelease = ({
     : { kind: "time_locked", availableAt };
 };
 
-type LessonAvailabilityInput = ModuleContentRelease & {
+interface LessonAvailabilityInput {
   isCompleted: boolean;
-  isSequenceAvailable: boolean;
-};
+  moduleRelease: ModuleContentRelease;
+  sequenceAvailable: boolean;
+}
 
 export const resolveLessonAvailability = (
   input: LessonAvailabilityInput
 ): LessonAvailability => {
-  const { isCompleted, isSequenceAvailable, ...release } = input;
+  const { isCompleted, moduleRelease, sequenceAvailable } = input;
   if (isCompleted) {
     return { kind: "available" };
   }
-  const releaseAvailability = resolveModuleContentRelease(release);
-  if (releaseAvailability.kind !== "available") {
-    return releaseAvailability;
+  if (moduleRelease.kind !== "available") {
+    return moduleRelease;
   }
-  return isSequenceAvailable
+  return sequenceAvailable
     ? { kind: "available" }
     : { kind: "sequence_locked" };
 };
@@ -112,5 +115,10 @@ export const buildContentReleaseScheduleSnapshot = (
 });
 
 export const hasDelayedModules = (
-  modules: readonly Pick<ContentReleaseScheduleModule, "releaseDelayDays">[]
-): boolean => modules.some(({ releaseDelayDays }) => releaseDelayDays > 0);
+  snapshot: ContentReleaseScheduleSnapshot
+): boolean => {
+  for (const module of snapshot.modules) {
+    assertValidDelay(module.releaseDelayDays);
+  }
+  return snapshot.modules.some(({ releaseDelayDays }) => releaseDelayDays > 0);
+};
