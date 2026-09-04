@@ -87,6 +87,23 @@ describe("module content release rules", () => {
     });
   });
 
+  it("applies sequence availability after the module is released", () => {
+    expect(
+      resolveLessonAvailability({
+        moduleRelease: { kind: "available" },
+        isCompleted: false,
+        sequenceAvailable: false,
+      })
+    ).toEqual({ kind: "sequence_locked" });
+    expect(
+      resolveLessonAvailability({
+        moduleRelease: { kind: "available" },
+        isCompleted: false,
+        sequenceAvailable: true,
+      })
+    ).toEqual({ kind: "available" });
+  });
+
   it("builds an ordered identifier-free schedule snapshot", () => {
     const snapshot = buildContentReleaseScheduleSnapshot([
       { title: "Segundo", sortOrder: 2, releaseDelayDays: 8, id: "secret" },
