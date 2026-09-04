@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 9d0450a
 ---
 
 # Registro de decisões de produto
@@ -68,10 +68,12 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 
 ## DEC-DISC-005
 
-**Tema:** coortes e versões de conteúdo.
-**Estado:** aprovado e implementado.
+**Tema:** currículo vivo, coortes e liberação temporal.
+**Estado:** currículo implementado; liberação temporal aprovada e ainda não implementada.
 
-`Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluna + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente. Não há coorte nem `DripRule` até existir calendário ou grupo real. Ver [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md).
+`Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluna + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente.
+
+Não haverá coorte. A necessidade real foi delimitada a liberação relativa por Módulo: `D+N` equivale a `N × 24 horas` em UTC desde o início do episódio contínuo de entrega. Renovação preserva a âncora; recompra após perda total reinicia. Matrículas anteriores ao rollout mantêm acesso integral. Depois da primeira Matrícula agendada, publicação pode reduzir atrasos, mas não aumentar o atraso efetivo de Aula existente, inclusive por movimentação. Admin pode liberar integralmente uma Matrícula com motivo e auditoria, sem restauração do bloqueio no mesmo episódio. Ver [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md), [ADR-0010](adr/0010-relative-module-content-release.md) e a [especificação aceita](superpowers/specs/2026-09-04-module-content-release-design.md).
 
 ## DEC-DISC-006
 

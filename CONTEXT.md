@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: 9d0450a
 ---
 
 # Glossário do Hub
@@ -72,7 +72,7 @@ Revisão interna materializada de Módulos e Aulas, com estados rascunho, public
 Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Somente a transação que cria essa primeira evidência pode iniciar a emissão automática de Certificado. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
 
 **Módulo**  
-Agrupamento ordenado de Aulas dentro de Curso.
+Agrupamento ordenado de Aulas dentro de Curso e unidade de disponibilidade temporal. Todas as Aulas herdam o momento de liberação do Módulo atual.
 
 **Aula**  
 Unidade ordenada de aprendizagem que pode combinar vídeo, texto rico e materiais.
@@ -82,6 +82,12 @@ Evidência de consumo de Aulas e Curso. Não é direito de acesso.
 
 **Conclusão**  
 Estado em que Aula ou Curso satisfaz a regra vigente de completude. É independente de expiração.
+
+**Disponibilidade temporal do Módulo**
+Condição que define quantos períodos de 24 horas após o início da entrega devem transcorrer antes do consumo de um Módulo. Não concede acesso ao Curso, não altera sua validade e não substitui a sequência pedagógica.
+
+**Início da entrega de conteúdo**
+Âncora do episódio contínuo em que uma Matrícula efetiva recebe conteúdo programado. Renovação contínua preserva a âncora; novo direito após perda total inicia outra.
 
 **Certificado**  
 Documento para uma Aluna e Curso, com snapshots exibidos. O lifecycle é serializado por Conta e Curso; o preparo do PDF pode estar pendente, pronto ou falho. Pode ser válido, revogado ou reemitido.
