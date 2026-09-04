@@ -156,10 +156,11 @@ describe("auth policy", () => {
     ).toBeNull();
   });
 
-  it("only raises the sign-in limit in isolated E2E mode", () => {
+  it("raises sign-in and password reset limits in isolated E2E mode", () => {
     expect(getBetterAuthRateLimitConfig(false)).toBeUndefined();
     expect(getBetterAuthRateLimitConfig(true)).toEqual({
       customRules: {
+        "/request-password-reset": { max: 100, window: 10 },
         "/sign-in/email": { max: 100, window: 10 },
       },
     });
