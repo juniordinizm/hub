@@ -247,6 +247,7 @@ describe("module content release controls", () => {
     expect(delayDays?.id).not.toBe("");
     expect(delayDaysLabel?.htmlFor).toBe(delayDays?.id);
     expect(delayDays?.closest("label")).toBeNull();
+    expect(delayDays?.getAttribute("autocomplete")).toBe("off");
     expect(delayDays?.getAttribute("value")).toBe("8");
     expect(delayDays?.getAttribute("min")).toBe("1");
     expect(delayDays?.getAttribute("step")).toBe("1");

@@ -52,6 +52,7 @@ const CONTENT_STATUS_LABELS: Record<string, string> = {
   archived: "arquivado",
   draft: "rascunho",
 };
+const DEFAULT_MODULE_RELEASE_DELAY_DAYS = 8;
 
 export function CourseBuilderWrapper({
   course,
@@ -340,8 +341,12 @@ export function ModuleForm({
                   Dias para liberar o módulo
                 </label>
                 <Input
+                  autoComplete="off"
                   className="w-24"
-                  defaultValue={moduleData?.releaseDelayDays || 8}
+                  defaultValue={
+                    moduleData?.releaseDelayDays ||
+                    DEFAULT_MODULE_RELEASE_DELAY_DAYS
+                  }
                   id={releaseDelayDaysId}
                   min={1}
                   name="releaseDelayDays"
