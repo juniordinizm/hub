@@ -55,6 +55,10 @@ export const enrollmentStatusEnum = pgEnum("enrollment_status", [
   "expired",
   "revoked",
 ]);
+export const enrollmentContentReleaseModeEnum = pgEnum(
+  "enrollment_content_release_mode",
+  ["full_access", "scheduled"]
+);
 export const enrollmentGrantStatusEnum = pgEnum("enrollment_grant_status", [
   "active",
   "expired",
@@ -81,6 +85,8 @@ export const enrollmentEventTypeEnum = pgEnum("enrollment_event_type", [
   "expiration_set",
   "expiration_adjustment_reversed",
   "projection_rebuilt",
+  "content_release_scheduled",
+  "content_full_access_granted",
 ]);
 export const orderStatusEnum = pgEnum("order_status", [
   "pending",
@@ -503,6 +509,7 @@ export const modules = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     sortOrder: integer("sort_order").notNull(),
+    releaseDelayDays: integer("release_delay_days").default(0).notNull(),
     status: courseStatusEnum("status").default("draft").notNull(),
     ...timestamps,
   },
@@ -515,6 +522,10 @@ export const modules = pgTable(
     uniqueIndex("modules_course_publication_sort_unique_idx").on(
       table.coursePublicationId,
       table.sortOrder
+    ),
+    check(
+      "modules_release_delay_days_non_negative",
+      sql`${table.releaseDelayDays} >= 0`
     ),
   ]
 );
@@ -661,6 +672,10 @@ export const enrollments = pgTable(
       .notNull()
       .references(() => courses.id, { onDelete: "cascade" }),
     status: enrollmentStatusEnum("status").default("active").notNull(),
+    contentReleaseMode: enrollmentContentReleaseModeEnum("content_release_mode")
+      .default("full_access")
+      .notNull(),
+    contentReleaseStartedAt: timestamp("content_release_started_at", tz),
     startsAt: timestamp("starts_at", tz).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", tz).notNull(),
     revokedAt: timestamp("revoked_at", tz),
@@ -676,6 +691,10 @@ export const enrollments = pgTable(
     ),
     index("enrollments_course_status_idx").on(table.courseId, table.status),
     index("enrollments_expires_at_idx").on(table.expiresAt),
+    check(
+      "enrollments_content_release_shape",
+      sql`(${table.contentReleaseMode} = 'full_access' and ${table.contentReleaseStartedAt} is null) or (${table.contentReleaseMode} = 'scheduled' and ${table.contentReleaseStartedAt} is not null)`
+    ),
   ]
 );
 
@@ -1042,6 +1061,9 @@ export const orders = pgTable(
     checkoutCourseSlug: text("checkout_course_slug").notNull(),
     checkoutItemName: text("checkout_item_name").notNull(),
     checkoutItemDescription: text("checkout_item_description").notNull(),
+    contentReleaseScheduleSnapshot: jsonb("content_release_schedule_snapshot")
+      .default(sql`'{"version":1,"clock":"elapsed_24h","modules":[]}'::jsonb`)
+      .notNull(),
     ...timestamps,
   },
   (table) => [
