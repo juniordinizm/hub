@@ -170,6 +170,23 @@ const lockEnrollmentAggregate = async (
   );
 };
 
+const hasEnrollmentGrantForOrder = async (
+  client: PoolClient,
+  orderId: string
+): Promise<boolean> => {
+  const { rows } = await client.query<{ id: string }>(
+    `
+      select id
+      from enrollment_grants
+      where order_id = $1
+      limit 1
+      for update
+    `,
+    [orderId]
+  );
+  return Boolean(rows[0]);
+};
+
 const getCurrentRenewalBase = async ({
   client,
   courseId,
@@ -453,6 +470,9 @@ export const applyPaidWebhookAccess = async ({
   userId: string;
 }): Promise<void> => {
   await lockEnrollmentAggregate(client, userId, courseId);
+  if (await hasEnrollmentGrantForOrder(client, orderId)) {
+    return;
+  }
   const currentExpiresAt = await getCurrentRenewalBase({
     client,
     courseId,

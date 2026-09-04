@@ -3,7 +3,128 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { applyPaymentRevocation, rebuildEnrollmentProjection } from "./server";
+import {
+  applyPaidWebhookAccess,
+  applyPaymentRevocation,
+  rebuildEnrollmentProjection,
+} from "./server";
+
+describe("paid access replay", () => {
+  it("returns after the locked order lookup without renewing or emitting effects", async () => {
+    const now = new Date("2026-09-04T17:30:00.000Z");
+    const expiresAt = new Date("2027-09-04T17:30:00.000Z");
+    let anchor: Date | null = null;
+    let grantExists = false;
+    let persistedExpiration: Date | null = null;
+    const calls: Array<{ params: unknown[]; text: string }> = [];
+
+    const query = vi.fn((text: string, params: unknown[] = []) => {
+      calls.push({ params, text });
+
+      if (text.includes("pg_advisory_xact_lock")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (
+        text.includes("from enrollment_grants") &&
+        text.includes("where order_id = $1") &&
+        text.includes("for update")
+      ) {
+        return Promise.resolve({
+          rows: grantExists ? [{ id: "grant-1" }] : [],
+        });
+      }
+      if (text.includes("as current_expires_at")) {
+        return Promise.resolve({ rows: [{ current_expires_at: null }] });
+      }
+      if (text.includes("insert into enrollment_grants")) {
+        grantExists = true;
+        persistedExpiration = params[4] as Date;
+        return Promise.resolve({ rows: [{ id: "grant-1" }] });
+      }
+      if (text.includes("from enrollments") && text.includes("for update")) {
+        return Promise.resolve({
+          rows: anchor
+            ? [
+                {
+                  content_release_mode: "scheduled",
+                  content_release_started_at: anchor,
+                  expires_at: persistedExpiration,
+                  id: "enrollment-1",
+                  revoked_reason: null,
+                  starts_at: now,
+                  status: "active",
+                },
+              ]
+            : [],
+        });
+      }
+      if (text.includes("from course_publications")) {
+        return Promise.resolve({
+          rows: [{ has_delayed_modules: true, id: "publication-1" }],
+        });
+      }
+      if (text.includes("update enrollment_grants")) {
+        return Promise.resolve({ rows: [] });
+      }
+      if (text.includes("min(starts_at)")) {
+        return Promise.resolve({
+          rows: [{ expires_at: persistedExpiration, starts_at: now }],
+        });
+      }
+      if (text.includes("insert into enrollments")) {
+        anchor = params[5] as Date;
+        return Promise.resolve({ rows: [{ id: "enrollment-1" }] });
+      }
+      if (text.includes("insert into enrollment_events")) {
+        return Promise.resolve({ rows: [] });
+      }
+
+      return Promise.reject(new Error(`Unexpected paid access query: ${text}`));
+    });
+    const client = { query } as unknown as PoolClient;
+
+    await applyPaidWebhookAccess({
+      accessDurationMonths: 12,
+      client,
+      courseId: "course-1",
+      now,
+      orderId: "11111111-1111-4111-8111-111111111111",
+      userId: "user-1",
+    });
+    const firstApplicationCallCount = calls.length;
+    const firstExpiration = persistedExpiration;
+    const firstAnchor = anchor;
+
+    await applyPaidWebhookAccess({
+      accessDurationMonths: 12,
+      client,
+      courseId: "course-1",
+      now: new Date("2026-09-05T17:30:00.000Z"),
+      orderId: "11111111-1111-4111-8111-111111111111",
+      userId: "user-1",
+    });
+
+    expect(calls.slice(firstApplicationCallCount)).toEqual([
+      {
+        params: ["user-1", "course-1"],
+        text: "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
+      },
+      expect.objectContaining({
+        params: ["11111111-1111-4111-8111-111111111111"],
+      }),
+    ]);
+    expect(persistedExpiration).toBe(firstExpiration);
+    expect(anchor).toBe(firstAnchor);
+    expect(firstExpiration).toEqual(expiresAt);
+    expect(firstAnchor).toEqual(now);
+    expect(
+      calls.filter(({ text }) => text.includes("insert into enrollment_events"))
+    ).toHaveLength(3);
+    expect(
+      calls.filter(({ text }) => text.includes("insert into enrollments"))
+    ).toHaveLength(1);
+  });
+});
 
 describe("enrollment projection content release", () => {
   it("locks before reading and emits one safe scheduled event across a retry", async () => {

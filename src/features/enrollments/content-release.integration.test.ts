@@ -313,4 +313,85 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
       await cleanupFixtures();
     }
   });
+
+  it("mantem concessao, expiracao, ancora e eventos em replay do mesmo pedido", async () => {
+    const fixture = await createFixture();
+    const firstNow = new Date("2026-09-04T17:30:00.000Z");
+    const replayNow = new Date("2026-09-05T17:30:00.000Z");
+    const expectedExpiration = new Date("2027-09-04T17:30:00.000Z");
+
+    try {
+      for (const now of [firstNow, replayNow]) {
+        const client = await pool.connect();
+        try {
+          await client.query("begin");
+          await applyPaidWebhookAccess({
+            accessDurationMonths: ACCESS_DURATION_MONTHS,
+            client,
+            courseId: fixture.courseId,
+            now,
+            orderId: fixture.firstOrderId,
+            userId: fixture.userId,
+          });
+          await client.query("commit");
+        } catch (error) {
+          await rollbackQuietly(client);
+          throw error;
+        } finally {
+          client.release();
+        }
+      }
+
+      const { rows: grantRows } = await pool.query<{
+        effective_expires_at: Date;
+      }>(
+        `
+          select effective_expires_at
+          from enrollment_grants
+          where order_id = $1
+        `,
+        [fixture.firstOrderId]
+      );
+      expect(grantRows).toEqual([{ effective_expires_at: expectedExpiration }]);
+
+      const { rows: enrollmentRows } = await pool.query<{
+        content_release_started_at: Date;
+        expires_at: Date;
+      }>(
+        `
+          select content_release_started_at, expires_at
+          from enrollments
+          where user_id = $1 and course_id = $2
+        `,
+        [fixture.userId, fixture.courseId]
+      );
+      expect(enrollmentRows).toEqual([
+        {
+          content_release_started_at: firstNow,
+          expires_at: expectedExpiration,
+        },
+      ]);
+
+      const { rows: eventRows } = await pool.query<{
+        count: string;
+        event_type: string;
+      }>(
+        `
+          select event_type, count(*)
+          from enrollment_events
+          where user_id = $1 and course_id = $2
+          group by event_type
+          order by event_type
+        `,
+        [fixture.userId, fixture.courseId]
+      );
+      expect(eventRows).toEqual([
+        { count: "1", event_type: "content_release_scheduled" },
+        { count: "1", event_type: "payment_paid" },
+        { count: "1", event_type: "projection_rebuilt" },
+      ]);
+    } finally {
+      await cleanupFixtures();
+    }
+  });
 });
