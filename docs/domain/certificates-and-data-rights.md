@@ -20,6 +20,13 @@ para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ
 Curso. Não há HTML livre, campos arbitrários ou inferência automática de
 posicionamento.
 
+Na composição do template, a arte de fundo A4, o nome da Aluna, o código de
+validação e o QR de validação são obrigatórios e devem permanecer visíveis no
+layout. O título do Curso e o nome do emissor continuam disponíveis e são
+preenchidos automaticamente, mas podem ficar ocultos. O perfil emissor global,
+com razão social, nome de exibição/marca e CNPJ, continua obrigatório para a
+publicação.
+
 Sobreposições geométricas entre campos visíveis são permitidas: podem ser uma
 decisão intencional de composição. O editor calcula os pares sobrepostos,
 mostra um aviso acessível e destaca os retângulos no preview, mas não bloqueia
