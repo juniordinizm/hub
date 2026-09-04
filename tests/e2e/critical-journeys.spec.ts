@@ -325,14 +325,23 @@ test("login and password recovery do not enumerate accounts @mobile", async ({
   await page.goto("/recuperar-senha");
   await page.getByLabel("E-mail").fill(fixture.studentWithGrant.email);
   await page.getByRole("button", { name: "Enviar link" }).click();
-  const resetConfirmation = page
-    .locator("form [role='alert']")
-    .filter({ hasText: "Se o e-mail estiver cadastrado" });
+
+  const resetConfirmation = page.getByRole("status");
+  await expect(resetConfirmation).toContainText(
+    "Se o e-mail estiver cadastrado"
+  );
   const knownMessage = await resetConfirmation.textContent();
 
+  await expect(page.getByRole("button", { name: "Enviar link" })).toHaveCount(
+    0
+  );
+  await expect(page.locator("form")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Tentar com outro e-mail" }).click();
   await page.getByLabel("E-mail").fill("missing@example.test");
   await page.getByRole("button", { name: "Enviar link" }).click();
-  await expect(resetConfirmation).toHaveText(knownMessage ?? "");
+
+  await expect(page.getByRole("status")).toHaveText(knownMessage ?? "");
 });
 
 test("public signup creates a student account without granting a course", async ({

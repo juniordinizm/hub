@@ -142,14 +142,28 @@ const E2E_SIGN_IN_RATE_LIMIT = {
   max: 100,
   window: 10,
 } as const;
+const E2E_PASSWORD_RESET_RATE_LIMIT = {
+  max: 100,
+  window: 10,
+} as const;
 
 export const getBetterAuthRateLimitConfig = (
   isE2eTestMode: boolean
 ):
-  | { customRules: { "/sign-in/email": typeof E2E_SIGN_IN_RATE_LIMIT } }
+  | {
+      customRules: {
+        "/request-password-reset": typeof E2E_PASSWORD_RESET_RATE_LIMIT;
+        "/sign-in/email": typeof E2E_SIGN_IN_RATE_LIMIT;
+      };
+    }
   | undefined =>
   isE2eTestMode
-    ? { customRules: { "/sign-in/email": E2E_SIGN_IN_RATE_LIMIT } }
+    ? {
+        customRules: {
+          "/request-password-reset": E2E_PASSWORD_RESET_RATE_LIMIT,
+          "/sign-in/email": E2E_SIGN_IN_RATE_LIMIT,
+        },
+      }
     : undefined;
 
 export const getResolvedBetterAuthInfraConfig = ({
