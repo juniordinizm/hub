@@ -20,6 +20,10 @@ describe("enrollment server SQL contracts", () => {
       "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))";
     const existingEnrollmentRead = "from enrollments\n      where user_id = $1";
     const publicationRead = "from course_publications";
+    const lockedEnrollmentRead = projectionSource.slice(
+      projectionSource.indexOf("const existingEnrollment"),
+      projectionSource.indexOf("const previousEnrollment")
+    );
 
     expect(projectionSource).toContain(advisoryLock);
     expect(projectionSource).toContain(existingEnrollmentRead);
@@ -32,6 +36,7 @@ describe("enrollment server SQL contracts", () => {
     );
     expect(projectionSource).toContain("content_release_mode");
     expect(projectionSource).toContain("content_release_started_at");
+    expect(lockedEnrollmentRead).toContain("revoked_reason");
   });
 
   it("derives and persists scheduled delivery from the published modules", async () => {

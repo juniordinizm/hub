@@ -19,7 +19,7 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: true,
         now,
         preserveExisting: false,
-        previousState: null,
+        previous: null,
         wasContinuouslyActive: false,
       })
     ).toEqual({
@@ -35,7 +35,7 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: false,
         now,
         preserveExisting: false,
-        previousState: null,
+        previous: null,
         wasContinuouslyActive: false,
       })
     ).toEqual({ event: null, mode: "full_access", startedAt: null });
@@ -49,7 +49,7 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: true,
         now,
         preserveExisting: false,
-        previousState: { mode: "scheduled", startedAt },
+        previous: { mode: "scheduled", startedAt },
         wasContinuouslyActive: true,
       })
     ).toEqual({ event: null, mode: "scheduled", startedAt });
@@ -61,7 +61,7 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: true,
         now,
         preserveExisting: false,
-        previousState: { mode: "full_access", startedAt: null },
+        previous: { mode: "full_access", startedAt: null },
         wasContinuouslyActive: true,
       })
     ).toEqual({ event: null, mode: "full_access", startedAt: null });
@@ -75,7 +75,7 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: false,
         now,
         preserveExisting: true,
-        previousState: { mode: "scheduled", startedAt },
+        previous: { mode: "scheduled", startedAt },
         wasContinuouslyActive: false,
       })
     ).toEqual({ event: null, mode: "scheduled", startedAt });
@@ -87,26 +87,29 @@ describe("enrollment content release transition", () => {
         hasDelayedModules: true,
         now,
         preserveExisting: true,
-        previousState: { mode: "scheduled", startedAt: null },
+        previous: { mode: "scheduled", startedAt: null },
         wasContinuouslyActive: false,
       })
     ).toThrow("Matricula agendada sem inicio da entrega.");
   });
 
   it("restarts scheduled delivery after total loss of access", () => {
-    expect(
-      getEnrollmentContentReleaseTransition({
-        hasDelayedModules: true,
-        now,
-        preserveExisting: false,
-        previousState: null,
-        wasContinuouslyActive: false,
-      })
-    ).toEqual({
+    const oldAnchor = new Date("2026-08-20T14:00:00.000Z");
+    const result = getEnrollmentContentReleaseTransition({
+      hasDelayedModules: true,
+      now,
+      preserveExisting: false,
+      previous: { mode: "scheduled", startedAt: oldAnchor },
+      wasContinuouslyActive: false,
+    });
+
+    expect(result).toEqual({
       event: "content_release_scheduled",
       mode: "scheduled",
       startedAt: now,
     });
+    const newAnchor = result.startedAt;
+    expect(newAnchor).not.toBe(oldAnchor);
   });
 });
 

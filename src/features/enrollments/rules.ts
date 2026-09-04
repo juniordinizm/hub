@@ -29,21 +29,21 @@ export const getEnrollmentContentReleaseTransition = ({
   hasDelayedModules,
   now,
   preserveExisting,
-  previousState,
+  previous,
   wasContinuouslyActive,
 }: {
   hasDelayedModules: boolean;
   now: Date;
   preserveExisting: boolean;
-  previousState: EnrollmentContentReleaseState | null;
+  previous: EnrollmentContentReleaseState | null;
   wasContinuouslyActive: boolean;
 }): EnrollmentContentReleaseTransition => {
-  if (previousState?.mode === "scheduled" && !previousState.startedAt) {
+  if (previous?.mode === "scheduled" && !previous.startedAt) {
     throw new Error("Matricula agendada sem inicio da entrega.");
   }
 
-  if (previousState && (preserveExisting || wasContinuouslyActive)) {
-    return { ...previousState, event: null };
+  if (previous && (preserveExisting || wasContinuouslyActive)) {
+    return { ...previous, event: null };
   }
 
   if (hasDelayedModules) {

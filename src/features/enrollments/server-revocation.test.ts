@@ -17,6 +17,7 @@ describe("enrollment projection content release", () => {
           content_release_started_at: Date;
           expires_at: Date;
           id: string;
+          revoked_reason: null;
           starts_at: Date;
           status: "active";
         }
@@ -56,6 +57,7 @@ describe("enrollment projection content release", () => {
           content_release_started_at: anchor,
           expires_at: expiresAt,
           id: "enrollment-1",
+          revoked_reason: null,
           starts_at: startsAt,
           status: "active",
         };

@@ -67,6 +67,7 @@ interface ExistingEnrollmentProjectionRow {
   content_release_started_at: Date | null;
   expires_at: Date;
   id: string;
+  revoked_reason: string | null;
   starts_at: Date;
   status: EnrollmentStatus;
 }
@@ -212,7 +213,8 @@ export const rebuildEnrollmentProjection = async ({
         starts_at,
         expires_at,
         content_release_mode,
-        content_release_started_at
+        content_release_started_at,
+        revoked_reason
       from enrollments
       where user_id = $1 and course_id = $2
       for update
@@ -283,7 +285,7 @@ export const rebuildEnrollmentProjection = async ({
       hasDelayedModules: publication.has_delayed_modules,
       now,
       preserveExisting: preserveContentRelease,
-      previousState: previousEnrollment
+      previous: previousEnrollment
         ? {
             mode: previousEnrollment.content_release_mode,
             startedAt: previousEnrollment.content_release_started_at,
