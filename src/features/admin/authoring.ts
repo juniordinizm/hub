@@ -92,6 +92,20 @@ const readNumber = (formData: FormData, key: string, fallback = 0): number => {
   return Number.isFinite(value) ? value : fallback;
 };
 
+const readModuleReleaseDelayDays = (formData: FormData): number => {
+  if (readString(formData, "releaseMode") === "immediate") {
+    return 0;
+  }
+
+  const rawValue = readString(formData, "releaseDelayDays");
+  const value = Number(rawValue);
+  if (!(rawValue && Number.isSafeInteger(value) && value >= 0)) {
+    throw new Error("Informe uma quantidade inteira e não negativa de dias.");
+  }
+
+  return value;
+};
+
 const normalizeLessonContentForSave = ({
   formData,
   lessonId,
@@ -593,12 +607,13 @@ export const createCoursePublicationDraft = async ({
     const modulesToCopy = await client.query<{
       description: string | null;
       id: string;
+      release_delay_days: number;
       sort_order: number;
       status: ContentStatus;
       title: string;
     }>(
       `
-        select id, title, description, sort_order, status
+        select id, title, description, sort_order, status, release_delay_days
         from modules
         where course_publication_id = $1
         order by sort_order asc
@@ -609,8 +624,8 @@ export const createCoursePublicationDraft = async ({
     for (const module of modulesToCopy.rows) {
       const clonedModule = await client.query<{ id: string }>(
         `
-          insert into modules (course_id, course_publication_id, title, description, sort_order, status)
-          values ($1, $2, $3, $4, $5, $6)
+          insert into modules (course_id, course_publication_id, title, description, sort_order, status, release_delay_days)
+          values ($1, $2, $3, $4, $5, $6, $7)
           returning id
         `,
         [
@@ -620,6 +635,7 @@ export const createCoursePublicationDraft = async ({
           module.description,
           module.sort_order,
           module.status,
+          module.release_delay_days,
         ]
       );
       const clonedModuleId = clonedModule.rows[0]?.id;
@@ -1374,6 +1390,7 @@ export const saveModule = async ({
   const title = readString(formData, "title");
   const description = readString(formData, "description") || null;
   const sortOrder = readNumber(formData, "sortOrder", 1);
+  const releaseDelayDays = readModuleReleaseDelayDays(formData);
   const status = moduleId
     ? readContentStatus(formData)
     : CREATED_CONTENT_STATUS;
@@ -1389,10 +1406,19 @@ export const saveModule = async ({
             description = $3,
             sort_order = $4,
             status = $5,
+            release_delay_days = $6,
             updated_at = now()
-        where id = $6
+        where id = $7
       `,
-      [courseId, title, description, sortOrder, status, moduleId]
+      [
+        courseId,
+        title,
+        description,
+        sortOrder,
+        status,
+        releaseDelayDays,
+        moduleId,
+      ]
     );
     await audit({
       action: "module.updated",
@@ -1411,16 +1437,25 @@ export const saveModule = async ({
 
   const inserted = await getPool().query<{ id: string }>(
     `
-      insert into modules (course_id, course_publication_id, title, description, sort_order, status)
-      values ($1, $2, $3, $4, $5, $6)
+      insert into modules (course_id, course_publication_id, title, description, sort_order, status, release_delay_days)
+      values ($1, $2, $3, $4, $5, $6, $7)
       on conflict (course_publication_id, sort_order) do update set
         title = excluded.title,
         description = excluded.description,
         status = excluded.status,
+        release_delay_days = excluded.release_delay_days,
         updated_at = now()
       returning id
     `,
-    [courseId, coursePublicationId, title, description, sortOrder, status]
+    [
+      courseId,
+      coursePublicationId,
+      title,
+      description,
+      sortOrder,
+      status,
+      releaseDelayDays,
+    ]
   );
   await audit({
     action: "module.upserted",

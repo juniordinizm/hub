@@ -153,6 +153,11 @@ export function ModuleSection({
             >
               {CONTENT_STATUS_LABELS[moduleData.status] ?? moduleData.status}
             </Badge>
+            <Badge variant="outline">
+              {moduleData.releaseDelayDays === 0
+                ? "Liberação imediata"
+                : `Liberação em D+${moduleData.releaseDelayDays}`}
+            </Badge>
           </div>
           <p className="mt-1 text-muted-foreground text-sm">
             {lessonCount} {lessonCount === 1 ? "aula" : "aulas"} ·{" "}
@@ -304,6 +309,41 @@ export function ModuleForm({
                 name="description"
               />
             </Field>
+            <fieldset className="space-y-3">
+              <legend className="font-medium text-sm">
+                Liberação do conteúdo
+              </legend>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  defaultChecked={(moduleData?.releaseDelayDays ?? 0) === 0}
+                  name="releaseMode"
+                  type="radio"
+                  value="immediate"
+                />
+                Imediatamente
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  defaultChecked={(moduleData?.releaseDelayDays ?? 0) > 0}
+                  name="releaseMode"
+                  type="radio"
+                  value="delayed"
+                />
+                Após
+                <Input
+                  className="w-24"
+                  defaultValue={moduleData?.releaseDelayDays || 8}
+                  min={1}
+                  name="releaseDelayDays"
+                  step={1}
+                  type="number"
+                />
+                dias
+              </label>
+              <p className="text-muted-foreground text-xs">
+                Cada dia equivale a 24 horas desde o início do acesso da Aluna.
+              </p>
+            </fieldset>
             {moduleData ? (
               <Field>
                 <FieldLabel>Status</FieldLabel>

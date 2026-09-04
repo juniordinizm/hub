@@ -20,6 +20,7 @@ import {
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
+  getAdminDashboardData,
   getAdminFinancialData,
   getAdminLessonEditorData,
   getAdminStudentDetail,
@@ -60,6 +61,7 @@ const moduleRow = {
   course_title: "Course one",
   description: "Module description",
   id: "module-1",
+  release_delay_days: 8,
   sort_order: 2,
   status: "active",
   title: "Module one",
@@ -74,6 +76,7 @@ const lessonRow = {
   is_published: true,
   lesson_description: "Lesson description",
   module_id: "module-1",
+  module_release_delay_days: 8,
   module_title: "Module one",
   module_description: "Module description",
   module_sort_order: 2,
@@ -333,6 +336,13 @@ describe("admin read projections", () => {
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
     });
+    expect(detail?.modules[0]?.releaseDelayDays).toBe(8);
+    const moduleSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("select m.id, m.course_id")
+      )?.[0]
+    );
+    expect(moduleSql).toContain("m.release_delay_days");
     const courseSql = String(
       query.mock.calls.find(([sql]) =>
         String(sql).includes("from courses")
@@ -382,6 +392,26 @@ describe("admin read projections", () => {
       lesson: { id: lessonId },
       module: { id: "module-1" },
     });
+    expect(editor?.module.releaseDelayDays).toBe(8);
+    expect(lessonEditorSql).toContain("m.release_delay_days");
+  });
+
+  it("projects module release days in the unscoped dashboard read", async () => {
+    query.mockImplementation((sql: string) => ({
+      rows: sql.includes("select m.id, m.course_id") ? [moduleRow] : [],
+    }));
+
+    const data = await getAdminDashboardData();
+
+    expect(data.modules).toEqual([
+      expect.objectContaining({ id: "module-1", releaseDelayDays: 8 }),
+    ]);
+    const moduleSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("select m.id, m.course_id")
+      )?.[0]
+    );
+    expect(moduleSql).toContain("m.release_delay_days");
   });
 
   it("keeps the student list within the measured read budget without N+1 queries", async () => {

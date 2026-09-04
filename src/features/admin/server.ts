@@ -220,6 +220,7 @@ export interface AdminModule {
   courseTitle: string;
   description: string | null;
   id: string;
+  releaseDelayDays: number;
   sortOrder: number;
   status: string;
   title: string;
@@ -498,13 +499,15 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
     course_title: string;
     description: string | null;
     id: string;
+    release_delay_days: number;
     sort_order: number;
     status: string;
     title: string;
   }>(
     courseId
       ? `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status,
+                 m.release_delay_days
           from modules m
           join courses c on c.id = m.course_id
            where m.course_publication_id = (
@@ -517,7 +520,8 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
           order by m.sort_order
         `
       : `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status,
+                 m.release_delay_days
           from modules m
           join courses c on c.id = m.course_id
           order by c.title, m.sort_order
@@ -530,6 +534,7 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
     courseTitle: row.course_title,
     description: row.description,
     id: row.id,
+    releaseDelayDays: row.release_delay_days,
     sortOrder: row.sort_order,
     status: row.status,
     title: row.title,
@@ -639,6 +644,7 @@ const readLessonEditor = async ({
     lesson_description: string | null;
     module_description: string | null;
     module_id: string;
+    module_release_delay_days: number;
     module_sort_order: number;
     module_status: string;
     module_title: string;
@@ -655,6 +661,7 @@ const readLessonEditor = async ({
     `
       select l.id, l.module_id, m.title as module_title, m.description as module_description,
              m.sort_order as module_sort_order, m.status as module_status,
+             m.release_delay_days as module_release_delay_days,
              c.id as course_id, c.title as course_title, l.title,
              l.description as lesson_description, l.content_json, l.duration_seconds,
              l.video_duration_seconds, l.text_duration_seconds, l.text_word_count,
@@ -702,6 +709,7 @@ const readLessonEditor = async ({
       courseTitle: row.course_title,
       description: row.module_description,
       id: row.module_id,
+      releaseDelayDays: row.module_release_delay_days,
       sortOrder: row.module_sort_order,
       status: row.module_status,
       title: row.module_title,

@@ -68,6 +68,7 @@ vi.mock("@/features/storage/lesson-resource-upload-observability", () => ({
 }));
 
 import {
+  createCoursePublicationDraft,
   createLessonDraft,
   publishCoursePublication,
   removeLessonVideo,
@@ -364,6 +365,8 @@ describe("admin authoring", () => {
     formData.set("description", "Descricao");
     formData.set("sortOrder", "2");
     formData.set("status", "archived");
+    formData.set("releaseMode", "delayed");
+    formData.set("releaseDelayDays", "8");
 
     await saveModule({ actorUserId: "admin-1", formData });
 
@@ -375,9 +378,15 @@ describe("admin authoring", () => {
         "Descricao",
         2,
         "archived",
+        8,
         "module-1",
       ]
     );
+    expect(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("update modules")
+      )?.[0]
+    ).toContain("release_delay_days");
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
       ["admin-1", "module.updated", "module", "module-1"]
@@ -402,6 +411,8 @@ describe("admin authoring", () => {
     formData.set("description", "Descricao");
     formData.set("sortOrder", "1");
     formData.set("status", "active");
+    formData.set("releaseMode", "immediate");
+    formData.set("releaseDelayDays", "residual invalid value");
 
     await saveModule({ actorUserId: "admin-1", formData });
 
@@ -414,14 +425,109 @@ describe("admin authoring", () => {
         "Descricao",
         1,
         "draft",
+        0,
       ]
     );
-    expect(
+    const insertSql = String(
       query.mock.calls.find(([sql]) =>
         String(sql).includes("insert into modules")
       )?.[0]
-    ).toContain("on conflict (course_publication_id, sort_order)");
+    );
+    expect(insertSql).toContain("release_delay_days");
+    expect(insertSql).toContain(
+      "on conflict (course_publication_id, sort_order)"
+    );
+    expect(insertSql).toContain(
+      "release_delay_days = excluded.release_delay_days"
+    );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
+  });
+
+  it.each([
+    "",
+    "1.5",
+    "-1",
+    "NaN",
+    "Infinity",
+    "9007199254740992",
+  ])("rejects invalid delayed module release days %j", async (releaseDelayDays) => {
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Modulo novo");
+    formData.set("releaseMode", "delayed");
+    formData.set("releaseDelayDays", releaseDelayDays);
+
+    await expect(
+      saveModule({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Informe uma quantidade inteira e não negativa de dias.");
+
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("copies module release days into a new publication draft", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("status = 'published'")
+      ) {
+        return {
+          rows: [
+            {
+              id: "publication-published",
+              publication_number: 1,
+              title_snapshot: "Curso",
+              workload_hours_snapshot: 10,
+            },
+          ],
+        };
+      }
+      if (sql.includes("insert into course_publications")) {
+        return { rows: [{ id: "publication-draft" }] };
+      }
+      if (sql.includes("from modules")) {
+        return {
+          rows: [
+            {
+              description: "Descricao",
+              id: "module-published",
+              release_delay_days: 8,
+              sort_order: 1,
+              status: "active",
+              title: "Modulo D+8",
+            },
+          ],
+        };
+      }
+      if (sql.includes("insert into modules")) {
+        return { rows: [{ id: "module-draft" }] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      createCoursePublicationDraft({
+        actorUserId: "admin-1",
+        courseId: "course-1",
+      })
+    ).resolves.toEqual({ coursePublicationId: "publication-draft" });
+
+    const moduleSelect = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from modules")
+    );
+    expect(moduleSelect?.[0]).toContain("release_delay_days");
+    const moduleInsert = query.mock.calls.find(([sql]) =>
+      String(sql).includes("insert into modules")
+    );
+    expect(moduleInsert?.[0]).toContain("release_delay_days");
+    expect(moduleInsert?.[1]).toEqual([
+      "course-1",
+      "publication-draft",
+      "Modulo D+8",
+      "Descricao",
+      1,
+      "active",
+      8,
+    ]);
   });
 
   it("creates a minimal lesson draft and returns its editor identifiers", async () => {

@@ -138,6 +138,7 @@ const moduleData: AdminModule = {
   courseTitle: course.title,
   description: null,
   id: "module-1",
+  releaseDelayDays: 0,
   sortOrder: 1,
   status: "active",
   title: "Módulo",
@@ -210,6 +211,81 @@ describe("CreateModuleDialog", () => {
 
     expect(markup).toContain("Criar primeiro módulo");
     expect(markup).toContain('data-variant="outline"');
+  });
+});
+
+describe("module content release controls", () => {
+  it("defaults a new immediate module to an eight-day delayed option", () => {
+    const document = new DOMParser().parseFromString(
+      renderToStaticMarkup(<ModuleForm course={course} nextSortOrder={2} />),
+      "text/html"
+    );
+    const immediate = document.querySelector<HTMLInputElement>(
+      'input[name="releaseMode"][value="immediate"]'
+    );
+    const delayed = document.querySelector<HTMLInputElement>(
+      'input[name="releaseMode"][value="delayed"]'
+    );
+    const delayDays = document.querySelector<HTMLInputElement>(
+      'input[name="releaseDelayDays"]'
+    );
+
+    expect(document.querySelector("fieldset legend")?.textContent).toBe(
+      "Liberação do conteúdo"
+    );
+    expect(immediate?.hasAttribute("checked")).toBe(true);
+    expect(delayed?.hasAttribute("checked")).toBe(false);
+    expect(delayDays?.getAttribute("value")).toBe("8");
+    expect(delayDays?.getAttribute("min")).toBe("1");
+    expect(delayDays?.getAttribute("step")).toBe("1");
+    expect(document.body.textContent).toContain(
+      "Cada dia equivale a 24 horas desde o início do acesso da Aluna."
+    );
+  });
+
+  it("defaults an existing D+8 module to delayed release", () => {
+    const document = new DOMParser().parseFromString(
+      renderToStaticMarkup(
+        <ModuleForm
+          course={course}
+          moduleData={{ ...moduleData, releaseDelayDays: 8 }}
+        />
+      ),
+      "text/html"
+    );
+    const immediate = document.querySelector<HTMLInputElement>(
+      'input[name="releaseMode"][value="immediate"]'
+    );
+    const delayed = document.querySelector<HTMLInputElement>(
+      'input[name="releaseMode"][value="delayed"]'
+    );
+    const delayDays = document.querySelector<HTMLInputElement>(
+      'input[name="releaseDelayDays"]'
+    );
+
+    expect(immediate?.hasAttribute("checked")).toBe(false);
+    expect(delayed?.hasAttribute("checked")).toBe(true);
+    expect(delayDays?.getAttribute("value")).toBe("8");
+  });
+
+  it("shows release timing only in the module header", () => {
+    const moduleMarkup = renderToStaticMarkup(
+      <ModuleSection
+        contentId="module-1-lessons"
+        course={course}
+        editable
+        expanded
+        moduleData={{ ...moduleData, releaseDelayDays: 8 }}
+        moduleLessons={[lesson]}
+        onToggle={vi.fn()}
+      />
+    );
+    const lessonMarkup = renderToStaticMarkup(
+      <LessonRow courseId={course.id} editable index={0} lesson={lesson} />
+    );
+
+    expect(moduleMarkup).toContain("Liberação em D+8");
+    expect(lessonMarkup).not.toContain("Liberação");
   });
 });
 
