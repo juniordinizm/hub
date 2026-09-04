@@ -159,6 +159,17 @@ const insertEnrollmentEvent = async (
   );
 };
 
+const lockEnrollmentAggregate = async (
+  client: PoolClient,
+  userId: string,
+  courseId: string
+): Promise<void> => {
+  await client.query(
+    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
+    [userId, courseId]
+  );
+};
+
 const getCurrentRenewalBase = async ({
   client,
   courseId,
@@ -199,10 +210,7 @@ export const rebuildEnrollmentProjection = async ({
   preserveContentRelease?: boolean;
   userId: string;
 }): Promise<void> => {
-  await client.query(
-    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
-    [userId, courseId]
-  );
+  await lockEnrollmentAggregate(client, userId, courseId);
 
   const existingEnrollment =
     await client.query<ExistingEnrollmentProjectionRow>(
@@ -444,6 +452,7 @@ export const applyPaidWebhookAccess = async ({
   orderId: string;
   userId: string;
 }): Promise<void> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
   const currentExpiresAt = await getCurrentRenewalBase({
     client,
     courseId,
@@ -529,6 +538,7 @@ export const createManualAccessGrant = async ({
   reason: string;
   userId: string;
 }): Promise<void> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
   const { rows } = await client.query<{ id: string }>(
     `
       insert into enrollment_grants (
@@ -584,6 +594,7 @@ export const applyPaymentRevocation = async ({
   reason: PaymentRevocationReason;
   userId: string;
 }): Promise<boolean> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
   const status = reason === "payment_dispute" ? "disputed" : "refunded";
   const { rows } = await client.query<{ id: string }>(
     `
@@ -657,16 +668,20 @@ const getActivePaidGrantForEnrollment = async ({
 const getEnrollmentCourseAccess = async ({
   client,
   enrollmentId,
+  forUpdate = false,
 }: {
   client: PoolClient;
   enrollmentId: string;
+  forUpdate?: boolean;
 }): Promise<EnrollmentCourseAccessRow> => {
+  const rowLock = forUpdate ? "for update" : "";
   const { rows } = await client.query<EnrollmentCourseAccessRow>(
     `
       select user_id, course_id
       from enrollments
       where id = $1
       limit 1
+      ${rowLock}
     `,
     [enrollmentId]
   );
@@ -677,6 +692,27 @@ const getEnrollmentCourseAccess = async ({
   }
 
   return enrollment;
+};
+
+const lockEnrollmentForGrantMutation = async ({
+  client,
+  enrollmentId,
+}: {
+  client: PoolClient;
+  enrollmentId: string;
+}): Promise<EnrollmentCourseAccessRow> => {
+  const enrollment = await getEnrollmentCourseAccess({ client, enrollmentId });
+  await lockEnrollmentAggregate(
+    client,
+    enrollment.user_id,
+    enrollment.course_id
+  );
+
+  return getEnrollmentCourseAccess({
+    client,
+    enrollmentId,
+    forUpdate: true,
+  });
 };
 
 const getPaidAccessGrantsForEnrollment = async ({
@@ -738,6 +774,7 @@ export const extendEnrollmentExpiration = async ({
   try {
     await client.query("begin");
 
+    await lockEnrollmentForGrantMutation({ client, enrollmentId });
     const grant = await getActivePaidGrantForEnrollment({
       client,
       enrollmentId,
@@ -832,6 +869,7 @@ export const setEnrollmentExpiration = async ({
   try {
     await client.query("begin");
 
+    await lockEnrollmentForGrantMutation({ client, enrollmentId });
     const grant = await getActivePaidGrantForEnrollment({
       client,
       enrollmentId,
@@ -933,7 +971,7 @@ export const blockEnrollmentAccess = async ({
   try {
     await client.query("begin");
 
-    const enrollment = await getEnrollmentCourseAccess({
+    const enrollment = await lockEnrollmentForGrantMutation({
       client,
       enrollmentId,
     });
@@ -1004,7 +1042,7 @@ export const restoreEnrollmentAccess = async ({
   try {
     await client.query("begin");
 
-    const enrollment = await getEnrollmentCourseAccess({
+    const enrollment = await lockEnrollmentForGrantMutation({
       client,
       enrollmentId,
     });

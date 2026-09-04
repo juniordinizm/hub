@@ -10,14 +10,84 @@ const readServerSource = async (): Promise<string> =>
 const PROVIDER_NAME_PATTERN = /asaas/i;
 
 describe("enrollment server SQL contracts", () => {
+  it("locks the enrollment aggregate before every direct grant mutation", async () => {
+    const source = await readServerSource();
+    const paidSource = source.slice(
+      source.indexOf("export const applyPaidWebhookAccess"),
+      source.indexOf("export const createManualAccessGrant")
+    );
+    const manualSource = source.slice(
+      source.indexOf("export const createManualAccessGrant"),
+      source.indexOf("export const applyPaymentRevocation")
+    );
+    const revocationSource = source.slice(
+      source.indexOf("export const applyPaymentRevocation"),
+      source.indexOf("const getActivePaidGrantForEnrollment")
+    );
+
+    expect(source).toContain("const lockEnrollmentAggregate = async");
+    expect(source).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
+    );
+    expect(paidSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      paidSource.indexOf("getCurrentRenewalBase")
+    );
+    expect(manualSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      manualSource.indexOf("insert into enrollment_grants")
+    );
+    expect(revocationSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      revocationSource.indexOf("update enrollment_grants")
+    );
+  });
+
+  it("locks enrollment-id aggregates in advisory-before-row-before-grant order", async () => {
+    const source = await readServerSource();
+    const lockByIdSource = source.slice(
+      source.indexOf("const lockEnrollmentForGrantMutation"),
+      source.indexOf("const getPaidAccessGrantsForEnrollment")
+    );
+
+    expect(lockByIdSource).toContain("getEnrollmentCourseAccess");
+    expect(lockByIdSource.indexOf("getEnrollmentCourseAccess")).toBeLessThan(
+      lockByIdSource.indexOf("lockEnrollmentAggregate")
+    );
+    expect(lockByIdSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      lockByIdSource.indexOf("forUpdate: true")
+    );
+
+    const mutationNames = [
+      "extendEnrollmentExpiration",
+      "setEnrollmentExpiration",
+      "blockEnrollmentAccess",
+      "restoreEnrollmentAccess",
+    ];
+    for (const [index, mutationName] of mutationNames.entries()) {
+      const nextMutationName = mutationNames[index + 1];
+      const mutationSource = source.slice(
+        source.indexOf(`export const ${mutationName}`),
+        nextMutationName
+          ? source.indexOf(`export const ${nextMutationName}`)
+          : source.length
+      );
+      const firstGrantAccess = [
+        mutationSource.indexOf("getActivePaidGrantForEnrollment"),
+        mutationSource.indexOf("getPaidAccessGrantsForEnrollment"),
+      ].filter((position) => position >= 0);
+
+      expect(mutationSource).toContain("lockEnrollmentForGrantMutation");
+      expect(
+        mutationSource.indexOf("lockEnrollmentForGrantMutation")
+      ).toBeLessThan(Math.min(...firstGrantAccess));
+    }
+  });
+
   it("serializes enrollment projection before reading its current state", async () => {
     const source = await readServerSource();
     const projectionSource = source.slice(
       source.indexOf("export const rebuildEnrollmentProjection"),
       source.indexOf("export const applyPaidWebhookAccess")
     );
-    const advisoryLock =
-      "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))";
+    const advisoryLock = "lockEnrollmentAggregate(client, userId, courseId)";
     const existingEnrollmentRead = "from enrollments\n      where user_id = $1";
     const publicationRead = "from course_publications";
     const lockedEnrollmentRead = projectionSource.slice(

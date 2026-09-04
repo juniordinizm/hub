@@ -102,7 +102,10 @@ describe("enrollment projection content release", () => {
 
 describe("payment revocation", () => {
   it("atomically leaves a terminal paid grant unchanged without events or projection", async () => {
-    const query = vi.fn((text: string) => {
+    const query = vi.fn((text: string, _params?: unknown[]) => {
+      if (text.includes("pg_advisory_xact_lock")) {
+        return Promise.resolve({ rows: [] });
+      }
       if (text.includes("update enrollment_grants")) {
         return Promise.resolve({ rows: [] });
       }
@@ -123,8 +126,12 @@ describe("payment revocation", () => {
       })
     ).resolves.toBe(false);
 
-    expect(query).toHaveBeenCalledOnce();
-    expect(query.mock.calls[0]?.[0]).toContain(
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[0]?.[0]).toBe(
+      "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
+    );
+    expect(query.mock.calls[0]?.[1]).toEqual(["user-1", "course-1"]);
+    expect(query.mock.calls[1]?.[0]).toContain(
       "and status in ('active', 'expired')"
     );
   });
