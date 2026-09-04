@@ -1,5 +1,15 @@
 export type EnrollmentStatus = "active" | "expired" | "revoked";
 
+export interface EnrollmentContentReleaseState {
+  mode: "full_access" | "scheduled";
+  startedAt: Date | null;
+}
+
+export interface EnrollmentContentReleaseTransition
+  extends EnrollmentContentReleaseState {
+  event: "content_release_scheduled" | null;
+}
+
 export type EnrollmentAccessState =
   | {
       canAccessLessons: true;
@@ -14,6 +24,38 @@ const MILLISECONDS_PER_DAY = 86_400_000;
 const MILLISECONDS_PER_HOUR = 3_600_000;
 
 export type EnrollmentExpiryWarningKind = "7d" | "1d";
+
+export const getEnrollmentContentReleaseTransition = ({
+  hasDelayedModules,
+  now,
+  preserveExisting,
+  previousState,
+  wasContinuouslyActive,
+}: {
+  hasDelayedModules: boolean;
+  now: Date;
+  preserveExisting: boolean;
+  previousState: EnrollmentContentReleaseState | null;
+  wasContinuouslyActive: boolean;
+}): EnrollmentContentReleaseTransition => {
+  if (previousState?.mode === "scheduled" && !previousState.startedAt) {
+    throw new Error("Matricula agendada sem inicio da entrega.");
+  }
+
+  if (previousState && (preserveExisting || wasContinuouslyActive)) {
+    return { ...previousState, event: null };
+  }
+
+  if (hasDelayedModules) {
+    return {
+      event: "content_release_scheduled",
+      mode: "scheduled",
+      startedAt: now,
+    };
+  }
+
+  return { event: null, mode: "full_access", startedAt: null };
+};
 
 export const addMonths = (date: Date, months: number): Date => {
   const nextDate = new Date(date);

@@ -1,7 +1,12 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import type {
+  EnrollmentContentReleaseState,
+  EnrollmentStatus,
+} from "@/features/enrollments/rules";
 import {
+  getEnrollmentContentReleaseTransition,
   getExtendedEnrollmentExpiration,
   getRenewedAccessWindow,
   validateEnrollmentAdjustmentReason,
@@ -23,6 +28,7 @@ interface EnrollmentEventInput {
   eventType:
     | "access_manual_block_removed"
     | "access_manually_blocked"
+    | "content_release_scheduled"
     | "manual_access_granted"
     | "expiration_extended"
     | "expiration_set"
@@ -52,7 +58,17 @@ interface EnrollmentProjectionRow {
 }
 
 interface PublishedCoursePublicationRow {
+  has_delayed_modules: boolean;
   id: string;
+}
+
+interface ExistingEnrollmentProjectionRow {
+  content_release_mode: EnrollmentContentReleaseState["mode"];
+  content_release_started_at: Date | null;
+  expires_at: Date;
+  id: string;
+  starts_at: Date;
+  status: EnrollmentStatus;
 }
 
 interface EnrollmentGrantRow {
@@ -173,26 +189,58 @@ export const rebuildEnrollmentProjection = async ({
   client,
   courseId,
   now = new Date(),
+  preserveContentRelease = false,
   userId,
 }: {
   client: PoolClient;
   courseId: string;
   now?: Date;
+  preserveContentRelease?: boolean;
   userId: string;
 }): Promise<void> => {
+  await client.query(
+    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
+    [userId, courseId]
+  );
+
+  const existingEnrollment =
+    await client.query<ExistingEnrollmentProjectionRow>(
+      `
+      select
+        id,
+        status,
+        starts_at,
+        expires_at,
+        content_release_mode,
+        content_release_started_at
+      from enrollments
+      where user_id = $1 and course_id = $2
+      for update
+    `,
+      [userId, courseId]
+    );
+  const previousEnrollment = existingEnrollment.rows[0];
   const publishedPublication =
     await client.query<PublishedCoursePublicationRow>(
       `
-      select id
-      from course_publications
-      where course_id = $1 and status = 'published'
+      select
+        cp.id,
+        exists (
+          select 1
+          from modules m
+          where m.course_publication_id = cp.id
+            and m.status = 'active'
+            and m.release_delay_days > 0
+        ) as has_delayed_modules
+      from course_publications cp
+      where cp.course_id = $1 and cp.status = 'published'
       limit 1
     `,
       [courseId]
     );
-  const coursePublicationId = publishedPublication.rows[0]?.id;
+  const publication = publishedPublication.rows[0];
 
-  if (!coursePublicationId) {
+  if (!publication) {
     throw new Error("Curso sem publicacao vigente nao pode conceder acesso.");
   }
 
@@ -226,12 +274,31 @@ export const rebuildEnrollmentProjection = async ({
   const activeProjection = activeGrant.rows[0];
 
   if (activeProjection?.starts_at && activeProjection.expires_at) {
+    const wasContinuouslyActive = Boolean(
+      previousEnrollment?.status === "active" &&
+        previousEnrollment.starts_at <= now &&
+        previousEnrollment.expires_at >= now
+    );
+    const contentReleaseTransition = getEnrollmentContentReleaseTransition({
+      hasDelayedModules: publication.has_delayed_modules,
+      now,
+      preserveExisting: preserveContentRelease,
+      previousState: previousEnrollment
+        ? {
+            mode: previousEnrollment.content_release_mode,
+            startedAt: previousEnrollment.content_release_started_at,
+          }
+        : null,
+      wasContinuouslyActive,
+    });
     const { rows } = await client.query<EnrollmentProjectionRow>(
       `
         insert into enrollments (
           user_id,
           course_id,
           status,
+          content_release_mode,
+          content_release_started_at,
           starts_at,
           expires_at,
           revoked_at,
@@ -239,9 +306,11 @@ export const rebuildEnrollmentProjection = async ({
           expiry_warning_7d_sent_at,
           expiry_warning_1d_sent_at
         )
-        values ($1, $2, 'active', $3, $4, null, null, null, null)
+        values ($1, $2, 'active', $5, $6, $3, $4, null, null, null, null)
         on conflict (user_id, course_id) do update set
           status = 'active',
+          content_release_mode = excluded.content_release_mode,
+          content_release_started_at = excluded.content_release_started_at,
           starts_at = excluded.starts_at,
           expires_at = excluded.expires_at,
           revoked_at = null,
@@ -264,8 +333,25 @@ export const rebuildEnrollmentProjection = async ({
         courseId,
         activeProjection.starts_at,
         activeProjection.expires_at,
+        contentReleaseTransition.mode,
+        contentReleaseTransition.startedAt,
       ]
     );
+
+    if (contentReleaseTransition.event === "content_release_scheduled") {
+      if (!contentReleaseTransition.startedAt) {
+        throw new Error("Matricula agendada sem inicio da entrega.");
+      }
+      await insertEnrollmentEvent(client, {
+        courseId,
+        enrollmentId: rows[0]?.id ?? null,
+        eventType: contentReleaseTransition.event,
+        metadata: {
+          startedAt: contentReleaseTransition.startedAt.toISOString(),
+        },
+        userId,
+      });
+    }
 
     await insertEnrollmentEvent(client, {
       courseId,
@@ -711,6 +797,7 @@ export const extendEnrollmentExpiration = async ({
       client,
       courseId: grant.course_id,
       now,
+      preserveContentRelease: true,
       userId: grant.user_id,
     });
 
@@ -808,6 +895,7 @@ export const setEnrollmentExpiration = async ({
       client,
       courseId: grant.course_id,
       now,
+      preserveContentRelease: true,
       userId: grant.user_id,
     });
 
@@ -961,6 +1049,7 @@ export const restoreEnrollmentAccess = async ({
       client,
       courseId: enrollment.course_id,
       now,
+      preserveContentRelease: true,
       userId: enrollment.user_id,
     });
 
