@@ -97,6 +97,8 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
 - [Plano do hardening de conclusão e Certificados](superpowers/plans/2026-08-17-certificate-production-hardening.md)
 - [Remediação da prontidão e higiene operacional](superpowers/specs/2026-09-03-readiness-remediation-design.md)
+- [Estados de conclusão de ações e recuperação de senha](superpowers/specs/2026-09-03-action-outcome-and-password-recovery-ux-design.md)
+- [Estados de conclusão de ações e recuperação de senha: plano](superpowers/plans/2026-09-03-action-outcome-and-password-recovery-ux.md)
 
 ### Plano mestre em execução
 
