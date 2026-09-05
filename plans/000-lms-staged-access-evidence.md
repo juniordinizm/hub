@@ -4,7 +4,7 @@
 status: research_only
 owner: product_and_engineering
 researched_at: 2026-09-04
-verified_at_commit: 9d0450a
+verified_at_commit: 06b623f
 scope: evidence_and_recommendation_without_implementation_plan
 ```
 
@@ -280,40 +280,39 @@ Fontes oficiais:
 ### Base favorável
 
 - `enrollment_grants` é o ledger do direito por origem; `enrollments` é a projeção
-  consolidada por Conta + Curso (`src/db/schema.ts:653`, `src/db/schema.ts:682`).
+  consolidada por Conta + Curso (`src/db/schema.ts#enrollments`, `src/db/schema.ts#enrollmentGrants`).
 - pagamento confirmado cria/reativa uma Concessão e recompõe a Matrícula de forma
-  transacional (`src/features/enrollments/server.ts:344`).
+  transacional (`src/features/enrollments/server.ts#applyPaidWebhookAccess`).
 - renovação durante acesso ativo estende a validade; a Matrícula usa o menor início e a
-  maior expiração entre Concessões elegíveis (`src/features/enrollments/server.ts:145`,
-  `src/features/enrollments/server.ts:172`).
+  maior expiração entre Concessões elegíveis (`src/features/enrollments/server.ts#rebuildEnrollmentProjection`).
 - reembolso/disputa revoga a Concessão e recompõe a projeção; evento tardio de pagamento
   não reativa estado adverso, conforme ADR-0005.
 - `resolveCourseAccess` e `resolveLessonAccess` aplicam Matrícula, início, expiração,
-  status do Curso e publicação no servidor (`src/features/enrollments/access.ts:4`,
-  `src/features/enrollments/access.ts:33`).
+  status do Curso e publicação no servidor (`src/features/enrollments/access.ts#resolveCourseAccess`,
+  `src/features/enrollments/access.ts#resolveLessonAccess`).
 - leitura da Aula, conclusão manual e progresso de vídeo passam por
-  `getEnrolledLessonWorkspace` (`src/features/courses/server.ts:1086`,
-  `src/features/courses/server.ts:1366`, `src/features/courses/server.ts:1484`).
+  `getEnrolledLessonWorkspace` (`src/features/courses/server.ts#getEnrolledLessonWorkspace`,
+  `src/features/courses/server.ts#getStudentLessonWorkspace`, `src/features/courses/server.ts#completeLesson`).
 - download/preview R2 chama a mesma leitura protegida e gera URL assinada de cinco
   minutos (`src/app/api/lessons/[lessonId]/resources/[resourceId]/download/route.ts`,
   `src/app/api/lessons/[lessonId]/resources/[resourceId]/preview/route.ts`,
-  `src/features/storage/r2.ts:38`).
+  `src/features/storage/r2.ts#resolvePrivateR2ObjectUrl`).
 - preview Admin já é separado da experiência mutável da Aluna.
 - as páginas protegidas são dinâmicas; não dependem de build estático para o relógio.
 
 ### Lacunas específicas para drip
 
 - `courses`, `modules` e `lessons` não possuem atraso/liberação temporal
-  (`src/db/schema.ts:322`, `src/db/schema.ts:493`, `src/db/schema.ts:522`).
+  (`src/db/schema.ts#courses`, `src/db/schema.ts#modules`, `src/db/schema.ts#lessons`).
 - `enrollments.starts_at` representa a projeção do direito, não uma âncora com semântica
-  estável de entrega (`src/db/schema.ts:664`).
+  estável de entrega (`src/db/schema.ts#enrollments`).
 - a decisão atual de Aula é booleana e significa somente sequência; ela não distingue
   “aguarde a data” de “conclua a anterior” (`src/features/progress/rules.ts`).
 - o overview busca todas as Aulas e calcula `isAvailable` apenas pelo Progresso
-  (`src/features/courses/server.ts:768`, `src/features/courses/server.ts:897`).
+  (`src/features/courses/server.ts#getEnrolledCourseOverview`, `src/features/courses/server.ts#projectEnrolledOverviewModules`).
 - comentários duplicam a consulta e a regra de sequência, portanto formam um segundo
-  ponto de enforcement (`src/features/comments/server.ts:49`,
-  `src/features/comments/server.ts:102`, `src/features/comments/server.ts:128`).
+  ponto de enforcement (`src/features/comments/server.ts#ensureCanCommentOnLesson`,
+  `src/features/comments/server.ts#getLessonComments`, `src/features/comments/server.ts#createLessonComment`).
 - `video_embed_url` é persistida e entregue ao navegador somente após autorização do
   workspace, mas a segurança após a entrega depende da configuração do player JMVStream.
   O repositório não prova que token por sessão, whitelist de domínio, DRM ou watermark
