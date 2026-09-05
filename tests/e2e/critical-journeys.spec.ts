@@ -414,6 +414,22 @@ test("scheduled modules hide future lessons and redirect direct access", async (
   ).toBeVisible();
 });
 
+test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
+
+  const futureModule = page.getByRole("region", {
+    name: "Módulo futuro E2E",
+  });
+  await expect(futureModule).toBeVisible();
+  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
+    0
+  );
+  await expect(futureModule.getByText("1 aula", { exact: true })).toBeVisible();
+  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+});
+
 test("student dashboard has no moderate or higher accessibility violations", async ({
   page,
 }) => {
