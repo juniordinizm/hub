@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 635bc05
+last_verified_commit: 5a950c9
 ---
 
 # Rollout da liberação temporal por Módulo
