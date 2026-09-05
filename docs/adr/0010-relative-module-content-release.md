@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 9d0450a
+last_verified_commit: 6bec63f
 ---
 
 # ADR-0010 Liberação temporal relativa por Módulo
