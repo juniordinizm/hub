@@ -93,6 +93,50 @@ Para testar somente integração, configure uma URL PostgreSQL descartável e
 execute `bun run test:certificates:integration`. Para E2E, use as URLs e os
 servidores locais definidos no `playwright.config.ts`.
 
+### PostgreSQL descartável no Windows
+
+O caminho recomendado é executar o CI, que já provisiona PostgreSQL 18. Se for
+necessário rodar localmente e o Docker Desktop estiver instalado:
+
+```powershell
+docker run --name hub-release-postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_DB=postgres `
+  -p 5432:5432 `
+  -d postgres:18-alpine
+
+docker exec hub-release-postgres createdb -U postgres hub_integration
+docker exec hub-release-postgres createdb -U postgres hub_e2e
+```
+
+No mesmo terminal PowerShell, configure somente a sessão atual:
+
+```powershell
+$integration = "postgresql://postgres:postgres@127.0.0.1:5432/hub_integration?sslmode=disable"
+$e2e = "postgresql://postgres:postgres@127.0.0.1:5432/hub_e2e?sslmode=disable"
+$env:INTEGRATION_DATABASE_URL = $integration
+$env:CERTIFICATE_CONCURRENCY_DATABASE_URL = $integration
+$env:E2E_DATABASE_URL = $e2e
+$env:DATABASE_URL = $integration
+$env:DATABASE_URL_DIRECT = $integration
+```
+
+Depois execute, nesta ordem:
+
+```powershell
+bun run db:migrate:e2e
+bun run test:certificates:integration
+$env:DATABASE_URL = $e2e
+$env:DATABASE_URL_DIRECT = $e2e
+bun run db:migrate:e2e
+bun run test:e2e
+```
+
+Não use banco de Staging ou Production nesses comandos. Se a porta 5432 já
+estiver ocupada, pare o processo responsável ou escolha outra porta e ajuste as
+URLs. O container é descartável; não coloque dados reais nele.
+
 O fluxo de liberação temporal usa `src/features/enrollments/content-release.integration.test.ts` e `src/features/courses/content-release.integration.test.ts` com PostgreSQL descartável. A URL deve estar em `CERTIFICATE_CONCURRENCY_DATABASE_URL` ou `INTEGRATION_DATABASE_URL`; sem ela o teste falha deliberadamente e nunca deve usar Neon compartilhado. O checklist manual de R2/JMVStream, copy e rollback está em [Rollout da liberação temporal por Módulo](content-release-rollout.md).
 
 Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplicação
