@@ -354,6 +354,9 @@ export function StudentManagementSheetContent({
           ) : null}
           <StudentEnrollmentList
             canManageAccess={capabilities.canManageEnrollmentSupport}
+            canManageEnrollmentAccess={
+              capabilities.canManageEnrollmentAccess ?? false
+            }
             enrollments={student.enrollments}
             onRefresh={onRefresh}
             title={isCourseContext ? "Acesso ao Curso" : "Matrículas"}

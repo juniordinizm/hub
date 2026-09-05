@@ -1,8 +1,11 @@
 export interface StudentSheetEnrollment {
+  contentReleaseMode?: "full_access" | "scheduled";
+  contentReleaseStartedAt?: string | null;
   courseId: string;
   courseTitle: string;
   expiresAt: string;
   id: string;
+  nextModuleReleaseAt?: string | null;
   originalExpiresAt: string;
   revokedReason: string | null;
   startedAt: string;
@@ -12,6 +15,7 @@ export interface StudentSheetEnrollment {
 
 export interface StudentManagementCapabilities {
   canManageCertificates: boolean;
+  canManageEnrollmentAccess?: boolean;
   canManageEnrollmentSupport: boolean;
   canManagePlatformAccess: boolean;
   canReissueCertificates: boolean;

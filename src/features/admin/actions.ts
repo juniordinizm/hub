@@ -23,6 +23,7 @@ import {
   parseEnrollmentAccessInput,
   parseExpirationDateSelection,
   parseExtendEnrollmentExpirationInput,
+  parseGrantEnrollmentFullContentAccessInput,
   parseSetEnrollmentExpirationInput,
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
@@ -530,6 +531,21 @@ export const blockEnrollmentAccessAction = async (
     actorUserId: session.user.id,
     targetId: enrollmentId,
     targetType: "enrollment",
+  });
+  revalidateEnrollmentAdminPaths();
+};
+
+export const grantEnrollmentFullContentAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requirePermission("manageEnrollmentAccess");
+  const input = parseGrantEnrollmentFullContentAccessInput(formData);
+  const { grantEnrollmentFullContentAccess } = await import(
+    "@/features/enrollments/server"
+  );
+  await grantEnrollmentFullContentAccess({
+    actorUserId: session.user.id,
+    ...input,
   });
   revalidateEnrollmentAdminPaths();
 };

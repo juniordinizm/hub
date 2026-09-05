@@ -30,6 +30,7 @@ interface EnrollmentEventInput {
     | "access_manual_block_removed"
     | "access_manually_blocked"
     | "content_release_scheduled"
+    | "content_full_access_granted"
     | "manual_access_granted"
     | "expiration_extended"
     | "expiration_set"
@@ -1116,6 +1117,116 @@ export const restoreEnrollmentAccess = async ({
     });
 
     await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const grantEnrollmentFullContentAccess = async ({
+  actorUserId,
+  enrollmentId,
+  reason,
+}: {
+  actorUserId: string;
+  enrollmentId: string;
+  reason: string;
+}): Promise<{ changed: boolean }> => {
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("Informe o motivo da liberação.");
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const current = await client.query<{
+      content_release_mode: "full_access" | "scheduled";
+      content_release_started_at: Date | null;
+      course_id: string;
+      id: string;
+      user_id: string;
+    }>(
+      `
+        select id, user_id, course_id, content_release_mode,
+               content_release_started_at
+        from enrollments
+        where id = $1
+      `,
+      [enrollmentId]
+    );
+    const enrollment = current.rows[0];
+    if (!enrollment) {
+      throw new Error("Matricula nao encontrada.");
+    }
+
+    await lockEnrollmentAggregate(
+      client,
+      enrollment.user_id,
+      enrollment.course_id
+    );
+    const locked = await client.query<{
+      content_release_mode: "full_access" | "scheduled";
+      content_release_started_at: Date | null;
+      course_id: string;
+      user_id: string;
+    }>(
+      `
+        select user_id, course_id, content_release_mode,
+               content_release_started_at
+        from enrollments
+        where id = $1
+        for update
+      `,
+      [enrollmentId]
+    );
+    const currentEnrollment = locked.rows[0] ?? enrollment;
+    if (currentEnrollment.content_release_mode === "full_access") {
+      await client.query("commit");
+      return { changed: false };
+    }
+
+    await client.query(
+      `
+        update enrollments
+        set content_release_mode = 'full_access',
+            content_release_started_at = null,
+            updated_at = now()
+        where id = $1
+      `,
+      [enrollmentId]
+    );
+    await insertEnrollmentEvent(client, {
+      actorUserId,
+      courseId: currentEnrollment.course_id,
+      enrollmentId,
+      eventType: "content_full_access_granted",
+      metadata: {
+        previousStartedAt:
+          currentEnrollment.content_release_started_at?.toISOString() ?? null,
+        reason: normalizedReason,
+      },
+      userId: currentEnrollment.user_id,
+    });
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, 'enrollment.content_full_access_granted', 'enrollment', $2, $3::jsonb)
+      `,
+      [
+        actorUserId,
+        enrollmentId,
+        JSON.stringify({
+          previousStartedAt:
+            currentEnrollment.content_release_started_at?.toISOString() ?? null,
+          reason: normalizedReason,
+        }),
+      ]
+    );
+    await client.query("commit");
+    return { changed: true };
   } catch (error) {
     await client.query("rollback");
     throw error;

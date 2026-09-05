@@ -253,4 +253,18 @@ describe("enrollment server SQL contracts", () => {
     expect(source).toContain('"payment_refund"');
     expect(source).not.toMatch(PROVIDER_NAME_PATTERN);
   });
+
+  it("grants full content access idempotently with event and audit", async () => {
+    const source = await readServerSource();
+    const grantSource = source.slice(
+      source.indexOf("export const grantEnrollmentFullContentAccess")
+    );
+
+    expect(grantSource).toContain("content_release_mode = 'full_access'");
+    expect(grantSource).toContain("content_release_started_at = null");
+    expect(grantSource).toContain("content_full_access_granted");
+    expect(grantSource).toContain("enrollment.content_full_access_granted");
+    expect(grantSource).toContain("return { changed: false }");
+    expect(grantSource).toContain("lockEnrollmentAggregate");
+  });
 });

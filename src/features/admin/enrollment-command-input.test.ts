@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseAdjustEnrollmentExpirationInput,
   parseExtendEnrollmentExpirationInput,
+  parseGrantEnrollmentFullContentAccessInput,
   parseSetEnrollmentExpirationInput,
 } from "./enrollment-command-input";
 
@@ -51,6 +52,20 @@ describe("admin enrollment command inputs", () => {
     expect(parseAdjustEnrollmentExpirationInput(formData)).toMatchObject({
       adjustment: "unsupported",
       newExpiresAtValue: "",
+    });
+  });
+
+  it("requires a reason for full content access", () => {
+    const formData = new FormData();
+    formData.set("enrollmentId", "enrollment-1");
+
+    expect(() => parseGrantEnrollmentFullContentAccessInput(formData)).toThrow(
+      "Informe o motivo da liberação."
+    );
+    formData.set("reason", "Liberacao excepcional aprovada");
+    expect(parseGrantEnrollmentFullContentAccessInput(formData)).toEqual({
+      enrollmentId: "enrollment-1",
+      reason: "Liberacao excepcional aprovada",
     });
   });
 });

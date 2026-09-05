@@ -151,6 +151,8 @@ export interface AdminCourseOverviewSummary {
 }
 
 export interface AdminEnrollment {
+  contentReleaseMode?: "full_access" | "scheduled";
+  contentReleaseStartedAt?: Date | null;
   courseId: string;
   courseTitle: string;
   email: string;
@@ -158,6 +160,7 @@ export interface AdminEnrollment {
   id: string;
   lastAccessAt: Date | null;
   name: string;
+  nextModuleReleaseAt?: Date | null;
   originalExpiresAt: Date;
   revokedReason: string | null;
   startsAt: Date;
@@ -299,11 +302,14 @@ export interface AdminLessonAsset {
 export interface AdminStudentDetail {
   email: string;
   enrollments: Array<{
+    contentReleaseMode?: "full_access" | "scheduled";
+    contentReleaseStartedAt?: Date | null;
     courseId: string;
     courseTitle: string;
     expiresAt: Date;
     id: string;
     originalExpiresAt: Date;
+    nextModuleReleaseAt?: Date | null;
     revokedReason: string | null;
     startedAt: Date;
     status: string;
@@ -360,6 +366,8 @@ const readCourses = async (
   const whereClause =
     filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
+    content_release_mode: "full_access" | "scheduled";
+    content_release_started_at: Date | null;
     access_duration_months: number;
     catalog_visibility: "hidden" | "listed";
     certificate_enabled: boolean;
@@ -495,6 +503,8 @@ const readCourses = async (
 
 const readModules = async (courseId?: string): Promise<AdminModule[]> => {
   const { rows } = await getPool().query<{
+    content_release_mode: "full_access" | "scheduled";
+    content_release_started_at: Date | null;
     course_id: string;
     course_title: string;
     description: string | null;
@@ -741,6 +751,8 @@ const readEnrollments = async (
   const whereClause =
     filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
+    content_release_mode: "full_access" | "scheduled";
+    content_release_started_at: Date | null;
     course_id: string;
     course_title: string;
     email: string;
@@ -748,6 +760,7 @@ const readEnrollments = async (
     id: string;
     last_access_at: Date | null;
     name: string;
+    next_module_release_at: Date | null;
     original_expires_at: Date;
     revoked_reason: string | null;
     starts_at: Date;
@@ -756,9 +769,11 @@ const readEnrollments = async (
   }>(
     `
       select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
-             c.id as course_id, e.status, e.starts_at, e.expires_at,
+             e.status, e.starts_at, e.expires_at,
+             e.content_release_mode, e.content_release_started_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
-             e.revoked_reason, p.last_access_at
+             e.revoked_reason, p.last_access_at,
+             next_release.next_module_release_at
       from enrollments e
       join users u on u.id = e.user_id
       left join profiles p on p.user_id = u.id
@@ -771,6 +786,22 @@ const readEnrollments = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      left join lateral (
+        select min(
+          e.content_release_started_at + (m.release_delay_days * interval '24 hours')
+        ) as next_module_release_at
+        from modules m
+        join course_publications cp_release
+          on cp_release.id = m.course_publication_id
+        where cp_release.course_id = e.course_id
+          and cp_release.status = 'published'
+          and m.status = 'active'
+          and m.release_delay_days > 0
+          and e.content_release_mode = 'scheduled'
+          and e.content_release_started_at is not null
+          and e.content_release_started_at
+                + (m.release_delay_days * interval '24 hours') > now()
+      ) next_release on true
       ${whereClause}
       order by e.updated_at desc
     `,
@@ -778,6 +809,8 @@ const readEnrollments = async (
   );
 
   return rows.map((row) => ({
+    contentReleaseMode: row.content_release_mode,
+    contentReleaseStartedAt: row.content_release_started_at,
     courseId: row.course_id,
     courseTitle: row.course_title,
     email: row.email,
@@ -785,6 +818,7 @@ const readEnrollments = async (
     id: row.id,
     lastAccessAt: row.last_access_at,
     name: row.name,
+    nextModuleReleaseAt: row.next_module_release_at,
     originalExpiresAt: row.original_expires_at,
     revokedReason: row.revoked_reason,
     startsAt: row.starts_at,
@@ -1382,12 +1416,15 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
+    content_release_mode: "full_access" | "scheduled" | null;
+    content_release_started_at: Date | null;
     course_id: string | null;
     course_title: string | null;
     email: string;
     expires_at: Date | null;
     id: string | null;
     name: string;
+    next_module_release_at: Date | null;
     original_expires_at: Date | null;
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
@@ -1399,8 +1436,10 @@ export const getAdminStudentDetail = async (
     `
       select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
              e.status, e.starts_at, e.expires_at,
+             e.content_release_mode, e.content_release_started_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
-             e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
+             e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason,
+             next_release.next_module_release_at
       from users u
       join profiles p on p.user_id = u.id and p.role = 'student'
       left join enrollments e on e.user_id = u.id
@@ -1413,6 +1452,21 @@ export const getAdminStudentDetail = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      left join lateral (
+        select min(
+          e.content_release_started_at + (m.release_delay_days * interval '24 hours')
+        ) as next_module_release_at
+        from modules m
+        join course_publications cp_release on cp_release.id = m.course_publication_id
+        where cp_release.course_id = e.course_id
+          and cp_release.status = 'published'
+          and m.status = 'active'
+          and m.release_delay_days > 0
+          and e.content_release_mode = 'scheduled'
+          and e.content_release_started_at is not null
+          and e.content_release_started_at
+                + (m.release_delay_days * interval '24 hours') > now()
+      ) next_release on true
       where u.id = $1
       order by c.title nulls last
     `,
@@ -1446,9 +1500,12 @@ export const getAdminStudentDetail = async (
         {
           courseId: row.course_id,
           courseTitle: row.course_title,
+          contentReleaseMode: row.content_release_mode ?? "full_access",
+          contentReleaseStartedAt: row.content_release_started_at,
           expiresAt: row.expires_at,
           id: row.id,
           originalExpiresAt: row.original_expires_at,
+          nextModuleReleaseAt: row.next_module_release_at,
           revokedReason: row.revoked_reason,
           startedAt: row.starts_at,
           status: row.status,

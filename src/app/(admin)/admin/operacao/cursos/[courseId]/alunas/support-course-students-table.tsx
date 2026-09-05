@@ -16,6 +16,7 @@ interface SupportCourseStudentRow extends SupportCourseStudentSummary {
 
 const supportCapabilities = {
   canManageCertificates: false,
+  canManageEnrollmentAccess: false,
   canManageEnrollmentSupport: true,
   canManagePlatformAccess: false,
   canReissueCertificates: true,
