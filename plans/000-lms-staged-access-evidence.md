@@ -296,7 +296,7 @@ Fontes oficiais:
 - download/preview R2 chama a mesma leitura protegida e gera URL assinada de cinco
   minutos (`src/app/api/lessons/[lessonId]/resources/[resourceId]/download/route.ts`,
   `src/app/api/lessons/[lessonId]/resources/[resourceId]/preview/route.ts`,
-  `src/features/storage/r2.ts#resolvePrivateR2ObjectUrl`).
+  `src/features/storage/r2.ts#createLessonResourceDownloadUrl`).
 - preview Admin já é separado da experiência mutável da Aluna.
 - as páginas protegidas são dinâmicas; não dependem de build estático para o relógio.
 
