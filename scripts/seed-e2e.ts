@@ -7,7 +7,12 @@ import sharp from "sharp";
 import { getPool } from "@/db";
 import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
-import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
+import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
+import {
+  createManualAccessGrant,
+  rebuildEnrollmentProjection,
+} from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
 import {
   deleteR2Objects,
@@ -47,6 +52,7 @@ export interface E2eFixture {
     id: string;
     lessonOneId: string;
     lessonTwoId: string;
+    releaseScheduleDigest: string;
     slug: string;
   };
   paymentCustomers: { blockedId: string; teamId: string };
@@ -472,15 +478,30 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       throw new Error("Could not create E2E course publication.");
     }
 
-    const { rows: modules } = await client.query<{ id: string }>(
+    const { rows: modules } = await client.query<{
+      id: string;
+      release_delay_days: number;
+      sort_order: number;
+      title: string;
+    }>(
       `insert into modules (course_id, course_publication_id, title, sort_order, status)
-       values ($1, $2, 'Modulo E2E', 1, 'active') returning id`,
+       values ($1, $2, 'Modulo E2E', 1, 'active')
+       returning id, release_delay_days, sort_order, title`,
       [courseId, coursePublicationId]
     );
     const moduleId = modules[0]?.id;
     if (!moduleId) {
       throw new Error("Could not create E2E module.");
     }
+    const courseReleaseScheduleDigest = getContentReleaseScheduleDigest(
+      buildContentReleaseScheduleSnapshot(
+        modules.map((module) => ({
+          releaseDelayDays: module.release_delay_days,
+          sortOrder: module.sort_order,
+          title: module.title,
+        }))
+      )
+    );
 
     const lessonIds: string[] = [];
     for (const [sortOrder, title] of [
@@ -580,19 +601,12 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     if (!(immediateLessonId && futureLessonId)) {
       throw new Error("Could not create scheduled E2E lessons.");
     }
-    await client.query(
-      `
-        insert into enrollment_grants (
-          user_id, course_id, source_type, manual_reference, status,
-          starts_at, base_expires_at, effective_expires_at
-        ) values ($1, $2, 'manual', $3, 'active', now() - interval '1 minute',
-                  now() + interval '30 days', now() + interval '30 days')
-      `,
-      [studentId, scheduledCourseId, `e2e-scheduled-${suffix}`]
-    );
-    await rebuildEnrollmentProjection({
+    await createManualAccessGrant({
       client,
       courseId: scheduledCourseId,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      manualReference: `e2e-scheduled-${suffix}`,
+      reason: "Fixture E2E de liberacao programada",
       userId: studentId,
     });
 
@@ -809,7 +823,13 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         lessonId: certifiableLessonId,
         title: CERTIFIABLE_COURSE_TITLE,
       },
-      course: { id: courseId, lessonOneId, lessonTwoId, slug: courseSlug },
+      course: {
+        id: courseId,
+        lessonOneId,
+        lessonTwoId,
+        releaseScheduleDigest: courseReleaseScheduleDigest,
+        slug: courseSlug,
+      },
       scheduledCourse: {
         futureLessonId,
         id: scheduledCourseId,

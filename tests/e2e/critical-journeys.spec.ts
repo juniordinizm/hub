@@ -297,7 +297,12 @@ test("anonymous paid collisions open identity review without access", async ({
   ]) {
     const attemptId = crypto.randomUUID();
     const checkout = await request.post("/api/checkouts/course", {
-      data: { checkoutAttemptId: attemptId, courseSlug: fixture.course.slug },
+      data: {
+        checkoutAttemptId: attemptId,
+        courseSlug: fixture.course.slug,
+        expectedContentReleaseScheduleDigest:
+          fixture.course.releaseScheduleDigest,
+      },
     });
     expect(checkout.ok()).toBe(true);
 
@@ -355,7 +360,7 @@ test("public signup creates a student account without granting a course", async 
     0
   );
   await expect(
-    page.getByRole("button", { name: "Adquirir acesso" }).first()
+    page.getByRole("link", { name: "Adquirir acesso" }).first()
   ).toBeVisible();
 
   await page.context().clearCookies();
@@ -388,8 +393,8 @@ test("scheduled modules hide future lessons and redirect direct access", async (
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
 
   await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
-  const futureModule = page.getByRole("region", {
-    name: "Módulo futuro E2E",
+  const futureModule = page.locator("section").filter({
+    has: page.getByRole("heading", { name: "Módulo futuro E2E" }),
   });
   await expect(futureModule).toBeVisible();
   await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
@@ -467,7 +472,7 @@ test("expired and revoked access explain the next action", async ({ page }) => {
     page.getByText("Acesso expirado", { exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Renovar acesso" })
+    page.getByRole("link", { name: "Renovar acesso" })
   ).toBeVisible();
 
   await page.context().clearCookies();
