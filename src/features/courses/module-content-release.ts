@@ -93,7 +93,7 @@ export const assertScheduleFitsAccessDuration = ({
   }
 
   let maxReleaseDelayDays = 0;
-  for (const module of snapshot.modules as (ContentReleaseScheduleModule | null)[]) {
+  for (const module of snapshot.modules) {
     if (!module) {
       throw new Error("Cronograma de conteúdo inválido.");
     }

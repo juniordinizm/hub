@@ -1,5 +1,6 @@
 import "server-only";
 import { getPool } from "@/db";
+import { createContentReleaseDiagnostics } from "@/features/courses/content-release-observability";
 import { resolveLessonAccess } from "@/features/enrollments/access";
 import type { AppRole } from "@/lib/session";
 import {
@@ -73,7 +74,11 @@ export const ensureCanCommentOnLesson = async ({
     return { courseId };
   }
 
-  const access = await resolveLessonAccess({ lessonId, userId });
+  const access = await resolveLessonAccess({
+    diagnostics: createContentReleaseDiagnostics(),
+    lessonId,
+    userId,
+  });
   if (access.kind !== "allowed") {
     throw new Error("Aula indisponivel para esta matricula.");
   }

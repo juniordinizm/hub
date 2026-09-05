@@ -982,8 +982,7 @@ const appendOverviewLesson = ({
       moduleData.releaseState === "available"
         ? { kind: "available" }
         : {
-            availableAt:
-              moduleData.availableAt ?? new Date(Number.MAX_SAFE_INTEGER),
+            availableAt: moduleData.availableAt ?? new Date(0),
             kind: "time_locked",
           },
     sequenceAvailable: isLessonAvailable({
