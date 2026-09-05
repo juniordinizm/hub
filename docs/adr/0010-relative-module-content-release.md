@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: e325b7e
+last_verified_commit: 6710008
 ---
 
 # ADR-0010 Liberação temporal relativa por Módulo
@@ -31,6 +31,12 @@ Cada novo Pedido preserva um snapshot compacto do cronograma apresentado. Esse s
 prova a oferta aceita, mas não governa o acesso; o runtime segue a publicação vigente
 sob a regra monotônica. Um digest do snapshot impede criar checkout quando a política
 mudou entre apresentação e confirmação.
+
+Quando o acesso nasce de um webhook de pagamento, a âncora é o instante efetivo em que
+o Hub aplica a concessão/projeção (`now` da operação transacional), não o `paid_at`
+fornecido pelo provider. O timestamp externo pode ser registrado como evidência
+financeira, mas não move silenciosamente o relógio de entrega; honrá-lo exigiria uma
+decisão específica de Produto e Jurídico.
 
 ## Alternativas rejeitadas
 
