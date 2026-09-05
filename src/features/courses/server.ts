@@ -962,6 +962,8 @@ const getEnrolledCourseOverview = async ({
         c.certificate_enabled,
         cert.render_status as certificate_render_status,
         cert.status as certificate_status,
+        e.content_release_mode,
+        e.content_release_started_at,
         m.id as module_id,
         m.title as module_title,
         m.description as module_description,
