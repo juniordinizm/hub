@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 4125866
+last_verified_commit: e325b7e
 ---
 
 # Arquitetura
