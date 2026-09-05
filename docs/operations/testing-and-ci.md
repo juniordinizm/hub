@@ -93,7 +93,7 @@ Para testar somente integração, configure uma URL PostgreSQL descartável e
 execute `bun run test:certificates:integration`. Para E2E, use as URLs e os
 servidores locais definidos no `playwright.config.ts`.
 
-O fluxo de liberação temporal usa `src/features/enrollments/content-release.integration.test.ts` com PostgreSQL descartável. A URL deve estar em `CERTIFICATE_CONCURRENCY_DATABASE_URL` ou `INTEGRATION_DATABASE_URL`; sem ela o teste falha deliberadamente e nunca deve usar Neon compartilhado.
+O fluxo de liberação temporal usa `src/features/enrollments/content-release.integration.test.ts` e `src/features/courses/content-release.integration.test.ts` com PostgreSQL descartável. A URL deve estar em `CERTIFICATE_CONCURRENCY_DATABASE_URL` ou `INTEGRATION_DATABASE_URL`; sem ela o teste falha deliberadamente e nunca deve usar Neon compartilhado. O checklist manual de R2/JMVStream, copy e rollback está em [Rollout da liberação temporal por Módulo](content-release-rollout.md).
 
 Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplicação
 herdadas do processo e restaura o ambiente ao final de cada teste. Isso impede

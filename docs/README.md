@@ -54,6 +54,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Backup Production e restauração](operations/production-backup-restore.md)
 - [Progressão DMARC](operations/dmarc-rollout.md)
 - [Checklist das pendências externas](operations/external-readiness-checklist.md)
+- [Rollout da liberação temporal por Módulo](operations/content-release-rollout.md)
 
 ### Decisões
 
