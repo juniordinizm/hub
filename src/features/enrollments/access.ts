@@ -1,5 +1,11 @@
 import "server-only";
 import { getPool } from "@/db";
+import { resolveModuleContentRelease } from "@/features/courses/module-content-release";
+
+export type LessonAccessDecision =
+  | { courseId: string; kind: "allowed" }
+  | { availableAt: Date; courseId: string; kind: "time_locked" }
+  | { kind: "denied" };
 
 export const resolveCourseAccess = async ({
   courseId,
@@ -32,14 +38,34 @@ export const resolveCourseAccess = async ({
 
 export const resolveLessonAccess = async ({
   lessonId,
+  now = new Date(),
   userId,
 }: {
   lessonId: string;
+  now?: Date;
   userId: string;
-}): Promise<boolean> => {
-  const { rows } = await getPool().query<{ id: string }>(
+}): Promise<LessonAccessDecision> => {
+  const { rows } = await getPool().query<{
+    content_release_mode: "full_access" | "scheduled";
+    content_release_started_at: Date | null;
+    course_id: string;
+    is_completed: boolean;
+    release_delay_days: number;
+  }>(
     `
-      select e.id
+      select
+        c.id as course_id,
+        e.content_release_mode,
+        e.content_release_started_at,
+        m.release_delay_days,
+        exists (
+          select 1
+          from lesson_progress lp
+          join lessons completed_lesson
+            on completed_lesson.id = lp.lesson_id
+           and completed_lesson.curriculum_key = l.curriculum_key
+          where lp.user_id = e.user_id
+        ) as is_completed
       from lessons l
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
@@ -61,5 +87,29 @@ export const resolveLessonAccess = async ({
     [userId, lessonId]
   );
 
-  return Boolean(rows[0]);
+  const row = rows[0];
+  if (!row) {
+    return { kind: "denied" };
+  }
+  if (row.is_completed) {
+    return { courseId: row.course_id, kind: "allowed" };
+  }
+
+  try {
+    const release = resolveModuleContentRelease({
+      contentReleaseMode: row.content_release_mode,
+      contentReleaseStartedAt: row.content_release_started_at,
+      now,
+      releaseDelayDays: row.release_delay_days,
+    });
+    return release.kind === "time_locked"
+      ? {
+          availableAt: release.availableAt,
+          courseId: row.course_id,
+          kind: "time_locked",
+        }
+      : { courseId: row.course_id, kind: "allowed" };
+  } catch {
+    return { kind: "denied" };
+  }
 };
