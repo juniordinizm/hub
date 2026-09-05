@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: product
-last_verified_commit: 6bec63f
+last_verified_commit: 4125866
 ---
 
 # ADR-0007: publicações internas e conteúdo vivo por Curso

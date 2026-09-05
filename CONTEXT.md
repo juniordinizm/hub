@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: product
-last_verified_commit: 6bec63f
+last_verified_commit: 4125866
 ---
 
 # Glossário do Hub
