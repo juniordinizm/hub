@@ -8,6 +8,7 @@ import {
   type CertificateOperationRecord,
   getCertificateOperationsForUser,
 } from "@/features/certificates/server";
+import { CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL } from "@/features/courses/content-release-sql";
 import type { ContentReleaseMode } from "@/features/courses/module-content-release";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
@@ -783,22 +784,7 @@ const readEnrollments = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      left join lateral (
-        select min(
-          e.content_release_started_at + (m.release_delay_days * interval '24 hours')
-        ) as next_module_release_at
-        from modules m
-        join course_publications cp_release
-          on cp_release.id = m.course_publication_id
-        where cp_release.course_id = e.course_id
-          and cp_release.status = 'published'
-          and m.status = 'active'
-          and m.release_delay_days > 0
-          and e.content_release_mode = 'scheduled'
-          and e.content_release_started_at is not null
-          and e.content_release_started_at
-                + (m.release_delay_days * interval '24 hours') > now()
-      ) next_release on true
+      ${CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL}
       ${whereClause}
       order by e.updated_at desc
     `,
@@ -1449,21 +1435,7 @@ export const getAdminStudentDetail = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      left join lateral (
-        select min(
-          e.content_release_started_at + (m.release_delay_days * interval '24 hours')
-        ) as next_module_release_at
-        from modules m
-        join course_publications cp_release on cp_release.id = m.course_publication_id
-        where cp_release.course_id = e.course_id
-          and cp_release.status = 'published'
-          and m.status = 'active'
-          and m.release_delay_days > 0
-          and e.content_release_mode = 'scheduled'
-          and e.content_release_started_at is not null
-          and e.content_release_started_at
-                + (m.release_delay_days * interval '24 hours') > now()
-      ) next_release on true
+      ${CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL}
       where u.id = $1
       order by c.title nulls last
     `,
