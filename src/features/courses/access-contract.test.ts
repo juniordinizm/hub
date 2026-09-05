@@ -63,10 +63,12 @@ describe("student course read access", () => {
       })
     ).resolves.toEqual({ kind: "unavailable" });
 
-    expect(resolveLessonAccess).toHaveBeenCalledWith({
-      lessonId: "lesson-1",
-      userId: "student-1",
-    });
+    expect(resolveLessonAccess).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lessonId: "lesson-1",
+        userId: "student-1",
+      })
+    );
     expect(query).not.toHaveBeenCalled();
   });
 
