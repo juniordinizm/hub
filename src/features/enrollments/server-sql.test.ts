@@ -7,17 +7,22 @@ const readServerSource = async (): Promise<string> =>
     "\n"
   );
 
+const readAggregateLockSource = async (): Promise<string> =>
+  await readFile(
+    new URL("./enrollment-aggregate-lock.ts", import.meta.url),
+    "utf8"
+  );
+
 const PROVIDER_NAME_PATTERN = /asaas/i;
 
 describe("enrollment server SQL contracts", () => {
   it("takes the shared Course release lock before every enrollment aggregate lock", async () => {
     const source = await readServerSource();
-    const aggregateLockSource = source.slice(
-      source.indexOf("const lockEnrollmentAggregate = async"),
-      source.indexOf("const hasEnrollmentGrantForOrder")
-    );
+    const aggregateLockSource = await readAggregateLockSource();
 
-    expect(source).toContain("@/features/courses/content-release-lock");
+    expect(source).toContain(
+      'import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock"'
+    );
     expect(aggregateLockSource).toContain(
       "await lockCourseContentRelease(client, courseId)"
     );
@@ -28,6 +33,7 @@ describe("enrollment server SQL contracts", () => {
 
   it("locks the enrollment aggregate before every direct grant mutation", async () => {
     const source = await readServerSource();
+    const aggregateLockSource = await readAggregateLockSource();
     const paidSource = source.slice(
       source.indexOf("export const applyPaidWebhookAccess"),
       source.indexOf("export const createManualAccessGrant")
@@ -41,8 +47,10 @@ describe("enrollment server SQL contracts", () => {
       source.indexOf("const getActivePaidGrantForEnrollment")
     );
 
-    expect(source).toContain("const lockEnrollmentAggregate = async");
     expect(source).toContain(
+      'import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock"'
+    );
+    expect(aggregateLockSource).toContain(
       "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
     );
     expect(paidSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(

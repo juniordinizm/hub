@@ -1,7 +1,6 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
-import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
 import type {
   EnrollmentContentReleaseState,
   EnrollmentStatus,
@@ -12,6 +11,7 @@ import {
   getRenewedAccessWindow,
   validateEnrollmentAdjustmentReason,
 } from "@/features/enrollments/rules";
+import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock";
 
 type EnrollmentGrantStatus =
   | "active"
@@ -158,18 +158,6 @@ const insertEnrollmentEvent = async (
       actorUserId,
       JSON.stringify(metadata),
     ]
-  );
-};
-
-const lockEnrollmentAggregate = async (
-  client: PoolClient,
-  userId: string,
-  courseId: string
-): Promise<void> => {
-  await lockCourseContentRelease(client, courseId);
-  await client.query(
-    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
-    [userId, courseId]
   );
 };
 
