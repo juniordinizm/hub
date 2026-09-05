@@ -160,6 +160,25 @@ describe("content release PostgreSQL surfaces", () => {
     ]);
   });
 
+  it("does not issue a certificate while a required future lesson remains incomplete", async () => {
+    const fixture = await createFixture();
+
+    await expect(
+      completeLesson({
+        lessonId: fixture.immediateLessonId,
+        userId: fixture.userId,
+      })
+    ).resolves.toMatchObject({
+      certificateIssued: false,
+      courseId: fixture.courseId,
+    });
+    const certificates = await pool.query(
+      "select count(*) from certificates where course_id = $1 and user_id = $2",
+      [fixture.courseId, fixture.userId]
+    );
+    expect(certificates.rows).toEqual([{ count: "0" }]);
+  });
+
   it("rejects completion after a concurrent revocation commits", async () => {
     const fixture = await createFixture();
     const revocation = await pool.connect();
