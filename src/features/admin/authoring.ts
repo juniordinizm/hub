@@ -537,6 +537,8 @@ const runCoursePublicationTransaction = async ({
          and m.course_publication_id = cp.id
         where cp.course_id = $1
           and (cp.status = 'published' or cp.id = $2)
+          and m.status = 'active'
+          and l.status = 'active'
         order by case cp.status when 'published' then 0 else 1 end,
                  m.sort_order,
                  l.sort_order
@@ -564,9 +566,9 @@ const runCoursePublicationTransaction = async ({
     if (currentCourse?.sales_status === "open") {
       assertMaxReleaseDelayFitsAccessDuration({
         accessDurationMonths: currentCourse.access_duration_months,
-        maxReleaseDelayDays: Math.max(
-          0,
-          ...next.map((lesson) => lesson.releaseDelayDays)
+        maxReleaseDelayDays: next.reduce(
+          (maxDelay, lesson) => Math.max(maxDelay, lesson.releaseDelayDays),
+          0
         ),
       });
     }
