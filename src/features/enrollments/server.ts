@@ -1175,6 +1175,7 @@ export const grantEnrollmentFullContentAccess = async ({
       [enrollmentId]
     );
     const currentEnrollment = locked.rows[0];
+    const now = Date.now();
     if (currentEnrollment?.status !== "active") {
       if (currentEnrollment) {
         reportContentReleaseOperationalEvent({
@@ -1185,8 +1186,8 @@ export const grantEnrollmentFullContentAccess = async ({
       throw new Error("Somente matriculas ativas podem liberar o conteúdo.");
     }
     if (
-      currentEnrollment.starts_at.getTime() > Date.now() ||
-      currentEnrollment.expires_at.getTime() < Date.now()
+      currentEnrollment.starts_at.getTime() > now ||
+      currentEnrollment.expires_at.getTime() < now
     ) {
       reportContentReleaseOperationalEvent({
         code: "content_release_override_rejected",
