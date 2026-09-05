@@ -17,7 +17,10 @@ vi.mock("server-only", () => ({}));
 
 import {
   applyPaidWebhookAccess,
+  applyPaymentRevocation,
+  blockEnrollmentAccess,
   grantEnrollmentFullContentAccess,
+  restoreEnrollmentAccess,
 } from "./server";
 
 const LOCK_OBSERVATION_TIMEOUT_MS = 30_000;
@@ -499,12 +502,12 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
     }
 
     const result = await grantEnrollmentFullContentAccess({
-      actorUserId: "integration-admin",
+      actorUserId: fixture.userId,
       enrollmentId,
       reason: "Liberacao operacional de teste",
     });
     const replay = await grantEnrollmentFullContentAccess({
-      actorUserId: "integration-admin",
+      actorUserId: fixture.userId,
       enrollmentId,
       reason: "Repeticao idempotente",
     });
@@ -542,5 +545,129 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
       [enrollmentId]
     );
     expect(audits.rows).toEqual([{ count: "1" }]);
+  });
+
+  it("preserva a ancora em renovacao, reembolso parcial e bloqueio manual", async () => {
+    const fixture = await createFixture();
+    const firstNow = new Date("2026-09-04T17:30:00.000Z");
+    const secondNow = new Date("2026-09-05T17:30:00.000Z");
+    const runTransaction = async (
+      operation: (client: PoolClient) => Promise<void>
+    ): Promise<void> => {
+      const client = await pool.connect();
+      try {
+        await client.query("begin");
+        await operation(client);
+        await client.query("commit");
+      } catch (error) {
+        await rollbackQuietly(client);
+        throw error;
+      } finally {
+        client.release();
+      }
+    };
+
+    try {
+      await runTransaction((client) =>
+        applyPaidWebhookAccess({
+          accessDurationMonths: ACCESS_DURATION_MONTHS,
+          client,
+          courseId: fixture.courseId,
+          now: firstNow,
+          orderId: fixture.firstOrderId,
+          userId: fixture.userId,
+        })
+      );
+      await runTransaction((client) =>
+        applyPaidWebhookAccess({
+          accessDurationMonths: ACCESS_DURATION_MONTHS,
+          client,
+          courseId: fixture.courseId,
+          now: secondNow,
+          orderId: fixture.secondOrderId,
+          userId: fixture.userId,
+        })
+      );
+
+      const before = await pool.query<{
+        content_release_started_at: Date;
+        id: string;
+      }>(
+        "select id, content_release_started_at from enrollments where user_id = $1 and course_id = $2",
+        [fixture.userId, fixture.courseId]
+      );
+      const enrollment = before.rows[0];
+      if (!enrollment) {
+        throw new Error("Matrícula de integração não criada.");
+      }
+
+      await runTransaction((client) =>
+        applyPaymentRevocation({
+          client,
+          courseId: fixture.courseId,
+          now: secondNow,
+          orderId: fixture.firstOrderId,
+          reason: "payment_refund",
+          userId: fixture.userId,
+        }).then(() => undefined)
+      );
+      const afterPartialRefund = await pool.query<{
+        content_release_started_at: Date;
+        status: string;
+      }>(
+        "select content_release_started_at, status from enrollments where id = $1",
+        [enrollment.id]
+      );
+      expect(afterPartialRefund.rows).toEqual([
+        {
+          content_release_started_at: enrollment.content_release_started_at,
+          status: "active",
+        },
+      ]);
+
+      await blockEnrollmentAccess({
+        actorUserId: fixture.userId,
+        enrollmentId: enrollment.id,
+        now: secondNow,
+        reason: "Bloqueio operacional de teste",
+      });
+      await restoreEnrollmentAccess({
+        actorUserId: fixture.userId,
+        enrollmentId: enrollment.id,
+        now: secondNow,
+        reason: "Restauracao operacional de teste",
+      });
+      const afterManualCycle = await pool.query<{
+        content_release_started_at: Date;
+        status: string;
+      }>(
+        "select content_release_started_at, status from enrollments where id = $1",
+        [enrollment.id]
+      );
+      expect(afterManualCycle.rows).toEqual([
+        {
+          content_release_started_at: enrollment.content_release_started_at,
+          status: "active",
+        },
+      ]);
+
+      await runTransaction((client) =>
+        applyPaymentRevocation({
+          client,
+          courseId: fixture.courseId,
+          now: secondNow,
+          orderId: fixture.secondOrderId,
+          reason: "payment_refund",
+          userId: fixture.userId,
+        }).then(() => undefined)
+      );
+      const terminal = await pool.query<{ status: string }>(
+        "select status from enrollments where id = $1",
+        [enrollment.id]
+      );
+      expect(terminal.rows).toEqual([{ status: "revoked" }]);
+    } finally {
+      await cleanupFixtures();
+    }
   });
 });

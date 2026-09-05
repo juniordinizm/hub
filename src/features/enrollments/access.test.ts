@@ -17,6 +17,7 @@ describe("enrollment access read model", () => {
           course_id: "course-1",
           is_completed: false,
           release_delay_days: 8,
+          sequence_available: true,
         },
       ],
     });
@@ -43,6 +44,7 @@ describe("enrollment access read model", () => {
           course_id: "course-1",
           is_completed: false,
           release_delay_days: 8,
+          sequence_available: true,
         },
       ],
     });
@@ -62,6 +64,7 @@ describe("enrollment access read model", () => {
           course_id: "course-1",
           is_completed: false,
           release_delay_days: 1,
+          sequence_available: true,
         },
       ],
     });
@@ -91,6 +94,7 @@ describe("enrollment access read model", () => {
           course_id: "course-1",
           is_completed: true,
           release_delay_days: 8,
+          sequence_available: false,
         },
       ],
     });
@@ -114,6 +118,7 @@ describe("enrollment access read model", () => {
           course_id: "course-1",
           is_completed: false,
           release_delay_days: 8,
+          sequence_available: true,
         },
       ],
     });

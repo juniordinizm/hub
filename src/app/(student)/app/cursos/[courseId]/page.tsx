@@ -27,6 +27,7 @@ import {
 import { getStudentCourseOverview } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+import { APP_TIME_ZONE } from "@/lib/timezone";
 import { PendingCertificateRefresh } from "../../certificados/pending-certificate-refresh";
 import { CourseOverviewClient } from "./course-overview-client";
 
@@ -43,7 +44,7 @@ const formatReleaseDate = (value: Date): string =>
   new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
-    timeZone: "UTC",
+    timeZone: APP_TIME_ZONE,
   }).format(value);
 
 function getIncompleteCertificateDescription({

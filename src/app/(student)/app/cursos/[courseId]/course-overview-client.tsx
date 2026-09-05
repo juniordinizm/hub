@@ -9,6 +9,7 @@ import type { StudentPreviewMode } from "@/features/courses/preview";
 import { getPreviewAwareHref } from "@/features/courses/preview";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
+import { APP_TIME_ZONE } from "@/lib/timezone";
 
 interface LessonData {
   availability: LessonAvailability;
@@ -90,7 +91,7 @@ export function CourseOverviewClient({
       ? new Intl.DateTimeFormat("pt-BR", {
           dateStyle: "short",
           timeStyle: "short",
-          timeZone: "UTC",
+          timeZone: APP_TIME_ZONE,
         }).format(new Date(value))
       : "após a confirmação do acesso";
 

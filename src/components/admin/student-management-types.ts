@@ -51,6 +51,8 @@ export interface StudentSheetPayload {
     userId: string;
   };
   supportContext?: {
+    contentReleaseMode?: "full_access" | "scheduled";
+    contentReleaseStartedAt?: string | null;
     audit: Array<{
       action: string;
       createdAt: string;
@@ -70,5 +72,6 @@ export interface StudentSheetPayload {
       completedRequiredLessons: number;
       requiredLessons: number;
     };
+    nextModuleReleaseAt?: string | null;
   };
 }

@@ -35,7 +35,6 @@ import { recordLearningAnalyticsEvent } from "@/features/learning-analytics/serv
 import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
-  getNextAvailableLessonId,
   getNextAvailablePendingLessonId,
   isLessonAvailable,
 } from "@/features/progress/rules";
@@ -210,6 +209,8 @@ export type StudentLessonWorkspaceResult =
 interface LessonRow {
   completed_at: Date | null;
   content_json: unknown;
+  content_release_mode: "full_access" | "scheduled";
+  content_release_started_at: Date | null;
   course_id: string;
   course_title: string;
   duration_seconds: number;
@@ -221,6 +222,7 @@ interface LessonRow {
   module_id: string;
   module_sort_order: number;
   module_title: string;
+  release_delay_days: number;
   video_duration_seconds: number;
   video_embed_url: string | null;
   video_external_id: string | null;
@@ -485,7 +487,7 @@ export const getStudentCourses = async (
           totalCount: moduleProgress.totalCount,
           completedCount: moduleProgress.completedCount,
           progressPercent: moduleProgress.percent,
-          nextLessonId: getNextAvailableLessonId(moduleData),
+          nextLessonId: null,
         };
       });
 
@@ -502,7 +504,7 @@ export const getStudentCourses = async (
       progressPercent: progress.percent,
       completedCount: progress.completedCount,
       totalCount: progress.totalCount,
-      nextLessonId: getNextAvailableLessonId(course),
+      nextLessonId: null,
     };
   });
 };
@@ -682,7 +684,7 @@ export const getStudentCourseCatalog = async (
       totalDurationSeconds: [
         ...course.durationSecondsPerLesson.values(),
       ].reduce((sum, s) => sum + Math.max(0, s), 0),
-      nextLessonId: course.isEnrolled ? getNextAvailableLessonId(course) : null,
+      nextLessonId: null,
     };
   });
 };
@@ -1253,9 +1255,12 @@ const getEnrolledLessonWorkspace = async ({
       select
         c.id as course_id,
         c.title as course_title,
+        e.content_release_mode,
+        e.content_release_started_at,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
+        m.release_delay_days,
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,
@@ -1319,7 +1324,29 @@ const getEnrolledLessonWorkspace = async ({
     return { kind: "unavailable" };
   }
 
-  const lessonIndex = lessonIds.indexOf(lessonId);
+  const visibleModules = mapModules(rows).map((moduleData) => {
+    const moduleRow = rows.find((row) => row.module_id === moduleData.id);
+    if (!moduleRow) {
+      return moduleData;
+    }
+    try {
+      const release = resolveModuleContentRelease({
+        contentReleaseMode: moduleRow.content_release_mode ?? "full_access",
+        contentReleaseStartedAt: moduleRow.content_release_started_at,
+        now: new Date(),
+        releaseDelayDays: moduleRow.release_delay_days ?? 0,
+      });
+      return release.kind === "time_locked"
+        ? { ...moduleData, lessons: [] }
+        : moduleData;
+    } catch {
+      return { ...moduleData, lessons: [] };
+    }
+  });
+  const visibleLessonIds = visibleModules.flatMap((module) =>
+    module.lessons.map((lesson) => lesson.id)
+  );
+  const lessonIndex = visibleLessonIds.indexOf(lessonId);
   const progress = calculateCourseProgress({
     lessonIds,
     requiredLessonIds,
@@ -1357,10 +1384,10 @@ const getEnrolledLessonWorkspace = async ({
         videoProcessingState: video.processingState,
         videoProvider: activeLesson.video_provider,
       },
-      modules: mapModules(rows),
+      modules: visibleModules,
       progressPercent: progress.percent,
-      nextLessonId: lessonIds[lessonIndex + 1] ?? null,
-      previousLessonId: lessonIds[lessonIndex - 1] ?? null,
+      nextLessonId: visibleLessonIds[lessonIndex + 1] ?? null,
+      previousLessonId: visibleLessonIds[lessonIndex - 1] ?? null,
     },
     kind: "available",
   };
@@ -1381,9 +1408,12 @@ const getPreviewLessonWorkspace = async ({
       select
         c.id as course_id,
         c.title as course_title,
+        'full_access'::enrollment_content_release_mode as content_release_mode,
+        null::timestamptz as content_release_started_at,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
+        0::int as release_delay_days,
         l.id as lesson_id,
         l.title as lesson_title,
         l.description as lesson_description,

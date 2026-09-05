@@ -51,6 +51,7 @@ export const resolveLessonAccess = async ({
     course_id: string;
     is_completed: boolean;
     release_delay_days: number;
+    sequence_available: boolean;
   }>(
     `
       select
@@ -66,6 +67,29 @@ export const resolveLessonAccess = async ({
            and completed_lesson.curriculum_key = l.curriculum_key
           where lp.user_id = e.user_id
         ) as is_completed
+        ,not exists (
+          select 1
+          from lessons prior_lesson
+          join modules prior_module on prior_module.id = prior_lesson.module_id
+          where prior_lesson.course_publication_id = cp.id
+            and prior_lesson.status = 'active'
+            and prior_module.status = 'active'
+            and (
+              prior_module.sort_order < m.sort_order
+              or (
+                prior_module.sort_order = m.sort_order
+                and prior_lesson.sort_order < l.sort_order
+              )
+            )
+            and not exists (
+              select 1
+              from lesson_progress prior_progress
+              join lessons completed_prior
+                on completed_prior.id = prior_progress.lesson_id
+               and completed_prior.curriculum_key = prior_lesson.curriculum_key
+              where prior_progress.user_id = e.user_id
+            )
+        ) as sequence_available
       from lessons l
       join modules m on m.id = l.module_id
       join courses c on c.id = m.course_id
@@ -102,13 +126,16 @@ export const resolveLessonAccess = async ({
       now,
       releaseDelayDays: row.release_delay_days,
     });
-    return release.kind === "time_locked"
-      ? {
-          availableAt: release.availableAt,
-          courseId: row.course_id,
-          kind: "time_locked",
-        }
-      : { courseId: row.course_id, kind: "allowed" };
+    if (release.kind === "time_locked") {
+      return {
+        availableAt: release.availableAt,
+        courseId: row.course_id,
+        kind: "time_locked",
+      };
+    }
+    return row.sequence_available
+      ? { courseId: row.course_id, kind: "allowed" }
+      : { kind: "denied" };
   } catch {
     return { kind: "denied" };
   }

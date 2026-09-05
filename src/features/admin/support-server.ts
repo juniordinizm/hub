@@ -46,11 +46,14 @@ export interface SupportCourseStudentContext {
   }>;
   course: { id: string; title: string };
   enrollment: {
+    contentReleaseMode: "full_access" | "scheduled";
+    contentReleaseStartedAt: Date | null;
     completedRequiredLessons: number;
     expiresAt: Date;
     id: string;
     originalExpiresAt: Date;
     requiredLessons: number;
+    nextModuleReleaseAt: Date | null;
     revokedReason: string | null;
     startsAt: Date;
     status: string;
@@ -232,6 +235,8 @@ export const getSupportCourseStudentContext = async ({
 
   const pool = getPool();
   const contextResult = await pool.query<{
+    content_release_mode: "full_access" | "scheduled";
+    content_release_started_at: Date | null;
     completed_required_lessons: number;
     course_id: string;
     course_title: string;
@@ -245,6 +250,7 @@ export const getSupportCourseStudentContext = async ({
     platform_blocked_reason: string | null;
     platform_blocked: boolean;
     required_lessons: number;
+    next_module_release_at: Date | null;
     revoked_reason: string | null;
     starts_at: Date;
     user_id: string;
@@ -263,9 +269,12 @@ export const getSupportCourseStudentContext = async ({
         e.status as enrollment_status,
         e.starts_at,
         e.expires_at,
+        e.content_release_mode,
+        e.content_release_started_at,
         coalesce(latest_grant.base_expires_at, e.expires_at)
           as original_expires_at,
         e.revoked_reason,
+        next_release.next_module_release_at,
         (
           select count(*)::int
           from lessons l
@@ -297,6 +306,21 @@ export const getSupportCourseStudentContext = async ({
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      left join lateral (
+        select min(
+          e.content_release_started_at + (m.release_delay_days * interval '24 hours')
+        ) as next_module_release_at
+        from modules m
+        join course_publications cp_release on cp_release.id = m.course_publication_id
+        where cp_release.course_id = e.course_id
+          and cp_release.status = 'published'
+          and m.status = 'active'
+          and m.release_delay_days > 0
+          and e.content_release_mode = 'scheduled'
+          and e.content_release_started_at is not null
+          and e.content_release_started_at
+                + (m.release_delay_days * interval '24 hours') > now()
+      ) next_release on true
       where e.course_id = $1 and e.user_id = $2
     `,
     [courseId, userId]
@@ -434,11 +458,14 @@ export const getSupportCourseStudentContext = async ({
     })),
     course: { id: context.course_id, title: context.course_title },
     enrollment: {
+      contentReleaseMode: context.content_release_mode,
+      contentReleaseStartedAt: context.content_release_started_at,
       completedRequiredLessons: context.completed_required_lessons,
       expiresAt: context.expires_at,
       id: context.enrollment_id,
       originalExpiresAt: context.original_expires_at,
       requiredLessons: context.required_lessons,
+      nextModuleReleaseAt: context.next_module_release_at,
       revokedReason: context.revoked_reason,
       startsAt: context.starts_at,
       status: context.enrollment_status,
@@ -532,6 +559,15 @@ export const getSupportStudentSheetData = async ({
       userId: context.student.userId,
     },
     supportContext: {
+      ...(context.enrollment.contentReleaseMode
+        ? { contentReleaseMode: context.enrollment.contentReleaseMode }
+        : {}),
+      ...(context.enrollment.contentReleaseStartedAt
+        ? {
+            contentReleaseStartedAt:
+              context.enrollment.contentReleaseStartedAt.toISOString(),
+          }
+        : {}),
       audit: context.audit.map((item) => ({
         ...item,
         createdAt: item.createdAt.toISOString(),
@@ -544,6 +580,12 @@ export const getSupportStudentSheetData = async ({
         completedRequiredLessons: context.enrollment.completedRequiredLessons,
         requiredLessons: context.enrollment.requiredLessons,
       },
+      ...(context.enrollment.nextModuleReleaseAt
+        ? {
+            nextModuleReleaseAt:
+              context.enrollment.nextModuleReleaseAt.toISOString(),
+          }
+        : {}),
     },
   };
 };
