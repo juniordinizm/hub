@@ -18,13 +18,16 @@ export async function GET(
     },
   });
 
-  if (data?.lesson.contentJson?.type !== "text") {
+  if (
+    data.kind !== "available" ||
+    data.data.lesson.contentJson?.type !== "text"
+  ) {
     return Response.json({ error: "Preview nao encontrado." }, { status: 404 });
   }
 
   const resources =
-    "resources" in data.lesson.contentJson
-      ? data.lesson.contentJson.resources
+    "resources" in data.data.lesson.contentJson
+      ? data.data.lesson.contentJson.resources
       : [];
   const resource = resources?.find(
     (item) => item.id === resourceId && item.storage === "r2"

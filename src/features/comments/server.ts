@@ -1,6 +1,6 @@
 import "server-only";
 import { getPool } from "@/db";
-import { isLessonAvailable } from "@/features/progress/rules";
+import { resolveLessonAccess } from "@/features/enrollments/access";
 import type { AppRole } from "@/lib/session";
 import {
   buildLessonCommentTree,
@@ -12,12 +12,6 @@ import {
 
 interface LessonAccessResult {
   courseId: string;
-}
-
-interface LessonSequenceRow {
-  completed_at: Date | null;
-  course_id: string;
-  lesson_id: string;
 }
 
 interface LessonCommentRow {
@@ -79,57 +73,11 @@ export const ensureCanCommentOnLesson = async ({
     return { courseId };
   }
 
-  const { rows } = await getPool().query<LessonSequenceRow>(
-    `
-      with target_lesson as (
-        select l.course_publication_id
-        from lessons l
-        where l.id = $2
-        limit 1
-      )
-      select
-        cp.course_id,
-        l.id as lesson_id,
-        lp.completed_at
-      from target_lesson tl
-      join course_publications cp on cp.id = tl.course_publication_id
-        and cp.status = 'published'
-      join modules m on m.course_publication_id = cp.id and m.status = 'active'
-      join lessons l on l.module_id = m.id
-        and l.course_publication_id = cp.id
-        and l.status = 'active'
-      join courses c on c.id = cp.course_id
-      join enrollments e on e.course_id = cp.course_id and e.user_id = $1
-      left join lateral (
-        select min(lp.completed_at) as completed_at
-        from lesson_progress lp
-        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
-        where lp.user_id = e.user_id
-          and completed_lesson.curriculum_key = l.curriculum_key
-      ) lp on true
-      where e.status = 'active'
-        and e.starts_at <= now()
-        and e.expires_at >= now()
-        and c.status = 'active'
-      order by m.sort_order asc, l.sort_order asc
-    `,
-    [userId, lessonId]
-  );
-
-  if (rows.length === 0) {
+  const access = await resolveLessonAccess({ lessonId, userId });
+  if (access.kind !== "allowed") {
     throw new Error("Aula indisponivel para esta matricula.");
   }
-
-  const lessonIds = rows.map((row) => row.lesson_id);
-  const completedLessonIds = rows
-    .filter((row) => row.completed_at)
-    .map((row) => row.lesson_id);
-
-  if (!isLessonAvailable({ lessonIds, completedLessonIds, lessonId })) {
-    throw new Error("Aula indisponivel para esta matricula.");
-  }
-
-  return { courseId: rows[0]?.course_id ?? "" };
+  return { courseId: access.courseId };
 };
 
 export const getLessonComments = async ({

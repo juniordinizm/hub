@@ -16,6 +16,11 @@ import {
   type LessonContent,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
+import {
+  type LessonAvailability,
+  resolveLessonAvailability,
+  resolveModuleContentRelease,
+} from "@/features/courses/module-content-release";
 import { deriveCourseWorkloadHours } from "@/features/courses/presentation";
 import { isPreviewRole } from "@/features/courses/preview";
 import { resolveCourseWorkloadHours } from "@/features/courses/workload";
@@ -31,6 +36,7 @@ import {
   calculateCourseProgress,
   calculateVideoPositionProgress,
   getNextAvailableLessonId,
+  getNextAvailablePendingLessonId,
   isLessonAvailable,
 } from "@/features/progress/rules";
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
@@ -128,23 +134,28 @@ export interface StudentCourseOverviewData {
   };
   isPreview: boolean;
   modules: Array<{
+    availableAt: Date | null;
     description: string | null;
     id: string;
+    lessonCount: number;
     lessons: Array<{
       durationSeconds: number;
       hasVideo: boolean;
       id: string;
-      isAvailable: boolean;
+      availability: LessonAvailability;
       isCompleted: boolean;
       sortOrder: number;
       thumbnailUrl: string | null;
       title: string;
       watchedPercent: number;
     }>;
+    releaseState: "available" | "time_locked";
     sortOrder: number;
+    totalDurationSeconds: number;
     title: string;
   }>;
   nextLessonId: string | null;
+  nextReleaseAt: Date | null;
   progressPercent: number;
   studentName: string | null;
   totalCount: number;
@@ -190,6 +201,11 @@ export interface StudentLessonData {
   previousLessonId: string | null;
   progressPercent: number;
 }
+
+export type StudentLessonWorkspaceResult =
+  | { data: StudentLessonData; kind: "available" }
+  | { availableAt: Date; courseId: string; kind: "time_locked" }
+  | { kind: "unavailable" };
 
 interface LessonRow {
   completed_at: Date | null;
@@ -247,6 +263,8 @@ interface CourseOverviewRow {
   certificate_render_status: "failed" | "pending" | "ready" | null;
   certificate_status: "revoked" | "valid" | null;
   completed_at: Date | null;
+  content_release_mode: "full_access" | "scheduled";
+  content_release_started_at: Date | null;
   course_description: string | null;
   course_id: string;
   course_slug: string;
@@ -263,6 +281,7 @@ interface CourseOverviewRow {
   module_id: string | null;
   module_sort_order: number | null;
   module_title: string | null;
+  release_delay_days: number | null;
   student_name: string;
   thumbnail_url: string | null;
   video_embed_url: string | null;
@@ -357,6 +376,8 @@ export const getStudentCourses = async (
         coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
         c.thumbnail_url,
         e.expires_at,
+        e.content_release_mode,
+        e.content_release_started_at,
         m.id as module_id,
         m.title as module_title,
         m.sort_order as module_sort_order,
@@ -765,6 +786,157 @@ export const recalculateCourseWorkloadHours = async (
   return effectiveWorkloadHours;
 };
 
+interface EnrolledOverviewProjectionInput {
+  completedLessonIds: string[];
+  lessonIds: string[];
+  now: Date;
+  rows: CourseOverviewRow[];
+}
+
+interface OverviewModuleRelease {
+  availableAt: Date | null;
+  releaseState: "available" | "time_locked";
+}
+
+const resolveOverviewModuleRelease = (
+  row: CourseOverviewRow,
+  now: Date
+): OverviewModuleRelease => {
+  try {
+    const release = resolveModuleContentRelease({
+      contentReleaseMode: row.content_release_mode ?? "full_access",
+      contentReleaseStartedAt: row.content_release_started_at ?? null,
+      now,
+      releaseDelayDays: row.release_delay_days ?? 0,
+    });
+    return release.kind === "time_locked"
+      ? { availableAt: release.availableAt, releaseState: "time_locked" }
+      : { availableAt: null, releaseState: "available" };
+  } catch {
+    return { availableAt: null, releaseState: "time_locked" };
+  }
+};
+
+const appendOverviewLesson = ({
+  completedLessonIds,
+  lessonIds,
+  moduleData,
+  nextLessonCandidates,
+  row,
+}: {
+  completedLessonIds: string[];
+  lessonIds: string[];
+  moduleData: StudentCourseOverviewData["modules"][number];
+  nextLessonCandidates: Array<{
+    availability: LessonAvailability;
+    id: string;
+    isCompleted: boolean;
+  }>;
+  row: CourseOverviewRow;
+}): void => {
+  if (
+    !(row.lesson_id && row.lesson_title && row.lesson_sort_order !== null) ||
+    row.duration_seconds === null
+  ) {
+    return;
+  }
+  const isCompleted = Boolean(row.completed_at);
+  moduleData.lessonCount += 1;
+  moduleData.totalDurationSeconds += Math.max(0, row.duration_seconds);
+  if (moduleData.releaseState !== "available") {
+    return;
+  }
+  const availability = resolveLessonAvailability({
+    isCompleted,
+    moduleRelease: { kind: "available" },
+    sequenceAvailable: isLessonAvailable({
+      lessonIds,
+      completedLessonIds,
+      lessonId: row.lesson_id,
+    }),
+  });
+  moduleData.lessons.push({
+    availability,
+    id: row.lesson_id,
+    title: row.lesson_title,
+    thumbnailUrl: row.lesson_thumbnail_url,
+    hasVideo: Boolean(row.video_embed_url || row.video_external_id),
+    durationSeconds: row.duration_seconds,
+    sortOrder: row.lesson_sort_order,
+    isCompleted,
+    watchedPercent: row.watched_percent ?? 0,
+  });
+  nextLessonCandidates.push({ availability, id: row.lesson_id, isCompleted });
+};
+
+const projectEnrolledOverviewModules = (
+  input: EnrolledOverviewProjectionInput
+): {
+  modules: StudentCourseOverviewData["modules"];
+  nextLessonId: string | null;
+  nextReleaseAt: Date | null;
+} => {
+  const { completedLessonIds, lessonIds, now, rows } = input;
+  const modules = new Map<
+    string,
+    StudentCourseOverviewData["modules"][number]
+  >();
+  const nextLessonCandidates: Array<{
+    availability: LessonAvailability;
+    id: string;
+    isCompleted: boolean;
+  }> = [];
+  let nextReleaseAt: Date | null = null;
+
+  for (const row of rows) {
+    if (!(row.module_id && row.module_title && row.module_sort_order)) {
+      continue;
+    }
+
+    let moduleData = modules.get(row.module_id);
+    if (!moduleData) {
+      const release = resolveOverviewModuleRelease(row, now);
+      moduleData = {
+        availableAt: release.availableAt,
+        description:
+          release.releaseState === "time_locked"
+            ? null
+            : row.module_description,
+        id: row.module_id,
+        lessonCount: 0,
+        lessons: [],
+        releaseState: release.releaseState,
+        sortOrder: row.module_sort_order,
+        title: row.module_title,
+        totalDurationSeconds: 0,
+      };
+      modules.set(row.module_id, moduleData);
+      if (
+        release.releaseState === "time_locked" &&
+        moduleData.availableAt &&
+        moduleData.availableAt > now &&
+        (!nextReleaseAt || moduleData.availableAt < nextReleaseAt)
+      ) {
+        nextReleaseAt = moduleData.availableAt;
+      }
+    }
+
+    appendOverviewLesson({
+      completedLessonIds,
+      lessonIds,
+      moduleData,
+      nextLessonCandidates,
+      row,
+    });
+  }
+
+  return {
+    modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
+    nextLessonId: getNextAvailablePendingLessonId(nextLessonCandidates),
+    nextReleaseAt,
+  };
+};
+
 const getEnrolledCourseOverview = async ({
   courseId,
   userId,
@@ -792,6 +964,7 @@ const getEnrolledCourseOverview = async ({
         m.title as module_title,
         m.description as module_description,
         m.sort_order as module_sort_order,
+        m.release_delay_days,
         l.id as lesson_id,
         l.title as lesson_title,
         l.thumbnail_url as lesson_thumbnail_url,
@@ -861,49 +1034,12 @@ const getEnrolledCourseOverview = async ({
     requiredLessonIds,
     completedLessonIds,
   });
-  const modules = new Map<
-    string,
-    StudentCourseOverviewData["modules"][number]
-  >();
-
-  for (const row of rows) {
-    if (!(row.module_id && row.module_title && row.module_sort_order)) {
-      continue;
-    }
-
-    const moduleData = modules.get(row.module_id) ?? {
-      id: row.module_id,
-      title: row.module_title,
-      description: row.module_description,
-      sortOrder: row.module_sort_order,
-      lessons: [],
-    };
-
-    if (
-      row.lesson_id &&
-      row.lesson_title &&
-      row.lesson_sort_order !== null &&
-      row.duration_seconds !== null
-    ) {
-      moduleData.lessons.push({
-        id: row.lesson_id,
-        title: row.lesson_title,
-        thumbnailUrl: row.lesson_thumbnail_url,
-        hasVideo: Boolean(row.video_embed_url || row.video_external_id),
-        durationSeconds: row.duration_seconds,
-        sortOrder: row.lesson_sort_order,
-        isCompleted: Boolean(row.completed_at),
-        watchedPercent: row.watched_percent ?? 0,
-        isAvailable: isLessonAvailable({
-          lessonIds,
-          completedLessonIds,
-          lessonId: row.lesson_id,
-        }),
-      });
-    }
-
-    modules.set(row.module_id, moduleData);
-  }
+  const moduleProjection = projectEnrolledOverviewModules({
+    completedLessonIds,
+    lessonIds,
+    now: new Date(),
+    rows,
+  });
 
   return {
     certificateCode: firstRow.certificate_code,
@@ -922,8 +1058,9 @@ const getEnrolledCourseOverview = async ({
       expiresAt: firstRow.expires_at,
     },
     isPreview: false,
-    modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
-    nextLessonId: getNextAvailableLessonId({ lessonIds, completedLessonIds }),
+    modules: moduleProjection.modules,
+    nextLessonId: moduleProjection.nextLessonId,
+    nextReleaseAt: moduleProjection.nextReleaseAt,
     progressPercent: progress.percent,
     studentName: firstRow.student_name,
     totalCount: progress.totalCount,
@@ -991,9 +1128,13 @@ const getPreviewCourseOverview = async ({
     }
 
     const moduleData = modules.get(row.module_id) ?? {
-      id: row.module_id,
-      title: row.module_title,
+      availableAt: null,
       description: row.module_description,
+      id: row.module_id,
+      lessonCount: 0,
+      releaseState: "available" as const,
+      totalDurationSeconds: 0,
+      title: row.module_title,
       sortOrder: row.module_sort_order,
       lessons: [],
     };
@@ -1005,6 +1146,7 @@ const getPreviewCourseOverview = async ({
       row.duration_seconds !== null
     ) {
       moduleData.lessons.push({
+        availability: { kind: "available" },
         id: row.lesson_id,
         title: row.lesson_title,
         thumbnailUrl: row.lesson_thumbnail_url,
@@ -1013,8 +1155,9 @@ const getPreviewCourseOverview = async ({
         sortOrder: row.lesson_sort_order,
         isCompleted: false,
         watchedPercent: 0,
-        isAvailable: true,
       });
+      moduleData.lessonCount += 1;
+      moduleData.totalDurationSeconds += Math.max(0, row.duration_seconds);
     }
 
     modules.set(row.module_id, moduleData);
@@ -1039,6 +1182,7 @@ const getPreviewCourseOverview = async ({
     isPreview: true,
     modules: [...modules.values()].sort((a, b) => a.sortOrder - b.sortOrder),
     nextLessonId: lessonIds[0] ?? null,
+    nextReleaseAt: null,
     progressPercent: 0,
     studentName: null,
     totalCount: lessonIds.length,
@@ -1089,11 +1233,14 @@ const getEnrolledLessonWorkspace = async ({
 }: {
   userId: string;
   lessonId: string;
-}): Promise<StudentLessonData | null> => {
-  const canAccessLesson = await resolveLessonAccess({ lessonId, userId });
+}): Promise<StudentLessonWorkspaceResult> => {
+  const accessDecision = await resolveLessonAccess({ lessonId, userId });
 
-  if (!canAccessLesson) {
-    return null;
+  if (accessDecision.kind === "denied") {
+    return { kind: "unavailable" };
+  }
+  if (accessDecision.kind === "time_locked") {
+    return accessDecision;
   }
 
   const { rows } = await getPool().query<LessonRow>(
@@ -1151,7 +1298,7 @@ const getEnrolledLessonWorkspace = async ({
   );
 
   if (rows.length === 0) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const lessonIds = rows.map((row) => row.lesson_id);
@@ -1163,13 +1310,13 @@ const getEnrolledLessonWorkspace = async ({
     .map((row) => row.lesson_id);
 
   if (!isLessonAvailable({ lessonIds, completedLessonIds, lessonId })) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const activeLesson = rows.find((row) => row.lesson_id === lessonId);
 
   if (!activeLesson) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const lessonIndex = lessonIds.indexOf(lessonId);
@@ -1181,37 +1328,41 @@ const getEnrolledLessonWorkspace = async ({
   const video = await resolveStudentLessonVideo(activeLesson);
 
   return {
-    course: {
-      id: activeLesson.course_id,
-      title: activeLesson.course_title,
+    data: {
+      course: {
+        id: activeLesson.course_id,
+        title: activeLesson.course_title,
+      },
+      isPreview: false,
+      lesson: {
+        contentJson: parseLessonContent(activeLesson.content_json),
+        id: activeLesson.lesson_id,
+        title: activeLesson.lesson_title,
+        description: activeLesson.lesson_description,
+        durationSeconds: activeLesson.duration_seconds,
+        videoDurationSeconds: activeLesson.video_duration_seconds,
+        isCompleted: Boolean(activeLesson.completed_at),
+        watchProgress:
+          activeLesson.watch_percent === null
+            ? null
+            : {
+                currentSeconds: activeLesson.watch_current_seconds ?? 0,
+                durationSeconds: activeLesson.watch_duration_seconds ?? 0,
+                maxPositionSeconds:
+                  activeLesson.watch_max_position_seconds ?? 0,
+                watchedPercent: activeLesson.watch_percent,
+              },
+        videoEmbedUrl: video.embedUrl,
+        videoExternalId: activeLesson.video_external_id,
+        videoProcessingState: video.processingState,
+        videoProvider: activeLesson.video_provider,
+      },
+      modules: mapModules(rows),
+      progressPercent: progress.percent,
+      nextLessonId: lessonIds[lessonIndex + 1] ?? null,
+      previousLessonId: lessonIds[lessonIndex - 1] ?? null,
     },
-    isPreview: false,
-    lesson: {
-      contentJson: parseLessonContent(activeLesson.content_json),
-      id: activeLesson.lesson_id,
-      title: activeLesson.lesson_title,
-      description: activeLesson.lesson_description,
-      durationSeconds: activeLesson.duration_seconds,
-      videoDurationSeconds: activeLesson.video_duration_seconds,
-      isCompleted: Boolean(activeLesson.completed_at),
-      watchProgress:
-        activeLesson.watch_percent === null
-          ? null
-          : {
-              currentSeconds: activeLesson.watch_current_seconds ?? 0,
-              durationSeconds: activeLesson.watch_duration_seconds ?? 0,
-              maxPositionSeconds: activeLesson.watch_max_position_seconds ?? 0,
-              watchedPercent: activeLesson.watch_percent,
-            },
-      videoEmbedUrl: video.embedUrl,
-      videoExternalId: activeLesson.video_external_id,
-      videoProcessingState: video.processingState,
-      videoProvider: activeLesson.video_provider,
-    },
-    modules: mapModules(rows),
-    progressPercent: progress.percent,
-    nextLessonId: lessonIds[lessonIndex + 1] ?? null,
-    previousLessonId: lessonIds[lessonIndex - 1] ?? null,
+    kind: "available",
   };
 };
 
@@ -1219,7 +1370,7 @@ const getPreviewLessonWorkspace = async ({
   lessonId,
 }: {
   lessonId: string;
-}): Promise<StudentLessonData | null> => {
+}): Promise<StudentLessonWorkspaceResult> => {
   const { rows } = await getPool().query<LessonRow>(
     `
       with target_course as (
@@ -1260,13 +1411,13 @@ const getPreviewLessonWorkspace = async ({
   );
 
   if (rows.length === 0) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const activeLesson = rows.find((row) => row.lesson_id === lessonId);
 
   if (!activeLesson) {
-    return null;
+    return { kind: "unavailable" };
   }
 
   const lessonIds = rows.map((row) => row.lesson_id);
@@ -1274,40 +1425,43 @@ const getPreviewLessonWorkspace = async ({
   const video = await resolveStudentLessonVideo(activeLesson);
 
   return {
-    course: {
-      id: activeLesson.course_id,
-      title: activeLesson.course_title,
-    },
-    isPreview: true,
-    lesson: {
-      contentJson: parseLessonContent(activeLesson.content_json),
-      id: activeLesson.lesson_id,
-      title: activeLesson.lesson_title,
-      description: activeLesson.lesson_description,
-      durationSeconds: activeLesson.duration_seconds,
-      videoDurationSeconds: activeLesson.video_duration_seconds,
-      isCompleted: false,
-      watchProgress: null,
-      videoEmbedUrl: video.embedUrl,
-      videoExternalId: activeLesson.video_external_id,
-      videoProcessingState: video.processingState,
-      videoProvider: activeLesson.video_provider,
-    },
-    modules: mapModules(
-      rows.map((row) => ({
-        ...row,
-        completed_at: null,
-      }))
-    ).map((moduleData) => ({
-      ...moduleData,
-      lessons: moduleData.lessons.map((lesson) => ({
-        ...lesson,
-        isAvailable: true,
+    data: {
+      course: {
+        id: activeLesson.course_id,
+        title: activeLesson.course_title,
+      },
+      isPreview: true,
+      lesson: {
+        contentJson: parseLessonContent(activeLesson.content_json),
+        id: activeLesson.lesson_id,
+        title: activeLesson.lesson_title,
+        description: activeLesson.lesson_description,
+        durationSeconds: activeLesson.duration_seconds,
+        videoDurationSeconds: activeLesson.video_duration_seconds,
+        isCompleted: false,
+        watchProgress: null,
+        videoEmbedUrl: video.embedUrl,
+        videoExternalId: activeLesson.video_external_id,
+        videoProcessingState: video.processingState,
+        videoProvider: activeLesson.video_provider,
+      },
+      modules: mapModules(
+        rows.map((row) => ({
+          ...row,
+          completed_at: null,
+        }))
+      ).map((moduleData) => ({
+        ...moduleData,
+        lessons: moduleData.lessons.map((lesson) => ({
+          ...lesson,
+          isAvailable: true,
+        })),
       })),
-    })),
-    progressPercent: 0,
-    nextLessonId: lessonIds[lessonIndex + 1] ?? null,
-    previousLessonId: lessonIds[lessonIndex - 1] ?? null,
+      progressPercent: 0,
+      nextLessonId: lessonIds[lessonIndex + 1] ?? null,
+      previousLessonId: lessonIds[lessonIndex - 1] ?? null,
+    },
+    kind: "available",
   };
 };
 
@@ -1317,7 +1471,7 @@ export const getStudentLessonWorkspace = async ({
 }: {
   lessonId: string;
   viewer: StudentExperienceViewer;
-}): Promise<StudentLessonData | null> => {
+}): Promise<StudentLessonWorkspaceResult> => {
   if (isPreviewRole(viewer.role)) {
     return await getPreviewLessonWorkspace({ lessonId });
   }
@@ -1376,9 +1530,10 @@ export const completeLesson = async ({
 }> => {
   const data = await getEnrolledLessonWorkspace({ userId, lessonId });
 
-  if (!data) {
+  if (data.kind !== "available") {
     throw new Error("Aula indisponivel para esta matricula.");
   }
+  const lessonData = data.data;
 
   const client = await getPool().connect();
 
@@ -1387,7 +1542,7 @@ export const completeLesson = async ({
     await lockCourseCertificateLifecycleInTransaction(
       client,
       userId,
-      data.course.id
+      lessonData.course.id
     );
     const progressInsert = await client.query(
       `
@@ -1436,14 +1591,14 @@ export const completeLesson = async ({
         where c.id = $2
         group by c.id
       `,
-      [userId, data.course.id]
+      [userId, lessonData.course.id]
     );
 
     const summary = rows[0];
     const certificateIssued = summary
       ? await issueCompletionCertificateIfEligible({
           client,
-          courseId: data.course.id,
+          courseId: lessonData.course.id,
           coursePublicationId: summary.course_publication_id,
           summary: {
             certificateId: summary.certificate_id,
@@ -1470,8 +1625,8 @@ export const completeLesson = async ({
 
     return {
       certificateIssued,
-      courseId: data.course.id,
-      nextLessonId: data.nextLessonId,
+      courseId: lessonData.course.id,
+      nextLessonId: lessonData.nextLessonId,
     };
   } catch (error) {
     await client.query("rollback");
@@ -1515,17 +1670,18 @@ export const recordLessonWatchProgress = async ({
 
   const data = await getEnrolledLessonWorkspace({ userId, lessonId });
 
-  if (!data) {
+  if (data.kind !== "available") {
     throw new Error("Aula indisponivel para esta matricula.");
   }
+  const lessonData = data.data;
 
-  if (data.lesson.videoProvider !== "jmvstream") {
+  if (lessonData.lesson.videoProvider !== "jmvstream") {
     return {
       certificateIssued: false,
-      completed: data.lesson.isCompleted,
-      courseId: data.course.id,
-      nextLessonId: data.nextLessonId,
-      watchedPercent: data.lesson.watchProgress?.watchedPercent ?? 0,
+      completed: lessonData.lesson.isCompleted,
+      courseId: lessonData.course.id,
+      nextLessonId: lessonData.nextLessonId,
+      watchedPercent: lessonData.lesson.watchProgress?.watchedPercent ?? 0,
     };
   }
 
@@ -1617,21 +1773,21 @@ export const recordLessonWatchProgress = async ({
     }).catch(() => undefined);
   }
 
-  if (!(shouldCompleteByVideo || data.lesson.isCompleted)) {
+  if (!(shouldCompleteByVideo || lessonData.lesson.isCompleted)) {
     return {
       certificateIssued: false,
       completed: false,
-      courseId: data.course.id,
-      nextLessonId: data.nextLessonId,
+      courseId: lessonData.course.id,
+      nextLessonId: lessonData.nextLessonId,
       watchedPercent,
     };
   }
 
-  const result = data.lesson.isCompleted
+  const result = lessonData.lesson.isCompleted
     ? {
         certificateIssued: false,
-        courseId: data.course.id,
-        nextLessonId: data.nextLessonId,
+        courseId: lessonData.course.id,
+        nextLessonId: lessonData.nextLessonId,
       }
     : await completeLesson({ userId, lessonId });
 

@@ -57,6 +57,8 @@ const createCourseOverviewRow = ({
   certificate_render_status: "ready",
   certificate_status: "valid",
   completed_at: completedAt,
+  content_release_mode: "full_access",
+  content_release_started_at: null,
   course_description: "Description",
   course_id: "course-1",
   course_slug: "course-one",
@@ -72,6 +74,7 @@ const createCourseOverviewRow = ({
   module_id: "module-1",
   module_sort_order: 1,
   module_title: "Module one",
+  release_delay_days: 0,
   student_name: "Aluna Teste",
   thumbnail_url: null,
   video_embed_url: null,
@@ -115,7 +118,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   connect.mockResolvedValue({ query: clientQuery, release });
   resolveCourseAccess.mockResolvedValue(true);
-  resolveLessonAccess.mockResolvedValue(true);
+  resolveLessonAccess.mockResolvedValue({
+    courseId: "course-1",
+    kind: "allowed",
+  });
   syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
   getJmvstreamAssetsForLesson.mockResolvedValue([]);
 });
@@ -223,9 +229,21 @@ describe("student experience reads", () => {
       totalCount: 3,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
-      { id: "lesson-1", isAvailable: true, isCompleted: true },
-      { id: "lesson-2", isAvailable: true, isCompleted: false },
-      { id: "lesson-3", isAvailable: false, isCompleted: false },
+      {
+        availability: { kind: "available" },
+        id: "lesson-1",
+        isCompleted: true,
+      },
+      {
+        availability: { kind: "available" },
+        id: "lesson-2",
+        isCompleted: false,
+      },
+      {
+        availability: { kind: "sequence_locked" },
+        id: "lesson-3",
+        isCompleted: false,
+      },
     ]);
     expect(query.mock.calls[0]?.[0]).toContain(
       "completed_lesson.curriculum_key = l.curriculum_key"
@@ -256,6 +274,64 @@ describe("student experience reads", () => {
       certificateCode: "CERT-REVOKED",
       certificateStatus: "revoked",
     });
+  });
+
+  it("hides future module lessons while preserving count, duration, and next release", async () => {
+    const anchor = new Date("2026-09-04T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        createCourseOverviewRow({ lessonId: "lesson-1", lessonSortOrder: 1 }),
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-2",
+            lessonSortOrder: 1,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          lesson_title: "Video secreto",
+          module_description: "Descripción secreta",
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+          video_external_id: "secret-video",
+        },
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-3",
+            lessonSortOrder: 2,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          lesson_title: "Material secreto",
+          module_description: "Descripción secreta",
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+    const futureModule = overview?.modules.find(
+      (moduleData) => moduleData.id === "module-future"
+    );
+    expect(futureModule).toMatchObject({
+      availableAt: new Date("2026-09-12T12:00:00.000Z"),
+      description: null,
+      lessonCount: 2,
+      lessons: [],
+      releaseState: "time_locked",
+      totalDurationSeconds: 240,
+    });
+    expect(JSON.stringify(futureModule)).not.toContain("secret-video");
+    expect(overview?.nextReleaseAt).toEqual(
+      new Date("2026-09-12T12:00:00.000Z")
+    );
   });
 
   it("selects a valid reissue before revoked certificate history", async () => {
@@ -307,8 +383,16 @@ describe("student experience reads", () => {
       totalCount: 2,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
-      { id: "lesson-1", isAvailable: true, isCompleted: false },
-      { id: "lesson-2", isAvailable: true, isCompleted: false },
+      {
+        availability: { kind: "available" },
+        id: "lesson-1",
+        isCompleted: false,
+      },
+      {
+        availability: { kind: "available" },
+        id: "lesson-2",
+        isCompleted: false,
+      },
     ]);
   });
 
@@ -325,7 +409,7 @@ describe("student experience reads", () => {
         lessonId: "lesson-2",
         viewer: { role: "student", userId: "student-1" },
       })
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: "unavailable" });
 
     expect(syncJmvstreamLessonPlayer).not.toHaveBeenCalled();
   });
@@ -343,8 +427,13 @@ describe("student experience reads", () => {
       viewer: { role: "student", userId: "student-1" },
     });
 
-    expect(workspace).toMatchObject({ nextLessonId: "lesson-2" });
-    expect(workspace?.modules[0]?.lessons).toMatchObject([
+    expect(workspace).toMatchObject({
+      data: { nextLessonId: "lesson-2" },
+      kind: "available",
+    });
+    expect(
+      workspace.kind === "available" ? workspace.data.modules[0]?.lessons : []
+    ).toMatchObject([
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: false },
     ]);
@@ -372,14 +461,17 @@ describe("student experience reads", () => {
 
     expect(syncJmvstreamLessonPlayer).toHaveBeenCalledWith("lesson-2");
     expect(workspace).toMatchObject({
-      isPreview: false,
-      lesson: {
-        id: "lesson-2",
-        videoEmbedUrl: "https://player.example.test/video-2",
+      kind: "available",
+      data: {
+        isPreview: false,
+        lesson: {
+          id: "lesson-2",
+          videoEmbedUrl: "https://player.example.test/video-2",
+        },
+        nextLessonId: null,
+        previousLessonId: "lesson-1",
+        progressPercent: 50,
       },
-      nextLessonId: null,
-      previousLessonId: "lesson-1",
-      progressPercent: 50,
     });
   });
 
@@ -401,7 +493,11 @@ describe("student experience reads", () => {
       viewer: { role: "student", userId: "student-1" },
     });
 
-    expect(workspace?.lesson.videoProcessingState).toBe("failed");
+    expect(
+      workspace.kind === "available"
+        ? workspace.data.lesson.videoProcessingState
+        : null
+    ).toBe("failed");
   });
 
   it("keeps every preview lesson available while preserving navigation", async () => {
@@ -419,13 +515,18 @@ describe("student experience reads", () => {
 
     expect(resolveLessonAccess).not.toHaveBeenCalled();
     expect(workspace).toMatchObject({
-      isPreview: true,
-      lesson: { id: "lesson-2", isCompleted: false, watchProgress: null },
-      nextLessonId: null,
-      previousLessonId: "lesson-1",
-      progressPercent: 0,
+      kind: "available",
+      data: {
+        isPreview: true,
+        lesson: { id: "lesson-2", isCompleted: false, watchProgress: null },
+        nextLessonId: null,
+        previousLessonId: "lesson-1",
+        progressPercent: 0,
+      },
     });
-    expect(workspace?.modules[0]?.lessons).toMatchObject([
+    expect(
+      workspace.kind === "available" ? workspace.data.modules[0]?.lessons : []
+    ).toMatchObject([
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: true },
     ]);

@@ -32,18 +32,19 @@ import { CourseOverviewClient } from "./course-overview-client";
 
 export const dynamic = "force-dynamic";
 
-function getCourseButtonLabel(
-  progressPercent: number,
-  hasNextLesson: boolean
-): string {
+function getCourseButtonLabel(progressPercent: number): string {
   if (progressPercent === 0) {
     return "Iniciar curso";
   }
-  if (hasNextLesson) {
-    return "Continuar curso";
-  }
   return "Rever trilha";
 }
+
+const formatReleaseDate = (value: Date): string =>
+  new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(value);
 
 function getIncompleteCertificateDescription({
   completedCount,
@@ -105,22 +106,44 @@ export default async function StudentCourseOverviewPage({
     notFound();
   }
 
-  const primaryHref = route(
-    getPreviewAwareHref(
-      getStudentCoursePrimaryHref({
-        courseId: data.course.id,
-        nextLessonId: data.nextLessonId,
-      }),
-      previewMode
-    )
-  );
-
   const totalDurationSeconds = data.modules.reduce(
-    (acc, m) =>
-      acc +
-      m.lessons.reduce((sum, l) => sum + Math.max(0, l.durationSeconds), 0),
+    (acc, moduleData) => acc + moduleData.totalDurationSeconds,
     0
   );
+  let primaryAction: React.JSX.Element;
+  if (data.certificateCode) {
+    primaryAction = (
+      <Button asChild className="h-full w-full px-6 sm:w-auto" size="sm">
+        <Link href={route(`/certificados/${data.certificateCode}`)}>
+          Ver certificado
+        </Link>
+      </Button>
+    );
+  } else if (data.nextReleaseAt && !data.nextLessonId) {
+    primaryAction = (
+      <Button className="h-full w-full px-6 sm:w-auto" disabled size="sm">
+        Próximo módulo em {formatReleaseDate(data.nextReleaseAt)}
+      </Button>
+    );
+  } else {
+    primaryAction = (
+      <Button asChild className="h-full w-full px-6 sm:w-auto" size="sm">
+        <Link
+          href={route(
+            getPreviewAwareHref(
+              getStudentCoursePrimaryHref({
+                courseId: data.course.id,
+                nextLessonId: data.nextLessonId,
+              }),
+              previewMode
+            )
+          )}
+        >
+          {getCourseButtonLabel(data.progressPercent)}
+        </Link>
+      </Button>
+    );
+  }
 
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
@@ -175,34 +198,7 @@ export default async function StudentCourseOverviewPage({
                   <Progress className="h-1.5" value={data.progressPercent} />
                 </div>
 
-                <div className="flex shrink-0">
-                  {data.certificateCode ? (
-                    <Button
-                      asChild
-                      className="h-full w-full px-6 sm:w-auto"
-                      size="sm"
-                    >
-                      <Link
-                        href={route(`/certificados/${data.certificateCode}`)}
-                      >
-                        Ver certificado
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button
-                      asChild
-                      className="h-full w-full px-6 sm:w-auto"
-                      size="sm"
-                    >
-                      <Link href={primaryHref}>
-                        {getCourseButtonLabel(
-                          data.progressPercent,
-                          Boolean(data.nextLessonId)
-                        )}
-                      </Link>
-                    </Button>
-                  )}
-                </div>
+                <div className="flex shrink-0">{primaryAction}</div>
               </div>
             </div>
           </header>

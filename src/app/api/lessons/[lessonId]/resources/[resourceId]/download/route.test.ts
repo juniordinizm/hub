@@ -28,21 +28,41 @@ describe("lesson resource download", () => {
       user: { id: "student-1" },
     });
     getStudentLessonWorkspace.mockResolvedValue({
-      lesson: {
-        contentJson: {
-          document: { type: "doc" },
-          resources: [
-            {
-              fileName: "material.pdf",
-              id: "resource-1",
-              key: "lessons/lesson-1/material.pdf",
-              label: "Material",
-              storage: "r2",
-            },
-          ],
-          type: "text",
+      data: {
+        course: { id: "course-1", title: "Course" },
+        isPreview: false,
+        lesson: {
+          contentJson: {
+            document: { type: "doc" },
+            resources: [
+              {
+                fileName: "material.pdf",
+                id: "resource-1",
+                key: "lessons/lesson-1/material.pdf",
+                label: "Material",
+                storage: "r2",
+              },
+            ],
+            type: "text",
+          },
+          description: null,
+          durationSeconds: 1,
+          id: "lesson-1",
+          isCompleted: false,
+          title: "Lesson",
+          videoDurationSeconds: 0,
+          videoEmbedUrl: null,
+          videoExternalId: null,
+          videoProcessingState: null,
+          videoProvider: null,
+          watchProgress: null,
         },
+        modules: [],
+        nextLessonId: null,
+        previousLessonId: null,
+        progressPercent: 0,
       },
+      kind: "available",
     });
     createLessonResourceDownloadUrl.mockRejectedValue(new Error("R2 down"));
 

@@ -65,6 +65,7 @@ import {
 
 const ATTEMPT_ID = "7fb3447e-2702-48f8-abe2-6c47b091bdcb";
 const COURSE_ID = "4a45d650-fc63-44c9-b2d1-6c73d52de84c";
+const SCHEDULE_DIGEST = "a".repeat(64);
 
 describe("authenticated checkout action", () => {
   beforeEach(() => {
@@ -141,6 +142,7 @@ describe("authenticated checkout action", () => {
     const form = new FormData();
     form.set("courseId", COURSE_ID);
     form.set("checkoutAttemptId", ATTEMPT_ID);
+    form.set("expectedContentReleaseScheduleDigest", SCHEDULE_DIGEST);
     form.set("buyerEmail", "attacker@example.com");
     form.set("buyerName", "Attacker");
 
@@ -174,6 +176,7 @@ describe("authenticated checkout action", () => {
     const form = new FormData();
     form.set("courseId", COURSE_ID);
     form.set("checkoutAttemptId", ATTEMPT_ID);
+    form.set("expectedContentReleaseScheduleDigest", SCHEDULE_DIGEST);
     dependencies.createAsaasCheckoutIntent.mockResolvedValueOnce({
       orderId: ATTEMPT_ID,
       status: "processing",

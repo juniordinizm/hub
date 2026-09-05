@@ -4,16 +4,17 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { LessonCard, type LessonStatus } from "@/components/ui/lesson-card";
 import { Progress } from "@/components/ui/progress";
+import type { LessonAvailability } from "@/features/courses/module-content-release";
 import type { StudentPreviewMode } from "@/features/courses/preview";
 import { getPreviewAwareHref } from "@/features/courses/preview";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 
 interface LessonData {
+  availability: LessonAvailability;
   durationSeconds: number;
   hasVideo: boolean;
   id: string;
-  isAvailable: boolean;
   isCompleted: boolean;
   thumbnailUrl?: string | null;
   title: string;
@@ -21,11 +22,15 @@ interface LessonData {
 }
 
 interface ModuleData {
+  availableAt: Date | null;
   description: string | null;
   id: string;
+  lessonCount: number;
   lessons: LessonData[];
+  releaseState: "available" | "time_locked";
   sortOrder: number;
   title: string;
+  totalDurationSeconds: number;
 }
 
 interface CourseOverviewClientProps {
@@ -71,7 +76,7 @@ export function CourseOverviewClient({
     if (lesson.isCompleted) {
       return "completed";
     }
-    if (!lesson.isAvailable) {
+    if (lesson.availability.kind !== "available") {
       return "locked";
     }
     if (lesson.id === nextLessonId) {
@@ -79,6 +84,15 @@ export function CourseOverviewClient({
     }
     return "available";
   }
+
+  const formatReleaseDate = (value: Date | null): string =>
+    value
+      ? new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: "UTC",
+        }).format(new Date(value))
+      : "após a confirmação do acesso";
 
   function renderLessonCard(lesson: LessonData) {
     const status = getLessonStatus(lesson);
@@ -143,18 +157,38 @@ export function CourseOverviewClient({
 
         <div className="flex flex-col">
           {modules.map((moduleData, index) => {
+            if (moduleData.releaseState === "time_locked") {
+              return (
+                <section
+                  aria-labelledby={`module-${moduleData.id}`}
+                  className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-5"
+                  key={moduleData.id}
+                >
+                  <h3
+                    className="font-bold text-xl"
+                    id={`module-${moduleData.id}`}
+                  >
+                    {moduleData.title}
+                  </h3>
+                  <p className="text-muted-foreground text-sm">
+                    Disponível em {formatReleaseDate(moduleData.availableAt)}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    {moduleData.lessonCount}{" "}
+                    {moduleData.lessonCount === 1 ? "aula" : "aulas"}
+                  </p>
+                </section>
+              );
+            }
             const completedCount = moduleData.lessons.filter(
               (l) => l.isCompleted
             ).length;
-            const totalCount = moduleData.lessons.length;
+            const totalCount = moduleData.lessonCount;
             const progressPercent =
               totalCount > 0
                 ? Math.round((completedCount / totalCount) * 100)
                 : 0;
-            const totalSeconds = moduleData.lessons.reduce(
-              (acc, l) => acc + l.durationSeconds,
-              0
-            );
+            const totalSeconds = moduleData.totalDurationSeconds;
 
             return (
               <div className="flex flex-col" key={moduleData.id}>

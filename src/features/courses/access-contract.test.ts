@@ -54,14 +54,14 @@ describe("student course read access", () => {
   });
 
   it("does not query lesson content after Matrícula access is denied", async () => {
-    resolveLessonAccess.mockResolvedValue(false);
+    resolveLessonAccess.mockResolvedValue({ kind: "denied" });
 
     await expect(
       getStudentLessonWorkspace({
         lessonId: "lesson-1",
         viewer: { role: "student", userId: "student-1" },
       })
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: "unavailable" });
 
     expect(resolveLessonAccess).toHaveBeenCalledWith({
       lessonId: "lesson-1",
@@ -76,7 +76,7 @@ describe("student course read access", () => {
         lessonId: "missing-lesson",
         viewer: { role: "admin", userId: "admin-1" },
       })
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: "unavailable" });
 
     expect(resolveLessonAccess).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalledWith(expect.any(String), ["missing-lesson"]);
