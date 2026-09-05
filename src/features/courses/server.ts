@@ -22,6 +22,7 @@ import {
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import {
+  type ContentReleaseMode,
   type LessonAvailability,
   resolveLessonAvailability,
   resolveModuleContentRelease,
@@ -217,7 +218,7 @@ export type StudentLessonWorkspaceResult =
 interface LessonRow {
   completed_at: Date | null;
   content_json: unknown;
-  content_release_mode: "full_access" | "scheduled";
+  content_release_mode: ContentReleaseMode;
   content_release_started_at: Date | null;
   course_id: string;
   course_title: string;
@@ -282,7 +283,7 @@ interface CourseOverviewRow {
   certificate_render_status: "failed" | "pending" | "ready" | null;
   certificate_status: "revoked" | "valid" | null;
   completed_at: Date | null;
-  content_release_mode: "full_access" | "scheduled";
+  content_release_mode: ContentReleaseMode;
   content_release_started_at: Date | null;
   course_description: string | null;
   course_id: string;
@@ -599,7 +600,7 @@ export const getStudentCourseCatalog = async (
     access_status: "active" | "expired" | "none" | "revoked";
     catalog_visibility: CourseCatalogVisibility;
     completed_at: Date | null;
-    content_release_mode: "full_access" | "scheduled" | null;
+    content_release_mode: ContentReleaseMode | null;
     content_release_started_at: Date | null;
     cover_image_json: unknown;
     course_description: string | null;

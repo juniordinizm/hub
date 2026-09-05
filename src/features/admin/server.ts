@@ -8,6 +8,7 @@ import {
   type CertificateOperationRecord,
   getCertificateOperationsForUser,
 } from "@/features/certificates/server";
+import type { ContentReleaseMode } from "@/features/courses/module-content-release";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
   getOperationalBacklogSnapshot,
@@ -747,7 +748,7 @@ const readEnrollments = async (
   const whereClause =
     filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
-    content_release_mode: "full_access" | "scheduled";
+    content_release_mode: ContentReleaseMode;
     content_release_started_at: Date | null;
     course_id: string;
     course_title: string;
@@ -1412,7 +1413,7 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
-    content_release_mode: "full_access" | "scheduled" | null;
+    content_release_mode: ContentReleaseMode | null;
     content_release_started_at: Date | null;
     course_id: string | null;
     course_title: string | null;

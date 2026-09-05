@@ -5,7 +5,10 @@ import {
   type ContentReleaseDiagnostics,
   classifyContentReleaseError,
 } from "@/features/courses/content-release-observability";
-import { resolveModuleContentRelease } from "@/features/courses/module-content-release";
+import {
+  type ContentReleaseMode,
+  resolveModuleContentRelease,
+} from "@/features/courses/module-content-release";
 
 export type LessonAccessDecision =
   | { courseId: string; kind: "allowed" }
@@ -56,7 +59,7 @@ export const resolveLessonAccess = async ({
 }): Promise<LessonAccessDecision> => {
   const db = client ?? getPool();
   const { rows } = await db.query<{
-    content_release_mode: "full_access" | "scheduled";
+    content_release_mode: ContentReleaseMode;
     content_release_started_at: Date | null;
     course_id: string;
     module_id: string;

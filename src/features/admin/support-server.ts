@@ -2,6 +2,7 @@ import "server-only";
 
 import type { StudentSheetPayload } from "@/components/admin/student-management-types";
 import { getPool } from "@/db";
+import type { ContentReleaseMode } from "@/features/courses/module-content-release";
 import { requirePermission } from "@/lib/auth-permissions";
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -235,7 +236,7 @@ export const getSupportCourseStudentContext = async ({
 
   const pool = getPool();
   const contextResult = await pool.query<{
-    content_release_mode: "full_access" | "scheduled";
+    content_release_mode: ContentReleaseMode;
     content_release_started_at: Date | null;
     completed_required_lessons: number;
     course_id: string;
