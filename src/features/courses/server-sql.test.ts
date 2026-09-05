@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -7,6 +8,7 @@ const {
   release,
   resolveCourseAccess,
   resolveLessonAccess,
+  resolveLessonAccessWithClient,
   syncJmvstreamLessonPlayer,
   getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
@@ -16,6 +18,7 @@ const {
   release: vi.fn(),
   resolveCourseAccess: vi.fn(),
   resolveLessonAccess: vi.fn(),
+  resolveLessonAccessWithClient: vi.fn(),
   syncJmvstreamLessonPlayer: vi.fn(),
   getJmvstreamAssetsForLesson: vi.fn(),
 }));
@@ -25,6 +28,7 @@ vi.mock("@/db", () => ({ getPool: () => ({ connect, query }) }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveCourseAccess,
   resolveLessonAccess,
+  resolveLessonAccessWithClient,
 }));
 vi.mock("@/features/jmvstream/server", () => ({
   syncJmvstreamLessonPlayer,
@@ -119,6 +123,10 @@ beforeEach(() => {
   connect.mockResolvedValue({ query: clientQuery, release });
   resolveCourseAccess.mockResolvedValue(true);
   resolveLessonAccess.mockResolvedValue({
+    courseId: "course-1",
+    kind: "allowed",
+  });
+  resolveLessonAccessWithClient.mockResolvedValue({
     courseId: "course-1",
     kind: "allowed",
   });
@@ -534,11 +542,34 @@ describe("student experience reads", () => {
 });
 
 describe("course completion writes", () => {
+  it("revalidates enrollment inside the completion transaction", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const completionSource = source.slice(
+      source.indexOf("export const completeLesson"),
+      source.indexOf("export const recordLessonWatchProgress")
+    );
+
+    expect(completionSource).toContain('await client.query("begin")');
+    expect(completionSource).toContain("lockEnrollmentAggregate");
+    expect(source).toContain("resolveLessonAccessWithClient");
+    expect(
+      completionSource.indexOf('await client.query("begin")')
+    ).toBeLessThan(completionSource.indexOf("getEnrolledLessonWorkspace"));
+  });
+
   it("locks the certificate lifecycle before progress and completion summary writes", async () => {
     query.mockResolvedValue({
       rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
     });
     clientQuery.mockImplementation((sql: string) => {
+      if (sql.includes("with target_course")) {
+        return {
+          rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
+        };
+      }
       if (sql.includes("count(l.id) filter")) {
         return {
           rows: [

@@ -1,4 +1,5 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { resolveModuleContentRelease } from "@/features/courses/module-content-release";
 
@@ -37,15 +38,18 @@ export const resolveCourseAccess = async ({
 };
 
 export const resolveLessonAccess = async ({
+  client,
   lessonId,
   now = new Date(),
   userId,
 }: {
+  client?: PoolClient | undefined;
   lessonId: string;
   now?: Date;
   userId: string;
 }): Promise<LessonAccessDecision> => {
-  const { rows } = await getPool().query<{
+  const db = client ?? getPool();
+  const { rows } = await db.query<{
     content_release_mode: "full_access" | "scheduled";
     content_release_started_at: Date | null;
     course_id: string;
@@ -140,3 +144,16 @@ export const resolveLessonAccess = async ({
     return { kind: "denied" };
   }
 };
+
+export const resolveLessonAccessWithClient = async ({
+  client,
+  lessonId,
+  now = new Date(),
+  userId,
+}: {
+  client: PoolClient;
+  lessonId: string;
+  now?: Date;
+  userId: string;
+}): Promise<LessonAccessDecision> =>
+  resolveLessonAccess({ client, lessonId, now, userId });

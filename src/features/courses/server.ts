@@ -1,4 +1,5 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import {
   type CompletionCertificateSummary,
@@ -27,7 +28,9 @@ import { resolveCourseWorkloadHours } from "@/features/courses/workload";
 import {
   resolveCourseAccess,
   resolveLessonAccess,
+  resolveLessonAccessWithClient,
 } from "@/features/enrollments/access";
+import { lockEnrollmentAggregate } from "@/features/enrollments/enrollment-aggregate-lock";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/asset-persistence";
 import { syncJmvstreamLessonPlayer } from "@/features/jmvstream/server";
 import { getWatchCheckpointPercent } from "@/features/learning-analytics/rules";
@@ -1232,13 +1235,19 @@ export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
 };
 
 const getEnrolledLessonWorkspace = async ({
+  client,
+  resolveVideo = true,
   userId,
   lessonId,
 }: {
+  client?: PoolClient;
+  resolveVideo?: boolean;
   userId: string;
   lessonId: string;
 }): Promise<StudentLessonWorkspaceResult> => {
-  const accessDecision = await resolveLessonAccess({ lessonId, userId });
+  const accessDecision = client
+    ? await resolveLessonAccessWithClient({ client, lessonId, userId })
+    : await resolveLessonAccess({ lessonId, userId });
 
   if (accessDecision.kind === "denied") {
     return { kind: "unavailable" };
@@ -1247,7 +1256,8 @@ const getEnrolledLessonWorkspace = async ({
     return accessDecision;
   }
 
-  const { rows } = await getPool().query<LessonRow>(
+  const db = client ?? getPool();
+  const { rows } = await db.query<LessonRow>(
     `
       with target_course as (
         select l.course_publication_id
@@ -1354,7 +1364,12 @@ const getEnrolledLessonWorkspace = async ({
     requiredLessonIds,
     completedLessonIds,
   });
-  const video = await resolveStudentLessonVideo(activeLesson);
+  const video = resolveVideo
+    ? await resolveStudentLessonVideo(activeLesson)
+    : {
+        embedUrl: activeLesson.video_embed_url,
+        processingState: null,
+      };
 
   return {
     data: {
@@ -1549,6 +1564,125 @@ const resolveStudentLessonVideo = async (
   }
 };
 
+const getCourseIdForLessonMutation = async (
+  lessonId: string
+): Promise<string> => {
+  const { rows } = await getPool().query<{ course_id: string }>(
+    `
+      select m.course_id
+      from lessons l
+      join modules m on m.id = l.module_id
+      where l.id = $1
+      limit 1
+    `,
+    [lessonId]
+  );
+  const courseId = rows[0]?.course_id;
+  if (!courseId) {
+    throw new Error("Aula indisponivel para esta matricula.");
+  }
+  return courseId;
+};
+
+interface CompletionMutationResult {
+  certificateIssued: boolean;
+  progressInserted: boolean;
+}
+
+const completeLessonInTransaction = async ({
+  client,
+  lessonData,
+  lessonId,
+  userId,
+}: {
+  client: PoolClient;
+  lessonData: StudentLessonData;
+  lessonId: string;
+  userId: string;
+}): Promise<CompletionMutationResult> => {
+  await lockCourseCertificateLifecycleInTransaction(
+    client,
+    userId,
+    lessonData.course.id
+  );
+  const progressInsert = await client.query(
+    `
+      insert into lesson_progress (user_id, lesson_id)
+      values ($1, $2)
+      on conflict (user_id, lesson_id) do nothing
+    `,
+    [userId, lessonId]
+  );
+
+  const { rows } = await client.query<{
+    course_publication_id: string;
+    total_lessons: number;
+    completed_lessons: number;
+    certificate_id: string | null;
+    student_name: string;
+    course_title: string;
+    workload_hours: number;
+  }>(
+    `
+      select
+        count(l.id) filter (where l.is_required)::int as total_lessons,
+        count(*) filter (where l.is_required and lp.completed_at is not null)::int as completed_lessons,
+        max(cp.id::text) as course_publication_id,
+        max(cert.id::text) as certificate_id,
+        max(u.name) as student_name,
+        max(cp.title_snapshot) as course_title,
+        max(coalesce(c.workload_hours_override, cp.workload_hours_snapshot))::int as workload_hours
+      from courses c
+      join enrollments e on e.course_id = c.id and e.user_id = $1
+      join course_publications cp on cp.course_id = c.id and cp.status = 'published'
+      join users u on u.id = e.user_id
+      join modules m on m.course_publication_id = cp.id and m.status = 'active'
+      join lessons l on l.module_id = m.id
+        and l.course_publication_id = cp.id
+        and l.status = 'active'
+      left join lateral (
+        select min(lp.completed_at) as completed_at
+        from lesson_progress lp
+        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
+        where lp.user_id = e.user_id
+          and completed_lesson.curriculum_key = l.curriculum_key
+      ) lp on true
+      left join certificates cert on cert.user_id = e.user_id
+        and cert.course_id = c.id
+      where c.id = $2
+        and e.status = 'active'
+        and e.starts_at <= now()
+        and e.expires_at >= now()
+        and c.status = 'active'
+      group by c.id
+    `,
+    [userId, lessonData.course.id]
+  );
+
+  const summary = rows[0];
+  const certificateIssued = summary
+    ? await issueCompletionCertificateIfEligible({
+        client,
+        courseId: lessonData.course.id,
+        coursePublicationId: summary.course_publication_id,
+        summary: {
+          certificateId: summary.certificate_id,
+          completedLessons: summary.completed_lessons,
+          courseTitle: summary.course_title,
+          studentName: summary.student_name,
+          totalLessons: summary.total_lessons,
+          workloadHours: summary.workload_hours,
+        } satisfies CompletionCertificateSummary,
+        userId,
+      })
+    : false;
+
+  return {
+    certificateIssued,
+    progressInserted: Boolean(progressInsert.rowCount),
+  };
+};
+
 export const completeLesson = async ({
   userId,
   lessonId,
@@ -1560,93 +1694,33 @@ export const completeLesson = async ({
   courseId: string;
   nextLessonId: string | null;
 }> => {
-  const data = await getEnrolledLessonWorkspace({ userId, lessonId });
-
-  if (data.kind !== "available") {
-    throw new Error("Aula indisponivel para esta matricula.");
-  }
-  const lessonData = data.data;
-
+  const courseId = await getCourseIdForLessonMutation(lessonId);
   const client = await getPool().connect();
 
   try {
     await client.query("begin");
-    await lockCourseCertificateLifecycleInTransaction(
+    await lockEnrollmentAggregate(client, userId, courseId);
+    const data = await getEnrolledLessonWorkspace({
       client,
+      lessonId,
+      resolveVideo: false,
       userId,
-      lessonData.course.id
-    );
-    const progressInsert = await client.query(
-      `
-        insert into lesson_progress (user_id, lesson_id)
-        values ($1, $2)
-        on conflict (user_id, lesson_id) do nothing
-      `,
-      [userId, lessonId]
-    );
+    });
 
-    const { rows } = await client.query<{
-      course_publication_id: string;
-      total_lessons: number;
-      completed_lessons: number;
-      certificate_id: string | null;
-      student_name: string;
-      course_title: string;
-      workload_hours: number;
-    }>(
-      `
-        select
-          count(l.id) filter (where l.is_required)::int as total_lessons,
-          count(*) filter (where l.is_required and lp.completed_at is not null)::int as completed_lessons,
-          max(cp.id::text) as course_publication_id,
-          max(cert.id::text) as certificate_id,
-          max(u.name) as student_name,
-          max(cp.title_snapshot) as course_title,
-          max(coalesce(c.workload_hours_override, cp.workload_hours_snapshot))::int as workload_hours
-        from courses c
-        join enrollments e on e.course_id = c.id and e.user_id = $1
-        join course_publications cp on cp.course_id = c.id and cp.status = 'published'
-        join users u on u.id = e.user_id
-        join modules m on m.course_publication_id = cp.id and m.status = 'active'
-        join lessons l on l.module_id = m.id
-          and l.course_publication_id = cp.id
-          and l.status = 'active'
-        left join lateral (
-          select min(lp.completed_at) as completed_at
-          from lesson_progress lp
-          join lessons completed_lesson on completed_lesson.id = lp.lesson_id
-          where lp.user_id = e.user_id
-            and completed_lesson.curriculum_key = l.curriculum_key
-        ) lp on true
-        left join certificates cert on cert.user_id = e.user_id
-          and cert.course_id = c.id
-        where c.id = $2
-        group by c.id
-      `,
-      [userId, lessonData.course.id]
-    );
-
-    const summary = rows[0];
-    const certificateIssued = summary
-      ? await issueCompletionCertificateIfEligible({
-          client,
-          courseId: lessonData.course.id,
-          coursePublicationId: summary.course_publication_id,
-          summary: {
-            certificateId: summary.certificate_id,
-            completedLessons: summary.completed_lessons,
-            courseTitle: summary.course_title,
-            studentName: summary.student_name,
-            totalLessons: summary.total_lessons,
-            workloadHours: summary.workload_hours,
-          } satisfies CompletionCertificateSummary,
-          userId,
-        })
-      : false;
+    if (data.kind !== "available") {
+      throw new Error("Aula indisponivel para esta matricula.");
+    }
+    const lessonData = data.data;
+    const result = await completeLessonInTransaction({
+      client,
+      lessonData,
+      lessonId,
+      userId,
+    });
 
     await client.query("commit");
 
-    if (progressInsert.rowCount) {
+    if (result.progressInserted) {
       await recordLearningAnalyticsEvent({
         eventType: "lesson_completed",
         idempotencyKey: `lesson_completed/${userId}/${lessonId}/v1`,
@@ -1656,7 +1730,7 @@ export const completeLesson = async ({
     }
 
     return {
-      certificateIssued,
+      certificateIssued: result.certificateIssued,
       courseId: lessonData.course.id,
       nextLessonId: lessonData.nextLessonId,
     };
@@ -1666,6 +1740,87 @@ export const completeLesson = async ({
   } finally {
     client.release();
   }
+};
+
+const getWatchAnalyticsKey = ({
+  checkpointPercent,
+  eventType,
+  lessonId,
+  userId,
+}: {
+  checkpointPercent: number | null;
+  eventType: "lesson_started" | "watch_checkpoint";
+  lessonId: string;
+  userId: string;
+}): string | null => {
+  if (eventType === "lesson_started") {
+    return `lesson_started/${userId}/${lessonId}/v1`;
+  }
+  if (checkpointPercent === null) {
+    return null;
+  }
+  return `watch_checkpoint/${userId}/${lessonId}/${checkpointPercent}/v1`;
+};
+
+const persistLessonWatchProgress = async ({
+  client,
+  currentSeconds,
+  durationSeconds,
+  eventName,
+  lessonId,
+  maxPositionSeconds,
+  shouldCompleteByVideo,
+  userId,
+  watchedPercent,
+}: {
+  client: PoolClient;
+  currentSeconds: number;
+  durationSeconds: number;
+  eventName: string;
+  lessonId: string;
+  maxPositionSeconds: number;
+  shouldCompleteByVideo: boolean;
+  userId: string;
+  watchedPercent: number;
+}): Promise<void> => {
+  await client.query(
+    `
+      insert into lesson_watch_progress (
+        user_id,
+        lesson_id,
+        current_seconds,
+        max_position_seconds,
+        duration_seconds,
+        watched_percent,
+        last_event_name,
+        last_event_at,
+        completed_by_video_at
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, now(), case when $8 then now() else null end)
+      on conflict (user_id, lesson_id) do update set
+        current_seconds = excluded.current_seconds,
+        max_position_seconds = greatest(lesson_watch_progress.max_position_seconds, excluded.max_position_seconds),
+        duration_seconds = excluded.duration_seconds,
+        watched_percent = greatest(lesson_watch_progress.watched_percent, excluded.watched_percent),
+        last_event_name = excluded.last_event_name,
+        last_event_at = now(),
+        completed_by_video_at = case
+          when excluded.completed_by_video_at is not null then coalesce(lesson_watch_progress.completed_by_video_at, excluded.completed_by_video_at)
+          else lesson_watch_progress.completed_by_video_at
+        end,
+        updated_at = now()
+    `,
+    [
+      userId,
+      lessonId,
+      currentSeconds,
+      maxPositionSeconds,
+      durationSeconds,
+      watchedPercent,
+      eventName,
+      shouldCompleteByVideo,
+    ]
+  );
 };
 
 export const recordLessonWatchProgress = async ({
@@ -1700,134 +1855,130 @@ export const recordLessonWatchProgress = async ({
     throw new Error("Progresso de video invalido.");
   }
 
-  const data = await getEnrolledLessonWorkspace({ userId, lessonId });
+  const courseId = await getCourseIdForLessonMutation(lessonId);
+  const client = await getPool().connect();
 
-  if (data.kind !== "available") {
-    throw new Error("Aula indisponivel para esta matricula.");
-  }
-  const lessonData = data.data;
+  try {
+    await client.query("begin");
+    await lockEnrollmentAggregate(client, userId, courseId);
+    const data = await getEnrolledLessonWorkspace({
+      client,
+      lessonId,
+      resolveVideo: false,
+      userId,
+    });
 
-  if (lessonData.lesson.videoProvider !== "jmvstream") {
-    return {
-      certificateIssued: false,
-      completed: lessonData.lesson.isCompleted,
-      courseId: lessonData.course.id,
-      nextLessonId: lessonData.nextLessonId,
-      watchedPercent: lessonData.lesson.watchProgress?.watchedPercent ?? 0,
-    };
-  }
-
-  const roundedCurrentSeconds = Math.max(0, Math.round(currentSeconds));
-  const roundedDurationSeconds = Math.max(1, Math.round(durationSeconds));
-  const { rows } = await getPool().query<LessonWatchProgressRow>(
-    `
-      select
-        current_seconds,
-        duration_seconds,
-        max_position_seconds,
-        watched_percent
-      from lesson_watch_progress
-      where user_id = $1 and lesson_id = $2
-      limit 1
-    `,
-    [userId, lessonId]
-  );
-  const previousProgress = rows[0];
-  const { maxPositionSeconds, watchedPercent } = calculateVideoPositionProgress(
-    {
-      currentSeconds: roundedCurrentSeconds,
-      durationSeconds: roundedDurationSeconds,
-      previousMaxPositionSeconds: previousProgress?.max_position_seconds ?? 0,
+    if (data.kind !== "available") {
+      throw new Error("Aula indisponivel para esta matricula.");
     }
-  );
-  const shouldCompleteByVideo = shouldCompleteLessonFromJmvstreamEvent({
-    eventName,
-    watchedPercent,
-  });
+    const lessonData = data.data;
 
-  await getPool().query(
-    `
-      insert into lesson_watch_progress (
-        user_id,
-        lesson_id,
-        current_seconds,
-        max_position_seconds,
-        duration_seconds,
-        watched_percent,
-        last_event_name,
-        last_event_at,
-        completed_by_video_at
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, now(), case when $8 then now() else null end)
-      on conflict (user_id, lesson_id) do update set
-        current_seconds = excluded.current_seconds,
-        max_position_seconds = greatest(lesson_watch_progress.max_position_seconds, excluded.max_position_seconds),
-        duration_seconds = excluded.duration_seconds,
-        watched_percent = greatest(lesson_watch_progress.watched_percent, excluded.watched_percent),
-        last_event_name = excluded.last_event_name,
-        last_event_at = now(),
-        completed_by_video_at = case
-          when excluded.completed_by_video_at is not null then coalesce(lesson_watch_progress.completed_by_video_at, excluded.completed_by_video_at)
-          else lesson_watch_progress.completed_by_video_at
-        end,
-        updated_at = now()
-    `,
-    [
-      userId,
-      lessonId,
-      roundedCurrentSeconds,
-      maxPositionSeconds,
-      roundedDurationSeconds,
-      watchedPercent,
-      eventName,
-      shouldCompleteByVideo,
-    ]
-  );
-
-  const checkpointPercent = getWatchCheckpointPercent({
-    previousPercent: previousProgress?.watched_percent ?? 0,
-    watchedPercent,
-  });
-  const eventType = previousProgress ? "watch_checkpoint" : "lesson_started";
-  let analyticsKey: string | null = null;
-  if (eventType === "lesson_started") {
-    analyticsKey = `lesson_started/${userId}/${lessonId}/v1`;
-  } else if (checkpointPercent !== null) {
-    analyticsKey = `watch_checkpoint/${userId}/${lessonId}/${checkpointPercent}/v1`;
-  }
-  if (analyticsKey) {
-    await recordLearningAnalyticsEvent({
-      ...(checkpointPercent === null ? {} : { checkpointPercent }),
-      eventType,
-      idempotencyKey: analyticsKey,
-      lessonId,
-      userId,
-    }).catch(() => undefined);
-  }
-
-  if (!(shouldCompleteByVideo || lessonData.lesson.isCompleted)) {
-    return {
-      certificateIssued: false,
-      completed: false,
-      courseId: lessonData.course.id,
-      nextLessonId: lessonData.nextLessonId,
-      watchedPercent,
-    };
-  }
-
-  const result = lessonData.lesson.isCompleted
-    ? {
+    if (lessonData.lesson.videoProvider !== "jmvstream") {
+      await client.query("commit");
+      return {
         certificateIssued: false,
+        completed: lessonData.lesson.isCompleted,
         courseId: lessonData.course.id,
         nextLessonId: lessonData.nextLessonId,
-      }
-    : await completeLesson({ userId, lessonId });
+        watchedPercent: lessonData.lesson.watchProgress?.watchedPercent ?? 0,
+      };
+    }
 
-  return {
-    certificateIssued: result.certificateIssued,
-    completed: true,
-    courseId: result.courseId,
-    nextLessonId: result.nextLessonId,
-    watchedPercent,
-  };
+    const roundedCurrentSeconds = Math.max(0, Math.round(currentSeconds));
+    const roundedDurationSeconds = Math.max(1, Math.round(durationSeconds));
+    const { rows } = await client.query<LessonWatchProgressRow>(
+      `
+        select
+          current_seconds,
+          duration_seconds,
+          max_position_seconds,
+          watched_percent
+        from lesson_watch_progress
+        where user_id = $1 and lesson_id = $2
+        limit 1
+      `,
+      [userId, lessonId]
+    );
+    const previousProgress = rows[0];
+    const { maxPositionSeconds, watchedPercent } =
+      calculateVideoPositionProgress({
+        currentSeconds: roundedCurrentSeconds,
+        durationSeconds: roundedDurationSeconds,
+        previousMaxPositionSeconds: previousProgress?.max_position_seconds ?? 0,
+      });
+    const shouldCompleteByVideo = shouldCompleteLessonFromJmvstreamEvent({
+      eventName,
+      watchedPercent,
+    });
+
+    await persistLessonWatchProgress({
+      client,
+      currentSeconds: roundedCurrentSeconds,
+      durationSeconds: roundedDurationSeconds,
+      eventName,
+      lessonId,
+      maxPositionSeconds,
+      shouldCompleteByVideo,
+      userId,
+      watchedPercent,
+    });
+
+    const checkpointPercent = getWatchCheckpointPercent({
+      previousPercent: previousProgress?.watched_percent ?? 0,
+      watchedPercent,
+    });
+    const eventType = previousProgress ? "watch_checkpoint" : "lesson_started";
+    const analyticsKey = getWatchAnalyticsKey({
+      checkpointPercent,
+      eventType,
+      lessonId,
+      userId,
+    });
+
+    let completion: CompletionMutationResult = {
+      certificateIssued: false,
+      progressInserted: false,
+    };
+    if (shouldCompleteByVideo && !lessonData.lesson.isCompleted) {
+      completion = await completeLessonInTransaction({
+        client,
+        lessonData,
+        lessonId,
+        userId,
+      });
+    }
+
+    await client.query("commit");
+
+    if (analyticsKey) {
+      await recordLearningAnalyticsEvent({
+        ...(checkpointPercent === null ? {} : { checkpointPercent }),
+        eventType,
+        idempotencyKey: analyticsKey,
+        lessonId,
+        userId,
+      }).catch(() => undefined);
+    }
+    if (completion.progressInserted) {
+      await recordLearningAnalyticsEvent({
+        eventType: "lesson_completed",
+        idempotencyKey: `lesson_completed/${userId}/${lessonId}/v1`,
+        lessonId,
+        userId,
+      }).catch(() => undefined);
+    }
+
+    return {
+      certificateIssued: completion.certificateIssued,
+      completed: shouldCompleteByVideo || lessonData.lesson.isCompleted,
+      courseId: lessonData.course.id,
+      nextLessonId: lessonData.nextLessonId,
+      watchedPercent,
+    };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
 };
