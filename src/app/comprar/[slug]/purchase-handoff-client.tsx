@@ -451,7 +451,8 @@ export function PurchaseHandoffClient({
           </h2>
           <p className="mt-2 text-muted-foreground text-sm leading-6">
             Parte do conteúdo é liberada progressivamente. Cada dia equivale a
-            24 horas desde o início do seu acesso.
+            24 horas desde o início do seu acesso. A liberação progressiva não
+            altera os direitos legais de arrependimento.
           </p>
           <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm">
             {releaseSchedule.modules.map((module) => (
