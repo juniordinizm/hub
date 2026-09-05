@@ -28,6 +28,9 @@ const callbacks = {
   expiredUrl: "https://hub.example/checkout/expirado",
   successUrl: "https://hub.example/checkout/sucesso",
 };
+const EMPTY_SCHEDULE_DIGEST = getContentReleaseScheduleDigest(
+  buildContentReleaseScheduleSnapshot([])
+);
 
 const course = {
   access_duration_months: 12,
@@ -117,6 +120,7 @@ const authenticatedInput = (gateway: FakeAsaasGateway) => ({
   },
   callbacks,
   courseId: COURSE_ID,
+  expectedContentReleaseScheduleDigest: EMPTY_SCHEDULE_DIGEST,
   gateway,
   now: () => NOW,
 });
@@ -126,6 +130,7 @@ const providerPendingInput = (gateway: FakeAsaasGateway) => ({
   buyer: { kind: "provider_pending" as const },
   callbacks,
   courseId: COURSE_ID,
+  expectedContentReleaseScheduleDigest: EMPTY_SCHEDULE_DIGEST,
   gateway,
   now: () => NOW,
 });

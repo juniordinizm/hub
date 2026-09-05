@@ -45,7 +45,7 @@ export interface CreateAsaasCheckoutIntentInput {
   callbacks: CheckoutCallbacks;
   courseId?: string;
   courseSlug?: string;
-  expectedContentReleaseScheduleDigest?: string;
+  expectedContentReleaseScheduleDigest: string;
   gateway: AsaasGateway;
   now?: () => Date;
 }
@@ -221,7 +221,7 @@ const validateInput = ({
   courseSlug: string | undefined;
   customerEmail: string | null;
   customerName: string | null;
-  expectedContentReleaseScheduleDigest: string | undefined;
+  expectedContentReleaseScheduleDigest: string;
 } => {
   if (!UUID_PATTERN.test(attemptId)) {
     throw new CheckoutIntentError("validation", "attempt_invalid");
@@ -234,7 +234,6 @@ const validateInput = ({
     throw new CheckoutIntentError("validation", "course_id_invalid");
   }
   if (
-    expectedContentReleaseScheduleDigest !== undefined &&
     !CONTENT_RELEASE_SCHEDULE_DIGEST_PATTERN.test(
       expectedContentReleaseScheduleDigest
     )
@@ -603,13 +602,10 @@ const assertCheckoutScheduleDigest = ({
   expectedDigest,
   snapshot,
 }: {
-  expectedDigest: string | undefined;
+  expectedDigest: string;
   snapshot: ContentReleaseScheduleSnapshot;
 }): void => {
-  if (
-    expectedDigest !== undefined &&
-    expectedDigest !== getContentReleaseScheduleDigest(snapshot)
-  ) {
+  if (expectedDigest !== getContentReleaseScheduleDigest(snapshot)) {
     throw new CheckoutIntentError("conflict", "schedule_changed");
   }
 };

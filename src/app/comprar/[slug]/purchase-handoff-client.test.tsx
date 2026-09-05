@@ -149,6 +149,31 @@ describe("PurchaseHandoffClient", () => {
     });
   });
 
+  it("asks for a reload when the server reports a changed schedule", async () => {
+    const releaseSchedule = {
+      clock: "elapsed_24h" as const,
+      modules: [{ releaseDelayDays: 8, sortOrder: 1, title: "Aplicacao" }],
+      version: 1 as const,
+    };
+    fetchMock.mockResolvedValueOnce(
+      response({ retryAllowed: false, status: "schedule_changed" })
+    );
+
+    await renderHandoff({
+      releaseSchedule,
+      releaseScheduleDigest: "c".repeat(64),
+    });
+    await flushEffects();
+    const continueButton = Array.from(
+      container.querySelectorAll("button")
+    ).find((button) => button.textContent === "Continuar para pagamento");
+    expect(continueButton).toBeDefined();
+    await act(async () => continueButton?.click());
+    await flushEffects();
+    expect(container.textContent).toContain("O cronograma foi atualizado");
+    expect(container.textContent).toContain("Recarregue");
+  });
+
   it.each([
     "javascript:alert(1)",
     "https://evil.example/checkout",

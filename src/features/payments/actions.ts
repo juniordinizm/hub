@@ -44,8 +44,14 @@ export const startCourseCheckoutAction = async (
 
   const courseId = readString(formData, "courseId");
   const checkoutAttemptId = readString(formData, "checkoutAttemptId");
+  const expectedContentReleaseScheduleDigest = readString(
+    formData,
+    "expectedContentReleaseScheduleDigest"
+  );
 
-  if (!(courseId && checkoutAttemptId)) {
+  if (
+    !(courseId && checkoutAttemptId && expectedContentReleaseScheduleDigest)
+  ) {
     throw new Error("Curso invalido.");
   }
 
@@ -65,6 +71,7 @@ export const startCourseCheckoutAction = async (
       ),
     },
     courseId,
+    expectedContentReleaseScheduleDigest,
     gateway: getAsaasProviderClient(),
   });
 

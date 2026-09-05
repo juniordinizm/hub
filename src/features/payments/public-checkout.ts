@@ -136,7 +136,7 @@ export const createPublicCourseCheckout = async ({
   checkoutAttemptId: string;
   courseId?: string;
   courseSlug?: string;
-  expectedContentReleaseScheduleDigest?: string;
+  expectedContentReleaseScheduleDigest: string;
   gateway?: AsaasGateway;
   ipAddress: string;
 }): Promise<CheckoutIntentResult> => {
@@ -156,9 +156,7 @@ export const createPublicCourseCheckout = async ({
     callbacks: createCheckoutCallbacks(checkoutAttemptId),
     ...(courseId ? { courseId } : {}),
     ...(courseSlug ? { courseSlug } : {}),
-    ...(expectedContentReleaseScheduleDigest
-      ? { expectedContentReleaseScheduleDigest }
-      : {}),
+    expectedContentReleaseScheduleDigest,
     gateway,
   });
 };

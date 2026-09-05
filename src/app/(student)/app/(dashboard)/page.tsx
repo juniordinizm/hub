@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import {
   BookOpen01Icon,
   CheckmarkCircle02Icon,
@@ -35,7 +34,6 @@ import {
 import { canMutateStudentExperience } from "@/features/courses/preview";
 import type { StudentCatalogCourseCard } from "@/features/courses/server";
 import { getStudentCourseCatalog } from "@/features/courses/server";
-import { startCourseCheckoutAction } from "@/features/payments/actions";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
 import { StudentBannersCarousel } from "./student-banners-carousel";
@@ -431,15 +429,13 @@ function CoursePurchaseForm({
   course: StudentCatalogCourseCard;
 }): React.JSX.Element {
   return (
-    <form action={startCourseCheckoutAction}>
-      <input name="checkoutAttemptId" type="hidden" value={randomUUID()} />
-      <input name="courseId" type="hidden" value={course.courseId} />
-      <Button className="w-full" size="sm" type="submit">
+    <Button asChild className="w-full" size="sm">
+      <Link href={route(`/comprar/${course.slug}`)}>
         <HugeiconsIcon icon={ShoppingBasketDone01Icon} />
         {course.accessStatus === "expired"
           ? "Renovar acesso"
           : "Adquirir acesso"}
-      </Button>
-    </form>
+      </Link>
+    </Button>
   );
 }

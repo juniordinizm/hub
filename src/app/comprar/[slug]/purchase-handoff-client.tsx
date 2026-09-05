@@ -167,6 +167,13 @@ const parseCheckoutResponse = (value: unknown): CheckoutResponse | null => {
     };
   }
 
+  if (
+    response.status === "schedule_changed" &&
+    response.retryAllowed === false
+  ) {
+    return { retryAllowed: false, status: "schedule_changed" };
+  }
+
   return null;
 };
 
