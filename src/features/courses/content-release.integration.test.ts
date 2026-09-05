@@ -207,6 +207,56 @@ describe("content release PostgreSQL surfaces", () => {
     }
   });
 
+  it("rejects watch progress after a concurrent revocation commits", async () => {
+    const fixture = await createFixture();
+    const revocation = await pool.connect();
+    let watch: Promise<unknown> | null = null;
+    try {
+      await revocation.query("begin");
+      await lockCourseContentRelease(revocation, fixture.courseId);
+      await revocation.query(
+        "update enrollments set status = 'revoked', revoked_at = now(), revoked_reason = 'payment_refund' where user_id = $1 and course_id = $2",
+        [fixture.userId, fixture.courseId]
+      );
+      watch = recordLessonWatchProgress({
+        currentSeconds: 10,
+        durationSeconds: 120,
+        eventName: "timeupdate",
+        lessonId: fixture.immediateLessonId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          const { rows } = await pool.query<{ waiting: boolean }>(
+            `
+              select exists (
+                select 1 from pg_locks
+                where pid <> pg_backend_pid()
+                  and locktype = 'advisory'
+                  and granted = false
+              ) as waiting
+            `
+          );
+          expect(rows[0]?.waiting).toBe(true);
+        },
+        { interval: 50, timeout: 30_000 }
+      );
+      await revocation.query("commit");
+      await expect(watch).rejects.toThrow("Aula indisponivel");
+      const progress = await pool.query(
+        "select count(*) from lesson_watch_progress where user_id = $1 and lesson_id = $2",
+        [fixture.userId, fixture.immediateLessonId]
+      );
+      expect(progress.rows).toEqual([{ count: "0" }]);
+    } finally {
+      if (watch) {
+        await watch.catch(() => undefined);
+      }
+      await revocation.query("rollback").catch(() => undefined);
+      revocation.release();
+    }
+  });
+
   it("rejects a checkout digest after a concurrent publication changes the schedule", async () => {
     const fixture = await createFixture();
     await pool.query(
@@ -280,5 +330,55 @@ describe("content release PostgreSQL surfaces", () => {
       await publication.query("rollback").catch(() => undefined);
       publication.release();
     }
+  });
+
+  it("keeps the checkout snapshot stable when publication changes afterward", async () => {
+    const fixture = await createFixture();
+    await pool.query(
+      "update courses set price_in_cents = 10_000, sales_status = 'open' where id = $1",
+      [fixture.courseId]
+    );
+    const expectedSnapshot = buildContentReleaseScheduleSnapshot([
+      { releaseDelayDays: 0, sortOrder: 1, title: "Immediate module" },
+      { releaseDelayDays: 8, sortOrder: 2, title: "Future module" },
+    ]);
+    const attemptId = randomUUID();
+    const gateway = new FakeAsaasGateway({
+      createCheckout: {
+        id: "checkout-integration-stable",
+        link: "https://asaas.example/integration-stable",
+        status: "ACTIVE",
+      },
+    });
+
+    await expect(
+      createAsaasCheckoutIntent({
+        attemptId,
+        buyer: { kind: "provider_pending" },
+        callbacks: {
+          cancelUrl: "https://hub.example/cancel",
+          expiredUrl: "https://hub.example/expired",
+          successUrl: "https://hub.example/success",
+        },
+        courseId: fixture.courseId,
+        expectedContentReleaseScheduleDigest:
+          getContentReleaseScheduleDigest(expectedSnapshot),
+        gateway,
+        now: () => NOW,
+      })
+    ).resolves.toMatchObject({ status: "ready" });
+
+    await pool.query(
+      "update modules set release_delay_days = 9 where course_publication_id = (select id from course_publications where course_id = $1 and status = 'published') and sort_order = 2",
+      [fixture.courseId]
+    );
+    const order = await pool.query<{
+      content_release_schedule_snapshot: unknown;
+    }>("select content_release_schedule_snapshot from orders where id = $1", [
+      attemptId,
+    ]);
+    expect(order.rows[0]?.content_release_schedule_snapshot).toEqual(
+      expectedSnapshot
+    );
   });
 });
