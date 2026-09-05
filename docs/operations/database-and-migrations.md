@@ -2,8 +2,8 @@
 status: canonical
 owner: engineering
 last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
-current_migration_tag: 0069_lesson_resource_upload_cleanup_status
-migration_entry_count: 70
+current_migration_tag: 0070_relative_module_content_release
+migration_entry_count: 71
 schema_table_count: 47
 ---
 

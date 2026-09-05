@@ -17,6 +17,7 @@ O Hub atende poucos alunos e o produto decidiu que alterações de um Curso deve
 - Matrícula concede acesso ao `Course`; não guarda `course_publication_id`.
 - Toda Matrícula ativa lê a única publicação `published` vigente.
 - Criar rascunho copia a vigente. Publicar aposenta a anterior e troca a vigente atomicamente, com número, data e autora no audit log.
+- A publicação e a edição do rascunho compartilham um lock transacional por Curso; a cópia das Capas R2 ocorre fora de transações abertas e a publicação revalida o rascunho antes da troca atômica.
 - Módulos e Aulas pertencem a uma publicação. Aulas obrigatórias definem o progresso vivo; opcionais não entram no denominador.
 - Alteração de conteúdo é sempre preparada e publicada em lote. Não há edição direta da publicação publicada.
 - Retirar conteúdo preserva a publicação anterior, mídia, progresso, analytics e auditoria.

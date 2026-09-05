@@ -45,12 +45,12 @@ const assertValidDelay = (releaseDelayDays: number): void => {
   }
 };
 
-export const assertScheduleFitsAccessDuration = ({
+export const assertMaxReleaseDelayFitsAccessDuration = ({
   accessDurationMonths,
-  snapshot,
+  maxReleaseDelayDays,
 }: {
   accessDurationMonths: number;
-  snapshot: ContentReleaseScheduleSnapshot;
+  maxReleaseDelayDays: number;
 }): void => {
   const conservativeAccessDays = accessDurationMonths * 28;
   if (
@@ -60,6 +60,21 @@ export const assertScheduleFitsAccessDuration = ({
   ) {
     throw new Error("Duração comercial inválida.");
   }
+  assertValidDelay(maxReleaseDelayDays);
+  if (maxReleaseDelayDays >= conservativeAccessDays) {
+    throw new Error(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+  }
+};
+
+export const assertScheduleFitsAccessDuration = ({
+  accessDurationMonths,
+  snapshot,
+}: {
+  accessDurationMonths: number;
+  snapshot: ContentReleaseScheduleSnapshot;
+}): void => {
   if (
     snapshot?.version !== 1 ||
     snapshot.clock !== "elapsed_24h" ||
@@ -80,11 +95,10 @@ export const assertScheduleFitsAccessDuration = ({
     );
   }
 
-  if (maxReleaseDelayDays >= conservativeAccessDays) {
-    throw new Error(
-      "O cronograma de conteúdo não cabe na duração comercial do Curso."
-    );
-  }
+  assertMaxReleaseDelayFitsAccessDuration({
+    accessDurationMonths,
+    maxReleaseDelayDays,
+  });
 };
 
 const getAvailableAt = (anchor: Date, releaseDelayDays: number): Date => {

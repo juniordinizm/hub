@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { withVerifiedSslMode } from "@/db/connection-url";
+import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
 
 const databaseUrl =
   process.env.CERTIFICATE_CONCURRENCY_DATABASE_URL?.trim() ||
@@ -196,6 +197,77 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
   afterAll(async () => {
     await cleanupFixtures();
     await pool.end();
+  });
+
+  it("impede a primeira concessao de atravessar a decisao de publicacao do Curso", async () => {
+    const fixture = await createFixture();
+    const publication = await pool.connect();
+    const grant = await pool.connect();
+    let grantApplication: Promise<void> | null = null;
+
+    try {
+      await publication.query("begin");
+      await lockCourseContentRelease(publication, fixture.courseId);
+      await grant.query("begin");
+      const { rows: backendRows } = await grant.query<{ pid: number }>(
+        "select pg_backend_pid() as pid"
+      );
+      const grantBackendPid = backendRows[0]?.pid;
+      if (!grantBackendPid) {
+        throw new Error("Nao foi possivel identificar a conexao da concessao.");
+      }
+
+      grantApplication = applyPaidWebhookAccess({
+        accessDurationMonths: ACCESS_DURATION_MONTHS,
+        client: grant,
+        courseId: fixture.courseId,
+        now: new Date("2026-09-04T17:30:00.000Z"),
+        orderId: fixture.firstOrderId,
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          expect(await isWaitingForAdvisoryLock(grantBackendPid)).toBe(true);
+        },
+        { interval: 50, timeout: LOCK_OBSERVATION_TIMEOUT_MS }
+      );
+
+      const historyQuery = `
+        select exists (
+          select 1 from enrollment_events
+          where course_id = $1 and event_type = 'content_release_scheduled'
+        ) as has_scheduled_release_history
+      `;
+      const historyBeforeCommit = await publication.query(historyQuery, [
+        fixture.courseId,
+      ]);
+      expect(historyBeforeCommit.rows).toEqual([
+        { has_scheduled_release_history: false },
+      ]);
+
+      await publication.query("commit");
+      await grantApplication;
+      await grant.query("commit");
+
+      await publication.query("begin");
+      await lockCourseContentRelease(publication, fixture.courseId);
+      const historyAfterCommit = await publication.query(historyQuery, [
+        fixture.courseId,
+      ]);
+      expect(historyAfterCommit.rows).toEqual([
+        { has_scheduled_release_history: true },
+      ]);
+      await publication.query("commit");
+    } finally {
+      await rollbackQuietly(publication);
+      if (grantApplication) {
+        await grantApplication.catch(() => undefined);
+      }
+      await rollbackQuietly(grant);
+      publication.release();
+      grant.release();
+      await cleanupFixtures();
+    }
   });
 
   it("preserva as duas extensoes e uma unica ancora sob pagamentos concorrentes", async () => {

@@ -16,7 +16,7 @@ import {
   parseCourseLaunchLandingUrl,
   resolveCourseAvailability,
 } from "./availability";
-import { assertScheduleFitsAccessDuration } from "./module-content-release";
+import { assertMaxReleaseDelayFitsAccessDuration } from "./module-content-release";
 
 interface LockedCourseAvailabilityRow {
   access_duration_months: number;
@@ -219,19 +219,9 @@ const validateTarget = ({
   }
 
   if (target.preset === "available") {
-    assertScheduleFitsAccessDuration({
+    assertMaxReleaseDelayFitsAccessDuration({
       accessDurationMonths: course.access_duration_months,
-      snapshot: {
-        clock: "elapsed_24h",
-        modules: [
-          {
-            releaseDelayDays: course.max_release_delay_days,
-            sortOrder: 1,
-            title: "Cronograma publicado",
-          },
-        ],
-        version: 1,
-      },
+      maxReleaseDelayDays: course.max_release_delay_days,
     });
   }
 };

@@ -106,6 +106,10 @@ describe("paid access replay", () => {
 
     expect(calls.slice(firstApplicationCallCount)).toEqual([
       {
+        params: ["course-1"],
+        text: "select pg_advisory_xact_lock(hashtextextended('course-content-release:' || $1::text, 0))",
+      },
+      {
         params: ["user-1", "course-1"],
         text: "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
       },
@@ -206,6 +210,10 @@ describe("enrollment projection content release", () => {
     });
 
     expect(calls[0]).toEqual({
+      params: ["course-1"],
+      text: "select pg_advisory_xact_lock(hashtextextended('course-content-release:' || $1::text, 0))",
+    });
+    expect(calls[1]).toEqual({
       params: ["user-1", "course-1"],
       text: "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
     });
@@ -247,12 +255,16 @@ describe("payment revocation", () => {
       })
     ).resolves.toBe(false);
 
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(3);
     expect(query.mock.calls[0]?.[0]).toBe(
+      "select pg_advisory_xact_lock(hashtextextended('course-content-release:' || $1::text, 0))"
+    );
+    expect(query.mock.calls[0]?.[1]).toEqual(["course-1"]);
+    expect(query.mock.calls[1]?.[0]).toBe(
       "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
     );
-    expect(query.mock.calls[0]?.[1]).toEqual(["user-1", "course-1"]);
-    expect(query.mock.calls[1]?.[0]).toContain(
+    expect(query.mock.calls[1]?.[1]).toEqual(["user-1", "course-1"]);
+    expect(query.mock.calls[2]?.[0]).toContain(
       "and status in ('active', 'expired')"
     );
   });

@@ -10,6 +10,22 @@ const readServerSource = async (): Promise<string> =>
 const PROVIDER_NAME_PATTERN = /asaas/i;
 
 describe("enrollment server SQL contracts", () => {
+  it("takes the shared Course release lock before every enrollment aggregate lock", async () => {
+    const source = await readServerSource();
+    const aggregateLockSource = source.slice(
+      source.indexOf("const lockEnrollmentAggregate = async"),
+      source.indexOf("const hasEnrollmentGrantForOrder")
+    );
+
+    expect(source).toContain("@/features/courses/content-release-lock");
+    expect(aggregateLockSource).toContain(
+      "await lockCourseContentRelease(client, courseId)"
+    );
+    expect(
+      aggregateLockSource.indexOf("lockCourseContentRelease")
+    ).toBeLessThan(aggregateLockSource.indexOf("pg_advisory_xact_lock"));
+  });
+
   it("locks the enrollment aggregate before every direct grant mutation", async () => {
     const source = await readServerSource();
     const paidSource = source.slice(

@@ -182,6 +182,86 @@ beforeEach(() => {
 });
 
 describe("admin authoring", () => {
+  it("revalidates release history after copying the cover without holding a database connection", async () => {
+    let hasScheduledReleaseHistory = false;
+    let transactionOpen = false;
+    let connectionHeld = false;
+    const providerStates: Array<{
+      connectionHeld: boolean;
+      transactionOpen: boolean;
+    }> = [];
+    connect.mockImplementation(() => {
+      connectionHeld = true;
+      return { query, release };
+    });
+    release.mockImplementation(() => {
+      connectionHeld = false;
+    });
+    query.mockImplementation((sql: string) => {
+      if (sql === "begin") {
+        transactionOpen = true;
+      }
+      if (sql === "commit" || sql === "rollback") {
+        transactionOpen = false;
+      }
+      if (sql.includes("select cover_image_json from courses")) {
+        return { rows: [{ cover_image_json: coverImage }] };
+      }
+      if (sql.includes("has_scheduled_release_history")) {
+        return {
+          rows: [{ has_scheduled_release_history: hasScheduledReleaseHistory }],
+        };
+      }
+      if (sql.includes("as publication_status")) {
+        return {
+          rows: [
+            {
+              curriculum_key: "curriculum-1",
+              lesson_title: "Introdução",
+              module_title: "Comece aqui",
+              publication_status: "published",
+              release_delay_days: 0,
+            },
+            {
+              curriculum_key: "curriculum-1",
+              lesson_title: "Introdução",
+              module_title: "Conteúdo futuro",
+              publication_status: "draft",
+              release_delay_days: 8,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    publishR2Object.mockImplementation(() => {
+      providerStates.push({ connectionHeld, transactionOpen });
+      hasScheduledReleaseHistory = true;
+    });
+
+    await expect(
+      publishCoursePublication({ actorUserId: "admin-1", courseId: "course-1" })
+    ).rejects.toThrow('A Aula "Introdução" passaria de D+0 para D+8');
+
+    expect(providerStates).toEqual([
+      { connectionHeld: false, transactionOpen: false },
+      { connectionHeld: false, transactionOpen: false },
+      { connectionHeld: false, transactionOpen: false },
+    ]);
+    expect(query).toHaveBeenCalledWith("commit");
+    expect(query).toHaveBeenCalledWith("rollback");
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("set status = 'retired'")
+      )
+    ).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("set status = 'published'")
+      )
+    ).toBe(false);
+  });
+
   it("publishes the course cover before exposing a publication", async () => {
     query.mockImplementation((sql: string) => {
       if (
@@ -480,6 +560,98 @@ describe("admin authoring", () => {
       "course-1",
     ]);
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith("course-1");
+  });
+
+  it("rechecks a duration reduction after R2 and cleans a rejected upload outside database transactions", async () => {
+    let currentMaxDelay = 0;
+    let transactionOpen = false;
+    let connectionHeld = false;
+    const providerStates: Array<{
+      connectionHeld: boolean;
+      transactionOpen: boolean;
+    }> = [];
+    const recordProviderState = (): void => {
+      providerStates.push({ connectionHeld, transactionOpen });
+    };
+    connect.mockImplementation(() => {
+      connectionHeld = true;
+      return { query, release };
+    });
+    release.mockImplementation(() => {
+      connectionHeld = false;
+    });
+    query.mockImplementation((sql: string) => {
+      if (sql === "begin") {
+        transactionOpen = true;
+      }
+      if (sql === "commit" || sql === "rollback") {
+        transactionOpen = false;
+      }
+      if (sql.includes("as should_publish")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 12,
+              max_release_delay_days: currentMaxDelay,
+              sales_status: "open",
+              should_publish: true,
+            },
+          ],
+        };
+      }
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    uploadCourseCoverFile.mockImplementation(() => {
+      recordProviderState();
+      currentMaxDelay = 28;
+      return coverImage;
+    });
+    publishR2Object.mockImplementation(recordProviderState);
+    deleteR2Objects.mockImplementation(recordProviderState);
+    deletePublicR2Objects.mockImplementation(recordProviderState);
+    const courseId = "c989d54d-d13f-46a1-89ed-2069d7c1c45b";
+    const formData = new FormData();
+    formData.set("courseId", courseId);
+    formData.set("title", "Curso existente");
+    formData.set("accessDurationMonths", "1");
+    formData.set("price", "100,00");
+    formData.set(
+      "coverUpload",
+      JSON.stringify({
+        aggregateId: courseId,
+        contentType: "image/png",
+        fileName: "cover.png",
+        key: `uploads/admin-images/admin-1/course/${courseId}/course-cover/upload.png`,
+        purpose: "course-cover",
+        sizeBytes: 1,
+      })
+    );
+
+    await expect(
+      saveCourse({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+
+    expect(providerStates).toHaveLength(6);
+    expect(
+      providerStates.every(
+        (state) => !(state.connectionHeld || state.transactionOpen)
+      )
+    ).toBe(true);
+    const uploadedKeys = [
+      coverImage.original.key,
+      coverImage.variants.card.key,
+      coverImage.variants.thumb.key,
+    ];
+    expect(deleteR2Objects).toHaveBeenCalledWith(uploadedKeys);
+    expect(deletePublicR2Objects).toHaveBeenCalledWith(uploadedKeys);
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes("update courses"))
+    ).toBe(false);
+    expect(query).toHaveBeenCalledWith("commit");
+    expect(query).toHaveBeenCalledWith("rollback");
+    expect(ensureJmvstreamCourseFolder).not.toHaveBeenCalled();
   });
 
   it("rolls back before mutating an open Course when the reduced access duration no longer fits", async () => {

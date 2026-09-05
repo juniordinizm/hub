@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertMaxReleaseDelayFitsAccessDuration,
   assertScheduleFitsAccessDuration,
   buildContentReleaseScheduleSnapshot,
   hasDelayedModules,
@@ -11,6 +12,35 @@ const anchor = new Date("2026-01-01T00:00:00.000Z");
 const day = 86_400_000;
 
 describe("module content release rules", () => {
+  it("validates the maximum release delay without a schedule snapshot", () => {
+    expect(() =>
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: 1,
+        maxReleaseDelayDays: 27,
+      })
+    ).not.toThrow();
+    expect(() =>
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: 1,
+        maxReleaseDelayDays: 28,
+      })
+    ).toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+    expect(() =>
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: 0,
+        maxReleaseDelayDays: 0,
+      })
+    ).toThrow("Duração comercial inválida.");
+    expect(() =>
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: 1,
+        maxReleaseDelayDays: -1,
+      })
+    ).toThrow("Atraso de liberação inválido.");
+  });
+
   it("keeps full access available regardless of delay", () => {
     expect(
       resolveModuleContentRelease({

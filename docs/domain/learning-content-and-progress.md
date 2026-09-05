@@ -16,7 +16,7 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 ### REG-LEA-001 Publicação é atômica e em lote
 
-`createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` bloqueia o rascunho, rejeita vídeo JMVStream sem player, aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log na mesma transação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
+`createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` serializa o Curso com lock transacional, valida o rascunho, rejeita vídeo JMVStream sem player e só então copia a capa fora de uma transação aberta; uma segunda transação adquire o mesmo lock, revalida o estado e aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log. Alterações concorrentes no rascunho são serializadas pelo mesmo lock e não atravessam a fronteira de publicação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
 
 Publicar uma `CoursePublication` não altera visibilidade nem abre vendas. A
 disponibilidade comercial é uma decisão administrativa separada, conforme

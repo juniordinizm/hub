@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import {
   findContentReleaseRegressions,
@@ -10,12 +11,16 @@ import { LessonAuthoringError } from "@/features/admin/lesson-authoring-errors";
 import { normalizeLessonDraftInput } from "@/features/admin/lesson-drafts";
 import { resolveLessonVideoFormState } from "@/features/admin/lesson-video-form";
 import {
+  lockCourseContentRelease,
+  lockCoursesContentRelease,
+} from "@/features/courses/content-release-lock";
+import {
   getLessonContentStorageKeys,
   normalizeLessonContentFromForm,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
-import { assertScheduleFitsAccessDuration } from "@/features/courses/module-content-release";
+import { assertMaxReleaseDelayFitsAccessDuration } from "@/features/courses/module-content-release";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import { parseCourseWorkloadOverride } from "@/features/courses/workload";
@@ -277,6 +282,26 @@ const audit = async ({
   );
 };
 
+const withCourseContentReleaseLock = async <T>(
+  courseIds: readonly string[],
+  operation: (client: PoolClient) => Promise<T>
+): Promise<T> => {
+  const client = await getPool().connect();
+
+  try {
+    await client.query("begin");
+    await lockCoursesContentRelease(client, courseIds);
+    const result = await operation(client);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const resolveUniqueCourseSlug = async (title: string): Promise<string> => {
   const baseSlug = createCourseSlug(title);
   let candidate = baseSlug;
@@ -328,28 +353,6 @@ const getCourseAndPublicationForModule = async (
     courseId: module.course_id,
     coursePublicationId: module.course_publication_id,
   };
-};
-
-const getDraftCoursePublicationId = async (
-  courseId: string
-): Promise<string> => {
-  const { rows } = await getPool().query<{ id: string }>(
-    `
-      select id
-      from course_publications
-      where course_id = $1 and status = 'draft'
-      order by publication_number desc
-      limit 1
-    `,
-    [courseId]
-  );
-  const coursePublicationId = rows[0]?.id;
-
-  if (!coursePublicationId) {
-    throw new Error("Prepare alteracoes antes de alterar conteudo publicado.");
-  }
-
-  return coursePublicationId;
 };
 
 const assertDraftModule = async (moduleId: string): Promise<void> => {
@@ -438,17 +441,25 @@ const assertExistingLessonPublicationIsEditable = async (
   await assertLessonPublicationIsEditable(lessonId);
 };
 
-export const publishCoursePublication = async ({
+interface PreparedCoursePublication {
+  coursePublicationId: string;
+  coverImage: CourseCoverImage | null;
+}
+
+const runCoursePublicationTransaction = async ({
   actorUserId,
   courseId,
+  preparedPublication,
 }: {
   actorUserId: string;
   courseId: string;
-}): Promise<"no_draft" | "published"> => {
+  preparedPublication?: PreparedCoursePublication;
+}): Promise<PreparedCoursePublication | null> => {
   const client = await getPool().connect();
 
   try {
     await client.query("begin");
+    await lockCourseContentRelease(client, courseId);
     const { rows } = await client.query<{ id: string }>(
       `
         select id
@@ -464,7 +475,7 @@ export const publishCoursePublication = async ({
 
     if (!coursePublicationId) {
       await client.query("rollback");
-      return "no_draft";
+      return null;
     }
 
     const unavailableVideo = await client.query<{ id: string }>(
@@ -574,6 +585,8 @@ export const publishCoursePublication = async ({
          and l.course_publication_id = $2
         where e.course_id = $1
           and e.status = 'active'
+          and e.starts_at <= now()
+          and e.expires_at > now()
           and e.content_release_mode = 'scheduled'
           and e.content_release_started_at is not null
           and m.status = 'active'
@@ -581,7 +594,7 @@ export const publishCoursePublication = async ({
           and l.status = 'active'
           and l.is_required
           and e.content_release_started_at
-                + (m.release_delay_days * interval '1 day') >= e.expires_at
+                + (m.release_delay_days * interval '24 hours') >= e.expires_at
         order by m.sort_order, l.sort_order
         limit 1
       `,
@@ -594,9 +607,23 @@ export const publishCoursePublication = async ({
       );
     }
 
-    await publishCourseCover(
-      parseCourseCoverImage(courseCover.rows[0]?.cover_image_json)
-    );
+    const publication = {
+      coursePublicationId,
+      coverImage: parseCourseCoverImage(courseCover.rows[0]?.cover_image_json),
+    };
+    if (!preparedPublication) {
+      await client.query("commit");
+      return publication;
+    }
+    if (
+      coursePublicationId !== preparedPublication.coursePublicationId ||
+      JSON.stringify(publication.coverImage) !==
+        JSON.stringify(preparedPublication.coverImage)
+    ) {
+      throw new Error(
+        "O Curso mudou durante a publicação. Tente publicar novamente."
+      );
+    }
 
     await client.query(
       `
@@ -642,13 +669,38 @@ export const publishCoursePublication = async ({
       [actorUserId, coursePublicationId, JSON.stringify({ courseId })]
     );
     await client.query("commit");
-    return "published";
+    return publication;
   } catch (error) {
     await client.query("rollback");
     throw error;
   } finally {
     client.release();
   }
+};
+
+export const publishCoursePublication = async ({
+  actorUserId,
+  courseId,
+}: {
+  actorUserId: string;
+  courseId: string;
+}): Promise<"no_draft" | "published"> => {
+  const preparedPublication = await runCoursePublicationTransaction({
+    actorUserId,
+    courseId,
+  });
+  if (!preparedPublication) {
+    return "no_draft";
+  }
+
+  await publishCourseCover(preparedPublication.coverImage);
+
+  const publication = await runCoursePublicationTransaction({
+    actorUserId,
+    courseId,
+    preparedPublication,
+  });
+  return publication ? "published" : "no_draft";
 };
 
 export const createCoursePublicationDraft = async ({
@@ -662,6 +714,7 @@ export const createCoursePublicationDraft = async ({
 
   try {
     await client.query("begin");
+    await lockCourseContentRelease(client, courseId);
     await client.query(
       "select id from courses where id = $1 limit 1 for update",
       [courseId]
@@ -1236,30 +1289,32 @@ const consumeUploadedLessonResources = async ({
   );
 };
 
-const updateExistingCourse = async ({
+const runCourseUpdateTransaction = async ({
   actorUserId,
   courseId,
-  coverFile,
-  formData,
-  previousCoverKeys,
+  preparedCover,
   values,
 }: {
   actorUserId: string;
   courseId: string;
-  coverFile: CourseCoverFile | null;
-  formData: FormData;
-  previousCoverKeys: string[];
+  preparedCover?: {
+    coverImage: CourseCoverImage | null;
+    expectedPreviousCoverImage: CourseCoverImage | null;
+    shouldPublish: boolean;
+  };
   values: CourseFormValues;
-}): Promise<void> => {
-  let uploadedCoverImage: CourseCoverImage | null = null;
-  let didPersistCourse = false;
-  let nextCoverImage: CourseCoverImage | null = null;
+}): Promise<{
+  coverImage: CourseCoverImage | null;
+  shouldPublish: boolean;
+}> => {
   const client = await getPool().connect();
 
   try {
     await client.query("begin");
+    await lockCourseContentRelease(client, courseId);
     const publicationState = await client.query<{
       access_duration_months: number;
+      cover_image_json: unknown;
       max_release_delay_days: number;
       sales_status: "closed" | "open";
       should_publish: boolean;
@@ -1287,40 +1342,40 @@ const updateExistingCourse = async ({
     if (!currentCourse) {
       throw new Error("Curso não encontrado.");
     }
+    const currentCoverImage = parseCourseCoverImage(
+      currentCourse.cover_image_json
+    );
     if (
       currentCourse.sales_status === "open" &&
       values.accessDurationMonths < currentCourse.access_duration_months
     ) {
-      assertScheduleFitsAccessDuration({
+      assertMaxReleaseDelayFitsAccessDuration({
         accessDurationMonths: values.accessDurationMonths,
-        snapshot: {
-          clock: "elapsed_24h",
-          modules: [
-            {
-              releaseDelayDays: currentCourse.max_release_delay_days,
-              sortOrder: 1,
-              title: "Cronograma publicado",
-            },
-          ],
-          version: 1,
-        },
+        maxReleaseDelayDays: currentCourse.max_release_delay_days,
       });
     }
 
-    nextCoverImage = coverFile
-      ? await uploadCourseCoverFile({ courseId, file: coverFile })
-      : parseCourseCoverFormField(formData);
-    uploadedCoverImage = coverFile ? nextCoverImage : null;
+    if (!preparedCover) {
+      await client.query("commit");
+      return {
+        coverImage: currentCoverImage,
+        shouldPublish: currentCourse.should_publish,
+      };
+    }
+    if (
+      preparedCover.shouldPublish !== currentCourse.should_publish ||
+      JSON.stringify(preparedCover.expectedPreviousCoverImage) !==
+        JSON.stringify(currentCoverImage)
+    ) {
+      throw new Error(
+        "A disponibilidade do Curso mudou durante o envio da capa. Tente salvar novamente."
+      );
+    }
+    const nextCoverImage = preparedCover.coverImage;
     const thumbnailUrl = getCourseCoverUrl({
       courseId,
       coverImage: nextCoverImage,
     });
-
-    if (currentCourse.should_publish) {
-      await publishCourseCover(nextCoverImage);
-    } else {
-      await cleanupPublishedCourseCover(nextCoverImage);
-    }
 
     await client.query(
       `
@@ -1362,18 +1417,66 @@ const updateExistingCourse = async ({
       [actorUserId, "course.updated", "course", courseId]
     );
     await client.query("commit");
-    didPersistCourse = true;
+    return {
+      coverImage: currentCoverImage,
+      shouldPublish: currentCourse.should_publish,
+    };
   } catch (error) {
     await client.query("rollback");
-    if (!didPersistCourse) {
-      await Promise.all([
-        cleanupUploadedCourseCover(uploadedCoverImage),
-        cleanupPublishedCourseCover(uploadedCoverImage),
-      ]);
-    }
     throw error;
   } finally {
     client.release();
+  }
+};
+
+const updateExistingCourse = async ({
+  actorUserId,
+  courseId,
+  coverFile,
+  formData,
+  previousCoverKeys,
+  values,
+}: {
+  actorUserId: string;
+  courseId: string;
+  coverFile: CourseCoverFile | null;
+  formData: FormData;
+  previousCoverKeys: string[];
+  values: CourseFormValues;
+}): Promise<void> => {
+  const { coverImage: expectedPreviousCoverImage, shouldPublish } =
+    await runCourseUpdateTransaction({ actorUserId, courseId, values });
+  let uploadedCoverImage: CourseCoverImage | null = null;
+  let nextCoverImage: CourseCoverImage | null = null;
+
+  try {
+    nextCoverImage = coverFile
+      ? await uploadCourseCoverFile({ courseId, file: coverFile })
+      : parseCourseCoverFormField(formData);
+    uploadedCoverImage = coverFile ? nextCoverImage : null;
+
+    if (shouldPublish) {
+      await publishCourseCover(nextCoverImage);
+    } else {
+      await cleanupPublishedCourseCover(nextCoverImage);
+    }
+
+    await runCourseUpdateTransaction({
+      actorUserId,
+      courseId,
+      preparedCover: {
+        coverImage: nextCoverImage,
+        expectedPreviousCoverImage,
+        shouldPublish,
+      },
+      values,
+    });
+  } catch (error) {
+    await Promise.all([
+      cleanupUploadedCourseCover(uploadedCoverImage),
+      cleanupPublishedCourseCover(uploadedCoverImage),
+    ]);
+    throw error;
   }
 
   const nextCoverKeys = getCourseCoverStorageKeys(nextCoverImage);
@@ -1558,27 +1661,49 @@ export const saveModule = async ({
   if (moduleId) {
     await assertDraftModule(moduleId);
     const previousCourseId = await getCourseIdForModule(moduleId);
-    await getPool().query(
-      `
-        update modules
-        set course_id = $1,
-            title = $2,
-            description = $3,
-            sort_order = $4,
-            status = $5,
-            release_delay_days = $6,
-            updated_at = now()
-        where id = $7
-      `,
-      [
-        courseId,
-        title,
-        description,
-        sortOrder,
-        status,
-        releaseDelayDays,
-        moduleId,
-      ]
+    await withCourseContentReleaseLock(
+      [courseId, previousCourseId ?? ""],
+      async (client) => {
+        const current = await client.query<{ id: string }>(
+          `
+            select m.id
+            from modules m
+            join course_publications cp on cp.id = m.course_publication_id
+            where m.id = $1 and cp.status = 'draft'
+            limit 1
+            for update
+          `,
+          [moduleId]
+        );
+        if (!current.rows[0]) {
+          throw new LessonAuthoringError(
+            "Modulo nao pertence a uma versao em rascunho."
+          );
+        }
+
+        await client.query(
+          `
+            update modules
+            set course_id = $1,
+                title = $2,
+                description = $3,
+                sort_order = $4,
+                status = $5,
+                release_delay_days = $6,
+                updated_at = now()
+            where id = $7
+          `,
+          [
+            courseId,
+            title,
+            description,
+            sortOrder,
+            status,
+            releaseDelayDays,
+            moduleId,
+          ]
+        );
+      }
     );
     await audit({
       action: "module.updated",
@@ -1593,29 +1718,50 @@ export const saveModule = async ({
     return;
   }
 
-  const coursePublicationId = await getDraftCoursePublicationId(courseId);
+  const inserted = await withCourseContentReleaseLock(
+    [courseId],
+    async (client) => {
+      const draft = await client.query<{ id: string }>(
+        `
+          select id
+          from course_publications
+          where course_id = $1 and status = 'draft'
+          order by publication_number desc
+          limit 1
+          for update
+        `,
+        [courseId]
+      );
+      const coursePublicationId = draft.rows[0]?.id;
+      if (!coursePublicationId) {
+        throw new Error(
+          "Prepare alteracoes antes de alterar conteudo publicado."
+        );
+      }
 
-  const inserted = await getPool().query<{ id: string }>(
-    `
-      insert into modules (course_id, course_publication_id, title, description, sort_order, status, release_delay_days)
-      values ($1, $2, $3, $4, $5, $6, $7)
-      on conflict (course_publication_id, sort_order) do update set
-        title = excluded.title,
-        description = excluded.description,
-        status = excluded.status,
-        release_delay_days = excluded.release_delay_days,
-        updated_at = now()
-      returning id
-    `,
-    [
-      courseId,
-      coursePublicationId,
-      title,
-      description,
-      sortOrder,
-      status,
-      releaseDelayDays,
-    ]
+      return await client.query<{ id: string }>(
+        `
+          insert into modules (course_id, course_publication_id, title, description, sort_order, status, release_delay_days)
+          values ($1, $2, $3, $4, $5, $6, $7)
+          on conflict (course_publication_id, sort_order) do update set
+            title = excluded.title,
+            description = excluded.description,
+            status = excluded.status,
+            release_delay_days = excluded.release_delay_days,
+            updated_at = now()
+          returning id
+        `,
+        [
+          courseId,
+          coursePublicationId,
+          title,
+          description,
+          sortOrder,
+          status,
+          releaseDelayDays,
+        ]
+      );
+    }
   );
   await audit({
     action: "module.upserted",
@@ -1642,33 +1788,55 @@ export const createLessonDraft = async ({
     throw new LessonAuthoringError("Modulo invalido.");
   }
 
-  const inserted = await getPool().query<{ id: string }>(
-    `
-      insert into lessons (
-        module_id,
-        course_publication_id,
-        title,
-        description,
-        video_provider,
-        video_external_id,
-        video_embed_url,
-        content_json,
-        duration_seconds,
-        sort_order,
-        status,
-        is_published
-      )
-      values ($1, $2, $3, $4, null, null, null, null, 0, $5, $6, false)
-      returning id
-    `,
-    [
-      draft.moduleId,
-      module.coursePublicationId,
-      draft.title,
-      draft.description,
-      draft.sortOrder,
-      CREATED_CONTENT_STATUS,
-    ]
+  const inserted = await withCourseContentReleaseLock(
+    [courseId],
+    async (client) => {
+      const currentModule = await client.query<{ id: string }>(
+        `
+          select m.id
+          from modules m
+          join course_publications cp on cp.id = m.course_publication_id
+          where m.id = $1 and cp.status = 'draft'
+          limit 1
+          for update
+        `,
+        [draft.moduleId]
+      );
+      if (!currentModule.rows[0]) {
+        throw new LessonAuthoringError(
+          "Modulo nao pertence a uma versao em rascunho."
+        );
+      }
+
+      return await client.query<{ id: string }>(
+        `
+          insert into lessons (
+            module_id,
+            course_publication_id,
+            title,
+            description,
+            video_provider,
+            video_external_id,
+            video_embed_url,
+            content_json,
+            duration_seconds,
+            sort_order,
+            status,
+            is_published
+          )
+          values ($1, $2, $3, $4, null, null, null, null, 0, $5, $6, false)
+          returning id
+        `,
+        [
+          draft.moduleId,
+          module.coursePublicationId,
+          draft.title,
+          draft.description,
+          draft.sortOrder,
+          CREATED_CONTENT_STATUS,
+        ]
+      );
+    }
   );
   const lessonId = inserted.rows[0]?.id;
 
@@ -1770,33 +1938,113 @@ export const saveLesson = async ({
     isRequired,
   ];
   const moduleCourseId = module.courseId;
+  const previousCourseId = existingLessonId
+    ? await getCourseIdForLesson(existingLessonId)
+    : null;
+  const persistedLessonId = await withCourseContentReleaseLock(
+    [moduleCourseId, previousCourseId ?? ""],
+    async (client) => {
+      if (existingLessonId) {
+        const currentLesson = await client.query<{ id: string }>(
+          `
+            select l.id
+            from lessons l
+            join course_publications cp on cp.id = l.course_publication_id
+            where l.id = $1 and cp.status = 'draft'
+            limit 1
+            for update
+          `,
+          [existingLessonId]
+        );
+        if (!currentLesson.rows[0]) {
+          throw new LessonAuthoringError(
+            "Prepare alteracoes antes de editar conteudo publicado."
+          );
+        }
+      }
+
+      const currentModule = await client.query<{ id: string }>(
+        `
+          select m.id
+          from modules m
+          join course_publications cp on cp.id = m.course_publication_id
+          where m.id = $1 and cp.status = 'draft'
+          limit 1
+          for update
+        `,
+        [moduleId]
+      );
+      if (!currentModule.rows[0]) {
+        throw new LessonAuthoringError(
+          "Prepare alteracoes antes de editar conteudo publicado."
+        );
+      }
+
+      if (existingLessonId) {
+        await client.query(
+          `
+            update lessons
+            set module_id = $1,
+                course_publication_id = $2,
+                title = $3,
+                description = $4,
+                video_provider = $5,
+                video_external_id = $6,
+                video_embed_url = $7,
+                thumbnail_url = $8,
+                content_json = $9::jsonb,
+                duration_seconds = $10,
+                video_duration_seconds = $11,
+                text_duration_seconds = $12,
+                text_word_count = $13,
+                sort_order = $14,
+                status = $15,
+                is_published = $16,
+                is_required = $17,
+                updated_at = now()
+            where id = $18
+          `,
+          [...values, existingLessonId]
+        );
+        return existingLessonId;
+      }
+
+      const inserted = await client.query<{ id: string }>(
+        `
+          insert into lessons (
+            module_id,
+            course_publication_id,
+            title,
+            description,
+            video_provider,
+            video_external_id,
+            video_embed_url,
+            thumbnail_url,
+            content_json,
+            duration_seconds,
+            video_duration_seconds,
+            text_duration_seconds,
+            text_word_count,
+            sort_order,
+            status,
+            is_published,
+            is_required
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)
+          returning id
+        `,
+        values
+      );
+      const insertedLessonId = inserted.rows[0]?.id;
+      if (!insertedLessonId) {
+        throw new Error("Nao foi possivel salvar a aula.");
+      }
+      return insertedLessonId;
+    }
+  );
+  savedLessonId = persistedLessonId;
+
   if (existingLessonId) {
-    const previousCourseId = await getCourseIdForLesson(existingLessonId);
-    await getPool().query(
-      `
-        update lessons
-        set module_id = $1,
-            course_publication_id = $2,
-            title = $3,
-            description = $4,
-            video_provider = $5,
-            video_external_id = $6,
-            video_embed_url = $7,
-            thumbnail_url = $8,
-            content_json = $9::jsonb,
-            duration_seconds = $10,
-            video_duration_seconds = $11,
-            text_duration_seconds = $12,
-            text_word_count = $13,
-            sort_order = $14,
-            status = $15,
-            is_published = $16,
-            is_required = $17,
-            updated_at = now()
-        where id = $18
-      `,
-      [...values, existingLessonId]
-    );
     await audit({
       action: "lesson.updated",
       actorUserId,
@@ -1817,39 +2065,6 @@ export const saveLesson = async ({
       shouldKeepJmvstreamAsset,
     });
   } else {
-    const inserted = await getPool().query<{ id: string }>(
-      `
-        insert into lessons (
-          module_id,
-          course_publication_id,
-          title,
-          description,
-          video_provider,
-          video_external_id,
-          video_embed_url,
-          thumbnail_url,
-          content_json,
-          duration_seconds,
-          video_duration_seconds,
-          text_duration_seconds,
-          text_word_count,
-          sort_order,
-          status,
-          is_published,
-          is_required
-        )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, $14, $15, $16, $17)
-        returning id
-      `,
-      values
-    );
-    const insertedLessonId = inserted.rows[0]?.id;
-
-    if (!insertedLessonId) {
-      throw new Error("Nao foi possivel salvar a aula.");
-    }
-
-    savedLessonId = insertedLessonId;
     await audit({
       action: "lesson.created",
       actorUserId,
@@ -1896,20 +2111,38 @@ export const removeLessonVideo = async ({
   ))
     ? { failed: 0 }
     : await deleteJmvstreamAssetsForLesson(lessonId);
-  await getPool().query(
-    `
-      update lessons
-      set video_provider = null,
-          video_external_id = null,
-          video_embed_url = null,
-          thumbnail_url = null,
-          video_duration_seconds = 0,
-          duration_seconds = text_duration_seconds,
-          updated_at = now()
-      where id = $1
-    `,
-    [lessonId]
-  );
+  await withCourseContentReleaseLock([courseId], async (client) => {
+    const currentLesson = await client.query<{ id: string }>(
+      `
+        select l.id
+        from lessons l
+        join course_publications cp on cp.id = l.course_publication_id
+        where l.id = $1 and cp.status = 'draft'
+        limit 1
+        for update
+      `,
+      [lessonId]
+    );
+    if (!currentLesson.rows[0]) {
+      throw new LessonAuthoringError(
+        "Prepare alteracoes antes de editar conteudo publicado."
+      );
+    }
+    await client.query(
+      `
+        update lessons
+        set video_provider = null,
+            video_external_id = null,
+            video_embed_url = null,
+            thumbnail_url = null,
+            video_duration_seconds = 0,
+            duration_seconds = text_duration_seconds,
+            updated_at = now()
+        where id = $1
+      `,
+      [lessonId]
+    );
+  });
   await audit({
     action: "lesson.video_removed",
     actorUserId,
