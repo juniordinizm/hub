@@ -7,7 +7,10 @@ import sharp from "sharp";
 import { getPool } from "@/db";
 import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
-import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import {
+  buildContentReleaseScheduleSnapshot,
+  MILLISECONDS_PER_DAY,
+} from "@/features/courses/module-content-release";
 import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import {
   createManualAccessGrant,
@@ -604,7 +607,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
     await createManualAccessGrant({
       client,
       courseId: scheduledCourseId,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 30 * MILLISECONDS_PER_DAY),
       manualReference: `e2e-scheduled-${suffix}`,
       reason: "Fixture E2E de liberacao programada",
       userId: studentId,

@@ -3,13 +3,16 @@ import {
   assertMaxReleaseDelayFitsAccessDuration,
   assertScheduleFitsAccessDuration,
   buildContentReleaseScheduleSnapshot,
+  CONSERVATIVE_ACCESS_DAYS_PER_MONTH,
   hasDelayedModules,
+  MAX_RELEASE_DELAY_DAYS,
+  MILLISECONDS_PER_DAY,
   resolveLessonAvailability,
   resolveModuleContentRelease,
 } from "./module-content-release";
 
 const anchor = new Date("2026-01-01T00:00:00.000Z");
-const day = 86_400_000;
+const day = MILLISECONDS_PER_DAY;
 
 describe("module content release rules", () => {
   it("validates the maximum release delay without a schedule snapshot", () => {
@@ -37,6 +40,26 @@ describe("module content release rules", () => {
       assertMaxReleaseDelayFitsAccessDuration({
         accessDurationMonths: 1,
         maxReleaseDelayDays: -1,
+      })
+    ).toThrow("Atraso de liberação inválido.");
+  });
+
+  it("names and enforces the Date and commercial safety limits", () => {
+    expect(CONSERVATIVE_ACCESS_DAYS_PER_MONTH).toBe(28);
+    expect(() =>
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: Math.ceil(
+          (MAX_RELEASE_DELAY_DAYS + 1) / CONSERVATIVE_ACCESS_DAYS_PER_MONTH
+        ),
+        maxReleaseDelayDays: MAX_RELEASE_DELAY_DAYS,
+      })
+    ).not.toThrow();
+    expect(() =>
+      resolveModuleContentRelease({
+        contentReleaseMode: "full_access",
+        contentReleaseStartedAt: null,
+        releaseDelayDays: MAX_RELEASE_DELAY_DAYS + 1,
+        now: anchor,
       })
     ).toThrow("Atraso de liberação inválido.");
   });

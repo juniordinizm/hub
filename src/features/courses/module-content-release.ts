@@ -1,4 +1,12 @@
-const MILLISECONDS_PER_DAY = 86_400_000;
+/** D+N uses elapsed 24-hour periods, never calendar-day arithmetic. */
+export const MILLISECONDS_PER_DAY = 86_400_000;
+/** Commercial safety margin: every access month reserves at least 28 days. */
+export const CONSERVATIVE_ACCESS_DAYS_PER_MONTH = 28;
+/** JavaScript Date's largest representable timestamp. */
+export const MAX_DATE_MILLISECONDS = 8_640_000_000_000_000;
+export const MAX_RELEASE_DELAY_DAYS = Math.floor(
+  MAX_DATE_MILLISECONDS / MILLISECONDS_PER_DAY
+);
 
 export type ContentReleaseMode = "full_access" | "scheduled";
 
@@ -39,7 +47,7 @@ const assertValidDelay = (releaseDelayDays: number): void => {
   if (
     !Number.isSafeInteger(releaseDelayDays) ||
     releaseDelayDays < 0 ||
-    releaseDelayDays > Math.floor(8_640_000_000_000_000 / MILLISECONDS_PER_DAY)
+    releaseDelayDays > MAX_RELEASE_DELAY_DAYS
   ) {
     throw new Error("Atraso de liberação inválido.");
   }
@@ -52,7 +60,8 @@ export const assertMaxReleaseDelayFitsAccessDuration = ({
   accessDurationMonths: number;
   maxReleaseDelayDays: number;
 }): void => {
-  const conservativeAccessDays = accessDurationMonths * 28;
+  const conservativeAccessDays =
+    accessDurationMonths * CONSERVATIVE_ACCESS_DAYS_PER_MONTH;
   if (
     !Number.isSafeInteger(accessDurationMonths) ||
     accessDurationMonths <= 0 ||
