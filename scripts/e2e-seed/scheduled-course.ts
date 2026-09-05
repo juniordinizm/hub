@@ -9,6 +9,27 @@ export interface ScheduledCourseSeed {
   slug: string;
 }
 
+export const seedScheduledEnrollment = async ({
+  client,
+  courseId,
+  studentId,
+  suffix,
+}: {
+  client: PoolClient;
+  courseId: string;
+  studentId: string;
+  suffix: string;
+}): Promise<void> => {
+  await createManualAccessGrant({
+    client,
+    courseId,
+    expiresAt: new Date(Date.now() + 30 * MILLISECONDS_PER_DAY),
+    manualReference: `e2e-scheduled-${suffix}`,
+    reason: "Fixture E2E de liberacao programada",
+    userId: studentId,
+  });
+};
+
 export const seedScheduledCourse = async ({
   client,
   slug,
@@ -101,13 +122,11 @@ export const seedScheduledCourse = async ({
     throw new Error("Could not create scheduled E2E lessons.");
   }
 
-  await createManualAccessGrant({
+  await seedScheduledEnrollment({
     client,
     courseId,
-    expiresAt: new Date(Date.now() + 30 * MILLISECONDS_PER_DAY),
-    manualReference: `e2e-scheduled-${suffix}`,
-    reason: "Fixture E2E de liberacao programada",
-    userId: studentId,
+    studentId,
+    suffix,
   });
 
   return { futureLessonId, id: courseId, immediateLessonId, slug };
