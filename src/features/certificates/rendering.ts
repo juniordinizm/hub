@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import { formatDate } from "@/lib/formatters";
+import { getCertificateFontFile } from "./font-assets";
 import { createCertificatePdfDocument } from "./pdf-document";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { getCertificateValidationPath } from "./rules";
@@ -123,7 +124,9 @@ export const renderCertificatePdf = async ({
 
     const value = values[field.field];
     if (value) {
-      document.font(field.font ?? "Helvetica").fontSize(field.fontSize);
+      document
+        .font(getCertificateFontFile(field.font))
+        .fontSize(field.fontSize);
       const verticalOffset = getVerticalTextOffset({
         height,
         measuredHeight: document.heightOfString(value, {

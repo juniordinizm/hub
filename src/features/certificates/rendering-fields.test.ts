@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
+import { CERTIFICATE_FONT_FILES } from "./font-assets";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 
 const dependencies = vi.hoisted(() => ({
@@ -75,6 +76,40 @@ const snapshot: CertificateRenderSnapshot = {
 };
 
 describe("certificate rendering field values", () => {
+  it("maps regular and bold fields to the bundled certificate font files", async () => {
+    const document = createMockDocument();
+    dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);
+    const background = await sharp({
+      create: { background: "#ffffff", channels: 3, height: 1680, width: 2376 },
+    })
+      .webp()
+      .toBuffer();
+    const sourceField = snapshot.template.fields[0];
+    if (!sourceField) {
+      throw new Error("Fixture de campo ausente.");
+    }
+    const typographySnapshot: CertificateRenderSnapshot = {
+      ...snapshot,
+      template: {
+        ...snapshot.template,
+        fields: [
+          { ...sourceField, field: "signerRole", font: "Helvetica" },
+          { ...sourceField, field: "signerName", font: "Helvetica-Bold" },
+        ],
+      },
+    };
+
+    await renderCertificatePdf({
+      background,
+      publicBaseUrl: "https://hub.example.test",
+      signature: null,
+      snapshot: typographySnapshot,
+    });
+
+    expect(document.font).toHaveBeenCalledWith(CERTIFICATE_FONT_FILES.regular);
+    expect(document.font).toHaveBeenCalledWith(CERTIFICATE_FONT_FILES.bold);
+  });
+
   it("passes the configured signer role to the PDF document", async () => {
     const document = createMockDocument();
     dependencies.createCertificatePdfDocument.mockReturnValueOnce(document);

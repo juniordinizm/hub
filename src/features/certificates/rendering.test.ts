@@ -81,7 +81,7 @@ describe("renderCertificatePdf", () => {
 
     expect(result.pdf.subarray(0, 4).toString()).toBe("%PDF");
     expect(result.sha256).toHaveLength(64);
-    expect(result.pdf.toString("latin1")).toContain("/Helvetica-Bold");
+    expect(result.pdf.toString("latin1")).toContain("Inter-Bold");
   });
 
   it("produces identical bytes and hash from the same immutable inputs", async () => {
