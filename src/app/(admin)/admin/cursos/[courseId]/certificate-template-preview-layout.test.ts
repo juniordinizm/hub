@@ -47,7 +47,7 @@ describe("certificate preview layout", () => {
       alignItems: "center",
       color: "#123456",
       display: "flex",
-      fontFamily: "Helvetica, Arial, sans-serif",
+      fontFamily: "Certificate Inter, sans-serif",
       fontSize: expect.stringMatching(THIRTY_PIXEL_PATTERN),
       fontWeight: 700,
       lineHeight: CERTIFICATE_PREVIEW_LINE_HEIGHT,
