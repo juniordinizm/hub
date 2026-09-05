@@ -76,10 +76,6 @@ const createFixture = async (): Promise<EnrollmentContentReleaseFixture> => {
     [userId, `${userId}@example.test`]
   );
   await pool.query(
-    "insert into profiles (user_id, role) values ($1, 'student')",
-    [userId]
-  );
-  await pool.query(
     `
       insert into courses (id, slug, title, status, access_duration_months)
       values ($1, $2, 'Curso de serializacao', 'active', $3)
