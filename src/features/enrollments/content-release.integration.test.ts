@@ -48,6 +48,10 @@ const cleanupFixtures = async (): Promise<void> => {
     fixtureCourseIds.clear();
   }
   if (fixtureUserIds.size > 0) {
+    await pool.query(
+      "delete from audit_logs where actor_user_id = any($1::text[])",
+      [[...fixtureUserIds]]
+    );
     await pool.query("delete from users where id = any($1::text[])", [
       [...fixtureUserIds],
     ]);
@@ -367,7 +371,7 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
           from enrollment_events
           where user_id = $1 and course_id = $2
           group by event_type
-          order by event_type
+          order by event_type::text
         `,
         [fixture.userId, fixture.courseId]
       );
@@ -455,7 +459,7 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
           from enrollment_events
           where user_id = $1 and course_id = $2
           group by event_type
-          order by event_type
+          order by event_type::text
         `,
         [fixture.userId, fixture.courseId]
       );
