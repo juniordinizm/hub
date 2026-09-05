@@ -86,12 +86,24 @@ const createPool = (
     sql: string,
     values: unknown[] | undefined
   ) => QueryResult | Promise<QueryResult>
-) => ({
-  query: vi.fn(
-    async (sql: string, values?: unknown[]) =>
-      await handler(sql.replace(/\s+/g, " ").trim(), values)
-  ),
-});
+) => {
+  const query = vi.fn(async (sql: string, values?: unknown[]) => {
+    const normalizedSql = sql.replace(/\s+/g, " ").trim();
+    if (
+      normalizedSql === "begin" ||
+      normalizedSql === "commit" ||
+      normalizedSql === "rollback" ||
+      normalizedSql.includes("pg_advisory_xact_lock")
+    ) {
+      return { rows: [] };
+    }
+    return await handler(normalizedSql, values);
+  });
+  return {
+    connect: vi.fn(async () => ({ query, release: vi.fn() })),
+    query,
+  };
+};
 
 const createGateway = (
   outcome:
@@ -264,6 +276,66 @@ describe("createAsaasCheckoutIntent", () => {
       expect.stringContaining("content_release_schedule_snapshot"),
       expect.any(Array)
     );
+  });
+
+  it("serializes the schedule read and pending order under the course lock", async () => {
+    let queryCountAtAuthorization = -1;
+    let pool: ReturnType<typeof createPool>;
+    const authorizeNewIntent = vi.fn().mockImplementation(() => {
+      queryCountAtAuthorization = pool.query.mock.calls.length;
+    });
+    const gateway = createGateway();
+    pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.includes("pg_advisory_xact_lock")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return { rows: [course] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        return { rows: [insertedOrder] };
+      }
+      if (sql === "begin" || sql === "commit" || sql === "rollback") {
+        return { rows: [] };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await createAsaasCheckoutIntent({
+      ...authenticatedInput(gateway),
+      authorizeNewIntent,
+    });
+
+    const queries = pool.query.mock.calls.map(([sql]) =>
+      String(sql).replace(/\s+/g, " ").trim()
+    );
+    const lockIndex = queries.findIndex((query) =>
+      query.includes("pg_advisory_xact_lock")
+    );
+    const courseIndex = queries.findIndex((query) =>
+      query.startsWith("select c.id")
+    );
+    const insertIndex = queries.findIndex((query) =>
+      query.startsWith("insert into orders")
+    );
+    const commitIndex = queries.indexOf("commit");
+
+    expect(pool.connect).toHaveBeenCalledOnce();
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(courseIndex).toBeGreaterThan(lockIndex);
+    expect(insertIndex).toBeGreaterThan(courseIndex);
+    expect(commitIndex).toBeGreaterThan(insertIndex);
+    expect(queryCountAtAuthorization).toBeGreaterThan(commitIndex);
   });
 
   it("rejects a stale schedule digest before rate limit, order or provider", async () => {
@@ -687,7 +759,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("rejects an active enrollment before persistence or provider access", async () => {
@@ -768,7 +843,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("rejects a course whose sales are closed before persistence or provider access", async () => {
@@ -788,7 +866,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("persists a provider-pending buyer without PII or account mutation", async () => {
