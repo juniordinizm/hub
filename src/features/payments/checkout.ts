@@ -1,5 +1,14 @@
 import "server-only";
 import { getPool } from "@/db";
+import {
+  assertScheduleFitsAccessDuration,
+  buildContentReleaseScheduleSnapshot,
+  type ContentReleaseScheduleSnapshot,
+} from "@/features/courses/module-content-release";
+import {
+  CONTENT_RELEASE_SCHEDULE_DIGEST_PATTERN,
+  getContentReleaseScheduleDigest,
+} from "@/features/courses/module-content-release-digest";
 import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
@@ -36,6 +45,7 @@ export interface CreateAsaasCheckoutIntentInput {
   callbacks: CheckoutCallbacks;
   courseId?: string;
   courseSlug?: string;
+  expectedContentReleaseScheduleDigest?: string;
   gateway: AsaasGateway;
   now?: () => Date;
 }
@@ -52,14 +62,7 @@ export type CheckoutIntentResult =
     };
 
 export type CheckoutIntentErrorKind = "conflict" | "unavailable" | "validation";
-
-const CHECKOUT_INTENT_ERROR_MESSAGES: Record<CheckoutIntentErrorKind, string> =
-  {
-    conflict: "Tentativa de checkout em conflito.",
-    unavailable: "Checkout indisponível.",
-    validation: "Dados de checkout inválidos.",
-  };
-type CheckoutIntentErrorReason =
+export type CheckoutIntentErrorReason =
   | "active_access"
   | "attempt_invalid"
   | "callbacks_invalid"
@@ -67,7 +70,16 @@ type CheckoutIntentErrorReason =
   | "course_selection_invalid"
   | "course_unavailable"
   | "identity_invalid"
-  | "revoked_access";
+  | "revoked_access"
+  | "schedule_changed"
+  | "schedule_digest_invalid";
+
+const CHECKOUT_INTENT_ERROR_MESSAGES: Record<CheckoutIntentErrorKind, string> =
+  {
+    conflict: "Tentativa de checkout em conflito.",
+    unavailable: "Checkout indisponível.",
+    validation: "Dados de checkout inválidos.",
+  };
 const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   CheckoutIntentErrorReason,
   string
@@ -80,10 +92,13 @@ const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   course_unavailable: "Curso indisponível para checkout pago.",
   identity_invalid: "Identidade local inválida.",
   revoked_access: "Acesso ao curso está revogado.",
+  schedule_changed: "O cronograma do Curso foi atualizado.",
+  schedule_digest_invalid: "Digest de cronograma inválido.",
 };
 
 export class CheckoutIntentError extends Error {
   readonly kind: CheckoutIntentErrorKind;
+  readonly reason: CheckoutIntentErrorReason | null;
 
   constructor(
     kind: CheckoutIntentErrorKind,
@@ -96,6 +111,7 @@ export class CheckoutIntentError extends Error {
     );
     this.name = "CheckoutIntentError";
     this.kind = kind;
+    this.reason = reason ?? null;
   }
 }
 
@@ -108,6 +124,11 @@ interface CheckoutCourse {
   payment_allow_pix: boolean;
   payment_max_installment_count: number;
   price_in_cents: number;
+  release_modules?: Array<{
+    releaseDelayDays: number;
+    sortOrder: number;
+    title: string;
+  }> | null;
   sales_status: "closed" | "open";
   slug: string;
   status: string;
@@ -130,6 +151,7 @@ interface CheckoutOrder {
     | "pending"
     | "uncertain";
   checkout_url: string | null;
+  content_release_schedule_snapshot: ContentReleaseScheduleSnapshot;
   course_id: string;
   customer_email: string | null;
   customer_name: string | null;
@@ -194,10 +216,12 @@ const validateInput = ({
   callbacks,
   courseId,
   courseSlug,
+  expectedContentReleaseScheduleDigest,
 }: Omit<CreateAsaasCheckoutIntentInput, "gateway" | "now">): {
   courseSlug: string | undefined;
   customerEmail: string | null;
   customerName: string | null;
+  expectedContentReleaseScheduleDigest: string | undefined;
 } => {
   if (!UUID_PATTERN.test(attemptId)) {
     throw new CheckoutIntentError("validation", "attempt_invalid");
@@ -208,6 +232,14 @@ const validateInput = ({
   }
   if (courseId && !UUID_PATTERN.test(courseId)) {
     throw new CheckoutIntentError("validation", "course_id_invalid");
+  }
+  if (
+    expectedContentReleaseScheduleDigest !== undefined &&
+    !CONTENT_RELEASE_SCHEDULE_DIGEST_PATTERN.test(
+      expectedContentReleaseScheduleDigest
+    )
+  ) {
+    throw new CheckoutIntentError("validation", "schedule_digest_invalid");
   }
 
   const buyerIdentity =
@@ -233,6 +265,7 @@ const validateInput = ({
     courseSlug: courseSlug ? normalizeCourseSlug(courseSlug) : undefined,
     customerEmail: buyerIdentity?.email ?? null,
     customerName: buyerIdentity?.name ?? null,
+    expectedContentReleaseScheduleDigest,
   };
 };
 
@@ -394,6 +427,7 @@ const readCheckoutOrder = async ({
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
+        content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description, payment_allow_pix, payment_allow_credit_card,
         payment_max_installment_count
@@ -544,6 +578,42 @@ const authorizeAndClaimAttempt = async ({
   return Boolean(claimed.rows[0]);
 };
 
+const resolveCheckoutScheduleSnapshot = (
+  course: CheckoutCourse
+): ContentReleaseScheduleSnapshot => {
+  const snapshot = buildContentReleaseScheduleSnapshot(
+    (course.release_modules ?? []).map((module) => ({
+      releaseDelayDays: module.releaseDelayDays,
+      sortOrder: module.sortOrder,
+      title: module.title,
+    }))
+  );
+  try {
+    assertScheduleFitsAccessDuration({
+      accessDurationMonths: course.access_duration_months,
+      snapshot,
+    });
+  } catch {
+    throw new CheckoutIntentError("unavailable", "course_unavailable");
+  }
+  return snapshot;
+};
+
+const assertCheckoutScheduleDigest = ({
+  expectedDigest,
+  snapshot,
+}: {
+  expectedDigest: string | undefined;
+  snapshot: ContentReleaseScheduleSnapshot;
+}): void => {
+  if (
+    expectedDigest !== undefined &&
+    expectedDigest !== getContentReleaseScheduleDigest(snapshot)
+  ) {
+    throw new CheckoutIntentError("conflict", "schedule_changed");
+  }
+};
+
 export const createAsaasCheckoutIntent = async (
   input: CreateAsaasCheckoutIntentInput
 ): Promise<CheckoutIntentResult> => {
@@ -551,6 +621,7 @@ export const createAsaasCheckoutIntent = async (
     courseSlug: requestedCourseSlug,
     customerEmail,
     customerName,
+    expectedContentReleaseScheduleDigest,
   } = validateInput(input);
   const pool = getPool();
   const existingAttempt = await pool.query<CheckoutOrder>(
@@ -558,6 +629,7 @@ export const createAsaasCheckoutIntent = async (
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
+        content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description, payment_allow_pix, payment_allow_credit_card,
         payment_max_installment_count
@@ -585,7 +657,21 @@ export const createAsaasCheckoutIntent = async (
              exists (
                select 1 from course_publications cp
                where cp.course_id = c.id and cp.status = 'published'
-             ) as has_published_publication
+             ) as has_published_publication,
+             coalesce((
+               select json_agg(
+                 json_build_object(
+                   'title', m.title,
+                   'sortOrder', m.sort_order,
+                   'releaseDelayDays', m.release_delay_days
+                 ) order by m.sort_order asc
+               )
+               from modules m
+               join course_publications cp on cp.id = m.course_publication_id
+               where cp.course_id = c.id
+                 and cp.status = 'published'
+                 and m.status = 'active'
+             ), '[]'::json) as release_modules
       from courses c
       where ($1::uuid is not null and c.id = $1::uuid)
          or ($2::text is not null and c.slug = $2::text)
@@ -603,6 +689,13 @@ export const createAsaasCheckoutIntent = async (
   ) {
     throw new CheckoutIntentError("unavailable", "course_unavailable");
   }
+
+  const contentReleaseScheduleSnapshot =
+    resolveCheckoutScheduleSnapshot(course);
+  assertCheckoutScheduleDigest({
+    expectedDigest: expectedContentReleaseScheduleDigest,
+    snapshot: contentReleaseScheduleSnapshot,
+  });
 
   await ensureCheckoutAccessEligible({
     buyer: input.buyer,
@@ -629,6 +722,7 @@ export const createAsaasCheckoutIntent = async (
         checkout_url,
         amount_in_cents,
         access_duration_months,
+        content_release_schedule_snapshot,
         customer_email,
         customer_name,
         checkout_course_slug,
@@ -641,12 +735,13 @@ export const createAsaasCheckoutIntent = async (
       )
       values (
         $1, $2, $3, $4, 'asaas', null, null, null, $5, 'pending', 'pending',
-        null, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0
+        null, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 0
       )
       on conflict (id) do nothing
       returning
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
         provider_checkout_status, amount_in_cents, access_duration_months,
+        content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description, payment_allow_pix, payment_allow_credit_card,
         payment_max_installment_count
@@ -659,6 +754,7 @@ export const createAsaasCheckoutIntent = async (
       externalReference,
       item.valueInCents,
       course.access_duration_months,
+      JSON.stringify(contentReleaseScheduleSnapshot),
       customerEmail,
       customerName,
       normalizeCourseSlug(course.slug),
@@ -680,6 +776,7 @@ export const createAsaasCheckoutIntent = async (
         select
           id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
           provider_checkout_status, amount_in_cents, access_duration_months,
+          content_release_schedule_snapshot,
           customer_email, customer_name, checkout_course_slug, checkout_item_name,
           checkout_item_description, payment_allow_pix, payment_allow_credit_card,
           payment_max_installment_count

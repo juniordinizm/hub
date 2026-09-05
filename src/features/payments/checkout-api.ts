@@ -4,16 +4,20 @@ const COURSE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const CHECKOUT_ATTEMPT_KEY = "checkoutAttemptId";
 const COURSE_ID_KEY = "courseId";
 const COURSE_SLUG_KEY = "courseSlug";
+const SCHEDULE_DIGEST_KEY = "expectedContentReleaseScheduleDigest";
+const SCHEDULE_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const ALLOWED_KEYS = new Set([
   CHECKOUT_ATTEMPT_KEY,
   COURSE_ID_KEY,
   COURSE_SLUG_KEY,
+  SCHEDULE_DIGEST_KEY,
 ]);
 
 export interface PublicCheckoutBody {
   checkoutAttemptId: string;
   courseId?: string;
   courseSlug?: string;
+  expectedContentReleaseScheduleDigest: string;
 }
 
 export interface PublicCheckoutStatusQuery {
@@ -34,7 +38,8 @@ export type CheckoutApiResponse =
       error: string;
       retryAllowed: false;
       status: "unavailable";
-    };
+    }
+  | { retryAllowed: false; status: "schedule_changed" };
 
 const readOwnValue = (value: Record<string, unknown>, key: string): unknown => {
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -55,7 +60,7 @@ export const parseCheckoutRequest = (
 
   const keys = Reflect.ownKeys(value);
   if (
-    keys.length !== 2 ||
+    keys.length !== 3 ||
     keys.some((key) => typeof key !== "string" || !ALLOWED_KEYS.has(key))
   ) {
     return null;
@@ -78,6 +83,14 @@ export const parseCheckoutRequest = (
     return null;
   }
 
+  const scheduleDigest = readOwnValue(body, SCHEDULE_DIGEST_KEY);
+  if (
+    typeof scheduleDigest !== "string" ||
+    !SCHEDULE_DIGEST_PATTERN.test(scheduleDigest)
+  ) {
+    return null;
+  }
+
   if (hasCourseId) {
     const courseId = readOwnValue(body, COURSE_ID_KEY);
     if (typeof courseId !== "string") {
@@ -88,6 +101,7 @@ export const parseCheckoutRequest = (
       ? {
           checkoutAttemptId: normalizedAttemptId,
           courseId: normalizedCourseId,
+          expectedContentReleaseScheduleDigest: scheduleDigest,
         }
       : null;
   }
@@ -101,6 +115,7 @@ export const parseCheckoutRequest = (
     ? {
         checkoutAttemptId: normalizedAttemptId,
         courseSlug: normalizedCourseSlug,
+        expectedContentReleaseScheduleDigest: scheduleDigest,
       }
     : null;
 };

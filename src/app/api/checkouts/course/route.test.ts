@@ -39,6 +39,7 @@ import { dynamic, GET, POST } from "./route";
 const validBody = {
   checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
   courseSlug: "course",
+  expectedContentReleaseScheduleDigest: "a".repeat(64),
 };
 
 const request = (body: unknown): Request =>
@@ -109,6 +110,8 @@ describe("POST /api/checkouts/course", () => {
     expect(dependencies.createPublicCourseCheckout).toHaveBeenCalledWith({
       checkoutAttemptId: validBody.checkoutAttemptId,
       courseSlug: validBody.courseSlug,
+      expectedContentReleaseScheduleDigest:
+        validBody.expectedContentReleaseScheduleDigest,
       ipAddress: "203.0.113.10",
     });
   });
@@ -264,6 +267,20 @@ describe("POST /api/checkouts/course", () => {
     });
   });
 
+  it("returns a safe conflict when the release schedule changed", async () => {
+    dependencies.createPublicCourseCheckout.mockRejectedValue(
+      new CheckoutIntentError("conflict", "schedule_changed")
+    );
+
+    const response = await POST(request(validBody));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      retryAllowed: false,
+      status: "schedule_changed",
+    });
+  });
+
   it("maps unexpected runtime failures to a generic 503", async () => {
     dependencies.createPublicCourseCheckout.mockRejectedValue(
       new Error("database password and buyer@example.com")
@@ -361,9 +378,10 @@ describe("GET /api/checkouts/course", () => {
       retryAllowed: false,
       status: "ready",
     });
-    expect(dependencies.readPublicCheckoutStatus).toHaveBeenCalledWith(
-      validBody
-    );
+    expect(dependencies.readPublicCheckoutStatus).toHaveBeenCalledWith({
+      checkoutAttemptId: validBody.checkoutAttemptId,
+      courseSlug: validBody.courseSlug,
+    });
   });
 
   it.each([

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPool } from "@/db";
+import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import { AsaasGatewayError } from "./asaas-client";
 import {
   CheckoutIntentError,
@@ -64,6 +66,13 @@ const insertedOrder = {
   provider_checkout_status: null,
   user_id: "user-1",
 };
+
+const delayedModules = [
+  { releaseDelayDays: 0, sortOrder: 1, title: "Comece aqui" },
+  { releaseDelayDays: 8, sortOrder: 2, title: "Aplicacao" },
+];
+const delayedSnapshot = buildContentReleaseScheduleSnapshot(delayedModules);
+const delayedDigest = getContentReleaseScheduleDigest(delayedSnapshot);
 
 interface QueryResult {
   rows: Record<string, unknown>[];
@@ -210,6 +219,120 @@ describe("createAsaasCheckoutIntent", () => {
 
     expect(authorizeNewIntent).toHaveBeenCalledOnce();
     expect(authorizeNewIntent).toHaveBeenCalledWith({ courseId: COURSE_ID });
+  });
+
+  it("persists the published module release snapshot and requires its digest", async () => {
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const pool = createPool((sql, values) => {
+      if (sql.startsWith("select c.id")) {
+        return { rows: [{ ...course, release_modules: delayedModules }] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        expect(values?.[7]).toBe(JSON.stringify(delayedSnapshot));
+        return {
+          rows: [
+            {
+              ...insertedOrder,
+              content_release_schedule_snapshot: delayedSnapshot,
+            },
+          ],
+        };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      return { rows: [] };
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await createAsaasCheckoutIntent({
+      ...authenticatedInput(createGateway()),
+      authorizeNewIntent,
+      expectedContentReleaseScheduleDigest: delayedDigest,
+    });
+
+    expect(authorizeNewIntent).toHaveBeenCalledOnce();
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("content_release_schedule_snapshot"),
+      expect.any(Array)
+    );
+  });
+
+  it("rejects a stale schedule digest before rate limit, order or provider", async () => {
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const gateway = createGateway();
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return { rows: [{ ...course, release_modules: delayedModules }] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        authorizeNewIntent,
+        expectedContentReleaseScheduleDigest: "0".repeat(64),
+      })
+    ).rejects.toMatchObject({
+      kind: "conflict",
+      reason: "schedule_changed",
+    });
+    expect(authorizeNewIntent).not.toHaveBeenCalled();
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
+  });
+
+  it("rejects a schedule that reaches the end of the commercial access window", async () => {
+    const gateway = createGateway();
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return {
+          rows: [
+            {
+              ...course,
+              access_duration_months: 1,
+              release_modules: [
+                { releaseDelayDays: 28, sortOrder: 1, title: "Futuro" },
+              ],
+            },
+          ],
+        };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        expectedContentReleaseScheduleDigest: "0".repeat(64),
+      })
+    ).rejects.toMatchObject({
+      kind: "unavailable",
+      reason: "course_unavailable",
+    });
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("deletes only the pre-provider reservation and preserves the authorization error", async () => {
@@ -442,6 +565,7 @@ describe("createAsaasCheckoutIntent", () => {
           `order_${ATTEMPT_ID}`,
           10_000,
           12,
+          JSON.stringify({ version: 1, clock: "elapsed_24h", modules: [] }),
           "aluna@example.com",
           "Aluna Exemplo",
           "formacao-neuro",

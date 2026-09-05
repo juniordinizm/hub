@@ -185,6 +185,8 @@ export default async function PurchasePage({
       <PurchaseHandoffClient
         courseSlug={view.courseSlug}
         courseTitle={view.courseTitle}
+        releaseSchedule={view.releaseSchedule}
+        releaseScheduleDigest={view.releaseScheduleDigest}
       />
     );
   }
