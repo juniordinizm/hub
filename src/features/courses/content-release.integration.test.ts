@@ -381,4 +381,65 @@ describe("content release PostgreSQL surfaces", () => {
       expectedSnapshot
     );
   });
+
+  it("creates one order for concurrent calls with the same attempt id", async () => {
+    const fixture = await createFixture();
+    await pool.query(
+      "update courses set price_in_cents = 10_000, sales_status = 'open' where id = $1",
+      [fixture.courseId]
+    );
+    const snapshot = buildContentReleaseScheduleSnapshot([
+      { releaseDelayDays: 0, sortOrder: 1, title: "Immediate module" },
+      { releaseDelayDays: 8, sortOrder: 2, title: "Future module" },
+    ]);
+    const attemptId = randomUUID();
+    const gatewayOne = new FakeAsaasGateway({
+      createCheckout: {
+        id: "checkout-concurrent-one",
+        link: "https://asaas.example/concurrent-one",
+        status: "ACTIVE",
+      },
+    });
+    const gatewayTwo = new FakeAsaasGateway({
+      createCheckout: {
+        id: "checkout-concurrent-two",
+        link: "https://asaas.example/concurrent-two",
+        status: "ACTIVE",
+      },
+    });
+    const createInput = (gateway: FakeAsaasGateway) => ({
+      attemptId,
+      buyer: { kind: "provider_pending" as const },
+      callbacks: {
+        cancelUrl: "https://hub.example/cancel",
+        expiredUrl: "https://hub.example/expired",
+        successUrl: "https://hub.example/success",
+      },
+      courseId: fixture.courseId,
+      expectedContentReleaseScheduleDigest:
+        getContentReleaseScheduleDigest(snapshot),
+      gateway,
+      now: () => NOW,
+    });
+
+    const results = await Promise.all([
+      createAsaasCheckoutIntent(createInput(gatewayOne)),
+      createAsaasCheckoutIntent(createInput(gatewayTwo)),
+    ]);
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ status: "ready" }),
+        expect.objectContaining({ status: "processing" }),
+      ])
+    );
+    expect(
+      gatewayOne.calls.createCheckout.length +
+        gatewayTwo.calls.createCheckout.length
+    ).toBe(1);
+    const orders = await pool.query(
+      "select count(*) from orders where id = $1",
+      [attemptId]
+    );
+    expect(orders.rows).toEqual([{ count: "1" }]);
+  });
 });
