@@ -493,8 +493,12 @@ const runCoursePublicationTransaction = async ({
       throw new Error("A publicacao possui video JMVStream sem player pronto.");
     }
 
-    const courseCover = await client.query<{ cover_image_json: unknown }>(
-      "select cover_image_json from courses where id = $1 for update",
+    const courseCover = await client.query<{
+      access_duration_months: number;
+      cover_image_json: unknown;
+      sales_status: "closed" | "open";
+    }>(
+      "select cover_image_json, access_duration_months, sales_status from courses where id = $1 for update",
       [courseId]
     );
 
@@ -556,6 +560,16 @@ const runCoursePublicationTransaction = async ({
     const next = publicationLessons.rows
       .filter(({ publication_status }) => publication_status === "draft")
       .map(toPublishedLessonRelease);
+    const currentCourse = courseCover.rows[0];
+    if (currentCourse?.sales_status === "open") {
+      assertMaxReleaseDelayFitsAccessDuration({
+        accessDurationMonths: currentCourse.access_duration_months,
+        maxReleaseDelayDays: Math.max(
+          0,
+          ...next.map((lesson) => lesson.releaseDelayDays)
+        ),
+      });
+    }
     const regressions = findContentReleaseRegressions({
       hasScheduledReleaseHistory:
         scheduledReleaseHistory.rows[0]?.has_scheduled_release_history ?? false,

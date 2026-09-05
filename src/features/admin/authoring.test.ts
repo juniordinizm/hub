@@ -204,7 +204,7 @@ describe("admin authoring", () => {
       if (sql === "commit" || sql === "rollback") {
         transactionOpen = false;
       }
-      if (sql.includes("select cover_image_json from courses")) {
+      if (sql.includes("select cover_image_json")) {
         return { rows: [{ cover_image_json: coverImage }] };
       }
       if (sql.includes("has_scheduled_release_history")) {
@@ -273,7 +273,7 @@ describe("admin authoring", () => {
       if (sql.includes("from lessons") && sql.includes("video_provider")) {
         return { rows: [] };
       }
-      if (sql.includes("select cover_image_json from courses")) {
+      if (sql.includes("select cover_image_json")) {
         return { rows: [{ cover_image_json: coverImage }] };
       }
       if (sql.includes("has_scheduled_release_history")) {
@@ -303,6 +303,56 @@ describe("admin authoring", () => {
     ).toBe(false);
   });
 
+  it("rejects a published schedule that cannot fit an open Course access window", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("for update")
+      ) {
+        return { rows: [{ id: "publication-draft" }] };
+      }
+      if (sql.includes("from lessons") && sql.includes("video_provider")) {
+        return { rows: [] };
+      }
+      if (sql.includes("select cover_image_json")) {
+        return {
+          rows: [
+            {
+              access_duration_months: 1,
+              cover_image_json: coverImage,
+              sales_status: "open",
+            },
+          ],
+        };
+      }
+      if (sql.includes("has_scheduled_release_history")) {
+        return { rows: [{ has_scheduled_release_history: false }] };
+      }
+      if (sql.includes("as publication_status")) {
+        return {
+          rows: [
+            {
+              curriculum_key: "curriculum-future",
+              lesson_title: "Aula futura",
+              module_title: "Módulo futuro",
+              publication_status: "draft",
+              release_delay_days: 28,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      publishCoursePublication({ actorUserId: "admin-1", courseId: "course-1" })
+    ).rejects.toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+    expect(publishR2Object).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledWith("rollback");
+  });
+
   it("rolls back a publication before cover or status effects when an existing lesson becomes more restrictive", async () => {
     query.mockImplementation((sql: string) => {
       if (
@@ -314,7 +364,7 @@ describe("admin authoring", () => {
       if (sql.includes("from lessons") && sql.includes("video_provider")) {
         return { rows: [] };
       }
-      if (sql.includes("select cover_image_json from courses")) {
+      if (sql.includes("select cover_image_json")) {
         return { rows: [{ cover_image_json: coverImage }] };
       }
       if (sql.includes("has_scheduled_release_history")) {
@@ -374,7 +424,7 @@ describe("admin authoring", () => {
       if (sql.includes("from lessons") && sql.includes("video_provider")) {
         return { rows: [] };
       }
-      if (sql.includes("select cover_image_json from courses")) {
+      if (sql.includes("select cover_image_json")) {
         return { rows: [{ cover_image_json: coverImage }] };
       }
       if (sql.includes("has_scheduled_release_history")) {

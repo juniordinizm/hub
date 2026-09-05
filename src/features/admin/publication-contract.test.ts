@@ -109,7 +109,7 @@ describe("course publication contracts", () => {
     expect(source).toContain("l.is_required");
 
     const courseLockIndex = source.indexOf(
-      "select cover_image_json from courses where id = $1 for update"
+      "from courses where id = $1 for update"
     );
     const releaseHistoryIndex = source.indexOf("const scheduledReleaseHistory");
     const regressionGuardIndex = source.indexOf(
