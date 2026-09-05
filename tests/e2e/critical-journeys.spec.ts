@@ -34,6 +34,7 @@ const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
 const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 const CERTIFICATE_STATUS_PATTERN = /Status: (Preparando|Disponível)/;
+const SCHEDULED_RELEASE_PATTERN = /Disponível em/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -377,6 +378,34 @@ test("student with a grant opens the first lesson @mobile", async ({
   await page.goto(`/app/aulas/${fixture.course.lessonOneId}`);
   await expect(
     page.getByRole("heading", { name: "Primeira aula" })
+  ).toBeVisible();
+});
+
+test("scheduled modules hide future lessons and redirect direct access", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+
+  await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
+  const futureModule = page.getByRole("region", {
+    name: "Módulo futuro E2E",
+  });
+  await expect(futureModule).toBeVisible();
+  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
+    0
+  );
+  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+  await expect(futureModule.getByText("1 aula", { exact: true })).toBeVisible();
+
+  await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/app/cursos/${fixture.scheduledCourse.id}\\?module=scheduled$`)
+  );
+
+  await page.goto(`/app/aulas/${fixture.scheduledCourse.immediateLessonId}`);
+  await expect(
+    page.getByRole("heading", { name: "Aula imediata E2E" })
   ).toBeVisible();
 });
 

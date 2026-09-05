@@ -51,6 +51,12 @@ export interface E2eFixture {
   };
   paymentCustomers: { blockedId: string; teamId: string };
   runId: string;
+  scheduledCourse: {
+    futureLessonId: string;
+    id: string;
+    immediateLessonId: string;
+    slug: string;
+  };
   studentForAuthenticatedPurchase: {
     email: string;
     id: string;
@@ -335,6 +341,7 @@ const seedCertificateLifecycle = async ({
   };
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this is the single isolated fixture transaction for all E2E journeys.
 export const seedE2e = async (): Promise<E2eFixture> => {
   requireE2eMode();
   requireIsolatedE2eR2Bucket(process.env);
@@ -493,6 +500,101 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       }
       lessonIds.push(lessonId);
     }
+
+    const scheduledCourseSlug = `scheduled-course-e2e-${suffix}`;
+    const scheduledCourseResult = await client.query<{ id: string }>(
+      `
+        insert into courses (
+          slug, title, price_in_cents, workload_hours, status,
+          certificate_enabled, catalog_visibility, sales_status
+        ) values ($1, 'Curso E2E programado', 1000, 2, 'active', false,
+          'listed'::course_catalog_visibility, 'open'::course_sales_status)
+        returning id
+      `,
+      [scheduledCourseSlug]
+    );
+    const scheduledCourseId = scheduledCourseResult.rows[0]?.id;
+    if (!scheduledCourseId) {
+      throw new Error("Could not create scheduled E2E course.");
+    }
+    const scheduledPublicationResult = await client.query<{ id: string }>(
+      `
+        insert into course_publications (
+          course_id, publication_number, status, title_snapshot,
+          workload_hours_snapshot, published_at
+        ) values ($1, 1, 'published', 'Curso E2E programado', 2, now())
+        returning id
+      `,
+      [scheduledCourseId]
+    );
+    const scheduledPublicationId = scheduledPublicationResult.rows[0]?.id;
+    if (!scheduledPublicationId) {
+      throw new Error("Could not create scheduled E2E publication.");
+    }
+    const scheduledModulesResult = await client.query<{
+      id: string;
+      sort_order: number;
+    }>(
+      `
+        insert into modules (
+          course_id, course_publication_id, title, sort_order,
+          release_delay_days, status
+        ) values
+          ($1, $2, 'Módulo imediato E2E', 1, 0, 'active'),
+          ($1, $2, 'Módulo futuro E2E', 2, 8, 'active')
+        returning id, sort_order
+      `,
+      [scheduledCourseId, scheduledPublicationId]
+    );
+    const immediateModuleId = scheduledModulesResult.rows.find(
+      (row) => row.sort_order === 1
+    )?.id;
+    const delayedModuleId = scheduledModulesResult.rows.find(
+      (row) => row.sort_order === 2
+    )?.id;
+    if (!(immediateModuleId && delayedModuleId)) {
+      throw new Error("Could not create scheduled E2E modules.");
+    }
+    const scheduledLessons = await client.query<{
+      id: string;
+      module_id: string;
+      sort_order: number;
+    }>(
+      `
+        insert into lessons (
+          module_id, course_publication_id, title, content_json,
+          duration_seconds, sort_order, status, is_required
+        ) values
+          ($1, $3, 'Aula imediata E2E', '{"type":"text","document":{"type":"doc","content":[]}}'::jsonb, 60, 1, 'active', true),
+          ($2, $3, 'Aula futura E2E', '{"type":"text","document":{"type":"doc","content":[]}}'::jsonb, 60, 1, 'active', true)
+        returning id, module_id, sort_order
+      `,
+      [immediateModuleId, delayedModuleId, scheduledPublicationId]
+    );
+    const immediateLessonId = scheduledLessons.rows.find(
+      (row) => row.module_id === immediateModuleId
+    )?.id;
+    const futureLessonId = scheduledLessons.rows.find(
+      (row) => row.module_id === delayedModuleId
+    )?.id;
+    if (!(immediateLessonId && futureLessonId)) {
+      throw new Error("Could not create scheduled E2E lessons.");
+    }
+    await client.query(
+      `
+        insert into enrollment_grants (
+          user_id, course_id, source_type, manual_reference, status,
+          starts_at, base_expires_at, effective_expires_at
+        ) values ($1, $2, 'manual', $3, 'active', now() - interval '1 minute',
+                  now() + interval '30 days', now() + interval '30 days')
+      `,
+      [studentId, scheduledCourseId, `e2e-scheduled-${suffix}`]
+    );
+    await rebuildEnrollmentProjection({
+      client,
+      courseId: scheduledCourseId,
+      userId: studentId,
+    });
 
     const { rows: certifiableCourses } = await client.query<{ id: string }>(
       `
@@ -692,6 +794,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       cleanup: {
         courseIds: [
           courseId,
+          scheduledCourseId,
           certifiableCourseId,
           certificateRecords.failed.courseId,
           certificateRecords.pending.courseId,
@@ -707,6 +810,12 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         title: CERTIFIABLE_COURSE_TITLE,
       },
       course: { id: courseId, lessonOneId, lessonTwoId, slug: courseSlug },
+      scheduledCourse: {
+        futureLessonId,
+        id: scheduledCourseId,
+        immediateLessonId,
+        slug: scheduledCourseSlug,
+      },
       paymentCustomers: {
         blockedId: `cus_blocked_${suffix}`,
         teamId: `cus_team_${suffix}`,
