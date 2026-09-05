@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 5a950c9
+last_verified_commit: b6e6d63
 current_migration_tag: 0071_content_release_observability_indexes
 migration_entry_count: 72
 schema_table_count: 47
