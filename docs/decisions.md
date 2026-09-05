@@ -69,7 +69,7 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 ## DEC-DISC-005
 
 **Tema:** currículo vivo, coortes e liberação temporal.
-**Estado:** currículo implementado; liberação temporal aprovada e ainda não implementada.
+**Estado:** currículo e liberação temporal implementados e cobertos por testes de domínio, checkout, enforcement e integração PostgreSQL quando o ambiente descartável está disponível.
 
 `Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluna + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente.
 

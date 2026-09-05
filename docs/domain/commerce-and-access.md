@@ -24,7 +24,9 @@ O processor Asaas aplica estes estados sobre o Pedido bloqueado:
 
 ### REG-COM-001 Pedido preserva o contrato vendido
 
-Ao criar checkout, o Pedido captura preço, duração de acesso, Curso e identidade da compra. Alterar o Curso depois não altera o Pedido histórico.
+Ao criar checkout, o Pedido captura preço, duração de acesso, Curso, identidade da compra e o snapshot server-side do cronograma de Módulos. Alterar o Curso depois não altera o Pedido histórico.
+
+Quando há Módulos atrasados, a compradora precisa revisar o cronograma antes do primeiro POST financeiro. O servidor compara o digest canônico exibido com a publicação vigente antes de rate limit, INSERT ou provider; uma mudança exige nova revisão.
 
 **Contrato aprovado:** Curso pago custa no mínimo `1000` centavos, equivalentes a
 R$ 10. A autoria valida o preço ao criar ou editar o Curso, e o checkout repete a
@@ -138,7 +140,9 @@ Matrículas usam `paid_order`; revogações financeiras usam razões neutras
 
 ### REG-COM-005 Acesso exige Conta e Matrícula efetivas
 
-`resolveCourseAccess` e `resolveLessonAccess` consideram papel, bloqueio de plataforma, Matrícula, expiração e disponibilidade do conteúdo. O cliente não decide acesso.
+`resolveCourseAccess` e `resolveLessonAccess` consideram papel, bloqueio de plataforma, Matrícula, expiração, Módulo e disponibilidade do conteúdo. A mesma decisão server-side é exigida por workspace, conclusão, player, comentários e materiais; o cliente não decide acesso. Matrícula `full_access` ignora tempo, enquanto `scheduled` sem âncora falha fechado.
+
+Admin pode conceder `full_access` uma vez no episódio atual com motivo, evento e auditoria. Support recebe modo, âncora e próxima liberação apenas para diagnóstico.
 
 Admin pode usar preview; a mutação de experiência da Aluna continua proibida no preview.
 

@@ -26,6 +26,8 @@ Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aul
 
 Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos Módulos afetados na mesma publicação em rascunho. Mover uma Aula entre Módulos renumera origem e destino em uma única transação; IDs de outra publicação ou Curso são rejeitados.
 
+Módulo ativo pode carregar `release_delay_days`. Em Matrícula `scheduled`, o conteúdo fica disponível em `content_release_started_at + N × 24 horas`; a decisão temporal precede a sequência. O overview preserva título, contagem, duração agregada e data futura, mas oculta Aulas e mídia. Matrícula `full_access` e Aula concluída anteriormente atravessam o atraso.
+
 ### REG-LEA-002 Progresso é vivo
 
 `getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente e reconhecem conclusões da mesma chave curricular em publicação anterior. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de uma Aluna já certificada; o certificado continua histórico e acessível.

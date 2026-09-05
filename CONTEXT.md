@@ -39,6 +39,12 @@ Direito de uma Conta acessar Curso, originado em fonte identificável como Pedid
 **Matrícula**  
 Projeção consolidada do acesso atual de uma Conta a um Curso. Pode refletir mais de uma Concessão e não é a origem do direito. Matrícula ativa lê a publicação vigente do Curso.
 
+**Liberação programada**
+Modo de Matrícula que libera Módulos em `D+N`, com cada dia representando 24 horas decorridas desde a âncora do episódio. A sequência pedagógica continua sendo uma decisão separada.
+
+**Acesso integral**
+Modo de Matrícula que ignora atrasos temporais. Admin pode concedê-lo uma vez no episódio atual com motivo e auditoria; Support apenas diagnostica.
+
 **Bloqueio de matrícula**  
 Revogação manual de acesso a Curso específico; não bloqueia automaticamente a Conta inteira.
 

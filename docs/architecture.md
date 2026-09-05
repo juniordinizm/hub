@@ -104,8 +104,8 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 ### Aprendizagem
 
 1. `getStudentCourseAccessStatus` e `resolveCourseAccess` negam acesso sem Conta/Matrícula válidas.
-2. `getStudentCourseOverview` devolve Módulos/Aulas publicáveis.
-3. `isLessonAvailable` aplica sequência.
+2. `getStudentCourseOverview` projeta Módulos futuros sem seus detalhes; `resolveLessonAccess` é a fronteira temporal única.
+3. `isLessonAvailable` aplica sequência depois da decisão temporal.
 4. `recordLessonWatchProgress` registra posição; evento JMVStream pode concluir em 98%.
 5. `completeLesson` permite conclusão manual.
 6. `calculateCourseProgress` calcula percentual e próxima Aula.
@@ -191,7 +191,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 - `courses/server.ts`: catálogo, acesso da aluna, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
 - `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
-- `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa e conteúdo publicado; `enrollments/server.ts` mantém concessões, projeção de matrícula e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
+- `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa, conteúdo publicado e atraso do Módulo; `enrollments/server.ts` mantém concessões, projeção, override integral e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
 - `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
   compartilhada, `asaas-financial-events.ts` decide eventos e consultas,
   `apply-authoritative-financial-evidence.ts` aplica o efeito local e
@@ -211,7 +211,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 - **Símbolos:** `getStudentCourses`, `getStudentCourseCatalog`, `getStudentCourseAccessStatus`, `getStudentCourseOverview`, `getStudentLessonWorkspace`, `recordLessonWatchProgress`, `completeLesson` e `recalculateCourseWorkloadHours`; `issueCompletionCertificateIfEligible` para a conclusão.
 - **Consumidores:** páginas/actions de `/app`, handlers de recurso de aula, autoria administrativa e testes de SQL/concorrência.
-- **Invariante, queries e efeitos:** acesso exige Matrícula elegível e conteúdo publicado. `completeLesson` preserva a transação de progresso, adquire o lock por Conta e Curso antes da mutação e delega apenas o resumo persistido ao serviço de certificado. Somente a inserção vencedora da primeira Conclusão emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
+- **Invariante, queries e efeitos:** acesso exige Matrícula elegível, conteúdo publicado e Módulo liberado. `completeLesson` preserva a transação de progresso, adquire o lock por Conta e Curso antes da mutação e delega apenas o resumo persistido ao serviço de certificado. Somente a inserção vencedora da primeira Conclusão emite idempotentemente e persiste a mensagem da outbox, sem enviar e-mail direto.
 
 #### Administração
 

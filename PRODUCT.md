@@ -26,8 +26,8 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 ### Compra e liberação
 
-1. Visitante ou Aluna autenticada escolhe Curso ativo e inicia checkout.
-2. Hub persiste o Pedido e seus snapshots antes de criar o checkout hospedado Asaas com
+1. Visitante ou Aluna autenticada escolhe Curso ativo e revisa o cronograma no handoff.
+2. Hub persiste o Pedido, o snapshot do cronograma e seus demais snapshots antes de criar o checkout hospedado Asaas com
    item inline; não existe produto remoto por Curso.
 3. Webhook autenticado entra em inbox durável e o worker atualiza o Pedido.
 4. Pagamento válido vincula a compra à Conta existente pelo e-mail local ou cria uma
@@ -48,7 +48,7 @@ corte controlado de Production permanece pendente.
 
 1. Aluna autenticada vê Cursos acessíveis e catálogo.
 2. Acesso depende de Conta e Matrícula efetivas.
-3. Aulas são liberadas sequencialmente pelo progresso da publicação vigente do Curso para toda Matrícula ativa.
+3. Aulas obedecem à sequência e ao atraso temporal do Módulo na publicação vigente; Matrículas antigas permanecem integrais.
 4. Vídeo, texto, materiais e comentários formam a experiência.
 5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; a Aluna acompanha preparo, disponibilidade ou falha. O Curso oferece a entrada contextual, `/app/certificados` mantém o arquivo global e `/certificados/[code]` é a página canônica de validação, preview, download e compartilhamento quando o documento está válido e pronto.
 6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; a Aluna pode desligá-lo em Configurações sem afetar a jornada pedagógica.
@@ -56,7 +56,7 @@ corte controlado de Production permanece pendente.
 ### Operação
 
 1. Admin cria Curso, Módulos e Aulas.
-2. Admin publica conteúdo quando dados mínimos estão prontos.
+2. Admin publica conteúdo quando dados mínimos estão prontos e não aumenta atrasos efetivos após Matrículas programadas.
 3. Admin/Suporte consulta Alunas, acessos, financeiro, Certificados e auditoria conforme permissão.
 4. Exceções usam ajustes, bloqueios, revisões, reembolso e revogação/reemissão; pedidos de dados são tratados excepcionalmente, não por inbox permanente.
 5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Publicação; não há acompanhamento individual por inatividade.
@@ -80,6 +80,7 @@ corte controlado de Production permanece pendente.
   teto de parcelamento; a Vendedora absorve as taxas, conforme homologado no Checkout
   Sandbox com pagamento e reembolso reais em 3x;
 - disponibilidade comercial por Curso, pré-lançamento com interesse autenticado e cancelamento durável de Checkouts ao fechar vendas;
+- liberação progressiva por Módulo com snapshot/digest no checkout, enforcement server-side em Aula, materiais, vídeo, comentários e progresso, diagnóstico de Support e override auditado de Admin;
 - Certificados com objeto PDF em storage privado e acesso público mediado, rate-limited e não indexável somente no estado válido/pronto; revogação, reemissão e reconciliação administrativa limitada de Conclusões históricas;
 - manutenção técnica de sessões, rate limits e analytics com retenção limitada;
 - banners, FAQ, configurações, auditoria e crons operacionais.

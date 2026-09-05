@@ -15,7 +15,10 @@ if (!databaseUrl) {
 
 vi.mock("server-only", () => ({}));
 
-import { applyPaidWebhookAccess } from "./server";
+import {
+  applyPaidWebhookAccess,
+  grantEnrollmentFullContentAccess,
+} from "./server";
 
 const LOCK_OBSERVATION_TIMEOUT_MS = 30_000;
 const ACCESS_DURATION_MONTHS = 12;
@@ -465,5 +468,79 @@ describe("serializacao de concessoes e ancora de conteudo", () => {
     } finally {
       await cleanupFixtures();
     }
+  });
+
+  it("concede acesso integral uma vez e preserva a auditoria", async () => {
+    const fixture = await createFixture();
+    const now = new Date("2026-09-04T17:30:00.000Z");
+    const grantClient = await pool.connect();
+    try {
+      await grantClient.query("begin");
+      await applyPaidWebhookAccess({
+        accessDurationMonths: ACCESS_DURATION_MONTHS,
+        client: grantClient,
+        courseId: fixture.courseId,
+        now,
+        orderId: fixture.firstOrderId,
+        userId: fixture.userId,
+      });
+      await grantClient.query("commit");
+    } finally {
+      grantClient.release();
+    }
+
+    const enrollment = await pool.query<{ id: string }>(
+      "select id from enrollments where user_id = $1 and course_id = $2",
+      [fixture.userId, fixture.courseId]
+    );
+    const enrollmentId = enrollment.rows[0]?.id;
+    if (!enrollmentId) {
+      throw new Error("Matrícula de integração não criada.");
+    }
+
+    const result = await grantEnrollmentFullContentAccess({
+      actorUserId: "integration-admin",
+      enrollmentId,
+      reason: "Liberacao operacional de teste",
+    });
+    const replay = await grantEnrollmentFullContentAccess({
+      actorUserId: "integration-admin",
+      enrollmentId,
+      reason: "Repeticao idempotente",
+    });
+    expect(result).toEqual({ changed: true });
+    expect(replay).toEqual({ changed: false });
+
+    const state = await pool.query({
+      text: `
+        select content_release_mode, content_release_started_at
+        from enrollments
+        where id = $1
+      `,
+      values: [enrollmentId],
+    });
+    expect(state.rows).toEqual([
+      { content_release_mode: "full_access", content_release_started_at: null },
+    ]);
+    const events = await pool.query<{ count: string }>(
+      `
+        select count(*)
+        from enrollment_events
+        where enrollment_id = $1 and event_type = 'content_full_access_granted'
+      `,
+      [enrollmentId]
+    );
+    expect(events.rows).toEqual([{ count: "1" }]);
+    const audits = await pool.query<{ count: string }>(
+      `
+        select count(*)
+        from audit_logs
+        where target_type = 'enrollment'
+          and target_id = $1
+          and action = 'enrollment.content_full_access_granted'
+      `,
+      [enrollmentId]
+    );
+    expect(audits.rows).toEqual([{ count: "1" }]);
   });
 });
