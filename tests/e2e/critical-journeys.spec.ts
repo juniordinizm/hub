@@ -322,6 +322,23 @@ test("anonymous paid collisions open identity review without access", async ({
   }
 });
 
+test("stale checkout schedule requires a fresh review", async ({ request }) => {
+  const fixture = await readFixture();
+  const response = await request.post("/api/checkouts/course", {
+    data: {
+      checkoutAttemptId: crypto.randomUUID(),
+      courseSlug: fixture.course.slug,
+      expectedContentReleaseScheduleDigest: "0".repeat(64),
+    },
+  });
+
+  expect(response.status()).toBe(409);
+  await expect(response.json()).resolves.toEqual({
+    retryAllowed: false,
+    status: "schedule_changed",
+  });
+});
+
 test("login and password recovery do not enumerate accounts @mobile", async ({
   page,
 }) => {
