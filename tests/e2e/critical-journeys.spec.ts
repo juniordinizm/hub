@@ -393,8 +393,8 @@ test("scheduled modules hide future lessons and redirect direct access", async (
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
 
   await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
-  const futureModule = page.locator("section").filter({
-    has: page.getByRole("heading", { name: "Módulo futuro E2E" }),
+  const futureModule = page.getByRole("region", {
+    name: "Módulo futuro E2E",
   });
   await expect(futureModule).toBeVisible();
   await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
