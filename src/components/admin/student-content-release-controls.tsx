@@ -17,7 +17,13 @@ export function StudentContentReleaseControls({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  if (enrollment.contentReleaseMode !== "scheduled") {
+  const now = Date.now();
+  const isActiveEnrollment =
+    enrollment.status === "active" &&
+    new Date(enrollment.startedAt).getTime() <= now &&
+    new Date(enrollment.expiresAt).getTime() >= now;
+
+  if (enrollment.contentReleaseMode !== "scheduled" || !isActiveEnrollment) {
     return null;
   }
 
@@ -62,12 +68,16 @@ export function StudentContentReleaseControls({
           Motivo
         </label>
         <textarea
+          aria-describedby={
+            error ? `release-reason-help-${enrollment.id}` : undefined
+          }
           className="mt-1 min-h-20 w-full rounded-md border bg-background p-2 text-sm"
           id={`release-reason-${enrollment.id}`}
           onChange={(event) => setReason(event.target.value)}
           value={reason}
         />
         <Button
+          aria-busy={isPending}
           className="mt-3"
           disabled={isPending || !reason.trim()}
           onClick={submit}
@@ -77,7 +87,13 @@ export function StudentContentReleaseControls({
           {isPending ? "Liberando…" : "Liberar conteúdo integral"}
         </Button>
         {error ? (
-          <p className="mt-2 text-destructive text-xs">{error}</p>
+          <p
+            className="mt-2 text-destructive text-xs"
+            id={`release-reason-help-${enrollment.id}`}
+            role="alert"
+          >
+            {error}
+          </p>
         ) : null}
       </div>
     </details>

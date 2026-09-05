@@ -2,6 +2,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
+import { reportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
 import {
   assertScheduleFitsAccessDuration,
   buildContentReleaseScheduleSnapshot,
@@ -729,10 +730,23 @@ const createPendingCheckoutOrder = async ({
 
     const contentReleaseScheduleSnapshot =
       resolveCheckoutScheduleSnapshot(course);
-    assertCheckoutScheduleDigest({
-      expectedDigest: expectedContentReleaseScheduleDigest,
-      snapshot: contentReleaseScheduleSnapshot,
-    });
+    try {
+      assertCheckoutScheduleDigest({
+        expectedDigest: expectedContentReleaseScheduleDigest,
+        snapshot: contentReleaseScheduleSnapshot,
+      });
+    } catch (error) {
+      if (
+        error instanceof CheckoutIntentError &&
+        error.reason === "schedule_changed"
+      ) {
+        reportContentReleaseOperationalEvent({
+          code: "content_release_digest_conflict",
+          courseId: course.id,
+        });
+      }
+      throw error;
+    }
 
     await ensureCheckoutAccessEligible({
       buyer,

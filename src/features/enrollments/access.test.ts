@@ -136,4 +136,34 @@ describe("enrollment access read model", () => {
     expect(sql).toContain("content_release_started_at");
     expect(sql).toContain("release_delay_days");
   });
+
+  it("reports an invalid schedule without exposing it to the caller", async () => {
+    const reportInvalidState = vi.fn();
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: null,
+          course_id: "course-1",
+          is_completed: false,
+          module_id: "module-1",
+          release_delay_days: 8,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({
+        diagnostics: { reportInvalidState },
+        lessonId: "lesson-1",
+        userId: "student-1",
+      })
+    ).resolves.toEqual({ kind: "denied" });
+    expect(reportInvalidState).toHaveBeenCalledWith({
+      courseId: "course-1",
+      moduleId: "module-1",
+      reason: "invalid_anchor",
+    });
+  });
 });

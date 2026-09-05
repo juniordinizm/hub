@@ -1,6 +1,10 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import {
+  type ContentReleaseDiagnostics,
+  classifyContentReleaseError,
+} from "@/features/courses/content-release-observability";
 import { resolveModuleContentRelease } from "@/features/courses/module-content-release";
 
 export type LessonAccessDecision =
@@ -39,11 +43,13 @@ export const resolveCourseAccess = async ({
 
 export const resolveLessonAccess = async ({
   client,
+  diagnostics,
   lessonId,
   now = new Date(),
   userId,
 }: {
   client?: PoolClient | undefined;
+  diagnostics?: ContentReleaseDiagnostics | undefined;
   lessonId: string;
   now?: Date;
   userId: string;
@@ -53,6 +59,7 @@ export const resolveLessonAccess = async ({
     content_release_mode: "full_access" | "scheduled";
     content_release_started_at: Date | null;
     course_id: string;
+    module_id: string;
     is_completed: boolean;
     release_delay_days: number;
     sequence_available: boolean;
@@ -60,6 +67,7 @@ export const resolveLessonAccess = async ({
     `
       select
         c.id as course_id,
+        m.id as module_id,
         e.content_release_mode,
         e.content_release_started_at,
         m.release_delay_days,
@@ -140,20 +148,27 @@ export const resolveLessonAccess = async ({
     return row.sequence_available
       ? { courseId: row.course_id, kind: "allowed" }
       : { kind: "denied" };
-  } catch {
+  } catch (error) {
+    diagnostics?.reportInvalidState({
+      courseId: row.course_id,
+      moduleId: row.module_id,
+      reason: classifyContentReleaseError(error),
+    });
     return { kind: "denied" };
   }
 };
 
 export const resolveLessonAccessWithClient = async ({
   client,
+  diagnostics,
   lessonId,
   now = new Date(),
   userId,
 }: {
   client: PoolClient;
+  diagnostics?: ContentReleaseDiagnostics | undefined;
   lessonId: string;
   now?: Date;
   userId: string;
 }): Promise<LessonAccessDecision> =>
-  resolveLessonAccess({ client, lessonId, now, userId });
+  resolveLessonAccess({ client, diagnostics, lessonId, now, userId });

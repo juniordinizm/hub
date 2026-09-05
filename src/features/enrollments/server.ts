@@ -1,6 +1,7 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import { reportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
 import type {
   EnrollmentContentReleaseState,
   EnrollmentStatus,
@@ -1159,18 +1160,40 @@ export const grantEnrollmentFullContentAccess = async ({
       content_release_mode: "full_access" | "scheduled";
       content_release_started_at: Date | null;
       course_id: string;
+      expires_at: Date;
+      starts_at: Date;
+      status: "active" | "expired" | "revoked";
       user_id: string;
     }>(
       `
-        select user_id, course_id, content_release_mode,
-               content_release_started_at
+        select user_id, course_id, status, starts_at, expires_at,
+               content_release_mode, content_release_started_at
         from enrollments
         where id = $1
         for update
       `,
       [enrollmentId]
     );
-    const currentEnrollment = locked.rows[0] ?? enrollment;
+    const currentEnrollment = locked.rows[0];
+    if (currentEnrollment?.status !== "active") {
+      if (currentEnrollment) {
+        reportContentReleaseOperationalEvent({
+          code: "content_release_override_rejected",
+          courseId: currentEnrollment.course_id,
+        });
+      }
+      throw new Error("Somente matriculas ativas podem liberar o conteúdo.");
+    }
+    if (
+      currentEnrollment.starts_at.getTime() > Date.now() ||
+      currentEnrollment.expires_at.getTime() < Date.now()
+    ) {
+      reportContentReleaseOperationalEvent({
+        code: "content_release_override_rejected",
+        courseId: currentEnrollment.course_id,
+      });
+      throw new Error("Somente matriculas ativas podem liberar o conteúdo.");
+    }
     if (currentEnrollment.content_release_mode === "full_access") {
       await client.query("commit");
       return { changed: false };
@@ -1214,6 +1237,10 @@ export const grantEnrollmentFullContentAccess = async ({
       ]
     );
     await client.query("commit");
+    reportContentReleaseOperationalEvent({
+      code: "content_release_override_granted",
+      courseId: currentEnrollment.course_id,
+    });
     return { changed: true };
   } catch (error) {
     await client.query("rollback");

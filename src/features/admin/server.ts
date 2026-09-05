@@ -366,8 +366,6 @@ const readCourses = async (
   const whereClause =
     filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
-    content_release_mode: "full_access" | "scheduled";
-    content_release_started_at: Date | null;
     access_duration_months: number;
     catalog_visibility: "hidden" | "listed";
     certificate_enabled: boolean;
@@ -503,8 +501,6 @@ const readCourses = async (
 
 const readModules = async (courseId?: string): Promise<AdminModule[]> => {
   const { rows } = await getPool().query<{
-    content_release_mode: "full_access" | "scheduled";
-    content_release_started_at: Date | null;
     course_id: string;
     course_title: string;
     description: string | null;

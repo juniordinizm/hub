@@ -2,8 +2,8 @@
 status: canonical
 owner: engineering
 last_verified_commit: e325b7e
-current_migration_tag: 0070_relative_module_content_release
-migration_entry_count: 71
+current_migration_tag: 0071_content_release_observability_indexes
+migration_entry_count: 72
 schema_table_count: 47
 ---
 
@@ -35,6 +35,28 @@ bun run db:migrations:check
 
 Revise SQL, journal e snapshot. Nunca edite journal ou snapshot manualmente e
 não use `db:push` para acelerar uma release.
+
+## Índice do histórico de liberação
+
+A migration `0071_content_release_observability_indexes` adiciona
+`enrollment_events_course_event_idx` para a consulta de histórico que filtra
+`course_id` e `event_type`. Antes de aplicar em um ambiente com dados grandes,
+capture o plano real com o mesmo filtro usado pela publicação:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT EXISTS (
+  SELECT 1
+  FROM enrollment_events
+  WHERE course_id = '<course-id>'
+    AND event_type = 'content_release_scheduled'
+);
+```
+
+Depois da migration, repita o comando e arquive o plano sem dados pessoais.
+Aceite a mudança somente se o plano deixar de fazer um `Seq Scan` relevante ou
+reduzir o custo/leituras de forma observável; se o ambiente tiver poucos
+eventos, registre que o ganho é preventivo e não faça benchmark artificial.
 
 ## CI
 

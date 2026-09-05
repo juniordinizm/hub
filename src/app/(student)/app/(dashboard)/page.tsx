@@ -159,8 +159,12 @@ function _getCourseButtonLabel(
 
 function getShortCourseButtonLabel(
   progressPercent: number,
-  hasNextLesson: boolean
+  hasNextLesson: boolean,
+  hasFutureRelease: boolean
 ): string {
+  if (hasFutureRelease && !hasNextLesson) {
+    return "Aguardando";
+  }
   if (progressPercent === 0) {
     return "Iniciar";
   }
@@ -378,7 +382,8 @@ function CourseAccessControls({
             <HugeiconsIcon icon={PlayIcon} size={16} />
             {getShortCourseButtonLabel(
               course.progressPercent,
-              Boolean(course.nextLessonId)
+              Boolean(course.nextLessonId),
+              Boolean(course.nextReleaseAt)
             )}
           </Link>
         </Button>

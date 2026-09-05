@@ -37,8 +37,45 @@ describe("CourseOverviewClient scheduled modules", () => {
 
     expect(markup).toContain("Aplicação");
     expect(markup).toContain("4 aulas");
+    expect(markup).toContain("8 min");
     expect(markup).toContain("12/09/2026");
     expect(markup).not.toContain("/app/aulas/");
     expect(markup).not.toContain("Descrição secreta");
+  });
+
+  it("keeps completed lessons revisable while hiding pending lessons", () => {
+    const markup = renderToStaticMarkup(
+      <CourseOverviewClient
+        modules={[
+          {
+            availableAt: new Date("2026-09-12T14:30:00.000Z"),
+            description: null,
+            id: "module-2",
+            lessonCount: 2,
+            lessons: [
+              {
+                availability: { kind: "available" },
+                durationSeconds: 60,
+                hasVideo: false,
+                id: "lesson-completed",
+                isCompleted: true,
+                title: "Aula já concluída",
+                watchedPercent: 100,
+              },
+            ],
+            releaseState: "time_locked",
+            sortOrder: 2,
+            title: "Aplicação",
+            totalDurationSeconds: 120,
+          },
+        ]}
+        nextLessonId={null}
+        previewMode={null}
+      />
+    );
+
+    expect(markup).toContain("1 disponível de 2 aulas");
+    expect(markup).toContain("Aula já concluída");
+    expect(markup).toContain("/app/aulas/lesson-completed");
   });
 });

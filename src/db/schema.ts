@@ -811,6 +811,10 @@ export const enrollmentEvents = pgTable(
       table.courseId,
       table.createdAt
     ),
+    index("enrollment_events_course_event_idx").on(
+      table.courseId,
+      table.eventType
+    ),
     index("enrollment_events_grant_idx").on(table.grantId),
   ]
 );

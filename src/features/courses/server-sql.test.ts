@@ -180,6 +180,52 @@ describe("student experience reads", () => {
     expect(query.mock.calls[0]?.[0]).not.toContain("where c.status = 'active'");
   });
 
+  it("does not point the dashboard at a future scheduled lesson", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          access_status: "active",
+          catalog_visibility: "listed",
+          completed_at: null,
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date(
+            Date.now() - 24 * 60 * 60 * 1000
+          ),
+          cover_image_json: null,
+          course_description: "Description",
+          course_id: "course-1",
+          course_status: "active",
+          duration_seconds: 120,
+          expires_at: expiresAt,
+          is_enrolled: true,
+          is_interested: false,
+          launch_date: null,
+          launch_landing_url: null,
+          lesson_id: "future-lesson",
+          lesson_sort_order: 1,
+          module_id: "module-future",
+          module_release_delay_days: 8,
+          module_sort_order: 1,
+          price_in_cents: 10_000,
+          revoked_reason: null,
+          sales_status: "open",
+          slug: "course-one",
+          subtitle: "Subtitle",
+          thumbnail_url: null,
+          title: "Course one",
+          workload_hours: 1,
+        },
+      ],
+    });
+
+    await expect(getStudentCourseCatalog("student-1")).resolves.toEqual([
+      expect.objectContaining({
+        nextLessonId: null,
+        nextReleaseAt: expect.any(Date),
+      }),
+    ]);
+  });
+
   it("stores workload on the editable publication without summing retired content", async () => {
     query.mockImplementation((sql: string) => {
       if (sql.includes("from course_publications")) {
@@ -340,6 +386,55 @@ describe("student experience reads", () => {
     expect(overview?.nextReleaseAt).toEqual(
       new Date("2026-09-12T12:00:00.000Z")
     );
+  });
+
+  it("keeps a completed lesson revisable inside a future module", async () => {
+    const anchor = new Date("2026-09-04T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...createCourseOverviewRow({
+            completedAt: new Date("2026-09-01T12:00:00.000Z"),
+            lessonId: "lesson-completed",
+            lessonSortOrder: 1,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-pending",
+            lessonSortOrder: 2,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+    const futureModule = overview?.modules.find(
+      (moduleData) => moduleData.id === "module-future"
+    );
+
+    expect(futureModule).toMatchObject({
+      lessonCount: 2,
+      lessons: [{ id: "lesson-completed", isCompleted: true }],
+      releaseState: "time_locked",
+      totalDurationSeconds: 240,
+    });
+    expect(JSON.stringify(futureModule)).not.toContain("lesson-pending");
   });
 
   it("selects a valid reissue before revoked certificate history", async () => {

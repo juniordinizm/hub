@@ -274,5 +274,8 @@ describe("enrollment server SQL contracts", () => {
     expect(grantSource).toContain("enrollment.content_full_access_granted");
     expect(grantSource).toContain("return { changed: false }");
     expect(grantSource).toContain("lockEnrollmentAggregate");
+    expect(grantSource).toContain('currentEnrollment?.status !== "active"');
+    expect(grantSource).toContain("currentEnrollment.starts_at");
+    expect(grantSource).toContain("currentEnrollment.expires_at");
   });
 });

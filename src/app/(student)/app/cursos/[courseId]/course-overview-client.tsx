@@ -28,7 +28,7 @@ interface ModuleData {
   id: string;
   lessonCount: number;
   lessons: LessonData[];
-  releaseState: "available" | "time_locked";
+  releaseState: "available" | "invalid" | "time_locked";
   sortOrder: number;
   title: string;
   totalDurationSeconds: number;
@@ -72,6 +72,16 @@ export function CourseOverviewClient({
 
     return lessons;
   }, [flatLessons, nextLessonId]);
+
+  const totalLessonCount = modules.reduce(
+    (total, moduleData) => total + moduleData.lessonCount,
+    0
+  );
+  const visibleLessonCount = flatLessons.length;
+  const lessonSummary =
+    visibleLessonCount === totalLessonCount
+      ? `${totalLessonCount} ${totalLessonCount === 1 ? "aula" : "aulas"}`
+      : `${visibleLessonCount} ${visibleLessonCount === 1 ? "disponível" : "disponíveis"} de ${totalLessonCount} ${totalLessonCount === 1 ? "aula" : "aulas"}`;
 
   function getLessonStatus(lesson: LessonData): LessonStatus {
     if (lesson.isCompleted) {
@@ -152,15 +162,19 @@ export function CourseOverviewClient({
           <h2 className="font-bold text-2xl tracking-tight">Trilha do curso</h2>
           <p className="mt-1 text-muted-foreground text-sm">
             {modules.length} {modules.length === 1 ? "módulo" : "módulos"} ·{" "}
-            {flatLessons.length} {flatLessons.length === 1 ? "aula" : "aulas"}
+            {lessonSummary}
           </p>
         </div>
 
         <div className="flex flex-col">
           {modules.map((moduleData, index) => {
-            if (moduleData.releaseState === "time_locked") {
+            if (moduleData.releaseState !== "available") {
+              const moduleDuration = formatLessonDuration(
+                moduleData.totalDurationSeconds
+              );
               return (
                 <section
+                  aria-describedby={`module-${moduleData.id}-release`}
                   aria-labelledby={`module-${moduleData.id}`}
                   className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-5"
                   key={moduleData.id}
@@ -171,13 +185,26 @@ export function CourseOverviewClient({
                   >
                     {moduleData.title}
                   </h3>
-                  <p className="text-muted-foreground text-sm">
-                    Disponível em {formatReleaseDate(moduleData.availableAt)}
+                  <p
+                    className="text-muted-foreground text-sm"
+                    id={`module-${moduleData.id}-release`}
+                  >
+                    {moduleData.releaseState === "invalid"
+                      ? "Disponibilidade temporariamente indisponível."
+                      : `Disponível em ${formatReleaseDate(moduleData.availableAt)}`}
                   </p>
                   <p className="text-muted-foreground text-sm">
                     {moduleData.lessonCount}{" "}
-                    {moduleData.lessonCount === 1 ? "aula" : "aulas"}
+                    {moduleData.lessonCount === 1 ? "aula" : "aulas"} ·{" "}
+                    {moduleDuration}
                   </p>
+                  {moduleData.lessons.length > 0 && (
+                    <div className="custom-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pt-2 pb-1">
+                      {moduleData.lessons.map((lesson) =>
+                        renderLessonCard(lesson)
+                      )}
+                    </div>
+                  )}
                 </section>
               );
             }

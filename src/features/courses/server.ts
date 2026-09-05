@@ -14,6 +14,10 @@ import {
   resolveCourseAvailability,
 } from "@/features/courses/availability";
 import {
+  classifyContentReleaseError,
+  createContentReleaseDiagnostics,
+} from "@/features/courses/content-release-observability";
+import {
   type LessonContent,
   parseLessonContent,
 } from "@/features/courses/lesson-content";
@@ -76,6 +80,7 @@ export interface StudentCatalogCourseCard {
   launchDate: string | null;
   launchLandingUrl: string | null;
   nextLessonId: string | null;
+  nextReleaseAt: Date | null;
   priceInCents: number;
   progressPercent: number;
   revokedReason: string | null;
@@ -151,7 +156,7 @@ export interface StudentCourseOverviewData {
       title: string;
       watchedPercent: number;
     }>;
-    releaseState: "available" | "time_locked";
+    releaseState: "available" | "invalid" | "time_locked";
     sortOrder: number;
     totalDurationSeconds: number;
     title: string;
@@ -258,8 +263,17 @@ type StudentCourseAggregate = StudentCourseCard & {
 
 type StudentCatalogCourseAggregate = StudentCatalogCourseCard & {
   completedLessonIds: string[];
+  contentReleaseMode: "full_access" | "scheduled";
+  contentReleaseStartedAt: Date | null;
   durationSecondsPerLesson: Map<string, number>;
   lessonIds: string[];
+  lessons: Array<{
+    id: string;
+    moduleId: string;
+    moduleReleaseDelayDays: number;
+    moduleSortOrder: number;
+    sortOrder: number;
+  }>;
 };
 
 interface CourseOverviewRow {
@@ -512,6 +526,72 @@ export const getStudentCourses = async (
   });
 };
 
+const resolveCatalogNextLesson = ({
+  course,
+  diagnostics,
+  now,
+}: {
+  course: StudentCatalogCourseAggregate;
+  diagnostics: ReturnType<typeof createContentReleaseDiagnostics>;
+  now: Date;
+}): { nextLessonId: string | null; nextReleaseAt: Date | null } => {
+  const completedLessonIds = course.completedLessonIds;
+  let nextLessonId: string | null = null;
+  let nextReleaseAt: Date | null = null;
+
+  const orderedLessons = [...course.lessons].sort(
+    (left, right) =>
+      left.moduleSortOrder - right.moduleSortOrder ||
+      left.sortOrder - right.sortOrder
+  );
+
+  for (const lesson of orderedLessons) {
+    if (completedLessonIds.includes(lesson.id)) {
+      continue;
+    }
+
+    let release: ReturnType<typeof resolveModuleContentRelease>;
+    try {
+      release = resolveModuleContentRelease({
+        contentReleaseMode: course.contentReleaseMode,
+        contentReleaseStartedAt: course.contentReleaseStartedAt,
+        now,
+        releaseDelayDays: lesson.moduleReleaseDelayDays,
+      });
+    } catch (error) {
+      diagnostics.reportInvalidState({
+        courseId: course.courseId,
+        moduleId: lesson.moduleId,
+        reason: classifyContentReleaseError(error),
+      });
+      return { nextLessonId: null, nextReleaseAt: null };
+    }
+
+    if (release.kind === "time_locked") {
+      if (
+        release.availableAt > now &&
+        (!nextReleaseAt || release.availableAt < nextReleaseAt)
+      ) {
+        nextReleaseAt = release.availableAt;
+      }
+      continue;
+    }
+
+    if (
+      !nextLessonId &&
+      isLessonAvailable({
+        completedLessonIds,
+        lessonId: lesson.id,
+        lessonIds: course.lessonIds,
+      })
+    ) {
+      nextLessonId = lesson.id;
+    }
+  }
+
+  return { nextLessonId, nextReleaseAt };
+};
+
 export const getStudentCourseCatalog = async (
   userId: string
 ): Promise<StudentCatalogCourseCard[]> => {
@@ -519,6 +599,8 @@ export const getStudentCourseCatalog = async (
     access_status: "active" | "expired" | "none" | "revoked";
     catalog_visibility: CourseCatalogVisibility;
     completed_at: Date | null;
+    content_release_mode: "full_access" | "scheduled" | null;
+    content_release_started_at: Date | null;
     cover_image_json: unknown;
     course_description: string | null;
     course_id: string;
@@ -530,6 +612,10 @@ export const getStudentCourseCatalog = async (
     launch_date: string | null;
     launch_landing_url: string | null;
     lesson_id: string | null;
+    lesson_sort_order: number | null;
+    module_release_delay_days: number | null;
+    module_id: string | null;
+    module_sort_order: number | null;
     price_in_cents: number;
     revoked_reason: string | null;
     sales_status: CourseSalesStatus;
@@ -556,6 +642,8 @@ export const getStudentCourseCatalog = async (
         c.cover_image_json,
         c.thumbnail_url,
         e.expires_at,
+        e.content_release_mode,
+        e.content_release_started_at,
         e.revoked_reason,
         case
           when e.id is null then 'none'
@@ -575,6 +663,10 @@ export const getStudentCourseCatalog = async (
           where csi.course_id = c.id and csi.user_id = $1
         ) as is_interested,
         l.id as lesson_id,
+        l.sort_order as lesson_sort_order,
+        m.id as module_id,
+        m.release_delay_days as module_release_delay_days,
+        m.sort_order as module_sort_order,
         coalesce(l.duration_seconds, 0) as duration_seconds,
         lp.completed_at
       from courses c
@@ -636,20 +728,38 @@ export const getStudentCourseCatalog = async (
       launchDate: row.launch_date,
       launchLandingUrl: row.launch_landing_url,
       accessStatus: row.access_status,
+      contentReleaseMode: row.content_release_mode ?? "full_access",
+      contentReleaseStartedAt: row.content_release_started_at,
       revokedReason: row.revoked_reason,
       progressPercent: 0,
       completedCount: 0,
       totalCount: 0,
       totalDurationSeconds: 0,
       nextLessonId: null,
+      nextReleaseAt: null,
       lessonIds: [],
       completedLessonIds: [],
       durationSecondsPerLesson: new Map<string, number>(),
+      lessons: [],
     };
 
     if (row.lesson_id) {
       course.lessonIds.push(row.lesson_id);
       course.durationSecondsPerLesson.set(row.lesson_id, row.duration_seconds);
+      if (
+        typeof row.lesson_sort_order === "number" &&
+        typeof row.module_id === "string" &&
+        typeof row.module_sort_order === "number" &&
+        typeof row.module_release_delay_days === "number"
+      ) {
+        course.lessons.push({
+          id: row.lesson_id,
+          moduleId: row.module_id,
+          moduleReleaseDelayDays: row.module_release_delay_days,
+          moduleSortOrder: row.module_sort_order,
+          sortOrder: row.lesson_sort_order,
+        });
+      }
       if (row.completed_at && row.is_enrolled) {
         course.completedLessonIds.push(row.lesson_id);
       }
@@ -662,6 +772,13 @@ export const getStudentCourseCatalog = async (
     const progress = course.isEnrolled
       ? calculateCourseProgress(course)
       : { completedCount: 0, percent: 0, totalCount: course.lessonIds.length };
+    const next = course.isEnrolled
+      ? resolveCatalogNextLesson({
+          course,
+          diagnostics: createContentReleaseDiagnostics(),
+          now: new Date(),
+        })
+      : { nextLessonId: null, nextReleaseAt: null };
 
     return {
       courseId: course.courseId,
@@ -687,7 +804,8 @@ export const getStudentCourseCatalog = async (
       totalDurationSeconds: [
         ...course.durationSecondsPerLesson.values(),
       ].reduce((sum, s) => sum + Math.max(0, s), 0),
-      nextLessonId: null,
+      nextLessonId: next.nextLessonId,
+      nextReleaseAt: next.nextReleaseAt,
     };
   });
 };
@@ -793,6 +911,7 @@ export const recalculateCourseWorkloadHours = async (
 
 interface EnrolledOverviewProjectionInput {
   completedLessonIds: string[];
+  diagnostics: ReturnType<typeof createContentReleaseDiagnostics>;
   lessonIds: string[];
   now: Date;
   rows: CourseOverviewRow[];
@@ -800,12 +919,13 @@ interface EnrolledOverviewProjectionInput {
 
 interface OverviewModuleRelease {
   availableAt: Date | null;
-  releaseState: "available" | "time_locked";
+  releaseState: "available" | "invalid" | "time_locked";
 }
 
 const resolveOverviewModuleRelease = (
   row: CourseOverviewRow,
-  now: Date
+  now: Date,
+  diagnostics: ReturnType<typeof createContentReleaseDiagnostics>
 ): OverviewModuleRelease => {
   try {
     const release = resolveModuleContentRelease({
@@ -817,8 +937,13 @@ const resolveOverviewModuleRelease = (
     return release.kind === "time_locked"
       ? { availableAt: release.availableAt, releaseState: "time_locked" }
       : { availableAt: null, releaseState: "available" };
-  } catch {
-    return { availableAt: null, releaseState: "time_locked" };
+  } catch (error) {
+    diagnostics.reportInvalidState({
+      courseId: row.course_id,
+      ...(row.module_id ? { moduleId: row.module_id } : {}),
+      reason: classifyContentReleaseError(error),
+    });
+    return { availableAt: null, releaseState: "invalid" };
   }
 };
 
@@ -848,12 +973,19 @@ const appendOverviewLesson = ({
   const isCompleted = Boolean(row.completed_at);
   moduleData.lessonCount += 1;
   moduleData.totalDurationSeconds += Math.max(0, row.duration_seconds);
-  if (moduleData.releaseState !== "available") {
+  if (moduleData.releaseState !== "available" && !isCompleted) {
     return;
   }
   const availability = resolveLessonAvailability({
     isCompleted,
-    moduleRelease: { kind: "available" },
+    moduleRelease:
+      moduleData.releaseState === "available"
+        ? { kind: "available" }
+        : {
+            availableAt:
+              moduleData.availableAt ?? new Date(Number.MAX_SAFE_INTEGER),
+            kind: "time_locked",
+          },
     sequenceAvailable: isLessonAvailable({
       lessonIds,
       completedLessonIds,
@@ -881,7 +1013,7 @@ const projectEnrolledOverviewModules = (
   nextLessonId: string | null;
   nextReleaseAt: Date | null;
 } => {
-  const { completedLessonIds, lessonIds, now, rows } = input;
+  const { completedLessonIds, diagnostics, lessonIds, now, rows } = input;
   const modules = new Map<
     string,
     StudentCourseOverviewData["modules"][number]
@@ -900,13 +1032,11 @@ const projectEnrolledOverviewModules = (
 
     let moduleData = modules.get(row.module_id);
     if (!moduleData) {
-      const release = resolveOverviewModuleRelease(row, now);
+      const release = resolveOverviewModuleRelease(row, now, diagnostics);
       moduleData = {
         availableAt: release.availableAt,
         description:
-          release.releaseState === "time_locked"
-            ? null
-            : row.module_description,
+          release.releaseState === "available" ? row.module_description : null,
         id: row.module_id,
         lessonCount: 0,
         lessons: [],
@@ -1043,6 +1173,7 @@ const getEnrolledCourseOverview = async ({
   });
   const moduleProjection = projectEnrolledOverviewModules({
     completedLessonIds,
+    diagnostics: createContentReleaseDiagnostics(),
     lessonIds,
     now: new Date(),
     rows,
@@ -1245,9 +1376,15 @@ const getEnrolledLessonWorkspace = async ({
   userId: string;
   lessonId: string;
 }): Promise<StudentLessonWorkspaceResult> => {
+  const diagnostics = createContentReleaseDiagnostics();
   const accessDecision = client
-    ? await resolveLessonAccessWithClient({ client, lessonId, userId })
-    : await resolveLessonAccess({ lessonId, userId });
+    ? await resolveLessonAccessWithClient({
+        client,
+        diagnostics,
+        lessonId,
+        userId,
+      })
+    : await resolveLessonAccess({ diagnostics, lessonId, userId });
 
   if (accessDecision.kind === "denied") {
     return { kind: "unavailable" };
@@ -1351,7 +1488,12 @@ const getEnrolledLessonWorkspace = async ({
       return release.kind === "time_locked"
         ? { ...moduleData, lessons: [] }
         : moduleData;
-    } catch {
+    } catch (error) {
+      diagnostics.reportInvalidState({
+        courseId: moduleRow.course_id,
+        moduleId: moduleRow.module_id,
+        reason: classifyContentReleaseError(error),
+      });
       return { ...moduleData, lessons: [] };
     }
   });

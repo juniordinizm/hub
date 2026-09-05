@@ -498,6 +498,13 @@
       "when": 1788554793736,
       "tag": "0070_relative_module_content_release",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1788635572536,
+      "tag": "0071_content_release_observability_indexes",
+      "breakpoints": true
     }
   ]
 }

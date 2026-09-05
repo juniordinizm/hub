@@ -44,5 +44,21 @@ describe("StudentContentReleaseControls", () => {
     expect(markup).toContain("Liberação programada");
     expect(markup).toContain("Liberar conteúdo integral");
     expect(markup).toContain("Motivo");
+    expect(markup).toContain('aria-busy="false"');
+  });
+
+  it("does not offer an override for an inactive enrollment", () => {
+    expect(
+      renderToStaticMarkup(
+        <StudentContentReleaseControls
+          enrollment={{
+            ...enrollment,
+            contentReleaseMode: "scheduled",
+            status: "revoked",
+          }}
+          onSuccess={vi.fn()}
+        />
+      )
+    ).toBe("");
   });
 });
