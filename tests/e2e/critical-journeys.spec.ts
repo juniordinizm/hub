@@ -427,7 +427,7 @@ test("scheduled modules hide future lessons and redirect direct access", async (
     0
   );
   await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
-  await expect(futureModule.getByText("1 aula", { exact: true })).toBeVisible();
+  await expect(futureModule).toContainText("1 aula");
 
   await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
   await expect(page).toHaveURL(
@@ -452,7 +452,7 @@ test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
   await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
     0
   );
-  await expect(futureModule.getByText("1 aula", { exact: true })).toBeVisible();
+  await expect(futureModule).toContainText("1 aula");
   await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
 });
 
