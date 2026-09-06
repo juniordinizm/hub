@@ -13,7 +13,6 @@ vi.mock("./checkout-navigation", () => ({
   redirectToCheckout: navigation.redirectToCheckout,
 }));
 
-import type { ContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
 import { PurchaseHandoffClient } from "./purchase-handoff-client";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -22,11 +21,6 @@ const FIRST_ATTEMPT = "11111111-1111-4111-8111-111111111111";
 const SECOND_ATTEMPT = "22222222-2222-4222-8222-222222222222";
 const STORAGE_KEY = "hub:checkout-attempt:v3:curso-publico";
 const LEGACY_STORAGE_KEY = "hub:checkout-attempt:curso-publico";
-const RELEASE_SCHEDULE = {
-  clock: "elapsed_24h" as const,
-  modules: [],
-  version: 1 as const,
-};
 const RELEASE_DIGEST = "a".repeat(64);
 
 let container: HTMLDivElement;
@@ -40,11 +34,9 @@ const response = (body: unknown): Response =>
   }) as unknown as Response;
 
 const renderHandoff = ({
-  releaseSchedule = RELEASE_SCHEDULE,
   releaseScheduleDigest = RELEASE_DIGEST,
   strict = false,
 }: {
-  releaseSchedule?: ContentReleaseScheduleSnapshot;
   releaseScheduleDigest?: string;
   strict?: boolean;
 } = {}): void => {
@@ -55,7 +47,6 @@ const renderHandoff = ({
           <PurchaseHandoffClient
             courseSlug="curso-publico"
             courseTitle="Curso publico"
-            releaseSchedule={releaseSchedule}
             releaseScheduleDigest={releaseScheduleDigest}
           />
         </StrictMode>
@@ -63,7 +54,6 @@ const renderHandoff = ({
         <PurchaseHandoffClient
           courseSlug="curso-publico"
           courseTitle="Curso publico"
-          releaseSchedule={releaseSchedule}
           releaseScheduleDigest={releaseScheduleDigest}
         />
       )
@@ -110,68 +100,44 @@ afterEach(() => {
 });
 
 describe("PurchaseHandoffClient", () => {
-  it("shows a delayed schedule and waits for explicit payment confirmation", async () => {
-    const releaseSchedule = {
-      clock: "elapsed_24h" as const,
-      modules: [
-        { releaseDelayDays: 0, sortOrder: 1, title: "Comece aqui" },
-        { releaseDelayDays: 8, sortOrder: 2, title: "Aplicacao" },
-      ],
-      version: 1 as const,
-    };
+  it("starts checkout automatically without rendering a release schedule", async () => {
     const releaseScheduleDigest = "b".repeat(64);
     fetchMock.mockResolvedValue(
       response({
-        orderId: "order-review",
-        redirectUrl: "https://sandbox.asaas.com/c/review",
+        orderId: "order-automatic",
+        redirectUrl: "https://sandbox.asaas.com/c/automatic",
         retryAllowed: false,
         status: "ready",
       })
     );
 
-    await renderHandoff({ releaseSchedule, releaseScheduleDigest });
+    await renderHandoff({ releaseScheduleDigest });
     await flushEffects();
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("Aplicacao");
-    expect(container.textContent).toContain("após 8 dias");
-    const continueButton = Array.from(
-      container.querySelectorAll("button")
-    ).find((button) => button.textContent === "Continuar para pagamento");
-    expect(continueButton).toBeDefined();
-    await act(async () => continueButton?.click());
-    await flushEffects();
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(container.textContent).not.toContain("Cronograma de liberação");
+    expect(container.textContent).not.toContain("Continuar para pagamento");
     expect(
       JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))
     ).toMatchObject({
       expectedContentReleaseScheduleDigest: releaseScheduleDigest,
     });
+    expect(navigation.redirectToCheckout).toHaveBeenCalledWith(
+      "https://sandbox.asaas.com/c/automatic"
+    );
   });
 
-  it("asks for a reload when the server reports a changed schedule", async () => {
-    const releaseSchedule = {
-      clock: "elapsed_24h" as const,
-      modules: [{ releaseDelayDays: 8, sortOrder: 1, title: "Aplicacao" }],
-      version: 1 as const,
-    };
+  it("shows generic unavailability when the server reports a changed schedule", async () => {
     fetchMock.mockResolvedValueOnce(
       response({ retryAllowed: false, status: "schedule_changed" })
     );
 
-    await renderHandoff({
-      releaseSchedule,
-      releaseScheduleDigest: "c".repeat(64),
-    });
+    await renderHandoff({ releaseScheduleDigest: "c".repeat(64) });
     await flushEffects();
-    const continueButton = Array.from(
-      container.querySelectorAll("button")
-    ).find((button) => button.textContent === "Continuar para pagamento");
-    expect(continueButton).toBeDefined();
-    await act(async () => continueButton?.click());
-    await flushEffects();
-    expect(container.textContent).toContain("O cronograma foi atualizado");
-    expect(container.textContent).toContain("Recarregue");
+
+    expect(container.textContent).toContain("Checkout indisponivel");
+    expect(container.textContent).not.toContain("cronograma");
+    expect(container.querySelector("button")).toBeNull();
   });
 
   it.each([

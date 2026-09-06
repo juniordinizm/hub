@@ -26,7 +26,7 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 ### Compra e liberação
 
-1. Visitante ou Aluna autenticada escolhe Curso ativo e revisa o cronograma no handoff.
+1. Visitante ou Aluna autenticada escolhe Curso ativo e segue para o handoff transitório do checkout.
 2. Hub persiste o Pedido, o snapshot do cronograma e seus demais snapshots antes de criar o checkout hospedado Asaas com
    item inline; não existe produto remoto por Curso.
 3. Webhook autenticado entra em inbox durável e o worker atualiza o Pedido.

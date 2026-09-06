@@ -436,15 +436,15 @@ financeira.
 - D+N é uma regra de entrega, não uma regra de elegibilidade para reembolso.
 
 Antes de abrir vendas com atraso, a oferta deve informar quais Módulos são imediatos e
-quando os demais ficam disponíveis. Checkout e confirmação precisam preservar essa
-informação de forma compatível com o contrato anunciado.
+quando os demais ficam disponíveis em uma superfície comercial apropriada. Checkout e
+confirmação preservam essa informação por snapshot, mas o handoff público permanece
+transitório e não renderiza o cronograma.
 
-O handoff público apresenta o resumo antes de iniciar a criação do Checkout hospedado.
-Quando existe atraso positivo, a ação deixa de ser automática e exige o botão
-“Continuar para pagamento”. Cursos integralmente imediatos preservam o comportamento
-atual. O resumo usa o mesmo snapshot calculado pelo servidor que será persistido no
-Pedido; o navegador não envia nem escolhe atrasos. Mudança entre render e clique causa
-recusa antes de qualquer mutação e atualização do resumo.
+O handoff público inicia automaticamente a criação do Checkout hospedado, inclusive
+quando existe atraso positivo. O servidor recalcula o snapshot vigente e o navegador
+envia somente o digest invisível; mudança entre a renderização e o POST causa recusa
+antes de qualquer mutação. A interface mostra apenas o estado genérico de checkout
+indisponível, sem revelar o cronograma ou exigir uma confirmação adicional.
 
 Nenhuma mensagem pode afirmar que assistir determinada porcentagem elimina o direito
 legal de arrependimento. A ausência atual de autoatendimento eletrônico de
@@ -529,7 +529,8 @@ O rollout não requer backfill por Aula, job de desbloqueio ou alteração de Pr
 - transições reais da projeção sob transação;
 - jornada com relógio controlado, sem espera real de oito dias;
 - compra nova recebe cronograma e Matrícula histórica mantém acesso integral.
-- handoff com atraso exige confirmação e persiste exatamente o snapshot exibido;
+- handoff com atraso inicia automaticamente e persiste o snapshot calculado no servidor;
+- alteração concorrente do cronograma é recusada antes do Pedido/provider sem expor detalhes na UI;
 - handoff integralmente imediato preserva o início automático atual.
 
 ## Fora do escopo
