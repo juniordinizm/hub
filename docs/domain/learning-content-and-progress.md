@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b97f9594d6b4c06efe6287225e86e6d9c637f1b5
+last_verified_commit: e325b7e
 ---
 
 # Conteúdo, aprendizagem e progresso
@@ -16,7 +16,7 @@ Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto,
 
 ### REG-LEA-001 Publicação é atômica e em lote
 
-`createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` bloqueia o rascunho, rejeita vídeo JMVStream sem player, aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log na mesma transação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
+`createCoursePublicationDraft`, em `src/features/admin/authoring.ts`, clona a publicação vigente para um único rascunho. `publishCoursePublication` serializa o Curso com lock transacional, valida o rascunho, rejeita vídeo JMVStream sem player e só então copia a capa fora de uma transação aberta; uma segunda transação adquire o mesmo lock, revalida o estado e aposenta a publicada anterior, publica o rascunho e grava autora/data no audit log. Alterações concorrentes no rascunho são serializadas pelo mesmo lock e não atravessam a fronteira de publicação. Salvar conteúdo só é permitido no rascunho: não há correção direta em conteúdo publicado.
 
 Publicar uma `CoursePublication` não altera visibilidade nem abre vendas. A
 disponibilidade comercial é uma decisão administrativa separada, conforme
@@ -25,6 +25,8 @@ disponibilidade comercial é uma decisão administrativa separada, conforme
 Módulos e Aulas continuam ligados à publicação que os materializou. Cada Aula também tem uma chave curricular estável: ao clonar uma Aula para uma nova publicação, a chave é preservada e o `lesson_progress` anterior continua valendo; remover a Aula ou criar outra gera efeito no currículo vivo sem apagar histórico. Retirar conteúdo numa nova publicação o oculta do currículo vivo, mas não apaga a publicação anterior, progresso, analytics, ativos R2/JMVStream ou auditoria.
 
 Reordenar conteúdo só aceita o conjunto completo de Módulos ou de Aulas dos Módulos afetados na mesma publicação em rascunho. Mover uma Aula entre Módulos renumera origem e destino em uma única transação; IDs de outra publicação ou Curso são rejeitados.
+
+Módulo ativo pode carregar `release_delay_days`. Em Matrícula `scheduled`, o conteúdo fica disponível em `content_release_started_at + N × 24 horas`; a decisão temporal precede a sequência. O overview preserva título, contagem, duração agregada e data futura, mas oculta Aulas e mídia. Matrícula `full_access` e Aula concluída anteriormente atravessam o atraso.
 
 ### REG-LEA-002 Progresso é vivo
 

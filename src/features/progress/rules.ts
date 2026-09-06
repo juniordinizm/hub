@@ -48,6 +48,17 @@ export const getNextAvailableLessonId = ({
   return lessonIds.find((lessonId) => !completed.has(lessonId)) ?? null;
 };
 
+export const getNextAvailablePendingLessonId = (
+  lessons: Array<{
+    availability: { kind: "available" | "sequence_locked" | "time_locked" };
+    id: string;
+    isCompleted: boolean;
+  }>
+): string | null =>
+  lessons.find(
+    (lesson) => !lesson.isCompleted && lesson.availability.kind === "available"
+  )?.id ?? null;
+
 export const isLessonAvailable = ({
   lessonIds,
   completedLessonIds,

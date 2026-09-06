@@ -7,9 +7,194 @@ const readServerSource = async (): Promise<string> =>
     "\n"
   );
 
+const readAggregateLockSource = async (): Promise<string> =>
+  await readFile(
+    new URL("./enrollment-aggregate-lock.ts", import.meta.url),
+    "utf8"
+  );
+
 const PROVIDER_NAME_PATTERN = /asaas/i;
 
 describe("enrollment server SQL contracts", () => {
+  it("takes the shared Course release lock before every enrollment aggregate lock", async () => {
+    const source = await readServerSource();
+    const aggregateLockSource = await readAggregateLockSource();
+
+    expect(source).toContain(
+      'import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock"'
+    );
+    expect(aggregateLockSource).toContain(
+      "await lockCourseContentRelease(client, courseId)"
+    );
+    expect(
+      aggregateLockSource.indexOf("lockCourseContentRelease")
+    ).toBeLessThan(aggregateLockSource.indexOf("pg_advisory_xact_lock"));
+  });
+
+  it("locks the enrollment aggregate before every direct grant mutation", async () => {
+    const source = await readServerSource();
+    const aggregateLockSource = await readAggregateLockSource();
+    const paidSource = source.slice(
+      source.indexOf("export const applyPaidWebhookAccess"),
+      source.indexOf("export const createManualAccessGrant")
+    );
+    const manualSource = source.slice(
+      source.indexOf("export const createManualAccessGrant"),
+      source.indexOf("export const applyPaymentRevocation")
+    );
+    const revocationSource = source.slice(
+      source.indexOf("export const applyPaymentRevocation"),
+      source.indexOf("const getActivePaidGrantForEnrollment")
+    );
+
+    expect(source).toContain(
+      'import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock"'
+    );
+    expect(aggregateLockSource).toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
+    );
+    expect(paidSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      paidSource.indexOf("getCurrentRenewalBase")
+    );
+    expect(manualSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      manualSource.indexOf("insert into enrollment_grants")
+    );
+    expect(revocationSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      revocationSource.indexOf("update enrollment_grants")
+    );
+  });
+
+  it("locks enrollment-id aggregates in advisory-before-row-before-grant order", async () => {
+    const source = await readServerSource();
+    const lockByIdSource = source.slice(
+      source.indexOf("const lockEnrollmentForGrantMutation"),
+      source.indexOf("const getPaidAccessGrantsForEnrollment")
+    );
+
+    expect(lockByIdSource).toContain("getEnrollmentCourseAccess");
+    expect(lockByIdSource.indexOf("getEnrollmentCourseAccess")).toBeLessThan(
+      lockByIdSource.indexOf("lockEnrollmentAggregate")
+    );
+    expect(lockByIdSource.indexOf("lockEnrollmentAggregate")).toBeLessThan(
+      lockByIdSource.indexOf("forUpdate: true")
+    );
+
+    const mutationNames = [
+      "extendEnrollmentExpiration",
+      "setEnrollmentExpiration",
+      "blockEnrollmentAccess",
+      "restoreEnrollmentAccess",
+    ];
+    for (const [index, mutationName] of mutationNames.entries()) {
+      const nextMutationName = mutationNames[index + 1];
+      const mutationSource = source.slice(
+        source.indexOf(`export const ${mutationName}`),
+        nextMutationName
+          ? source.indexOf(`export const ${nextMutationName}`)
+          : source.length
+      );
+      const firstGrantAccess = [
+        mutationSource.indexOf("getActivePaidGrantForEnrollment"),
+        mutationSource.indexOf("getPaidAccessGrantsForEnrollment"),
+      ].filter((position) => position >= 0);
+
+      expect(mutationSource).toContain("lockEnrollmentForGrantMutation");
+      expect(
+        mutationSource.indexOf("lockEnrollmentForGrantMutation")
+      ).toBeLessThan(Math.min(...firstGrantAccess));
+    }
+  });
+
+  it("serializes enrollment projection before reading its current state", async () => {
+    const source = await readServerSource();
+    const projectionSource = source.slice(
+      source.indexOf("export const rebuildEnrollmentProjection"),
+      source.indexOf("export const applyPaidWebhookAccess")
+    );
+    const advisoryLock = "lockEnrollmentAggregate(client, userId, courseId)";
+    const existingEnrollmentRead = "from enrollments\n      where user_id = $1";
+    const publicationRead = "from course_publications";
+    const lockedEnrollmentRead = projectionSource.slice(
+      projectionSource.indexOf("const existingEnrollment"),
+      projectionSource.indexOf("const previousEnrollment")
+    );
+
+    expect(projectionSource).toContain(advisoryLock);
+    expect(projectionSource).toContain(existingEnrollmentRead);
+    expect(projectionSource).toContain("for update");
+    expect(projectionSource.indexOf(advisoryLock)).toBeLessThan(
+      projectionSource.indexOf(existingEnrollmentRead)
+    );
+    expect(projectionSource.indexOf(existingEnrollmentRead)).toBeLessThan(
+      projectionSource.indexOf(publicationRead)
+    );
+    expect(projectionSource).toContain("content_release_mode");
+    expect(projectionSource).toContain("content_release_started_at");
+    expect(lockedEnrollmentRead).toContain("revoked_reason");
+  });
+
+  it("derives and persists scheduled delivery from the published modules", async () => {
+    const source = await readServerSource();
+    const projectionSource = source.slice(
+      source.indexOf("export const rebuildEnrollmentProjection"),
+      source.indexOf("export const applyPaidWebhookAccess")
+    );
+
+    expect(projectionSource).toContain("has_delayed_modules");
+    expect(projectionSource).toContain("m.release_delay_days > 0");
+    expect(projectionSource).toContain("m.status = 'active'");
+    expect(projectionSource).toContain("getEnrollmentContentReleaseTransition");
+    expect(projectionSource).toContain("content_release_scheduled");
+    expect(projectionSource).toContain("metadata: {");
+    expect(projectionSource).toContain(
+      "startedAt: contentReleaseTransition.startedAt.toISOString()"
+    );
+  });
+
+  it("preserves content release for administrative expiration and restoration operations", async () => {
+    const source = await readServerSource();
+    const extendSource = source.slice(
+      source.indexOf("export const extendEnrollmentExpiration"),
+      source.indexOf("export const setEnrollmentExpiration")
+    );
+    const setSource = source.slice(
+      source.indexOf("export const setEnrollmentExpiration"),
+      source.indexOf("export const blockEnrollmentAccess")
+    );
+    const restoreSource = source.slice(
+      source.indexOf("export const restoreEnrollmentAccess")
+    );
+    const paidAndManualGrantSource = source.slice(
+      source.indexOf("export const applyPaidWebhookAccess"),
+      source.indexOf("export const applyPaymentRevocation")
+    );
+
+    expect(extendSource).toContain("preserveContentRelease: true");
+    expect(setSource).toContain("preserveContentRelease: true");
+    expect(restoreSource).toContain("preserveContentRelease: true");
+    expect(paidAndManualGrantSource).not.toContain(
+      "preserveContentRelease: true"
+    );
+  });
+
+  it("leaves the content release state untouched in terminal projections", async () => {
+    const source = await readServerSource();
+    const projectionSource = source.slice(
+      source.indexOf("export const rebuildEnrollmentProjection"),
+      source.indexOf("export const applyPaidWebhookAccess")
+    );
+    const terminalProjectionSource = projectionSource.slice(
+      projectionSource.indexOf("const latestGrant")
+    );
+
+    expect(terminalProjectionSource).not.toContain(
+      "content_release_mode = excluded.content_release_mode"
+    );
+    expect(terminalProjectionSource).not.toContain(
+      "content_release_started_at = excluded.content_release_started_at"
+    );
+  });
+
   it("stores paid access in grants and keeps enrollments as a projection", async () => {
     const source = await readServerSource();
 
@@ -75,5 +260,22 @@ describe("enrollment server SQL contracts", () => {
     expect(source).toContain('"payment_dispute"');
     expect(source).toContain('"payment_refund"');
     expect(source).not.toMatch(PROVIDER_NAME_PATTERN);
+  });
+
+  it("grants full content access idempotently with event and audit", async () => {
+    const source = await readServerSource();
+    const grantSource = source.slice(
+      source.indexOf("export const grantEnrollmentFullContentAccess")
+    );
+
+    expect(grantSource).toContain("content_release_mode = 'full_access'");
+    expect(grantSource).toContain("content_release_started_at = null");
+    expect(grantSource).toContain("content_full_access_granted");
+    expect(grantSource).toContain("enrollment.content_full_access_granted");
+    expect(grantSource).toContain("return { changed: false }");
+    expect(grantSource).toContain("lockEnrollmentAggregate");
+    expect(grantSource).toContain('currentEnrollment?.status !== "active"');
+    expect(grantSource).toContain("currentEnrollment.starts_at");
+    expect(grantSource).toContain("currentEnrollment.expires_at");
   });
 });

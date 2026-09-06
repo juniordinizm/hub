@@ -52,6 +52,7 @@ const CONTENT_STATUS_LABELS: Record<string, string> = {
   archived: "arquivado",
   draft: "rascunho",
 };
+const DEFAULT_MODULE_RELEASE_DELAY_DAYS = 8;
 
 export function CourseBuilderWrapper({
   course,
@@ -152,6 +153,11 @@ export function ModuleSection({
               variant={moduleData.status === "active" ? "default" : "outline"}
             >
               {CONTENT_STATUS_LABELS[moduleData.status] ?? moduleData.status}
+            </Badge>
+            <Badge variant="outline">
+              {moduleData.releaseDelayDays === 0
+                ? "Liberação imediata"
+                : `Liberação em D+${moduleData.releaseDelayDays}`}
             </Badge>
           </div>
           <p className="mt-1 text-muted-foreground text-sm">
@@ -273,6 +279,10 @@ export function ModuleForm({
   moduleData?: ModuleData;
   nextSortOrder?: number;
 }): React.JSX.Element {
+  const releaseDelayDaysId = moduleData
+    ? `module-${moduleData.id}-release-delay-days`
+    : "new-module-release-delay-days";
+
   return (
     <div className="flex flex-col gap-4">
       <AutoCloseDialogForm
@@ -304,6 +314,51 @@ export function ModuleForm({
                 name="description"
               />
             </Field>
+            <fieldset className="space-y-3">
+              <legend className="font-medium text-sm">
+                Liberação do conteúdo
+              </legend>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  defaultChecked={(moduleData?.releaseDelayDays ?? 0) === 0}
+                  name="releaseMode"
+                  type="radio"
+                  value="immediate"
+                />
+                Imediatamente
+              </label>
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    defaultChecked={(moduleData?.releaseDelayDays ?? 0) > 0}
+                    name="releaseMode"
+                    type="radio"
+                    value="delayed"
+                  />
+                  Após
+                </label>
+                <label className="sr-only" htmlFor={releaseDelayDaysId}>
+                  Dias para liberar o módulo
+                </label>
+                <Input
+                  autoComplete="off"
+                  className="w-24"
+                  defaultValue={
+                    moduleData?.releaseDelayDays ||
+                    DEFAULT_MODULE_RELEASE_DELAY_DAYS
+                  }
+                  id={releaseDelayDaysId}
+                  min={1}
+                  name="releaseDelayDays"
+                  step={1}
+                  type="number"
+                />
+                dias
+              </div>
+              <p className="text-muted-foreground text-xs">
+                Cada dia equivale a 24 horas desde o início do acesso da Aluna.
+              </p>
+            </fieldset>
             {moduleData ? (
               <Field>
                 <FieldLabel>Status</FieldLabel>

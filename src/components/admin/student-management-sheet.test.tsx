@@ -245,6 +245,23 @@ describe("StudentManagementSheetContent", () => {
     expect(markup).toContain("enrollment.expiration_extended");
   });
 
+  it("announces an invalid content schedule without exposing mutation controls", () => {
+    const markup = renderToStaticMarkup(
+      <SupportContextPanel
+        context={{
+          audit: [],
+          contentReleaseMode: "scheduled",
+          contentReleaseState: "invalid_schedule",
+          orders: [],
+          progress: { completedRequiredLessons: 0, requiredLessons: 0 },
+        }}
+      />
+    );
+
+    expect(markup).toContain("Cronograma inválido. Encaminhe para Engenharia.");
+    expect(markup).not.toContain("override");
+  });
+
   it("lets support reissue but never issue or revoke certificates", () => {
     const markup = renderToStaticMarkup(
       <StudentCertificateOperations

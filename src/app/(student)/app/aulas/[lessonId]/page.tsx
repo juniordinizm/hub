@@ -54,7 +54,10 @@ import {
   getResourceTypeLabel,
   getResourceExtension as getSharedResourceExtension,
 } from "@/features/courses/resource-presentation";
-import { getStudentLessonWorkspace } from "@/features/courses/server";
+import {
+  getStudentLessonWorkspace,
+  type StudentLessonData,
+} from "@/features/courses/server";
 import {
   formatLessonDuration,
   resolveLessonVideoEmbedUrl,
@@ -66,9 +69,7 @@ import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-type LessonPageData = NonNullable<
-  Awaited<ReturnType<typeof getStudentLessonWorkspace>>
->;
+type LessonPageData = StudentLessonData;
 type LessonCommentsData = Awaited<ReturnType<typeof getLessonComments>>;
 interface LessonSearchParams {
   busca?: string;
@@ -114,7 +115,7 @@ export default async function LessonPage({
     redirect(route("/admin"));
   }
 
-  const data = await getStudentLessonWorkspace({
+  const workspace = await getStudentLessonWorkspace({
     lessonId,
     viewer: {
       role: session.role,
@@ -122,9 +123,13 @@ export default async function LessonPage({
     },
   });
 
-  if (!data) {
+  if (workspace.kind === "time_locked") {
+    redirect(route(`/app/cursos/${workspace.courseId}?module=scheduled`));
+  }
+  if (workspace.kind === "unavailable") {
     notFound();
   }
+  const data = workspace.data;
 
   const commentsData = await getLessonComments({
     lessonId: data.lesson.id,

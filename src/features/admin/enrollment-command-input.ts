@@ -150,6 +150,19 @@ export const parseEnrollmentAccessInput = (formData: FormData) =>
     userId: readString(formData, "userId"),
   });
 
+export const parseGrantEnrollmentFullContentAccessInput = (
+  formData: FormData
+) =>
+  z
+    .object({
+      enrollmentId: requiredEnrollmentId,
+      reason: z.string().trim().min(1, "Informe o motivo da liberação."),
+    })
+    .parse({
+      enrollmentId: readString(formData, "enrollmentId"),
+      reason: readString(formData, "reason"),
+    });
+
 export const parseStudentPlatformAccessInput = (
   formData: FormData,
   reasonErrorMessage: string

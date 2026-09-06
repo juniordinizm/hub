@@ -23,6 +23,7 @@ import {
   parseEnrollmentAccessInput,
   parseExpirationDateSelection,
   parseExtendEnrollmentExpirationInput,
+  parseGrantEnrollmentFullContentAccessInput,
   parseSetEnrollmentExpirationInput,
   parseStudentPlatformAccessInput,
 } from "@/features/admin/enrollment-command-input";
@@ -42,6 +43,7 @@ import {
   uploadCertificateBackground,
   uploadCertificateSignature,
 } from "@/features/certificates/templates";
+import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
 import type { ExpirationChangeResult } from "@/features/enrollments/server";
 import {
   completeJmvstreamUpload,
@@ -534,6 +536,21 @@ export const blockEnrollmentAccessAction = async (
   revalidateEnrollmentAdminPaths();
 };
 
+export const grantEnrollmentFullContentAccessAction = async (
+  formData: FormData
+): Promise<void> => {
+  const session = await requirePermission("manageEnrollmentAccess");
+  const input = parseGrantEnrollmentFullContentAccessInput(formData);
+  const { grantEnrollmentFullContentAccess } = await import(
+    "@/features/enrollments/server"
+  );
+  await grantEnrollmentFullContentAccess({
+    actorUserId: session.user.id,
+    ...input,
+  });
+  revalidateEnrollmentAdminPaths();
+};
+
 export const restoreEnrollmentAccessAction = async (
   formData: FormData
 ): Promise<void> => {
@@ -956,6 +973,7 @@ export const reorderModulesAction = async (
         const client = await getPool().connect();
         try {
           await client.query("BEGIN");
+          await lockCourseContentRelease(client, courseId);
           const expectedModules = await client.query<{ id: string }>(
             `
               select m.id
@@ -1031,6 +1049,7 @@ export const reorderLessonsAction = async (
         const client = await getPool().connect();
         try {
           await client.query("BEGIN");
+          await lockCourseContentRelease(client, courseId);
           const moduleIds = reorderGroups.map((group) => group.moduleId);
           const orderedLessonIds = reorderGroups.flatMap(
             (group) => group.lessonIds

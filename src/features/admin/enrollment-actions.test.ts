@@ -13,11 +13,14 @@ describe("admin enrollment actions", () => {
     expect(source).toContain("adjustEnrollmentExpirationAction");
     expect(source).toContain("blockEnrollmentAccessAction");
     expect(source).toContain("restoreEnrollmentAccessAction");
+    expect(source).toContain("grantEnrollmentFullContentAccessAction");
     expect(source).toContain("blockStudentPlatformAccessAction");
     expect(source).toContain("restoreStudentPlatformAccessAction");
     expect(source).toContain("extendEnrollmentExpiration");
     expect(source).toContain('requirePermission("manageEnrollmentSupport")');
     expect(source).toContain('requirePermission("manageEnrollmentAccess")');
+    expect(source).toContain("parseGrantEnrollmentFullContentAccessInput");
+    expect(source).toContain("grantEnrollmentFullContentAccess");
     expect(source).not.toContain(
       'rolesForPermission("manageEnrollmentAccess")'
     );

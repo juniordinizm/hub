@@ -1,11 +1,18 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import { safelyReportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
+import type {
+  EnrollmentContentReleaseState,
+  EnrollmentStatus,
+} from "@/features/enrollments/rules";
 import {
+  getEnrollmentContentReleaseTransition,
   getExtendedEnrollmentExpiration,
   getRenewedAccessWindow,
   validateEnrollmentAdjustmentReason,
 } from "@/features/enrollments/rules";
+import { lockEnrollmentAggregate } from "./enrollment-aggregate-lock";
 
 type EnrollmentGrantStatus =
   | "active"
@@ -23,6 +30,8 @@ interface EnrollmentEventInput {
   eventType:
     | "access_manual_block_removed"
     | "access_manually_blocked"
+    | "content_release_scheduled"
+    | "content_full_access_granted"
     | "manual_access_granted"
     | "expiration_extended"
     | "expiration_set"
@@ -52,7 +61,18 @@ interface EnrollmentProjectionRow {
 }
 
 interface PublishedCoursePublicationRow {
+  has_delayed_modules: boolean;
   id: string;
+}
+
+interface ExistingEnrollmentProjectionRow {
+  content_release_mode: EnrollmentContentReleaseState["mode"];
+  content_release_started_at: Date | null;
+  expires_at: Date;
+  id: string;
+  revoked_reason: string | null;
+  starts_at: Date;
+  status: EnrollmentStatus;
 }
 
 interface EnrollmentGrantRow {
@@ -142,6 +162,23 @@ const insertEnrollmentEvent = async (
   );
 };
 
+const hasEnrollmentGrantForOrder = async (
+  client: PoolClient,
+  orderId: string
+): Promise<boolean> => {
+  const { rows } = await client.query<{ id: string }>(
+    `
+      select id
+      from enrollment_grants
+      where order_id = $1
+      limit 1
+      for update
+    `,
+    [orderId]
+  );
+  return Boolean(rows[0]);
+};
+
 const getCurrentRenewalBase = async ({
   client,
   courseId,
@@ -173,26 +210,56 @@ export const rebuildEnrollmentProjection = async ({
   client,
   courseId,
   now = new Date(),
+  preserveContentRelease = false,
   userId,
 }: {
   client: PoolClient;
   courseId: string;
   now?: Date;
+  preserveContentRelease?: boolean;
   userId: string;
 }): Promise<void> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
+
+  const existingEnrollment =
+    await client.query<ExistingEnrollmentProjectionRow>(
+      `
+      select
+        id,
+        status,
+        starts_at,
+        expires_at,
+        content_release_mode,
+        content_release_started_at,
+        revoked_reason
+      from enrollments
+      where user_id = $1 and course_id = $2
+      for update
+    `,
+      [userId, courseId]
+    );
+  const previousEnrollment = existingEnrollment.rows[0];
   const publishedPublication =
     await client.query<PublishedCoursePublicationRow>(
       `
-      select id
-      from course_publications
-      where course_id = $1 and status = 'published'
+      select
+        cp.id,
+        exists (
+          select 1
+          from modules m
+          where m.course_publication_id = cp.id
+            and m.status = 'active'
+            and m.release_delay_days > 0
+        ) as has_delayed_modules
+      from course_publications cp
+      where cp.course_id = $1 and cp.status = 'published'
       limit 1
     `,
       [courseId]
     );
-  const coursePublicationId = publishedPublication.rows[0]?.id;
+  const publication = publishedPublication.rows[0];
 
-  if (!coursePublicationId) {
+  if (!publication) {
     throw new Error("Curso sem publicacao vigente nao pode conceder acesso.");
   }
 
@@ -226,12 +293,31 @@ export const rebuildEnrollmentProjection = async ({
   const activeProjection = activeGrant.rows[0];
 
   if (activeProjection?.starts_at && activeProjection.expires_at) {
+    const wasContinuouslyActive = Boolean(
+      previousEnrollment?.status === "active" &&
+        previousEnrollment.starts_at <= now &&
+        previousEnrollment.expires_at >= now
+    );
+    const contentReleaseTransition = getEnrollmentContentReleaseTransition({
+      hasDelayedModules: publication.has_delayed_modules,
+      now,
+      preserveExisting: preserveContentRelease,
+      previous: previousEnrollment
+        ? {
+            mode: previousEnrollment.content_release_mode,
+            startedAt: previousEnrollment.content_release_started_at,
+          }
+        : null,
+      wasContinuouslyActive,
+    });
     const { rows } = await client.query<EnrollmentProjectionRow>(
       `
         insert into enrollments (
           user_id,
           course_id,
           status,
+          content_release_mode,
+          content_release_started_at,
           starts_at,
           expires_at,
           revoked_at,
@@ -239,9 +325,11 @@ export const rebuildEnrollmentProjection = async ({
           expiry_warning_7d_sent_at,
           expiry_warning_1d_sent_at
         )
-        values ($1, $2, 'active', $3, $4, null, null, null, null)
+        values ($1, $2, 'active', $5, $6, $3, $4, null, null, null, null)
         on conflict (user_id, course_id) do update set
           status = 'active',
+          content_release_mode = excluded.content_release_mode,
+          content_release_started_at = excluded.content_release_started_at,
           starts_at = excluded.starts_at,
           expires_at = excluded.expires_at,
           revoked_at = null,
@@ -264,8 +352,25 @@ export const rebuildEnrollmentProjection = async ({
         courseId,
         activeProjection.starts_at,
         activeProjection.expires_at,
+        contentReleaseTransition.mode,
+        contentReleaseTransition.startedAt,
       ]
     );
+
+    if (contentReleaseTransition.event === "content_release_scheduled") {
+      if (!contentReleaseTransition.startedAt) {
+        throw new Error("Matricula agendada sem inicio da entrega.");
+      }
+      await insertEnrollmentEvent(client, {
+        courseId,
+        enrollmentId: rows[0]?.id ?? null,
+        eventType: contentReleaseTransition.event,
+        metadata: {
+          startedAt: contentReleaseTransition.startedAt.toISOString(),
+        },
+        userId,
+      });
+    }
 
     await insertEnrollmentEvent(client, {
       courseId,
@@ -356,6 +461,10 @@ export const applyPaidWebhookAccess = async ({
   orderId: string;
   userId: string;
 }): Promise<void> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
+  if (await hasEnrollmentGrantForOrder(client, orderId)) {
+    return;
+  }
   const currentExpiresAt = await getCurrentRenewalBase({
     client,
     courseId,
@@ -441,6 +550,7 @@ export const createManualAccessGrant = async ({
   reason: string;
   userId: string;
 }): Promise<void> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
   const { rows } = await client.query<{ id: string }>(
     `
       insert into enrollment_grants (
@@ -496,6 +606,7 @@ export const applyPaymentRevocation = async ({
   reason: PaymentRevocationReason;
   userId: string;
 }): Promise<boolean> => {
+  await lockEnrollmentAggregate(client, userId, courseId);
   const status = reason === "payment_dispute" ? "disputed" : "refunded";
   const { rows } = await client.query<{ id: string }>(
     `
@@ -569,16 +680,20 @@ const getActivePaidGrantForEnrollment = async ({
 const getEnrollmentCourseAccess = async ({
   client,
   enrollmentId,
+  forUpdate = false,
 }: {
   client: PoolClient;
   enrollmentId: string;
+  forUpdate?: boolean;
 }): Promise<EnrollmentCourseAccessRow> => {
+  const rowLock = forUpdate ? "for update" : "";
   const { rows } = await client.query<EnrollmentCourseAccessRow>(
     `
       select user_id, course_id
       from enrollments
       where id = $1
       limit 1
+      ${rowLock}
     `,
     [enrollmentId]
   );
@@ -589,6 +704,27 @@ const getEnrollmentCourseAccess = async ({
   }
 
   return enrollment;
+};
+
+const lockEnrollmentForGrantMutation = async ({
+  client,
+  enrollmentId,
+}: {
+  client: PoolClient;
+  enrollmentId: string;
+}): Promise<EnrollmentCourseAccessRow> => {
+  const enrollment = await getEnrollmentCourseAccess({ client, enrollmentId });
+  await lockEnrollmentAggregate(
+    client,
+    enrollment.user_id,
+    enrollment.course_id
+  );
+
+  return getEnrollmentCourseAccess({
+    client,
+    enrollmentId,
+    forUpdate: true,
+  });
 };
 
 const getPaidAccessGrantsForEnrollment = async ({
@@ -650,6 +786,7 @@ export const extendEnrollmentExpiration = async ({
   try {
     await client.query("begin");
 
+    await lockEnrollmentForGrantMutation({ client, enrollmentId });
     const grant = await getActivePaidGrantForEnrollment({
       client,
       enrollmentId,
@@ -711,6 +848,7 @@ export const extendEnrollmentExpiration = async ({
       client,
       courseId: grant.course_id,
       now,
+      preserveContentRelease: true,
       userId: grant.user_id,
     });
 
@@ -743,6 +881,7 @@ export const setEnrollmentExpiration = async ({
   try {
     await client.query("begin");
 
+    await lockEnrollmentForGrantMutation({ client, enrollmentId });
     const grant = await getActivePaidGrantForEnrollment({
       client,
       enrollmentId,
@@ -808,6 +947,7 @@ export const setEnrollmentExpiration = async ({
       client,
       courseId: grant.course_id,
       now,
+      preserveContentRelease: true,
       userId: grant.user_id,
     });
 
@@ -843,7 +983,7 @@ export const blockEnrollmentAccess = async ({
   try {
     await client.query("begin");
 
-    const enrollment = await getEnrollmentCourseAccess({
+    const enrollment = await lockEnrollmentForGrantMutation({
       client,
       enrollmentId,
     });
@@ -914,7 +1054,7 @@ export const restoreEnrollmentAccess = async ({
   try {
     await client.query("begin");
 
-    const enrollment = await getEnrollmentCourseAccess({
+    const enrollment = await lockEnrollmentForGrantMutation({
       client,
       enrollmentId,
     });
@@ -961,10 +1101,148 @@ export const restoreEnrollmentAccess = async ({
       client,
       courseId: enrollment.course_id,
       now,
+      preserveContentRelease: true,
       userId: enrollment.user_id,
     });
 
     await client.query("commit");
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+export const grantEnrollmentFullContentAccess = async ({
+  actorUserId,
+  enrollmentId,
+  reason,
+}: {
+  actorUserId: string;
+  enrollmentId: string;
+  reason: string;
+}): Promise<{ changed: boolean }> => {
+  const normalizedReason = reason.trim();
+  if (!normalizedReason) {
+    throw new Error("Informe o motivo da liberação.");
+  }
+
+  const client = await getPool().connect();
+  try {
+    await client.query("begin");
+    const current = await client.query<{
+      content_release_mode: "full_access" | "scheduled";
+      content_release_started_at: Date | null;
+      course_id: string;
+      id: string;
+      user_id: string;
+    }>(
+      `
+        select id, user_id, course_id, content_release_mode,
+               content_release_started_at
+        from enrollments
+        where id = $1
+      `,
+      [enrollmentId]
+    );
+    const enrollment = current.rows[0];
+    if (!enrollment) {
+      throw new Error("Matricula nao encontrada.");
+    }
+
+    await lockEnrollmentAggregate(
+      client,
+      enrollment.user_id,
+      enrollment.course_id
+    );
+    const locked = await client.query<{
+      content_release_mode: "full_access" | "scheduled";
+      content_release_started_at: Date | null;
+      course_id: string;
+      expires_at: Date;
+      starts_at: Date;
+      status: "active" | "expired" | "revoked";
+      user_id: string;
+    }>(
+      `
+        select user_id, course_id, status, starts_at, expires_at,
+               content_release_mode, content_release_started_at
+        from enrollments
+        where id = $1
+        for update
+      `,
+      [enrollmentId]
+    );
+    const currentEnrollment = locked.rows[0];
+    const now = Date.now();
+    if (currentEnrollment?.status !== "active") {
+      if (currentEnrollment) {
+        safelyReportContentReleaseOperationalEvent({
+          code: "content_release_override_rejected",
+          courseId: currentEnrollment.course_id,
+        });
+      }
+      throw new Error("Somente matriculas ativas podem liberar o conteúdo.");
+    }
+    if (
+      currentEnrollment.starts_at.getTime() > now ||
+      currentEnrollment.expires_at.getTime() < now
+    ) {
+      safelyReportContentReleaseOperationalEvent({
+        code: "content_release_override_rejected",
+        courseId: currentEnrollment.course_id,
+      });
+      throw new Error("Somente matriculas ativas podem liberar o conteúdo.");
+    }
+    if (currentEnrollment.content_release_mode === "full_access") {
+      await client.query("commit");
+      return { changed: false };
+    }
+
+    await client.query(
+      `
+        update enrollments
+        set content_release_mode = 'full_access',
+            content_release_started_at = null,
+            updated_at = now()
+        where id = $1
+      `,
+      [enrollmentId]
+    );
+    await insertEnrollmentEvent(client, {
+      actorUserId,
+      courseId: currentEnrollment.course_id,
+      enrollmentId,
+      eventType: "content_full_access_granted",
+      metadata: {
+        previousStartedAt:
+          currentEnrollment.content_release_started_at?.toISOString() ?? null,
+        reason: normalizedReason,
+      },
+      userId: currentEnrollment.user_id,
+    });
+    await client.query(
+      `
+        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        values ($1, 'enrollment.content_full_access_granted', 'enrollment', $2, $3::jsonb)
+      `,
+      [
+        actorUserId,
+        enrollmentId,
+        JSON.stringify({
+          previousStartedAt:
+            currentEnrollment.content_release_started_at?.toISOString() ?? null,
+          reason: normalizedReason,
+        }),
+      ]
+    );
+    await client.query("commit");
+    safelyReportContentReleaseOperationalEvent({
+      code: "content_release_override_granted",
+      courseId: currentEnrollment.course_id,
+    });
+    return { changed: true };
   } catch (error) {
     await client.query("rollback");
     throw error;

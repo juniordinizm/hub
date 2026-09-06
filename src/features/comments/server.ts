@@ -1,6 +1,12 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
-import { isLessonAvailable } from "@/features/progress/rules";
+import { createContentReleaseDiagnostics } from "@/features/courses/content-release-observability";
+import {
+  resolveLessonAccess,
+  resolveLessonAccessWithClient,
+} from "@/features/enrollments/access";
+import { lockEnrollmentAggregate } from "@/features/enrollments/enrollment-aggregate-lock";
 import type { AppRole } from "@/lib/session";
 import {
   buildLessonCommentTree,
@@ -12,12 +18,6 @@ import {
 
 interface LessonAccessResult {
   courseId: string;
-}
-
-interface LessonSequenceRow {
-  completed_at: Date | null;
-  course_id: string;
-  lesson_id: string;
 }
 
 interface LessonCommentRow {
@@ -40,6 +40,8 @@ interface ParentCommentRow {
   status: "hidden" | "visible";
 }
 
+type CommentDatabase = Pick<PoolClient, "query">;
+
 export interface LessonCommentsData {
   comments: LessonCommentView[];
   courseId: string;
@@ -47,10 +49,12 @@ export interface LessonCommentsData {
 }
 
 export const ensureCanCommentOnLesson = async ({
+  client,
   lessonId,
   role,
   userId,
 }: {
+  client?: PoolClient;
   lessonId: string;
   role: AppRole;
   userId: string;
@@ -60,7 +64,8 @@ export const ensureCanCommentOnLesson = async ({
   }
 
   if (role === "admin") {
-    const { rows } = await getPool().query<{ course_id: string }>(
+    const db = client ?? getPool();
+    const { rows } = await db.query<{ course_id: string }>(
       `
         select m.course_id
         from lessons l
@@ -79,57 +84,35 @@ export const ensureCanCommentOnLesson = async ({
     return { courseId };
   }
 
-  const { rows } = await getPool().query<LessonSequenceRow>(
+  const db = client ?? getPool();
+  const lesson = await db.query<{ course_id: string }>(
     `
-      with target_lesson as (
-        select l.course_publication_id
-        from lessons l
-        where l.id = $2
-        limit 1
-      )
-      select
-        cp.course_id,
-        l.id as lesson_id,
-        lp.completed_at
-      from target_lesson tl
-      join course_publications cp on cp.id = tl.course_publication_id
-        and cp.status = 'published'
-      join modules m on m.course_publication_id = cp.id and m.status = 'active'
-      join lessons l on l.module_id = m.id
-        and l.course_publication_id = cp.id
-        and l.status = 'active'
-      join courses c on c.id = cp.course_id
-      join enrollments e on e.course_id = cp.course_id and e.user_id = $1
-      left join lateral (
-        select min(lp.completed_at) as completed_at
-        from lesson_progress lp
-        join lessons completed_lesson on completed_lesson.id = lp.lesson_id
-        where lp.user_id = e.user_id
-          and completed_lesson.curriculum_key = l.curriculum_key
-      ) lp on true
-      where e.status = 'active'
-        and e.starts_at <= now()
-        and e.expires_at >= now()
-        and c.status = 'active'
-      order by m.sort_order asc, l.sort_order asc
+      select m.course_id
+      from lessons l
+      join modules m on m.id = l.module_id
+      where l.id = $1
+      limit 1
     `,
-    [userId, lessonId]
+    [lessonId]
   );
-
-  if (rows.length === 0) {
-    throw new Error("Aula indisponivel para esta matricula.");
+  const courseId = lesson.rows[0]?.course_id;
+  if (!courseId) {
+    throw new Error("Aula invalida.");
+  }
+  if (client) {
+    await lockEnrollmentAggregate(client, userId, courseId);
   }
 
-  const lessonIds = rows.map((row) => row.lesson_id);
-  const completedLessonIds = rows
-    .filter((row) => row.completed_at)
-    .map((row) => row.lesson_id);
-
-  if (!isLessonAvailable({ lessonIds, completedLessonIds, lessonId })) {
+  const access = await resolveLessonAccess({
+    client,
+    diagnostics: createContentReleaseDiagnostics(),
+    lessonId,
+    userId,
+  });
+  if (access.kind !== "allowed") {
     throw new Error("Aula indisponivel para esta matricula.");
   }
-
-  return { courseId: rows[0]?.course_id ?? "" };
+  return { courseId: access.courseId };
 };
 
 export const getLessonComments = async ({
@@ -141,56 +124,71 @@ export const getLessonComments = async ({
   role: AppRole;
   userId: string;
 }): Promise<LessonCommentsData> => {
-  const { courseId } = await ensureCanCommentOnLesson({
-    lessonId,
-    role,
-    userId,
-  });
-  const canModerateComments = role === "admin";
-  const { rows } = await getPool().query<LessonCommentRow>(
-    `
-      select
-        lc.id,
-        lc.lesson_id,
-        lc.parent_id,
-        lc.body,
-        lc.status,
-        lc.created_at,
-        lc.updated_at,
-        u.id as author_id,
-        u.name as author_name,
-        coalesce(p.role, 'student') as author_role
-      from lesson_comments lc
-      left join users u on u.id = lc.author_user_id
-      left join profiles p on p.user_id = u.id
-      where lc.lesson_id = $1
-        and (
-          $2::boolean
-          or (
-            lc.status = 'visible'
-            and (
-              lc.parent_id is null
-              or exists (
-                select 1
-                from lesson_comments parent
-                where parent.id = lc.parent_id
-                  and parent.status = 'visible'
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    const { courseId } = await ensureCanCommentOnLesson({
+      client,
+      lessonId,
+      role,
+      userId,
+    });
+    const canModerateComments = role === "admin";
+    const { rows } = await client.query<LessonCommentRow>(
+      `
+        select
+          lc.id,
+          lc.lesson_id,
+          lc.parent_id,
+          lc.body,
+          lc.status,
+          lc.created_at,
+          lc.updated_at,
+          u.id as author_id,
+          u.name as author_name,
+          coalesce(p.role, 'student') as author_role
+        from lesson_comments lc
+        left join users u on u.id = lc.author_user_id
+        left join profiles p on p.user_id = u.id
+        where lc.lesson_id = $1
+          and (
+            $2::boolean
+            or (
+              lc.status = 'visible'
+              and (
+                lc.parent_id is null
+                or exists (
+                  select 1
+                  from lesson_comments parent
+                  where parent.id = lc.parent_id
+                    and parent.status = 'visible'
+                )
               )
             )
           )
-        )
-      order by lc.created_at asc, lc.id asc
-    `,
-    [lessonId, canModerateComments]
-  );
+        order by lc.created_at asc, lc.id asc
+      `,
+      [lessonId, canModerateComments]
+    );
 
-  const records = rows.map(toLessonCommentRecord);
+    const records = rows.map(toLessonCommentRecord);
+    await client.query("COMMIT");
 
-  return {
-    comments: buildLessonCommentTree(records),
-    courseId,
-    totalCount: records.length,
-  };
+    return {
+      comments: buildLessonCommentTree(records),
+      courseId,
+      totalCount: records.length,
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Preserve the original authorization or query error.
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const createLessonComment = async ({
@@ -207,49 +205,92 @@ export const createLessonComment = async ({
   userId: string;
 }): Promise<{ commentId: string; courseId: string }> => {
   const normalizedBody = normalizeCommentBody(body);
-  const { courseId } = await ensureCanCommentOnLesson({
-    lessonId,
-    role,
-    userId,
-  });
+  const pool = getPool();
+  const client = await pool.connect();
 
-  if (parentId) {
-    const parent = await getParentComment(parentId);
+  try {
+    await client.query("BEGIN");
+    const lesson = await client.query<{ course_id: string }>(
+      `
+        select m.course_id
+        from lessons l
+        join modules m on m.id = l.module_id
+        where l.id = $1
+        limit 1
+      `,
+      [lessonId]
+    );
+    const courseId = lesson.rows[0]?.course_id;
 
-    if (!parent || parent.status === "hidden") {
-      throw new Error("Comentario de origem invalido.");
+    if (!courseId) {
+      throw new Error("Aula invalida.");
     }
 
-    validateReplyTarget({
-      lessonId,
-      parent: {
-        id: parent.id,
-        lessonId: parent.lesson_id,
-        parentId: parent.parent_id,
-      },
-    });
+    if (role === "support") {
+      throw new Error("Acesso ao conteúdo não permitido para suporte.");
+    }
+
+    if (role !== "admin") {
+      await lockEnrollmentAggregate(client, userId, courseId);
+      const access = await resolveLessonAccessWithClient({
+        client,
+        diagnostics: createContentReleaseDiagnostics(),
+        lessonId,
+        userId,
+      });
+      if (access.kind !== "allowed") {
+        throw new Error("Aula indisponivel para esta matricula.");
+      }
+    }
+
+    if (parentId) {
+      const parent = await getParentComment(client, parentId);
+
+      if (!parent || parent.status === "hidden") {
+        throw new Error("Comentario de origem invalido.");
+      }
+
+      validateReplyTarget({
+        lessonId,
+        parent: {
+          id: parent.id,
+          lessonId: parent.lesson_id,
+          parentId: parent.parent_id,
+        },
+      });
+    }
+
+    const { rows } = await client.query<{ id: string }>(
+      `
+        insert into lesson_comments (
+          lesson_id,
+          author_user_id,
+          parent_id,
+          body
+        )
+        values ($1, $2, $3, $4)
+        returning id
+      `,
+      [lessonId, userId, parentId ?? null, normalizedBody]
+    );
+    const commentId = rows[0]?.id;
+
+    if (!commentId) {
+      throw new Error("Nao foi possivel salvar o comentario.");
+    }
+
+    await client.query("COMMIT");
+    return { commentId, courseId };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Preserve the original authorization or query error.
+    }
+    throw error;
+  } finally {
+    client.release();
   }
-
-  const { rows } = await getPool().query<{ id: string }>(
-    `
-      insert into lesson_comments (
-        lesson_id,
-        author_user_id,
-        parent_id,
-        body
-      )
-      values ($1, $2, $3, $4)
-      returning id
-    `,
-    [lessonId, userId, parentId ?? null, normalizedBody]
-  );
-  const commentId = rows[0]?.id;
-
-  if (!commentId) {
-    throw new Error("Nao foi possivel salvar o comentario.");
-  }
-
-  return { commentId, courseId };
 };
 
 export const hideLessonComment = async ({
@@ -325,9 +366,10 @@ export const restoreLessonComment = async ({
 };
 
 const getParentComment = async (
+  db: CommentDatabase,
   commentId: string
 ): Promise<ParentCommentRow | null> => {
-  const { rows } = await getPool().query<ParentCommentRow>(
+  const { rows } = await db.query<ParentCommentRow>(
     `
       select id, lesson_id, parent_id, status
       from lesson_comments

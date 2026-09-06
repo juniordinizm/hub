@@ -34,6 +34,7 @@ const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
 const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 const CERTIFICATE_STATUS_PATTERN = /Status: (Preparando|Disponível)/;
+const SCHEDULED_RELEASE_PATTERN = /Disponível em/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -296,7 +297,12 @@ test("anonymous paid collisions open identity review without access", async ({
   ]) {
     const attemptId = crypto.randomUUID();
     const checkout = await request.post("/api/checkouts/course", {
-      data: { checkoutAttemptId: attemptId, courseSlug: fixture.course.slug },
+      data: {
+        checkoutAttemptId: attemptId,
+        courseSlug: fixture.course.slug,
+        expectedContentReleaseScheduleDigest:
+          fixture.course.releaseScheduleDigest,
+      },
     });
     expect(checkout.ok()).toBe(true);
 
@@ -314,6 +320,23 @@ test("anonymous paid collisions open identity review without access", async ({
         status: "paid",
       });
   }
+});
+
+test("stale checkout schedule requires a fresh review", async ({ request }) => {
+  const fixture = await readFixture();
+  const response = await request.post("/api/checkouts/course", {
+    data: {
+      checkoutAttemptId: crypto.randomUUID(),
+      courseSlug: fixture.course.slug,
+      expectedContentReleaseScheduleDigest: "0".repeat(64),
+    },
+  });
+
+  expect(response.status()).toBe(409);
+  await expect(response.json()).resolves.toEqual({
+    retryAllowed: false,
+    status: "schedule_changed",
+  });
 });
 
 test("login and password recovery do not enumerate accounts @mobile", async ({
@@ -363,7 +386,7 @@ test("public signup creates a student account without granting a course", async 
     0
   );
   await expect(
-    page.getByRole("button", { name: "Adquirir acesso" }).first()
+    page.getByRole("link", { name: "Adquirir acesso" }).first()
   ).toBeVisible();
 
   await page.context().clearCookies();
@@ -387,6 +410,50 @@ test("student with a grant opens the first lesson @mobile", async ({
   await expect(
     page.getByRole("heading", { name: "Primeira aula" })
   ).toBeVisible();
+});
+
+test("scheduled modules hide future lessons and redirect direct access", async ({
+  page,
+}) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+
+  await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
+  const futureModule = page.getByRole("region", {
+    name: "Módulo futuro E2E",
+  });
+  await expect(futureModule).toBeVisible();
+  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
+    0
+  );
+  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+  await expect(futureModule).toContainText("1 aula");
+
+  await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/app/cursos/${fixture.scheduledCourse.id}\\?module=scheduled$`)
+  );
+
+  await page.goto(`/app/aulas/${fixture.scheduledCourse.immediateLessonId}`);
+  await expect(
+    page.getByRole("heading", { name: "Aula imediata E2E" })
+  ).toBeVisible();
+});
+
+test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
+  const fixture = await readFixture();
+  await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
+  await page.goto(`/app/cursos/${fixture.scheduledCourse.id}`);
+
+  const futureModule = page.getByRole("region", {
+    name: "Módulo futuro E2E",
+  });
+  await expect(futureModule).toBeVisible();
+  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
+    0
+  );
+  await expect(futureModule).toContainText("1 aula");
+  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
 });
 
 test("student dashboard has no moderate or higher accessibility violations", async ({
@@ -447,7 +514,7 @@ test("expired and revoked access explain the next action", async ({ page }) => {
     page.getByText("Acesso expirado", { exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Renovar acesso" })
+    page.getByRole("link", { name: "Renovar acesso" })
   ).toBeVisible();
 
   await page.context().clearCookies();

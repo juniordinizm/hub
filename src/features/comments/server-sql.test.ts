@@ -36,22 +36,46 @@ describe("lesson comments SQL contracts", () => {
     );
 
     expect(source).toContain("ensureCanCommentOnLesson");
-    expect(source).toContain(
-      "join course_publications cp on cp.id = tl.course_publication_id"
-    );
-    expect(source).toContain(
-      "join modules m on m.course_publication_id = cp.id"
-    );
-    expect(source).toContain("and l.course_publication_id = cp.id");
-    expect(source).toContain(
-      "completed_lesson.curriculum_key = l.curriculum_key"
-    );
-    expect(source).not.toContain(
-      "join modules m on m.course_id = tl.course_id"
-    );
-    expect(source).toContain("e.status = 'active'");
+    expect(source).toContain("resolveLessonAccess");
+    expect(source).toContain('access.kind !== "allowed"');
     expect(source).toContain("validateReplyTarget");
     expect(source).toContain("insert into lesson_comments");
+  });
+
+  it("revalidates student access on the same transaction that inserts", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+
+    const createSection = source.slice(
+      source.indexOf("export const createLessonComment"),
+      source.indexOf("export const hideLessonComment")
+    );
+
+    expect(createSection).toContain('client.query("BEGIN")');
+    expect(createSection).toContain("lockEnrollmentAggregate");
+    expect(createSection).toContain("resolveLessonAccessWithClient");
+    expect(createSection).toContain("client.query<");
+    expect(createSection).toContain('client.query("COMMIT")');
+    expect(createSection).toContain("client.release()");
+  });
+
+  it("reads comments inside the same entitlement transaction", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const readSection = source.slice(
+      source.indexOf("export const getLessonComments"),
+      source.indexOf("export const createLessonComment")
+    );
+
+    expect(readSection).toContain('client.query("BEGIN")');
+    expect(readSection).toContain("ensureCanCommentOnLesson");
+    expect(source).toContain("lockEnrollmentAggregate");
+    expect(readSection).toContain("client.query<LessonCommentRow>");
+    expect(readSection).toContain('client.query("COMMIT")');
   });
 
   it("filters hidden comments from non-moderators while preserving moderator review", async () => {

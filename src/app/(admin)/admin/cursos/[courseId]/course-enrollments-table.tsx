@@ -53,6 +53,7 @@ const columns: ColumnDef<CourseEnrollmentRow>[] = [
       <StudentManagementSheet
         capabilities={{
           canManageCertificates: true,
+          canManageEnrollmentAccess: true,
           canManageEnrollmentSupport: true,
           canManagePlatformAccess: true,
           canReissueCertificates: true,

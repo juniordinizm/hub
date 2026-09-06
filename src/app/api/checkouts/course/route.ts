@@ -52,6 +52,9 @@ const unavailableResponse = (
 };
 
 const statusCodeForCheckout = (checkout: CheckoutApiResponse): number => {
+  if (checkout.status === "schedule_changed") {
+    return 409;
+  }
   if (checkout.status === "processing") {
     return 202;
   }
@@ -255,6 +258,12 @@ export const POST = async (
     }
 
     if (error instanceof CheckoutIntentError) {
+      if (error.reason === "schedule_changed") {
+        return NextResponse.json(
+          { retryAllowed: false, status: "schedule_changed" },
+          { status: 409 }
+        );
+      }
       const statusByKind = {
         conflict: 409,
         unavailable: 422,

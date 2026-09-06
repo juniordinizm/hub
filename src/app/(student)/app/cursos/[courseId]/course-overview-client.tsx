@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { LessonCard, type LessonStatus } from "@/components/ui/lesson-card";
 import { Progress } from "@/components/ui/progress";
+import type { LessonAvailability } from "@/features/courses/module-content-release";
 import type { StudentPreviewMode } from "@/features/courses/preview";
 import { getPreviewAwareHref } from "@/features/courses/preview";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
+import { APP_TIME_ZONE } from "@/lib/timezone";
 
 interface LessonData {
+  availability: LessonAvailability;
   durationSeconds: number;
   hasVideo: boolean;
   id: string;
-  isAvailable: boolean;
   isCompleted: boolean;
   thumbnailUrl?: string | null;
   title: string;
@@ -21,11 +23,15 @@ interface LessonData {
 }
 
 interface ModuleData {
+  availableAt: Date | null;
   description: string | null;
   id: string;
+  lessonCount: number;
   lessons: LessonData[];
+  releaseState: "available" | "invalid" | "time_locked";
   sortOrder: number;
   title: string;
+  totalDurationSeconds: number;
 }
 
 interface CourseOverviewClientProps {
@@ -67,11 +73,21 @@ export function CourseOverviewClient({
     return lessons;
   }, [flatLessons, nextLessonId]);
 
+  const totalLessonCount = modules.reduce(
+    (total, moduleData) => total + moduleData.lessonCount,
+    0
+  );
+  const visibleLessonCount = flatLessons.length;
+  const lessonSummary =
+    visibleLessonCount === totalLessonCount
+      ? `${totalLessonCount} ${totalLessonCount === 1 ? "aula" : "aulas"}`
+      : `${visibleLessonCount} ${visibleLessonCount === 1 ? "disponível" : "disponíveis"} de ${totalLessonCount} ${totalLessonCount === 1 ? "aula" : "aulas"}`;
+
   function getLessonStatus(lesson: LessonData): LessonStatus {
     if (lesson.isCompleted) {
       return "completed";
     }
-    if (!lesson.isAvailable) {
+    if (lesson.availability.kind !== "available") {
       return "locked";
     }
     if (lesson.id === nextLessonId) {
@@ -79,6 +95,15 @@ export function CourseOverviewClient({
     }
     return "available";
   }
+
+  const formatReleaseDate = (value: Date | null): string =>
+    value
+      ? new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: APP_TIME_ZONE,
+        }).format(new Date(value))
+      : "após a confirmação do acesso";
 
   function renderLessonCard(lesson: LessonData) {
     const status = getLessonStatus(lesson);
@@ -137,24 +162,61 @@ export function CourseOverviewClient({
           <h2 className="font-bold text-2xl tracking-tight">Trilha do curso</h2>
           <p className="mt-1 text-muted-foreground text-sm">
             {modules.length} {modules.length === 1 ? "módulo" : "módulos"} ·{" "}
-            {flatLessons.length} {flatLessons.length === 1 ? "aula" : "aulas"}
+            {lessonSummary}
           </p>
         </div>
 
         <div className="flex flex-col">
           {modules.map((moduleData, index) => {
+            if (moduleData.releaseState !== "available") {
+              const moduleDuration = formatLessonDuration(
+                moduleData.totalDurationSeconds
+              );
+              return (
+                <section
+                  aria-describedby={`module-${moduleData.id}-release`}
+                  aria-labelledby={`module-${moduleData.id}`}
+                  className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-5"
+                  key={moduleData.id}
+                >
+                  <h3
+                    className="font-bold text-xl"
+                    id={`module-${moduleData.id}`}
+                  >
+                    {moduleData.title}
+                  </h3>
+                  <p
+                    className="text-muted-foreground text-sm"
+                    id={`module-${moduleData.id}-release`}
+                  >
+                    {moduleData.releaseState === "invalid"
+                      ? "Disponibilidade temporariamente indisponível."
+                      : `Disponível em ${formatReleaseDate(moduleData.availableAt)}`}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    {moduleData.lessonCount}{" "}
+                    {moduleData.lessonCount === 1 ? "aula" : "aulas"} ·{" "}
+                    {moduleDuration}
+                  </p>
+                  {moduleData.lessons.length > 0 && (
+                    <div className="custom-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pt-2 pb-1">
+                      {moduleData.lessons.map((lesson) =>
+                        renderLessonCard(lesson)
+                      )}
+                    </div>
+                  )}
+                </section>
+              );
+            }
             const completedCount = moduleData.lessons.filter(
               (l) => l.isCompleted
             ).length;
-            const totalCount = moduleData.lessons.length;
+            const totalCount = moduleData.lessonCount;
             const progressPercent =
               totalCount > 0
                 ? Math.round((completedCount / totalCount) * 100)
                 : 0;
-            const totalSeconds = moduleData.lessons.reduce(
-              (acc, l) => acc + l.durationSeconds,
-              0
-            );
+            const totalSeconds = moduleData.totalDurationSeconds;
 
             return (
               <div className="flex flex-col" key={moduleData.id}>

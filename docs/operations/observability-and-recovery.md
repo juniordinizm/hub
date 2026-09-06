@@ -29,6 +29,7 @@ Production e rotação de secrets Resend; DMARC permanece em observação.
 | Checkout | `checkout.create`, duração e falha | Engenharia | alta se sustentada | conferir configuração Asaas e Pedido sem PII |
 | Webhook e concessão | `webhook.asaas`, falhas e idade | Operações financeiras | alta se acesso pago não projeta | seguir [Pagamento/webhook](deploy-and-incidents.md#pagamentowebhook) |
 | Player e upload | `cron.jmvstream`, eventos `lesson-resource-upload.*`, vídeos pendentes e idade | Operações de conteúdo | média | seguir [JMVStream](deploy-and-incidents.md#jmvstream) e preservar o `correlationId` |
+| Liberação temporal | `content_release_invalid_state`, `content_release_digest_conflict` e `content_release_override_rejected` | Engenharia/Operações de conteúdo | alta se sustentada | filtrar por `correlationId`/Curso, confirmar estado no banco e manter fail-closed; não conceder acesso manualmente sem auditoria |
 | Certificado e e-mail | outbox, dead letter, rota pública, verificação de hash e exceção | Operações | alta se emissão não notifica ou PDF válido/pronto fica indisponível | conferir agregado, outbox, R2 e Resend; não editar snapshot nem divulgar URL assinada |
 | Crons | eventos `cron.*` e backlog | Operações | alta se backlog cresce | conferir agenda, Bearer e idempotência |
 | Banco | readiness e `health.readiness` | Engenharia | alta | seguir [Banco e recuperação](deploy-and-incidents.md#banco-e-recuperação) |
@@ -168,6 +169,13 @@ As Server Actions de reordenação do conteúdo usam o mesmo cabeçalho e emitem
 - A readiness usa conexão com timeout de um segundo, transação somente leitura e exige no journal `drizzle.__drizzle_migrations` a migration mínima declarada em `src/db/migration-state.ts`. Providers externos não bloqueiam cada request.
 
 RED é calculado por `operation`: taxa de eventos, `outcome=failure` e `durationMs`. Saturação vem do snapshot administrativo: outbox pendente/dead letter, webhooks Asaas prontos, em retry ou falhos, checkouts e reembolsos incertos e vídeo pendente, com a idade do item mais antigo.
+
+Os eventos de liberação temporal são sinais de log estruturado, não uma fila
+persistida. O painel de logs/Sentry deve alertar por aumento sustentado de
+`content_release_invalid_state`, `content_release_digest_conflict` e
+`content_release_override_rejected`. A ausência de contagem no snapshot
+administrativo não deve ser interpretada como ausência de eventos; a correlação
+é obrigatória para investigar o Curso sem registrar PII.
 
 O snapshot emite códigos operacionais sem PII, com limiares internos nomeados:
 

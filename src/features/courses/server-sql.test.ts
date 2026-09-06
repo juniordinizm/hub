@@ -1,21 +1,26 @@
+import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  assertProtectedLessonAccess,
   clientQuery,
   connect,
   query,
   release,
   resolveCourseAccess,
   resolveLessonAccess,
+  resolveLessonAccessWithClient,
   syncJmvstreamLessonPlayer,
   getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
+  assertProtectedLessonAccess: vi.fn(),
   clientQuery: vi.fn(),
   connect: vi.fn(),
   query: vi.fn(),
   release: vi.fn(),
   resolveCourseAccess: vi.fn(),
   resolveLessonAccess: vi.fn(),
+  resolveLessonAccessWithClient: vi.fn(),
   syncJmvstreamLessonPlayer: vi.fn(),
   getJmvstreamAssetsForLesson: vi.fn(),
 }));
@@ -25,12 +30,17 @@ vi.mock("@/db", () => ({ getPool: () => ({ connect, query }) }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveCourseAccess,
   resolveLessonAccess,
+  resolveLessonAccessWithClient,
 }));
 vi.mock("@/features/jmvstream/server", () => ({
   syncJmvstreamLessonPlayer,
 }));
 vi.mock("@/features/jmvstream/asset-persistence", () => ({
   getJmvstreamAssetsForLesson,
+}));
+vi.mock("@/features/courses/protected-lesson-access", () => ({
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError: class LessonAccessDeniedError extends Error {},
 }));
 
 import {
@@ -57,6 +67,8 @@ const createCourseOverviewRow = ({
   certificate_render_status: "ready",
   certificate_status: "valid",
   completed_at: completedAt,
+  content_release_mode: "full_access",
+  content_release_started_at: null,
   course_description: "Description",
   course_id: "course-1",
   course_slug: "course-one",
@@ -72,6 +84,7 @@ const createCourseOverviewRow = ({
   module_id: "module-1",
   module_sort_order: 1,
   module_title: "Module one",
+  release_delay_days: 0,
   student_name: "Aluna Teste",
   thumbnail_url: null,
   video_embed_url: null,
@@ -115,7 +128,14 @@ beforeEach(() => {
   vi.resetAllMocks();
   connect.mockResolvedValue({ query: clientQuery, release });
   resolveCourseAccess.mockResolvedValue(true);
-  resolveLessonAccess.mockResolvedValue(true);
+  resolveLessonAccess.mockResolvedValue({
+    courseId: "course-1",
+    kind: "allowed",
+  });
+  resolveLessonAccessWithClient.mockResolvedValue({
+    courseId: "course-1",
+    kind: "allowed",
+  });
   syncJmvstreamLessonPlayer.mockResolvedValue({ playerUrl: null });
   getJmvstreamAssetsForLesson.mockResolvedValue([]);
 });
@@ -164,6 +184,52 @@ describe("student experience reads", () => {
     expect(query.mock.calls[0]?.[0]).toContain("or (");
     expect(query.mock.calls[0]?.[0]).toContain("e.status = 'active'");
     expect(query.mock.calls[0]?.[0]).not.toContain("where c.status = 'active'");
+  });
+
+  it("does not point the dashboard at a future scheduled lesson", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          access_status: "active",
+          catalog_visibility: "listed",
+          completed_at: null,
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date(
+            Date.now() - 24 * 60 * 60 * 1000
+          ),
+          cover_image_json: null,
+          course_description: "Description",
+          course_id: "course-1",
+          course_status: "active",
+          duration_seconds: 120,
+          expires_at: expiresAt,
+          is_enrolled: true,
+          is_interested: false,
+          launch_date: null,
+          launch_landing_url: null,
+          lesson_id: "future-lesson",
+          lesson_sort_order: 1,
+          module_id: "module-future",
+          module_release_delay_days: 8,
+          module_sort_order: 1,
+          price_in_cents: 10_000,
+          revoked_reason: null,
+          sales_status: "open",
+          slug: "course-one",
+          subtitle: "Subtitle",
+          thumbnail_url: null,
+          title: "Course one",
+          workload_hours: 1,
+        },
+      ],
+    });
+
+    await expect(getStudentCourseCatalog("student-1")).resolves.toEqual([
+      expect.objectContaining({
+        nextLessonId: null,
+        nextReleaseAt: expect.any(Date),
+      }),
+    ]);
   });
 
   it("stores workload on the editable publication without summing retired content", async () => {
@@ -223,9 +289,21 @@ describe("student experience reads", () => {
       totalCount: 3,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
-      { id: "lesson-1", isAvailable: true, isCompleted: true },
-      { id: "lesson-2", isAvailable: true, isCompleted: false },
-      { id: "lesson-3", isAvailable: false, isCompleted: false },
+      {
+        availability: { kind: "available" },
+        id: "lesson-1",
+        isCompleted: true,
+      },
+      {
+        availability: { kind: "available" },
+        id: "lesson-2",
+        isCompleted: false,
+      },
+      {
+        availability: { kind: "sequence_locked" },
+        id: "lesson-3",
+        isCompleted: false,
+      },
     ]);
     expect(query.mock.calls[0]?.[0]).toContain(
       "completed_lesson.curriculum_key = l.curriculum_key"
@@ -256,6 +334,113 @@ describe("student experience reads", () => {
       certificateCode: "CERT-REVOKED",
       certificateStatus: "revoked",
     });
+  });
+
+  it("hides future module lessons while preserving count, duration, and next release", async () => {
+    const anchor = new Date("2026-09-04T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        createCourseOverviewRow({ lessonId: "lesson-1", lessonSortOrder: 1 }),
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-2",
+            lessonSortOrder: 1,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          lesson_title: "Video secreto",
+          module_description: "Descripción secreta",
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+          video_external_id: "secret-video",
+        },
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-3",
+            lessonSortOrder: 2,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          lesson_title: "Material secreto",
+          module_description: "Descripción secreta",
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+    const futureModule = overview?.modules.find(
+      (moduleData) => moduleData.id === "module-future"
+    );
+    expect(futureModule).toMatchObject({
+      availableAt: new Date("2026-09-12T12:00:00.000Z"),
+      description: null,
+      lessonCount: 2,
+      lessons: [],
+      releaseState: "time_locked",
+      totalDurationSeconds: 240,
+    });
+    expect(JSON.stringify(futureModule)).not.toContain("secret-video");
+    expect(overview?.nextReleaseAt).toEqual(
+      new Date("2026-09-12T12:00:00.000Z")
+    );
+  });
+
+  it("keeps a completed lesson revisable inside a future module", async () => {
+    const anchor = new Date("2026-09-04T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...createCourseOverviewRow({
+            completedAt: new Date("2026-09-01T12:00:00.000Z"),
+            lessonId: "lesson-completed",
+            lessonSortOrder: 1,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+        {
+          ...createCourseOverviewRow({
+            lessonId: "lesson-pending",
+            lessonSortOrder: 2,
+          }),
+          content_release_mode: "scheduled",
+          content_release_started_at: anchor,
+          module_id: "module-future",
+          module_sort_order: 2,
+          module_title: "Aplicação",
+          release_delay_days: 8,
+        },
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+    const futureModule = overview?.modules.find(
+      (moduleData) => moduleData.id === "module-future"
+    );
+
+    expect(futureModule).toMatchObject({
+      lessonCount: 2,
+      lessons: [{ id: "lesson-completed", isCompleted: true }],
+      releaseState: "time_locked",
+      totalDurationSeconds: 240,
+    });
+    expect(JSON.stringify(futureModule)).not.toContain("lesson-pending");
   });
 
   it("selects a valid reissue before revoked certificate history", async () => {
@@ -307,8 +492,16 @@ describe("student experience reads", () => {
       totalCount: 2,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
-      { id: "lesson-1", isAvailable: true, isCompleted: false },
-      { id: "lesson-2", isAvailable: true, isCompleted: false },
+      {
+        availability: { kind: "available" },
+        id: "lesson-1",
+        isCompleted: false,
+      },
+      {
+        availability: { kind: "available" },
+        id: "lesson-2",
+        isCompleted: false,
+      },
     ]);
   });
 
@@ -325,7 +518,7 @@ describe("student experience reads", () => {
         lessonId: "lesson-2",
         viewer: { role: "student", userId: "student-1" },
       })
-    ).resolves.toBeNull();
+    ).resolves.toEqual({ kind: "unavailable" });
 
     expect(syncJmvstreamLessonPlayer).not.toHaveBeenCalled();
   });
@@ -343,8 +536,13 @@ describe("student experience reads", () => {
       viewer: { role: "student", userId: "student-1" },
     });
 
-    expect(workspace).toMatchObject({ nextLessonId: "lesson-2" });
-    expect(workspace?.modules[0]?.lessons).toMatchObject([
+    expect(workspace).toMatchObject({
+      data: { nextLessonId: "lesson-2" },
+      kind: "available",
+    });
+    expect(
+      workspace.kind === "available" ? workspace.data.modules[0]?.lessons : []
+    ).toMatchObject([
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: false },
     ]);
@@ -371,16 +569,51 @@ describe("student experience reads", () => {
     });
 
     expect(syncJmvstreamLessonPlayer).toHaveBeenCalledWith("lesson-2");
-    expect(workspace).toMatchObject({
-      isPreview: false,
-      lesson: {
-        id: "lesson-2",
-        videoEmbedUrl: "https://player.example.test/video-2",
-      },
-      nextLessonId: null,
-      previousLessonId: "lesson-1",
-      progressPercent: 50,
+    expect(assertProtectedLessonAccess).toHaveBeenCalledWith({
+      courseId: "course-1",
+      lessonId: "lesson-2",
+      userId: "student-1",
     });
+    expect(workspace).toMatchObject({
+      kind: "available",
+      data: {
+        isPreview: false,
+        lesson: {
+          id: "lesson-2",
+          videoEmbedUrl: "https://player.example.test/video-2",
+        },
+        nextLessonId: null,
+        previousLessonId: "lesson-1",
+        progressPercent: 50,
+      },
+    });
+  });
+
+  it("revalidates lesson access before requesting JMVStream playback", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const workspaceSection = source.slice(
+      source.indexOf("const getEnrolledLessonWorkspace"),
+      source.indexOf("const getPreviewLessonWorkspace")
+    );
+
+    expect(workspaceSection).toContain("revalidateJmvstreamLessonAccess");
+  });
+
+  it("uses the database decision clock for temporal workspace projection", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const workspaceSection = source.slice(
+      source.indexOf("const getEnrolledLessonWorkspace"),
+      source.indexOf("const getPreviewLessonWorkspace")
+    );
+
+    expect(workspaceSection).toContain("now() as decision_now");
+    expect(workspaceSection).not.toContain("now: new Date()");
   });
 
   it("exposes a safe failed state when JMVStream cannot process a lesson video", async () => {
@@ -401,7 +634,11 @@ describe("student experience reads", () => {
       viewer: { role: "student", userId: "student-1" },
     });
 
-    expect(workspace?.lesson.videoProcessingState).toBe("failed");
+    expect(
+      workspace.kind === "available"
+        ? workspace.data.lesson.videoProcessingState
+        : null
+    ).toBe("failed");
   });
 
   it("keeps every preview lesson available while preserving navigation", async () => {
@@ -419,13 +656,18 @@ describe("student experience reads", () => {
 
     expect(resolveLessonAccess).not.toHaveBeenCalled();
     expect(workspace).toMatchObject({
-      isPreview: true,
-      lesson: { id: "lesson-2", isCompleted: false, watchProgress: null },
-      nextLessonId: null,
-      previousLessonId: "lesson-1",
-      progressPercent: 0,
+      kind: "available",
+      data: {
+        isPreview: true,
+        lesson: { id: "lesson-2", isCompleted: false, watchProgress: null },
+        nextLessonId: null,
+        previousLessonId: "lesson-1",
+        progressPercent: 0,
+      },
     });
-    expect(workspace?.modules[0]?.lessons).toMatchObject([
+    expect(
+      workspace.kind === "available" ? workspace.data.modules[0]?.lessons : []
+    ).toMatchObject([
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: true },
     ]);
@@ -433,11 +675,34 @@ describe("student experience reads", () => {
 });
 
 describe("course completion writes", () => {
+  it("revalidates enrollment inside the completion transaction", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const completionSource = source.slice(
+      source.indexOf("export const completeLesson"),
+      source.indexOf("export const recordLessonWatchProgress")
+    );
+
+    expect(completionSource).toContain('await client.query("begin")');
+    expect(completionSource).toContain("lockEnrollmentAggregate");
+    expect(source).toContain("resolveLessonAccessWithClient");
+    expect(
+      completionSource.indexOf('await client.query("begin")')
+    ).toBeLessThan(completionSource.indexOf("getEnrolledLessonWorkspace"));
+  });
+
   it("locks the certificate lifecycle before progress and completion summary writes", async () => {
     query.mockResolvedValue({
       rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
     });
     clientQuery.mockImplementation((sql: string) => {
+      if (sql.includes("with target_course")) {
+        return {
+          rows: [createLessonRow({ lessonId: "lesson-1", lessonSortOrder: 1 })],
+        };
+      }
       if (sql.includes("count(l.id) filter")) {
         return {
           rows: [

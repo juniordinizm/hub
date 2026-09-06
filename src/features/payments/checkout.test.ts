@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getPool } from "@/db";
+import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import { AsaasGatewayError } from "./asaas-client";
 import {
   CheckoutIntentError,
@@ -26,6 +28,9 @@ const callbacks = {
   expiredUrl: "https://hub.example/checkout/expirado",
   successUrl: "https://hub.example/checkout/sucesso",
 };
+const EMPTY_SCHEDULE_DIGEST = getContentReleaseScheduleDigest(
+  buildContentReleaseScheduleSnapshot([])
+);
 
 const course = {
   access_duration_months: 12,
@@ -65,6 +70,13 @@ const insertedOrder = {
   user_id: "user-1",
 };
 
+const delayedModules = [
+  { releaseDelayDays: 0, sortOrder: 1, title: "Comece aqui" },
+  { releaseDelayDays: 8, sortOrder: 2, title: "Aplicacao" },
+];
+const delayedSnapshot = buildContentReleaseScheduleSnapshot(delayedModules);
+const delayedDigest = getContentReleaseScheduleDigest(delayedSnapshot);
+
 interface QueryResult {
   rows: Record<string, unknown>[];
 }
@@ -74,12 +86,24 @@ const createPool = (
     sql: string,
     values: unknown[] | undefined
   ) => QueryResult | Promise<QueryResult>
-) => ({
-  query: vi.fn(
-    async (sql: string, values?: unknown[]) =>
-      await handler(sql.replace(/\s+/g, " ").trim(), values)
-  ),
-});
+) => {
+  const query = vi.fn(async (sql: string, values?: unknown[]) => {
+    const normalizedSql = sql.replace(/\s+/g, " ").trim();
+    if (
+      normalizedSql === "begin" ||
+      normalizedSql === "commit" ||
+      normalizedSql === "rollback" ||
+      normalizedSql.includes("pg_advisory_xact_lock")
+    ) {
+      return { rows: [] };
+    }
+    return await handler(normalizedSql, values);
+  });
+  return {
+    connect: vi.fn(async () => ({ query, release: vi.fn() })),
+    query,
+  };
+};
 
 const createGateway = (
   outcome:
@@ -108,6 +132,7 @@ const authenticatedInput = (gateway: FakeAsaasGateway) => ({
   },
   callbacks,
   courseId: COURSE_ID,
+  expectedContentReleaseScheduleDigest: EMPTY_SCHEDULE_DIGEST,
   gateway,
   now: () => NOW,
 });
@@ -117,6 +142,7 @@ const providerPendingInput = (gateway: FakeAsaasGateway) => ({
   buyer: { kind: "provider_pending" as const },
   callbacks,
   courseId: COURSE_ID,
+  expectedContentReleaseScheduleDigest: EMPTY_SCHEDULE_DIGEST,
   gateway,
   now: () => NOW,
 });
@@ -210,6 +236,180 @@ describe("createAsaasCheckoutIntent", () => {
 
     expect(authorizeNewIntent).toHaveBeenCalledOnce();
     expect(authorizeNewIntent).toHaveBeenCalledWith({ courseId: COURSE_ID });
+  });
+
+  it("persists the published module release snapshot and requires its digest", async () => {
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const pool = createPool((sql, values) => {
+      if (sql.startsWith("select c.id")) {
+        return { rows: [{ ...course, release_modules: delayedModules }] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        expect(values?.[7]).toBe(JSON.stringify(delayedSnapshot));
+        return {
+          rows: [
+            {
+              ...insertedOrder,
+              content_release_schedule_snapshot: delayedSnapshot,
+            },
+          ],
+        };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      return { rows: [] };
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await createAsaasCheckoutIntent({
+      ...authenticatedInput(createGateway()),
+      authorizeNewIntent,
+      expectedContentReleaseScheduleDigest: delayedDigest,
+    });
+
+    expect(authorizeNewIntent).toHaveBeenCalledOnce();
+    expect(pool.query).toHaveBeenCalledWith(
+      expect.stringContaining("content_release_schedule_snapshot"),
+      expect.any(Array)
+    );
+  });
+
+  it("serializes the schedule read and pending order under the course lock", async () => {
+    let queryCountAtAuthorization = -1;
+    let pool: ReturnType<typeof createPool>;
+    const authorizeNewIntent = vi.fn().mockImplementation(() => {
+      queryCountAtAuthorization = pool.query.mock.calls.length;
+    });
+    const gateway = createGateway();
+    pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.includes("pg_advisory_xact_lock")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return { rows: [course] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("insert into orders")) {
+        return { rows: [insertedOrder] };
+      }
+      if (sql === "begin" || sql === "commit" || sql === "rollback") {
+        return { rows: [] };
+      }
+      if (sql.startsWith("update orders")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await createAsaasCheckoutIntent({
+      ...authenticatedInput(gateway),
+      authorizeNewIntent,
+    });
+
+    const queries = pool.query.mock.calls.map(([sql]) =>
+      String(sql).replace(/\s+/g, " ").trim()
+    );
+    const lockIndex = queries.findIndex((query) =>
+      query.includes("pg_advisory_xact_lock")
+    );
+    const courseIndex = queries.findIndex((query) =>
+      query.startsWith("select c.id")
+    );
+    const insertIndex = queries.findIndex((query) =>
+      query.startsWith("insert into orders")
+    );
+    const commitIndex = queries.indexOf("commit");
+
+    expect(pool.connect).toHaveBeenCalledOnce();
+    expect(lockIndex).toBeGreaterThan(-1);
+    expect(courseIndex).toBeGreaterThan(lockIndex);
+    expect(insertIndex).toBeGreaterThan(courseIndex);
+    expect(commitIndex).toBeGreaterThan(insertIndex);
+    expect(queryCountAtAuthorization).toBeGreaterThan(commitIndex);
+  });
+
+  it("rejects a stale schedule digest before rate limit, order or provider", async () => {
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const gateway = createGateway();
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return { rows: [{ ...course, release_modules: delayedModules }] };
+      }
+      if (sql.includes("from enrollments")) {
+        return { rows: [] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        authorizeNewIntent,
+        expectedContentReleaseScheduleDigest: "0".repeat(64),
+      })
+    ).rejects.toMatchObject({
+      kind: "conflict",
+      reason: "schedule_changed",
+    });
+    expect(authorizeNewIntent).not.toHaveBeenCalled();
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
+  });
+
+  it("rejects a schedule that reaches the end of the commercial access window", async () => {
+    const gateway = createGateway();
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return { rows: [] };
+      }
+      if (sql.startsWith("select c.id")) {
+        return {
+          rows: [
+            {
+              ...course,
+              access_duration_months: 1,
+              release_modules: [
+                { releaseDelayDays: 28, sortOrder: 1, title: "Futuro" },
+              ],
+            },
+          ],
+        };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        expectedContentReleaseScheduleDigest: "0".repeat(64),
+      })
+    ).rejects.toMatchObject({
+      kind: "unavailable",
+      reason: "course_unavailable",
+    });
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("deletes only the pre-provider reservation and preserves the authorization error", async () => {
@@ -442,6 +642,7 @@ describe("createAsaasCheckoutIntent", () => {
           `order_${ATTEMPT_ID}`,
           10_000,
           12,
+          JSON.stringify({ version: 1, clock: "elapsed_24h", modules: [] }),
           "aluna@example.com",
           "Aluna Exemplo",
           "formacao-neuro",
@@ -558,7 +759,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("rejects an active enrollment before persistence or provider access", async () => {
@@ -639,7 +843,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("rejects a course whose sales are closed before persistence or provider access", async () => {
@@ -659,7 +866,10 @@ describe("createAsaasCheckoutIntent", () => {
       createAsaasCheckoutIntent(authenticatedInput(gateway))
     ).rejects.toThrow("Curso indisponível para checkout pago.");
     expect(gateway.calls.createCheckout).toHaveLength(0);
-    expect(pool.query).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalledWith(
+      expect.stringContaining("insert into orders"),
+      expect.anything()
+    );
   });
 
   it("persists a provider-pending buyer without PII or account mutation", async () => {
@@ -748,6 +958,46 @@ describe("createAsaasCheckoutIntent", () => {
     expect(gateway.calls.createCheckout).toHaveLength(0);
     expect(authorizeNewIntent).not.toHaveBeenCalled();
     expect(now).not.toHaveBeenCalled();
+  });
+
+  it("fails a stale pre-provider reservation instead of polling forever", async () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const gateway = createGateway();
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return {
+          rows: [
+            {
+              ...insertedOrder,
+              checkout_attempt_count: 0,
+              checkout_last_attempt_at: null,
+              checkout_status: "pending",
+              checkout_url: null,
+              provider_checkout_id: null,
+              provider_customer_id: null,
+              provider_payment_id: null,
+              updated_at: new Date(now.getTime() - 31_000),
+            },
+          ],
+        };
+      }
+      if (sql.includes("checkout_reservation_expired")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        authorizeNewIntent,
+        now: () => now,
+      })
+    ).resolves.toEqual({ orderId: ATTEMPT_ID, status: "failed" });
+    expect(authorizeNewIntent).not.toHaveBeenCalled();
+    expect(gateway.calls.createCheckout).toHaveLength(0);
   });
 
   it("resolves a ready duplicate before checking newly-active access", async () => {

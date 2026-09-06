@@ -29,6 +29,7 @@ const dependencies = vi.hoisted(() => ({
   getPool: vi.fn(),
   renderCertificatePdf: vi.fn(),
   resolveLessonAccess: vi.fn(),
+  resolveLessonAccessWithClient: vi.fn(),
   uploadPrivateR2ObjectIfAbsent: vi.fn(),
 }));
 
@@ -36,6 +37,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/db", () => ({ getPool: dependencies.getPool }));
 vi.mock("@/features/enrollments/access", () => ({
   resolveLessonAccess: dependencies.resolveLessonAccess,
+  resolveLessonAccessWithClient: dependencies.resolveLessonAccessWithClient,
 }));
 vi.mock("@/features/certificates/rendering", () => ({
   renderCertificatePdf: dependencies.renderCertificatePdf,
@@ -333,11 +335,19 @@ describe("emissao concorrente de certificado", () => {
   beforeAll(() => {
     dependencies.getPool.mockReturnValue(pool);
     dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.resolveLessonAccessWithClient.mockResolvedValue({
+      courseId: "course-1",
+      kind: "allowed",
+    });
   });
 
   beforeEach(async () => {
     vi.clearAllMocks();
     dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.resolveLessonAccessWithClient.mockResolvedValue({
+      courseId: "course-1",
+      kind: "allowed",
+    });
     dependencies.createR2ObjectReadUrl.mockImplementation(
       async ({ key }: { key: string }) => `https://r2.test/${key}`
     );
@@ -935,11 +945,19 @@ describe("claim persistido de renderizacao", () => {
   beforeAll(() => {
     dependencies.getPool.mockReturnValue(pool);
     dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.resolveLessonAccessWithClient.mockResolvedValue({
+      courseId: "course-1",
+      kind: "allowed",
+    });
   });
 
   beforeEach(async () => {
     vi.clearAllMocks();
     dependencies.resolveLessonAccess.mockResolvedValue(true);
+    dependencies.resolveLessonAccessWithClient.mockResolvedValue({
+      courseId: "course-1",
+      kind: "allowed",
+    });
     dependencies.createR2ObjectReadUrl.mockImplementation(
       async ({ key }: { key: string }) => `https://r2.test/${key}`
     );

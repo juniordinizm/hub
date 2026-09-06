@@ -33,6 +33,7 @@ import {
 } from "./public-checkout";
 
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+const SCHEDULE_DIGEST = "a".repeat(64);
 
 describe("public checkout boundary", () => {
   beforeEach(() => {
@@ -54,6 +55,7 @@ describe("public checkout boundary", () => {
     await createPublicCourseCheckout({
       checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
       courseSlug: "canonical-course",
+      expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
       ipAddress: "203.0.113.10",
     });
 
@@ -93,6 +95,7 @@ describe("public checkout boundary", () => {
       authenticatedBuyer,
       checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
       courseId: "4a45d650-fc63-44c9-b2d1-6c73d52de84c",
+      expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
       ipAddress: "203.0.113.10",
     });
 

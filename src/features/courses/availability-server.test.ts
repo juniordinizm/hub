@@ -22,10 +22,12 @@ import {
 } from "./availability-server";
 
 const ACTIVE_COURSE = {
+  access_duration_months: 1,
   catalog_visibility: "listed",
   has_commercial_history: true,
   has_published_publication: true,
   id: "course-1",
+  max_release_delay_days: 27,
   payment_allow_credit_card: true,
   payment_allow_pix: true,
   price_in_cents: 10_000,
@@ -136,6 +138,64 @@ describe("Course availability commands", () => {
       expect.stringContaining("notification_enqueued_at = now()"),
       [["interest-1", "interest-2"]]
     );
+    const lockedCourseSql = String(client.query.mock.calls[1]?.[0]);
+    expect(lockedCourseSql).toContain("c.access_duration_months");
+    expect(lockedCourseSql).toContain("max(m.release_delay_days)");
+    expect(lockedCourseSql).toContain("cp.status = 'published'");
+    expect(lockedCourseSql).toContain("m.status = 'active'");
+  });
+
+  it("rejects opening sales before updates or notifications when the schedule does not fit", async () => {
+    const client = createClient({
+      ...ACTIVE_COURSE,
+      max_release_delay_days: 28,
+      sales_status: "closed",
+    });
+    dependencies.connect.mockResolvedValue(client);
+
+    await expect(
+      setCourseAvailability({
+        actorUserId: "admin-1",
+        courseId: "course-1",
+        preset: "available",
+      })
+    ).rejects.toThrow(
+      "O cronograma de conteúdo não cabe na duração comercial do Curso."
+    );
+
+    expect(client.query).toHaveBeenCalledWith("rollback");
+    expect(
+      client.query.mock.calls.some(([sql]) =>
+        String(sql).includes("update courses")
+      )
+    ).toBe(false);
+    expect(dependencies.enqueueOutboxMessage).not.toHaveBeenCalled();
+  });
+
+  it("allows pausing and archiving when the published schedule exceeds the commercial duration", async () => {
+    const pausedClient = createClient({
+      ...ACTIVE_COURSE,
+      max_release_delay_days: 28,
+    });
+    const archivedClient = createClient({
+      ...ACTIVE_COURSE,
+      max_release_delay_days: 28,
+      sales_status: "closed",
+    });
+    dependencies.connect
+      .mockResolvedValueOnce(pausedClient)
+      .mockResolvedValueOnce(archivedClient);
+
+    await expect(
+      setCourseAvailability({
+        actorUserId: "admin-1",
+        courseId: "course-1",
+        preset: "sales_paused",
+      })
+    ).resolves.toMatchObject({ preset: "sales_paused" });
+    await expect(
+      archiveCourse({ actorUserId: "admin-1", courseId: "course-1" })
+    ).resolves.toMatchObject({ preset: "archived" });
   });
 
   it("rejects coming soon after commercial history exists", async () => {

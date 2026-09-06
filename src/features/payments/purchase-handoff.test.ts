@@ -15,10 +15,13 @@ vi.mock("@/lib/env", () => ({
   getServerEnv: dependencies.getServerEnv,
 }));
 
+import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import type { AppSession } from "@/lib/session";
 import { getPurchaseHandoffView } from "./purchase-handoff";
 
 const ACTIVE_COURSE = {
+  access_duration_months: 12,
   catalog_visibility: "listed",
   course_id: "11111111-1111-4111-8111-111111111111",
   course_slug: "curso-publico",
@@ -30,9 +33,11 @@ const ACTIVE_COURSE = {
   launch_date: null,
   launch_landing_url: null,
   price_in_cents: 10_000,
+  release_modules: [],
   sales_status: "open",
   status: "active",
 };
+const EMPTY_RELEASE_SCHEDULE = buildContentReleaseScheduleSnapshot([]);
 
 const createSession = (overrides: Partial<AppSession> = {}): AppSession => ({
   platformBlockedAt: null,
@@ -123,6 +128,10 @@ describe("getPurchaseHandoffView", () => {
       courseSlug: ACTIVE_COURSE.course_slug,
       courseTitle: ACTIVE_COURSE.course_title,
       kind: "checkout",
+      releaseSchedule: EMPTY_RELEASE_SCHEDULE,
+      releaseScheduleDigest: getContentReleaseScheduleDigest(
+        EMPTY_RELEASE_SCHEDULE
+      ),
     });
 
     expect(dependencies.query).toHaveBeenCalledTimes(1);
@@ -130,6 +139,34 @@ describe("getPurchaseHandoffView", () => {
       "curso-publico",
       null,
     ]);
+  });
+
+  it("exposes the server-built release schedule and digest", async () => {
+    const releaseModules = [
+      { releaseDelayDays: 0, sortOrder: 1, title: "Comece aqui" },
+      { releaseDelayDays: 8, sortOrder: 2, title: "Aplicacao" },
+    ];
+    dependencies.query.mockResolvedValue({
+      rows: [{ ...ACTIVE_COURSE, release_modules: releaseModules }],
+    });
+
+    const view = await getPurchaseHandoffView({
+      session: null,
+      slug: "curso-publico",
+    });
+    expect(view).toMatchObject({
+      kind: "checkout",
+      releaseSchedule: {
+        clock: "elapsed_24h",
+        modules: releaseModules,
+        version: 1,
+      },
+    });
+    if (view.kind === "checkout") {
+      expect(view.releaseScheduleDigest).toBe(
+        getContentReleaseScheduleDigest(view.releaseSchedule)
+      );
+    }
   });
 
   it("leva uma Student com Matricula efetivamente ativa ao Curso", async () => {

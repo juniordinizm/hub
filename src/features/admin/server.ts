@@ -8,6 +8,8 @@ import {
   type CertificateOperationRecord,
   getCertificateOperationsForUser,
 } from "@/features/certificates/server";
+import { CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL } from "@/features/courses/content-release-sql";
+import type { ContentReleaseMode } from "@/features/courses/module-content-release";
 import { getJmvstreamAssetsForLesson } from "@/features/jmvstream/server";
 import {
   getOperationalBacklogSnapshot,
@@ -151,6 +153,8 @@ export interface AdminCourseOverviewSummary {
 }
 
 export interface AdminEnrollment {
+  contentReleaseMode?: "full_access" | "scheduled";
+  contentReleaseStartedAt?: Date | null;
   courseId: string;
   courseTitle: string;
   email: string;
@@ -158,6 +162,7 @@ export interface AdminEnrollment {
   id: string;
   lastAccessAt: Date | null;
   name: string;
+  nextModuleReleaseAt?: Date | null;
   originalExpiresAt: Date;
   revokedReason: string | null;
   startsAt: Date;
@@ -220,6 +225,7 @@ export interface AdminModule {
   courseTitle: string;
   description: string | null;
   id: string;
+  releaseDelayDays: number;
   sortOrder: number;
   status: string;
   title: string;
@@ -298,11 +304,14 @@ export interface AdminLessonAsset {
 export interface AdminStudentDetail {
   email: string;
   enrollments: Array<{
+    contentReleaseMode?: "full_access" | "scheduled";
+    contentReleaseStartedAt?: Date | null;
     courseId: string;
     courseTitle: string;
     expiresAt: Date;
     id: string;
     originalExpiresAt: Date;
+    nextModuleReleaseAt?: Date | null;
     revokedReason: string | null;
     startedAt: Date;
     status: string;
@@ -498,13 +507,15 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
     course_title: string;
     description: string | null;
     id: string;
+    release_delay_days: number;
     sort_order: number;
     status: string;
     title: string;
   }>(
     courseId
       ? `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status,
+                 m.release_delay_days
           from modules m
           join courses c on c.id = m.course_id
            where m.course_publication_id = (
@@ -517,7 +528,8 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
           order by m.sort_order
         `
       : `
-          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status
+          select m.id, m.course_id, c.title as course_title, m.title, m.description, m.sort_order, m.status,
+                 m.release_delay_days
           from modules m
           join courses c on c.id = m.course_id
           order by c.title, m.sort_order
@@ -530,6 +542,7 @@ const readModules = async (courseId?: string): Promise<AdminModule[]> => {
     courseTitle: row.course_title,
     description: row.description,
     id: row.id,
+    releaseDelayDays: row.release_delay_days,
     sortOrder: row.sort_order,
     status: row.status,
     title: row.title,
@@ -639,6 +652,7 @@ const readLessonEditor = async ({
     lesson_description: string | null;
     module_description: string | null;
     module_id: string;
+    module_release_delay_days: number;
     module_sort_order: number;
     module_status: string;
     module_title: string;
@@ -655,6 +669,7 @@ const readLessonEditor = async ({
     `
       select l.id, l.module_id, m.title as module_title, m.description as module_description,
              m.sort_order as module_sort_order, m.status as module_status,
+             m.release_delay_days as module_release_delay_days,
              c.id as course_id, c.title as course_title, l.title,
              l.description as lesson_description, l.content_json, l.duration_seconds,
              l.video_duration_seconds, l.text_duration_seconds, l.text_word_count,
@@ -702,6 +717,7 @@ const readLessonEditor = async ({
       courseTitle: row.course_title,
       description: row.module_description,
       id: row.module_id,
+      releaseDelayDays: row.module_release_delay_days,
       sortOrder: row.module_sort_order,
       status: row.module_status,
       title: row.module_title,
@@ -733,6 +749,8 @@ const readEnrollments = async (
   const whereClause =
     filters.length > 0 ? `where ${filters.join(" and ")}` : "";
   const { rows } = await getPool().query<{
+    content_release_mode: ContentReleaseMode;
+    content_release_started_at: Date | null;
     course_id: string;
     course_title: string;
     email: string;
@@ -740,6 +758,7 @@ const readEnrollments = async (
     id: string;
     last_access_at: Date | null;
     name: string;
+    next_module_release_at: Date | null;
     original_expires_at: Date;
     revoked_reason: string | null;
     starts_at: Date;
@@ -748,9 +767,11 @@ const readEnrollments = async (
   }>(
     `
       select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
-             c.id as course_id, e.status, e.starts_at, e.expires_at,
+             e.status, e.starts_at, e.expires_at,
+             e.content_release_mode, e.content_release_started_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
-             e.revoked_reason, p.last_access_at
+             e.revoked_reason, p.last_access_at,
+             next_release.next_module_release_at
       from enrollments e
       join users u on u.id = e.user_id
       left join profiles p on p.user_id = u.id
@@ -763,6 +784,7 @@ const readEnrollments = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      ${CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL}
       ${whereClause}
       order by e.updated_at desc
     `,
@@ -770,6 +792,8 @@ const readEnrollments = async (
   );
 
   return rows.map((row) => ({
+    contentReleaseMode: row.content_release_mode,
+    contentReleaseStartedAt: row.content_release_started_at,
     courseId: row.course_id,
     courseTitle: row.course_title,
     email: row.email,
@@ -777,6 +801,7 @@ const readEnrollments = async (
     id: row.id,
     lastAccessAt: row.last_access_at,
     name: row.name,
+    nextModuleReleaseAt: row.next_module_release_at,
     originalExpiresAt: row.original_expires_at,
     revokedReason: row.revoked_reason,
     startsAt: row.starts_at,
@@ -1374,12 +1399,15 @@ export const getAdminStudentDetail = async (
 
   const pool = getPool();
   const result = await pool.query<{
+    content_release_mode: ContentReleaseMode | null;
+    content_release_started_at: Date | null;
     course_id: string | null;
     course_title: string | null;
     email: string;
     expires_at: Date | null;
     id: string | null;
     name: string;
+    next_module_release_at: Date | null;
     original_expires_at: Date | null;
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
@@ -1391,8 +1419,10 @@ export const getAdminStudentDetail = async (
     `
       select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
              e.status, e.starts_at, e.expires_at,
+             e.content_release_mode, e.content_release_started_at,
              coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
-             e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason
+             e.revoked_reason, p.platform_blocked_at, p.platform_blocked_reason,
+             next_release.next_module_release_at
       from users u
       join profiles p on p.user_id = u.id and p.role = 'student'
       left join enrollments e on e.user_id = u.id
@@ -1405,6 +1435,7 @@ export const getAdminStudentDetail = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      ${CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL}
       where u.id = $1
       order by c.title nulls last
     `,
@@ -1438,9 +1469,12 @@ export const getAdminStudentDetail = async (
         {
           courseId: row.course_id,
           courseTitle: row.course_title,
+          contentReleaseMode: row.content_release_mode ?? "full_access",
+          contentReleaseStartedAt: row.content_release_started_at,
           expiresAt: row.expires_at,
           id: row.id,
           originalExpiresAt: row.original_expires_at,
+          nextModuleReleaseAt: row.next_module_release_at,
           revokedReason: row.revoked_reason,
           startedAt: row.starts_at,
           status: row.status,

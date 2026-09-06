@@ -122,6 +122,39 @@ describe("support read projections", () => {
     expect(query.mock.calls[0]?.[1]).toEqual([courseId, userId]);
   });
 
+  it("marks a scheduled enrollment without an anchor as an invalid schedule", async () => {
+    query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            completed_required_lessons: 0,
+            content_release_mode: "scheduled",
+            content_release_started_at: null,
+            course_id: courseId,
+            course_title: "Curso operacional",
+            email: "student@example.test",
+            enrollment_id: "enrollment-1",
+            enrollment_status: "active",
+            expires_at: new Date("2027-01-01T00:00:00Z"),
+            name: "Student",
+            original_expires_at: new Date("2027-01-01T00:00:00Z"),
+            platform_blocked: false,
+            platform_blocked_at: null,
+            platform_blocked_reason: null,
+            required_lessons: 0,
+            revoked_reason: null,
+            starts_at: new Date("2026-01-01T00:00:00Z"),
+            user_id: userId,
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] });
+
+    const context = await getSupportCourseStudentContext({ courseId, userId });
+
+    expect(context?.enrollment.contentReleaseState).toBe("invalid_schedule");
+  });
+
   it("returns only course-scoped student, progress, finance, certificate and audit data", async () => {
     const startsAt = new Date("2026-01-01T00:00:00Z");
     const expiresAt = new Date("2027-01-01T00:00:00Z");

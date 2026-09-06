@@ -1,8 +1,11 @@
 export interface StudentSheetEnrollment {
+  contentReleaseMode?: "full_access" | "scheduled";
+  contentReleaseStartedAt?: string | null;
   courseId: string;
   courseTitle: string;
   expiresAt: string;
   id: string;
+  nextModuleReleaseAt?: string | null;
   originalExpiresAt: string;
   revokedReason: string | null;
   startedAt: string;
@@ -12,6 +15,7 @@ export interface StudentSheetEnrollment {
 
 export interface StudentManagementCapabilities {
   canManageCertificates: boolean;
+  canManageEnrollmentAccess?: boolean;
   canManageEnrollmentSupport: boolean;
   canManagePlatformAccess: boolean;
   canReissueCertificates: boolean;
@@ -47,6 +51,9 @@ export interface StudentSheetPayload {
     userId: string;
   };
   supportContext?: {
+    contentReleaseMode?: "full_access" | "scheduled";
+    contentReleaseState?: "invalid_schedule" | "valid";
+    contentReleaseStartedAt?: string | null;
     audit: Array<{
       action: string;
       createdAt: string;
@@ -66,5 +73,6 @@ export interface StudentSheetPayload {
       completedRequiredLessons: number;
       requiredLessons: number;
     };
+    nextModuleReleaseAt?: string | null;
   };
 }

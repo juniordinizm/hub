@@ -15,6 +15,7 @@ import {
   CERTIFICATE_RENDER_CLAIM_LEASE_MINUTES,
   createCertificateCode,
 } from "@/features/certificates/rules";
+import { lockEnrollmentAggregate } from "@/features/enrollments/enrollment-aggregate-lock";
 import { createCertificateRenderMessage } from "@/features/outbox/rules";
 import { enqueueOutboxMessage } from "@/features/outbox/server";
 import {
@@ -63,10 +64,7 @@ export const lockCourseCertificateLifecycleInTransaction = async (
   userId: string,
   courseId: string
 ): Promise<void> => {
-  await client.query(
-    "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))",
-    [userId, courseId]
-  );
+  await lockEnrollmentAggregate(client, userId, courseId);
 };
 
 export interface CertificateRecord {

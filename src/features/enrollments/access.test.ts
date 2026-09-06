@@ -9,7 +9,18 @@ import { resolveCourseAccess, resolveLessonAccess } from "./access";
 
 describe("enrollment access read model", () => {
   it("checks active enrollment and published course before granting course access", async () => {
-    query.mockResolvedValue({ rows: [{ id: "enrollment-1" }] });
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "full_access",
+          content_release_started_at: null,
+          course_id: "course-1",
+          is_completed: false,
+          release_delay_days: 8,
+          sequence_available: true,
+        },
+      ],
+    });
 
     await expect(
       resolveCourseAccess({ courseId: "course-1", userId: "student-1" })
@@ -24,12 +35,116 @@ describe("enrollment access read model", () => {
     expect(sql).toContain("cp.status = 'published'");
   });
 
-  it("requires an active published lesson for lesson access", async () => {
+  it("allows a full-access lesson and returns its course", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "full_access",
+          content_release_started_at: null,
+          course_id: "course-1",
+          is_completed: false,
+          release_delay_days: 8,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
+    ).resolves.toEqual({ courseId: "course-1", kind: "allowed" });
+  });
+
+  it("returns a temporal lock until the exact release boundary", async () => {
+    const now = new Date("2026-09-04T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date("2026-09-04T00:00:00.000Z"),
+          course_id: "course-1",
+          is_completed: false,
+          release_delay_days: 1,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", now, userId: "student-1" })
+    ).resolves.toEqual({
+      availableAt: new Date("2026-09-05T00:00:00.000Z"),
+      courseId: "course-1",
+      kind: "time_locked",
+    });
+    await expect(
+      resolveLessonAccess({
+        lessonId: "lesson-1",
+        now: new Date("2026-09-05T00:00:00.000Z"),
+        userId: "student-1",
+      })
+    ).resolves.toEqual({ courseId: "course-1", kind: "allowed" });
+  });
+
+  it("uses the database decision clock when the caller does not provide one", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date("2026-09-04T00:00:00.000Z"),
+          course_id: "course-1",
+          decision_now: new Date("2026-09-04T23:59:59.000Z"),
+          is_completed: false,
+          release_delay_days: 1,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
+    ).resolves.toMatchObject({ kind: "time_locked" });
+  });
+
+  it("lets an earlier completion bypass the temporal lock", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date("2026-09-04T00:00:00.000Z"),
+          course_id: "course-1",
+          is_completed: true,
+          release_delay_days: 8,
+          sequence_available: false,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
+    ).resolves.toEqual({ courseId: "course-1", kind: "allowed" });
+  });
+
+  it("denies missing, invalid, and anchorless lesson access", async () => {
     query.mockResolvedValue({ rows: [] });
 
     await expect(
       resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
-    ).resolves.toBe(false);
+    ).resolves.toEqual({ kind: "denied" });
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: null,
+          course_id: "course-1",
+          is_completed: false,
+          release_delay_days: 8,
+          sequence_available: true,
+        },
+      ],
+    });
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
+    ).resolves.toEqual({ kind: "denied" });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("and l.status = 'active'"),
       ["student-1", "lesson-1"]
@@ -38,5 +153,37 @@ describe("enrollment access read model", () => {
     expect(sql).toContain("join course_publications cp");
     expect(sql).toContain("cp.status = 'published'");
     expect(sql).toContain("cp.id = l.course_publication_id");
+    expect(sql).toContain("content_release_started_at");
+    expect(sql).toContain("release_delay_days");
+  });
+
+  it("reports an invalid schedule without exposing it to the caller", async () => {
+    const reportInvalidState = vi.fn();
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: null,
+          course_id: "course-1",
+          is_completed: false,
+          module_id: "module-1",
+          release_delay_days: 8,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({
+        diagnostics: { reportInvalidState },
+        lessonId: "lesson-1",
+        userId: "student-1",
+      })
+    ).resolves.toEqual({ kind: "denied" });
+    expect(reportInvalidState).toHaveBeenCalledWith({
+      courseId: "course-1",
+      moduleId: "module-1",
+      reason: "invalid_anchor",
+    });
   });
 });

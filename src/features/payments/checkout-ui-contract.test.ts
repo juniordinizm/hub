@@ -2,15 +2,16 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("checkout UI contract", () => {
-  it("renders one opaque attempt id with the authenticated purchase form", async () => {
+  it("routes authenticated purchases through the reviewed public handoff", async () => {
     const source = await readFile(
       "src/app/(student)/app/(dashboard)/page.tsx",
       "utf8"
     );
 
-    expect(source).toContain('name="checkoutAttemptId"');
-    expect(source).toContain("value={randomUUID()}");
-    expect(source).toContain('name="courseId"');
+    expect(source).toContain("/comprar/");
+    expect(source).toContain("course.slug");
+    expect(source).not.toContain("startCourseCheckoutAction");
+    expect(source).not.toContain("randomUUID");
     expect(source).not.toContain('name="buyerEmail"');
     expect(source).not.toContain('name="buyerName"');
   });

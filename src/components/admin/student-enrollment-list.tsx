@@ -16,6 +16,7 @@ import {
   statusLabels,
 } from "@/features/admin/enrollment-expiration-controls";
 import { formatDateTime } from "@/lib/formatters";
+import { StudentContentReleaseControls } from "./student-content-release-controls";
 import type { StudentSheetEnrollment } from "./student-management-types";
 
 const getEnrollmentToggleLabel = (
@@ -33,11 +34,13 @@ const getEnrollmentToggleLabel = (
 
 export function StudentEnrollmentList({
   canManageAccess,
+  canManageEnrollmentAccess = false,
   enrollments,
   onRefresh,
   title = "Matrículas",
 }: {
   canManageAccess: boolean;
+  canManageEnrollmentAccess?: boolean;
   enrollments: StudentSheetEnrollment[];
   onRefresh: () => void | Promise<void>;
   title?: string;
@@ -134,6 +137,23 @@ export function StudentEnrollmentList({
                       </dd>
                     </div>
                   </dl>
+                  <p className="mt-4 text-muted-foreground text-sm">
+                    {enrollment.contentReleaseMode === "scheduled"
+                      ? "Liberação programada"
+                      : "Acesso integral"}
+                  </p>
+                  {enrollment.nextModuleReleaseAt ? (
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      Próximo Módulo em{" "}
+                      {formatDateTime(enrollment.nextModuleReleaseAt)}
+                    </p>
+                  ) : null}
+                  {canManageEnrollmentAccess ? (
+                    <StudentContentReleaseControls
+                      enrollment={enrollment}
+                      onSuccess={onRefresh}
+                    />
+                  ) : null}
                   {canManageAccess ? (
                     <div className="mt-4">
                       <EnrollmentExpirationControls

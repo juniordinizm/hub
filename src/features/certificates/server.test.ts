@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
@@ -38,6 +39,17 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 
 describe("certificate reissue authority", () => {
+  it("reuses the canonical enrollment aggregate lock", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    expect(source).toContain("lockEnrollmentAggregate");
+    expect(source).not.toContain(
+      "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))"
+    );
+  });
+
   it("limits Support to the latest certificate while preserving the general Admin flow", () => {
     expect(() =>
       assertCertificateReissueTargetAllowed({
@@ -282,6 +294,7 @@ describe("certificate lifecycle reasons", () => {
     const release = vi.fn();
     const query = vi
       .fn()
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ id: "enrollment-1" }] })

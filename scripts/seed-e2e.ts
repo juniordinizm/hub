@@ -7,6 +7,8 @@ import sharp from "sharp";
 import { getPool } from "@/db";
 import { assertSafeE2eDatabaseEnvironment } from "@/db/e2e-database-guard";
 import { createDefaultCertificateTemplateFields } from "@/features/certificates/template-rules";
+import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import { rebuildEnrollmentProjection } from "@/features/enrollments/server";
 import { requireIsolatedE2eR2Bucket } from "@/features/storage/e2e-r2-guard";
 import {
@@ -15,6 +17,7 @@ import {
   uploadPrivateR2ObjectIfAbsent,
 } from "@/features/storage/r2";
 import { getAuth } from "@/lib/auth";
+import { seedScheduledCourse } from "./e2e-seed/scheduled-course";
 
 const E2E_PASSWORD = "E2E-password-123!";
 const CERTIFIABLE_COURSE_TITLE = "Curso E2E certificável";
@@ -47,10 +50,17 @@ export interface E2eFixture {
     id: string;
     lessonOneId: string;
     lessonTwoId: string;
+    releaseScheduleDigest: string;
     slug: string;
   };
   paymentCustomers: { blockedId: string; teamId: string };
   runId: string;
+  scheduledCourse: {
+    futureLessonId: string;
+    id: string;
+    immediateLessonId: string;
+    slug: string;
+  };
   studentForAuthenticatedPurchase: {
     email: string;
     id: string;
@@ -465,15 +475,30 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       throw new Error("Could not create E2E course publication.");
     }
 
-    const { rows: modules } = await client.query<{ id: string }>(
+    const { rows: modules } = await client.query<{
+      id: string;
+      release_delay_days: number;
+      sort_order: number;
+      title: string;
+    }>(
       `insert into modules (course_id, course_publication_id, title, sort_order, status)
-       values ($1, $2, 'Modulo E2E', 1, 'active') returning id`,
+       values ($1, $2, 'Modulo E2E', 1, 'active')
+       returning id, release_delay_days, sort_order, title`,
       [courseId, coursePublicationId]
     );
     const moduleId = modules[0]?.id;
     if (!moduleId) {
       throw new Error("Could not create E2E module.");
     }
+    const courseReleaseScheduleDigest = getContentReleaseScheduleDigest(
+      buildContentReleaseScheduleSnapshot(
+        modules.map((module) => ({
+          releaseDelayDays: module.release_delay_days,
+          sortOrder: module.sort_order,
+          title: module.title,
+        }))
+      )
+    );
 
     const lessonIds: string[] = [];
     for (const [sortOrder, title] of [
@@ -493,6 +518,16 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       }
       lessonIds.push(lessonId);
     }
+
+    const scheduledCourseSlug = `scheduled-course-e2e-${suffix}`;
+    const scheduledCourse = await seedScheduledCourse({
+      client,
+      slug: scheduledCourseSlug,
+      studentId,
+      suffix,
+    });
+    const scheduledCourseId = scheduledCourse.id;
+    const { futureLessonId, immediateLessonId } = scheduledCourse;
 
     const { rows: certifiableCourses } = await client.query<{ id: string }>(
       `
@@ -692,6 +727,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       cleanup: {
         courseIds: [
           courseId,
+          scheduledCourseId,
           certifiableCourseId,
           certificateRecords.failed.courseId,
           certificateRecords.pending.courseId,
@@ -706,7 +742,19 @@ export const seedE2e = async (): Promise<E2eFixture> => {
         lessonId: certifiableLessonId,
         title: CERTIFIABLE_COURSE_TITLE,
       },
-      course: { id: courseId, lessonOneId, lessonTwoId, slug: courseSlug },
+      course: {
+        id: courseId,
+        lessonOneId,
+        lessonTwoId,
+        releaseScheduleDigest: courseReleaseScheduleDigest,
+        slug: courseSlug,
+      },
+      scheduledCourse: {
+        futureLessonId,
+        id: scheduledCourseId,
+        immediateLessonId,
+        slug: scheduledCourseSlug,
+      },
       paymentCustomers: {
         blockedId: `cus_blocked_${suffix}`,
         teamId: `cus_team_${suffix}`,

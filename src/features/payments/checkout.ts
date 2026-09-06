@@ -1,9 +1,25 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
+import { safelyReportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
+import {
+  assertScheduleFitsAccessDuration,
+  buildContentReleaseScheduleSnapshot,
+  type ContentReleaseScheduleSnapshot,
+} from "@/features/courses/module-content-release";
+import {
+  CONTENT_RELEASE_SCHEDULE_DIGEST_PATTERN,
+  getContentReleaseScheduleDigest,
+} from "@/features/courses/module-content-release-digest";
 import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 import { parseBuyerIdentity } from "./buyer-identity";
+import {
+  expireStalePreProviderReservation,
+  isStalePreProviderReservation,
+} from "./checkout-recovery";
 import { getEffectiveMaxInstallmentCount } from "./course-payment-offer";
 import { getApplicationUrl } from "./provider";
 
@@ -13,6 +29,8 @@ const CHECKOUT_ITEM_DESCRIPTION_MAX_LENGTH = 150;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_PROVIDER_CODE_PATTERN = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+
+type CheckoutDatabase = Pick<PoolClient, "query">;
 
 export interface CheckoutCallbacks {
   cancelUrl: string;
@@ -36,6 +54,7 @@ export interface CreateAsaasCheckoutIntentInput {
   callbacks: CheckoutCallbacks;
   courseId?: string;
   courseSlug?: string;
+  expectedContentReleaseScheduleDigest: string;
   gateway: AsaasGateway;
   now?: () => Date;
 }
@@ -52,14 +71,7 @@ export type CheckoutIntentResult =
     };
 
 export type CheckoutIntentErrorKind = "conflict" | "unavailable" | "validation";
-
-const CHECKOUT_INTENT_ERROR_MESSAGES: Record<CheckoutIntentErrorKind, string> =
-  {
-    conflict: "Tentativa de checkout em conflito.",
-    unavailable: "Checkout indisponível.",
-    validation: "Dados de checkout inválidos.",
-  };
-type CheckoutIntentErrorReason =
+export type CheckoutIntentErrorReason =
   | "active_access"
   | "attempt_invalid"
   | "callbacks_invalid"
@@ -67,7 +79,16 @@ type CheckoutIntentErrorReason =
   | "course_selection_invalid"
   | "course_unavailable"
   | "identity_invalid"
-  | "revoked_access";
+  | "revoked_access"
+  | "schedule_changed"
+  | "schedule_digest_invalid";
+
+const CHECKOUT_INTENT_ERROR_MESSAGES: Record<CheckoutIntentErrorKind, string> =
+  {
+    conflict: "Tentativa de checkout em conflito.",
+    unavailable: "Checkout indisponível.",
+    validation: "Dados de checkout inválidos.",
+  };
 const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   CheckoutIntentErrorReason,
   string
@@ -80,10 +101,13 @@ const CHECKOUT_INTENT_REASON_MESSAGES: Record<
   course_unavailable: "Curso indisponível para checkout pago.",
   identity_invalid: "Identidade local inválida.",
   revoked_access: "Acesso ao curso está revogado.",
+  schedule_changed: "O cronograma do Curso foi atualizado.",
+  schedule_digest_invalid: "Digest de cronograma inválido.",
 };
 
 export class CheckoutIntentError extends Error {
   readonly kind: CheckoutIntentErrorKind;
+  readonly reason: CheckoutIntentErrorReason | null;
 
   constructor(
     kind: CheckoutIntentErrorKind,
@@ -96,6 +120,7 @@ export class CheckoutIntentError extends Error {
     );
     this.name = "CheckoutIntentError";
     this.kind = kind;
+    this.reason = reason ?? null;
   }
 }
 
@@ -108,6 +133,11 @@ interface CheckoutCourse {
   payment_allow_pix: boolean;
   payment_max_installment_count: number;
   price_in_cents: number;
+  release_modules?: Array<{
+    releaseDelayDays: number;
+    sortOrder: number;
+    title: string;
+  }> | null;
   sales_status: "closed" | "open";
   slug: string;
   status: string;
@@ -118,9 +148,12 @@ interface CheckoutOrder {
   access_duration_months: number | null;
   amount_in_cents: number;
   buyer_identity_status: "pending" | "resolved" | "review_required";
+  checkout_attempt_count?: number;
   checkout_course_slug: string;
   checkout_item_description: string;
   checkout_item_name: string;
+  checkout_last_attempt_at?: Date | null;
+  checkout_next_attempt_at?: Date | null;
   checkout_status:
     | "active"
     | "cancelled"
@@ -130,6 +163,7 @@ interface CheckoutOrder {
     | "pending"
     | "uncertain";
   checkout_url: string | null;
+  content_release_schedule_snapshot: ContentReleaseScheduleSnapshot;
   course_id: string;
   customer_email: string | null;
   customer_name: string | null;
@@ -138,7 +172,11 @@ interface CheckoutOrder {
   payment_allow_pix: boolean;
   payment_max_installment_count: number;
   provider: string;
+  provider_checkout_id?: string | null;
   provider_checkout_status: string | null;
+  provider_customer_id?: string | null;
+  provider_payment_id?: string | null;
+  updated_at?: Date | null;
   user_id: string | null;
 }
 
@@ -194,10 +232,12 @@ const validateInput = ({
   callbacks,
   courseId,
   courseSlug,
+  expectedContentReleaseScheduleDigest,
 }: Omit<CreateAsaasCheckoutIntentInput, "gateway" | "now">): {
   courseSlug: string | undefined;
   customerEmail: string | null;
   customerName: string | null;
+  expectedContentReleaseScheduleDigest: string;
 } => {
   if (!UUID_PATTERN.test(attemptId)) {
     throw new CheckoutIntentError("validation", "attempt_invalid");
@@ -208,6 +248,13 @@ const validateInput = ({
   }
   if (courseId && !UUID_PATTERN.test(courseId)) {
     throw new CheckoutIntentError("validation", "course_id_invalid");
+  }
+  if (
+    !CONTENT_RELEASE_SCHEDULE_DIGEST_PATTERN.test(
+      expectedContentReleaseScheduleDigest
+    )
+  ) {
+    throw new CheckoutIntentError("validation", "schedule_digest_invalid");
   }
 
   const buyerIdentity =
@@ -233,6 +280,7 @@ const validateInput = ({
     courseSlug: courseSlug ? normalizeCourseSlug(courseSlug) : undefined,
     customerEmail: buyerIdentity?.email ?? null,
     customerName: buyerIdentity?.name ?? null,
+    expectedContentReleaseScheduleDigest,
   };
 };
 
@@ -345,15 +393,17 @@ const safeGatewayFailure = (
 const ensureCheckoutAccessEligible = async ({
   buyer,
   courseId,
+  db,
 }: {
   buyer: CheckoutBuyer;
   courseId: string;
+  db: CheckoutDatabase;
 }): Promise<void> => {
   if (buyer.kind !== "authenticated") {
     return;
   }
 
-  const enrollment = await getPool().query<{ status: "active" | "revoked" }>(
+  const enrollment = await db.query<{ status: "active" | "revoked" }>(
     `
       select status from enrollments
       where user_id = $1
@@ -385,15 +435,20 @@ interface AttemptResolutionContext {
 
 const readCheckoutOrder = async ({
   orderId,
-  pool,
-}: Pick<AttemptResolutionContext, "orderId" | "pool">): Promise<
-  CheckoutOrder | undefined
-> => {
-  const result = await pool.query<CheckoutOrder>(
+  db,
+}: {
+  db: CheckoutDatabase;
+  orderId: string;
+}): Promise<CheckoutOrder | undefined> => {
+  const result = await db.query<CheckoutOrder>(
     `
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
+        checkout_attempt_count, checkout_last_attempt_at,
+        checkout_next_attempt_at,
+        provider_checkout_id, provider_customer_id, provider_payment_id, updated_at,
         provider_checkout_status, amount_in_cents, access_duration_months,
+        content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description, payment_allow_pix, payment_allow_credit_card,
         payment_max_installment_count
@@ -411,7 +466,10 @@ const resolveAfterLostCheckoutCas = async (
 ): Promise<CheckoutIntentResult> => {
   let order: CheckoutOrder | undefined;
   try {
-    order = await readCheckoutOrder(context);
+    order = await readCheckoutOrder({
+      db: context.pool,
+      orderId: context.orderId,
+    });
   } catch {
     return { orderId: context.orderId, status: "processing" };
   }
@@ -425,6 +483,40 @@ const resolveAfterLostCheckoutCas = async (
     order,
     requestedCourseId: context.requestedCourseId,
     requestedCourseSlug: context.requestedCourseSlug,
+  });
+};
+
+const resolveExistingCheckoutAttempt = async ({
+  buyer,
+  now,
+  order,
+  requestedCourseId,
+  requestedCourseSlug,
+}: {
+  buyer: CheckoutBuyer;
+  now: Date;
+  order: CheckoutOrder;
+  requestedCourseId: string | undefined;
+  requestedCourseSlug: string | undefined;
+}): Promise<CheckoutIntentResult> => {
+  if (
+    isStalePreProviderReservation({
+      now,
+      order,
+    }) &&
+    (await expireStalePreProviderReservation({
+      attemptId: order.id,
+      now,
+    }))
+  ) {
+    return { orderId: order.id, status: "failed" };
+  }
+
+  return resolveDuplicate({
+    buyer,
+    order,
+    requestedCourseId,
+    requestedCourseSlug,
   });
 };
 
@@ -544,6 +636,260 @@ const authorizeAndClaimAttempt = async ({
   return Boolean(claimed.rows[0]);
 };
 
+const resolveCheckoutScheduleSnapshot = (
+  course: CheckoutCourse
+): ContentReleaseScheduleSnapshot => {
+  const snapshot = buildContentReleaseScheduleSnapshot(
+    (course.release_modules ?? []).map((module) => ({
+      releaseDelayDays: module.releaseDelayDays,
+      sortOrder: module.sortOrder,
+      title: module.title,
+    }))
+  );
+  try {
+    assertScheduleFitsAccessDuration({
+      accessDurationMonths: course.access_duration_months,
+      snapshot,
+    });
+  } catch {
+    throw new CheckoutIntentError("unavailable", "course_unavailable");
+  }
+  return snapshot;
+};
+
+const assertCheckoutScheduleDigest = ({
+  expectedDigest,
+  snapshot,
+}: {
+  expectedDigest: string;
+  snapshot: ContentReleaseScheduleSnapshot;
+}): void => {
+  if (expectedDigest !== getContentReleaseScheduleDigest(snapshot)) {
+    throw new CheckoutIntentError("conflict", "schedule_changed");
+  }
+};
+
+const readCheckoutCourse = async ({
+  courseId,
+  db,
+}: {
+  courseId: string;
+  db: CheckoutDatabase;
+}): Promise<CheckoutCourse | undefined> => {
+  const result = await db.query<CheckoutCourse>(
+    `
+      select c.id, c.title, c.slug, c.description, c.price_in_cents,
+             c.payment_allow_pix, c.payment_allow_credit_card,
+             c.payment_max_installment_count,
+             c.access_duration_months, c.status, c.sales_status,
+             exists (
+               select 1 from course_publications cp
+               where cp.course_id = c.id and cp.status = 'published'
+             ) as has_published_publication,
+             coalesce((
+               select json_agg(
+                 json_build_object(
+                   'title', m.title,
+                   'sortOrder', m.sort_order,
+                   'releaseDelayDays', m.release_delay_days
+                 ) order by m.sort_order asc
+               )
+               from modules m
+               join course_publications cp on cp.id = m.course_publication_id
+               where cp.course_id = c.id
+                 and cp.status = 'published'
+                 and m.status = 'active'
+             ), '[]'::json) as release_modules
+      from courses c
+      where c.id = $1
+      limit 1
+    `,
+    [courseId]
+  );
+  return result.rows[0];
+};
+
+const resolveRequestedCourseId = async ({
+  courseId,
+  courseSlug,
+  db,
+}: {
+  courseId: string | undefined;
+  courseSlug: string | undefined;
+  db: CheckoutDatabase;
+}): Promise<string | null> => {
+  if (courseId) {
+    return courseId;
+  }
+
+  const result = await db.query<{ id: string }>(
+    "select id from courses where slug = $1 limit 1",
+    [courseSlug]
+  );
+  return result.rows[0]?.id ?? null;
+};
+
+interface PendingCheckoutTransactionResult {
+  course: CheckoutCourse;
+  createdOrder: CheckoutOrder | null;
+  existingOrder: CheckoutOrder | null;
+}
+
+const createPendingCheckoutOrder = async ({
+  buyer,
+  courseSlug,
+  customerEmail,
+  customerName,
+  expectedContentReleaseScheduleDigest,
+  input,
+  pool,
+}: {
+  buyer: CheckoutBuyer;
+  courseSlug: string | undefined;
+  customerEmail: string | null;
+  customerName: string | null;
+  expectedContentReleaseScheduleDigest: string;
+  input: CreateAsaasCheckoutIntentInput;
+  pool: ReturnType<typeof getPool>;
+}): Promise<PendingCheckoutTransactionResult> => {
+  const courseId = await resolveRequestedCourseId({
+    courseId: input.courseId,
+    courseSlug,
+    db: pool,
+  });
+  if (!courseId) {
+    throw new CheckoutIntentError("unavailable", "course_unavailable");
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await lockCourseContentRelease(client, courseId);
+
+    const course = await readCheckoutCourse({ courseId, db: client });
+    if (
+      course?.status !== "active" ||
+      course.sales_status !== "open" ||
+      !course.has_published_publication ||
+      course.price_in_cents < ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS
+    ) {
+      throw new CheckoutIntentError("unavailable", "course_unavailable");
+    }
+
+    const contentReleaseScheduleSnapshot =
+      resolveCheckoutScheduleSnapshot(course);
+    try {
+      assertCheckoutScheduleDigest({
+        expectedDigest: expectedContentReleaseScheduleDigest,
+        snapshot: contentReleaseScheduleSnapshot,
+      });
+    } catch (error) {
+      if (
+        error instanceof CheckoutIntentError &&
+        error.reason === "schedule_changed"
+      ) {
+        safelyReportContentReleaseOperationalEvent({
+          code: "content_release_digest_conflict",
+          courseId: course.id,
+        });
+      }
+      throw error;
+    }
+
+    await ensureCheckoutAccessEligible({
+      buyer,
+      courseId: course.id,
+      db: client,
+    });
+
+    const item = buildItemSnapshot(course);
+    const externalReference = `order_${input.attemptId}`;
+    const inserted = await client.query<CheckoutOrder>(
+      `
+        insert into orders (
+          id,
+          course_id,
+          user_id,
+          buyer_identity_status,
+          provider,
+          provider_checkout_id,
+          provider_payment_id,
+          provider_customer_id,
+          external_id,
+          status,
+          checkout_status,
+          checkout_url,
+          amount_in_cents,
+          access_duration_months,
+          content_release_schedule_snapshot,
+          customer_email,
+          customer_name,
+          checkout_course_slug,
+          checkout_item_name,
+          checkout_item_description,
+          payment_allow_pix,
+          payment_allow_credit_card,
+          payment_max_installment_count,
+          checkout_attempt_count
+        )
+        values (
+          $1, $2, $3, $4, 'asaas', null, null, null, $5, 'pending', 'pending',
+          null, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 0
+        )
+        on conflict (id) do nothing
+        returning
+          id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
+          provider_checkout_status, amount_in_cents, access_duration_months,
+          content_release_schedule_snapshot,
+          customer_email, customer_name, checkout_course_slug, checkout_item_name,
+          checkout_item_description, payment_allow_pix, payment_allow_credit_card,
+          payment_max_installment_count
+      `,
+      [
+        input.attemptId,
+        course.id,
+        buyer.kind === "authenticated" ? buyer.userId : null,
+        buyer.kind === "authenticated" ? "resolved" : "pending",
+        externalReference,
+        item.valueInCents,
+        course.access_duration_months,
+        JSON.stringify(contentReleaseScheduleSnapshot),
+        customerEmail,
+        customerName,
+        normalizeCourseSlug(course.slug),
+        item.name,
+        item.description,
+        course.payment_allow_pix,
+        course.payment_allow_credit_card,
+        getEffectiveMaxInstallmentCount({
+          configuredMaxInstallmentCount: course.payment_max_installment_count,
+          priceInCents: item.valueInCents,
+        }),
+      ]
+    );
+    const createdOrder = inserted.rows[0] ?? null;
+    if (createdOrder) {
+      await client.query("commit");
+      return { course, createdOrder, existingOrder: null };
+    }
+
+    const existingOrder = await readCheckoutOrder({
+      db: client,
+      orderId: input.attemptId,
+    });
+    if (!existingOrder) {
+      throw new CheckoutIntentError("conflict", "attempt_invalid");
+    }
+    await client.query("commit");
+    return { course, createdOrder: null, existingOrder };
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 export const createAsaasCheckoutIntent = async (
   input: CreateAsaasCheckoutIntentInput
 ): Promise<CheckoutIntentResult> => {
@@ -551,13 +897,18 @@ export const createAsaasCheckoutIntent = async (
     courseSlug: requestedCourseSlug,
     customerEmail,
     customerName,
+    expectedContentReleaseScheduleDigest,
   } = validateInput(input);
   const pool = getPool();
   const existingAttempt = await pool.query<CheckoutOrder>(
     `
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
+        checkout_attempt_count, checkout_last_attempt_at,
+        checkout_next_attempt_at,
+        provider_checkout_id, provider_customer_id, provider_payment_id, updated_at,
         provider_checkout_status, amount_in_cents, access_duration_months,
+        content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
         checkout_item_description, payment_allow_pix, payment_allow_credit_card,
         payment_max_installment_count
@@ -568,130 +919,15 @@ export const createAsaasCheckoutIntent = async (
     [input.attemptId]
   );
   if (existingAttempt.rows[0]) {
-    return resolveDuplicate({
-      buyer: input.buyer,
-      order: existingAttempt.rows[0],
-      requestedCourseId: input.courseId,
-      requestedCourseSlug,
-    });
-  }
-
-  const courseResult = await pool.query<CheckoutCourse>(
-    `
-      select c.id, c.title, c.slug, c.description, c.price_in_cents,
-             c.payment_allow_pix, c.payment_allow_credit_card,
-             c.payment_max_installment_count,
-             c.access_duration_months, c.status, c.sales_status,
-             exists (
-               select 1 from course_publications cp
-               where cp.course_id = c.id and cp.status = 'published'
-             ) as has_published_publication
-      from courses c
-      where ($1::uuid is not null and c.id = $1::uuid)
-         or ($2::text is not null and c.slug = $2::text)
-      limit 1
-    `,
-    [input.courseId ?? null, requestedCourseSlug ?? null]
-  );
-  const course = courseResult.rows[0];
-
-  if (
-    course?.status !== "active" ||
-    course.sales_status !== "open" ||
-    !course.has_published_publication ||
-    course.price_in_cents < ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS
-  ) {
-    throw new CheckoutIntentError("unavailable", "course_unavailable");
-  }
-
-  await ensureCheckoutAccessEligible({
-    buyer: input.buyer,
-    courseId: course.id,
-  });
-
-  const item = buildItemSnapshot(course);
-  const externalReference = `order_${input.attemptId}`;
-  const timestamp = (input.now ?? (() => new Date()))();
-  const inserted = await pool.query<CheckoutOrder>(
-    `
-      insert into orders (
-        id,
-        course_id,
-        user_id,
-        buyer_identity_status,
-        provider,
-        provider_checkout_id,
-        provider_payment_id,
-        provider_customer_id,
-        external_id,
-        status,
-        checkout_status,
-        checkout_url,
-        amount_in_cents,
-        access_duration_months,
-        customer_email,
-        customer_name,
-        checkout_course_slug,
-        checkout_item_name,
-        checkout_item_description,
-        payment_allow_pix,
-        payment_allow_credit_card,
-        payment_max_installment_count,
-        checkout_attempt_count
-      )
-      values (
-        $1, $2, $3, $4, 'asaas', null, null, null, $5, 'pending', 'pending',
-        null, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 0
-      )
-      on conflict (id) do nothing
-      returning
-        id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
-        provider_checkout_status, amount_in_cents, access_duration_months,
-        customer_email, customer_name, checkout_course_slug, checkout_item_name,
-        checkout_item_description, payment_allow_pix, payment_allow_credit_card,
-        payment_max_installment_count
-    `,
-    [
-      input.attemptId,
-      course.id,
-      input.buyer.kind === "authenticated" ? input.buyer.userId : null,
-      input.buyer.kind === "authenticated" ? "resolved" : "pending",
-      externalReference,
-      item.valueInCents,
-      course.access_duration_months,
-      customerEmail,
-      customerName,
-      normalizeCourseSlug(course.slug),
-      item.name,
-      item.description,
-      course.payment_allow_pix,
-      course.payment_allow_credit_card,
-      getEffectiveMaxInstallmentCount({
-        configuredMaxInstallmentCount: course.payment_max_installment_count,
-        priceInCents: item.valueInCents,
-      }),
-    ]
-  );
-  const createdOrder = inserted.rows[0];
-
-  if (!createdOrder) {
-    const existing = await pool.query<CheckoutOrder>(
-      `
-        select
-          id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
-          provider_checkout_status, amount_in_cents, access_duration_months,
-          customer_email, customer_name, checkout_course_slug, checkout_item_name,
-          checkout_item_description, payment_allow_pix, payment_allow_credit_card,
-          payment_max_installment_count
-        from orders
-        where id = $1
-        limit 1
-      `,
-      [input.attemptId]
-    );
-    const existingOrder = existing.rows[0];
-    if (!existingOrder) {
-      throw new CheckoutIntentError("conflict", "attempt_invalid");
+    const existingOrder = existingAttempt.rows[0];
+    if (existingOrder.checkout_status === "pending") {
+      return resolveExistingCheckoutAttempt({
+        buyer: input.buyer,
+        now: (input.now ?? (() => new Date()))(),
+        order: existingOrder,
+        requestedCourseId: input.courseId,
+        requestedCourseSlug,
+      });
     }
     return resolveDuplicate({
       buyer: input.buyer,
@@ -700,6 +936,34 @@ export const createAsaasCheckoutIntent = async (
       requestedCourseSlug,
     });
   }
+
+  const timestamp = (input.now ?? (() => new Date()))();
+  const pendingOrder = await createPendingCheckoutOrder({
+    buyer: input.buyer,
+    courseSlug: requestedCourseSlug,
+    customerEmail,
+    customerName,
+    expectedContentReleaseScheduleDigest,
+    input,
+    pool,
+  });
+
+  if (pendingOrder.existingOrder) {
+    return resolveExistingCheckoutAttempt({
+      buyer: input.buyer,
+      now: timestamp,
+      order: pendingOrder.existingOrder,
+      requestedCourseId: input.courseId,
+      requestedCourseSlug,
+    });
+  }
+
+  const course = pendingOrder.course;
+  const createdOrder = pendingOrder.createdOrder;
+  if (!createdOrder) {
+    throw new CheckoutIntentError("conflict", "attempt_invalid");
+  }
+  const externalReference = `order_${input.attemptId}`;
 
   const attemptContext: AttemptResolutionContext = {
     buyer: input.buyer,

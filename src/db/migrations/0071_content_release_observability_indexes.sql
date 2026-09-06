@@ -1,0 +1,1 @@
+CREATE INDEX "enrollment_events_course_event_idx" ON "enrollment_events" USING btree ("course_id","event_type");

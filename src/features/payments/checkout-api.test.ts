@@ -6,6 +6,7 @@ import {
 
 const ATTEMPT_ID = "7fb3447e-2702-48f8-abe2-6c47b091bdcb";
 const COURSE_ID = "4a45d650-fc63-44c9-b2d1-6c73d52de84c";
+const SCHEDULE_DIGEST = "a".repeat(64);
 
 describe("parseCheckoutRequest", () => {
   it("normalizes a checkout request selected by course slug", () => {
@@ -13,10 +14,12 @@ describe("parseCheckoutRequest", () => {
       parseCheckoutRequest({
         checkoutAttemptId: ` ${ATTEMPT_ID} `,
         courseSlug: " Curso ",
+        expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
       })
     ).toEqual({
       checkoutAttemptId: ATTEMPT_ID,
       courseSlug: "curso",
+      expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
     });
   });
 
@@ -25,8 +28,13 @@ describe("parseCheckoutRequest", () => {
       parseCheckoutRequest({
         checkoutAttemptId: ATTEMPT_ID,
         courseId: ` ${COURSE_ID} `,
+        expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
       })
-    ).toEqual({ checkoutAttemptId: ATTEMPT_ID, courseId: COURSE_ID });
+    ).toEqual({
+      checkoutAttemptId: ATTEMPT_ID,
+      courseId: COURSE_ID,
+      expectedContentReleaseScheduleDigest: SCHEDULE_DIGEST,
+    });
   });
 
   it.each([
@@ -86,6 +94,21 @@ describe("parseCheckoutRequest", () => {
     { checkoutAttemptId: ATTEMPT_ID, courseSlug: "---" },
   ])("rejects coercible or invalid field values", (value) => {
     expect(parseCheckoutRequest(value)).toBeNull();
+  });
+
+  it.each([
+    "",
+    "not-a-digest",
+    "G".repeat(64),
+    "a".repeat(63),
+  ])("rejects an invalid schedule digest %s", (digest) => {
+    expect(
+      parseCheckoutRequest({
+        checkoutAttemptId: ATTEMPT_ID,
+        courseSlug: "curso",
+        expectedContentReleaseScheduleDigest: digest,
+      })
+    ).toBeNull();
   });
 });
 

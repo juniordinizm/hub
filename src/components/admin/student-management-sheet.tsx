@@ -46,6 +46,34 @@ export const SupportContextPanel = ({
         {context.progress.requiredLessons} aulas obrigatórias
       </p>
     </section>
+    <section
+      aria-labelledby="support-content-release-title"
+      className="rounded-lg border p-4"
+    >
+      <h2
+        className="font-semibold text-base"
+        id="support-content-release-title"
+      >
+        Liberação de conteúdo
+      </h2>
+      {context.contentReleaseState === "invalid_schedule" ? (
+        <p className="mt-2 text-destructive text-sm" role="alert">
+          Cronograma inválido. Encaminhe para Engenharia.
+        </p>
+      ) : (
+        <p className="mt-2 text-muted-foreground text-sm">
+          {context.contentReleaseMode === "scheduled"
+            ? `Programada desde ${context.contentReleaseStartedAt ? formatDateTime(context.contentReleaseStartedAt) : "âncora indisponível"}`
+            : "Acesso integral"}
+        </p>
+      )}
+      {context.contentReleaseState !== "invalid_schedule" &&
+      context.nextModuleReleaseAt ? (
+        <p className="mt-1 text-muted-foreground text-xs">
+          Próximo Módulo em {formatDateTime(context.nextModuleReleaseAt)}
+        </p>
+      ) : null}
+    </section>
     <section aria-labelledby="support-orders-title">
       <h2 className="font-semibold text-base" id="support-orders-title">
         Pedidos e reembolsos
@@ -354,6 +382,9 @@ export function StudentManagementSheetContent({
           ) : null}
           <StudentEnrollmentList
             canManageAccess={capabilities.canManageEnrollmentSupport}
+            canManageEnrollmentAccess={
+              capabilities.canManageEnrollmentAccess ?? false
+            }
             enrollments={student.enrollments}
             onRefresh={onRefresh}
             title={isCourseContext ? "Acesso ao Curso" : "Matrículas"}

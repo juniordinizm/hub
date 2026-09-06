@@ -1,5 +1,11 @@
 import "server-only";
 import { getPool } from "@/db";
+import {
+  assertScheduleFitsAccessDuration,
+  buildContentReleaseScheduleSnapshot,
+  type ContentReleaseScheduleSnapshot,
+} from "@/features/courses/module-content-release";
+import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import { assertCheckoutAvailable } from "@/features/payments/checkout-availability";
 import { getServerEnv } from "@/lib/env";
 import type { AppSession } from "@/lib/session";
@@ -10,6 +16,8 @@ export type PurchaseHandoffView =
       courseSlug: string;
       courseTitle: string;
       kind: "checkout";
+      releaseSchedule: ContentReleaseScheduleSnapshot;
+      releaseScheduleDigest: string;
     }
   | {
       courseId: string;
@@ -46,6 +54,7 @@ export type PurchaseHandoffView =
     };
 
 interface PurchaseHandoffRow {
+  access_duration_months: number;
   catalog_visibility: "hidden" | "listed";
   course_id: string;
   course_slug: string;
@@ -57,6 +66,11 @@ interface PurchaseHandoffRow {
   launch_date: string | null;
   launch_landing_url: string | null;
   price_in_cents: number;
+  release_modules: Array<{
+    releaseDelayDays: number;
+    sortOrder: number;
+    title: string;
+  }> | null;
   sales_status: "closed" | "open";
   status: "active" | "archived" | "draft";
 }
@@ -71,6 +85,22 @@ const PURCHASE_HANDOFF_QUERY = `
     c.launch_date,
     c.launch_landing_url,
     c.price_in_cents,
+    c.access_duration_months,
+    coalesce((
+      select json_agg(
+        json_build_object(
+          'title', m.title,
+          'sortOrder', m.sort_order,
+          'releaseDelayDays', m.release_delay_days
+        ) order by m.sort_order asc
+      )
+      from modules m
+      join course_publications cp_release
+        on cp_release.id = m.course_publication_id
+      where cp_release.course_id = c.id
+        and cp_release.status = 'published'
+        and m.status = 'active'
+    ), '[]'::json) as release_modules,
     exists (
       select 1
       from course_publications cp
@@ -97,6 +127,52 @@ const PURCHASE_HANDOFF_QUERY = `
   where c.slug = $1
   limit 1
 `;
+
+const resolveOpenCheckoutView = (
+  course: PurchaseHandoffRow
+): Extract<
+  PurchaseHandoffView,
+  { kind: "checkout" } | { kind: "unavailable" }
+> => {
+  if (
+    course.status !== "active" ||
+    course.sales_status !== "open" ||
+    course.price_in_cents <= 0 ||
+    !course.has_published_publication
+  ) {
+    return { kind: "unavailable", reason: "course_unavailable" };
+  }
+
+  try {
+    assertCheckoutAvailable({
+      entry: "public",
+      mode: getServerEnv().PAYMENTS_CHECKOUT_MODE,
+    });
+  } catch {
+    return { kind: "unavailable", reason: "checkout_disabled" };
+  }
+
+  const releaseSchedule = buildContentReleaseScheduleSnapshot(
+    course.release_modules ?? []
+  );
+  try {
+    assertScheduleFitsAccessDuration({
+      accessDurationMonths: course.access_duration_months,
+      snapshot: releaseSchedule,
+    });
+  } catch {
+    return { kind: "unavailable", reason: "course_unavailable" };
+  }
+
+  return {
+    courseId: course.course_id,
+    courseSlug: course.course_slug,
+    courseTitle: course.course_title,
+    kind: "checkout",
+    releaseSchedule,
+    releaseScheduleDigest: getContentReleaseScheduleDigest(releaseSchedule),
+  };
+};
 
 export const getPurchaseHandoffView = async ({
   session,
@@ -167,28 +243,5 @@ export const getPurchaseHandoffView = async ({
     };
   }
 
-  if (
-    course.status !== "active" ||
-    course.sales_status !== "open" ||
-    course.price_in_cents <= 0 ||
-    !course.has_published_publication
-  ) {
-    return { kind: "unavailable", reason: "course_unavailable" };
-  }
-
-  try {
-    assertCheckoutAvailable({
-      entry: "public",
-      mode: getServerEnv().PAYMENTS_CHECKOUT_MODE,
-    });
-  } catch {
-    return { kind: "unavailable", reason: "checkout_disabled" };
-  }
-
-  return {
-    courseId: course.course_id,
-    courseSlug: course.course_slug,
-    courseTitle: course.course_title,
-    kind: "checkout",
-  };
+  return resolveOpenCheckoutView(course);
 };

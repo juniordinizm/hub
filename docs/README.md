@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
+last_verified_commit: b6e6d63
 ---
 
 # Documentação do Hub
@@ -54,6 +54,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Backup Production e restauração](operations/production-backup-restore.md)
 - [Progressão DMARC](operations/dmarc-rollout.md)
 - [Checklist das pendências externas](operations/external-readiness-checklist.md)
+- [Rollout da liberação temporal por Módulo](operations/content-release-rollout.md)
 
 ### Decisões
 
@@ -67,10 +68,13 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [ADR-0007: versionamento curricular](adr/0007-course-versioning-and-enrollment-curriculum.md)
 - [ADR-0008: analytics opcional de aprendizagem](adr/0008-optional-learning-analytics.md)
 - [ADR-0009: disponibilidade comercial e interesse](adr/0009-course-availability-and-sale-interest.md)
+- [ADR-0010: liberação temporal relativa por Módulo](adr/0010-relative-module-content-release.md)
 
 ### Revisões
 
 - [Requalificação de prontidão e higiene operacional em 2026-09-03](reviews/2026-09-03-readiness-remediation-requalification.md)
+- [Revisão final de Production Readiness da liberação por Módulo](reviews/2026-09-06-module-content-release-production-readiness-review.md)
+- [Pesquisa externa da liberação por Módulo](reviews/2026-09-06-module-content-release-external-research.md)
 - [Requalificação de Production Readiness em 2026-09-01](reviews/2026-09-01-production-readiness-requalification.md)
 - [Auditoria de saúde do repositório e plano de normalização](reviews/2026-08-29-repository-health-audit.md)
 - [Requalificação de Production Readiness em 2026-08-26, retorno ao fluxo normal e bloqueios externos](reviews/2026-08-26-production-readiness-requalification.md)
@@ -94,19 +98,18 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Editor de certificado: refinamento premium](superpowers/specs/2026-08-08-certificate-editor-premium-refinement-design.md)
 - [Plano do refinamento premium do editor de certificado](superpowers/plans/2026-08-08-certificate-editor-premium-refinement.md)
 - [Disponibilidade comercial e interesse em Cursos](superpowers/specs/2026-08-17-course-availability-and-interest-design.md)
+- [Liberação temporal de conteúdo por Módulo](superpowers/specs/2026-09-04-module-content-release-design.md)
+- [Plano da liberação temporal de conteúdo por Módulo](superpowers/plans/2026-09-04-module-content-release.md)
 - [Hardening de conclusão e Certificados para Production](superpowers/specs/2026-08-17-certificate-production-hardening-design.md)
 - [Plano do hardening de conclusão e Certificados](superpowers/plans/2026-08-17-certificate-production-hardening.md)
-- [Remediação da prontidão e higiene operacional](superpowers/specs/2026-09-03-readiness-remediation-design.md)
-- [Estados de conclusão de ações e recuperação de senha](superpowers/specs/2026-09-03-action-outcome-and-password-recovery-ux-design.md)
-- [Estados de conclusão de ações e recuperação de senha: plano](superpowers/plans/2026-09-03-action-outcome-and-password-recovery-ux.md)
 
 ### Plano mestre em execução
 
-- [Plano de remediação da prontidão e higiene operacional](superpowers/plans/2026-09-03-readiness-remediation-plan.md)
 - [Plano mestre de remediação da prontidão de Production](superpowers/plans/2026-08-23-production-readiness-remediation-sprints.md)
 
 ### Plano de manutenção proposto
 
+- [Sprints finais de remediação da liberação por Módulo](superpowers/plans/2026-09-06-module-content-release-final-remediation-sprints.md)
 - [Sprints de limpeza e organização do repositório](superpowers/plans/2026-09-03-repository-cleanup-sprints.md)
 
 ## Material não canônico

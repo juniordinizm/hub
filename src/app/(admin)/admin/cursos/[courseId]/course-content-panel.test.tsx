@@ -75,6 +75,7 @@ const modules: AdminModule[] = [
     courseTitle: course.title,
     description: null,
     id: "module-1",
+    releaseDelayDays: 0,
     sortOrder: 1,
     status: "active",
     title: "Módulo 1",

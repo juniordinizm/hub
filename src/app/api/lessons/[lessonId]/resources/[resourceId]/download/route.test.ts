@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 const {
+  assertProtectedLessonAccess,
   createLessonResourceDownloadUrl,
   getStudentLessonWorkspace,
   recordLearningAnalyticsEvent,
   requireSession,
 } = vi.hoisted(() => ({
+  assertProtectedLessonAccess: vi.fn(),
   createLessonResourceDownloadUrl: vi.fn(),
   getStudentLessonWorkspace: vi.fn(),
   recordLearningAnalyticsEvent: vi.fn().mockResolvedValue(undefined),
@@ -13,6 +15,10 @@ const {
 }));
 
 vi.mock("@/features/courses/server", () => ({ getStudentLessonWorkspace }));
+vi.mock("@/features/courses/protected-lesson-access", () => ({
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError: class LessonAccessDeniedError extends Error {},
+}));
 vi.mock("@/features/storage/r2", () => ({ createLessonResourceDownloadUrl }));
 vi.mock("@/features/learning-analytics/server", () => ({
   recordLearningAnalyticsEvent,
@@ -22,27 +28,69 @@ vi.mock("@/lib/session", () => ({ requireSession }));
 import { GET } from "./route";
 
 describe("lesson resource download", () => {
+  it("does not sign a future module resource", async () => {
+    requireSession.mockResolvedValue({
+      role: "student",
+      user: { id: "student-1" },
+    });
+    getStudentLessonWorkspace.mockResolvedValue({
+      availableAt: new Date("2026-09-12T12:00:00.000Z"),
+      courseId: "course-1",
+      kind: "time_locked",
+    });
+
+    const response = await GET(new Request("https://hub.example.test/api"), {
+      params: Promise.resolve({
+        lessonId: "lesson-1",
+        resourceId: "resource-1",
+      }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(createLessonResourceDownloadUrl).not.toHaveBeenCalled();
+  });
+
   it("returns to the lesson with a safe recovery state when R2 is unavailable", async () => {
     requireSession.mockResolvedValue({
       role: "student",
       user: { id: "student-1" },
     });
     getStudentLessonWorkspace.mockResolvedValue({
-      lesson: {
-        contentJson: {
-          document: { type: "doc" },
-          resources: [
-            {
-              fileName: "material.pdf",
-              id: "resource-1",
-              key: "lessons/lesson-1/material.pdf",
-              label: "Material",
-              storage: "r2",
-            },
-          ],
-          type: "text",
+      data: {
+        course: { id: "course-1", title: "Course" },
+        isPreview: false,
+        lesson: {
+          contentJson: {
+            document: { type: "doc" },
+            resources: [
+              {
+                fileName: "material.pdf",
+                id: "resource-1",
+                key: "lessons/lesson-1/material.pdf",
+                label: "Material",
+                storage: "r2",
+              },
+            ],
+            type: "text",
+          },
+          description: null,
+          durationSeconds: 1,
+          id: "lesson-1",
+          isCompleted: false,
+          title: "Lesson",
+          videoDurationSeconds: 0,
+          videoEmbedUrl: null,
+          videoExternalId: null,
+          videoProcessingState: null,
+          videoProvider: null,
+          watchProgress: null,
         },
+        modules: [],
+        nextLessonId: null,
+        previousLessonId: null,
+        progressPercent: 0,
       },
+      kind: "available",
     });
     createLessonResourceDownloadUrl.mockRejectedValue(new Error("R2 down"));
 
@@ -64,5 +112,6 @@ describe("lesson resource download", () => {
       lessonId: "lesson-1",
       userId: "student-1",
     });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 });

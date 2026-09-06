@@ -93,6 +93,49 @@ Para testar somente integração, configure uma URL PostgreSQL descartável e
 execute `bun run test:certificates:integration`. Para E2E, use as URLs e os
 servidores locais definidos no `playwright.config.ts`.
 
+### PostgreSQL descartável no Windows
+
+O caminho recomendado é executar a CI, que já provisiona PostgreSQL 18. Se o
+Docker Desktop estiver instalado, o fluxo local seguro é:
+
+```powershell
+docker run --name hub-release-postgres `
+  -e POSTGRES_USER=postgres `
+  -e POSTGRES_PASSWORD=postgres `
+  -e POSTGRES_DB=postgres `
+  -p 5432:5432 `
+  -d postgres:18-alpine
+
+docker exec hub-release-postgres createdb -U postgres hub_integration
+docker exec hub-release-postgres createdb -U postgres hub_e2e
+```
+
+Na mesma sessão PowerShell, configure somente o banco descartável:
+
+```powershell
+$integration = "postgresql://postgres:postgres@127.0.0.1:5432/hub_integration?sslmode=disable"
+$e2e = "postgresql://postgres:postgres@127.0.0.1:5432/hub_e2e?sslmode=disable"
+$env:INTEGRATION_DATABASE_URL = $integration
+$env:CERTIFICATE_CONCURRENCY_DATABASE_URL = $integration
+$env:E2E_DATABASE_URL = $e2e
+$env:DATABASE_URL = $integration
+$env:DATABASE_URL_DIRECT = $integration
+```
+
+Execute migrations, integração e E2E em ordem:
+
+```powershell
+bun run db:migrate:e2e
+bun run test:certificates:integration
+$env:DATABASE_URL = $e2e
+$env:DATABASE_URL_DIRECT = $e2e
+bun run db:migrate:e2e
+bun run test:e2e
+```
+
+Não use banco de Staging ou Production. Se a porta 5432 estiver ocupada, use
+outra porta e ajuste as URLs; o container deve ser descartado depois do teste.
+
 Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplicação
 herdadas do processo e restaura o ambiente ao final de cada teste. Isso impede
 que `.env.local` altere silenciosamente o resultado da suíte. O contrato fica em

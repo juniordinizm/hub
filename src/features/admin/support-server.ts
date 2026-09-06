@@ -2,6 +2,11 @@ import "server-only";
 
 import type { StudentSheetPayload } from "@/components/admin/student-management-types";
 import { getPool } from "@/db";
+import { CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL } from "@/features/courses/content-release-sql";
+import {
+  type ContentReleaseMode,
+  MAX_RELEASE_DELAY_DAYS,
+} from "@/features/courses/module-content-release";
 import { requirePermission } from "@/lib/auth-permissions";
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -46,11 +51,15 @@ export interface SupportCourseStudentContext {
   }>;
   course: { id: string; title: string };
   enrollment: {
+    contentReleaseMode: "full_access" | "scheduled";
+    contentReleaseState?: "invalid_schedule" | "valid";
+    contentReleaseStartedAt: Date | null;
     completedRequiredLessons: number;
     expiresAt: Date;
     id: string;
     originalExpiresAt: Date;
     requiredLessons: number;
+    nextModuleReleaseAt: Date | null;
     revokedReason: string | null;
     startsAt: Date;
     status: string;
@@ -232,6 +241,9 @@ export const getSupportCourseStudentContext = async ({
 
   const pool = getPool();
   const contextResult = await pool.query<{
+    content_release_mode: ContentReleaseMode;
+    content_release_state: "invalid_schedule" | "valid";
+    content_release_started_at: Date | null;
     completed_required_lessons: number;
     course_id: string;
     course_title: string;
@@ -245,6 +257,7 @@ export const getSupportCourseStudentContext = async ({
     platform_blocked_reason: string | null;
     platform_blocked: boolean;
     required_lessons: number;
+    next_module_release_at: Date | null;
     revoked_reason: string | null;
     starts_at: Date;
     user_id: string;
@@ -263,9 +276,33 @@ export const getSupportCourseStudentContext = async ({
         e.status as enrollment_status,
         e.starts_at,
         e.expires_at,
+        e.content_release_mode,
+        e.content_release_started_at,
+        case
+          when e.content_release_mode = 'scheduled'
+            and (
+              e.content_release_started_at is null
+              or exists (
+                select 1
+                from modules invalid_module
+                join course_publications invalid_publication
+                  on invalid_publication.id = invalid_module.course_publication_id
+                where invalid_publication.course_id = c.id
+                  and invalid_publication.status = 'published'
+                  and invalid_module.status = 'active'
+                  and (
+                    invalid_module.release_delay_days < 0
+                    or invalid_module.release_delay_days > ${MAX_RELEASE_DELAY_DAYS}
+                  )
+              )
+            )
+            then 'invalid_schedule'
+          else 'valid'
+        end as content_release_state,
         coalesce(latest_grant.base_expires_at, e.expires_at)
           as original_expires_at,
         e.revoked_reason,
+        next_release.next_module_release_at,
         (
           select count(*)::int
           from lessons l
@@ -297,6 +334,7 @@ export const getSupportCourseStudentContext = async ({
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
+      ${CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL}
       where e.course_id = $1 and e.user_id = $2
     `,
     [courseId, userId]
@@ -424,6 +462,12 @@ export const getSupportCourseStudentContext = async ({
     ),
   ]);
   const latestCertificate = certificateResult.rows[0] ?? null;
+  const contentReleaseState =
+    context.content_release_state ??
+    (context.content_release_mode === "scheduled" &&
+    !context.content_release_started_at
+      ? "invalid_schedule"
+      : undefined);
 
   return {
     audit: auditResult.rows.map((row) => ({
@@ -434,11 +478,15 @@ export const getSupportCourseStudentContext = async ({
     })),
     course: { id: context.course_id, title: context.course_title },
     enrollment: {
+      contentReleaseMode: context.content_release_mode,
+      ...(contentReleaseState ? { contentReleaseState } : {}),
+      contentReleaseStartedAt: context.content_release_started_at,
       completedRequiredLessons: context.completed_required_lessons,
       expiresAt: context.expires_at,
       id: context.enrollment_id,
       originalExpiresAt: context.original_expires_at,
       requiredLessons: context.required_lessons,
+      nextModuleReleaseAt: context.next_module_release_at,
       revokedReason: context.revoked_reason,
       startsAt: context.starts_at,
       status: context.enrollment_status,
@@ -532,6 +580,18 @@ export const getSupportStudentSheetData = async ({
       userId: context.student.userId,
     },
     supportContext: {
+      ...(context.enrollment.contentReleaseMode
+        ? { contentReleaseMode: context.enrollment.contentReleaseMode }
+        : {}),
+      ...(context.enrollment.contentReleaseState
+        ? { contentReleaseState: context.enrollment.contentReleaseState }
+        : {}),
+      ...(context.enrollment.contentReleaseStartedAt
+        ? {
+            contentReleaseStartedAt:
+              context.enrollment.contentReleaseStartedAt.toISOString(),
+          }
+        : {}),
       audit: context.audit.map((item) => ({
         ...item,
         createdAt: item.createdAt.toISOString(),
@@ -544,6 +604,12 @@ export const getSupportStudentSheetData = async ({
         completedRequiredLessons: context.enrollment.completedRequiredLessons,
         requiredLessons: context.enrollment.requiredLessons,
       },
+      ...(context.enrollment.nextModuleReleaseAt
+        ? {
+            nextModuleReleaseAt:
+              context.enrollment.nextModuleReleaseAt.toISOString(),
+          }
+        : {}),
     },
   };
 };
