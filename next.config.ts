@@ -108,7 +108,11 @@ const nextConfig: NextConfig = {
     ],
   },
   outputFileTracingIncludes: {
-    "/*": ["node_modules/sharp/**/*", "node_modules/@img/sharp-*/**/*"],
+    "/*": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/sharp-*/**/*",
+      "public/fonts/certificates/**/*",
+    ],
   },
   headers: async () => [
     {

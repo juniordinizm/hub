@@ -1,10 +1,21 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 55a2729c1c5916383ab7a3f2d99bb77505704a9b
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Backup Production e restauração
+
+## Evidência remota atual — 2026-09-03
+
+O workflow `Backup Production database` `33778673874` terminou `success`
+no SHA `10c9cb8dd187482144850015841fb4485eacbd5f`. Esta evidência fecha a execução
+automatizada recente do backup e foi registrada sem ler ou exibir valores de
+credenciais, URLs, dumps ou PII.
+
+O responsável confirmou a propriedade e o escopo somente leitura da credencial
+R2 usada no restore, além do checker e do ensaio em target descartável. A
+confirmação foi registrada sem expor valores de credenciais, URLs, dumps ou PII.
 
 ## Estado e limites
 
@@ -94,7 +105,7 @@ descrever o estado atual.
   ainda precisam de prova; a observação de uma execução agendada permanece
   pendente, pois as duas execuções acima foram disparadas manualmente.
 
-## Estado atual — 2026-08-27
+## Estado histórico — 2026-08-27
 
 - `bun run ops:check:production-backup` retornou `fresh` para o backup
   `e0b48105-1496-4837-b81e-af30f0063781`, migration
@@ -289,8 +300,10 @@ sanitizado.
 O comando guardado é `bun run ops:backup:production`. Ele:
 
 1. lê Vercel e Neon sem mutação e prova que o deployment Production `READY`, o
-   SHA implantado, o projeto Vercel, o projeto/branch Neon, o endpoint ativo e o
-   host direto do dump formam a mesma origem;
+   SHA implantado, o projeto Vercel, o projeto/branch Neon, o endpoint da branch
+   em estado `active` ou `idle` e o host direto do dump formam a mesma origem;
+   `idle` é o estado normal de um compute suspenso por scale-to-zero; a conexão
+   TLS do `pg_dump` o reativa antes da inspeção read-only;
 2. valida role read-only, PostgreSQL 18, journal e tamanho lógico positivo;
 3. executa `pg_dump` custom, compressão 9, sem owner/ACL e sem URL na lista de
    argumentos; o libpq valida TLS com `sslmode=verify-full` e o CA bundle do

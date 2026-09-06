@@ -68,6 +68,16 @@ Do not add a new rule until checking whether an existing rule already covers or 
 * After changing code, run the narrowest useful verification command.
 * If verification cannot run, state the exact blocker.
 
+### Repository Hygiene
+
+* At task boundaries, inspect and report the status of worktrees, branches, stashes, uncommitted changes, and open Pull Requests; every retained item needs an owner or a documented reason to remain.
+* Keep only worktrees tied to active work. After confirming that no agent or session is using a worktree, that it contains no uncommitted or untracked user data or secrets, and that its branch is no longer needed, remove it through its owning manager.
+* Treat obsolete Pull Requests as cleanup candidates, not automatic deletions: close only merged, superseded, abandoned, or duplicate Pull Requests when closure is explicitly in scope; keep active Pull Requests open.
+* After a feature Pull Request is merged or intentionally closed, remove its obsolete local and remote feature branches only after confirming that no unique commits, recovery value, or dependent work remain. Preserve persistent, release, and recovery branches documented by the project.
+* Protect `main` and `staging` as persistent branches: do not directly alter, delete, reset, rebase, or force-push them during feature work or cleanup. Advance them only through the documented release flow and with explicit authorization.
+* Preserve uncommitted changes, stashes, ignored files, secrets, and user data until they are classified; do not use force deletion, `git reset --hard`, or `git clean` as housekeeping.
+* Cleanup is complete only when the final inventory shows no unused worktree or obsolete feature branch, no stale Pull Request requiring action, and an explicit reason for every remaining local change or stash.
+
 ## Project Documentation
 
 Canonical project documentation lives in `README.md`, `PRODUCT.md`, `CONTEXT.md`, and `docs/`.

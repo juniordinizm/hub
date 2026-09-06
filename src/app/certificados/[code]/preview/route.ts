@@ -1,6 +1,8 @@
 import { getCertificatePreviewReadUrl } from "@/features/certificates/preview-server";
 import { consumePublicCertificateLookup } from "@/features/certificates/public-rate-limit";
 
+export const runtime = "nodejs";
+
 const PRIVATE_ERROR_HEADERS = {
   "cache-control": "no-store",
   "retry-after": "60",

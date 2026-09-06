@@ -72,6 +72,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Requalificação de prontidão e higiene operacional em 2026-09-03](reviews/2026-09-03-readiness-remediation-requalification.md)
 - [Revisão final de Production Readiness da liberação por Módulo](reviews/2026-09-06-module-content-release-production-readiness-review.md)
 - [Pesquisa externa da liberação por Módulo](reviews/2026-09-06-module-content-release-external-research.md)
 - [Requalificação de Production Readiness em 2026-09-01](reviews/2026-09-01-production-readiness-requalification.md)

@@ -1,7 +1,7 @@
 ---
 status: accepted
 owner: engineering
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 audit_date: 2026-09-01
 ---
 
@@ -149,3 +149,34 @@ Documentação válida
 
 Os gates de integração PostgreSQL, E2E, build completo, Knip, DNS, Sentry
 Production e DMARC não são marcados como aprovados por esta execução local.
+
+## Atualização de evidências — 2026-09-03
+
+Este adendo não reescreve a decisão de 2026-09-01. Ele incorpora somente
+execuções remotas posteriores no SHA atual de `main`,
+`10c9cb8dd187482144850015841fb4485eacbd5f`:
+
+- CI `33716424503`: `success`, com integração PostgreSQL local, E2E, build,
+  Knip e audit;
+- Verify Sentry Production readiness `33718401953`: `success`;
+- Backup Production database `33778673874`: `success`;
+- `verify-resend-lifecycle` no Run Staging jobs `33718939437`: `success`.
+
+Com isso, a prova técnica do Sentry, a execução do backup e o lifecycle
+automatizado do Resend deixam de ser descritos como ausentes. O run do Resend
+fecha a prova automatizada em Staging; não prova cabeçalhos de uma mensagem
+recebida na caixa Production. A propriedade e o escopo da credencial R2 de
+restore também continuam sem prova apenas por nomes de secrets.
+
+O repositório está apto a receber novas features sob os contratos locais e de
+CI atuais. Isso não transforma este adendo em autorização de nova promoção:
+o cabeçalho da mensagem Production permanece pendente, e a observação DMARC
+segue fora do escopo e sem alteração.
+
+## Confirmação operacional posterior — 2026-09-03
+
+O responsável confirmou os itens externos 1 a 8: alvos e branches do GitHub,
+credencial R2 somente leitura, secrets, acesso sem escrita, lock/lifecycle,
+restore descartável Neon, Resend com cabeçalhos Production e rotação de
+secrets Vercel/Resend. A pendência operacional restante é somente a observação
+DMARC até 2026-09-12, sem alteração de DNS.

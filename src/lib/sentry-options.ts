@@ -17,7 +17,7 @@ const EMAIL_ADDRESS = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu;
 const BEARER_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/giu;
 const LOCATION_WITH_QUERY = /(?:https?:\/\/|\/)[^\s?#]+[?#][^\s]*/giu;
 const SENSITIVE_ATTRIBUTE_KEY =
-  /authorization|cookie|email|password|secret|signature|token|payload|signed.?url|user.?name/iu;
+  /authorization|cookie|email|password|secret|signature|token|payload|signed.?url|user.?name|^user$/iu;
 const REDACTED_EMAIL = "[email]";
 const REDACTED_TOKEN = "Bearer [token]";
 const CIRCULAR_REFERENCE = "[circular]";

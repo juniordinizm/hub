@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: a95be66d7645e17d3bf83528ffa065b7ced38861
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Fluxo de release do Hub
@@ -109,12 +109,16 @@ duplicadas.
 
 ## Cron e workers
 
+A configuração de `vercel.json` agenda os workers de Asaas, JMVStream, outbox e
+Resend a cada quinze minutos; matrículas diariamente às 10:00 UTC e manutenção
+diariamente às 04:00 UTC.
+
 O cron JMVStream permanece ativo em Production a cada 15 minutos. Ele busca
-vídeos em `processing`, atualiza player e thumbnail, reconcilia a pasta do
-curso e expira uploads abandonados.
+vídeos em `processing`, atualiza player e thumbnail, reconcilia a pasta do curso
+e expira uploads abandonados.
 
 Em Staging, os workers são executados somente pela operação manual
-`Run Staging jobs`. O schedule de cinco minutos do GitHub Actions foi removido.
+`Run Staging jobs`. O agendamento periódico anterior do GitHub Actions foi removido.
 
 As inboxes Asaas/Resend, leases, retries, dead-letter e outbox são mantidos.
 Qualquer redução adicional de frequência exige evidência de que o processamento

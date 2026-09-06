@@ -25,6 +25,17 @@ describe("Vercel cron configuration", () => {
     expect(source).toContain('"node_modules/@img/sharp-*/**/*"');
   });
 
+  it("traces certificate preview fonts and pins the preview route to Node.js", async () => {
+    const nextConfigSource = await readFile("next.config.ts", "utf8");
+    const previewRouteSource = await readFile(
+      resolve("src/app/certificados/[code]/preview/route.ts"),
+      "utf8"
+    );
+
+    expect(nextConfigSource).toContain('"public/fonts/certificates/**/*"');
+    expect(previewRouteSource).toContain('export const runtime = "nodejs"');
+  });
+
   it("disables Sentry release and source-map uploads in isolated E2E builds", async () => {
     const source = await readFile("next.config.ts", "utf8");
 

@@ -52,7 +52,7 @@ redirecione sua saída para logs compartilhados.
 
 **Autorização:** o endpoint de bootstrap Admin só existe fora de produção, exige `INTERNAL_BOOTSTRAP_SECRET` e retorna 404 em produção por `getBootstrapAdminDecision`.
 
-**Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro. O formulário público de recuperação sempre mostra a mesma mensagem para Conta existente, inexistente ou falha de entrega, evitando enumeração visível no navegador.
+**Falhas:** sem Resend, recuperação de senha e e-mails de acesso falham; isso não reabre cadastro. O formulário público de recuperação sempre usa a mesma mensagem para Conta existente, inexistente ou falha de entrega, evitando enumeração visível no navegador. Depois de uma resposta aceita, ele substitui os campos por uma confirmação e só permite nova solicitação após a ação explícita de tentar com outro e-mail.
 
 ### REG-IDA-002A Cadastro público cria apenas a Conta
 
@@ -182,6 +182,14 @@ rejeitados e oito são aceitos; a confirmação deve ser idêntica. A mesma pol�
 preserva token de redefinição por uma hora e revoga as sessões existentes depois
 da troca. Mensagens públicas de recuperação continuam indistinguíveis para Conta
 existente, inexistente ou falha de entrega.
+
+Após uma redefinição bem-sucedida, a interface remove o formulário e oferece entrada pelo fluxo normal de login; o mesmo token não é submetido novamente pela tela.
+
+No reset de senha, `INVALID_TOKEN` mostra **Link inválido ou expirado** e oferece
+`/recuperar-senha`; `PASSWORD_TOO_LONG` mostra mensagem segura de senha muito
+longa sem link. Códigos desconhecidos, `429`, `5xx`, corpos vazios ou malformados
+e erros de rede usam a mensagem genérica de tentar novamente, sem link. O guard
+de token ausente preserva o link de recuperação exigido.
 
 As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 

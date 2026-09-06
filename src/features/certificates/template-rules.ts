@@ -85,8 +85,6 @@ export const ensureCertificateTemplateFields = (
 
 export const CERTIFICATE_REQUIRED_FIELDS = [
   "studentName",
-  "courseTitle",
-  "issuerName",
   "validationCode",
   "qrCode",
 ] as const satisfies readonly CertificateField[];

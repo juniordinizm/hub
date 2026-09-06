@@ -57,7 +57,7 @@ export const getCertificatePreviewTextStyle = (
     alignItems: getVerticalAlignItems(verticalAlign),
     color: field.color,
     display: "flex",
-    fontFamily: "Helvetica, Arial, sans-serif",
+    fontFamily: "Certificate Inter, sans-serif",
     fontSize: `${
       Math.round(
         getCertificatePreviewFontSize(field.fontSize, renderedWidth) * 1000

@@ -56,6 +56,32 @@ describe("certificate template rules", () => {
     ).toEqual([]);
   });
 
+  it("accepts a template without the course title or issuer name", () => {
+    const requiredVisibleFields = [
+      "studentName",
+      "validationCode",
+      "qrCode",
+    ] as const;
+
+    expect(
+      validateCertificateTemplate({
+        backgroundKey: "certificates/a4.png",
+        fields: requiredVisibleFields.map((field, index) => ({
+          align: "left" as const,
+          color: "#000000",
+          field,
+          font: "Helvetica" as const,
+          fontSize: 12,
+          height: 4,
+          visible: true,
+          width: 15,
+          x: index * 16,
+          y: 20,
+        })),
+      })
+    ).toEqual([]);
+  });
+
   it("rejects a field outside the printable page", () => {
     expect(
       validateCertificateTemplate({

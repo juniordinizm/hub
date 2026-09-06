@@ -23,7 +23,10 @@ const event = {
     },
   ],
   eventID: eventId,
-  release: { version: release },
+  release: {
+    lastCommit: { author: { email: "release-author@example.test" } },
+    version: release,
+  },
   request: null,
   tags: [
     { key: "environment", value: "staging" },
@@ -155,6 +158,29 @@ describe("Sentry readiness evidence", () => {
         workflows,
       })
     ).toEqual([]);
+  });
+
+  it("ignores empty cookie metadata but rejects non-empty cookies", () => {
+    const errors = verifySentryReadinessEvidence({
+      detectors,
+      event: {
+        ...event,
+        entries: [
+          ...event.entries,
+          { data: { cookies: ["session-value"] }, type: "request" },
+        ],
+      },
+      expected: {
+        alertName: "Hub Production readiness",
+        environment: "staging",
+        eventId,
+        projectId: "4511808556564480",
+        release,
+      },
+      workflows,
+    });
+
+    expect(errors).toContain("event contains a sensitive attribute or value");
   });
 
   it("rejects PII, a minified-only frame and an alert not triggered by the event", () => {

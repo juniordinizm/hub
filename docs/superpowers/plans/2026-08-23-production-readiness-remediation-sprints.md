@@ -2,7 +2,7 @@
 status: accepted
 execution_status: active
 owner: engineering
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 current_sprint: 7
 supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprints.md
 ---
@@ -13,6 +13,21 @@ supersedes: docs/superpowers/plans/2026-08-23-email-auth-resend-completion-sprin
 > Execute uma tarefa por vez, preserve os identificadores `F-001` a `F-010` e
 > pare em qualquer condição `STOP`. Nenhuma caixa marcada neste documento prova
 > implementação por si só: cada conclusão exige código, teste e evidência.
+
+## Checkpoint de execução — 2026-09-03
+
+Este plano permanece ativo para os gates que exigem decisão ou ação externa,
+mas os checkpoints abaixo atualizam a fotografia operacional sem reabrir as
+etapas históricas:
+
+- CI `33716424503`, Sentry `33718401953`, backup `33778673874` e lifecycle
+  controlado do Resend `33718939437` terminaram `success` no SHA atual;
+- a nova requalificação registra `GO` para receber features e novas
+  promoções Production; R2, restore descartável, lock/lifecycle, cabeçalhos da
+  caixa Production e rotação Resend foram confirmados pelo responsável;
+- DMARC permanece em observação e não é alterado;
+- conectores externos sem correspondência inequívoca não são autoridade e não
+  devem ser usados para fechar os gates.
 
 ## 1. Objetivo e autoridade
 
@@ -2345,7 +2360,7 @@ Nenhum `.only`, `.skip` não justificado ou violação Axe allowlisted globalmen
   PITR e restore R2 foram comprovados, com risco de pontualidade registrado.
 - [x] Resend templates/domain/webhook e lifecycle controlado verdes.
 - [ ] DMARC final estável, SPF/DKIM alinhados e relatórios sem fonte desconhecida.
-- [ ] Sentry event/source map/alert verdes.
+- [x] Sentry event/source map/alert verdes, comprovados pelo run `33718401953`.
 - [x] Smokes de endpoints públicos e readiness no endereço exato antes da
   atualização do alias de Staging.
 - [x] Não criar Checkout ou pagamento real nesta Sprint.

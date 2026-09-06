@@ -136,6 +136,7 @@ jobs:
             playwright-report
             test-results/playwright
             test-results/next-server.log
+          retention-days: 14
 
       - name: Build with synthetic CI configuration
         env:

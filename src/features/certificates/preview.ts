@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import { formatDate } from "@/lib/formatters";
+import {
+  CERTIFICATE_FONT_FAMILY,
+  configureCertificateFontRuntime,
+} from "./font-assets";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
 import { getCertificateValidationPath } from "./rules";
 import { CERTIFICATE_PAGE } from "./template-rules";
@@ -121,10 +125,10 @@ const createTextSvg = ({
     )
     .join("");
 
-  return `<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${width}" height="${height}" /></clipPath><g clip-path="url(#${clipId})" fill="${escapeXml(field.color)}" font-family="Helvetica, Arial, sans-serif" font-size="${fontSize}" font-weight="${field.font === "Helvetica-Bold" ? 700 : 400}">${text}</g>`;
+  return `<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${width}" height="${height}" /></clipPath><g clip-path="url(#${clipId})" fill="${escapeXml(field.color)}" font-family="${CERTIFICATE_FONT_FAMILY}" font-size="${fontSize}" font-weight="${field.font === "Helvetica-Bold" ? 700 : 400}">${text}</g>`;
 };
 
-const createPreviewSvg = ({
+export const createCertificatePreviewSvg = ({
   qrDataUrl,
   signatureDataUrl,
   snapshot,
@@ -182,6 +186,8 @@ export const renderCertificatePreview = async ({
   signature: Buffer | null;
   snapshot: CertificateRenderSnapshot;
 }): Promise<{ png: Buffer; sha256: string }> => {
+  configureCertificateFontRuntime();
+
   const validationUrl = new URL(
     getCertificateValidationPath(snapshot.certificate.code),
     publicBaseUrl
@@ -194,7 +200,11 @@ export const renderCertificatePreview = async ({
   const signatureDataUrl = signature
     ? `data:image/png;base64,${(await sharp(signature).png().toBuffer()).toString("base64")}`
     : null;
-  const svg = createPreviewSvg({ qrDataUrl, signatureDataUrl, snapshot });
+  const svg = createCertificatePreviewSvg({
+    qrDataUrl,
+    signatureDataUrl,
+    snapshot,
+  });
   const png = await sharp(backgroundPng)
     .composite([{ input: Buffer.from(svg) }])
     .png()

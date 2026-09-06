@@ -41,6 +41,19 @@ const SOURCE_FRAME = /(?:^|\/)src\/lib\/sentry-readiness\.ts$/u;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const hasSensitiveValue = (value: unknown): boolean => {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (isRecord(value)) {
+    return Object.keys(value).length > 0;
+  }
+  return true;
+};
+
 const normalizedString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
@@ -84,7 +97,8 @@ const eventRelease = (
 
 const containsSensitiveTelemetry = (
   value: unknown,
-  insideStackFrame = false
+  insideStackFrame = false,
+  atEventRoot = true
 ): boolean => {
   if (typeof value === "string") {
     return (
@@ -95,13 +109,16 @@ const containsSensitiveTelemetry = (
   }
   if (Array.isArray(value)) {
     return value.some((item) =>
-      containsSensitiveTelemetry(item, insideStackFrame)
+      containsSensitiveTelemetry(item, insideStackFrame, false)
     );
   }
   if (!isRecord(value)) {
     return false;
   }
   return Object.entries(value).some(([key, item]) => {
+    if (atEventRoot && key === "release") {
+      return false;
+    }
     if (insideStackFrame && key === "context") {
       return false;
     }
@@ -112,13 +129,17 @@ const containsSensitiveTelemetry = (
           userValue !== null &&
           userValue !== undefined &&
           (userKey !== DERIVED_USER_FIELD ||
-            containsSensitiveTelemetry(userValue))
+            containsSensitiveTelemetry(userValue, false, false))
       );
     }
 
     return (
-      (SENSITIVE_KEY.test(key) && item !== null && item !== undefined) ||
-      containsSensitiveTelemetry(item, insideStackFrame || key === "frames")
+      (SENSITIVE_KEY.test(key) && hasSensitiveValue(item)) ||
+      containsSensitiveTelemetry(
+        item,
+        insideStackFrame || key === "frames",
+        false
+      )
     );
   });
 };

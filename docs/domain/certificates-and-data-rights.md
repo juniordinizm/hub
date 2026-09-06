@@ -20,6 +20,13 @@ para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ
 Curso. Não há HTML livre, campos arbitrários ou inferência automática de
 posicionamento.
 
+Na composição do template, a arte de fundo A4, o nome da Aluna, o código de
+validação e o QR de validação são obrigatórios e devem permanecer visíveis no
+layout. O título do Curso e o nome do emissor continuam disponíveis e são
+preenchidos automaticamente, mas podem ficar ocultos. O perfil emissor global,
+com razão social, nome de exibição/marca e CNPJ, continua obrigatório para a
+publicação.
+
 Sobreposições geométricas entre campos visíveis são permitidas: podem ser uma
 decisão intencional de composição. O editor calcula os pares sobrepostos,
 mostra um aviso acessível e destaca os retângulos no preview, mas não bloqueia
@@ -45,6 +52,21 @@ fonte são usadas exatamente como configuradas. Se nomes ou textos variáveis
 excederem o retângulo, o PDF preserva o recorte definido pela operação; o
 editor avisa antes do salvamento e pede confirmação adicional antes da
 publicação. Nenhum autoajuste ocorre no worker.
+
+Para Certificados futuros, os renderizadores de PDF e PNG usam o mesmo conjunto
+de assets TTF Inter Regular e Inter Bold empacotados com a aplicação. Os aliases
+lógicos persistidos `Helvetica` e `Helvetica-Bold` permanecem compatíveis, mas
+são resolvidos internamente para Inter Regular e Inter Bold, respectivamente. A
+geração de PNG usa Sharp/librsvg com Fontconfig empacotado no runtime Node.js e
+não depende de fontes instaladas no sistema. As dimensões A4 do preview, em
+1200x848, a chave de armazenamento, o contrato de redirect e a validação de
+integridade por `preview_sha256` permanecem inalterados; somente a rasterização
+interna das fontes muda. O PDF e o histórico do Certificado permanecem
+imutáveis. Se um PNG histórico estiver ausente, a rota de preview vigente ainda
+pode gerá-lo sob demanda a partir do snapshot imutável; isso não reescreve o PDF
+nem a evidência do Certificado. Previews existentes, inclusive previews de
+teste, não são objeto de backfill nem de revalidação semântica por esta mudança;
+previews futuros usam o renderizador corrigido.
 
 Quando um rascunho substitui fundo ou assinatura, a chave anterior entra em
 `certificate_template_asset_cleanup` com carência de 24 horas. A manutenção

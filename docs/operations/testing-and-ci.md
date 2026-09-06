@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b6e6d63
+last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
 ---
 
 # Testes e CI
@@ -95,8 +95,8 @@ servidores locais definidos no `playwright.config.ts`.
 
 ### PostgreSQL descartável no Windows
 
-O caminho recomendado é executar o CI, que já provisiona PostgreSQL 18. Se for
-necessário rodar localmente e o Docker Desktop estiver instalado:
+O caminho recomendado é executar a CI, que já provisiona PostgreSQL 18. Se o
+Docker Desktop estiver instalado, o fluxo local seguro é:
 
 ```powershell
 docker run --name hub-release-postgres `
@@ -110,7 +110,7 @@ docker exec hub-release-postgres createdb -U postgres hub_integration
 docker exec hub-release-postgres createdb -U postgres hub_e2e
 ```
 
-No mesmo terminal PowerShell, configure somente a sessão atual:
+Na mesma sessão PowerShell, configure somente o banco descartável:
 
 ```powershell
 $integration = "postgresql://postgres:postgres@127.0.0.1:5432/hub_integration?sslmode=disable"
@@ -122,7 +122,7 @@ $env:DATABASE_URL = $integration
 $env:DATABASE_URL_DIRECT = $integration
 ```
 
-Depois execute, nesta ordem:
+Execute migrations, integração e E2E em ordem:
 
 ```powershell
 bun run db:migrate:e2e
@@ -133,16 +133,18 @@ bun run db:migrate:e2e
 bun run test:e2e
 ```
 
-Não use banco de Staging ou Production nesses comandos. Se a porta 5432 já
-estiver ocupada, pare o processo responsável ou escolha outra porta e ajuste as
-URLs. O container é descartável; não coloque dados reais nele.
-
-O fluxo de liberação temporal usa `src/features/enrollments/content-release.integration.test.ts` e `src/features/courses/content-release.integration.test.ts` com PostgreSQL descartável. A URL deve estar em `CERTIFICATE_CONCURRENCY_DATABASE_URL` ou `INTEGRATION_DATABASE_URL`; sem ela o teste falha deliberadamente e nunca deve usar Neon compartilhado. O checklist manual de R2/JMVStream, copy e rollback está em [Rollout da liberação temporal por Módulo](content-release-rollout.md).
+Não use banco de Staging ou Production. Se a porta 5432 estiver ocupada, use
+outra porta e ajuste as URLs; o container deve ser descartado depois do teste.
 
 Os testes unitários carregam `tests/setup.ts`, que remove variáveis de aplicação
 herdadas do processo e restaura o ambiente ao final de cada teste. Isso impede
 que `.env.local` altere silenciosamente o resultado da suíte. O contrato fica em
 `src/testing/hermetic-environment.test.ts`.
+
+O artifact `playwright-report` contém somente evidência de teste e possui
+retenção explícita de 14 dias no workflow de CI. Evidências de backup e release
+não devem ser colocadas nesse artifact; cada uma precisa de retenção e runbook
+próprios.
 
 O audit de produção também mantém `browserslist` fixado pelo override do
 `package.json`; rode `bun audit --production` depois de qualquer alteração no

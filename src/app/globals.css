@@ -3,6 +3,22 @@
 @import "shadcn/tailwind.css";
 @import "../styles/lesson-rich-text.css";
 
+@font-face {
+  font-family: "Certificate Inter";
+  src: url("/fonts/certificates/Inter-Regular.ttf") format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Certificate Inter";
+  src: url("/fonts/certificates/Inter-Bold.ttf") format("truetype");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

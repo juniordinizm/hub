@@ -16,6 +16,21 @@ O certificado é um artefato PDF imutável. O Admin configura por Curso uma arte
 
 O template publicado é a autoridade visual: o worker usa a posição, a área e a fonte configuradas sem autoajuste. Se um dado exceder o retângulo, o PDF preserva o recorte definido pela operação; o editor avisa antes do salvamento e pede confirmação adicional antes da publicação.
 
+O contrato aceito para o runtime é que os futuros renderizadores de PDF e PNG
+usem o mesmo conjunto de assets TTF Inter Regular e Inter Bold empacotados com a
+aplicação. Os aliases lógicos persistidos `Helvetica` e `Helvetica-Bold`
+permanecem compatíveis, mas resolvem internamente para Inter Regular e Inter
+Bold, respectivamente. A geração de PNG usa Sharp/librsvg com Fontconfig
+empacotado no runtime Node.js e não depende de fontes instaladas no sistema. As
+dimensões A4 do preview, em 1200x848, a chave de armazenamento, o contrato de
+redirect e a validação de integridade por `preview_sha256` permanecem
+inalterados; somente a rasterização interna das fontes muda. O PDF e o histórico
+do Certificado permanecem imutáveis. Se um PNG histórico estiver ausente, a rota
+de preview vigente ainda pode gerá-lo sob demanda a partir do snapshot imutável;
+isso não reescreve o PDF nem a evidência do Certificado. Previews existentes,
+inclusive previews de teste, não são objeto de backfill nem de revalidação
+semântica por esta mudança; previews futuros usam o renderizador corrigido.
+
 Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin pode executar emissão, revogação e reemissão, inclusive a partir de um registro histórico, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor. Conforme [DEC-DISC-014](../decisions.md#dec-disc-014), `support` pode somente reemitir o Certificado existente mais recente da Aluna no Curso; emissão, revogação e reconciliação permanecem exclusivas de Admin. A capacidade é validada na action e a regra adicional de registro mais recente é validada no comando sob lock transacional.
 
 A emissão automática pertence exclusivamente à transação que insere a primeira `CourseCompletion`. Emissão, reemissão e progresso final compartilham lock transacional por Conta e Curso; encontrar uma Conclusão existente não tenta Certificado nem outbox.

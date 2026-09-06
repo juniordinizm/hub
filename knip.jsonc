@@ -43,6 +43,7 @@
     "@biomejs/biome",
     "@types/*",
     "babel-plugin-react-compiler",
+    "lefthook",
     "shadcn",
     "tw-animate-css",
     "tailwindcss"
