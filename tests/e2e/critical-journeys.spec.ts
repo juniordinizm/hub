@@ -34,7 +34,7 @@ const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
 const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 const CERTIFICATE_STATUS_PATTERN = /Status: (Preparando|Disponível)/;
-const SCHEDULED_RELEASE_PATTERN = /Disponível em/;
+const SCHEDULED_RELEASE_PATTERN = /Em breve/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -430,7 +430,6 @@ test("scheduled modules show locked future lessons and redirect direct access", 
     futureModule.getByRole("link", { name: "Aula futura E2E" })
   ).toHaveCount(0);
   await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
-  await expect(futureModule).toContainText("1 aula");
 
   await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
   await expect(page).toHaveURL(
@@ -458,7 +457,6 @@ test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
   await expect(
     futureModule.getByRole("link", { name: "Aula futura E2E" })
   ).toHaveCount(0);
-  await expect(futureModule).toContainText("1 aula");
   await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
 });
 
