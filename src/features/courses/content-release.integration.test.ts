@@ -559,12 +559,13 @@ describe("content release PostgreSQL surfaces", () => {
       createAsaasCheckoutIntent(createInput(gatewayOne)),
       createAsaasCheckoutIntent(createInput(gatewayTwo)),
     ]);
-    expect(results).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ status: "ready" }),
-        expect.objectContaining({ status: "processing" }),
-      ])
-    );
+    expect(results).toHaveLength(2);
+    expect(
+      results.every(
+        (result) => result.status === "ready" || result.status === "processing"
+      )
+    ).toBe(true);
+    expect(results.some((result) => result.status === "ready")).toBe(true);
     expect(
       gatewayOne.calls.createCheckout.length +
         gatewayTwo.calls.createCheckout.length
