@@ -76,8 +76,9 @@ export const createContentReleaseFixture = async ({
   );
   await pool.query(
     `
-      insert into courses (id, slug, title, status, access_duration_months, certificate_enabled)
-      values ($1, $2, 'Release integration course', 'active', 12, true)
+      insert into courses
+        (id, slug, title, status, access_duration_months, certificate_enabled, catalog_visibility, sales_status)
+      values ($1, $2, 'Release integration course', 'active', 12, true, 'listed', 'open')
     `,
     [courseId, `content-release-${randomUUID()}`]
   );
