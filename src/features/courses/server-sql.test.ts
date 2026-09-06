@@ -94,26 +94,44 @@ const createCourseOverviewRow = ({
 });
 
 const createLessonRow = ({
+  contentReleaseMode = "full_access",
+  contentReleaseStartedAt = null,
   completedAt = null,
+  decisionNow = new Date("2026-01-01T00:00:00.000Z"),
   lessonId,
   lessonSortOrder,
+  moduleId = "module-1",
+  moduleSortOrder = 1,
+  moduleTitle = "Module one",
+  releaseDelayDays = 0,
 }: {
+  contentReleaseMode?: "full_access" | "scheduled";
+  contentReleaseStartedAt?: Date | null;
   completedAt?: Date | null;
+  decisionNow?: Date;
   lessonId: string;
   lessonSortOrder: number;
+  moduleId?: string;
+  moduleSortOrder?: number;
+  moduleTitle?: string;
+  releaseDelayDays?: number;
 }) => ({
   completed_at: completedAt,
+  content_release_mode: contentReleaseMode,
+  content_release_started_at: contentReleaseStartedAt,
   content_json: null,
   course_id: "course-1",
   course_title: "Course one",
+  decision_now: decisionNow,
   duration_seconds: 120,
   lesson_description: `Description ${lessonSortOrder}`,
   lesson_id: lessonId,
   lesson_sort_order: lessonSortOrder,
   lesson_title: `Lesson ${lessonSortOrder}`,
-  module_id: "module-1",
-  module_sort_order: 1,
-  module_title: "Module one",
+  module_id: moduleId,
+  module_sort_order: moduleSortOrder,
+  module_title: moduleTitle,
+  release_delay_days: releaseDelayDays,
   video_duration_seconds: 120,
   video_embed_url: null,
   video_external_id: lessonId === "lesson-2" ? "video-2" : null,
@@ -336,7 +354,7 @@ describe("student experience reads", () => {
     });
   });
 
-  it("hides future module lessons while preserving count, duration, and next release", async () => {
+  it("projects future module lesson metadata while preserving release state", async () => {
     const anchor = new Date("2026-09-04T12:00:00.000Z");
     query.mockResolvedValue({
       rows: [
@@ -382,9 +400,30 @@ describe("student experience reads", () => {
     );
     expect(futureModule).toMatchObject({
       availableAt: new Date("2026-09-12T12:00:00.000Z"),
-      description: null,
+      description: "Descripción secreta",
       lessonCount: 2,
-      lessons: [],
+      lessons: [
+        {
+          availability: {
+            availableAt: new Date("2026-09-12T12:00:00.000Z"),
+            kind: "time_locked",
+          },
+          hasVideo: true,
+          id: "lesson-2",
+          isCompleted: false,
+          title: "Video secreto",
+        },
+        {
+          availability: {
+            availableAt: new Date("2026-09-12T12:00:00.000Z"),
+            kind: "time_locked",
+          },
+          hasVideo: false,
+          id: "lesson-3",
+          isCompleted: false,
+          title: "Material secreto",
+        },
+      ],
       releaseState: "time_locked",
       totalDurationSeconds: 240,
     });
@@ -436,11 +475,13 @@ describe("student experience reads", () => {
 
     expect(futureModule).toMatchObject({
       lessonCount: 2,
-      lessons: [{ id: "lesson-completed", isCompleted: true }],
+      lessons: [
+        { id: "lesson-completed", isCompleted: true },
+        { id: "lesson-pending", isCompleted: false },
+      ],
       releaseState: "time_locked",
       totalDurationSeconds: 240,
     });
-    expect(JSON.stringify(futureModule)).not.toContain("lesson-pending");
   });
 
   it("selects a valid reissue before revoked certificate history", async () => {
@@ -546,6 +587,47 @@ describe("student experience reads", () => {
       { id: "lesson-1", isAvailable: true },
       { id: "lesson-2", isAvailable: false },
     ]);
+  });
+
+  it("keeps future module lessons listed while marking them unavailable", async () => {
+    const anchor = new Date("2026-01-01T00:00:00.000Z");
+    const decisionNow = new Date("2026-01-02T00:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        createLessonRow({
+          completedAt: new Date("2025-12-31T00:00:00.000Z"),
+          lessonId: "lesson-1",
+          lessonSortOrder: 1,
+        }),
+        createLessonRow({
+          contentReleaseMode: "scheduled",
+          contentReleaseStartedAt: anchor,
+          decisionNow,
+          lessonId: "lesson-future",
+          lessonSortOrder: 1,
+          moduleId: "module-future",
+          moduleSortOrder: 2,
+          moduleTitle: "Future module",
+          releaseDelayDays: 8,
+        }),
+      ],
+    });
+
+    const workspace = await getStudentLessonWorkspace({
+      lessonId: "lesson-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(workspace).toMatchObject({ kind: "available" });
+    expect(
+      workspace.kind === "available"
+        ? workspace.data.modules.find((module) => module.id === "module-future")
+        : null
+    ).toMatchObject({
+      availableAt: new Date("2026-01-09T00:00:00.000Z"),
+      releaseState: "time_locked",
+      lessons: [{ id: "lesson-future", isAvailable: false }],
+    });
   });
 
   it("resolves JMVStream video through the lesson workspace interface", async () => {

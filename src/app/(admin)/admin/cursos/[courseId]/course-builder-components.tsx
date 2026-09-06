@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -282,6 +283,9 @@ export function ModuleForm({
   const releaseDelayDaysId = moduleData
     ? `module-${moduleData.id}-release-delay-days`
     : "new-module-release-delay-days";
+  const releaseModeIdPrefix = moduleData?.id ?? "new-module";
+  const immediateReleaseId = `${releaseModeIdPrefix}-release-immediate`;
+  const delayedReleaseId = `${releaseModeIdPrefix}-release-delayed`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -314,47 +318,53 @@ export function ModuleForm({
                 name="description"
               />
             </Field>
-            <fieldset className="space-y-3">
+            <fieldset className="flex flex-col gap-3">
               <legend className="font-medium text-sm">
                 Liberação do conteúdo
               </legend>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  defaultChecked={(moduleData?.releaseDelayDays ?? 0) === 0}
-                  name="releaseMode"
-                  type="radio"
-                  value="immediate"
-                />
-                Imediatamente
-              </label>
-              <div className="flex items-center gap-2 text-sm">
-                <label className="flex items-center gap-2">
-                  <input
-                    defaultChecked={(moduleData?.releaseDelayDays ?? 0) > 0}
-                    name="releaseMode"
-                    type="radio"
-                    value="delayed"
+              <RadioGroup
+                aria-label="Liberação do conteúdo"
+                defaultValue={
+                  (moduleData?.releaseDelayDays ?? 0) > 0
+                    ? "delayed"
+                    : "immediate"
+                }
+                name="releaseMode"
+              >
+                <label
+                  className="flex items-center gap-2 text-sm"
+                  htmlFor={immediateReleaseId}
+                >
+                  <RadioGroupItem id={immediateReleaseId} value="immediate" />
+                  Imediatamente
+                </label>
+                <div className="flex items-center gap-2 text-sm">
+                  <label
+                    className="flex items-center gap-2"
+                    htmlFor={delayedReleaseId}
+                  >
+                    <RadioGroupItem id={delayedReleaseId} value="delayed" />
+                    Após
+                  </label>
+                  <label className="sr-only" htmlFor={releaseDelayDaysId}>
+                    Dias para liberar o módulo
+                  </label>
+                  <Input
+                    autoComplete="off"
+                    className="w-24"
+                    defaultValue={
+                      moduleData?.releaseDelayDays ||
+                      DEFAULT_MODULE_RELEASE_DELAY_DAYS
+                    }
+                    id={releaseDelayDaysId}
+                    min={1}
+                    name="releaseDelayDays"
+                    step={1}
+                    type="number"
                   />
-                  Após
-                </label>
-                <label className="sr-only" htmlFor={releaseDelayDaysId}>
-                  Dias para liberar o módulo
-                </label>
-                <Input
-                  autoComplete="off"
-                  className="w-24"
-                  defaultValue={
-                    moduleData?.releaseDelayDays ||
-                    DEFAULT_MODULE_RELEASE_DELAY_DAYS
-                  }
-                  id={releaseDelayDaysId}
-                  min={1}
-                  name="releaseDelayDays"
-                  step={1}
-                  type="number"
-                />
-                dias
-              </div>
+                  dias
+                </div>
+              </RadioGroup>
               <p className="text-muted-foreground text-xs">
                 Cada dia equivale a 24 horas desde o início do acesso da Aluna.
               </p>

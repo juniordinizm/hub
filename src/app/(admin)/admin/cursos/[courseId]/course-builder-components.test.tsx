@@ -226,6 +226,9 @@ describe("module content release controls", () => {
     const delayed = document.querySelector<HTMLInputElement>(
       'input[name="releaseMode"][value="delayed"]'
     );
+    const radios = document.querySelectorAll<HTMLElement>('[role="radio"]');
+    const immediateRadio = radios[0];
+    const delayedRadio = radios[1];
     const delayDays = document.querySelector<HTMLInputElement>(
       'input[name="releaseDelayDays"]'
     );
@@ -233,12 +236,18 @@ describe("module content release controls", () => {
     expect(document.querySelector("fieldset legend")?.textContent).toBe(
       "Liberação do conteúdo"
     );
+    expect(document.querySelector('[role="radiogroup"]')).not.toBeNull();
+    expect(document.querySelectorAll('[role="radio"]')).toHaveLength(2);
     expect(immediate?.hasAttribute("checked")).toBe(true);
     expect(delayed?.hasAttribute("checked")).toBe(false);
+    expect(immediateRadio?.id).toBe("new-module-release-immediate");
+    expect(delayedRadio?.id).toBe("new-module-release-delayed");
     expect(immediate?.closest("label")?.textContent?.trim()).toBe(
       "Imediatamente"
     );
     expect(delayed?.closest("label")?.textContent?.trim()).toBe("Após");
+    expect(immediateRadio?.closest("label")?.htmlFor).toBe(immediateRadio?.id);
+    expect(delayedRadio?.closest("label")?.htmlFor).toBe(delayedRadio?.id);
     const delayDaysLabel = Array.from(
       document.querySelectorAll<HTMLLabelElement>("label")
     ).find(
@@ -272,13 +281,46 @@ describe("module content release controls", () => {
     const delayed = document.querySelector<HTMLInputElement>(
       'input[name="releaseMode"][value="delayed"]'
     );
+    const radios = document.querySelectorAll<HTMLElement>('[role="radio"]');
+    const immediateRadio = radios[0];
+    const delayedRadio = radios[1];
     const delayDays = document.querySelector<HTMLInputElement>(
       'input[name="releaseDelayDays"]'
     );
 
     expect(immediate?.hasAttribute("checked")).toBe(false);
     expect(delayed?.hasAttribute("checked")).toBe(true);
+    expect(document.querySelector('[role="radiogroup"]')).not.toBeNull();
+    expect(document.querySelectorAll('[role="radio"]')).toHaveLength(2);
+    expect(immediateRadio?.id).toBe("module-1-release-immediate");
+    expect(delayedRadio?.id).toBe("module-1-release-delayed");
     expect(delayDays?.getAttribute("value")).toBe("8");
+  });
+
+  it("keeps release control ids unique across module forms", () => {
+    const document = new DOMParser().parseFromString(
+      renderToStaticMarkup(
+        <div>
+          <ModuleForm course={course} nextSortOrder={2} />
+          <ModuleForm
+            course={course}
+            moduleData={{ ...moduleData, id: "module-2" }}
+          />
+        </div>
+      ),
+      "text/html"
+    );
+    const ids = Array.from(document.querySelectorAll('[role="radio"]')).map(
+      (radio) => radio.id
+    );
+
+    expect(ids).toEqual([
+      "new-module-release-immediate",
+      "new-module-release-delayed",
+      "module-2-release-immediate",
+      "module-2-release-delayed",
+    ]);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("shows release timing only in the module header", () => {

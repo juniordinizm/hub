@@ -30,6 +30,71 @@ describe("lesson focus mode UI state", () => {
     expect(source).toContain('collapsible="none"');
   });
 
+  it("keeps future lesson items visible but static in the course outline", async () => {
+    const source = await readFile(
+      new URL(
+        "../../app/(student)/app/aulas/[lessonId]/page.tsx",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain("LessonSidebarItem");
+    expect(source).toContain("AccordionContent");
+    expect(source).toContain("formatLessonReleaseDate");
+    expect(source).toContain('aria-disabled="true"');
+    expect(source).not.toContain("Conclua a aula anterior para liberar");
+  });
+
+  it("uses a multi-open accordion for the lesson outline", async () => {
+    const source = await readFile(
+      new URL(
+        "../../app/(student)/app/aulas/[lessonId]/page.tsx",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain("AccordionContent");
+    expect(source).toContain("AccordionItem");
+    expect(source).toContain("AccordionTrigger");
+    expect(source).toContain('type="multiple"');
+    expect(source).toContain("defaultValue={[activeModuleId]}");
+  });
+
+  it("groups each module lock reason in its header", async () => {
+    const source = await readFile(
+      new URL(
+        "../../app/(student)/app/aulas/[lessonId]/page.tsx",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain('module.releaseState === "time_locked"');
+    expect(source).toContain("Continue a sequência");
+    expect(source).toContain("formatLessonReleaseDate(module.availableAt)");
+    expect(source).not.toContain("<span>Em breve</span>");
+    expect(source).not.toContain("Disponível em ${formatLessonReleaseDate");
+  });
+
+  it("keeps module triggers compact and lesson rows free of duration labels", async () => {
+    const source = await readFile(
+      new URL(
+        "../../app/(student)/app/aulas/[lessonId]/page.tsx",
+        import.meta.url
+      ),
+      "utf8"
+    );
+
+    expect(source).toContain("hover:no-underline focus:no-underline");
+    expect(source).toContain("[&_a]:no-underline");
+    expect(source).not.toContain("module.lessons.length} ");
+    expect(source).not.toContain(
+      "formatLessonDuration(lesson.durationSeconds)"
+    );
+  });
+
   it("keeps the main sidebar trigger visible while focus mode is active", async () => {
     const source = await readFile(
       new URL("../../components/panel-layout.tsx", import.meta.url),

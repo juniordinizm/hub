@@ -1,4 +1,5 @@
 import {
+  Clock01Icon,
   File01Icon,
   PlayIcon,
   SquareLock02Icon,
@@ -15,11 +16,15 @@ export type LessonStatus =
   | "locked"
   | "available";
 
+export type LessonLockReason = "time" | "sequence";
+
 export interface LessonCardProps {
   className?: string;
   durationText: string;
   hasVideo?: boolean;
+  lockReason?: LessonLockReason;
   status: LessonStatus;
+  thumbnailUnoptimized?: boolean;
   thumbnailUrl?: string | null;
   title: string;
   watchedPercent?: number;
@@ -30,7 +35,9 @@ export function LessonCard({
   durationText,
   status,
   hasVideo = true,
+  lockReason,
   thumbnailUrl,
+  thumbnailUnoptimized = false,
   className,
   watchedPercent,
 }: LessonCardProps): React.JSX.Element {
@@ -39,44 +46,7 @@ export function LessonCard({
   const centerIconClassName =
     !isLocked && hasVideo ? "translate-x-[2px]" : undefined;
 
-  let statusBadge: React.JSX.Element | null = null;
-  if (status === "in_progress") {
-    statusBadge = (
-      <Badge
-        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
-        variant="default"
-      >
-        Em andamento
-      </Badge>
-    );
-  } else if (status === "next") {
-    statusBadge = (
-      <Badge
-        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
-        variant="secondary"
-      >
-        Próxima
-      </Badge>
-    );
-  } else if (status === "locked") {
-    statusBadge = (
-      <Badge
-        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
-        variant="destructive"
-      >
-        Bloqueada
-      </Badge>
-    );
-  } else if (status === "completed") {
-    statusBadge = (
-      <Badge
-        className="absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm"
-        variant="secondary"
-      >
-        Concluída
-      </Badge>
-    );
-  }
+  const statusBadge = getStatusBadge({ lockReason, status });
 
   return (
     <div
@@ -94,16 +64,25 @@ export function LessonCard({
         {thumbnailUrl ? (
           <Image
             alt={title}
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className={cn(
+              "object-cover transition-transform duration-500",
+              !isLocked && "group-hover:scale-105"
+            )}
             fill
             sizes="280px"
             src={thumbnailUrl}
+            unoptimized={thumbnailUnoptimized}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-chart-4/80 to-background" />
         )}
 
-        <div className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
+        <div
+          className={cn(
+            "absolute inset-0 bg-black/20",
+            !isLocked && "transition-colors group-hover:bg-black/10"
+          )}
+        />
 
         {status !== "completed" && watchedPercent && watchedPercent > 0 ? (
           <div className="absolute bottom-0 left-0 z-10 h-1.5 w-full bg-background/40 backdrop-blur-sm">
@@ -137,12 +116,102 @@ export function LessonCard({
       </div>
 
       <div className="flex flex-col gap-1">
-        <h4 className="line-clamp-2 font-semibold text-sm leading-tight transition-colors group-hover:text-accent">
+        <h4
+          className={cn(
+            "line-clamp-2 font-semibold text-sm leading-tight",
+            !isLocked && "transition-colors group-hover:text-accent"
+          )}
+        >
           {title}
         </h4>
         <p className="text-muted-foreground text-xs">{durationText}</p>
       </div>
     </div>
+  );
+}
+
+function getStatusBadge({
+  lockReason,
+  status,
+}: {
+  lockReason: LessonLockReason | undefined;
+  status: LessonStatus;
+}): React.JSX.Element | null {
+  const className =
+    "absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm";
+
+  if (status === "in_progress") {
+    return (
+      <Badge className={className} variant="default">
+        Em andamento
+      </Badge>
+    );
+  }
+  if (status === "next") {
+    return (
+      <Badge className={className} variant="secondary">
+        Próxima
+      </Badge>
+    );
+  }
+  if (status === "completed") {
+    return (
+      <Badge className={className} variant="secondary">
+        Concluída
+      </Badge>
+    );
+  }
+  if (status !== "locked") {
+    return null;
+  }
+  if (lockReason === "time") {
+    return (
+      <Badge
+        className={cn(
+          className,
+          "gap-1 bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-400"
+        )}
+        variant="default"
+      >
+        <HugeiconsIcon
+          data-icon="inline-start"
+          icon={Clock01Icon}
+          size={13}
+          strokeWidth={2}
+        />
+        Em breve
+      </Badge>
+    );
+  }
+  if (lockReason === "sequence") {
+    return (
+      <Badge
+        className={cn(
+          className,
+          "gap-1 bg-sky-700 text-white hover:bg-sky-700 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-300"
+        )}
+        variant="default"
+      >
+        <HugeiconsIcon
+          data-icon="inline-start"
+          icon={SquareLock02Icon}
+          size={13}
+          strokeWidth={2}
+        />
+        Continue a sequência
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      className={cn(
+        className,
+        "bg-secondary text-secondary-foreground hover:bg-secondary dark:bg-secondary dark:text-secondary-foreground dark:hover:bg-secondary"
+      )}
+      variant="secondary"
+    >
+      Bloqueada
+    </Badge>
   );
 }
 
