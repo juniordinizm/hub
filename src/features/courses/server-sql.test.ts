@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  assertProtectedLessonAccess,
   clientQuery,
   connect,
   query,
@@ -12,6 +13,7 @@ const {
   syncJmvstreamLessonPlayer,
   getJmvstreamAssetsForLesson,
 } = vi.hoisted(() => ({
+  assertProtectedLessonAccess: vi.fn(),
   clientQuery: vi.fn(),
   connect: vi.fn(),
   query: vi.fn(),
@@ -35,6 +37,10 @@ vi.mock("@/features/jmvstream/server", () => ({
 }));
 vi.mock("@/features/jmvstream/asset-persistence", () => ({
   getJmvstreamAssetsForLesson,
+}));
+vi.mock("@/features/courses/protected-lesson-access", () => ({
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError: class LessonAccessDeniedError extends Error {},
 }));
 
 import {
@@ -563,6 +569,11 @@ describe("student experience reads", () => {
     });
 
     expect(syncJmvstreamLessonPlayer).toHaveBeenCalledWith("lesson-2");
+    expect(assertProtectedLessonAccess).toHaveBeenCalledWith({
+      courseId: "course-1",
+      lessonId: "lesson-2",
+      userId: "student-1",
+    });
     expect(workspace).toMatchObject({
       kind: "available",
       data: {
@@ -576,6 +587,33 @@ describe("student experience reads", () => {
         progressPercent: 50,
       },
     });
+  });
+
+  it("revalidates lesson access before requesting JMVStream playback", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const workspaceSection = source.slice(
+      source.indexOf("const getEnrolledLessonWorkspace"),
+      source.indexOf("const getPreviewLessonWorkspace")
+    );
+
+    expect(workspaceSection).toContain("revalidateJmvstreamLessonAccess");
+  });
+
+  it("uses the database decision clock for temporal workspace projection", async () => {
+    const source = await readFile(
+      new URL("./server.ts", import.meta.url),
+      "utf8"
+    );
+    const workspaceSection = source.slice(
+      source.indexOf("const getEnrolledLessonWorkspace"),
+      source.indexOf("const getPreviewLessonWorkspace")
+    );
+
+    expect(workspaceSection).toContain("now() as decision_now");
+    expect(workspaceSection).not.toContain("now: new Date()");
   });
 
   it("exposes a safe failed state when JMVStream cannot process a lesson video", async () => {

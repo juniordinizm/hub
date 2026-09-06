@@ -115,6 +115,7 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `ASAAS_WEBHOOK_TOKEN` | segredo próprio com mínimo de 32 caracteres | inbox Asaas | sim |
 | `ASAAS_WEBHOOK_ENABLED` | `false` no pré-corte; habilita ingresso e worker Asaas juntos | inbox/cron Asaas | não |
 | `PAYMENTS_CHECKOUT_MODE` | `disabled`, `authenticated` ou `public`; explícita em Production e sempre `disabled` em Preview | entradas de checkout | não |
+| `CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED` | `false` por padrão; `true` somente após a Fase 1 do rollout da liberação por Módulo | publicação server-side de D+N | não |
 | `INTERNAL_BOOTSTRAP_SECRET` | bootstrap Admin não produtivo | endpoint dev | sim |
 | `CERTIFICATE_PUBLIC_BASE_URL` | explícita em Production; derivada do hostname Vercel em Preview | certificado/PDF | público |
 | `CRON_SECRET` | crons, obrigatória em produção; mínimo de 32 caracteres | handlers cron | sim |

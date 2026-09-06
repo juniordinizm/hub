@@ -56,12 +56,19 @@ export const SupportContextPanel = ({
       >
         Liberação de conteúdo
       </h2>
-      <p className="mt-2 text-muted-foreground text-sm">
-        {context.contentReleaseMode === "scheduled"
-          ? `Programada desde ${context.contentReleaseStartedAt ? formatDateTime(context.contentReleaseStartedAt) : "âncora indisponível"}`
-          : "Acesso integral"}
-      </p>
-      {context.nextModuleReleaseAt ? (
+      {context.contentReleaseState === "invalid_schedule" ? (
+        <p className="mt-2 text-destructive text-sm" role="alert">
+          Cronograma inválido. Encaminhe para Engenharia.
+        </p>
+      ) : (
+        <p className="mt-2 text-muted-foreground text-sm">
+          {context.contentReleaseMode === "scheduled"
+            ? `Programada desde ${context.contentReleaseStartedAt ? formatDateTime(context.contentReleaseStartedAt) : "âncora indisponível"}`
+            : "Acesso integral"}
+        </p>
+      )}
+      {context.contentReleaseState !== "invalid_schedule" &&
+      context.nextModuleReleaseAt ? (
         <p className="mt-1 text-muted-foreground text-xs">
           Próximo Módulo em {formatDateTime(context.nextModuleReleaseAt)}
         </p>

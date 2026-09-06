@@ -49,6 +49,10 @@ import {
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
 import { shouldCompleteLessonFromJmvstreamEvent } from "@/features/videos/jmvstream";
 import type { AppRole } from "@/lib/session";
+import {
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError,
+} from "./protected-lesson-access";
 
 const MAX_LESSON_DURATION_SECONDS = 12 * 60 * 60;
 
@@ -222,6 +226,7 @@ interface LessonRow {
   content_release_started_at: Date | null;
   course_id: string;
   course_title: string;
+  decision_now: Date;
   duration_seconds: number;
   is_required: boolean;
   lesson_description: string | null;
@@ -266,6 +271,7 @@ type StudentCatalogCourseAggregate = StudentCatalogCourseCard & {
   completedLessonIds: string[];
   contentReleaseMode: "full_access" | "scheduled";
   contentReleaseStartedAt: Date | null;
+  decisionNow: Date;
   durationSecondsPerLesson: Map<string, number>;
   lessonIds: string[];
   lessons: Array<{
@@ -290,6 +296,7 @@ interface CourseOverviewRow {
   course_slug: string;
   course_subtitle: string | null;
   course_title: string;
+  decision_now: Date;
   duration_seconds: number | null;
   expires_at: Date;
   is_required: boolean | null;
@@ -374,6 +381,7 @@ export const getStudentCourses = async (
     completed_at: Date | null;
     course_description: string | null;
     course_id: string;
+    decision_now: Date;
     expires_at: Date;
     lesson_id: string | null;
     is_required: boolean | null;
@@ -389,6 +397,7 @@ export const getStudentCourses = async (
     `
       select
         c.id as course_id,
+        now() as decision_now,
         c.slug,
         cp.title_snapshot as title,
         c.subtitle,
@@ -605,6 +614,7 @@ export const getStudentCourseCatalog = async (
     cover_image_json: unknown;
     course_description: string | null;
     course_id: string;
+    decision_now: Date;
     course_status: CourseDeliveryStatus;
     duration_seconds: number;
     expires_at: Date | null;
@@ -629,6 +639,7 @@ export const getStudentCourseCatalog = async (
     `
       select
         c.id as course_id,
+        now() as decision_now,
         c.slug,
         c.title,
         c.subtitle,
@@ -731,6 +742,7 @@ export const getStudentCourseCatalog = async (
       accessStatus: row.access_status,
       contentReleaseMode: row.content_release_mode ?? "full_access",
       contentReleaseStartedAt: row.content_release_started_at,
+      decisionNow: row.decision_now ?? new Date(),
       revokedReason: row.revoked_reason,
       progressPercent: 0,
       completedCount: 0,
@@ -777,7 +789,7 @@ export const getStudentCourseCatalog = async (
       ? resolveCatalogNextLesson({
           course,
           diagnostics: createContentReleaseDiagnostics(),
-          now: new Date(),
+          now: course.decisionNow,
         })
       : { nextLessonId: null, nextReleaseAt: null };
 
@@ -1085,6 +1097,7 @@ const getEnrolledCourseOverview = async ({
         c.id as course_id,
         c.slug as course_slug,
         cp.title_snapshot as course_title,
+        now() as decision_now,
         c.subtitle as course_subtitle,
         c.description as course_description,
         coalesce(c.workload_hours_override, cp.workload_hours_snapshot) as workload_hours,
@@ -1175,7 +1188,7 @@ const getEnrolledCourseOverview = async ({
     completedLessonIds,
     diagnostics: createContentReleaseDiagnostics(),
     lessonIds,
-    now: new Date(),
+    now: firstRow.decision_now ?? new Date(),
     rows,
   });
 
@@ -1344,6 +1357,43 @@ export const getStudentCourseOverview = async ({
   });
 };
 
+const revalidateJmvstreamLessonAccess = async ({
+  activeLesson,
+  client,
+  lessonId,
+  userId,
+}: {
+  activeLesson: Pick<
+    LessonRow,
+    "course_id" | "video_external_id" | "video_provider"
+  >;
+  client?: PoolClient;
+  lessonId: string;
+  userId: string;
+}): Promise<boolean> => {
+  if (
+    client ||
+    activeLesson.video_provider !== "jmvstream" ||
+    !activeLesson.video_external_id
+  ) {
+    return true;
+  }
+
+  try {
+    await assertProtectedLessonAccess({
+      courseId: activeLesson.course_id,
+      lessonId,
+      userId,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof LessonAccessDeniedError) {
+      return false;
+    }
+    throw error;
+  }
+};
+
 export const getPublishedFaqItems = async (): Promise<FaqItem[]> => {
   const { rows } = await getPool().query<{
     answer: string;
@@ -1404,6 +1454,7 @@ const getEnrolledLessonWorkspace = async ({
       select
         c.id as course_id,
         c.title as course_title,
+        now() as decision_now,
         e.content_release_mode,
         e.content_release_started_at,
         m.id as module_id,
@@ -1482,11 +1533,14 @@ const getEnrolledLessonWorkspace = async ({
       const release = resolveModuleContentRelease({
         contentReleaseMode: moduleRow.content_release_mode ?? "full_access",
         contentReleaseStartedAt: moduleRow.content_release_started_at,
-        now: new Date(),
+        now: moduleRow.decision_now ?? new Date(),
         releaseDelayDays: moduleRow.release_delay_days ?? 0,
       });
       return release.kind === "time_locked"
-        ? { ...moduleData, lessons: [] }
+        ? {
+            ...moduleData,
+            lessons: moduleData.lessons.filter((lesson) => lesson.isCompleted),
+          }
         : moduleData;
     } catch (error) {
       diagnostics.reportInvalidState({
@@ -1501,6 +1555,19 @@ const getEnrolledLessonWorkspace = async ({
     module.lessons.map((lesson) => lesson.id)
   );
   const lessonIndex = visibleLessonIds.indexOf(lessonId);
+  if (lessonIndex < 0) {
+    return { kind: "unavailable" };
+  }
+  if (
+    !(await revalidateJmvstreamLessonAccess({
+      activeLesson,
+      ...(client ? { client } : {}),
+      lessonId,
+      userId,
+    }))
+  ) {
+    return { kind: "unavailable" };
+  }
   const progress = calculateCourseProgress({
     lessonIds,
     requiredLessonIds,

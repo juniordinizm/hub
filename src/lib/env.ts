@@ -48,6 +48,10 @@ const serverEnvSchema = z.object({
   CLIENT_IP_SOURCE: z
     .enum(["cloudflare", "x-forwarded-for"])
     .default("x-forwarded-for"),
+  CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   CRON_SECRET: optionalNonEmptyString,
   DATABASE_URL: optionalNonEmptyString,
   DATABASE_URL_DIRECT: optionalNonEmptyString,
@@ -246,6 +250,8 @@ export const getServerEnv = () => {
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CERTIFICATE_PUBLIC_BASE_URL: process.env.CERTIFICATE_PUBLIC_BASE_URL,
     CLIENT_IP_SOURCE: process.env.CLIENT_IP_SOURCE,
+    CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED:
+      process.env.CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED,
     CRON_SECRET: process.env.CRON_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
     DATABASE_URL_DIRECT: process.env.DATABASE_URL_DIRECT,

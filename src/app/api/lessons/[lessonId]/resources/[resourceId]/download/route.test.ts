@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 const {
+  assertProtectedLessonAccess,
   createLessonResourceDownloadUrl,
   getStudentLessonWorkspace,
   recordLearningAnalyticsEvent,
   requireSession,
 } = vi.hoisted(() => ({
+  assertProtectedLessonAccess: vi.fn(),
   createLessonResourceDownloadUrl: vi.fn(),
   getStudentLessonWorkspace: vi.fn(),
   recordLearningAnalyticsEvent: vi.fn().mockResolvedValue(undefined),
@@ -13,6 +15,10 @@ const {
 }));
 
 vi.mock("@/features/courses/server", () => ({ getStudentLessonWorkspace }));
+vi.mock("@/features/courses/protected-lesson-access", () => ({
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError: class LessonAccessDeniedError extends Error {},
+}));
 vi.mock("@/features/storage/r2", () => ({ createLessonResourceDownloadUrl }));
 vi.mock("@/features/learning-analytics/server", () => ({
   recordLearningAnalyticsEvent,
@@ -106,5 +112,6 @@ describe("lesson resource download", () => {
       lessonId: "lesson-1",
       userId: "student-1",
     });
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 });

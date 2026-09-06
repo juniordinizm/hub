@@ -23,6 +23,7 @@ export interface PublicCheckoutBody {
 export interface PublicCheckoutStatusQuery {
   checkoutAttemptId: string;
   courseSlug: string;
+  now?: () => Date;
 }
 
 export type CheckoutApiResponse =

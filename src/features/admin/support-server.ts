@@ -3,7 +3,10 @@ import "server-only";
 import type { StudentSheetPayload } from "@/components/admin/student-management-types";
 import { getPool } from "@/db";
 import { CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL } from "@/features/courses/content-release-sql";
-import type { ContentReleaseMode } from "@/features/courses/module-content-release";
+import {
+  type ContentReleaseMode,
+  MAX_RELEASE_DELAY_DAYS,
+} from "@/features/courses/module-content-release";
 import { requirePermission } from "@/lib/auth-permissions";
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -49,6 +52,7 @@ export interface SupportCourseStudentContext {
   course: { id: string; title: string };
   enrollment: {
     contentReleaseMode: "full_access" | "scheduled";
+    contentReleaseState?: "invalid_schedule" | "valid";
     contentReleaseStartedAt: Date | null;
     completedRequiredLessons: number;
     expiresAt: Date;
@@ -238,6 +242,7 @@ export const getSupportCourseStudentContext = async ({
   const pool = getPool();
   const contextResult = await pool.query<{
     content_release_mode: ContentReleaseMode;
+    content_release_state: "invalid_schedule" | "valid";
     content_release_started_at: Date | null;
     completed_required_lessons: number;
     course_id: string;
@@ -273,6 +278,27 @@ export const getSupportCourseStudentContext = async ({
         e.expires_at,
         e.content_release_mode,
         e.content_release_started_at,
+        case
+          when e.content_release_mode = 'scheduled'
+            and (
+              e.content_release_started_at is null
+              or exists (
+                select 1
+                from modules invalid_module
+                join course_publications invalid_publication
+                  on invalid_publication.id = invalid_module.course_publication_id
+                where invalid_publication.course_id = c.id
+                  and invalid_publication.status = 'published'
+                  and invalid_module.status = 'active'
+                  and (
+                    invalid_module.release_delay_days < 0
+                    or invalid_module.release_delay_days > ${MAX_RELEASE_DELAY_DAYS}
+                  )
+              )
+            )
+            then 'invalid_schedule'
+          else 'valid'
+        end as content_release_state,
         coalesce(latest_grant.base_expires_at, e.expires_at)
           as original_expires_at,
         e.revoked_reason,
@@ -436,6 +462,12 @@ export const getSupportCourseStudentContext = async ({
     ),
   ]);
   const latestCertificate = certificateResult.rows[0] ?? null;
+  const contentReleaseState =
+    context.content_release_state ??
+    (context.content_release_mode === "scheduled" &&
+    !context.content_release_started_at
+      ? "invalid_schedule"
+      : undefined);
 
   return {
     audit: auditResult.rows.map((row) => ({
@@ -447,6 +479,7 @@ export const getSupportCourseStudentContext = async ({
     course: { id: context.course_id, title: context.course_title },
     enrollment: {
       contentReleaseMode: context.content_release_mode,
+      ...(contentReleaseState ? { contentReleaseState } : {}),
       contentReleaseStartedAt: context.content_release_started_at,
       completedRequiredLessons: context.completed_required_lessons,
       expiresAt: context.expires_at,
@@ -549,6 +582,9 @@ export const getSupportStudentSheetData = async ({
     supportContext: {
       ...(context.enrollment.contentReleaseMode
         ? { contentReleaseMode: context.enrollment.contentReleaseMode }
+        : {}),
+      ...(context.enrollment.contentReleaseState
+        ? { contentReleaseState: context.enrollment.contentReleaseState }
         : {}),
       ...(context.enrollment.contentReleaseStartedAt
         ? {

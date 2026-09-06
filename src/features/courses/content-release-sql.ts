@@ -1,3 +1,5 @@
+import { MAX_RELEASE_DELAY_DAYS } from "@/features/courses/module-content-release";
+
 export const CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL = `
       left join lateral (
         select min(
@@ -10,6 +12,7 @@ export const CONTENT_RELEASE_NEXT_MODULE_LATERAL_SQL = `
           and cp_release.status = 'published'
           and m.status = 'active'
           and m.release_delay_days > 0
+          and m.release_delay_days <= ${MAX_RELEASE_DELAY_DAYS}
           and e.content_release_mode = 'scheduled'
           and e.content_release_started_at is not null
           and e.content_release_started_at

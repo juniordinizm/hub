@@ -36,4 +36,34 @@ describe("admin actions and schema", () => {
     expect(schema).toContain("modules");
     expect(schema).toContain("lessons");
   });
+
+  it("serializes module and lesson reorder with content publication", async () => {
+    const source = await readFile(
+      new URL("./actions.ts", import.meta.url),
+      "utf8"
+    );
+
+    const modulesReorder = source.slice(
+      source.indexOf("export const reorderModulesAction")
+    );
+    const lessonsReorder = source.slice(
+      source.indexOf("export const reorderLessonsAction")
+    );
+
+    expect(modulesReorder).toContain(
+      "lockCourseContentRelease(client, courseId)"
+    );
+    expect(lessonsReorder).toContain(
+      "lockCourseContentRelease(client, courseId)"
+    );
+  });
+
+  it("keeps delayed publication behind the phased rollout gate", async () => {
+    const source = await readFile(
+      new URL("./authoring.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(source).toContain("CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED");
+  });
 });

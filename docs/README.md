@@ -72,6 +72,8 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Revisões
 
+- [Revisão final de Production Readiness da liberação por Módulo](reviews/2026-09-06-module-content-release-production-readiness-review.md)
+- [Pesquisa externa da liberação por Módulo](reviews/2026-09-06-module-content-release-external-research.md)
 - [Requalificação de Production Readiness em 2026-09-01](reviews/2026-09-01-production-readiness-requalification.md)
 - [Auditoria de saúde do repositório e plano de normalização](reviews/2026-08-29-repository-health-audit.md)
 - [Requalificação de Production Readiness em 2026-08-26, retorno ao fluxo normal e bloqueios externos](reviews/2026-08-26-production-readiness-requalification.md)
@@ -106,6 +108,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 
 ### Plano de manutenção proposto
 
+- [Sprints finais de remediação da liberação por Módulo](superpowers/plans/2026-09-06-module-content-release-final-remediation-sprints.md)
 - [Sprints de limpeza e organização do repositório](superpowers/plans/2026-09-03-repository-cleanup-sprints.md)
 
 ## Material não canônico

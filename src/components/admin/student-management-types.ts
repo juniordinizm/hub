@@ -52,6 +52,7 @@ export interface StudentSheetPayload {
   };
   supportContext?: {
     contentReleaseMode?: "full_access" | "scheduled";
+    contentReleaseState?: "invalid_schedule" | "valid";
     contentReleaseStartedAt?: string | null;
     audit: Array<{
       action: string;

@@ -960,6 +960,46 @@ describe("createAsaasCheckoutIntent", () => {
     expect(now).not.toHaveBeenCalled();
   });
 
+  it("fails a stale pre-provider reservation instead of polling forever", async () => {
+    const now = new Date("2026-09-06T12:00:00.000Z");
+    const gateway = createGateway();
+    const authorizeNewIntent = vi.fn().mockResolvedValue(undefined);
+    const pool = createPool((sql) => {
+      if (sql.startsWith("select id, course_id")) {
+        return {
+          rows: [
+            {
+              ...insertedOrder,
+              checkout_attempt_count: 0,
+              checkout_last_attempt_at: null,
+              checkout_status: "pending",
+              checkout_url: null,
+              provider_checkout_id: null,
+              provider_customer_id: null,
+              provider_payment_id: null,
+              updated_at: new Date(now.getTime() - 31_000),
+            },
+          ],
+        };
+      }
+      if (sql.includes("checkout_reservation_expired")) {
+        return { rows: [{ id: ATTEMPT_ID }] };
+      }
+      throw new Error(`SQL inesperado: ${sql}`);
+    });
+    vi.mocked(getPool).mockReturnValue(pool as never);
+
+    await expect(
+      createAsaasCheckoutIntent({
+        ...authenticatedInput(gateway),
+        authorizeNewIntent,
+        now: () => now,
+      })
+    ).resolves.toEqual({ orderId: ATTEMPT_ID, status: "failed" });
+    expect(authorizeNewIntent).not.toHaveBeenCalled();
+    expect(gateway.calls.createCheckout).toHaveLength(0);
+  });
+
   it("resolves a ready duplicate before checking newly-active access", async () => {
     const pool = createPool((sql) => {
       if (sql.startsWith("select c.id")) {

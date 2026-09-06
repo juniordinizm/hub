@@ -20,7 +20,10 @@ import {
   parseLessonContent,
 } from "@/features/courses/lesson-content";
 import { calculateLessonDurationBreakdown } from "@/features/courses/lesson-duration";
-import { assertMaxReleaseDelayFitsAccessDuration } from "@/features/courses/module-content-release";
+import {
+  assertMaxReleaseDelayFitsAccessDuration,
+  assertValidReleaseDelayDays,
+} from "@/features/courses/module-content-release";
 import { recalculateCourseWorkloadHours } from "@/features/courses/server";
 import { createCourseSlug } from "@/features/courses/slug";
 import { parseCourseWorkloadOverride } from "@/features/courses/workload";
@@ -62,6 +65,7 @@ import {
 } from "@/features/storage/r2";
 import { parseStagedAdminImageReference } from "@/features/storage/staged-image-upload";
 import { consumeStagedAdminImageUpload } from "@/features/storage/staged-image-upload-registry";
+import { getServerEnv } from "@/lib/env";
 
 const CREATED_CONTENT_STATUS = "draft";
 const PUBLISHED_CONTENT_STATUS = "active";
@@ -113,6 +117,7 @@ const readModuleReleaseDelayDays = (formData: FormData): number => {
     throw new Error("Informe uma quantidade inteira e não negativa de dias.");
   }
 
+  assertValidReleaseDelayDays(value);
   return value;
 };
 
@@ -562,6 +567,14 @@ const runCoursePublicationTransaction = async ({
     const next = publicationLessons.rows
       .filter(({ publication_status }) => publication_status === "draft")
       .map(toPublishedLessonRelease);
+    if (
+      next.some((lesson) => lesson.releaseDelayDays > 0) &&
+      !getServerEnv().CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED
+    ) {
+      throw new Error(
+        "Publicação de conteúdo atrasado está desabilitada durante o rollout."
+      );
+    }
     const currentCourse = courseCover.rows[0];
     if (currentCourse?.sales_status === "open") {
       assertMaxReleaseDelayFitsAccessDuration({

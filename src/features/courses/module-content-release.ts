@@ -10,6 +10,23 @@ export const MAX_RELEASE_DELAY_DAYS = Math.floor(
 
 export type ContentReleaseMode = "full_access" | "scheduled";
 
+export type ContentReleaseDomainErrorCode =
+  | "invalid_anchor"
+  | "invalid_clock"
+  | "invalid_delay"
+  | "invalid_mode"
+  | "invalid_schedule";
+
+export class ContentReleaseDomainError extends Error {
+  readonly code: ContentReleaseDomainErrorCode;
+
+  constructor(code: ContentReleaseDomainErrorCode, message: string) {
+    super(message);
+    this.code = code;
+    this.name = "ContentReleaseDomainError";
+  }
+}
+
 export interface ModuleContentReleaseInput {
   contentReleaseMode: ContentReleaseMode;
   contentReleaseStartedAt: Date | null;
@@ -39,17 +56,26 @@ export interface ContentReleaseScheduleSnapshot {
 
 const assertValidDate = (value: Date, name: string): void => {
   if (!(value instanceof Date && Number.isFinite(value.getTime()))) {
-    throw new Error(`${name} inválida.`);
+    let code: ContentReleaseDomainErrorCode = "invalid_schedule";
+    if (name === "Relógio") {
+      code = "invalid_clock";
+    } else if (name === "Âncora") {
+      code = "invalid_anchor";
+    }
+    throw new ContentReleaseDomainError(code, `${name} inválida.`);
   }
 };
 
-const assertValidDelay = (releaseDelayDays: number): void => {
+export const assertValidReleaseDelayDays = (releaseDelayDays: number): void => {
   if (
     !Number.isSafeInteger(releaseDelayDays) ||
     releaseDelayDays < 0 ||
     releaseDelayDays > MAX_RELEASE_DELAY_DAYS
   ) {
-    throw new Error("Atraso de liberação inválido.");
+    throw new ContentReleaseDomainError(
+      "invalid_delay",
+      "Atraso de liberação inválido."
+    );
   }
 };
 
@@ -67,11 +93,15 @@ export const assertMaxReleaseDelayFitsAccessDuration = ({
     accessDurationMonths <= 0 ||
     !Number.isSafeInteger(conservativeAccessDays)
   ) {
-    throw new Error("Duração comercial inválida.");
+    throw new ContentReleaseDomainError(
+      "invalid_schedule",
+      "Duração comercial inválida."
+    );
   }
-  assertValidDelay(maxReleaseDelayDays);
+  assertValidReleaseDelayDays(maxReleaseDelayDays);
   if (maxReleaseDelayDays >= conservativeAccessDays) {
-    throw new Error(
+    throw new ContentReleaseDomainError(
+      "invalid_schedule",
       "O cronograma de conteúdo não cabe na duração comercial do Curso."
     );
   }
@@ -89,15 +119,21 @@ export const assertScheduleFitsAccessDuration = ({
     snapshot.clock !== "elapsed_24h" ||
     !Array.isArray(snapshot.modules)
   ) {
-    throw new Error("Cronograma de conteúdo inválido.");
+    throw new ContentReleaseDomainError(
+      "invalid_schedule",
+      "Cronograma de conteúdo inválido."
+    );
   }
 
   let maxReleaseDelayDays = 0;
   for (const module of snapshot.modules) {
     if (!module) {
-      throw new Error("Cronograma de conteúdo inválido.");
+      throw new ContentReleaseDomainError(
+        "invalid_schedule",
+        "Cronograma de conteúdo inválido."
+      );
     }
-    assertValidDelay(module.releaseDelayDays);
+    assertValidReleaseDelayDays(module.releaseDelayDays);
     maxReleaseDelayDays = Math.max(
       maxReleaseDelayDays,
       module.releaseDelayDays
@@ -112,7 +148,7 @@ export const assertScheduleFitsAccessDuration = ({
 
 const getAvailableAt = (anchor: Date, releaseDelayDays: number): Date => {
   assertValidDate(anchor, "Âncora");
-  assertValidDelay(releaseDelayDays);
+  assertValidReleaseDelayDays(releaseDelayDays);
   const timestamp = anchor.getTime() + releaseDelayDays * MILLISECONDS_PER_DAY;
   const availableAt = new Date(timestamp);
   assertValidDate(availableAt, "Data de liberação");
@@ -126,17 +162,23 @@ export const resolveModuleContentRelease = ({
   now,
 }: ModuleContentReleaseInput): ModuleContentRelease => {
   assertValidDate(now, "Relógio");
-  assertValidDelay(releaseDelayDays);
+  assertValidReleaseDelayDays(releaseDelayDays);
 
   if (contentReleaseMode === "full_access") {
     return { kind: "available" };
   }
 
   if (contentReleaseMode !== "scheduled") {
-    throw new Error("Modo de liberação inválido.");
+    throw new ContentReleaseDomainError(
+      "invalid_mode",
+      "Modo de liberação inválido."
+    );
   }
   if (!contentReleaseStartedAt) {
-    throw new Error("Matricula agendada sem inicio da entrega.");
+    throw new ContentReleaseDomainError(
+      "invalid_anchor",
+      "Matricula agendada sem inicio da entrega."
+    );
   }
 
   const availableAt = getAvailableAt(contentReleaseStartedAt, releaseDelayDays);
@@ -174,7 +216,7 @@ export const buildContentReleaseScheduleSnapshot = (
   modules: [...modules]
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map(({ title, sortOrder, releaseDelayDays }) => {
-      assertValidDelay(releaseDelayDays);
+      assertValidReleaseDelayDays(releaseDelayDays);
       return { title, sortOrder, releaseDelayDays };
     }),
 });
@@ -183,7 +225,7 @@ export const hasDelayedModules = (
   snapshot: ContentReleaseScheduleSnapshot
 ): boolean => {
   for (const module of snapshot.modules) {
-    assertValidDelay(module.releaseDelayDays);
+    assertValidReleaseDelayDays(module.releaseDelayDays);
   }
   return snapshot.modules.some(({ releaseDelayDays }) => releaseDelayDays > 0);
 };

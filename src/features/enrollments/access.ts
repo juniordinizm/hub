@@ -48,13 +48,13 @@ export const resolveLessonAccess = async ({
   client,
   diagnostics,
   lessonId,
-  now = new Date(),
+  now,
   userId,
 }: {
   client?: PoolClient | undefined;
   diagnostics?: ContentReleaseDiagnostics | undefined;
   lessonId: string;
-  now?: Date;
+  now?: Date | undefined;
   userId: string;
 }): Promise<LessonAccessDecision> => {
   const db = client ?? getPool();
@@ -62,6 +62,7 @@ export const resolveLessonAccess = async ({
     content_release_mode: ContentReleaseMode;
     content_release_started_at: Date | null;
     course_id: string;
+    decision_now: Date;
     module_id: string;
     is_completed: boolean;
     release_delay_days: number;
@@ -71,6 +72,7 @@ export const resolveLessonAccess = async ({
       select
         c.id as course_id,
         m.id as module_id,
+        now() as decision_now,
         e.content_release_mode,
         e.content_release_started_at,
         m.release_delay_days,
@@ -138,7 +140,7 @@ export const resolveLessonAccess = async ({
     const release = resolveModuleContentRelease({
       contentReleaseMode: row.content_release_mode,
       contentReleaseStartedAt: row.content_release_started_at,
-      now,
+      now: now ?? row.decision_now ?? new Date(),
       releaseDelayDays: row.release_delay_days,
     });
     if (release.kind === "time_locked") {
@@ -165,13 +167,13 @@ export const resolveLessonAccessWithClient = async ({
   client,
   diagnostics,
   lessonId,
-  now = new Date(),
+  now,
   userId,
 }: {
   client: PoolClient;
   diagnostics?: ContentReleaseDiagnostics | undefined;
   lessonId: string;
-  now?: Date;
+  now?: Date | undefined;
   userId: string;
 }): Promise<LessonAccessDecision> =>
   resolveLessonAccess({ client, diagnostics, lessonId, now, userId });

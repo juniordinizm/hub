@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
+import { MILLISECONDS_PER_DAY } from "./module-content-release";
+
+const FUTURE_RELEASE_DELAY_DAYS = 8;
+const ACCESS_DURATION_DAYS = 365;
 
 export interface ContentReleaseFixture {
   courseId: string;
+  expiresAt: Date;
+  futureAvailableAt: Date;
   futureLessonId: string;
   immediateLessonId: string;
   userId: string;
@@ -55,6 +61,12 @@ export const createContentReleaseFixture = async ({
   const immediateLessonId = randomUUID();
   const futureLessonId = randomUUID();
   const userId = `content-release-${randomUUID()}`;
+  const futureAvailableAt = new Date(
+    now.getTime() + FUTURE_RELEASE_DELAY_DAYS * MILLISECONDS_PER_DAY
+  );
+  const expiresAt = new Date(
+    now.getTime() + ACCESS_DURATION_DAYS * MILLISECONDS_PER_DAY
+  );
   registry.courseIds.add(courseId);
   registry.userIds.add(userId);
 
@@ -83,9 +95,15 @@ export const createContentReleaseFixture = async ({
         (id, course_id, course_publication_id, title, sort_order, release_delay_days, status)
       values
         ($1, $3, $4, 'Immediate module', 1, 0, 'active'),
-        ($2, $3, $4, 'Future module', 2, 8, 'active')
+        ($2, $3, $4, 'Future module', 2, $5, 'active')
     `,
-    [immediateModuleId, futureModuleId, courseId, publicationId]
+    [
+      immediateModuleId,
+      futureModuleId,
+      courseId,
+      publicationId,
+      FUTURE_RELEASE_DELAY_DAYS,
+    ]
   );
   await pool.query(
     `
@@ -109,8 +127,15 @@ export const createContentReleaseFixture = async ({
         (user_id, course_id, status, content_release_mode, content_release_started_at, starts_at, expires_at)
       values ($1, $2, 'active', 'scheduled', $3, $3, $4)
     `,
-    [userId, courseId, now, new Date("2027-09-04T12:00:00.000Z")]
+    [userId, courseId, now, expiresAt]
   );
 
-  return { courseId, futureLessonId, immediateLessonId, userId };
+  return {
+    courseId,
+    expiresAt,
+    futureAvailableAt,
+    futureLessonId,
+    immediateLessonId,
+    userId,
+  };
 };

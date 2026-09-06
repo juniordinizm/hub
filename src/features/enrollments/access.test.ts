@@ -85,6 +85,26 @@ describe("enrollment access read model", () => {
     ).resolves.toEqual({ courseId: "course-1", kind: "allowed" });
   });
 
+  it("uses the database decision clock when the caller does not provide one", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          content_release_mode: "scheduled",
+          content_release_started_at: new Date("2026-09-04T00:00:00.000Z"),
+          course_id: "course-1",
+          decision_now: new Date("2026-09-04T23:59:59.000Z"),
+          is_completed: false,
+          release_delay_days: 1,
+          sequence_available: true,
+        },
+      ],
+    });
+
+    await expect(
+      resolveLessonAccess({ lessonId: "lesson-1", userId: "student-1" })
+    ).resolves.toMatchObject({ kind: "time_locked" });
+  });
+
   it("lets an earlier completion bypass the temporal lock", async () => {
     query.mockResolvedValue({
       rows: [

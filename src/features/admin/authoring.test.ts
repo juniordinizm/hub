@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   confirmLessonResourceUpload,
@@ -67,6 +67,7 @@ vi.mock("@/features/storage/lesson-resource-upload-observability", () => ({
   logLessonResourceUploadEvent,
 }));
 
+import { MAX_RELEASE_DELAY_DAYS } from "@/features/courses/module-content-release";
 import {
   createCoursePublicationDraft,
   createLessonDraft,
@@ -178,10 +179,56 @@ const setDefaultMocks = (): void => {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  process.env.CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED = "true";
   setDefaultMocks();
 });
 
+afterEach(() => {
+  delete process.env.CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED;
+});
+
 describe("admin authoring", () => {
+  it("rejects delayed publication while the rollout flag is disabled", async () => {
+    process.env.CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED = "false";
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("select cover_image_json")) {
+        return { rows: [{ cover_image_json: null }] };
+      }
+      if (
+        sql.includes("from course_publications") &&
+        sql.includes("status = 'draft'")
+      ) {
+        return { rows: [{ id: "course-publication-draft" }] };
+      }
+      if (sql.includes("has_scheduled_release_history")) {
+        return { rows: [{ has_scheduled_release_history: false }] };
+      }
+      if (sql.includes("as publication_status")) {
+        return {
+          rows: [
+            {
+              curriculum_key: "curriculum-1",
+              lesson_title: "Aula futura",
+              module_title: "Módulo futuro",
+              publication_status: "draft",
+              release_delay_days: 8,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      publishCoursePublication({ actorUserId: "admin-1", courseId: "course-1" })
+    ).rejects.toThrow("Publicação de conteúdo atrasado está desabilitada");
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes("set status = 'published'")
+      )
+    ).toBe(false);
+  });
+
   it("revalidates release history after copying the cover without holding a database connection", async () => {
     let hasScheduledReleaseHistory = false;
     let transactionOpen = false;
@@ -889,6 +936,56 @@ describe("admin authoring", () => {
       "release_delay_days = excluded.release_delay_days"
     );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
+  });
+
+  it.each([
+    0,
+    MAX_RELEASE_DELAY_DAYS,
+  ])("accepts a delayed module release of %i days", async (releaseDelayDays) => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("insert into modules")) {
+        return { rows: [{ id: "module-1" }] };
+      }
+
+      return versioningQueryResult(sql) ?? { rows: [] };
+    });
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Modulo novo");
+    formData.set("sortOrder", "1");
+    formData.set("releaseMode", "delayed");
+    formData.set("releaseDelayDays", String(releaseDelayDays));
+
+    await expect(
+      saveModule({ actorUserId: "admin-1", formData })
+    ).resolves.toBeUndefined();
+
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("insert into modules"),
+      [
+        "course-1",
+        "course-publication-draft",
+        "Modulo novo",
+        null,
+        1,
+        "draft",
+        releaseDelayDays,
+      ]
+    );
+  });
+
+  it("rejects a delayed module release above the canonical maximum", async () => {
+    const formData = new FormData();
+    formData.set("courseId", "course-1");
+    formData.set("title", "Modulo novo");
+    formData.set("releaseMode", "delayed");
+    formData.set("releaseDelayDays", String(MAX_RELEASE_DELAY_DAYS + 1));
+
+    await expect(
+      saveModule({ actorUserId: "admin-1", formData })
+    ).rejects.toThrow("Atraso de liberação inválido.");
+
+    expect(query).not.toHaveBeenCalled();
   });
 
   it.each([

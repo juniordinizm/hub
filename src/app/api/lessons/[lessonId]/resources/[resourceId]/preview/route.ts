@@ -1,8 +1,14 @@
+import {
+  assertProtectedLessonAccess,
+  LessonAccessDeniedError,
+} from "@/features/courses/protected-lesson-access";
 import { getStudentLessonWorkspace } from "@/features/courses/server";
 import { createR2ObjectReadUrl } from "@/features/storage/r2";
 import { requireSession } from "@/lib/session";
 
 export const runtime = "nodejs";
+
+const NO_STORE_HEADERS = { "Cache-Control": "private, no-store" };
 
 export async function GET(
   _request: Request,
@@ -22,7 +28,10 @@ export async function GET(
     data.kind !== "available" ||
     data.data.lesson.contentJson?.type !== "text"
   ) {
-    return Response.json({ error: "Preview nao encontrado." }, { status: 404 });
+    return Response.json(
+      { error: "Preview nao encontrado." },
+      { headers: NO_STORE_HEADERS, status: 404 }
+    );
   }
 
   const resources =
@@ -34,14 +43,33 @@ export async function GET(
   );
 
   if (resource?.storage !== "r2" || !resource.preview) {
-    return Response.json({ error: "Preview nao encontrado." }, { status: 404 });
+    return Response.json(
+      { error: "Preview nao encontrado." },
+      { headers: NO_STORE_HEADERS, status: 404 }
+    );
+  }
+
+  try {
+    await assertProtectedLessonAccess({
+      courseId: data.data.course.id,
+      lessonId,
+      userId: session.user.id,
+    });
+  } catch (error) {
+    if (error instanceof LessonAccessDeniedError) {
+      return Response.json(
+        { error: "Preview nao encontrado." },
+        { headers: NO_STORE_HEADERS, status: 404 }
+      );
+    }
+    throw error;
   }
 
   const previewUrl = await createR2ObjectReadUrl({ key: resource.preview.key });
 
   return new Response(null, {
     headers: {
-      "Cache-Control": "private, max-age=300",
+      ...NO_STORE_HEADERS,
       Location: previewUrl,
     },
     status: 302,

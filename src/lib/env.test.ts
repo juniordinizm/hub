@@ -44,6 +44,21 @@ describe("server environment", () => {
     expect(getServerEnv().PAYMENTS_CHECKOUT_MODE).toBe("public");
   });
 
+  it("keeps delayed content publication disabled unless explicitly enabled", () => {
+    setEnv("NODE_ENV", "development");
+    setEnv("CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED", undefined);
+    setEnv("VERCEL_ENV", undefined);
+
+    expect(getServerEnv().CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED).toBe(
+      false
+    );
+
+    setEnv("CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED", "true");
+    expect(getServerEnv().CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED).toBe(
+      true
+    );
+  });
+
   it("defaults the Asaas webhook to enabled in Development", () => {
     setEnv("NODE_ENV", "development");
     setEnv("ASAAS_WEBHOOK_ENABLED", undefined);

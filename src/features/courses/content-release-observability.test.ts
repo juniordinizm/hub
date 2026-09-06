@@ -14,7 +14,9 @@ import {
   classifyContentReleaseError,
   createContentReleaseDiagnostics,
   reportContentReleaseOperationalEvent,
+  safelyReportContentReleaseOperationalEvent,
 } from "./content-release-observability";
+import { ContentReleaseDomainError } from "./module-content-release";
 
 describe("content release observability", () => {
   beforeEach(() => {
@@ -80,5 +82,26 @@ describe("content release observability", () => {
         outcome: "success",
       })
     );
+  });
+
+  it("does not let a logging sink failure change the domain outcome", () => {
+    dependencies.logOperationalEvent.mockImplementation(() => {
+      throw new Error("telemetry unavailable");
+    });
+
+    expect(() =>
+      safelyReportContentReleaseOperationalEvent({
+        code: "content_release_digest_conflict",
+        courseId: "course-1",
+      })
+    ).not.toThrow();
+  });
+
+  it("classifies typed domain errors without inspecting their message", () => {
+    expect(
+      classifyContentReleaseError(
+        new ContentReleaseDomainError("invalid_anchor", "mensagem alterada")
+      )
+    ).toBe("invalid_anchor");
   });
 });

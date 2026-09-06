@@ -1,7 +1,7 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
-import { reportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
+import { safelyReportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
 import type {
   EnrollmentContentReleaseState,
   EnrollmentStatus,
@@ -1178,7 +1178,7 @@ export const grantEnrollmentFullContentAccess = async ({
     const now = Date.now();
     if (currentEnrollment?.status !== "active") {
       if (currentEnrollment) {
-        reportContentReleaseOperationalEvent({
+        safelyReportContentReleaseOperationalEvent({
           code: "content_release_override_rejected",
           courseId: currentEnrollment.course_id,
         });
@@ -1189,7 +1189,7 @@ export const grantEnrollmentFullContentAccess = async ({
       currentEnrollment.starts_at.getTime() > now ||
       currentEnrollment.expires_at.getTime() < now
     ) {
-      reportContentReleaseOperationalEvent({
+      safelyReportContentReleaseOperationalEvent({
         code: "content_release_override_rejected",
         courseId: currentEnrollment.course_id,
       });
@@ -1238,7 +1238,7 @@ export const grantEnrollmentFullContentAccess = async ({
       ]
     );
     await client.query("commit");
-    reportContentReleaseOperationalEvent({
+    safelyReportContentReleaseOperationalEvent({
       code: "content_release_override_granted",
       courseId: currentEnrollment.course_id,
     });

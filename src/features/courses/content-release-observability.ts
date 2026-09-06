@@ -1,12 +1,8 @@
 import "server-only";
 import { createCorrelationId, logOperationalEvent } from "@/lib/observability";
+import type { ContentReleaseDomainErrorCode } from "./module-content-release";
 
-export type ContentReleaseInvalidReason =
-  | "invalid_anchor"
-  | "invalid_clock"
-  | "invalid_delay"
-  | "invalid_mode"
-  | "invalid_schedule";
+export type ContentReleaseInvalidReason = ContentReleaseDomainErrorCode;
 
 export type ContentReleaseOperationalCode =
   | "content_release_digest_conflict"
@@ -46,9 +42,34 @@ export const reportContentReleaseOperationalEvent = ({
   });
 };
 
+export const safelyReportContentReleaseOperationalEvent = (
+  input: Parameters<typeof reportContentReleaseOperationalEvent>[0]
+): void => {
+  try {
+    reportContentReleaseOperationalEvent(input);
+  } catch {
+    // Observability must never change authorization or a committed mutation.
+  }
+};
+
 export const classifyContentReleaseError = (
   error: unknown
 ): ContentReleaseInvalidReason => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    [
+      "invalid_anchor",
+      "invalid_clock",
+      "invalid_delay",
+      "invalid_mode",
+      "invalid_schedule",
+    ].includes(error.code)
+  ) {
+    return error.code as ContentReleaseInvalidReason;
+  }
   const message = error instanceof Error ? error.message : "";
   if (message.includes("sem inicio da entrega")) {
     return "invalid_anchor";

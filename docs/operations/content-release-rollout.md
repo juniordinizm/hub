@@ -64,13 +64,27 @@ Guarde a aprovação fora do banco; o código não substitui revisão jurídica.
 
 ## Ativação e rollback
 
-1. Faça o deploy com todos os Cursos existentes em D+0.
-2. Ative o drip somente para um Curso piloto.
-3. Monitore `content_release_invalid_state`,
+1. Faça o deploy do schema aditivo e do runtime compatível com
+   `CONTENT_RELEASE_DELAYED_PUBLISHING_ENABLED=false` (ou ausente). O runtime
+   deve continuar interpretando D+N já persistido, mas novas publicações com
+   atraso ficam bloqueadas.
+2. Observe a Fase 1 com todos os Cursos existentes em D+0 e confirme migrations,
+   leituras, logs e recuperação.
+3. Só depois da aprovação da Fase 1, altere a variável para `true`, faça novo
+   deploy e ative o drip somente para um Curso piloto.
+4. Monitore `content_release_invalid_state`,
    `content_release_digest_conflict`, `content_release_override_rejected`,
    `content_release_override_granted`, falhas de player e certificados.
-4. Para desativar, publique todos os Módulos em D+0. Não remova colunas,
+5. Para desativar funcionalmente, publique todos os Módulos em D+0. Não remova colunas,
    snapshots ou a migration.
-5. Rollback de código não desfaz a migration: o schema e snapshots são
-   compatíveis com o código anterior. Se houver estado inválido, mantenha o
-   fail-closed e corrija a configuração antes de reabrir o Curso.
+6. Antes de qualquer D+N ativo, rollback pode voltar ao runtime anterior porque
+   não há conteúdo futuro para ele ignorar. Depois do primeiro D+N publicado,
+   **não** faça rollback para runtime que não conhece essas colunas: ele
+   liberaria todo o conteúdo futuro. Use o baseline compatível, um forward-fix,
+   ou a liberação deliberada de todos os Módulos em D+0.
+7. Se houver estado inválido, mantenha o fail-closed e corrija a configuração
+   antes de reabrir o Curso.
+
+A variável é server-side, não é segredo e não deve ser lida pelo cliente. O valor
+efetivo de cada ambiente deve ser registrado no checklist de release sem incluir
+credenciais.

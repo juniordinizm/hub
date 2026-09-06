@@ -7,7 +7,10 @@ import {
   getLessonComments,
 } from "@/features/comments/server";
 import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
-import { buildContentReleaseScheduleSnapshot } from "@/features/courses/module-content-release";
+import {
+  buildContentReleaseScheduleSnapshot,
+  MILLISECONDS_PER_DAY,
+} from "@/features/courses/module-content-release";
 import { getContentReleaseScheduleDigest } from "@/features/courses/module-content-release-digest";
 import { resolveLessonAccess } from "@/features/enrollments/access";
 import {
@@ -46,7 +49,7 @@ const pool = new Pool({
   connectionString: withVerifiedSslMode(databaseUrl),
   max: 4,
 });
-const NOW = new Date("2026-09-04T12:00:00.000Z");
+const NOW = new Date();
 const registry = createContentReleaseFixtureRegistry();
 const createFixture = () =>
   createContentReleaseFixture({ now: NOW, pool, registry });
@@ -134,7 +137,7 @@ describe("content release PostgreSQL surfaces", () => {
       [
         fixture.userId,
         fixture.futureLessonId,
-        new Date("2026-09-03T12:00:00.000Z"),
+        new Date(NOW.getTime() - MILLISECONDS_PER_DAY),
       ]
     );
 
@@ -158,6 +161,25 @@ describe("content release PostgreSQL surfaces", () => {
         isCompleted: true,
       }),
     ]);
+
+    const workspace = await getStudentLessonWorkspace({
+      lessonId: fixture.futureLessonId,
+      viewer: { role: "student", userId: fixture.userId },
+    });
+    expect(workspace.kind).toBe("available");
+    if (workspace.kind === "available") {
+      const workspaceFutureModule = workspace.data.modules.find(
+        (moduleData) => moduleData.title === "Future module"
+      );
+      expect(workspaceFutureModule?.lessons).toEqual([
+        expect.objectContaining({
+          id: fixture.futureLessonId,
+          isCompleted: true,
+        }),
+      ]);
+      expect(workspace.data.previousLessonId).toBe(fixture.immediateLessonId);
+      expect(workspace.data.nextLessonId).toBeNull();
+    }
   });
 
   it("does not issue a certificate while a required future lesson remains incomplete", async () => {
@@ -220,6 +242,98 @@ describe("content release PostgreSQL surfaces", () => {
     } finally {
       if (completion) {
         await completion.catch(() => undefined);
+      }
+      await revocation.query("rollback").catch(() => undefined);
+      revocation.release();
+    }
+  });
+
+  it("rejects comment creation after a concurrent revocation commits", async () => {
+    const fixture = await createFixture();
+    const revocation = await pool.connect();
+    let comment: Promise<unknown> | null = null;
+    try {
+      await revocation.query("begin");
+      await lockCourseContentRelease(revocation, fixture.courseId);
+      await revocation.query(
+        "update enrollments set status = 'revoked', revoked_at = now(), revoked_reason = 'payment_refund' where user_id = $1 and course_id = $2",
+        [fixture.userId, fixture.courseId]
+      );
+      comment = createLessonComment({
+        body: "não deveria inserir",
+        lessonId: fixture.immediateLessonId,
+        role: "student",
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          const { rows } = await pool.query<{ waiting: boolean }>(
+            `
+              select exists (
+                select 1 from pg_locks
+                where pid <> pg_backend_pid()
+                  and locktype = 'advisory'
+                  and granted = false
+              ) as waiting
+            `
+          );
+          expect(rows[0]?.waiting).toBe(true);
+        },
+        { interval: 25, timeout: 1000 }
+      );
+      await revocation.query("commit");
+      await expect(comment).rejects.toThrow("Aula indisponivel");
+      const comments = await pool.query(
+        "select count(*) from lesson_comments where lesson_id = $1 and author_user_id = $2",
+        [fixture.immediateLessonId, fixture.userId]
+      );
+      expect(comments.rows).toEqual([{ count: "0" }]);
+    } finally {
+      if (comment) {
+        await comment.catch(() => undefined);
+      }
+      await revocation.query("rollback").catch(() => undefined);
+      revocation.release();
+    }
+  });
+
+  it("rejects comment reads after a concurrent revocation commits", async () => {
+    const fixture = await createFixture();
+    const revocation = await pool.connect();
+    let read: Promise<unknown> | null = null;
+    try {
+      await revocation.query("begin");
+      await lockCourseContentRelease(revocation, fixture.courseId);
+      await revocation.query(
+        "update enrollments set status = 'revoked', revoked_at = now(), revoked_reason = 'payment_refund' where user_id = $1 and course_id = $2",
+        [fixture.userId, fixture.courseId]
+      );
+      read = getLessonComments({
+        lessonId: fixture.immediateLessonId,
+        role: "student",
+        userId: fixture.userId,
+      });
+      await vi.waitFor(
+        async () => {
+          const { rows } = await pool.query<{ waiting: boolean }>(
+            `
+              select exists (
+                select 1 from pg_locks
+                where pid <> pg_backend_pid()
+                  and locktype = 'advisory'
+                  and granted = false
+              ) as waiting
+            `
+          );
+          expect(rows[0]?.waiting).toBe(true);
+        },
+        { interval: 25, timeout: 1000 }
+      );
+      await revocation.query("commit");
+      await expect(read).rejects.toThrow("Aula indisponivel");
+    } finally {
+      if (read) {
+        await read.catch(() => undefined);
       }
       await revocation.query("rollback").catch(() => undefined);
       revocation.release();

@@ -2,7 +2,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
 import { lockCourseContentRelease } from "@/features/courses/content-release-lock";
-import { reportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
+import { safelyReportContentReleaseOperationalEvent } from "@/features/courses/content-release-observability";
 import {
   assertScheduleFitsAccessDuration,
   buildContentReleaseScheduleSnapshot,
@@ -16,6 +16,10 @@ import type { AsaasGateway, CreateAsaasCheckout } from "./asaas";
 import { ASAAS_MINIMUM_CHECKOUT_VALUE_IN_CENTS } from "./asaas";
 import { AsaasGatewayError } from "./asaas-client";
 import { parseBuyerIdentity } from "./buyer-identity";
+import {
+  expireStalePreProviderReservation,
+  isStalePreProviderReservation,
+} from "./checkout-recovery";
 import { getEffectiveMaxInstallmentCount } from "./course-payment-offer";
 import { getApplicationUrl } from "./provider";
 
@@ -144,9 +148,12 @@ interface CheckoutOrder {
   access_duration_months: number | null;
   amount_in_cents: number;
   buyer_identity_status: "pending" | "resolved" | "review_required";
+  checkout_attempt_count?: number;
   checkout_course_slug: string;
   checkout_item_description: string;
   checkout_item_name: string;
+  checkout_last_attempt_at?: Date | null;
+  checkout_next_attempt_at?: Date | null;
   checkout_status:
     | "active"
     | "cancelled"
@@ -165,7 +172,11 @@ interface CheckoutOrder {
   payment_allow_pix: boolean;
   payment_max_installment_count: number;
   provider: string;
+  provider_checkout_id?: string | null;
   provider_checkout_status: string | null;
+  provider_customer_id?: string | null;
+  provider_payment_id?: string | null;
+  updated_at?: Date | null;
   user_id: string | null;
 }
 
@@ -433,6 +444,9 @@ const readCheckoutOrder = async ({
     `
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
+        checkout_attempt_count, checkout_last_attempt_at,
+        checkout_next_attempt_at,
+        provider_checkout_id, provider_customer_id, provider_payment_id, updated_at,
         provider_checkout_status, amount_in_cents, access_duration_months,
         content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
@@ -469,6 +483,40 @@ const resolveAfterLostCheckoutCas = async (
     order,
     requestedCourseId: context.requestedCourseId,
     requestedCourseSlug: context.requestedCourseSlug,
+  });
+};
+
+const resolveExistingCheckoutAttempt = async ({
+  buyer,
+  now,
+  order,
+  requestedCourseId,
+  requestedCourseSlug,
+}: {
+  buyer: CheckoutBuyer;
+  now: Date;
+  order: CheckoutOrder;
+  requestedCourseId: string | undefined;
+  requestedCourseSlug: string | undefined;
+}): Promise<CheckoutIntentResult> => {
+  if (
+    isStalePreProviderReservation({
+      now,
+      order,
+    }) &&
+    (await expireStalePreProviderReservation({
+      attemptId: order.id,
+      now,
+    }))
+  ) {
+    return { orderId: order.id, status: "failed" };
+  }
+
+  return resolveDuplicate({
+    buyer,
+    order,
+    requestedCourseId,
+    requestedCourseSlug,
   });
 };
 
@@ -740,7 +788,7 @@ const createPendingCheckoutOrder = async ({
         error instanceof CheckoutIntentError &&
         error.reason === "schedule_changed"
       ) {
-        reportContentReleaseOperationalEvent({
+        safelyReportContentReleaseOperationalEvent({
           code: "content_release_digest_conflict",
           courseId: course.id,
         });
@@ -856,6 +904,9 @@ export const createAsaasCheckoutIntent = async (
     `
       select
         id, course_id, user_id, buyer_identity_status, provider, checkout_status, checkout_url,
+        checkout_attempt_count, checkout_last_attempt_at,
+        checkout_next_attempt_at,
+        provider_checkout_id, provider_customer_id, provider_payment_id, updated_at,
         provider_checkout_status, amount_in_cents, access_duration_months,
         content_release_schedule_snapshot,
         customer_email, customer_name, checkout_course_slug, checkout_item_name,
@@ -868,9 +919,19 @@ export const createAsaasCheckoutIntent = async (
     [input.attemptId]
   );
   if (existingAttempt.rows[0]) {
+    const existingOrder = existingAttempt.rows[0];
+    if (existingOrder.checkout_status === "pending") {
+      return resolveExistingCheckoutAttempt({
+        buyer: input.buyer,
+        now: (input.now ?? (() => new Date()))(),
+        order: existingOrder,
+        requestedCourseId: input.courseId,
+        requestedCourseSlug,
+      });
+    }
     return resolveDuplicate({
       buyer: input.buyer,
-      order: existingAttempt.rows[0],
+      order: existingOrder,
       requestedCourseId: input.courseId,
       requestedCourseSlug,
     });
@@ -888,8 +949,9 @@ export const createAsaasCheckoutIntent = async (
   });
 
   if (pendingOrder.existingOrder) {
-    return resolveDuplicate({
+    return resolveExistingCheckoutAttempt({
       buyer: input.buyer,
+      now: timestamp,
       order: pendingOrder.existingOrder,
       requestedCourseId: input.courseId,
       requestedCourseSlug,

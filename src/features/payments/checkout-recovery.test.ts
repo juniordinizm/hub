@@ -10,6 +10,7 @@ const input = {
   checkoutAttemptId: "7fb3447e-2702-48f8-abe2-6c47b091bdcb",
   courseSlug: "course",
 };
+const DECISION_NOW = new Date("2026-09-06T12:00:00.000Z");
 
 describe("readPublicCheckoutStatus", () => {
   beforeEach(() => vi.mocked(getPool).mockReset());
@@ -54,5 +55,66 @@ describe("readPublicCheckoutStatus", () => {
       retryAllowed: false,
       status: "unavailable",
     });
+  });
+
+  it("terminalizes a stale pre-provider reservation as retryable failure", async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            checkout_attempt_count: 0,
+            checkout_last_attempt_at: null,
+            checkout_status: "pending",
+            checkout_url: null,
+            id: input.checkoutAttemptId,
+            provider_checkout_id: null,
+            provider_customer_id: null,
+            provider_payment_id: null,
+            updated_at: new Date(DECISION_NOW.getTime() - 31_000),
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: input.checkoutAttemptId }] });
+    vi.mocked(getPool).mockReturnValue({ query } as never);
+
+    await expect(
+      readPublicCheckoutStatus({ ...input, now: () => DECISION_NOW })
+    ).resolves.toEqual({
+      orderId: input.checkoutAttemptId,
+      retryAllowed: true,
+      status: "failed",
+    });
+    expect(query.mock.calls[1]?.[0]).toContain(
+      "checkout_error_message = 'checkout_reservation_expired'"
+    );
+  });
+
+  it("keeps a recent pre-provider reservation processing", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          checkout_attempt_count: 0,
+          checkout_last_attempt_at: null,
+          checkout_status: "pending",
+          checkout_url: null,
+          id: input.checkoutAttemptId,
+          provider_checkout_id: null,
+          provider_customer_id: null,
+          provider_payment_id: null,
+          updated_at: new Date(DECISION_NOW.getTime() - 1000),
+        },
+      ],
+    });
+    vi.mocked(getPool).mockReturnValue({ query } as never);
+
+    await expect(
+      readPublicCheckoutStatus({ ...input, now: () => DECISION_NOW })
+    ).resolves.toEqual({
+      orderId: input.checkoutAttemptId,
+      retryAllowed: false,
+      status: "processing",
+    });
+    expect(query).toHaveBeenCalledOnce();
   });
 });
