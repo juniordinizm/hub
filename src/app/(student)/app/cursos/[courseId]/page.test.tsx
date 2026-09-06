@@ -58,6 +58,7 @@ const courseOverview = (
   },
   modules: [],
   nextLessonId: null,
+  nextReleaseAt: null,
   progressPercent: 100,
   studentName: "Maria Silva",
   totalCount: 1,
@@ -157,6 +158,42 @@ describe("StudentCourseOverviewPage certificate feedback", () => {
     expect(markup).toContain("Conferir nome no perfil");
     expect(markup).not.toContain("/certificados/");
     expect(markup).not.toContain("Atualizar status");
+  });
+
+  it("does not repeat the next release in the course header", async () => {
+    const markup = await renderPage({
+      certificate: "",
+      overview: courseOverview({
+        certificateCode: null,
+        certificateRenderStatus: null,
+        nextLessonId: null,
+        nextReleaseAt: new Date("2026-09-12T14:30:00.000Z"),
+        progressPercent: 50,
+      }),
+    });
+
+    expect(markup).not.toContain('role="status"');
+    expect(markup).not.toContain("Em breve");
+    expect(markup).not.toContain("12/09/2026");
+    expect(markup).not.toContain("Próximo módulo em");
+    expect(markup).not.toContain('disabled=""');
+  });
+
+  it("does not render a primary action when there is no next lesson or certificate", async () => {
+    const markup = await renderPage({
+      certificate: "",
+      overview: courseOverview({
+        certificateCode: null,
+        certificateRenderStatus: null,
+        nextLessonId: null,
+        nextReleaseAt: new Date("2026-09-12T14:30:00.000Z"),
+        progressPercent: 50,
+      }),
+    });
+
+    expect(markup).not.toContain("Rever trilha");
+    expect(markup).not.toContain("Iniciar curso");
+    expect(markup).not.toContain('href="/app/cursos/course-1"');
   });
 
   it("presents failed PDF preparation as an error with support", async () => {

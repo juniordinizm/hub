@@ -34,7 +34,7 @@ const CERTIFICATE_EMAIL_IDEMPOTENCY_PATTERN =
 const CERTIFICATE_CODE_LABEL_PATTERN = /Código do certificado:/;
 const CERTIFICATE_CODE_PATTERN = /^PRT-[0-9A-F]{32}$/;
 const CERTIFICATE_STATUS_PATTERN = /Status: (Preparando|Disponível)/;
-const SCHEDULED_RELEASE_PATTERN = /Disponível em/;
+const SCHEDULED_RELEASE_PATTERN = /Em breve/;
 
 const createCertificateBackground = async (): Promise<Buffer> =>
   await sharp({
@@ -412,7 +412,7 @@ test("student with a grant opens the first lesson @mobile", async ({
   ).toBeVisible();
 });
 
-test("scheduled modules hide future lessons and redirect direct access", async ({
+test("scheduled modules show locked future lessons and redirect direct access", async ({
   page,
 }) => {
   const fixture = await readFixture();
@@ -423,11 +423,15 @@ test("scheduled modules hide future lessons and redirect direct access", async (
     name: "Módulo futuro E2E",
   });
   await expect(futureModule).toBeVisible();
-  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
-    0
-  );
-  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
-  await expect(futureModule).toContainText("1 aula");
+  await expect(
+    futureModule.getByText("Aula futura E2E", { exact: true })
+  ).toBeVisible();
+  await expect(
+    futureModule.getByRole("link", { name: "Aula futura E2E" })
+  ).toHaveCount(0);
+  await expect(
+    futureModule.locator("p").filter({ hasText: SCHEDULED_RELEASE_PATTERN })
+  ).toBeVisible();
 
   await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
   await expect(page).toHaveURL(
@@ -449,11 +453,15 @@ test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
     name: "Módulo futuro E2E",
   });
   await expect(futureModule).toBeVisible();
-  await expect(page.getByText("Aula futura E2E", { exact: true })).toHaveCount(
-    0
-  );
-  await expect(futureModule).toContainText("1 aula");
-  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+  await expect(
+    futureModule.getByText("Aula futura E2E", { exact: true })
+  ).toBeVisible();
+  await expect(
+    futureModule.getByRole("link", { name: "Aula futura E2E" })
+  ).toHaveCount(0);
+  await expect(
+    futureModule.locator("p").filter({ hasText: SCHEDULED_RELEASE_PATTERN })
+  ).toBeVisible();
 });
 
 test("student dashboard has no moderate or higher accessibility violations", async ({
@@ -534,7 +542,7 @@ test("sequencing keeps a future lesson locked", async ({ page }) => {
   await expect(
     page
       .getByRole("complementary")
-      .getByText("Libere concluindo a aula anterior")
+      .getByText("Continue a sequência", { exact: true })
   ).toBeVisible();
   await page.goto(`/app/aulas/${fixture.course.lessonTwoId}`);
   await expect(
@@ -556,7 +564,7 @@ test("mobile lesson navigation exposes the course outline and locked lessons @mo
   await mobileNavigation.locator("summary").click();
   await expect(mobileNavigation.getByText("Segunda aula")).toBeVisible();
   await expect(
-    mobileNavigation.getByText("Libere concluindo a aula anterior")
+    mobileNavigation.getByText("Continue a sequência", { exact: true })
   ).toBeVisible();
 });
 

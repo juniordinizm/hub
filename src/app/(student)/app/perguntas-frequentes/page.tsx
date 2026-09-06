@@ -72,7 +72,7 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
                   <AccordionTrigger className="text-left text-base">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground text-sm leading-7">
+                  <AccordionContent className="px-4 text-muted-foreground text-sm leading-7">
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>

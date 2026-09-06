@@ -27,7 +27,6 @@ import {
 import { getStudentCourseOverview } from "@/features/courses/server";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
-import { APP_TIME_ZONE } from "@/lib/timezone";
 import { PendingCertificateRefresh } from "../../certificados/pending-certificate-refresh";
 import { CourseOverviewClient } from "./course-overview-client";
 
@@ -39,13 +38,6 @@ function getCourseButtonLabel(progressPercent: number): string {
   }
   return "Rever trilha";
 }
-
-const formatReleaseDate = (value: Date): string =>
-  new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: APP_TIME_ZONE,
-  }).format(value);
 
 function getIncompleteCertificateDescription({
   completedCount,
@@ -111,7 +103,7 @@ export default async function StudentCourseOverviewPage({
     (acc, moduleData) => acc + moduleData.totalDurationSeconds,
     0
   );
-  let primaryAction: React.JSX.Element;
+  let primaryAction: React.JSX.Element | null = null;
   if (data.certificateCode) {
     primaryAction = (
       <Button asChild className="h-full w-full px-6 sm:w-auto" size="sm">
@@ -120,13 +112,7 @@ export default async function StudentCourseOverviewPage({
         </Link>
       </Button>
     );
-  } else if (data.nextReleaseAt && !data.nextLessonId) {
-    primaryAction = (
-      <Button className="h-full w-full px-6 sm:w-auto" disabled size="sm">
-        Próximo módulo em {formatReleaseDate(data.nextReleaseAt)}
-      </Button>
-    );
-  } else {
+  } else if (data.nextLessonId) {
     primaryAction = (
       <Button asChild className="h-full w-full px-6 sm:w-auto" size="sm">
         <Link
@@ -199,7 +185,9 @@ export default async function StudentCourseOverviewPage({
                   <Progress className="h-1.5" value={data.progressPercent} />
                 </div>
 
-                <div className="flex shrink-0">{primaryAction}</div>
+                {primaryAction ? (
+                  <div className="flex shrink-0">{primaryAction}</div>
+                ) : null}
               </div>
             </div>
           </header>
@@ -218,6 +206,7 @@ export default async function StudentCourseOverviewPage({
       </div>
 
       <CourseOverviewClient
+        courseThumbnailUrl={data.course.thumbnailUrl}
         modules={data.modules}
         nextLessonId={data.nextLessonId}
         previewMode={previewMode}

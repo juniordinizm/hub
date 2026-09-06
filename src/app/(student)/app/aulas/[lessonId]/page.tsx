@@ -3,6 +3,7 @@ import {
   ArrowRightIcon,
   CheckmarkCircle02Icon,
   CircleIcon,
+  Clock01Icon,
   Download01Icon,
   ExternalLinkIcon,
   File01Icon,
@@ -29,14 +30,17 @@ import { LessonVideoPlayer } from "@/components/lesson-video-player";
 import { LessonVideoProcessing } from "@/components/lesson-video-processing";
 import { LockedNavigationCard } from "@/components/locked-lesson-tooltip";
 import { RegisterPreviewCourseId } from "@/components/panel-layout";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Sidebar,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuLink,
@@ -59,12 +63,12 @@ import {
   type StudentLessonData,
 } from "@/features/courses/server";
 import {
-  formatLessonDuration,
   resolveLessonVideoEmbedUrl,
   toVideoProvider,
 } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
 import { requireSession } from "@/lib/session";
+import { APP_TIME_ZONE } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -844,26 +848,74 @@ function LessonCourseOutline({
     );
   }
 
+  const activeModuleId =
+    modules.find((module) =>
+      module.lessons.some((lesson) => lesson.id === activeLessonId)
+    )?.id ?? "";
+
   return (
     <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
-      {modules.map((module) => (
-        <SidebarGroup key={module.id}>
-          <SidebarGroupLabel>{module.title}</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {module.lessons.map((lesson) => (
-                <LessonSidebarItem
-                  activeLessonId={activeLessonId}
-                  key={lesson.id}
-                  lesson={lesson}
-                  previewMode={previewMode}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      ))}
+      <Accordion
+        className="rounded-lg border-sidebar-border"
+        defaultValue={[activeModuleId]}
+        type="multiple"
+      >
+        {modules.map((module) => (
+          <AccordionItem key={module.id} value={module.id}>
+            <AccordionTrigger className="gap-3 px-3 py-3 text-sidebar-foreground text-sm hover:no-underline focus:no-underline">
+              <span className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="min-w-0 flex-1 truncate">{module.title}</span>
+                <ModuleLockStatus module={module} />
+              </span>
+            </AccordionTrigger>
+            <AccordionContent className="px-0 pb-2 [&_a]:no-underline">
+              <SidebarMenu>
+                {module.lessons.map((lesson) => (
+                  <LessonSidebarItem
+                    activeLessonId={activeLessonId}
+                    key={lesson.id}
+                    lesson={lesson}
+                    previewMode={previewMode}
+                  />
+                ))}
+              </SidebarMenu>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
     </div>
+  );
+}
+
+function ModuleLockStatus({
+  module,
+}: {
+  module: LessonPageData["modules"][number];
+}): React.JSX.Element | null {
+  if (module.releaseState === "time_locked") {
+    return (
+      <span className="flex shrink-0 items-center gap-1.5 font-normal text-amber-700 text-xs dark:text-amber-300">
+        <HugeiconsIcon icon={Clock01Icon} size={14} strokeWidth={2} />
+        <span className="font-normal text-[11px] tabular-nums">
+          {formatLessonReleaseDate(module.availableAt)}
+        </span>
+      </span>
+    );
+  }
+
+  const hasSequenceLockedLessons = module.lessons.some(
+    (lesson) => !(lesson.isAvailable || lesson.isCompleted)
+  );
+
+  if (!hasSequenceLockedLessons) {
+    return null;
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1.5 font-normal text-sidebar-foreground/60 text-xs">
+      <HugeiconsIcon icon={SquareLock02Icon} size={14} strokeWidth={2} />
+      <span>Continue a sequência</span>
+    </span>
   );
 }
 
@@ -1035,14 +1087,6 @@ function LessonSidebarItem({
           {lesson.isCompleted ? "Concluída · " : ""}
           {lesson.title}
         </span>
-        {lesson.isAvailable ? null : (
-          <span className="block text-sidebar-foreground/70 text-xs">
-            Libere concluindo a aula anterior
-          </span>
-        )}
-      </span>
-      <span className="ml-auto text-xs">
-        {formatLessonDuration(lesson.durationSeconds)}
       </span>
     </>
   );
@@ -1050,7 +1094,10 @@ function LessonSidebarItem({
   if (!lesson.isAvailable) {
     return (
       <SidebarMenuItem>
-        <div className="flex min-h-9 select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/70 text-sm">
+        <div
+          aria-disabled="true"
+          className="flex min-h-9 cursor-default select-none items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/60 text-sm"
+        >
           {content}
         </div>
       </SidebarMenuItem>
@@ -1068,6 +1115,18 @@ function LessonSidebarItem({
       </SidebarMenuLink>
     </SidebarMenuItem>
   );
+}
+
+function formatLessonReleaseDate(value: Date | null): string {
+  if (!value) {
+    return "após a confirmação do acesso";
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: APP_TIME_ZONE,
+  }).format(new Date(value));
 }
 
 function getLessonMarker({

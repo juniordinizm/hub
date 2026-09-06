@@ -115,6 +115,7 @@ export interface FaqItem {
 }
 
 export interface ModuleWithLessons {
+  availableAt: Date | null;
   id: string;
   lessons: Array<{
     id: string;
@@ -124,6 +125,7 @@ export interface ModuleWithLessons {
     isCompleted: boolean;
     isAvailable: boolean;
   }>;
+  releaseState: "available" | "invalid" | "time_locked";
   sortOrder: number;
   title: string;
 }
@@ -348,7 +350,9 @@ const mapModules = (rows: LessonRow[]): ModuleWithLessons[] => {
   for (const row of rows) {
     const existingModule = modules.get(row.module_id);
     const moduleData = existingModule ?? {
+      availableAt: null,
       id: row.module_id,
+      releaseState: "available" as const,
       title: row.module_title,
       sortOrder: row.module_sort_order,
       lessons: [],
@@ -986,7 +990,7 @@ const appendOverviewLesson = ({
   const isCompleted = Boolean(row.completed_at);
   moduleData.lessonCount += 1;
   moduleData.totalDurationSeconds += Math.max(0, row.duration_seconds);
-  if (moduleData.releaseState !== "available" && !isCompleted) {
+  if (moduleData.releaseState === "invalid" && !isCompleted) {
     return;
   }
   const availability = resolveLessonAvailability({
@@ -1047,8 +1051,7 @@ const projectEnrolledOverviewModules = (
       const release = resolveOverviewModuleRelease(row, now, diagnostics);
       moduleData = {
         availableAt: release.availableAt,
-        description:
-          release.releaseState === "available" ? row.module_description : null,
+        description: row.module_description,
         id: row.module_id,
         lessonCount: 0,
         lessons: [],
@@ -1536,19 +1539,34 @@ const getEnrolledLessonWorkspace = async ({
         now: moduleRow.decision_now ?? new Date(),
         releaseDelayDays: moduleRow.release_delay_days ?? 0,
       });
-      return release.kind === "time_locked"
-        ? {
-            ...moduleData,
-            lessons: moduleData.lessons.filter((lesson) => lesson.isCompleted),
-          }
-        : moduleData;
+      if (release.kind === "time_locked") {
+        return {
+          ...moduleData,
+          availableAt: release.availableAt,
+          lessons: moduleData.lessons.map((lesson) => ({
+            ...lesson,
+            isAvailable: lesson.isCompleted,
+          })),
+          releaseState: "time_locked" as const,
+        };
+      }
+      return {
+        ...moduleData,
+        availableAt: null,
+        releaseState: "available" as const,
+      };
     } catch (error) {
       diagnostics.reportInvalidState({
         courseId: moduleRow.course_id,
         moduleId: moduleRow.module_id,
         reason: classifyContentReleaseError(error),
       });
-      return { ...moduleData, lessons: [] };
+      return {
+        ...moduleData,
+        availableAt: null,
+        lessons: [],
+        releaseState: "invalid" as const,
+      };
     }
   });
   const visibleLessonIds = visibleModules.flatMap((module) =>
