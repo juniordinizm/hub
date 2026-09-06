@@ -429,7 +429,9 @@ test("scheduled modules show locked future lessons and redirect direct access", 
   await expect(
     futureModule.getByRole("link", { name: "Aula futura E2E" })
   ).toHaveCount(0);
-  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+  await expect(
+    futureModule.locator("p").filter({ hasText: SCHEDULED_RELEASE_PATTERN })
+  ).toBeVisible();
 
   await page.goto(`/app/aulas/${fixture.scheduledCourse.futureLessonId}`);
   await expect(page).toHaveURL(
@@ -457,7 +459,9 @@ test("scheduled overview remains safe on mobile @mobile", async ({ page }) => {
   await expect(
     futureModule.getByRole("link", { name: "Aula futura E2E" })
   ).toHaveCount(0);
-  await expect(futureModule.getByText(SCHEDULED_RELEASE_PATTERN)).toBeVisible();
+  await expect(
+    futureModule.locator("p").filter({ hasText: SCHEDULED_RELEASE_PATTERN })
+  ).toBeVisible();
 });
 
 test("student dashboard has no moderate or higher accessibility violations", async ({
