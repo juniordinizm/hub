@@ -18,6 +18,16 @@ spec: docs/superpowers/specs/2026-09-04-module-content-release-design.md
 adr: docs/adr/0010-relative-module-content-release.md
 ```
 
+## Addendum — handoff visual simplification (2026-09-06)
+
+The initial Sprint 4 implementation displayed the release schedule in the
+public purchase handoff and required explicit confirmation for delayed
+content. The approved product refinement removes that presentation and returns
+the handoff to automatic checkout redirection. The server-side schedule
+snapshot, digest comparison, Pedido persistence, and conflict protection remain
+implemented; only the client-side disclosure and confirmation step are
+superseded.
+
 ## 1. Como usar este plano
 
 Execute os sprints na ordem. Não pule testes vermelhos, migrations ou gates. Cada

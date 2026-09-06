@@ -3,18 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PageContainer } from "@/components/page-container";
 import { Button } from "@/components/ui/button";
-import {
-  type ContentReleaseScheduleSnapshot,
-  hasDelayedModules,
-} from "@/features/courses/module-content-release";
 import { redirectToCheckout } from "./checkout-navigation";
 
 type HandoffState =
   | { kind: "starting" }
-  | { kind: "review" }
   | { kind: "processing"; manualCheck: boolean; orderId: string }
   | { kind: "retry"; replaceAttempt: boolean }
-  | { kind: "schedule_changed" }
   | { kind: "unavailable" };
 
 type CheckoutResponse =
@@ -207,7 +201,7 @@ const getCheckoutOutcome = (
     case "failed":
       return { kind: "retry", replaceAttempt: true };
     case "schedule_changed":
-      return { kind: "schedule_changed" };
+      return { kind: "unavailable" };
     case "unavailable":
       return { kind: "unavailable" };
     default:
@@ -218,19 +212,13 @@ const getCheckoutOutcome = (
 export function PurchaseHandoffClient({
   courseSlug,
   courseTitle,
-  releaseSchedule,
   releaseScheduleDigest,
 }: {
   courseSlug: string;
   courseTitle: string;
-  releaseSchedule: ContentReleaseScheduleSnapshot;
   releaseScheduleDigest: string;
 }): React.JSX.Element {
-  const [state, setState] = useState<HandoffState>(() =>
-    hasDelayedModules(releaseSchedule)
-      ? { kind: "review" }
-      : { kind: "starting" }
-  );
+  const [state, setState] = useState<HandoffState>({ kind: "starting" });
   const initialRequestStarted = useRef(false);
   const mounted = useRef(false);
   const memoryAttempt = useRef<string | null>(null);
@@ -398,12 +386,6 @@ export function PurchaseHandoffClient({
       };
     }
     initialRequestStarted.current = true;
-    if (hasDelayedModules(releaseSchedule)) {
-      return () => {
-        mounted.current = false;
-        clearPollTimer();
-      };
-    }
     startCheckout(false).catch(() => {
       setMountedState({ kind: "unavailable" });
     });
@@ -411,7 +393,7 @@ export function PurchaseHandoffClient({
       mounted.current = false;
       clearPollTimer();
     };
-  }, [clearPollTimer, releaseSchedule, setMountedState, startCheckout]);
+  }, [clearPollTimer, setMountedState, startCheckout]);
 
   const handleRetry = async (): Promise<void> => {
     if (state.kind === "retry") {
@@ -439,42 +421,6 @@ export function PurchaseHandoffClient({
         className="max-w-2xl rounded-lg border bg-card p-6"
       >
         <h1 className="font-bold text-2xl tracking-tight">{courseTitle}</h1>
-        <section
-          aria-labelledby="purchase-release-schedule-heading"
-          className="mt-6 rounded-md border bg-background/50 p-4"
-        >
-          <h2
-            className="font-semibold text-base"
-            id="purchase-release-schedule-heading"
-          >
-            Cronograma de liberação
-          </h2>
-          <p className="mt-2 text-muted-foreground text-sm leading-6">
-            Parte do conteúdo é liberada progressivamente. Cada dia equivale a
-            24 horas desde o início do seu acesso. A liberação progressiva não
-            altera os direitos legais de arrependimento.
-          </p>
-          <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm">
-            {releaseSchedule.modules.map((module) => (
-              <li key={`${module.sortOrder}-${module.title}`}>
-                <span className="font-medium">{module.title}</span> —{" "}
-                {module.releaseDelayDays === 0
-                  ? "imediato"
-                  : `após ${module.releaseDelayDays} dias`}
-              </li>
-            ))}
-          </ol>
-        </section>
-        {state.kind === "review" ? (
-          <div className="mt-6 space-y-4">
-            <p className="text-muted-foreground text-sm">
-              Revise o cronograma antes de continuar para o pagamento.
-            </p>
-            <Button onClick={() => startCheckout(false)} type="button">
-              Continuar para pagamento
-            </Button>
-          </div>
-        ) : null}
         {state.kind === "starting" ? (
           <p className="mt-3 text-muted-foreground text-sm">
             Iniciando checkout seguro...
@@ -505,17 +451,6 @@ export function PurchaseHandoffClient({
           <p className="mt-3 text-muted-foreground text-sm">
             Checkout indisponivel. Entre em contato com o suporte.
           </p>
-        ) : null}
-        {state.kind === "schedule_changed" ? (
-          <div className="mt-6 space-y-4">
-            <p className="text-muted-foreground text-sm">
-              O cronograma foi atualizado. Recarregue para revisar antes de
-              continuar.
-            </p>
-            <Button onClick={() => window.location.reload()} type="button">
-              Recarregar página
-            </Button>
-          </div>
         ) : null}
       </section>
     </PageContainer>
