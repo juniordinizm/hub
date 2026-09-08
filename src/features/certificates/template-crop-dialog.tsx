@@ -75,7 +75,7 @@ export function CertificateTemplateCropDialog({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Nao foi possivel recortar a arte."
+          : "Não foi possível recortar a arte."
       );
     } finally {
       setIsPreparing(false);
@@ -101,7 +101,7 @@ export function CertificateTemplateCropDialog({
         <DialogHeader>
           <DialogTitle>Ajustar arte do certificado</DialogTitle>
           <DialogDescription>
-            Enquadre a imagem para a pagina A4 horizontal.
+            Enquadre a imagem para a página A4 horizontal.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-6 p-4 sm:p-6">
@@ -121,6 +121,7 @@ export function CertificateTemplateCropDialog({
           ) : null}
           <div className="mx-auto flex w-full max-w-md items-center gap-4">
             <HugeiconsIcon
+              aria-hidden="true"
               className="shrink-0 text-muted-foreground"
               icon={ZoomOutAreaIcon}
               size={18}
@@ -135,6 +136,7 @@ export function CertificateTemplateCropDialog({
               value={[zoom]}
             />
             <HugeiconsIcon
+              aria-hidden="true"
               className="shrink-0 text-muted-foreground"
               icon={ZoomInAreaIcon}
               size={18}
@@ -151,12 +153,18 @@ export function CertificateTemplateCropDialog({
             Cancelar
           </Button>
           <Button
-            disabled={!cropPixels || isPreparing}
+            disabled={!cropPixels}
+            loading={isPreparing}
             onClick={complete}
             type="button"
           >
-            <HugeiconsIcon data-icon="inline-start" icon={CropIcon} size={16} />
-            {isPreparing ? "Preparando..." : "Usar recorte"}
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={CropIcon}
+              size={16}
+            />
+            Usar recorte
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -24,7 +24,12 @@ function Checkbox({
         className="flex items-center justify-center text-current"
         data-slot="checkbox-indicator"
       >
-        <HugeiconsIcon icon={CheckIcon} size={14} strokeWidth={3} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          icon={CheckIcon}
+          size={14}
+          strokeWidth={3}
+        />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );

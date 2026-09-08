@@ -4,8 +4,8 @@ import { CustomerService01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { sendSupportRequestAction } from "@/app/(student)/app/actions";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogBody,
@@ -28,6 +28,7 @@ export function SupportSidebarItem(): React.JSX.Element {
       <SidebarMenuItem>
         <SidebarMenuButton onClick={() => setOpen(true)} tooltip="Suporte">
           <HugeiconsIcon
+            aria-hidden="true"
             icon={CustomerService01Icon}
             size={18}
             strokeWidth={1.5}
@@ -52,16 +53,18 @@ export function SupportSidebarItem(): React.JSX.Element {
             <DialogBody>
               <FieldGroup>
                 <Field>
-                  <FieldLabel>Assunto</FieldLabel>
+                  <FieldLabel htmlFor="support-subject">Assunto</FieldLabel>
                   <Input
+                    id="support-subject"
                     name="subject"
                     placeholder="Preciso de ajuda com meu acesso"
                     required
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>Mensagem</FieldLabel>
+                  <FieldLabel htmlFor="support-message">Mensagem</FieldLabel>
                   <Textarea
+                    id="support-message"
                     name="message"
                     placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
                     required
@@ -71,14 +74,16 @@ export function SupportSidebarItem(): React.JSX.Element {
               </FieldGroup>
             </DialogBody>
             <DialogFooter>
-              <Button type="submit">
+              <AdminMutationSubmitButton type="submit">
                 <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
                   icon={CustomerService01Icon}
                   size={18}
                   strokeWidth={2}
                 />
                 Enviar suporte
-              </Button>
+              </AdminMutationSubmitButton>
             </DialogFooter>
           </AutoCloseDialogForm>
         </DialogContent>

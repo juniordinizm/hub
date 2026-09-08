@@ -1,7 +1,15 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useRef, useState } from "react";
+import {
+  createContext,
+  type FormEvent,
+  type ReactNode,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useDiscardDialog } from "./discard-aware-dialog";
@@ -22,7 +30,7 @@ const isRedirectError = (error: unknown): boolean =>
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
-    : "Nao foi possivel salvar. Tente novamente.";
+    : "Não foi possível salvar. Tente novamente.";
 
 const getSubmitter = (event: Event): SubmitterValue | null => {
   if (!("submitter" in event)) {
@@ -52,6 +60,16 @@ export interface AdminMutationFormProps {
   onSuccess?: (() => void | Promise<void>) | undefined;
 }
 
+const AdminMutationPendingContext = createContext(false);
+
+export function AdminMutationSubmitButton(
+  props: ButtonProps
+): React.JSX.Element {
+  const formPending = useContext(AdminMutationPendingContext);
+
+  return <Button {...props} loading={formPending || Boolean(props.loading)} />;
+}
+
 export function AdminMutationForm({
   action,
   children,
@@ -74,7 +92,7 @@ export function AdminMutationForm({
     setError(null);
     setIsPending(true);
 
-    const toastId = toast.loading("Salvando...");
+    const toastId = toast.loading("Salvando…");
 
     try {
       await action(formData);
@@ -104,17 +122,19 @@ export function AdminMutationForm({
       id={id}
       onSubmit={handleSubmit}
     >
-      <fieldset className="contents" disabled={isPending}>
-        {error ? (
-          <div
-            className="border-destructive/20 border-b bg-destructive/10 px-6 py-3 text-destructive text-sm"
-            role="alert"
-          >
-            {error}
-          </div>
-        ) : null}
-        {children}
-      </fieldset>
+      <AdminMutationPendingContext.Provider value={isPending}>
+        <fieldset className="contents" disabled={isPending}>
+          {error ? (
+            <div
+              className="border-destructive/20 border-b bg-destructive/10 px-6 py-3 text-destructive text-sm"
+              role="alert"
+            >
+              {error}
+            </div>
+          ) : null}
+          {children}
+        </fieldset>
+      </AdminMutationPendingContext.Provider>
       {closeOnSuccess ? (
         <DialogClose asChild>
           <button className="sr-only" ref={closeRef} type="button">

@@ -79,7 +79,7 @@ describe("POST /api/checkouts/course", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      error: "Servico de checkout indisponivel.",
+      error: "Serviço de checkout indisponível.",
       retryAllowed: false,
       status: "unavailable",
     });
@@ -261,7 +261,7 @@ describe("POST /api/checkouts/course", () => {
 
     expect(response.status).toBe(status);
     await expect(response.json()).resolves.toEqual({
-      error: "Nao foi possivel iniciar o checkout.",
+      error: "Não foi possível iniciar o checkout.",
       retryAllowed: false,
       status: "unavailable",
     });
@@ -317,7 +317,7 @@ describe("POST /api/checkouts/course", () => {
 
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      error: "Servico de checkout indisponivel.",
+      error: "Serviço de checkout indisponível.",
       retryAllowed: false,
       status: "unavailable",
     });

@@ -9,7 +9,8 @@ describe("course cover image", () => {
     );
 
     expect(source).toContain('placeholder={blurDataUrl ? "blur" : "empty"}');
-    expect(source).toContain("onLoad={() => setIsLoaded(true)}");
+    expect(source).toContain("onLoad={() => setLoadedSource(src)}");
+    expect(source).toContain("setFailedSource(src)");
     expect(source).toContain("animate-pulse");
   });
 });

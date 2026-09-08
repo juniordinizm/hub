@@ -4,8 +4,8 @@ import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -60,8 +60,11 @@ export function BannerEditModal({
           <DialogBody>
             <FieldGroup>
               <Field>
-                <FieldLabel>Link de destino (Opcional)</FieldLabel>
+                <FieldLabel htmlFor={`banner-link-url-${banner.id}`}>
+                  Link de destino (opcional)
+                </FieldLabel>
                 <Input
+                  id={`banner-link-url-${banner.id}`}
                   name="linkUrl"
                   onChange={(e) => setLinkUrl(e.target.value)}
                   placeholder="https://"
@@ -70,12 +73,13 @@ export function BannerEditModal({
                 />
               </Field>
               <Field>
-                <FieldLabel>
+                <FieldLabel htmlFor={`banner-button-text-${banner.id}`}>
                   Texto do botão {linkUrl ? "" : "(Requer Link)"}
                 </FieldLabel>
                 <Input
                   defaultValue={banner.buttonText ?? ""}
                   disabled={!linkUrl}
+                  id={`banner-button-text-${banner.id}`}
                   maxLength={30}
                   name="buttonText"
                   placeholder="Ex: Acessar"
@@ -96,10 +100,16 @@ export function BannerEditModal({
             </FieldGroup>
           </DialogBody>
           <DialogFooter>
-            <Button type="submit">
-              <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            <AdminMutationSubmitButton type="submit">
+              <HugeiconsIcon
+                aria-hidden="true"
+                data-icon="inline-start"
+                icon={FloppyDiskIcon}
+                size={18}
+                strokeWidth={2}
+              />
               Salvar alterações
-            </Button>
+            </AdminMutationSubmitButton>
           </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>

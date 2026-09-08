@@ -1,17 +1,6 @@
-"use client";
-
-import { Money01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { Money01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -22,191 +11,204 @@ import {
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableRowHeader,
 } from "@/components/ui/table";
+import type { CourseRevenueSummary } from "@/features/admin/server";
 import { formatCurrencyInCents } from "@/lib/formatters";
 
-export interface CourseRevenueRow {
-  courseId: string;
-  courseTitle: string;
-  paidOrders: number;
-  totalOrders: number;
-  totalRevenueInCents: number;
+export type CourseRevenueRow = CourseRevenueSummary;
+
+interface CoursesRevenueTableProps {
+  data: CourseRevenueRow[];
+  hasNextPage: boolean;
+  orderPage: number;
+  orderSearch: string;
+  page: number;
+  pageSize: number;
+  search: string;
+  totalCount: number;
 }
 
-const columns: ColumnDef<CourseRevenueRow>[] = [
-  {
-    accessorKey: "courseTitle",
-    header: "Curso",
-    cell: ({ row }) => (
-      <span className="font-semibold">{row.original.courseTitle}</span>
-    ),
-  },
-  {
-    accessorKey: "paidOrders",
-    header: "Vendas Concluídas",
-    cell: ({ row }) => (
-      <span>
-        {row.original.paidOrders} / {row.original.totalOrders}
-      </span>
-    ),
-  },
-  {
-    id: "conversion",
-    header: "Conversão",
-    cell: ({ row }) => {
-      const { totalOrders, paidOrders } = row.original;
-      const rate = totalOrders > 0 ? (paidOrders / totalOrders) * 100 : 0;
-      return <span>{rate.toFixed(1)}%</span>;
-    },
-  },
-  {
-    accessorKey: "totalRevenueInCents",
-    header: "Receita Real",
-    cell: ({ row }) => (
-      <span className="font-medium text-emerald-600 dark:text-emerald-400">
-        {formatCurrencyInCents(row.original.totalRevenueInCents)}
-      </span>
-    ),
-  },
-];
+const formatPercent = (value: number): string =>
+  `${new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  }).format(value)}%`;
+
+const getPageHref = ({
+  orderPage,
+  orderSearch,
+  page,
+  search,
+}: {
+  orderPage: number;
+  orderSearch: string;
+  page: number;
+  search: string;
+}): string => {
+  const params = new URLSearchParams();
+
+  if (orderSearch) {
+    params.set("q", orderSearch);
+  }
+  if (orderPage > 1) {
+    params.set("page", String(orderPage));
+  }
+  if (search) {
+    params.set("revenueQ", search);
+  }
+  if (page > 1) {
+    params.set("revenuePage", String(page));
+  }
+
+  const query = params.toString();
+  return query ? `/admin/financeiro?${query}` : "/admin/financeiro";
+};
+
+const getRevenueResultSummary = ({
+  courseCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  courseCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum curso";
+  }
+
+  if (courseCount === 0) {
+    return `Nenhum curso nesta página · ${totalCount} no total`;
+  }
+
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + courseCount - 1, totalCount);
+  const plural = totalCount === 1 ? "" : "s";
+
+  return `${firstResult}–${lastResult} de ${totalCount} curso${plural}`;
+};
 
 export function CoursesRevenueTable({
   data,
-}: {
-  data: CourseRevenueRow[];
-}): React.JSX.Element {
-  const [globalFilter, setGlobalFilter] = useState("");
-
-  const table = useReactTable({
-    columns,
-    data,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-    initialState: {
-      pagination: {
-        pageIndex: 0,
-        pageSize: 5,
-      },
-    },
-    onGlobalFilterChange: setGlobalFilter,
-    state: {
-      globalFilter,
-    },
+  hasNextPage,
+  orderPage,
+  orderSearch,
+  page,
+  pageSize,
+  search,
+  totalCount,
+}: CoursesRevenueTableProps): React.JSX.Element {
+  const resultSummary = getRevenueResultSummary({
+    courseCount: data.length,
+    page,
+    pageSize,
+    totalCount,
   });
 
-  const pageSize = String(table.getState().pagination.pageSize);
-  const visibleRows = table.getRowModel().rows;
-  const filteredRowsCount = table.getFilteredRowModel().rows.length;
-  const pageLabel = useMemo(
-    () =>
-      `Página ${table.getState().pagination.pageIndex + 1} de ${Math.max(
-        table.getPageCount(),
-        1
-      )}`,
-    [table]
+  const searchForm = (
+    <form
+      action="/admin/financeiro"
+      className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
+      method="get"
+    >
+      <label className="sr-only" htmlFor="financial-revenue-search">
+        Filtrar receita por curso
+      </label>
+      <input name="q" type="hidden" value={orderSearch} />
+      <input name="page" type="hidden" value={orderPage} />
+      <input name="revenuePage" type="hidden" value="1" />
+      <Input
+        aria-label="Filtrar receita por curso"
+        className="max-w-sm"
+        defaultValue={search}
+        id="financial-revenue-search"
+        name="revenueQ"
+        placeholder="Filtrar por nome do curso…"
+      />
+      <div className="flex items-center gap-2 text-muted-foreground text-sm">
+        <span aria-live="polite">{resultSummary}</span>
+        <Button type="submit" variant="outline">
+          Filtrar
+        </Button>
+      </div>
+    </form>
   );
-
-  if (data.length === 0) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <HugeiconsIcon icon={Money01Icon} />
-          </EmptyMedia>
-          <EmptyTitle>Nenhum faturamento registrado</EmptyTitle>
-          <EmptyDescription>
-            Ainda não há vendas de cursos processadas neste período.
-          </EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          className="max-w-sm"
-          onChange={(event) => setGlobalFilter(event.target.value)}
-          placeholder="Filtrar por nome do curso..."
-          value={globalFilter}
-        />
-        <div className="flex items-center gap-2 text-muted-foreground text-sm">
-          <span>{filteredRowsCount} curso(s) filtrado(s)</span>
-          <Select
-            onValueChange={(value) => table.setPageSize(Number(value))}
-            value={pageSize}
-          >
-            <SelectTrigger aria-label="Cursos por página" className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5 por página</SelectItem>
-              <SelectItem value="10">10 por página</SelectItem>
-              <SelectItem value="20">20 por página</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      {searchForm}
 
-      <div className="rounded-lg border">
+      <div className="overflow-hidden rounded-lg border">
         <Table>
+          <TableCaption className="sr-only">
+            Receita agregada por curso
+          </TableCaption>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
+            <TableRow>
+              <TableHead scope="col">Curso</TableHead>
+              <TableHead className="whitespace-nowrap text-right" scope="col">
+                Vendas concluídas
+              </TableHead>
+              <TableHead className="whitespace-nowrap text-right" scope="col">
+                Conversão
+              </TableHead>
+              <TableHead className="whitespace-nowrap text-right" scope="col">
+                Receita real
+              </TableHead>
+            </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleRows.length ? (
-              visibleRows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+            {data.length > 0 ? (
+              data.map((course) => {
+                const conversion =
+                  course.totalOrders > 0
+                    ? (course.paidOrders / course.totalOrders) * 100
+                    : 0;
+
+                return (
+                  <TableRow key={course.courseId}>
+                    <TableRowHeader className="font-semibold">
+                      {course.courseTitle}
+                    </TableRowHeader>
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {course.paidOrders} / {course.totalOrders}
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))
+                    <TableCell className="whitespace-nowrap text-right tabular-nums">
+                      {formatPercent(conversion)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-right font-medium tabular-nums">
+                      {formatCurrencyInCents(course.totalRevenueInCents)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell className="h-64 p-0" colSpan={columns.length}>
+                <TableCell className="h-48 p-0" colSpan={4}>
                   <Empty className="rounded-none border-0 border-transparent">
                     <EmptyHeader>
                       <EmptyMedia variant="icon">
-                        <HugeiconsIcon icon={Search01Icon} />
+                        <HugeiconsIcon aria-hidden="true" icon={Money01Icon} />
                       </EmptyMedia>
-                      <EmptyTitle>Nenhum curso encontrado</EmptyTitle>
+                      <EmptyTitle as="h3">
+                        {search
+                          ? "Nenhum curso encontrado"
+                          : "Nenhum faturamento registrado"}
+                      </EmptyTitle>
                       <EmptyDescription>
-                        A busca por &quot;{globalFilter}&quot; não retornou
-                        resultados.
+                        {search
+                          ? `A busca por “${search}” não retornou cursos.`
+                          : "Ainda não há vendas de cursos processadas neste período."}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
@@ -217,29 +219,43 @@ export function CoursesRevenueTable({
         </Table>
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-muted-foreground text-sm">{pageLabel}</p>
-        {table.getPageCount() > 1 && (
-          <div className="flex gap-2">
-            <Button
-              disabled={!table.getCanPreviousPage()}
-              onClick={() => table.previousPage()}
-              type="button"
-              variant="outline"
-            >
-              Anterior
+      {page > 1 || hasNextPage ? (
+        <nav
+          aria-label="Paginação de receita por curso"
+          className="flex items-center justify-between gap-3"
+        >
+          {page > 1 ? (
+            <Button asChild variant="outline">
+              <Link
+                href={getPageHref({
+                  orderPage,
+                  orderSearch,
+                  page: page - 1,
+                  search,
+                })}
+              >
+                Anterior
+              </Link>
             </Button>
-            <Button
-              disabled={!table.getCanNextPage()}
-              onClick={() => table.nextPage()}
-              type="button"
-              variant="outline"
-            >
-              Próxima
+          ) : (
+            <span />
+          )}
+          {hasNextPage ? (
+            <Button asChild variant="outline">
+              <Link
+                href={getPageHref({
+                  orderPage,
+                  orderSearch,
+                  page: page + 1,
+                  search,
+                })}
+              >
+                Próxima
+              </Link>
             </Button>
-          </div>
-        )}
-      </div>
+          ) : null}
+        </nav>
+      ) : null}
     </div>
   );
 }

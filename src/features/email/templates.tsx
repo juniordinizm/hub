@@ -9,6 +9,7 @@ import {
   Section,
   Text,
 } from "@react-email/components";
+import { PLATFORM_NAME } from "@/lib/brand";
 
 interface CourseEmailProps {
   actionUrl?: string;
@@ -93,15 +94,15 @@ export const PasswordResetEmail = ({
   actionUrl,
   name,
 }: CourseEmailProps): React.JSX.Element => (
-  <EmailShell preview="Crie ou redefina sua senha do PROTEA-R Hub.">
+  <EmailShell preview={`Crie ou redefina sua senha no ${PLATFORM_NAME}.`}>
     <Heading>Criar ou redefinir senha</Heading>
-    <Text style={styles.text}>Ola, {name}.</Text>
+    <Text style={styles.text}>Olá, {name}.</Text>
     <Text style={styles.text}>
       Use este link para criar ou redefinir sua senha. Ele expira em breve por
-      seguranca.
+      segurança.
     </Text>
     <Text style={styles.text}>
-      Se voce acabou de comprar um curso, este e o link de primeiro acesso.
+      Se você acabou de comprar um Curso, este é o link de primeiro acesso.
       Depois de criar a senha, entre na plataforma para acessar suas aulas.
     </Text>
     {actionUrl ? (
@@ -120,12 +121,12 @@ export const CertificateIssuedEmail = ({
   courseTitle,
   name,
 }: CertificateEmailProps): React.JSX.Element => (
-  <EmailShell preview="Seu certificado PROTEA-R Hub foi emitido.">
+  <EmailShell preview={`Seu certificado foi emitido no ${PLATFORM_NAME}.`}>
     <Heading>Certificado emitido</Heading>
-    <Text style={styles.text}>Parabens, {name}.</Text>
+    <Text style={styles.text}>Parabéns, {name}.</Text>
     <Text style={styles.text}>
-      Seu certificado de conclusao do curso {courseTitle ?? "PROTEA-R"} foi
-      emitido com o codigo {certificateCode}.
+      Seu certificado de conclusão do Curso {courseTitle ?? "seu Curso"} foi
+      emitido com o código {certificateCode}.
     </Text>
     {actionUrl ? (
       <Section>
@@ -143,12 +144,12 @@ export const AccessReleasedEmail = ({
   name,
   resetUrl,
 }: CourseEmailProps): React.JSX.Element => (
-  <EmailShell preview="Sua matricula esta ativa no PROTEA-R Hub.">
+  <EmailShell preview={`Sua matrícula está ativa no ${PLATFORM_NAME}.`}>
     <Heading>Acesso liberado</Heading>
-    <Text style={styles.text}>Ola, {name}.</Text>
+    <Text style={styles.text}>Olá, {name}.</Text>
     <Text style={styles.text}>
-      Confirmamos sua matricula em {courseTitle ?? "PROTEA-R Hub"}. Ja e
-      possivel acessar as aulas disponiveis.
+      Confirmamos sua matrícula em {courseTitle ?? "o Curso"}. Já é possível
+      acessar as aulas disponíveis.
     </Text>
     {actionUrl ? (
       <Section>
@@ -159,7 +160,7 @@ export const AccessReleasedEmail = ({
     ) : null}
     {resetUrl ? (
       <Text style={styles.muted}>
-        Se nao lembrar sua senha, recupere o acesso por aqui: {resetUrl}
+        Se não lembrar sua senha, recupere o acesso por aqui: {resetUrl}
       </Text>
     ) : null}
   </EmailShell>
@@ -193,12 +194,12 @@ export const AccessExpiryWarningEmail = ({
   daysRemaining,
   name,
 }: AccessExpiryWarningEmailProps): React.JSX.Element => (
-  <EmailShell preview="Seu acesso ao curso esta perto de vencer.">
+  <EmailShell preview="Seu acesso ao Curso está perto de vencer.">
     <Heading>Acesso perto do vencimento</Heading>
-    <Text style={styles.text}>Ola, {name}.</Text>
+    <Text style={styles.text}>Olá, {name}.</Text>
     <Text style={styles.text}>
-      Seu acesso ao curso {courseTitle ?? "PROTEA-R Hub"} vence em{" "}
-      {daysRemaining} {daysRemaining === 1 ? "dia" : "dias"}.
+      Seu acesso ao Curso {courseTitle ?? "seu Curso"} vence em {daysRemaining}{" "}
+      {daysRemaining === 1 ? "dia" : "dias"}.
     </Text>
     <Text style={styles.text}>
       Entre na plataforma para concluir as aulas pendentes ou renovar seu
@@ -224,7 +225,7 @@ export const SupportRequestEmail = ({
   <EmailShell preview={`Novo pedido de suporte: ${subject}`}>
     <Heading>Novo pedido de suporte</Heading>
     <Text style={styles.text}>
-      {studentName} enviou uma solicitacao de suporte pela plataforma.
+      {studentName} enviou uma solicitação de suporte pela plataforma.
     </Text>
     <Section style={styles.panel}>
       <Text style={styles.text}>

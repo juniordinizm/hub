@@ -2,6 +2,7 @@
 
 import { captureException } from "@sentry/nextjs";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { createCorrelationId } from "@/lib/observability";
 
 export default function RootError({
@@ -21,10 +22,10 @@ export default function RootError({
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-start justify-center gap-4 px-6">
-      <h1 className="font-semibold text-2xl" ref={headingRef} tabIndex={-1}>
+      <h1 className="type-page-title" ref={headingRef} tabIndex={-1}>
         Não foi possível carregar esta página.
       </h1>
-      <p className="text-muted-foreground">
+      <p className="type-body-sm text-muted-foreground">
         Tente novamente. Se o problema continuar, informe o código de suporte
         abaixo à equipe.
       </p>
@@ -36,13 +37,9 @@ export default function RootError({
           Referência do servidor: {error.digest}
         </p>
       ) : null}
-      <button
-        className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
-        onClick={unstable_retry}
-        type="button"
-      >
+      <Button onClick={unstable_retry} type="button">
         Tentar novamente
-      </button>
+      </Button>
     </main>
   );
 }

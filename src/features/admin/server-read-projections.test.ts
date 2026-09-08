@@ -127,6 +127,7 @@ describe("admin read projections", () => {
               name: "Student",
               platform_blocked_at: null,
               platform_blocked_reason: null,
+              total_count: 3,
               user_id: "student-1",
             },
           ]
@@ -140,6 +141,7 @@ describe("admin read projections", () => {
       page: 2,
       pageSize: 100,
       search: "student",
+      totalCount: 3,
     });
 
     const profileCall = query.mock.calls.find(([sql]) =>
@@ -190,6 +192,96 @@ describe("admin read projections", () => {
     );
     expect(reviewSql).toContain("pr.type");
     expect(reviewSql).toContain("join orders o on o.id = pr.order_id");
+  });
+
+  it("keeps course revenue search and pagination on the server projection", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from courses c")) {
+        return {
+          rows: [
+            {
+              course_id: courseId,
+              course_title: "Course one",
+              paid_orders: 4,
+              total_count: 7,
+              total_orders: 5,
+              total_revenue_in_cents: 51_600,
+            },
+          ],
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialData(
+      { page: 2, search: "order" },
+      { page: 3, pageSize: 5, search: "Course" }
+    );
+
+    expect(data.coursesRevenue).toEqual({
+      courses: [
+        {
+          courseId,
+          courseTitle: "Course one",
+          paidOrders: 4,
+          totalOrders: 5,
+          totalRevenueInCents: 51_600,
+        },
+      ],
+      hasNextPage: false,
+      page: 3,
+      pageSize: 5,
+      search: "Course",
+      totalCount: 7,
+    });
+
+    const revenueCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from courses c")
+    );
+    expect(revenueCall?.[1]).toEqual(["Course", "%Course%", 6, 10]);
+    expect(String(revenueCall?.[0])).toContain("group by c.id, c.title");
+    expect(String(revenueCall?.[0])).toContain("count(*) over()");
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
+  });
+
+  it("uses one lookahead order to expose financial pagination truthfully", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from orders o")) {
+        return {
+          rows: Array.from({ length: 21 }, (_, index) => ({
+            amount_in_cents: 10_000,
+            checkout_status: "active",
+            course_id: courseId,
+            course_title: "Course one",
+            customer_email: "student@example.test",
+            customer_name: `Student ${index + 1}`,
+            fee_amount_in_cents: 0,
+            id: `order-${index + 1}`,
+            net_amount_in_cents: 10_000,
+            paid_at: new Date("2026-09-07T12:00:00.000Z"),
+            paid_amount_in_cents: 10_000,
+            payment_method: "PIX",
+            provider_checkout_id: `checkout-${index + 1}`,
+            provider_payment_id: `payment-${index + 1}`,
+            provider_payment_status: "RECEIVED",
+            refund_request_status: null,
+            status: "paid",
+          })),
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialData({ page: 1 });
+
+    expect(data.orders).toHaveLength(20);
+    expect(data.ordersHasNextPage).toBe(true);
+    const orderCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from orders o")
+    );
+    expect(orderCall?.[1]).toEqual([21, 0]);
   });
 
   it.each([
@@ -301,12 +393,17 @@ describe("admin read projections", () => {
           revoked_reason: null,
           starts_at: new Date("2026-01-01T00:00:00.000Z"),
           status: "active",
+          total_count: 1,
           user_id: "user-1",
         },
       ],
     ];
-    query.mockImplementation((_sql: string, values: unknown[]) => {
-      expect(values).toEqual([courseId]);
+    query.mockImplementation((sql: string, values: unknown[]) => {
+      if (sql.includes("count(*) over()")) {
+        expect(values).toEqual([courseId, "", "%%", 51, 0]);
+      } else {
+        expect(values).toEqual([courseId]);
+      }
       return { rows: rows.shift() ?? [] };
     });
 
@@ -333,6 +430,13 @@ describe("admin read projections", () => {
         title: "Course one",
       },
       enrollments: [{ courseId, id: "enrollment-1" }],
+      enrollmentsPage: {
+        hasNextPage: false,
+        page: 1,
+        pageSize: 50,
+        search: "",
+        totalCount: 1,
+      },
       lessons: [{ id: lessonId, moduleId: "module-1" }],
       modules: [{ courseId, id: "module-1" }],
     });

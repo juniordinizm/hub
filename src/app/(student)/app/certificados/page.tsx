@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,19 +39,10 @@ export default async function MyCertificatesPage(): Promise<React.JSX.Element> {
     <PageContainer className="min-h-screen bg-background text-foreground">
       {hasPendingCertificate ? <PendingCertificateRefresh enabled /> : null}
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Seus certificados
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Acompanhe o preparo, baixe documentos disponíveis e valide cada
-                conclusão pelo código público.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Acompanhe o preparo, baixe documentos disponíveis e valide cada conclusão pelo código público."
+          title="Seus certificados"
+        />
 
         <section className="grid gap-4">
           {certificates.length === 0 ? (
@@ -80,7 +72,7 @@ function EmptyCertificatesState(): React.JSX.Element {
     <Card>
       <CardHeader>
         <CardDescription>Em andamento</CardDescription>
-        <CardTitle>Nenhum certificado emitido ainda</CardTitle>
+        <CardTitle as="h2">Nenhum certificado emitido ainda</CardTitle>
       </CardHeader>
       <CardContent>
         <p className="max-w-2xl text-muted-foreground text-sm leading-6">

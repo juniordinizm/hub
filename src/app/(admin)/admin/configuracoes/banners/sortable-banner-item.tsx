@@ -47,6 +47,7 @@ export function SortableBannerItem({
   return (
     <ResourceItem isDragging={isDragging} nodeRef={setNodeRef} style={style}>
       <ResourceItemDragHandle
+        ariaLabel={`Reordenar banner ${banner.buttonText ?? banner.id}`}
         attributes={attributes}
         icon={DragDropVerticalIcon}
         listeners={listeners}
@@ -58,7 +59,7 @@ export function SortableBannerItem({
         }`}
       >
         <BannerImage
-          alt="Banner preview"
+          alt=""
           blurDataUrl={banner.blurDataUrl}
           className="pointer-events-none object-cover"
           key={banner.imageUrl}
@@ -74,9 +75,9 @@ export function SortableBannerItem({
             {banner.linkUrl ? banner.linkUrl : "Sem link configurado"}
           </p>
           <span
-            className={`shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-[10px] uppercase tracking-normal ${
+            className={`shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-xs ${
               banner.isActive
-                ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400"
+                ? "bg-success/15 text-success"
                 : "bg-muted/80 text-muted-foreground"
             }`}
           >
@@ -91,13 +92,18 @@ export function SortableBannerItem({
       <ResourceItemActions>
         <Button
           aria-label="Editar banner"
-          className="size-8 text-muted-foreground transition-colors hover:text-foreground"
+          className="size-11 text-muted-foreground transition-[color,background-color] hover:text-foreground sm:size-10"
           onClick={onEdit}
           size="icon"
           type="button"
           variant="ghost"
         >
-          <HugeiconsIcon icon={PencilEdit01Icon} size={16} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={PencilEdit01Icon}
+            size={16}
+            strokeWidth={2}
+          />
         </Button>
         <ResourceDeleteAction
           description="Tem certeza que deseja excluir este banner permanentemente?"

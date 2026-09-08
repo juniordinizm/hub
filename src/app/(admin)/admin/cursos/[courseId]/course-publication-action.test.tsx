@@ -89,7 +89,7 @@ describe("CoursePublicationAction", () => {
     expect(dependencies.toastLoading).toHaveBeenCalledWith("Preparando…");
     expect(container.querySelector("button")?.disabled).toBe(true);
     expect(container.querySelector("button")?.textContent).toContain(
-      "Preparando…"
+      "Preparar alterações"
     );
 
     await act(async () => resolveAction?.());

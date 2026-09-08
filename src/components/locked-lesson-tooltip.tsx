@@ -27,6 +27,7 @@ export function LockedNavigationCard({
       <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
         <span className="truncate">{label}</span>
         <HugeiconsIcon
+          aria-hidden="true"
           className="shrink-0"
           icon={ArrowRightIcon}
           size={14}
@@ -39,7 +40,7 @@ export function LockedNavigationCard({
             <TooltipTrigger asChild>
               <button
                 aria-label="Aula bloqueada"
-                className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/15 text-muted-foreground transition-colors hover:bg-muted-foreground/25 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-muted-foreground/15 text-muted-foreground outline-none transition-[background-color,color] hover:bg-muted-foreground/25 focus-visible:ring-2 focus-visible:ring-ring sm:size-10"
                 onClick={(e) => {
                   e.stopPropagation();
                   setOpen((prev) => !prev);
@@ -47,6 +48,7 @@ export function LockedNavigationCard({
                 type="button"
               >
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={SquareLock02Icon}
                   size={12}
                   strokeWidth={2}

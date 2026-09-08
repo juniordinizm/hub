@@ -10,6 +10,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +31,10 @@ import {
   getAdminDashboardData,
   getAdminOverview,
 } from "@/features/admin/server";
+import {
+  getOrderStatusPresentation,
+  getWebhookStatusPresentation,
+} from "@/features/admin/status-presentation";
 import { getSupportCourseOperations } from "@/features/admin/support-server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
@@ -47,7 +52,7 @@ const metrics = [
     helper: "Publicados e prontos",
   },
   {
-    label: "Alunos",
+    label: "Alunas",
     key: "students",
     icon: UserGroupIcon,
     helper: "Cadastros ativos",
@@ -121,22 +126,14 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Central do LMS
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Acompanhe catálogo, acessos e pagamentos em uma visão feita para
-                operar seus cursos com alto controle.
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
+        <PageHeader
+          actions={
+            <>
               <Button asChild size="sm" variant="outline">
                 <Link href={route("/admin/cursos")}>
                   <HugeiconsIcon
-                    className="mr-2"
+                    aria-hidden="true"
+                    data-icon="inline-start"
                     icon={Book01Icon}
                     size={16}
                     strokeWidth={2}
@@ -147,7 +144,8 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
               <Button asChild size="sm">
                 <Link href={route("/admin/financeiro")}>
                   <HugeiconsIcon
-                    className="mr-2"
+                    aria-hidden="true"
+                    data-icon="inline-start"
                     icon={Invoice01Icon}
                     size={16}
                     strokeWidth={2}
@@ -155,11 +153,13 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                   Ver financeiro
                 </Link>
               </Button>
-            </div>
-          </div>
-        </header>
+            </>
+          }
+          description="Acompanhe catálogo, acessos e pagamentos em uma visão feita para operar seus cursos com alto controle."
+          title="Central do LMS"
+        />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="order-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
             <AdminMetricCard
               helper={metric.helper}
@@ -171,12 +171,14 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           ))}
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card className="overflow-hidden border-none bg-card shadow-sm ring-1 ring-border/50">
+        <section className="order-1 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <CardTitle className="text-base">Saúde da operação</CardTitle>
+                  <CardTitle as="h2" className="text-base">
+                    Saúde da operação
+                  </CardTitle>
                   <CardDescription className="mt-1">
                     Sinal rápido do que pode bloquear vendas ou liberação de
                     acesso.
@@ -234,12 +236,14 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
             </CardContent>
           </Card>
 
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Próximas ações</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Próximas ações
+              </CardTitle>
               <CardDescription className="mt-1">
-                Atalhos para as rotinas que mais impactam a experiência do
-                aluno.
+                Atalhos para as rotinas que mais impactam a experiência da
+                aluna.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
@@ -259,16 +263,16 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                 description="Ver acessos ativos, expirados e sem curso."
                 href="/admin/alunos"
                 icon={UserGroupIcon}
-                label="Revisar alunos"
+                label="Revisar Alunas"
               />
             </CardContent>
           </Card>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-3">
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50 xl:col-span-2">
+        <section className="order-3 grid gap-4 xl:grid-cols-3">
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">
+              <CardTitle as="h2" className="text-base">
                 Cursos que precisam de atenção
               </CardTitle>
               <CardDescription className="mt-1">
@@ -279,7 +283,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
               {courseHealth.coursesNeedingAttention.length ? (
                 courseHealth.coursesNeedingAttention.map((course) => (
                   <div
-                    className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
+                    className="flex flex-col gap-3 border-b py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
                     key={course.id}
                   >
                     <div className="flex-1">
@@ -317,9 +321,11 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
             </CardContent>
           </Card>
 
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Pedidos recentes</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Pedidos recentes
+              </CardTitle>
               <CardDescription className="mt-1">
                 Últimas movimentações do checkout.
               </CardDescription>
@@ -328,16 +334,14 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
               {recentOrders.length ? (
                 recentOrders.map((order) => (
                   <div
-                    className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40"
+                    className="flex flex-col justify-between border-b py-3 last:border-b-0"
                     key={order.id}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <p className="truncate font-medium text-sm">
-                        {order.customerName ?? order.customerEmail ?? "Aluno"}
+                        {order.customerName ?? order.customerEmail ?? "Aluna"}
                       </p>
-                      <Badge className="shrink-0" variant="secondary">
-                        {order.status}
-                      </Badge>
+                      <OrderStatusBadge status={order.status} />
                     </div>
                     <div className="mt-2 flex items-end justify-between gap-3">
                       <p className="truncate text-muted-foreground text-xs">
@@ -360,16 +364,17 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           </Card>
         </section>
 
-        <section className="grid gap-4">
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <section className="order-4 grid gap-4">
+          <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={Analytics01Icon}
                   size={18}
                   strokeWidth={2}
                 />
-                <CardTitle className="font-medium text-base">
+                <CardTitle as="h2" className="font-medium text-base">
                   Webhooks recentes
                 </CardTitle>
               </div>
@@ -381,7 +386,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
               {overview.recentWebhooks.length ? (
                 overview.recentWebhooks.map((event, index) => (
                   <div key={event.eventKey}>
-                    <div className="flex flex-col gap-2 rounded-md px-2 py-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-2 rounded-md px-2 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="font-medium text-foreground text-sm">
                           {event.eventName}
@@ -396,7 +401,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                         ) : null}
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
-                        <Badge variant="outline">{event.status}</Badge>
+                        <WebhookStatusBadge status={event.status} />
                         <span className="text-muted-foreground text-xs tabular-nums">
                           {formatDate(event.createdAt)}
                         </span>
@@ -440,7 +445,12 @@ function AdminActionLink({
       href={route(href)}
     >
       <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-        <HugeiconsIcon icon={icon} size={18} strokeWidth={2} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          icon={icon}
+          size={18}
+          strokeWidth={2}
+        />
       </div>
       <div className="min-w-0 flex-1">
         <p className="font-medium text-sm">{label}</p>
@@ -460,7 +470,9 @@ function AdminSignalTile({
   return (
     <div className="flex flex-col justify-center p-5">
       <p className="font-medium text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1.5 font-bold text-2xl tracking-tight">{value}</p>
+      <p className="mt-1.5 font-bold text-2xl tabular-nums tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }
@@ -478,4 +490,20 @@ function InfoRow({
       <span className="font-semibold">{value}</span>
     </div>
   );
+}
+
+function OrderStatusBadge({ status }: { status: string }): React.JSX.Element {
+  const presentation = getOrderStatusPresentation(status);
+
+  return (
+    <Badge className="shrink-0" variant={presentation.variant}>
+      {presentation.label}
+    </Badge>
+  );
+}
+
+function WebhookStatusBadge({ status }: { status: string }): React.JSX.Element {
+  const presentation = getWebhookStatusPresentation(status);
+
+  return <Badge variant={presentation.variant}>{presentation.label}</Badge>;
 }

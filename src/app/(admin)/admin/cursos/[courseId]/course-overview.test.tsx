@@ -66,8 +66,7 @@ describe("CourseOverview", () => {
     expect(markup).toContain("Abrir Conteúdo");
     expect(markup.match(/data-course-metric=/g)).toHaveLength(3);
     expect(markup).toContain("Matrículas ativas");
-    expect(markup).toContain("Alunos com acesso liberado.");
-    expect(markup).not.toContain("Alunas com acesso liberado.");
+    expect(markup).toContain("Alunas com acesso liberado.");
     expect(markup).toContain(">57<");
     expect(markup).toContain("Pedidos pagos");
     expect(markup).toContain(">83<");

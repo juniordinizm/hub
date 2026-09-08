@@ -103,7 +103,24 @@ describe("support read projections", () => {
     const [sql, parameters] = query.mock.calls[0] ?? [];
     expect(String(sql)).toContain("e.course_id = $1");
     expect(String(sql)).toContain("p.role = 'student'");
-    expect(parameters).toEqual([courseId, 101, 0]);
+    expect(parameters).toEqual([courseId, "", "%%", 101, 0]);
+  });
+
+  it("keeps support student search and pagination in the server query", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await expect(
+      getSupportCourseStudents(courseId, { page: 2, search: "Ana" })
+    ).resolves.toMatchObject({
+      hasNextPage: false,
+      page: 2,
+      search: "Ana",
+      students: [],
+    });
+
+    const [sql, parameters] = query.mock.calls[0] ?? [];
+    expect(String(sql)).toContain("u.name ilike $3 or u.email ilike $3");
+    expect(parameters).toEqual([courseId, "Ana", "%Ana%", 101, 100]);
   });
 
   it("returns no context without a matching course enrollment", async () => {

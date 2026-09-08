@@ -28,6 +28,6 @@ describe("checkout UI contract", () => {
 
     expect(authenticated).not.toContain("Compra confirmada");
     expect(authenticated).toContain("Pagamento em verificação");
-    expect(publicPage).toContain("Pagamento em confirmacao");
+    expect(publicPage).toContain("Pagamento em confirmação");
   });
 });

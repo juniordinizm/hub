@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { reprocessOutboxDeadLetterAction } from "@/features/outbox/actions";
 
 export function OutboxDeadLetterReprocess({
@@ -24,7 +26,7 @@ export function OutboxDeadLetterReprocess({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Nao foi possivel reprocessar a mensagem."
+          : "Não foi possível reprocessar a mensagem."
       );
     } finally {
       setPending(false);
@@ -34,25 +36,30 @@ export function OutboxDeadLetterReprocess({
   return (
     <form action={reprocess} className="grid gap-2">
       <input name="messageId" type="hidden" value={messageId} />
-      <label
-        className="grid gap-1 text-xs"
-        htmlFor={`outbox-reason-${messageId}`}
-      >
-        Motivo do reprocessamento
-        <input
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
-          id={`outbox-reason-${messageId}`}
-          name="reason"
-          required
-        />
-      </label>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor={`outbox-reason-${messageId}`}>
+            Motivo do reprocessamento
+          </FieldLabel>
+          <Input
+            autoComplete="off"
+            id={`outbox-reason-${messageId}`}
+            name="reason"
+            required
+          />
+        </Field>
+      </FieldGroup>
       <p className="text-muted-foreground text-xs">
         Reprocessar depois de 24 horas pode duplicar um e-mail cujo resultado
         anterior ficou ambíguo.
       </p>
-      {error ? <p className="text-destructive text-xs">{error}</p> : null}
-      <Button disabled={pending} size="sm" type="submit" variant="outline">
-        {pending ? "Reprocessando..." : "Reprocessar uma vez"}
+      {error ? (
+        <p aria-live="polite" className="text-destructive text-xs" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <Button loading={pending} size="sm" type="submit" variant="outline">
+        Reprocessar uma vez
       </Button>
     </form>
   );

@@ -1,8 +1,12 @@
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  AdminMutationForm,
+  AdminMutationSubmitButton,
+} from "@/components/admin-mutation-form";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -51,25 +55,19 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Configurações globais
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Ajustes operacionais compartilhados por todo o Hub.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Ajustes operacionais compartilhados por todo o Hub."
+          title="Configurações globais"
+        />
 
         <section className="grid gap-4">
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <CardTitle className="text-base">JMVStream</CardTitle>
+                  <CardTitle as="h2" className="text-base">
+                    JMVStream
+                  </CardTitle>
                   <CardDescription className="mt-1">
                     {jmvstreamHealth.message}
                   </CardDescription>
@@ -94,98 +92,117 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                   value={jmvstreamHealth.processingUploads}
                 />
                 <HealthTile
-                  label="Uploads falhos"
+                  label="Uploads com falha"
                   value={jmvstreamHealth.failedUploads}
                 />
                 <HealthTile
-                  label="Exclusoes pendentes"
+                  label="Exclusões pendentes"
                   value={jmvstreamHealth.pendingDeletes}
                 />
                 <HealthTile
-                  label="Exclusoes falhas"
+                  label="Exclusões com falha"
                   value={jmvstreamHealth.failedDeletes}
                 />
               </div>
             </CardContent>
           </Card>
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Dados operacionais</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Dados operacionais
+              </CardTitle>
               <CardDescription className="mt-1">
                 Assinatura usada nos certificados emitidos pela plataforma.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action={saveSettingsAction}>
+              <AdminMutationForm action={saveSettingsAction}>
                 <FieldGroup>
                   <Field>
-                    <FieldLabel>Razão social emissora</FieldLabel>
+                    <FieldLabel htmlFor="issuer-legal-name">
+                      Razão social emissora
+                    </FieldLabel>
                     <Input
                       defaultValue={data.settings.issuerLegalName ?? ""}
+                      id="issuer-legal-name"
                       name="issuerLegalName"
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Marca exibida</FieldLabel>
+                    <FieldLabel htmlFor="issuer-display-name">
+                      Marca exibida
+                    </FieldLabel>
                     <Input
                       defaultValue={data.settings.issuerDisplayName ?? ""}
+                      id="issuer-display-name"
                       name="issuerDisplayName"
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>CNPJ emissor</FieldLabel>
+                    <FieldLabel htmlFor="issuer-cnpj">CNPJ emissor</FieldLabel>
                     <Input
                       defaultValue={data.settings.issuerCnpj ?? ""}
+                      id="issuer-cnpj"
                       name="issuerCnpj"
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Nome da assinatura</FieldLabel>
+                    <FieldLabel htmlFor="certificate-signer-name">
+                      Nome da assinatura
+                    </FieldLabel>
                     <Input
                       defaultValue={data.settings.certificateSignerName ?? ""}
+                      id="certificate-signer-name"
                       name="certificateSignerName"
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Cargo da assinatura</FieldLabel>
+                    <FieldLabel htmlFor="certificate-signer-role">
+                      Cargo da assinatura
+                    </FieldLabel>
                     <Input
                       defaultValue={data.settings.certificateSignerRole ?? ""}
+                      id="certificate-signer-role"
                       name="certificateSignerRole"
                     />
                   </Field>
-                  <Button type="submit">
+                  <AdminMutationSubmitButton type="submit">
                     <HugeiconsIcon
+                      aria-hidden="true"
+                      data-icon="inline-start"
                       icon={FloppyDiskIcon}
                       size={18}
                       strokeWidth={2}
                     />
                     Salvar configurações
-                  </Button>
+                  </AdminMutationSubmitButton>
                 </FieldGroup>
-              </form>
+              </AdminMutationForm>
             </CardContent>
           </Card>
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Banners do Dashboard</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Banners do dashboard
+              </CardTitle>
               <CardDescription className="mt-1">
                 Configure os banners rotativos exibidos na página inicial da
-                área do aluno. Arraste para reordenar. (Máx. 5 imagens)
+                área da aluna. Arraste para reordenar. (Máx. 5 imagens)
               </CardDescription>
             </CardHeader>
             <CardContent>
               <BannerGallery initialBanners={sortedBanners} />
             </CardContent>
           </Card>
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">
+                  <CardTitle as="h2" className="text-base">
                     Perguntas frequentes
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Conteudo exibido na area do aluno para reduzir duvidas
+                    Conteúdo exibido na área da aluna para reduzir dúvidas
                     operacionais.
                   </CardDescription>
                 </div>
@@ -212,7 +229,9 @@ function HealthTile({
   return (
     <div className="flex flex-col justify-center p-5">
       <p className="font-medium text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1.5 font-bold text-2xl tracking-tight">{value}</p>
+      <p className="mt-1.5 font-bold text-2xl tabular-nums tracking-tight">
+        {value}
+      </p>
     </div>
   );
 }

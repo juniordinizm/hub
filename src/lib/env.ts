@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { resolveCanonicalApplicationEnvironment } from "@/lib/application-origin";
+import { DEFAULT_EMAIL_SENDER } from "@/lib/brand";
 import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
@@ -82,10 +83,7 @@ const serverEnvSchema = z.object({
   R2_PUBLIC_BUCKET_NAME: optionalNonEmptyString,
   R2_SECRET_ACCESS_KEY: optionalNonEmptyString,
   RESEND_API_KEY: optionalNonEmptyString,
-  RESEND_FROM_EMAIL: z
-    .string()
-    .min(1)
-    .default("PROTEA-R <noreply@example.com>"),
+  RESEND_FROM_EMAIL: z.string().min(1).default(DEFAULT_EMAIL_SENDER),
   RESEND_WEBHOOK_SECRET: optionalNonEmptyString,
   RESEND_READINESS_SECRET: optionalSecret,
   SENTRY_DSN: optionalNonEmptyString,

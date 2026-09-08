@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 const BLOCKED_CONTENT = {
   account_blocked: {
-    description: "Esta Conta nao pode iniciar uma compra. Fale com o suporte.",
+    description: "Esta Conta não pode iniciar uma compra. Fale com o suporte.",
     title: "Conta bloqueada",
   },
   course_revoked: {
@@ -25,7 +25,7 @@ const BLOCKED_CONTENT = {
   },
   team_account: {
     description:
-      "Uma Conta de equipe nao pode comprar Cursos. Fale com o suporte.",
+      "Uma Conta de equipe não pode comprar Cursos. Fale com o suporte.",
     title: "Conta de equipe",
   },
 } as const;
@@ -33,13 +33,13 @@ const BLOCKED_CONTENT = {
 const UNAVAILABLE_CONTENT = {
   checkout_disabled: {
     description:
-      "A compra esta temporariamente indisponivel. Fale com o suporte.",
-    title: "Checkout indisponivel",
+      "A compra está temporariamente indisponível. Fale com o suporte.",
+    title: "Checkout indisponível",
   },
   course_unavailable: {
     description:
-      "Este Curso nao esta disponivel para compra. Fale com o suporte.",
-    title: "Curso indisponivel",
+      "Este Curso não está disponível para compra. Fale com o suporte.",
+    title: "Curso indisponível",
   },
 } as const;
 
@@ -56,7 +56,7 @@ function TechnicalState({
       className="min-h-screen bg-background text-foreground"
     >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <h1 className="font-bold text-2xl tracking-tight">{title}</h1>
+        <h1 className="type-section-title">{title}</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
           {description}
         </p>
@@ -76,11 +76,9 @@ function CourseAccess({
       className="min-h-screen bg-background text-foreground"
     >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <h1 className="font-bold text-2xl tracking-tight">
-          {view.courseTitle}
-        </h1>
+        <h1 className="type-section-title">{view.courseTitle}</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
-          Sua Matricula ja esta ativa.
+          Sua Matrícula já está ativa.
         </p>
         <Button asChild className="mt-6">
           <Link href={route(view.href)}>Acessar curso</Link>
@@ -104,9 +102,7 @@ function ComingSoon({
     >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <p className="font-medium text-muted-foreground text-sm">Em breve</p>
-        <h1 className="mt-2 font-bold text-2xl tracking-tight">
-          {view.courseTitle}
-        </h1>
+        <h1 className="type-section-title mt-2">{view.courseTitle}</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
           Este Curso ainda está em preparação. Nenhuma compra ou Matrícula será
           criada antes da abertura das inscrições.
@@ -148,9 +144,7 @@ function SalesClosed({
       className="min-h-screen bg-background text-foreground"
     >
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <h1 className="font-bold text-2xl tracking-tight">
-          {view.courseTitle}
-        </h1>
+        <h1 className="type-section-title">{view.courseTitle}</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
           Inscrições fechadas. Quem já possui Matrícula continua com acesso
           normal durante o período contratado.

@@ -20,61 +20,69 @@ export function SignInForm(): React.JSX.Element {
     setError(null);
     setIsPending(true);
 
-    const formData = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/sign-in/email", {
-      body: JSON.stringify({
-        email: formData.get("email"),
-        password: formData.get("password"),
-      }),
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-        "ngrok-skip-browser-warning": "true",
-      },
-      method: "POST",
-    });
-
-    setIsPending(false);
-
-    const contentType = response.headers.get("content-type") ?? "";
-    const payload = contentType.includes("application/json")
-      ? await response.json()
-      : await response.text();
-
-    const signInOutcome = response.ok ? getSignInOutcome(payload) : "failure";
-
-    if (signInOutcome !== "authenticated") {
-      setError("E-mail ou senha incorretos.");
-      return;
-    }
-
-    const redirectResponse = await fetch("/api/auth/redirect", {
-      credentials: "same-origin",
-      headers: { "ngrok-skip-browser-warning": "true" },
-    });
-
-    if (redirectResponse.status === 403) {
-      await fetch("/api/auth/sign-out", { method: "POST" });
-      toast.error("Acesso bloqueado", {
-        description: "Entre em contato com o suporte para revisar sua conta.",
-        classNames: {
-          toast: "!bg-[#221516] !border-[#e07070]/30",
-          title: "!text-[#e07070] !font-medium",
-          description: "!text-[#e07070]/80 !text-sm",
-          icon: "!text-[#e07070]",
+    try {
+      const formData = new FormData(event.currentTarget);
+      const response = await fetch("/api/auth/sign-in/email", {
+        body: JSON.stringify({
+          email: formData.get("email"),
+          password: formData.get("password"),
+        }),
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
         },
+        method: "POST",
       });
-      return;
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const payload = contentType.includes("application/json")
+        ? await response.json()
+        : await response.text();
+
+      const signInOutcome = response.ok ? getSignInOutcome(payload) : "failure";
+
+      if (signInOutcome !== "authenticated") {
+        setError("E-mail ou senha incorretos.");
+        return;
+      }
+
+      const redirectResponse = await fetch("/api/auth/redirect", {
+        credentials: "same-origin",
+        headers: { "ngrok-skip-browser-warning": "true" },
+      });
+
+      if (redirectResponse.status === 403) {
+        await fetch("/api/auth/sign-out", { method: "POST" }).catch(
+          () => undefined
+        );
+        toast.error("Acesso bloqueado", {
+          description: "Entre em contato com o suporte para revisar sua conta.",
+          classNames: {
+            toast: "!bg-destructive/10 !border-destructive/30",
+            title: "!text-destructive !font-medium",
+            description: "!text-destructive/80 !text-sm",
+            icon: "!text-destructive",
+          },
+        });
+        return;
+      }
+
+      if (!redirectResponse.ok) {
+        setError("Não foi possível confirmar sua sessão. Tente novamente.");
+        return;
+      }
+
+      const data = (await redirectResponse.json()) as {
+        redirectTo?: string;
+      };
+
+      window.location.assign(data.redirectTo ?? "/app");
+    } catch {
+      setError("Não foi possível concluir o login. Tente novamente.");
+    } finally {
+      setIsPending(false);
     }
-
-    if (!redirectResponse.ok) {
-      setError("Não foi possível confirmar sua sessão. Tente novamente.");
-      return;
-    }
-
-    const data = (await redirectResponse.json()) as { redirectTo?: string };
-
-    window.location.assign(data.redirectTo ?? "/app");
   };
 
   return (
@@ -86,7 +94,7 @@ export function SignInForm(): React.JSX.Element {
             autoComplete="email"
             id="email"
             name="email"
-            placeholder="aluno@exemplo.com"
+            placeholder="aluna@exemplo.com"
             required
             type="email"
           />
@@ -97,7 +105,7 @@ export function SignInForm(): React.JSX.Element {
             autoComplete="current-password"
             id="password"
             name="password"
-            placeholder="Digite sua senha"
+            placeholder="Digite sua senha…"
             required
             type="password"
           />
@@ -108,8 +116,8 @@ export function SignInForm(): React.JSX.Element {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Button className="mt-5 h-12 w-full" disabled={isPending} type="submit">
-        {isPending ? "Entrando..." : "Entrar"}
+      <Button className="mt-5 h-12 w-full" loading={isPending} type="submit">
+        Entrar
       </Button>
       <Link
         className="mt-5 inline-flex text-muted-foreground text-sm hover:text-foreground"

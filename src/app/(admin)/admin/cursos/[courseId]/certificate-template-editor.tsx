@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { FormSubmitButton } from "@/components/form-submit-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,9 +87,9 @@ const CertificateActivationMenuItem = ({
     return (
       <form action={enableCertificateForCourseAction.bind(null, courseId)}>
         <DropdownMenuItem asChild>
-          <button className="w-full" type="submit">
+          <FormSubmitButton className="w-full" type="submit">
             Ligar certificado
-          </button>
+          </FormSubmitButton>
         </DropdownMenuItem>
       </form>
     );
@@ -134,10 +135,10 @@ const PendingCertificateReconciliation = ({
     <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="space-y-1">
         <p className="font-medium text-sm">
-          {count} conclusoes aguardam certificado
+          {count} conclusões aguardam certificado
         </p>
         <p className="text-muted-foreground text-xs">
-          A emissao ocorre em lotes de ate 100.
+          A emissão ocorre em lotes de até 100.
         </p>
       </div>
       <AlertDialog>
@@ -150,9 +151,9 @@ const PendingCertificateReconciliation = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Emitir certificados pendentes?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acao inicia a geracao do PDF e o envio do e-mail para cada
-              aluna elegivel. Certificados com qualquer historico, inclusive
-              revogados, nao serao duplicados.
+              Esta ação inicia a geração do PDF e o envio do e-mail para cada
+              aluna elegível. Certificados com qualquer histórico, inclusive
+              revogados, não serão duplicados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -213,7 +214,7 @@ export function CertificateTemplateEditor({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button aria-label="Mais ações" size="icon" variant="ghost">
-                  <HugeiconsIcon icon={MoreHorizontalIcon} />
+                  <HugeiconsIcon aria-hidden="true" icon={MoreHorizontalIcon} />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
@@ -262,7 +263,7 @@ export function CertificateTemplateEditor({
                 ) : (
                   <Empty className="p-8">
                     <EmptyHeader>
-                      <EmptyTitle>Nenhuma versão</EmptyTitle>
+                      <EmptyTitle as="h3">Nenhuma versão</EmptyTitle>
                       <EmptyDescription>
                         Salve o primeiro rascunho para iniciar o histórico.
                       </EmptyDescription>
@@ -276,8 +277,8 @@ export function CertificateTemplateEditor({
               <AlertDialogHeader>
                 <AlertDialogTitle>Desligar certificado?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Novas emissoes serao interrompidas. Certificados existentes
-                  permanecem validos e disponiveis.
+                  Novas emissões serão interrompidas. Certificados existentes
+                  permanecem válidos e disponíveis.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -102,7 +102,7 @@ export const GET = async (
 ): Promise<NextResponse<CheckoutApiResponse>> => {
   if (!readCheckoutEnvironment()) {
     return unavailableResponse(
-      "Servico de checkout indisponivel.",
+      "Serviço de checkout indisponível.",
       503,
       undefined,
       true
@@ -138,7 +138,7 @@ export const GET = async (
   }
   if (session === "unavailable") {
     return unavailableResponse(
-      "Servico de checkout indisponivel.",
+      "Serviço de checkout indisponível.",
       503,
       undefined,
       true
@@ -153,7 +153,7 @@ export const GET = async (
     });
   } catch {
     return unavailableResponse(
-      "Servico de checkout indisponivel.",
+      "Serviço de checkout indisponível.",
       503,
       undefined,
       true
@@ -166,7 +166,7 @@ export const POST = async (
 ): Promise<NextResponse<CheckoutApiResponse>> => {
   const environment = readCheckoutEnvironment();
   if (!environment) {
-    return unavailableResponse("Servico de checkout indisponivel.", 503);
+    return unavailableResponse("Serviço de checkout indisponível.", 503);
   }
 
   const body = parseCheckoutRequest(await request.json().catch(() => null));
@@ -176,7 +176,7 @@ export const POST = async (
 
   const session = await readAllowedSession();
   if (session === "unavailable") {
-    return unavailableResponse("Servico de checkout indisponivel.", 503);
+    return unavailableResponse("Serviço de checkout indisponível.", 503);
   }
   if (session === "team") {
     return unavailableResponse("Apenas alunas podem iniciar checkout.", 403);
@@ -270,11 +270,11 @@ export const POST = async (
         validation: 400,
       } as const;
       return unavailableResponse(
-        "Nao foi possivel iniciar o checkout.",
+        "Não foi possível iniciar o checkout.",
         statusByKind[error.kind]
       );
     }
 
-    return unavailableResponse("Servico de checkout indisponivel.", 503);
+    return unavailableResponse("Serviço de checkout indisponível.", 503);
   }
 };

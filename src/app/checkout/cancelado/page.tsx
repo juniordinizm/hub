@@ -17,9 +17,7 @@ export default async function CheckoutCancelledPage({
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <main className="max-w-2xl rounded-lg border bg-card p-6">
-        <h1 className="font-bold text-2xl tracking-tight">
-          Checkout cancelado
-        </h1>
+        <h1 className="type-section-title">Checkout cancelado</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
           {retryPath
             ? "Nenhuma confirmação de pagamento foi recebida. Você pode voltar ao curso e iniciar uma nova tentativa."

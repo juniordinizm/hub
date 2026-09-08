@@ -57,12 +57,17 @@ export function CourseInterestButton({
       />
       <Button
         className="w-full"
-        disabled={isPending}
+        loading={isPending}
         size="sm"
         type="submit"
         variant={variant}
       >
-        <HugeiconsIcon icon={interested ? BellOffIcon : BellIcon} size={16} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={interested ? BellOffIcon : BellIcon}
+          size={16}
+        />
         {interested ? "Cancelar aviso" : "Quero ser avisada"}
       </Button>
     </form>

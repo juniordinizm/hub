@@ -12,7 +12,6 @@ import type { AppRole } from "@/lib/session";
 import { LessonCommentsSubmitButton } from "./lesson-comments-submit-button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { Badge } from "./ui/badge";
-import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
 import { VerifiedBadge } from "./ui/verified-badge";
 
@@ -38,37 +37,37 @@ export function LessonCommentsSection({
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-xl tracking-tight">
               {context === "admin"
-                ? "Comentários dos alunos"
+                ? "Comentários das alunas"
                 : "Dúvidas e comentários"}
             </h2>
             <Badge variant="outline">
-              {totalCount} {totalCount === 1 ? "comentario" : "comentarios"}
+              {totalCount} {totalCount === 1 ? "comentário" : "comentários"}
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm">
             {context === "admin"
               ? "Gerencie as dúvidas e interações enviadas nesta aula."
-              : "Compartilhe duvidas e deixe comentarios nesta aula."}
+              : "Compartilhe dúvidas e deixe comentários nesta aula."}
           </p>
         </div>
 
         {canComment ? (
           <CommentForm
             context={context}
-            label="Novo comentario"
+            label="Novo comentário"
             lessonId={lessonId}
             submitLabel="Comentar"
           />
         ) : (
           <div className="rounded-lg border border-dashed px-4 py-3 text-muted-foreground text-sm">
-            Comentarios ficam visiveis, mas o modo de preview nao permite enviar
+            Comentários ficam visíveis, mas o modo de preview não permite enviar
             novas mensagens.
           </div>
         )}
 
         {comments.length === 0 ? (
           <div className="rounded-lg border border-dashed px-4 py-8 text-center text-muted-foreground text-sm">
-            Nenhum comentario ainda. Comece a conversa desta aula.
+            Nenhum comentário ainda. Comece a conversa desta aula.
           </div>
         ) : (
           <div className="flex flex-col gap-8">
@@ -123,8 +122,9 @@ function CommentThread({
 
         {canComment && !comment.isHidden ? (
           <details className="group/reply">
-            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-muted-foreground text-sm transition hover:text-foreground">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-muted-foreground text-sm transition-[color] hover:text-foreground">
               <HugeiconsIcon
+                aria-hidden="true"
                 className="shrink-0"
                 icon={ArrowMoveUpLeftIcon}
                 size={14}
@@ -164,7 +164,7 @@ function CommentBody({
             comment.author.role === "support") && (
             <VerifiedBadge
               aria-label="Verificado"
-              className="size-[14px] text-blue-500"
+              className="size-[14px] text-info"
             />
           )}
         </span>
@@ -176,7 +176,7 @@ function CommentBody({
 
       {comment.isHidden ? (
         <div className="space-y-2 rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
-          <p className="italic">Comentario ocultado da area do aluno.</p>
+          <p className="italic">Comentário ocultado da área da aluna.</p>
           {canModerate ? (
             <p className="whitespace-pre-wrap break-words text-xs leading-5">
               {comment.body}
@@ -193,18 +193,18 @@ function CommentBody({
         <form action={hideLessonCommentAction}>
           <input name="commentId" type="hidden" value={comment.id} />
           {comment.isHidden ? (
-            <Button
+            <LessonCommentsSubmitButton
               formAction={restoreLessonCommentAction}
               size="xs"
               type="submit"
               variant="outline"
             >
               Desocultar
-            </Button>
+            </LessonCommentsSubmitButton>
           ) : (
-            <Button size="xs" type="submit" variant="ghost">
+            <LessonCommentsSubmitButton size="xs" type="submit" variant="ghost">
               Ocultar
-            </Button>
+            </LessonCommentsSubmitButton>
           )}
         </form>
       ) : null}
@@ -236,12 +236,12 @@ function CommentForm({
         aria-label={label}
         maxLength={2000}
         name="body"
-        placeholder="Escreva sua duvida ou complemento..."
+        placeholder="Escreva sua dúvida ou complemento…"
         required
         rows={parentId ? 3 : 4}
       />
       <div className="flex justify-end">
-        <LessonCommentsSubmitButton pendingLabel="Enviando..." size="sm">
+        <LessonCommentsSubmitButton size="sm">
           {submitLabel}
         </LessonCommentsSubmitButton>
       </div>

@@ -135,7 +135,7 @@ describe("PurchaseHandoffClient", () => {
     await renderHandoff({ releaseScheduleDigest: "c".repeat(64) });
     await flushEffects();
 
-    expect(container.textContent).toContain("Checkout indisponivel");
+    expect(container.textContent).toContain("Checkout indisponível");
     expect(container.textContent).not.toContain("cronograma");
     expect(container.querySelector("button")).toBeNull();
   });
@@ -218,7 +218,7 @@ describe("PurchaseHandoffClient", () => {
     await flushEffects();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("Checkout indisponivel");
+    expect(container.textContent).toContain("Checkout indisponível");
     expect(container.textContent).not.toContain("evil.example");
   });
 
@@ -276,7 +276,7 @@ describe("PurchaseHandoffClient", () => {
       new RegExp(`^v2:\\d+:${FIRST_ATTEMPT}$`)
     );
     expect(container.textContent).toContain("order-1");
-    expect(container.textContent).toContain("Nao inicie outra tentativa");
+    expect(container.textContent).toContain("Não inicie outra tentativa");
   });
 
   it("consulta a mesma tentativa ate o checkout em processamento ficar pronto", async () => {

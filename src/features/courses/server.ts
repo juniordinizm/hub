@@ -1008,12 +1008,13 @@ const appendOverviewLesson = ({
       lessonId: row.lesson_id,
     }),
   });
+  const hasVideo = Boolean(row.video_embed_url || row.video_external_id);
   moduleData.lessons.push({
     availability,
     id: row.lesson_id,
     title: row.lesson_title,
-    thumbnailUrl: row.lesson_thumbnail_url,
-    hasVideo: Boolean(row.video_embed_url || row.video_external_id),
+    thumbnailUrl: hasVideo ? row.lesson_thumbnail_url : null,
+    hasVideo,
     durationSeconds: row.duration_seconds,
     sortOrder: row.lesson_sort_order,
     isCompleted,
@@ -1299,12 +1300,14 @@ const getPreviewCourseOverview = async ({
       row.lesson_sort_order !== null &&
       row.duration_seconds !== null
     ) {
+      const hasVideo = Boolean(row.video_embed_url || row.video_external_id);
+
       moduleData.lessons.push({
         availability: { kind: "available" },
         id: row.lesson_id,
         title: row.lesson_title,
-        thumbnailUrl: row.lesson_thumbnail_url,
-        hasVideo: Boolean(row.video_embed_url || row.video_external_id),
+        thumbnailUrl: hasVideo ? row.lesson_thumbnail_url : null,
+        hasVideo,
         durationSeconds: row.duration_seconds,
         sortOrder: row.lesson_sort_order,
         isCompleted: false,

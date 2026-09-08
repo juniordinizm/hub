@@ -300,7 +300,7 @@ describe("transactional email", () => {
     expect(email).toEqual({
       from: "PROTEA-R <noreply@example.test>",
       replyTo: "support@example.test",
-      subject: "Acesso liberado no PROTEA-R Hub",
+      subject: "Acesso liberado no NeuroCapacitar Hub",
       template: {
         id: "access-released",
         variables: {
@@ -338,7 +338,7 @@ describe("transactional email", () => {
     expect(email).toEqual({
       from: "PROTEA-R <noreply@example.test>",
       replyTo: "support@example.test",
-      subject: "Acesso liberado no PROTEA-R Hub",
+      subject: "Acesso liberado no NeuroCapacitar Hub",
       template: {
         id: "access-released",
         variables: {
@@ -844,7 +844,7 @@ describe("transactional email", () => {
     const [email, options] = send.mock.calls[0] ?? [];
     expect(email).toEqual(
       expect.objectContaining({
-        subject: "Criar ou redefinir senha do PROTEA-R Hub",
+        subject: "Criar ou redefinir senha do NeuroCapacitar Hub",
         template: {
           id: "auth-password-reset",
           variables: {
@@ -922,7 +922,7 @@ describe("transactional email", () => {
     const [email, options] = send.mock.calls[0] ?? [];
     expect(email).toEqual(
       expect.objectContaining({
-        subject: "Seu certificado PROTEA-R Hub foi emitido",
+        subject: "Seu certificado NeuroCapacitar Hub foi emitido",
         template: {
           id: "certificate-issued",
           variables: {

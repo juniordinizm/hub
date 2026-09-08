@@ -17,12 +17,12 @@ export function CertificateTemplateOverlapNotice({
   return (
     <div
       aria-live="polite"
-      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-amber-500/8 px-3 py-2 text-muted-foreground text-xs"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md bg-warning/10 px-3 py-2 text-muted-foreground text-xs"
       role="status"
     >
       <span
         aria-hidden="true"
-        className="size-1.5 shrink-0 rounded-full bg-amber-500"
+        className="size-1.5 shrink-0 rounded-full bg-warning"
       />
       <span>Sobreposição: {overlapLabels.join(" · ")}</span>
     </div>

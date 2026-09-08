@@ -64,7 +64,7 @@ function EmptyCourseContent({
   return (
     <Empty className="border bg-card">
       <EmptyHeader>
-        <EmptyTitle>Nenhum módulo cadastrado</EmptyTitle>
+        <EmptyTitle as="h3">Nenhum módulo cadastrado</EmptyTitle>
         <EmptyDescription>
           {publicationState.hasDraft
             ? "Crie a primeira unidade para começar a estruturar o conteúdo do Curso."
@@ -144,7 +144,7 @@ export function CourseContentPanel({
       {publicationState.hasDraft ? null : (
         <p className="rounded-lg border bg-muted/30 px-4 py-3 text-muted-foreground text-sm">
           Prepare alterações para editar a estrutura atual. O conteúdo publicado
-          permanece disponível aos alunos até a próxima publicação.
+          permanece disponível às alunas até a próxima publicação.
         </p>
       )}
 

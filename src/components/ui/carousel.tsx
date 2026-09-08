@@ -204,7 +204,11 @@ function CarouselPrevious({
       variant={variant}
       {...props}
     >
-      <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
+      <HugeiconsIcon
+        aria-hidden="true"
+        icon={ArrowLeft01Icon}
+        strokeWidth={2}
+      />
       <span className="sr-only">Previous slide</span>
     </Button>
   );
@@ -234,7 +238,11 @@ function CarouselNext({
       variant={variant}
       {...props}
     >
-      <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
+      <HugeiconsIcon
+        aria-hidden="true"
+        icon={ArrowRight01Icon}
+        strokeWidth={2}
+      />
       <span className="sr-only">Next slide</span>
     </Button>
   );

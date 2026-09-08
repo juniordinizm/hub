@@ -290,18 +290,22 @@ function SidebarTrigger({
       <TooltipTrigger asChild>
         <Button
           aria-label={accessibleLabel}
-          className={cn(className)}
+          className={cn("size-11 md:size-10", className)}
           data-sidebar="trigger"
           data-slot="sidebar-trigger"
           onClick={(event) => {
             onClick?.(event);
             toggleSidebar();
           }}
-          size="icon-sm"
+          size="icon"
           variant="ghost"
           {...props}
         >
-          <HugeiconsIcon icon={SidebarLeftIcon} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={SidebarLeftIcon}
+            strokeWidth={2}
+          />
           <span className="sr-only">Alternar menu lateral</span>
         </Button>
       </TooltipTrigger>

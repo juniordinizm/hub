@@ -344,7 +344,7 @@ export function CourseSettingsForm({
               </p>
               {paymentAllowCreditCard &&
               effectiveMaxInstallmentCount < validInstallmentCount ? (
-                <p className="max-w-2xl text-amber-700 text-sm">
+                <p className="max-w-2xl text-sm text-warning">
                   Pelo preço atual, o Checkout será limitado a{" "}
                   {effectiveMaxInstallmentCount}x. A configuração de{" "}
                   {validInstallmentCount}x continua salva para futuros reajustes
@@ -355,9 +355,17 @@ export function CourseSettingsForm({
           </div>
 
           <div className="flex justify-end border-t pt-6">
-            <Button disabled={isPending} type="submit">
-              <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-              {isPending ? "Salvando…" : "Salvar configurações"}
+            <Button loading={isPending} type="submit">
+              {isPending ? null : (
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
+                  icon={FloppyDiskIcon}
+                  size={18}
+                  strokeWidth={2}
+                />
+              )}
+              Salvar configurações
             </Button>
           </div>
         </fieldset>
@@ -374,7 +382,7 @@ export function CourseSettingsForm({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogMedia>
-              <HugeiconsIcon icon={AlertCircleIcon} />
+              <HugeiconsIcon aria-hidden="true" icon={AlertCircleIcon} />
             </AlertDialogMedia>
             <AlertDialogTitle>Confirmar alteração de preço?</AlertDialogTitle>
             <AlertDialogDescription>

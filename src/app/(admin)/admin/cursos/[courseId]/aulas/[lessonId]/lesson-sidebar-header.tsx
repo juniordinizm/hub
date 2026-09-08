@@ -26,6 +26,7 @@ export function LessonSidebarHeader({
   moduleTitle,
 }: LessonSidebarHeaderProps): React.JSX.Element {
   const [status, setStatus] = useState(lesson.status ?? "draft");
+  const statusId = `${formId}-status-header`;
 
   return (
     <div className="flex shrink-0 flex-col gap-5 border-b px-5 py-5">
@@ -44,7 +45,10 @@ export function LessonSidebarHeader({
         <input form={formId} name="status" type="hidden" value={status} />
 
         <Select onValueChange={setStatus} value={status}>
-          <SelectTrigger className="flex-1">
+          <label className="sr-only" htmlFor={statusId}>
+            Status da aula
+          </label>
+          <SelectTrigger className="flex-1" id={statusId}>
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -55,7 +59,13 @@ export function LessonSidebarHeader({
         </Select>
 
         <Button className="flex-1" form={formId} type="submit">
-          <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={FloppyDiskIcon}
+            size={18}
+            strokeWidth={2}
+          />
           Salvar aula
         </Button>
       </div>

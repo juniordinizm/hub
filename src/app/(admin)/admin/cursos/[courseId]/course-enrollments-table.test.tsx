@@ -23,6 +23,7 @@ describe("CourseEnrollmentsTable", () => {
   it("opens the shared contextual Sheet through one Gerenciar action", () => {
     const markup = renderToStaticMarkup(
       <CourseEnrollmentsTable
+        courseId="course-1"
         enrollments={[
           {
             courseId: "course-1",
@@ -44,5 +45,28 @@ describe("CourseEnrollmentsTable", () => {
 
     expect(markup).toContain("Gerenciar");
     expect(markup).not.toContain(">Ver<");
+  });
+
+  it("preserves the server-side filter and page navigation", () => {
+    const markup = renderToStaticMarkup(
+      <CourseEnrollmentsTable
+        courseId="course-1"
+        enrollments={[]}
+        hasNextPage
+        page={2}
+        pageSize={50}
+        search="student"
+        totalCount={51}
+      />
+    );
+
+    expect(markup).toContain("Nenhuma matrícula nesta página");
+    expect(markup).toContain('name="enrollmentQ"');
+    expect(markup).toContain(
+      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student"'
+    );
+    expect(markup).toContain(
+      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student&amp;enrollmentPage=3"'
+    );
   });
 });

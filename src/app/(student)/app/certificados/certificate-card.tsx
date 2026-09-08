@@ -91,7 +91,11 @@ export function CertificateCard({
               aria-label={`Baixar PDF de ${certificate.courseTitle}`}
               href={certificateLinks.pdfHref}
             >
-              <HugeiconsIcon data-icon="inline-start" icon={Download01Icon} />
+              <HugeiconsIcon
+                aria-hidden="true"
+                data-icon="inline-start"
+                icon={Download01Icon}
+              />
               Baixar PDF
             </Link>
           </Button>

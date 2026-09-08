@@ -56,9 +56,9 @@ export default async function AdminLessonEditPage({
   const parsedContent = parseLessonContent(lesson.contentJson);
 
   return (
-    <div className="flex w-full max-w-[100vw] flex-col overflow-x-hidden lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="flex w-full min-w-0 max-w-full flex-col lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* Coluna principal com Abas */}
-      <div className="custom-scrollbar bg-muted/20 max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
+      <div className="custom-scrollbar min-w-0 bg-muted/20 max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
         <div className="order-4 mx-auto w-full max-w-5xl px-4 py-6 lg:order-none lg:px-8 lg:py-10">
           <Tabs className="w-full" defaultValue="video">
             <div className="mb-8 pb-1">
@@ -149,7 +149,7 @@ export default async function AdminLessonEditPage({
       </div>
 
       {/* Sidebar de materiais e ações */}
-      <aside className="bg-background max-lg:contents lg:flex lg:flex-col lg:border-l">
+      <aside className="min-w-0 bg-background max-lg:contents lg:flex lg:flex-col lg:border-l">
         {/* Header da Aula no Sidebar com Duração */}
         <div className="order-1 shrink-0 space-y-5 px-4 pt-4 pb-4 lg:order-none lg:border-b lg:px-5 lg:py-5">
           <div className="min-w-0">
@@ -157,9 +157,7 @@ export default async function AdminLessonEditPage({
               {course.title}
               {moduleData ? ` / ${moduleData.title}` : ""}
             </p>
-            <h1 className="mt-1 font-semibold text-xl tracking-tight">
-              {lesson.title}
-            </h1>
+            <h1 className="type-section-title mt-1">{lesson.title}</h1>
           </div>
 
           <LessonSidebarDuration

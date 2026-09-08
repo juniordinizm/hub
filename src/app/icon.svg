@@ -1,0 +1,21 @@
+<svg
+  aria-label="NeuroCapacitar"
+  role="img"
+  viewBox="0 0 334 334"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <title>NeuroCapacitar</title>
+  <rect fill="oklch(0.221 0.023 205.4)" height="334" rx="72" width="334" />
+  <defs>
+    <clipPath id="brand-mark">
+      <rect height="334" rx="72" width="334" />
+    </clipPath>
+  </defs>
+  <image
+    clip-path="url(#brand-mark)"
+    height="334"
+    href="/protear/logo-negativo.svg"
+    preserveAspectRatio="none"
+    width="1042"
+  />
+</svg>

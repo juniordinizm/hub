@@ -141,7 +141,7 @@ export default async function StudentCourseOverviewPage({
           ) : null}
 
           {certificate === "issued" ? (
-            <Alert className="border-emerald-600/40 bg-emerald-500/10">
+            <Alert role="status" variant="success">
               <AlertTitle>Curso concluído</AlertTitle>
               <AlertDescription>
                 Seu certificado foi emitido. A preparação do PDF pode levar
@@ -153,10 +153,8 @@ export default async function StudentCourseOverviewPage({
           <header className="border-b pb-6">
             <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex-1 space-y-1">
-                <h1 className="font-bold text-3xl tracking-tight">
-                  {data.course.title}
-                </h1>
-                <p className="max-w-2xl text-muted-foreground text-sm">
+                <h1 className="type-page-title">{data.course.title}</h1>
+                <p className="max-w-2xl text-pretty text-muted-foreground text-sm">
                   {data.course.subtitle ??
                     data.course.description ??
                     "Avance pelas aulas na ordem da trilha, acompanhe seu progresso e conclua o curso para liberar o certificado."}
@@ -182,7 +180,11 @@ export default async function StudentCourseOverviewPage({
                       {data.progressPercent}%
                     </span>
                   </div>
-                  <Progress className="h-1.5" value={data.progressPercent} />
+                  <Progress
+                    aria-label={`Progresso do curso ${data.course.title}: ${data.progressPercent}%`}
+                    className="h-1.5"
+                    value={data.progressPercent}
+                  />
                 </div>
 
                 {primaryAction ? (
@@ -379,7 +381,7 @@ function CourseMetric({
 }): React.JSX.Element {
   return (
     <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-1 text-muted-foreground text-xs">
-      <HugeiconsIcon icon={icon} size={16} />
+      <HugeiconsIcon aria-hidden="true" icon={icon} size={16} />
       <span>{label}:</span>
       <span className="font-semibold text-foreground">{value}</span>
     </div>

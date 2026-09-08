@@ -7,7 +7,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
-import { AdminMutationForm } from "@/components/admin-mutation-form";
+import {
+  AdminMutationForm,
+  AdminMutationSubmitButton,
+} from "@/components/admin-mutation-form";
 import { DatePickerField } from "@/components/date-picker-field";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -42,12 +45,6 @@ export interface EnrollmentExpirationControlData {
   status: string;
   userId: string;
 }
-
-export const statusLabels: Record<string, string> = {
-  active: "Ativo",
-  expired: "Expirado",
-  revoked: "Bloqueado",
-};
 
 type EnrollmentControl = "adjust" | "block" | "restore";
 
@@ -146,6 +143,7 @@ function EnrollmentControlButtons({
           variant={activeControl === "adjust" ? "secondary" : "outline"}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             data-icon="inline-start"
             icon={FloppyDiskIcon}
             size={16}
@@ -162,6 +160,7 @@ function EnrollmentControlButtons({
           variant={activeControl === "block" ? "destructive" : "outline"}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             data-icon="inline-start"
             icon={SquareLock02Icon}
             size={16}
@@ -178,6 +177,7 @@ function EnrollmentControlButtons({
           variant={activeControl === "restore" ? "secondary" : "outline"}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             data-icon="inline-start"
             icon={UndoIcon}
             size={16}
@@ -303,7 +303,7 @@ function EnrollmentBlockForm({
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogMedia className="bg-destructive/10 text-destructive">
-                <HugeiconsIcon icon={SquareLock02Icon} />
+                <HugeiconsIcon aria-hidden="true" icon={SquareLock02Icon} />
               </AlertDialogMedia>
               <AlertDialogTitle>Confirmar bloqueio do Curso</AlertDialogTitle>
               <AlertDialogDescription>
@@ -382,9 +382,9 @@ function ControlFormActions({
       <Button onClick={onCancel} type="button" variant="ghost">
         Cancelar
       </Button>
-      <Button type="submit" variant={variant}>
+      <AdminMutationSubmitButton type="submit" variant={variant}>
         {submitLabel}
-      </Button>
+      </AdminMutationSubmitButton>
     </div>
   );
 }

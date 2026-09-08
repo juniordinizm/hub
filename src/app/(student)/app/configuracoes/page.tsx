@@ -1,10 +1,16 @@
 import {
+  Certificate01Icon,
   InformationCircleIcon,
   ShieldKeyIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { updateCertificateNameAction } from "@/app/(student)/app/actions";
+import {
+  AdminMutationForm,
+  AdminMutationSubmitButton,
+} from "@/components/admin-mutation-form";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Scrollspy } from "@/components/reui/scrollspy";
 import {
   Card,
@@ -13,6 +19,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -34,18 +42,10 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Configurações
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Ajuste preferências da sua experiência na plataforma.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Ajuste preferências da sua experiência na plataforma."
+          title="Configurações"
+        />
 
         <div className="grid grid-cols-1 gap-14 md:grid-cols-[220px_1fr] lg:grid-cols-[240px_1fr]">
           <aside className="hidden md:block">
@@ -58,10 +58,24 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
                 >
                   <a
                     className="flex items-center gap-2.5 rounded-lg px-3 py-2 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-muted data-[active=true]:text-foreground"
+                    data-scrollspy-anchor="certificado"
+                    href="#certificado"
+                  >
+                    <HugeiconsIcon
+                      aria-hidden="true"
+                      icon={Certificate01Icon}
+                      size={18}
+                      strokeWidth={1.5}
+                    />
+                    <span>Nome no certificado</span>
+                  </a>
+                  <a
+                    className="flex items-center gap-2.5 rounded-lg px-3 py-2 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[active=true]:bg-muted data-[active=true]:text-foreground"
                     data-scrollspy-anchor="privacidade"
                     href="#privacidade"
                   >
                     <HugeiconsIcon
+                      aria-hidden="true"
                       icon={ShieldKeyIcon}
                       size={18}
                       strokeWidth={1.5}
@@ -77,39 +91,47 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
             <section className="grid scroll-mt-24 gap-6" id="certificado">
               <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
                 <CardHeader>
-                  <CardTitle className="font-semibold text-base">
+                  <CardTitle as="h2" className="font-semibold text-base">
                     Nome no certificado
                   </CardTitle>
                   <CardDescription className="text-sm">
-                    Use seu nome completo. Alteracoes futuras nao modificam
-                    certificados ja emitidos.
+                    Use seu nome completo. Alterações futuras não modificam
+                    certificados já emitidos.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form
+                  <AdminMutationForm
                     action={updateCertificateNameAction}
-                    className="flex flex-col gap-3 sm:flex-row"
+                    className="flex flex-col gap-3 sm:flex-row sm:items-end"
                   >
-                    <input
-                      className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
-                      defaultValue={session.user.name ?? ""}
-                      name="name"
-                      required
-                    />
-                    <button
-                      className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground text-sm"
+                    <FieldGroup className="min-w-0 flex-1">
+                      <Field>
+                        <FieldLabel htmlFor="certificate-name">
+                          Nome completo
+                        </FieldLabel>
+                        <Input
+                          autoComplete="name"
+                          defaultValue={session.user.name ?? ""}
+                          id="certificate-name"
+                          name="name"
+                          required
+                        />
+                      </Field>
+                    </FieldGroup>
+                    <AdminMutationSubmitButton
+                      className="sm:shrink-0"
                       type="submit"
                     >
                       Salvar nome
-                    </button>
-                  </form>
+                    </AdminMutationSubmitButton>
+                  </AdminMutationForm>
                 </CardContent>
               </Card>
             </section>
             <section className="grid scroll-mt-24 gap-6" id="privacidade">
               <Card className="border-none bg-card shadow-xs ring-1 ring-border/50">
                 <CardHeader>
-                  <CardTitle className="font-semibold text-base">
+                  <CardTitle as="h2" className="font-semibold text-base">
                     Privacidade e Dados
                   </CardTitle>
                   <CardDescription className="text-sm">
@@ -117,8 +139,8 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="divide-y divide-border/60 overflow-hidden rounded-xl border bg-background/50">
-                    <div className="flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-muted/20 sm:flex-row sm:items-center sm:p-5">
+                  <div className="divide-y divide-border/60">
+                    <div className="flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
                       <div className="max-w-xl space-y-1">
                         <div className="flex items-center gap-1.5">
                           <h3 className="font-medium text-foreground text-sm sm:text-base">
@@ -133,6 +155,7 @@ export default async function StudentSettingsPage(): Promise<React.JSX.Element> 
                                   type="button"
                                 >
                                   <HugeiconsIcon
+                                    aria-hidden="true"
                                     icon={InformationCircleIcon}
                                     size={16}
                                   />

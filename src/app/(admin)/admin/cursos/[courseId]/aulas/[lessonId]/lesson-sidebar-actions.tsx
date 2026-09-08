@@ -28,6 +28,7 @@ export function LessonSidebarActions({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [status, setStatus] = useState(initialStatus);
   const [isPending, startTransition] = useTransition();
+  const statusId = `${formId}-status`;
 
   const handleSave = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -45,7 +46,7 @@ export function LessonSidebarActions({
     formData.set("status", status);
     setErrorMessage(null);
 
-    const toastId = toast.loading("Salvando aula...");
+    const toastId = toast.loading("Salvando aula…");
 
     startTransition(async () => {
       try {
@@ -75,7 +76,10 @@ export function LessonSidebarActions({
         onValueChange={setStatus}
         value={status}
       >
-        <SelectTrigger className="w-full">
+        <label className="sr-only" htmlFor={statusId}>
+          Status da aula
+        </label>
+        <SelectTrigger className="w-full" id={statusId}>
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -87,13 +91,21 @@ export function LessonSidebarActions({
 
       <Button
         className="w-full"
-        disabled={isPending}
         form={formId}
+        loading={isPending}
         onClick={handleSave}
         type="submit"
       >
-        <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
-        {isPending ? "Salvando..." : "Salvar aula"}
+        {isPending ? null : (
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={FloppyDiskIcon}
+            size={18}
+            strokeWidth={2}
+          />
+        )}
+        Salvar aula
       </Button>
       {errorMessage ? (
         <div

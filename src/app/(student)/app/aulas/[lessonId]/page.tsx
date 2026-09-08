@@ -370,7 +370,7 @@ function LessonHeader({
     <div className="mx-auto w-full max-w-5xl px-5 py-5 sm:px-8 lg:px-0">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3 sm:gap-4">
-          <h1 className="min-w-0 flex-1 break-words font-medium text-foreground text-lg leading-snug tracking-normal">
+          <h1 className="type-section-title min-w-0 flex-1 break-words text-foreground">
             {data.lesson.title}
           </h1>
           <div className="flex shrink-0 items-center justify-end gap-2">
@@ -378,6 +378,8 @@ function LessonHeader({
             {data.lesson.isCompleted ? (
               <Button className="gap-2" disabled size="sm" variant="secondary">
                 <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
                   icon={CheckmarkCircle02Icon}
                   size={16}
                   strokeWidth={2}
@@ -396,7 +398,7 @@ function LessonHeader({
         </div>
 
         {data.lesson.description ? (
-          <p className="w-full break-words font-light text-muted-foreground text-sm leading-normal">
+          <p className="w-full text-pretty break-words font-light text-muted-foreground text-sm leading-normal">
             {data.lesson.description}
           </p>
         ) : null}
@@ -458,7 +460,7 @@ function LessonContentFrame({
     return (
       <article className="px-5 py-8 sm:px-8 lg:px-0">
         <div className="mx-auto flex max-w-5xl flex-col gap-8">
-          <div className="text-base leading-8">
+          <div className="max-w-[68ch] text-base leading-8">
             <LessonRichTextRenderer document={document} />
           </div>
           <LessonResources lessonId={lesson.id} resources={resources ?? []} />
@@ -469,7 +471,7 @@ function LessonContentFrame({
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-16 text-center font-light text-muted-foreground sm:px-8 lg:px-0">
-      Conteudo em configuracao.
+      Conteúdo em configuração.
     </div>
   );
 }
@@ -489,7 +491,7 @@ function LessonResources({
     <section className="mt-8">
       <div className="mb-6 flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-medium text-foreground text-sm uppercase tracking-wider">
+          <h2 className="type-card-title text-foreground">
             Materiais Complementares
           </h2>
           <p className="mt-1 font-light text-muted-foreground text-xs">
@@ -541,7 +543,7 @@ function LessonResourceItem({
             ) : null}
           </p>
           {badgeText ? (
-            <span className="shrink-0 font-medium text-[10px] text-muted-foreground uppercase tracking-widest">
+            <span className="type-meta shrink-0 font-medium text-muted-foreground">
               {badgeText}
             </span>
           ) : null}
@@ -564,6 +566,7 @@ function LessonResourceItem({
           title={isExternal ? "Abrir material" : "Baixar material"}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             icon={isExternal ? ExternalLinkIcon : Download01Icon}
             size={16}
             strokeWidth={1.5}
@@ -607,7 +610,12 @@ function ResourceVisual({
         tone
       )}
     >
-      <HugeiconsIcon icon={Icon} size={20} strokeWidth={1.5} />
+      <HugeiconsIcon
+        aria-hidden="true"
+        icon={Icon}
+        size={20}
+        strokeWidth={1.5}
+      />
     </div>
   );
 }
@@ -933,7 +941,13 @@ function CompleteLessonButton({
   if (isPreview) {
     return (
       <Button disabled size={size} type="button" variant="secondary">
-        <HugeiconsIcon icon={CircleIcon} size={16} strokeWidth={2} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={CircleIcon}
+          size={16}
+          strokeWidth={2}
+        />
         Preview sem progresso
       </Button>
     );
@@ -949,7 +963,13 @@ function CompleteLessonButton({
         type="submit"
         variant="secondary"
       >
-        <HugeiconsIcon icon={CircleIcon} size={16} strokeWidth={2} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={CircleIcon}
+          size={16}
+          strokeWidth={2}
+        />
         Concluir aula
       </Button>
     </form>
@@ -986,6 +1006,7 @@ function NavigationCard({
           <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
             {type === "previous" && (
               <HugeiconsIcon
+                aria-hidden="true"
                 className="shrink-0"
                 icon={ArrowLeftIcon}
                 size={14}
@@ -995,6 +1016,7 @@ function NavigationCard({
             <span className="truncate">{label}</span>
             {type === "next" && (
               <HugeiconsIcon
+                aria-hidden="true"
                 className="shrink-0"
                 icon={ArrowRightIcon}
                 size={14}
@@ -1042,6 +1064,7 @@ function NavigationCard({
           <span className="flex max-w-full items-center gap-1.5 text-muted-foreground text-xs">
             {type === "previous" && (
               <HugeiconsIcon
+                aria-hidden="true"
                 className="shrink-0"
                 icon={ArrowLeftIcon}
                 size={14}
@@ -1051,6 +1074,7 @@ function NavigationCard({
             <span className="truncate">{label}</span>
             {type === "next" && (
               <HugeiconsIcon
+                aria-hidden="true"
                 className="shrink-0"
                 icon={ArrowRightIcon}
                 size={14}
@@ -1144,5 +1168,12 @@ function getLessonMarker({
     return "•";
   }
 
-  return <HugeiconsIcon icon={SquareLock02Icon} size={14} strokeWidth={2} />;
+  return (
+    <HugeiconsIcon
+      aria-hidden="true"
+      icon={SquareLock02Icon}
+      size={14}
+      strokeWidth={2}
+    />
+  );
 }

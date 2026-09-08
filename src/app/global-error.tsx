@@ -2,6 +2,7 @@
 
 import { captureException } from "@sentry/nextjs";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { createCorrelationId } from "@/lib/observability";
 
 export default function GlobalError({
@@ -21,21 +22,25 @@ export default function GlobalError({
 
   return (
     <html lang="pt-BR">
-      <body className="bg-background text-foreground">
+      <body className="bg-background font-sans text-foreground antialiased">
         <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-start justify-center gap-4 px-6">
-          <h1 ref={headingRef} tabIndex={-1}>
+          <h1 className="type-page-title" ref={headingRef} tabIndex={-1}>
             Ocorreu uma falha inesperada.
           </h1>
-          <p>Tente novamente. Se persistir, contate a equipe responsável.</p>
-          <p>Identificador de correlação: {correlationId}</p>
-          {error.digest ? <p>Referência do servidor: {error.digest}</p> : null}
-          <button
-            className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
-            onClick={unstable_retry}
-            type="button"
-          >
+          <p className="type-body-sm text-muted-foreground">
+            Tente novamente. Se persistir, contate a equipe responsável.
+          </p>
+          <p className="type-code text-muted-foreground">
+            Identificador de correlação: {correlationId}
+          </p>
+          {error.digest ? (
+            <p className="type-code text-muted-foreground">
+              Referência do servidor: {error.digest}
+            </p>
+          ) : null}
+          <Button onClick={unstable_retry} type="button">
             Tentar novamente
-          </button>
+          </Button>
         </main>
       </body>
     </html>

@@ -10,6 +10,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   getAdminFinancialSignal,
@@ -29,6 +31,13 @@ import {
   getAdminFinancialData,
   getAdminOverview,
 } from "@/features/admin/server";
+import {
+  getCheckoutStatusPresentation,
+  getOrderStatusPresentation,
+  getProviderPaymentStatusPresentation,
+  getRefundRequestStatusPresentation,
+  getWebhookStatusPresentation,
+} from "@/features/admin/status-presentation";
 import { requirePermission } from "@/lib/auth-permissions";
 import { canPerform } from "@/lib/auth-policy";
 import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
@@ -45,29 +54,18 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const orderStatusLabels: Record<string, string> = {
-  cancelled: "Cancelado",
-  disputed: "Em disputa",
-  paid: "Pago",
-  pending: "Pendente",
-  refunded: "Reembolsado",
-};
-
-const webhookStatusLabels: Record<string, string> = {
-  failed: "Falha",
-  ignored: "Ignorado",
-  processed: "Processado",
-  received: "Recebido",
-};
-
 const readSearchParameter = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 
 const financialPageHref = ({
   page,
+  revenuePage,
+  revenueSearch,
   search,
 }: {
   page: number;
+  revenuePage: number;
+  revenueSearch: string;
   search: string;
 }): string => {
   const params = new URLSearchParams();
@@ -77,6 +75,12 @@ const financialPageHref = ({
   if (page > 1) {
     params.set("page", String(page));
   }
+  if (revenueSearch) {
+    params.set("revenueQ", revenueSearch);
+  }
+  if (revenuePage > 1) {
+    params.set("revenuePage", String(revenuePage));
+  }
   const query = params.toString();
   return query ? `/admin/financeiro?${query}` : "/admin/financeiro";
 };
@@ -84,6 +88,8 @@ const financialPageHref = ({
 interface FinancialSearchParams {
   page?: string | string[] | undefined;
   q?: string | string[] | undefined;
+  revenuePage?: string | string[] | undefined;
+  revenueQ?: string | string[] | undefined;
 }
 
 const getOrderQuery = (
@@ -103,6 +109,24 @@ const getOrderQuery = (
   };
 };
 
+const getRevenueQuery = (
+  searchParams: FinancialSearchParams
+): { page: number; search: string } => {
+  const search = readSearchParameter(searchParams.revenueQ).trim();
+  const requestedPage = Number.parseInt(
+    readSearchParameter(searchParams.revenuePage),
+    10
+  );
+
+  return {
+    page:
+      Number.isSafeInteger(requestedPage) && requestedPage > 0
+        ? requestedPage
+        : 1,
+    search,
+  };
+};
+
 export function FinancialOrderCard({
   canManageFinancialOperations,
   hasPendingBuyerIdentityReview,
@@ -112,14 +136,27 @@ export function FinancialOrderCard({
   hasPendingBuyerIdentityReview: boolean;
   order: AdminOrder;
 }): React.JSX.Element {
+  const orderStatus = getOrderStatusPresentation(order.status);
+  const checkoutStatus = getCheckoutStatusPresentation(order.checkoutStatus);
+  const paymentStatus = order.providerPaymentStatus
+    ? getProviderPaymentStatusPresentation(order.providerPaymentStatus)
+    : null;
+  const refundStatus = order.refundRequestStatus
+    ? getRefundRequestStatusPresentation(order.refundRequestStatus)
+    : null;
+
   return (
-    <div className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40">
+    <div className="flex flex-col justify-between border-b py-3 last:border-b-0">
       <div className="flex items-center justify-between gap-3">
         <p className="truncate font-medium text-sm">
-          {order.customerName ?? order.customerEmail ?? "Aluno"}
+          {order.customerName ?? order.customerEmail ?? "Aluna"}
         </p>
-        <Badge className="shrink-0" variant="secondary">
-          {orderStatusLabels[order.status] ?? order.status}
+        <Badge
+          aria-label={`Status do pedido: ${orderStatus.label}`}
+          className="shrink-0"
+          variant={orderStatus.variant}
+        >
+          {orderStatus.label}
         </Badge>
       </div>
       <p className="mt-1 truncate text-muted-foreground text-xs">
@@ -139,20 +176,17 @@ export function FinancialOrderCard({
           <span>Tarifa: {formatCurrencyInCents(order.feeAmountInCents)}</span>
         )}
         <span className="text-muted-foreground">/</span>
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-muted-foreground text-xs">
           checkout {order.providerCheckoutId ?? "pendente"}
         </span>
-        <span className="font-mono text-[10px] text-muted-foreground">
+        <span className="font-mono text-muted-foreground text-xs">
           pagamento {order.providerPaymentId ?? "não correlacionado"}
         </span>
       </div>
       <p className="mt-2 text-muted-foreground text-xs">
         {order.paymentMethod ?? "Método pendente"} · checkout{" "}
-        {order.checkoutStatus} · pagamento{" "}
-        {order.providerPaymentStatus ?? "pendente"}
-        {order.refundRequestStatus
-          ? ` · reembolso ${order.refundRequestStatus}`
-          : ""}
+        {checkoutStatus.label} · pagamento {paymentStatus?.label ?? "Pendente"}
+        {refundStatus ? ` · reembolso ${refundStatus.label}` : ""}
       </p>
       {order.status === "paid" && !hasPendingBuyerIdentityReview ? (
         <RefundOperation orderId={order.id} />
@@ -174,9 +208,11 @@ export function FinancialStatementImportCard({
   }
 
   return (
-    <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+    <Card>
       <CardHeader>
-        <CardTitle className="text-base">Importação do extrato Asaas</CardTitle>
+        <CardTitle as="h2" className="text-base">
+          Importação do extrato Asaas
+        </CardTitle>
         <CardDescription>
           Importe um período fechado. O extrato é paginado e cada movimentação é
           deduplicada pelo identificador do Asaas.
@@ -198,10 +234,15 @@ export default async function AdminFinancePage({
   const resolvedSearchParams = await searchParams;
   const { page: orderPage, search: orderSearch } =
     getOrderQuery(resolvedSearchParams);
+  const { page: revenuePage, search: revenueSearch } =
+    getRevenueQuery(resolvedSearchParams);
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
-    getAdminFinancialData({ page: orderPage, search: orderSearch }),
+    getAdminFinancialData(
+      { page: orderPage, search: orderSearch },
+      { page: revenuePage, search: revenueSearch }
+    ),
   ]);
   const financialHealth = summarizeAdminFinancialHealth(data.orders);
   const financialSignal = getAdminFinancialSignal(financialHealth);
@@ -230,17 +271,9 @@ export default async function AdminFinancePage({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Receita e liberação de acesso
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Acompanhe checkouts, pagamentos confirmados, disputas, webhooks
-                e certificados emitidos.
-              </p>
-            </div>
+        <PageHeader
+          description="Acompanhe checkouts, pagamentos confirmados, disputas, webhooks e certificados emitidos."
+          status={
             <Badge
               className="shrink-0"
               variant={
@@ -251,8 +284,9 @@ export default async function AdminFinancePage({
             >
               {financialSignal.label}
             </Badge>
-          </div>
-        </header>
+          }
+          title="Receita e liberação de acesso"
+        />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AdminMetricCard
@@ -290,17 +324,20 @@ export default async function AdminFinancePage({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card className="overflow-hidden border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <CardTitle className="text-base">Saúde do checkout</CardTitle>
+                  <CardTitle as="h2" className="text-base">
+                    Saúde do checkout
+                  </CardTitle>
                   <CardDescription className="mt-1">
                     {financialSignal.helper}
                   </CardDescription>
                 </div>
                 <div className="flex size-8 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
                   <HugeiconsIcon
+                    aria-hidden="true"
                     icon={Invoice01Icon}
                     size={18}
                     strokeWidth={2}
@@ -348,7 +385,7 @@ export default async function AdminFinancePage({
                     </p>
                   </div>
                 ) : (
-                  <div className="mt-5 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+                  <div className="mt-5 rounded-lg border border-success/20 bg-success/10 p-4">
                     <p className="font-medium text-foreground text-sm">
                       Webhooks sem falha
                     </p>
@@ -361,9 +398,11 @@ export default async function AdminFinancePage({
             </CardContent>
           </Card>
 
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Pedidos recentes</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Pedidos recentes
+              </CardTitle>
               <CardDescription className="mt-1">
                 Últimos checkouts registrados pela plataforma.
               </CardDescription>
@@ -373,13 +412,18 @@ export default async function AdminFinancePage({
                 <label className="sr-only" htmlFor="financial-order-search">
                   Buscar pedidos
                 </label>
-                <input
-                  className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+                <Input
+                  aria-label="Buscar pedidos"
+                  autoComplete="off"
+                  className="min-w-0 flex-1"
                   defaultValue={orderSearch}
                   id="financial-order-search"
                   name="q"
-                  placeholder="Pedido, checkout, pagamento ou e-mail"
+                  placeholder="Pedido, checkout, pagamento ou e-mail…"
                 />
+                <input name="page" type="hidden" value="1" />
+                <input name="revenueQ" type="hidden" value={revenueSearch} />
+                <input name="revenuePage" type="hidden" value={revenuePage} />
                 <Button type="submit" variant="outline">
                   Buscar
                 </Button>
@@ -402,7 +446,7 @@ export default async function AdminFinancePage({
                   </p>
                 </div>
               )}
-              {orderPage > 1 || recentOrders.length === 20 ? (
+              {orderPage > 1 || data.ordersHasNextPage ? (
                 <nav
                   aria-label="Paginação de pedidos"
                   className="mt-2 flex items-center justify-between gap-3"
@@ -412,6 +456,8 @@ export default async function AdminFinancePage({
                       className="text-sm underline underline-offset-4"
                       href={financialPageHref({
                         page: orderPage - 1,
+                        revenuePage,
+                        revenueSearch,
                         search: orderSearch,
                       })}
                     >
@@ -420,11 +466,13 @@ export default async function AdminFinancePage({
                   ) : (
                     <span />
                   )}
-                  {recentOrders.length === 20 ? (
+                  {data.ordersHasNextPage ? (
                     <Link
                       className="text-sm underline underline-offset-4"
                       href={financialPageHref({
                         page: orderPage + 1,
+                        revenuePage,
+                        revenueSearch,
                         search: orderSearch,
                       })}
                     >
@@ -441,11 +489,16 @@ export default async function AdminFinancePage({
           canManageFinancialOperations={canManageFinancialOperations}
         />
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <Card>
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
-              <HugeiconsIcon icon={Analytics01Icon} size={18} strokeWidth={2} />
-              <CardTitle className="font-medium text-base">
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Analytics01Icon}
+                size={18}
+                strokeWidth={2}
+              />
+              <CardTitle as="h2" className="font-medium text-base">
                 Receita por curso
               </CardTitle>
             </div>
@@ -454,14 +507,25 @@ export default async function AdminFinancePage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <CoursesRevenueTable data={data.coursesRevenue} />
+            <CoursesRevenueTable
+              data={data.coursesRevenue.courses}
+              hasNextPage={data.coursesRevenue.hasNextPage}
+              orderPage={orderPage}
+              orderSearch={orderSearch}
+              page={data.coursesRevenue.page}
+              pageSize={data.coursesRevenue.pageSize}
+              search={data.coursesRevenue.search}
+              totalCount={data.coursesRevenue.totalCount}
+            />
           </CardContent>
         </Card>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
-              <CardTitle className="text-base">Webhooks recentes</CardTitle>
+              <CardTitle as="h2" className="text-base">
+                Webhooks recentes
+              </CardTitle>
               <CardDescription className="mt-1">
                 Eventos recebidos do provedor.
               </CardDescription>
@@ -470,16 +534,14 @@ export default async function AdminFinancePage({
               {overview.recentWebhooks.length ? (
                 overview.recentWebhooks.map((event) => (
                   <div
-                    className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40"
+                    className="flex flex-col justify-between border-b py-3 last:border-b-0"
                     key={event.eventKey}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="font-mono text-[10px] text-muted-foreground">
+                      <p className="font-mono text-muted-foreground text-xs">
                         {event.eventKey}
                       </p>
-                      <Badge className="shrink-0" variant="secondary">
-                        {webhookStatusLabels[event.status] ?? event.status}
-                      </Badge>
+                      <WebhookStatusBadge status={event.status} />
                     </div>
                     <p className="mt-1.5 font-medium text-sm">
                       {event.eventName}
@@ -507,15 +569,16 @@ export default async function AdminFinancePage({
             </CardContent>
           </Card>
 
-          <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+          <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={Certificate01Icon}
                   size={18}
                   strokeWidth={2}
                 />
-                <CardTitle className="font-medium text-base">
+                <CardTitle as="h2" className="font-medium text-base">
                   Certificados recentes
                 </CardTitle>
               </div>
@@ -537,7 +600,7 @@ export default async function AdminFinancePage({
                     <span className="mt-0.5 block text-muted-foreground text-xs">
                       {certificate.courseTitle}
                     </span>
-                    <span className="mt-2 block font-mono text-[10px] text-muted-foreground">
+                    <span className="mt-2 block font-mono text-muted-foreground text-xs">
                       {certificate.code} - {formatDate(certificate.issuedAt)}
                     </span>
                   </Link>
@@ -553,11 +616,13 @@ export default async function AdminFinancePage({
           </Card>
         </section>
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">Revisoes financeiras</CardTitle>
+            <CardTitle as="h2" className="text-base">
+              Revisões financeiras
+            </CardTitle>
             <CardDescription className="mt-1">
-              Divergencias nao alteram acesso ate uma decisao registrada.
+              Divergências não alteram acesso até uma decisão registrada.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
@@ -571,7 +636,7 @@ export default async function AdminFinancePage({
               ))
             ) : (
               <p className="text-muted-foreground text-sm">
-                Nenhuma revisao financeira pendente ou recente.
+                Nenhuma revisão financeira pendente ou recente.
               </p>
             )}
           </CardContent>
@@ -591,7 +656,15 @@ function FinanceStatusTile({
   return (
     <div className="flex flex-col justify-center p-5">
       <p className="font-medium text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1.5 font-bold text-2xl tracking-tight">{value}</p>
+      <p className="mt-1.5 font-bold text-2xl tabular-nums tracking-tight">
+        {value}
+      </p>
     </div>
   );
+}
+
+function WebhookStatusBadge({ status }: { status: string }): React.JSX.Element {
+  const presentation = getWebhookStatusPresentation(status);
+
+  return <Badge variant={presentation.variant}>{presentation.label}</Badge>;
 }

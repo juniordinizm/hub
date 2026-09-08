@@ -5,7 +5,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { StudentManagementSheet } from "@/components/admin/student-management-sheet";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -43,13 +42,40 @@ const formatNullableDate = (value: string | null): string => {
   return formatShortDate(value);
 };
 
+const getStudentResultSummary = ({
+  page,
+  pageSize,
+  studentCount,
+  totalCount,
+}: {
+  page: number;
+  pageSize: number;
+  studentCount: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhuma Aluna";
+  }
+
+  if (studentCount === 0) {
+    return `Nenhuma Aluna nesta página · ${totalCount} no total`;
+  }
+
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + studentCount - 1, totalCount);
+  const plural = totalCount === 1 ? "" : "s";
+
+  return `${firstResult}–${lastResult} de ${totalCount} aluna${plural}`;
+};
+
 const columns: ColumnDef<StudentTableRow>[] = [
   {
     accessorKey: "name",
     header: "Nome",
+    meta: { rowHeader: true },
     cell: ({ row }) => (
-      <div>
-        <p className="font-medium">{row.original.name}</p>
+      <div className="min-w-0">
+        <p className="truncate font-medium">{row.original.name}</p>
       </div>
     ),
   },
@@ -60,31 +86,35 @@ const columns: ColumnDef<StudentTableRow>[] = [
   {
     accessorKey: "courseCount",
     header: "Cursos",
-    cell: ({ row }) => row.original.courseCount,
+    meta: { numeric: true },
+    cell: ({ row }) => <span>{row.original.courseCount}</span>,
   },
   {
     accessorKey: "platformBlockedAt",
     header: "Plataforma",
     cell: ({ row }) =>
       row.original.platformBlockedAt ? (
-        <Badge variant="destructive">Bloqueado</Badge>
+        <span className="font-medium text-destructive text-xs">Bloqueado</span>
       ) : (
-        <Badge variant="outline">Ativo</Badge>
+        <span className="text-muted-foreground text-xs">Ativo</span>
       ),
   },
   {
     accessorKey: "latestExpiration",
-    header: "Expiracao final",
+    header: "Expiração final",
+    meta: { align: "right", nowrap: true },
     cell: ({ row }) => formatNullableDate(row.original.latestExpiration),
   },
   {
     accessorKey: "lastAccessAt",
-    header: "Ultimo acesso",
+    header: "Último acesso",
+    meta: { align: "right", nowrap: true },
     cell: ({ row }) => formatNullableDate(row.original.lastAccessAt),
   },
   {
     id: "actions",
-    header: "Acoes",
+    header: "Ações",
+    meta: { align: "right", nowrap: true },
     cell: ({ row }) => (
       <StudentManagementSheet
         capabilities={{
@@ -95,8 +125,13 @@ const columns: ColumnDef<StudentTableRow>[] = [
           canReissueCertificates: true,
         }}
         trigger={
-          <Button size="sm" variant="outline">
+          <Button
+            aria-label={`Gerenciar ${row.original.name}`}
+            size="sm"
+            variant="outline"
+          >
             <HugeiconsIcon
+              aria-hidden="true"
               data-icon="inline-start"
               icon={ViewIcon}
               size={16}
@@ -115,13 +150,24 @@ export function StudentsTable({
   students,
   hasNextPage = false,
   page = 1,
+  pageSize = 100,
   search = "",
+  totalCount = students.length,
 }: {
   hasNextPage?: boolean;
+  pageSize?: number;
   students: StudentTableRow[];
   page?: number;
   search?: string;
+  totalCount?: number;
 }): React.JSX.Element {
+  const resultSummary = getStudentResultSummary({
+    page,
+    pageSize,
+    studentCount: students.length,
+    totalCount,
+  });
+
   const pageHref = (targetPage: number): string => {
     const params = new URLSearchParams();
     if (search) {
@@ -132,7 +178,7 @@ export function StudentsTable({
   };
 
   return (
-    <div className="p-5">
+    <div>
       <form
         action="/admin/alunos"
         className="mb-4 flex max-w-xl gap-2"
@@ -140,30 +186,51 @@ export function StudentsTable({
       >
         <input name="page" type="hidden" value="1" />
         <Input
-          aria-label="Buscar alunos"
+          aria-label="Buscar Alunas"
+          autoComplete="off"
           className="min-w-0 flex-1"
           defaultValue={search}
           name="q"
-          placeholder="Buscar por nome ou e-mail"
+          placeholder="Buscar por nome ou e-mail…"
         />
         <Button type="submit">Buscar</Button>
       </form>
       <DataTable
+        caption="Alunas cadastradas"
         columns={columns}
         data={students}
-        emptyDescription="Voce ainda nao possui nenhum aluno cadastrado na plataforma."
-        emptyTitle="Nenhum aluno encontrado"
+        emptyDescription={
+          search
+            ? `A busca por “${search}” não retornou Alunas.`
+            : "Você ainda não possui nenhuma Aluna cadastrada na plataforma."
+        }
+        emptyTitle={search ? "Nenhuma Aluna encontrada" : "Nenhuma Aluna"}
+        showPagination={false}
         showSearch={false}
       />
       <div className="mt-4 flex items-center justify-between border-t pt-4">
-        <span className="text-muted-foreground text-sm">Pagina {page}</span>
+        <span aria-live="polite" className="text-muted-foreground text-sm">
+          {resultSummary}
+        </span>
         <div className="flex gap-2">
-          <Button asChild disabled={page <= 1} variant="outline">
-            <Link href={pageHref(Math.max(1, page - 1))}>Anterior</Link>
-          </Button>
-          <Button asChild disabled={!hasNextPage} variant="outline">
-            <Link href={pageHref(page + 1)}>Proxima</Link>
-          </Button>
+          {page > 1 ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page - 1)}>Anterior</Link>
+            </Button>
+          ) : (
+            <Button disabled variant="outline">
+              Anterior
+            </Button>
+          )}
+          {hasNextPage ? (
+            <Button asChild variant="outline">
+              <Link href={pageHref(page + 1)}>Próxima</Link>
+            </Button>
+          ) : (
+            <Button disabled variant="outline">
+              Próxima
+            </Button>
+          )}
         </div>
       </div>
     </div>

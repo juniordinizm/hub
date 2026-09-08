@@ -6,10 +6,12 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseCoverUploadField } from "@/components/course-cover-upload-field";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +36,7 @@ import {
   type AdminCourseCatalogQuery,
   getAdminCourseCatalogData,
 } from "@/features/admin/server";
+import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
 import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
 import { getCourseCoverBlurDataUrl } from "@/features/storage/course-cover";
@@ -46,32 +49,6 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 
 type CourseData = AdminCourse;
-
-const STATUS_MAP: Record<string, { color: string; label: string }> = {
-  available: {
-    label: "Disponível",
-    color:
-      "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-  },
-  draft: {
-    label: "Rascunho",
-    color:
-      "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  },
-  archived: {
-    label: "Arquivado",
-    color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
-  },
-  coming_soon: {
-    label: "Em breve",
-    color:
-      "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
-  },
-  sales_paused: {
-    label: "Vendas pausadas",
-    color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600 dark:text-zinc-400",
-  },
-};
 
 const WHITESPACE_RE = /\s+/;
 
@@ -114,29 +91,30 @@ export default async function AdminCoursesPage({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">Cursos</h1>
-              <p className="text-muted-foreground text-sm">
-                Gerencie cursos em uma visão limpa. Entre em um curso para
-                organizar módulos, aulas, alunos e publicação.
-              </p>
-            </div>
+        <PageHeader
+          actions={
             <DiscardAwareDialog
               description="Crie o curso antes de cadastrar seus módulos e aulas."
               title="Novo curso"
               trigger={
                 <DialogTriggerButton>
-                  <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    data-icon="inline-start"
+                    icon={Add01Icon}
+                    size={18}
+                    strokeWidth={2}
+                  />
                   Novo curso
                 </DialogTriggerButton>
               }
             >
               <CourseForm priceFieldId="header-course-price" />
             </DiscardAwareDialog>
-          </div>
-        </header>
+          }
+          description="Gerencie cursos em uma visão limpa. Entre em um curso para organizar módulos, aulas, alunas e publicação."
+          title="Cursos"
+        />
 
         <form
           action="/admin/cursos"
@@ -146,10 +124,11 @@ export default async function AdminCoursesPage({
           <input name="page" type="hidden" value="1" />
           <Input
             aria-label="Buscar cursos"
+            autoComplete="off"
             className="min-w-0 flex-1"
             defaultValue={data.search}
             name="q"
-            placeholder="Buscar por título, subtítulo ou slug"
+            placeholder="Buscar por título, subtítulo ou slug…"
           />
           <Button type="submit">Buscar</Button>
         </form>
@@ -159,31 +138,44 @@ export default async function AdminCoursesPage({
             <Empty className="w-full">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <HugeiconsIcon icon={Book01Icon} />
+                  <HugeiconsIcon aria-hidden="true" icon={Book01Icon} />
                 </EmptyMedia>
-                <EmptyTitle>Nenhum curso encontrado</EmptyTitle>
+                <EmptyTitle as="h2">
+                  {data.search
+                    ? "Nenhum curso encontrado"
+                    : "Nenhum curso cadastrado"}
+                </EmptyTitle>
                 <EmptyDescription>
-                  Você ainda não possui nenhum curso cadastrado. Crie o seu
-                  primeiro curso para começar a adicionar módulos e aulas.
+                  {data.search
+                    ? `A busca por “${data.search}” não retornou cursos.`
+                    : "Crie o primeiro curso para começar a adicionar módulos e aulas."}
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <DiscardAwareDialog
-                  description="Crie o curso antes de cadastrar seus módulos e aulas."
-                  title="Novo curso"
-                  trigger={
-                    <DialogTriggerButton>
-                      <HugeiconsIcon
-                        icon={Add01Icon}
-                        size={18}
-                        strokeWidth={2}
-                      />
-                      Criar primeiro curso
-                    </DialogTriggerButton>
-                  }
-                >
-                  <CourseForm priceFieldId="empty-course-price" />
-                </DiscardAwareDialog>
+                {data.search ? (
+                  <Button asChild variant="outline">
+                    <Link href="/admin/cursos">Limpar busca</Link>
+                  </Button>
+                ) : (
+                  <DiscardAwareDialog
+                    description="Crie o curso antes de cadastrar seus módulos e aulas."
+                    title="Novo curso"
+                    trigger={
+                      <DialogTriggerButton>
+                        <HugeiconsIcon
+                          aria-hidden="true"
+                          data-icon="inline-start"
+                          icon={Add01Icon}
+                          size={18}
+                          strokeWidth={2}
+                        />
+                        Criar primeiro curso
+                      </DialogTriggerButton>
+                    }
+                  >
+                    <CourseForm priceFieldId="empty-course-price" />
+                  </DiscardAwareDialog>
+                )}
               </EmptyContent>
             </Empty>
           ) : (
@@ -196,14 +188,13 @@ export default async function AdminCoursesPage({
                   | "draft",
                 salesStatus: course.salesStatus,
               });
-              const statusInfo = STATUS_MAP[availability.preset] ?? {
-                label: availability.preset,
-                color: "border-zinc-500/30 bg-zinc-500/15 text-zinc-600",
-              };
+              const statusInfo = getCourseAvailabilityStatusPresentation(
+                availability.preset
+              );
 
               return (
                 <article
-                  className="group relative flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/50"
+                  className="group relative flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-colors hover:border-primary/50"
                   key={course.id}
                 >
                   <div className="absolute inset-0 z-0">
@@ -219,7 +210,7 @@ export default async function AdminCoursesPage({
                       />
                     ) : (
                       <>
-                        <div className="absolute inset-0 bg-linear-to-br from-sidebar via-sidebar/95 to-primary/20" />
+                        <div className="absolute inset-0 bg-linear-to-br from-card via-card/95 to-primary/20" />
                         <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
                           <span className="font-black text-[8rem] leading-none tracking-tighter">
                             {getInitials(course.title)}
@@ -227,12 +218,12 @@ export default async function AdminCoursesPage({
                         </div>
                       </>
                     )}
-                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
+                    <div className="absolute inset-0 bg-linear-to-b from-transparent via-card/80 to-card" />
                   </div>
 
                   <div className="relative z-10 flex min-h-0 flex-1 flex-col p-5 sm:p-6">
                     <div className="flex items-start justify-between gap-3">
-                      <Badge className={statusInfo.color} variant="outline">
+                      <Badge variant={statusInfo.variant}>
                         {statusInfo.label}
                       </Badge>
                     </div>
@@ -249,12 +240,12 @@ export default async function AdminCoursesPage({
                       <div className="mt-2 flex items-start gap-4">
                         <div className="flex-1">
                           {course.subtitle ? (
-                            <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
+                            <p className="line-clamp-2 text-card-foreground/70 text-sm leading-5">
                               {course.subtitle}
                             </p>
                           ) : null}
                         </div>
-                        <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
+                        <div className="shrink-0 pt-0.5 text-right font-medium text-card-foreground/60 text-xs">
                           {course.moduleCount ?? 0} módulos •{" "}
                           {course.lessonCount ?? 0} aulas
                         </div>
@@ -292,12 +283,24 @@ export default async function AdminCoursesPage({
             Página {data.page}
           </span>
           <div className="flex gap-2">
-            <Button asChild disabled={data.page <= 1} variant="outline">
-              <Link href={pageHref(Math.max(1, data.page - 1))}>Anterior</Link>
-            </Button>
-            <Button asChild disabled={!data.hasNextPage} variant="outline">
-              <Link href={pageHref(data.page + 1)}>Próxima</Link>
-            </Button>
+            {data.page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(data.page - 1)}>Anterior</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Anterior
+              </Button>
+            )}
+            {data.hasNextPage ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(data.page + 1)}>Próxima</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Próxima
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -313,6 +316,11 @@ function CourseForm({
   priceFieldId: string;
 }): React.JSX.Element {
   const aggregateId = course?.id ?? randomUUID();
+  const titleFieldId = `${priceFieldId}-title`;
+  const subtitleFieldId = `${priceFieldId}-subtitle`;
+  const descriptionFieldId = `${priceFieldId}-description`;
+  const durationFieldId = `${priceFieldId}-access-duration`;
+
   return (
     <AutoCloseDialogForm
       action={saveCourseAction}
@@ -331,26 +339,37 @@ function CourseForm({
               />
             </Field>
             <Field>
-              <FieldLabel>Título</FieldLabel>
-              <Input defaultValue={course?.title ?? ""} name="title" required />
+              <FieldLabel htmlFor={titleFieldId}>Título</FieldLabel>
+              <Input
+                defaultValue={course?.title ?? ""}
+                id={titleFieldId}
+                name="title"
+                required
+              />
             </Field>
             <Field>
-              <FieldLabel>Subtítulo</FieldLabel>
-              <Input defaultValue={course?.subtitle ?? ""} name="subtitle" />
+              <FieldLabel htmlFor={subtitleFieldId}>Subtítulo</FieldLabel>
+              <Input
+                defaultValue={course?.subtitle ?? ""}
+                id={subtitleFieldId}
+                name="subtitle"
+              />
             </Field>
           </div>
           <Field>
-            <FieldLabel>Descrição</FieldLabel>
+            <FieldLabel htmlFor={descriptionFieldId}>Descrição</FieldLabel>
             <Textarea
               defaultValue={course?.description ?? ""}
+              id={descriptionFieldId}
               name="description"
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Meses de acesso</FieldLabel>
+              <FieldLabel htmlFor={durationFieldId}>Meses de acesso</FieldLabel>
               <Input
                 defaultValue={course?.accessDurationMonths ?? 12}
+                id={durationFieldId}
                 min={1}
                 name="accessDurationMonths"
                 type="number"
@@ -372,14 +391,16 @@ function CourseForm({
         </FieldGroup>
       </DialogBody>
       <DialogFooter>
-        <Button className="w-fit" type="submit">
+        <AdminMutationSubmitButton className="w-fit" type="submit">
           <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
             icon={course ? FloppyDiskIcon : Add01Icon}
             size={18}
             strokeWidth={2}
           />
           {course ? "Salvar curso" : "Criar curso"}
-        </Button>
+        </AdminMutationSubmitButton>
       </DialogFooter>
     </AutoCloseDialogForm>
   );

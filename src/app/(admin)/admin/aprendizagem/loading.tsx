@@ -14,41 +14,21 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <div className="space-y-8">
-          <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="border-b p-5">
+        <section className="overflow-hidden rounded-lg border bg-card">
+          <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-2">
               <Skeleton className="h-6 w-[200px]" />
-              <Skeleton className="mt-2 h-4 w-[400px]" />
+              <Skeleton className="h-4 w-full max-w-[450px]" />
             </div>
-            <div className="space-y-4 p-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="border-b p-5">
-              <Skeleton className="h-6 w-[250px]" />
-              <Skeleton className="mt-2 h-4 w-[450px]" />
-            </div>
-            <div className="space-y-4 p-5">
-              <Skeleton className="h-[120px] w-full rounded-lg" />
-              <Skeleton className="h-[120px] w-full rounded-lg" />
-            </div>
-          </section>
-
-          <section className="overflow-hidden rounded-lg border bg-card">
-            <div className="border-b p-5">
-              <Skeleton className="h-6 w-[220px]" />
-              <Skeleton className="mt-2 h-4 w-[350px]" />
-            </div>
-            <div className="space-y-4 p-5">
-              <Skeleton className="h-[80px] w-full rounded-lg" />
-              <Skeleton className="h-[80px] w-full rounded-lg" />
-            </div>
-          </section>
-        </div>
+            <Skeleton className="h-9 w-44" />
+          </div>
+          <div className="space-y-4 p-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </section>
       </div>
     </PageContainer>
   );

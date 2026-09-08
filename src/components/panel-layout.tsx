@@ -2,7 +2,6 @@
 
 import { ArrowLeftIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -41,6 +40,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import { PLATFORM_BRAND } from "@/lib/brand";
 import { getInitials } from "@/lib/get-initials";
 import { route } from "@/lib/routes";
 import type { AppRole } from "@/lib/session";
@@ -68,14 +68,9 @@ function SidebarHeaderContent() {
   return (
     <div className="flex w-full items-center justify-between gap-2 px-2">
       <div className="flex min-w-0 flex-1 items-center">
-        <Image
-          alt="PROTEA-R"
-          className="h-auto max-h-10 w-[90%] object-contain object-left"
-          height={100}
-          preload
-          src="/protear/logo-negativo.svg"
-          width={400}
-        />
+        <span className="truncate font-semibold text-base tracking-tight">
+          {PLATFORM_BRAND}
+        </span>
       </div>
       <SidebarTrigger className="shrink-0" />
     </div>
@@ -214,8 +209,11 @@ function PanelLayoutInner({
 
   const handleSignOut = async () => {
     setIsPending(true);
-    await authClient.signOut();
-    window.location.assign("/entrar");
+    try {
+      await authClient.signOut();
+    } finally {
+      window.location.assign("/entrar");
+    }
   };
   const handleMainSidebarOpenChange = useCallback((open: boolean) => {
     setMainSidebarOpen(open);
@@ -233,7 +231,7 @@ function PanelLayoutInner({
         open={isFocusMode ? false : isMainSidebarOpen}
       >
         <a
-          className="fixed top-3 left-3 z-50 -translate-y-20 rounded-md bg-background px-4 py-2 font-medium text-foreground text-sm shadow-md ring-2 ring-ring transition-transform focus:translate-y-0 focus:outline-none"
+          className="fixed top-3 left-3 z-50 -translate-y-20 rounded-md bg-background px-4 py-2 font-medium text-foreground text-sm shadow-md ring-2 ring-ring transition-transform focus-visible:translate-y-0 focus-visible:outline-none"
           href="#main-content"
         >
           Pular para o conteúdo principal
@@ -321,10 +319,11 @@ function PanelLayoutInner({
                         }}
                       >
                         <HugeiconsIcon
+                          aria-hidden="true"
                           className="mr-2 size-4"
                           icon={Logout01Icon}
                         />
-                        <span>{isPending ? "Saindo..." : "Sair"}</span>
+                        <span>{isPending ? "Saindo…" : "Sair"}</span>
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -349,6 +348,7 @@ function PanelLayoutInner({
                   variant="ghost"
                 >
                   <HugeiconsIcon
+                    aria-hidden="true"
                     className="size-4"
                     icon={ArrowLeftIcon}
                     strokeWidth={2.5}
@@ -359,21 +359,16 @@ function PanelLayoutInner({
             </div>
 
             <div className="flex flex-1 items-center justify-center md:hidden">
-              <Image
-                alt="PROTEA-R"
-                className="h-8 w-auto max-w-full object-contain"
-                height={100}
-                preload
-                src="/protear/logo-negativo.svg"
-                width={400}
-              />
+              <span className="truncate font-semibold text-base tracking-tight">
+                {PLATFORM_BRAND}
+              </span>
             </div>
 
             {isPreviewActive && (
               <div className="hidden items-center gap-3 text-sm md:flex">
-                <div className="flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-1.5 rounded-md border border-warning/20 bg-warning/10 px-2.5 py-1 text-warning">
                   <span className="font-semibold text-xs">
-                    Preview de aluno
+                    Preview de aluna
                   </span>
                   <span className="hidden text-muted-foreground text-xs lg:inline">
                     · Progresso, duração detectada e certificado não serão
@@ -383,7 +378,7 @@ function PanelLayoutInner({
                 {courseId && (
                   <Button
                     asChild
-                    className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                    className="border-warning/30 text-warning hover:bg-warning/10"
                     size="sm"
                     variant="outline"
                   >
@@ -399,7 +394,7 @@ function PanelLayoutInner({
               {isPreviewActive && courseId && (
                 <Button
                   asChild
-                  className="border-amber-500/30 text-amber-600 hover:bg-amber-500/10 md:hidden dark:text-amber-400"
+                  className="border-warning/30 text-warning hover:bg-warning/10 md:hidden"
                   size="sm"
                   variant="outline"
                 >

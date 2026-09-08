@@ -213,11 +213,20 @@ const course = {
   workloadHoursOverride: null,
 };
 
+const emptyEnrollmentsPage = {
+  hasNextPage: false,
+  page: 1,
+  pageSize: 50,
+  search: "",
+  totalCount: 0,
+};
+
 beforeEach(() => {
   vi.resetAllMocks();
   dependencies.getAdminCourseDetailData.mockResolvedValue({
     course,
     enrollments: [],
+    enrollmentsPage: emptyEnrollmentsPage,
     lessons: [],
     modules: [],
   });
@@ -273,6 +282,22 @@ describe("AdminCourseDetailPage overview", () => {
     expect(markup).toContain('data-duration-seconds="7200"');
     expect(markup).toContain('data-has-published="true"');
     expect(markup).toContain('data-has-draft="false"');
+  });
+
+  it("passes enrollment search and page to the server projection", async () => {
+    await AdminCourseDetailPage({
+      params: Promise.resolve({ courseId: course.id }),
+      searchParams: Promise.resolve({
+        enrollmentPage: "2",
+        enrollmentQ: "student",
+        tab: "students",
+      }),
+    });
+
+    expect(dependencies.getAdminCourseDetailData).toHaveBeenCalledWith(
+      course.id,
+      { page: 2, search: "student" }
+    );
   });
 
   it("derives the operational state from the real course signals", async () => {
@@ -338,6 +363,7 @@ describe("AdminCourseDetailPage header", () => {
     dependencies.getAdminCourseDetailData.mockResolvedValue({
       course: { ...course, ...overrides },
       enrollments: [],
+      enrollmentsPage: emptyEnrollmentsPage,
       lessons: [],
       modules: [],
     });
@@ -362,7 +388,7 @@ describe("AdminCourseDetailPage header", () => {
       markup.indexOf("</header>") + "</header>".length
     );
 
-    expect(headerMarkup).toContain("Ver como aluno");
+    expect(headerMarkup).toContain("Ver como aluna");
     expect(headerMarkup).toContain(`/app/cursos/${course.id}?preview=student`);
     expect(headerMarkup).not.toContain("Preparar alterações");
     expect(headerMarkup).not.toContain("Publicar alterações");
@@ -375,6 +401,7 @@ describe("AdminCourseDetailPage content", () => {
     dependencies.getAdminCourseDetailData.mockResolvedValue({
       course,
       enrollments: [],
+      enrollmentsPage: emptyEnrollmentsPage,
       lessons: [{ id: "lesson-1" }],
       modules: [
         { id: "module-3", sortOrder: 3 },

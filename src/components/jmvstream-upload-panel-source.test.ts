@@ -32,7 +32,7 @@ describe("JmvstreamUploadPanel upload lifecycle", () => {
 
     expect(source).toContain("result.deletePending");
     expect(source).toContain(
-      "Video removido da aula. Exclusao na JMVStream pendente."
+      "Vídeo removido da aula. Exclusão na JMVStream pendente."
     );
   });
 
@@ -90,7 +90,7 @@ describe("JmvstreamUploadPanel upload lifecycle", () => {
 
     expect(source).toContain('asset?.uploadStatus === "failed"');
     expect(source).toContain("Selecionar outro arquivo");
-    expect(source).toContain("Descartar sessao");
+    expect(source).toContain("Descartar sessão");
     expect(source).toContain("discardJmvstreamUploadAction");
   });
 

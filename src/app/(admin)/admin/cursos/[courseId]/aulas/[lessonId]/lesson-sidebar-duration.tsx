@@ -45,10 +45,13 @@ function DurationSummaryItem({
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border bg-background p-2.5 shadow-sm transition-colors hover:bg-muted/30">
       <div className="flex items-center gap-1.5 text-muted-foreground">
-        <HugeiconsIcon icon={icon} size={14} strokeWidth={2} />
-        <p className="font-medium text-[10px] uppercase tracking-wider">
-          {label}
-        </p>
+        <HugeiconsIcon
+          aria-hidden="true"
+          icon={icon}
+          size={14}
+          strokeWidth={2}
+        />
+        <p className="type-meta font-medium">{label}</p>
       </div>
       <p className="font-semibold text-foreground text-sm leading-tight">
         {value}

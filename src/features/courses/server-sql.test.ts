@@ -55,12 +55,20 @@ const expiresAt = new Date("2027-01-01T00:00:00.000Z");
 
 const createCourseOverviewRow = ({
   completedAt = null,
+  courseThumbnailUrl = null,
   lessonId,
+  lessonThumbnailUrl = null,
   lessonSortOrder,
+  videoEmbedUrl = null,
+  videoExternalId = null,
 }: {
   completedAt?: Date | null;
+  courseThumbnailUrl?: string | null;
   lessonId: string;
+  lessonThumbnailUrl?: string | null;
   lessonSortOrder: number;
+  videoEmbedUrl?: string | null;
+  videoExternalId?: string | null;
 }) => ({
   certificate_code: "CERT-1",
   certificate_enabled: true,
@@ -78,7 +86,7 @@ const createCourseOverviewRow = ({
   expires_at: expiresAt,
   lesson_id: lessonId,
   lesson_sort_order: lessonSortOrder,
-  lesson_thumbnail_url: null,
+  lesson_thumbnail_url: lessonThumbnailUrl,
   lesson_title: `Lesson ${lessonSortOrder}`,
   module_description: "Module description",
   module_id: "module-1",
@@ -86,9 +94,9 @@ const createCourseOverviewRow = ({
   module_title: "Module one",
   release_delay_days: 0,
   student_name: "Aluna Teste",
-  thumbnail_url: null,
-  video_embed_url: null,
-  video_external_id: null,
+  thumbnail_url: courseThumbnailUrl,
+  video_embed_url: videoEmbedUrl,
+  video_external_id: videoExternalId,
   watched_percent: completedAt ? 100 : 0,
   workload_hours: 1,
 });
@@ -328,6 +336,42 @@ describe("student experience reads", () => {
     );
   });
 
+  it("uses video thumbnails only and keeps the course cover available as fallback", async () => {
+    query.mockResolvedValue({
+      rows: [
+        createCourseOverviewRow({
+          courseThumbnailUrl: "/course-cover.webp",
+          lessonId: "lesson-video",
+          lessonThumbnailUrl: "https://cdn.example/video-thumb.jpg",
+          lessonSortOrder: 1,
+          videoEmbedUrl: "https://player.jmvstream.com/video",
+          videoExternalId: "video-1",
+        }),
+        createCourseOverviewRow({
+          courseThumbnailUrl: "/course-cover.webp",
+          lessonId: "lesson-text",
+          lessonThumbnailUrl: "https://cdn.example/stale-thumb.jpg",
+          lessonSortOrder: 2,
+        }),
+      ],
+    });
+
+    const overview = await getStudentCourseOverview({
+      courseId: "course-1",
+      viewer: { role: "student", userId: "student-1" },
+    });
+
+    expect(overview?.course.thumbnailUrl).toBe("/course-cover.webp");
+    expect(overview?.modules[0]?.lessons).toMatchObject([
+      {
+        hasVideo: true,
+        id: "lesson-video",
+        thumbnailUrl: "https://cdn.example/video-thumb.jpg",
+      },
+      { hasVideo: false, id: "lesson-text", thumbnailUrl: null },
+    ]);
+  });
+
   it("projects the latest revoked certificate when no valid reissue exists", async () => {
     query.mockResolvedValue({
       rows: [
@@ -512,7 +556,13 @@ describe("student experience reads", () => {
   it("assembles the same Course overview intent as an unrestricted admin preview", async () => {
     query.mockResolvedValue({
       rows: [
-        createCourseOverviewRow({ lessonId: "lesson-1", lessonSortOrder: 1 }),
+        createCourseOverviewRow({
+          courseThumbnailUrl: "/course-cover.webp",
+          lessonId: "lesson-1",
+          lessonThumbnailUrl: "https://cdn.example/video-thumb.jpg",
+          lessonSortOrder: 1,
+          videoExternalId: "video-1",
+        }),
         createCourseOverviewRow({ lessonId: "lesson-2", lessonSortOrder: 2 }),
       ],
     });
@@ -531,12 +581,14 @@ describe("student experience reads", () => {
       nextLessonId: "lesson-1",
       progressPercent: 0,
       totalCount: 2,
+      course: { thumbnailUrl: "/course-cover.webp" },
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
       {
         availability: { kind: "available" },
         id: "lesson-1",
         isCompleted: false,
+        thumbnailUrl: "https://cdn.example/video-thumb.jpg",
       },
       {
         availability: { kind: "available" },

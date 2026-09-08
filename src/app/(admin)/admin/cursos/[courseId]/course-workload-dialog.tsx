@@ -137,7 +137,7 @@ export function CourseWorkloadDialog({
         <DialogHeader>
           <DialogTitle>Carga horária</DialogTitle>
           <DialogDescription>
-            Escolha como a carga horária será exibida para os alunos.
+            Escolha como a carga horária será exibida para as Alunas.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

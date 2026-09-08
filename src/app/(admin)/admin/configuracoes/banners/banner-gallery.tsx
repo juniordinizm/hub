@@ -93,24 +93,31 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   const maxSize = 5 * 1024 * 1024; // 5MB
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (isPending) {
+      return;
+    }
+
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
-      setBanners((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id);
-        const newIndex = items.findIndex((item) => item.id === over.id);
-        const newOrder = arrayMove(items, oldIndex, newIndex);
+      const oldIndex = banners.findIndex((item) => item.id === active.id);
+      const newIndex = banners.findIndex((item) => item.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) {
+        return;
+      }
 
-        startTransition(async () => {
-          try {
-            await reorderBannersAction(newOrder.map((b) => b.id));
-            toast.success("Ordem dos banners atualizada.");
-          } catch {
-            toast.error("Erro ao reordenar banners.");
-          }
-        });
+      const previousBanners = banners;
+      const newOrder = arrayMove(banners, oldIndex, newIndex);
+      setBanners(newOrder);
 
-        return newOrder;
+      startTransition(async () => {
+        try {
+          await reorderBannersAction(newOrder.map((b) => b.id));
+          toast.success("Ordem dos banners atualizada.");
+        } catch {
+          setBanners(previousBanners);
+          toast.error("Não foi possível salvar a nova ordem.");
+        }
       });
     }
   };
@@ -127,7 +134,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
         return { error: "Limite de 5 banners atingido." };
       }
 
-      const toastId = toast.loading("Enviando banner...");
+      const toastId = toast.loading("Enviando banner…");
       const tempId = `temp-${Date.now()}`;
       setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
@@ -236,7 +243,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
       setErrors([
         error instanceof Error
           ? error.message
-          : "Nao foi possivel ler o banner.",
+          : "Não foi possível ler o banner.",
       ]);
     }
   }, []);
@@ -269,7 +276,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
   );
 
   const removeBanner = (id: string) => {
-    const toastId = toast.loading("Removendo...");
+    const toastId = toast.loading("Removendo…");
     const formData = new FormData();
     formData.append("bannerId", id);
     startTransition(async () => {
@@ -371,7 +378,11 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
 
       {errors.length > 0 && (
         <Alert className="mt-5" variant="destructive">
-          <HugeiconsIcon icon={AlertCircleIcon} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={AlertCircleIcon}
+            strokeWidth={2}
+          />
           <AlertTitle>Erro ao enviar arquivo(s)</AlertTitle>
           <AlertDescription>
             {errors.map((error) => (

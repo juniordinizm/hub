@@ -32,9 +32,19 @@ describe("LearningAnalyticsPage", () => {
 
     expect(markup).toContain("Funil por aula e versão");
     expect(markup).toContain("Exportar métricas em CSV");
+    expect(markup).toContain('scope="col"');
     expect(markup).toContain("Primeira aula");
     expect(markup).not.toContain("14 dias");
     expect(markup).not.toContain("Registrar contato manual");
     expect(markup).not.toContain("Opt-out");
+  });
+
+  it("explains when there are no aggregate learning metrics yet", async () => {
+    dependencies.getLessonAnalyticsMetrics.mockResolvedValue([]);
+
+    const markup = renderToStaticMarkup(await LearningAnalyticsPage());
+
+    expect(markup).toContain("Ainda não há métricas de aprendizagem");
+    expect(markup).toContain("eventos agregados de aprendizagem");
   });
 });

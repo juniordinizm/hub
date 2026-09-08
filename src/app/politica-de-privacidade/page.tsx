@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = {
   title: "Aviso de privacidade",
@@ -9,15 +10,11 @@ export default function PrivacyNoticePage(): React.JSX.Element {
   return (
     <PageContainer className="max-w-3xl">
       <article className="space-y-6">
-        <header className="space-y-2">
-          <h1 className="font-bold text-3xl tracking-tight">
-            Aviso de privacidade
-          </h1>
-          <p className="text-muted-foreground">
-            Como o Hub trata dados necessários para oferecer cursos e melhorar
-            suas aulas.
-          </p>
-        </header>
+        <PageHeader
+          className="border-b-0 pb-0"
+          description="Como o Hub trata dados necessários para oferecer cursos e melhorar suas aulas."
+          title="Aviso de privacidade"
+        />
         <section className="space-y-2">
           <h2 className="font-semibold text-xl">Dados de aprendizagem</h2>
           <p>
@@ -45,7 +42,8 @@ export default function PrivacyNoticePage(): React.JSX.Element {
             Registros brutos ficam por até 90 dias e métricas agregadas por até
             13 meses. Mensagens enviadas pelo formulário de suporte ficam
             registradas por até 90 dias para atendimento. Para exercer direitos
-            sobre seus dados, use o canal de suporte informado pela PROTEA-R.
+            sobre seus dados, use o canal de suporte informado pela
+            NeuroCapacitar.
           </p>
         </section>
       </article>

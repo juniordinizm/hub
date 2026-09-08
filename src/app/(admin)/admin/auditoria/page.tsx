@@ -1,13 +1,16 @@
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
+  TableRowHeader,
 } from "@/components/ui/table";
 
 import { getAdminAuditData } from "@/features/admin/server";
@@ -131,11 +134,11 @@ function formatAuditMessage(log: {
       return `Cancelou a matrícula de ${target}`;
 
     case "enrollment.expiration_extended":
-      return `Estendeu o prazo da matricula de ${target}`;
+      return `Estendeu o prazo da matrícula de ${target}`;
     case "enrollment.expiration_reduced":
-      return `Reduziu o prazo da matricula de ${target}`;
+      return `Reduziu o prazo da matrícula de ${target}`;
     case "enrollment.expiration_set":
-      return `Alterou o prazo da matricula de ${target}`;
+      return `Alterou o prazo da matrícula de ${target}`;
     case "enrollment.payment_paid":
       return `Pagamento aprovado liberou acesso para ${target}`;
     case "enrollment.payment_refunded":
@@ -148,9 +151,9 @@ function formatAuditMessage(log: {
       return `Restaurou o acesso de ${target}`;
 
     case "student.created":
-      return `Cadastrou o aluno ${target}`;
+      return `Cadastrou a Aluna ${target}`;
     case "student.updated":
-      return `Atualizou os dados do aluno ${target}`;
+      return `Atualizou os dados da Aluna ${target}`;
     case "student.platform_blocked":
       return `Bloqueou ${target} na plataforma`;
     case "student.platform_restored":
@@ -180,18 +183,10 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Registro de Auditoria
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Acompanhe as últimas alterações administrativas no sistema.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Acompanhe as últimas alterações administrativas no sistema."
+          title="Registro de auditoria"
+        />
 
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="border-b p-5">
@@ -211,6 +206,11 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
                   <li key={alert.code}>
                     <Alert
                       className={severity.alertClassName}
+                      role={
+                        severity.alertVariant === "destructive"
+                          ? "alert"
+                          : "status"
+                      }
                       variant={severity.alertVariant}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -352,7 +352,7 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
                   <dl className="mt-3 grid gap-1 text-sm">
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Tentativas</dt>
-                      <dd>{message.attempts}</dd>
+                      <dd className="tabular-nums">{message.attempts}</dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Falha</dt>
@@ -386,11 +386,16 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
 
         <div className="overflow-hidden rounded-lg border bg-card">
           <Table>
+            <TableCaption className="sr-only">
+              Alterações administrativas recentes
+            </TableCaption>
             <TableHeader className="bg-muted/30">
               <TableRow>
                 <TableHead>Ação</TableHead>
                 <TableHead>Ator</TableHead>
-                <TableHead className="text-right">Data</TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Data
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -399,13 +404,13 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
                   <TableRow
                     key={`${log.action}-${log.createdAt.toISOString()}`}
                   >
-                    <TableCell className="font-medium text-sm">
+                    <TableRowHeader className="font-medium text-sm">
                       {formatAuditMessage(log)}
-                    </TableCell>
+                    </TableRowHeader>
                     <TableCell className="text-muted-foreground">
                       {log.actorEmail ?? "sistema"}
                     </TableCell>
-                    <TableCell className="text-right text-muted-foreground tabular-nums">
+                    <TableCell className="whitespace-nowrap text-right text-muted-foreground tabular-nums">
                       {formatDate(log.createdAt)}
                     </TableCell>
                   </TableRow>

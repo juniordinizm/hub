@@ -45,6 +45,7 @@ function SelectTrigger({
       {children}
       <SelectPrimitive.Icon asChild>
         <HugeiconsIcon
+          aria-hidden="true"
           className="size-4 shrink-0 text-muted-foreground"
           icon={UnfoldMoreIcon}
           strokeWidth={2}
@@ -103,7 +104,7 @@ function SelectItem({
     >
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <HugeiconsIcon icon={CheckIcon} strokeWidth={2} />
+          <HugeiconsIcon aria-hidden="true" icon={CheckIcon} strokeWidth={2} />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

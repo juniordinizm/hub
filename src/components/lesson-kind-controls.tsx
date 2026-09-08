@@ -145,7 +145,7 @@ export function LessonVideoControls({
     });
 
     if (!normalizedUrl) {
-      setLinkError("Informe um link ou iframe valido da JMVStream.");
+      setLinkError("Informe um link ou iframe válido da JMVStream.");
       return;
     }
 
@@ -179,6 +179,7 @@ export function LessonVideoControls({
       <div className="flex flex-col gap-2 sm:flex-row">
         <div className="relative w-full flex-1">
           <HugeiconsIcon
+            aria-hidden="true"
             className="absolute top-2.5 left-3 text-muted-foreground"
             icon={Link04Icon}
             size={18}
@@ -189,7 +190,7 @@ export function LessonVideoControls({
               setLinkDraft(event.target.value);
               setLinkError(null);
             }}
-            placeholder="Cole o link do YouTube, Vimeo ou JMVStream..."
+            placeholder="Cole o link do YouTube, Vimeo ou JMVStream…"
             value={linkDraft}
           />
         </div>
@@ -207,11 +208,11 @@ export function LessonVideoControls({
   );
 
   const manualLinkActiveCard = (
-    <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all duration-300 ease-out">
+    <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 shadow-sm transition-[opacity,transform] duration-300 ease-out">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <HugeiconsIcon icon={FileLinkIcon} size={20} />
+            <HugeiconsIcon aria-hidden="true" icon={FileLinkIcon} size={20} />
           </div>
           <div className="flex min-w-0 flex-col gap-1 pt-0.5">
             <p className="truncate font-medium text-sm">Link de Vídeo</p>
@@ -230,7 +231,9 @@ export function LessonVideoControls({
                 variant="destructive"
               >
                 <HugeiconsIcon
+                  aria-hidden="true"
                   className="mr-1.5 -ml-0.5"
+                  data-icon="inline-start"
                   icon={Delete02Icon}
                   size={14}
                 />
@@ -240,7 +243,7 @@ export function LessonVideoControls({
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogMedia className="bg-destructive/10 text-destructive">
-                  <HugeiconsIcon icon={Delete02Icon} />
+                  <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
                 </AlertDialogMedia>
                 <AlertDialogTitle>Remover link</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -394,7 +397,7 @@ function AdminResourceVisual({
         tone
       )}
     >
-      <HugeiconsIcon icon={Icon} size={22} strokeWidth={2} />
+      <HugeiconsIcon aria-hidden="true" icon={Icon} size={22} strokeWidth={2} />
     </div>
   );
 }
@@ -535,6 +538,7 @@ export function SortableLessonResourceItem({
       />
 
       <ResourceItemDragHandle
+        ariaLabel={`Reordenar anexo ${resource.label}`}
         attributes={attributes}
         icon={DragDropVerticalIcon}
         listeners={listeners}
@@ -549,7 +553,7 @@ export function SortableLessonResourceItem({
             {resource.label}
           </p>
           {badgeText ? (
-            <span className="shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-normal">
+            <span className="type-meta shrink-0 rounded-md bg-muted/80 px-1.5 py-0.5 font-semibold text-muted-foreground">
               {badgeText}
             </span>
           ) : null}
@@ -568,13 +572,18 @@ export function SortableLessonResourceItem({
       <ResourceItemActions>
         <Button
           aria-label="Editar anexo"
-          className="size-8 text-muted-foreground hover:text-foreground"
+          className="size-11 text-muted-foreground hover:text-foreground sm:size-10"
           onClick={onEdit}
           size="icon"
           type="button"
           variant="ghost"
         >
-          <HugeiconsIcon icon={PencilEdit01Icon} size={16} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={PencilEdit01Icon}
+            size={16}
+            strokeWidth={2}
+          />
         </Button>
         <ResourceDeleteAction onDelete={onRemove} />
       </ResourceItemActions>
@@ -643,7 +652,7 @@ function ResourceEditModal({
                     }
                   }}
                   onChange={(e) => setEditUrl(e.target.value)}
-                  placeholder="https://..."
+                  placeholder="https://exemplo.com/material"
                   type="url"
                   value={editUrl}
                 />
@@ -723,7 +732,7 @@ export function LessonResourcesFields({
       return;
     }
 
-    const toastId = toast.loading("Enviando anexo...");
+    const toastId = toast.loading("Enviando anexo…");
     const tempId = `temp-${Date.now()}`;
     setUploadingFiles((prev) => [...prev, { id: tempId, file }]);
 
@@ -749,7 +758,7 @@ export function LessonResourcesFields({
     } catch (error) {
       setUploadingFiles((prev) => prev.filter((f) => f.id !== tempId));
       toast.error(
-        error instanceof Error ? error.message : "Nao foi possivel enviar.",
+        error instanceof Error ? error.message : "Não foi possível enviar.",
         { id: toastId }
       );
     }
@@ -961,7 +970,7 @@ const createImagePreview = async (
   const context = canvas.getContext("2d");
 
   if (!context) {
-    throw new Error("Canvas indisponivel para gerar o preview.");
+    throw new Error("Canvas indisponível para gerar a prévia.");
   }
 
   canvas.width = width;
@@ -997,7 +1006,7 @@ const readImage = async (file: File): Promise<HTMLImageElement> =>
     };
     image.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error("Nao foi possivel ler a imagem."));
+      reject(new Error("Não foi possível ler a imagem."));
     };
     image.src = url;
   });
@@ -1011,7 +1020,7 @@ const canvasToBlob = async (canvas: HTMLCanvasElement): Promise<Blob> =>
           return;
         }
 
-        reject(new Error("Nao foi possivel gerar o preview."));
+        reject(new Error("Não foi possível gerar a prévia."));
       },
       "image/webp",
       0.78
