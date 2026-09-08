@@ -188,8 +188,12 @@ const revalidateEnrollmentAdminPaths = (): void => {
 
 export const saveCourseAction = async (formData: FormData): Promise<void> => {
   const session = await requireRole(["admin"]);
-  await saveCourse({ actorUserId: session.user.id, formData });
+  const { courseId } = await saveCourse({
+    actorUserId: session.user.id,
+    formData,
+  });
   revalidateAdmin();
+  revalidatePath(`/app/cursos/${courseId}`);
 };
 
 export type CoursePublicationActionResult =

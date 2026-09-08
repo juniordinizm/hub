@@ -4,6 +4,7 @@ import {
   COURSE_COVER_ASPECT_RATIO,
   COURSE_COVER_CARD_HEIGHT,
   COURSE_COVER_CARD_WIDTH,
+  getCourseCoverBackgroundImage,
   getCourseCoverStorageKeys,
   getCourseCoverVariantPath,
   parseCourseCoverImage,
@@ -151,29 +152,56 @@ describe("course cover storage", () => {
   });
 
   it("builds public course cover paths only for stored variants", () => {
-    expect(
-      getCourseCoverVariantPath({
-        courseId: "course-1",
-        coverImage: {
-          original: {
-            contentType: "image/png",
-            fileName: "capa.png",
-            key: "courses/course-1/cover/upload-original.png",
-            sizeBytes: 1_000_000,
-          },
-          variants: {
-            card: {
-              contentType: "image/webp",
-              height: 1000,
-              key: "courses/course-1/cover/upload-card.webp",
-              sizeBytes: 500_000,
-              width: 960,
-            },
+    const firstPath = getCourseCoverVariantPath({
+      courseId: "course-1",
+      coverImage: {
+        original: {
+          contentType: "image/png",
+          fileName: "capa.png",
+          key: "courses/course-1/cover/upload-original.png",
+          sizeBytes: 1_000_000,
+        },
+        variants: {
+          card: {
+            contentType: "image/webp",
+            height: 1000,
+            key: "courses/course-1/cover/upload-card.webp",
+            sizeBytes: 500_000,
+            width: 960,
           },
         },
-        variant: "card",
-      })
-    ).toBe("/api/courses/course-1/cover/card");
+      },
+      variant: "card",
+    });
+    const updatedPath = getCourseCoverVariantPath({
+      courseId: "course-1",
+      coverImage: {
+        original: {
+          contentType: "image/png",
+          fileName: "capa.png",
+          key: "courses/course-1/cover/upload-original-2.png",
+          sizeBytes: 1_000_000,
+        },
+        variants: {
+          card: {
+            contentType: "image/webp",
+            height: 1000,
+            key: "courses/course-1/cover/upload-card-2.webp",
+            sizeBytes: 500_000,
+            width: 960,
+          },
+        },
+      },
+      variant: "card",
+    });
+
+    expect(firstPath).toBe(
+      "/api/courses/course-1/cover/card?v=courses%2Fcourse-1%2Fcover%2Fupload-card.webp"
+    );
+    expect(updatedPath).toBe(
+      "/api/courses/course-1/cover/card?v=courses%2Fcourse-1%2Fcover%2Fupload-card-2.webp"
+    );
+    expect(updatedPath).not.toBe(firstPath);
 
     expect(
       getCourseCoverVariantPath({
@@ -182,6 +210,15 @@ describe("course cover storage", () => {
         variant: "card",
       })
     ).toBeNull();
+  });
+
+  it("preserves the cover version when deriving the thumb background path", () => {
+    const cardPath =
+      "/api/courses/course-1/cover/card?v=courses%2Fcourse-1%2Fcover%2Fupload-card.webp";
+
+    expect(getCourseCoverBackgroundImage(cardPath)).toBe(
+      'image-set(url("/api/courses/course-1/cover/thumb?v=courses%2Fcourse-1%2Fcover%2Fupload-card.webp") 1x, url("/api/courses/course-1/cover/card?v=courses%2Fcourse-1%2Fcover%2Fupload-card.webp") 2x)'
+    );
   });
 
   it("extracts all R2 keys from stored cover metadata, including old variants", () => {
