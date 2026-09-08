@@ -567,6 +567,9 @@ os substitua por uma transição ampla.
   do próprio card;
 - imagens de Aula ocupam a moldura com `fill` e `object-cover object-center`,
   preservando a proporção e aceitando corte para não deformar a imagem;
+- URLs lógicas de Capa incluem uma versão codificada da chave da variante em
+  `?v=...`; a versão muda quando a Capa é substituída, enquanto a rota continua
+  resolvendo a chave atual no banco;
 - a rota interna que serve a capa do Curso redireciona para a mídia pública; ao
   usá-la como fallback em `next/image`, mantenha `unoptimized` para que o
   otimizador não tente processar esse redirecionamento;

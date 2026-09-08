@@ -69,7 +69,7 @@ interface CourseCoverUploadRequest {
 const requiredVariants = Object.keys(
   COURSE_COVER_VARIANTS
 ) as CourseCoverVariant[];
-const CARD_COVER_PATH_PATTERN = /\/cover\/card$/;
+const CARD_COVER_PATH_PATTERN = /\/cover\/card(?=\?|$)/;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -266,7 +266,9 @@ export const getCourseCoverVariantPath = ({
     return null;
   }
 
-  return `/api/courses/${courseId}/cover/${variant}`;
+  return `/api/courses/${courseId}/cover/${variant}?v=${encodeURIComponent(
+    parsed.variants[variant].key
+  )}`;
 };
 
 export const getCourseCoverBackgroundImage = (
