@@ -37,7 +37,7 @@ const isValidCoverFile = (file: File): boolean => {
   }
 
   if (file.size > MAX_COVER_BYTES) {
-    toast.error("A imagem deve ter no maximo 4MB.");
+    toast.error("A imagem deve ter no máximo 4 MB.");
     return false;
   }
 
@@ -51,6 +51,7 @@ export function CourseCoverUploadField({
   defaultThumbnailUrl,
 }: CourseCoverUploadFieldProps): React.JSX.Element {
   const parsedCover = parseCourseCoverImage(defaultCoverImage);
+  const inputId = `course-cover-upload-${aggregateId}`;
   const [coverImageJson, setCoverImageJson] = useState(() =>
     parsedCover ? JSON.stringify(parsedCover) : ""
   );
@@ -161,7 +162,7 @@ export function CourseCoverUploadField({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Nao foi possivel enviar a capa."
+          : "Não foi possível enviar a capa."
       );
     } finally {
       if (uploadRequestIdRef.current === requestId) {
@@ -215,14 +216,7 @@ export function CourseCoverUploadField({
     if (file?.type.startsWith("image/")) {
       assignDroppedFile(file);
     } else if (file) {
-      toast.error("Por favor, envie um arquivo de imagem valido.");
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      inputRef.current?.click();
+      toast.error("Por favor, envie um arquivo de imagem válido.");
     }
   };
 
@@ -244,24 +238,23 @@ export function CourseCoverUploadField({
       />
 
       <div className="relative aspect-[24/25] w-full">
-        {/* biome-ignore lint/a11y/useSemanticElements: div is required for drag-and-drop drop zone with flexible sizing */}
-        <div
+        {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: Drag-and-drop supplements the labelled file input. */}
+        <label
           className={cn(
-            "group relative flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-[border-color,background-color] duration-200 ease-out focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            "group relative flex h-full w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed transition-[border-color,background-color] duration-200 ease-out focus-within:border-ring focus-within:outline-none focus-within:ring-[3px] focus-within:ring-ring/50",
             isDragging ? "border-ring bg-muted" : "border-input hover:bg-muted",
             previewUrl ? "border-transparent border-solid" : ""
           )}
-          onClick={() => inputRef.current?.click()}
+          htmlFor={inputId}
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          onKeyDown={handleKeyDown}
-          role="button"
-          tabIndex={0}
         >
           <input
             accept={COURSE_COVER_ACCEPT}
+            aria-label="Selecionar capa do Curso"
             className="sr-only"
+            id={inputId}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
 
@@ -307,7 +300,7 @@ export function CourseCoverUploadField({
                 onLoad={() => setIsPreviewLoaded(true)}
                 src={previewUrl}
               />
-              <div className="pointer-events-none absolute inset-0 rounded-xl border border-black/10 dark:border-white/10" />
+              <div className="pointer-events-none absolute inset-0 rounded-xl border border-foreground/10" />
 
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/60 opacity-0 backdrop-blur-sm transition-opacity duration-200 ease-out group-hover:opacity-100 group-focus-visible:opacity-100">
                 <p className="font-medium text-sm">
@@ -319,6 +312,7 @@ export function CourseCoverUploadField({
             <div className="flex flex-col items-center justify-center p-4 text-center">
               <div className="mb-2 flex size-10 shrink-0 items-center justify-center rounded-full border bg-background">
                 <HugeiconsIcon
+                  aria-hidden="true"
                   className="text-muted-foreground opacity-60"
                   icon={ImageUpload01Icon}
                   size={18}
@@ -329,11 +323,11 @@ export function CourseCoverUploadField({
               </p>
               <p className="text-muted-foreground text-xs">
                 Card: {COURSE_COVER_CARD_WIDTH} × {COURSE_COVER_CARD_HEIGHT} px
-                (24:25) · PNG, JPG ou WebP ate 4MB
+                (24:25) · PNG, JPG ou WebP até 4 MB
               </p>
             </div>
           )}
-        </div>
+        </label>
 
         {previewUrl && (
           <div className="absolute top-3 right-3 z-50">
@@ -342,7 +336,7 @@ export function CourseCoverUploadField({
                 <TooltipTrigger asChild>
                   <button
                     aria-label="Remover imagem"
-                    className="flex size-7 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-destructive-foreground shadow-sm outline-none backdrop-blur-md transition duration-150 hover:bg-destructive focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.96]"
+                    className="flex size-11 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-destructive-foreground shadow-sm outline-none backdrop-blur-md transition-[background-color,scale] duration-150 hover:bg-destructive focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 active:scale-[0.96] sm:size-10"
                     onClick={removeFile}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {

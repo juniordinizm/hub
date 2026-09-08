@@ -43,7 +43,7 @@ export const POST = async (request: Request): Promise<Response> => {
         error:
           error instanceof Error
             ? error.message
-            : "Nao foi possivel enviar a imagem.",
+            : "Não foi possível enviar a imagem.",
       },
       { status: 400 }
     );

@@ -354,7 +354,7 @@ const AlignmentToggle = ({
                   type="button"
                   variant={value === option.value ? "secondary" : "ghost"}
                 >
-                  <HugeiconsIcon icon={option.icon} />
+                  <HugeiconsIcon aria-hidden="true" icon={option.icon} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" sideOffset={6}>

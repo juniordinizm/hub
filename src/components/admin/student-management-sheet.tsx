@@ -17,6 +17,10 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  getOrderStatusPresentation,
+  getRefundRequestStatusPresentation,
+} from "@/features/admin/status-presentation";
 import { formatCurrencyInCents, formatDateTime } from "@/lib/formatters";
 import { StudentCertificateOperations } from "./student-certificate-operations";
 import { StudentEnrollmentList } from "./student-enrollment-list";
@@ -80,32 +84,39 @@ export const SupportContextPanel = ({
       </h2>
       {context.orders.length ? (
         <ul className="mt-3 divide-y rounded-lg border">
-          {context.orders.map((order) => (
-            <li className="p-3" key={order.id}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-sm">
-                    Pedido {order.id}
-                  </p>
-                  <p className="mt-1 text-muted-foreground text-xs">
-                    {formatDateTime(order.createdAt)} · {order.status}
-                    {order.refundStatus ? ` · ${order.refundStatus}` : ""}
+          {context.orders.map((order) => {
+            const orderStatus = getOrderStatusPresentation(order.status);
+            const refundStatus = order.refundStatus
+              ? getRefundRequestStatusPresentation(order.refundStatus)
+              : null;
+
+            return (
+              <li className="p-3" key={order.id}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-sm">
+                      Pedido {order.id}
+                    </p>
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      {formatDateTime(order.createdAt)} · {orderStatus.label}
+                      {refundStatus ? ` · ${refundStatus.label}` : ""}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-medium text-sm">
+                    {formatCurrencyInCents(
+                      order.paidAmountInCents ?? order.amountInCents
+                    )}
                   </p>
                 </div>
-                <p className="shrink-0 font-medium text-sm">
-                  {formatCurrencyInCents(
-                    order.paidAmountInCents ?? order.amountInCents
-                  )}
-                </p>
-              </div>
-              {order.refundedAmountInCents === null ? null : (
-                <p className="mt-2 text-muted-foreground text-xs">
-                  Reembolsado:{" "}
-                  {formatCurrencyInCents(order.refundedAmountInCents)}
-                </p>
-              )}
-            </li>
-          ))}
+                {order.refundedAmountInCents === null ? null : (
+                  <p className="mt-2 text-muted-foreground text-xs">
+                    Reembolsado:{" "}
+                    {formatCurrencyInCents(order.refundedAmountInCents)}
+                  </p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="mt-2 text-muted-foreground text-sm">
@@ -258,7 +269,7 @@ export function StudentManagementSheet({
     <Sheet onOpenChange={handleOpenChange} open={open}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>
       <SheetContent
-        className="sm:!w-[800px] sm:!max-w-[800px] w-full gap-0 p-0"
+        className="w-full max-w-[800px] gap-0 p-0"
         data-student-management-sheet
         side="right"
       >

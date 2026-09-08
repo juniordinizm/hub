@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PLATFORM_NAME } from "@/lib/brand";
 import { route } from "@/lib/routes";
 import { RequestPasswordResetForm } from "./request-password-reset-form";
 
@@ -21,8 +22,8 @@ export default function RequestPasswordResetPage(): React.JSX.Element {
     <AuthShell>
       <Card className="mx-auto w-full max-w-sm">
         <CardHeader>
-          <CardDescription>PROTEA-R Hub</CardDescription>
-          <CardTitle as="h1" className="text-3xl">
+          <CardDescription>{PLATFORM_NAME}</CardDescription>
+          <CardTitle as="h1" className="type-page-title">
             Recuperar senha
           </CardTitle>
           <CardDescription>

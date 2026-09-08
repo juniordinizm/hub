@@ -2,6 +2,7 @@ import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { notFound } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,11 +18,11 @@ import {
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
 import {
-  type AdminCourse,
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
 } from "@/features/admin/server";
+import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
 import {
   getCertificateTemplatesForCourse,
   hasCertificateIssuerProfile,
@@ -43,29 +44,27 @@ export const dynamic = "force-dynamic";
 
 const SECONDS_PER_HOUR = 3600;
 
-const COURSE_STATUS_LABELS: Readonly<Record<string, string>> = {
-  archived: "Arquivado",
-  available: "Disponível",
-  coming_soon: "Em breve",
-  draft: "Rascunho",
-  sales_paused: "Vendas pausadas",
-};
-
-const getCourseStatusLabel = (course: AdminCourse): string => {
-  const preset = resolveCourseAvailability({
-    catalogVisibility: course.catalogVisibility,
-    deliveryStatus: course.status as "active" | "archived" | "draft",
-    salesStatus: course.salesStatus,
-  }).preset;
-  return COURSE_STATUS_LABELS[preset] ?? preset;
-};
+const firstSearchParam = (
+  value: string | string[] | undefined
+): string | undefined => (Array.isArray(value) ? value[0] : value);
 
 export default async function AdminCourseDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ courseId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<React.JSX.Element> {
   const { courseId } = await params;
+  const query = (await searchParams) ?? {};
+  const requestedEnrollmentPage = Number.parseInt(
+    firstSearchParam(query.enrollmentPage) ?? "1",
+    10
+  );
+  const enrollmentPage = Number.isFinite(requestedEnrollmentPage)
+    ? requestedEnrollmentPage
+    : 1;
+  const enrollmentSearch = firstSearchParam(query.enrollmentQ)?.trim() ?? "";
   const [
     data,
     overviewSummary,
@@ -73,7 +72,10 @@ export default async function AdminCourseDetailPage({
     publicationState,
     issuerConfigured,
   ] = await Promise.all([
-    getAdminCourseDetailData(courseId),
+    getAdminCourseDetailData(courseId, {
+      page: enrollmentPage,
+      search: enrollmentSearch,
+    }),
     getAdminCourseOverviewSummary(courseId),
     getCertificateTemplatesForCourse(courseId),
     getAdminCoursePublicationState(courseId),
@@ -90,6 +92,9 @@ export default async function AdminCourseDetailPage({
     deliveryStatus: course.status as "active" | "archived" | "draft",
     salesStatus: course.salesStatus,
   });
+  const courseStatusPresentation = getCourseAvailabilityStatusPresentation(
+    courseAvailability.preset
+  );
   const serverEnv = getServerEnv();
   const purchaseLink = getCoursePurchaseLink({
     appUrl: serverEnv.NEXT_PUBLIC_APP_URL,
@@ -125,44 +130,31 @@ export default async function AdminCourseDetailPage({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="flex flex-col gap-6 border-b pb-6">
-          <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
-            <div className="flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="font-bold text-2xl tracking-tight sm:text-3xl">
-                  {course.title}
-                </h1>
-                <Badge
-                  variant={
-                    courseAvailability.preset === "available"
-                      ? "default"
-                      : "outline"
-                  }
-                >
-                  {getCourseStatusLabel(course)}
-                </Badge>
-              </div>
-              <p className="text-muted-foreground text-sm sm:text-base">
-                {course.subtitle ||
-                  "Nenhum subtítulo cadastrado para este curso."}
-              </p>
-            </div>
-
-            <div className="flex w-full shrink-0 flex-wrap items-center gap-3 sm:w-auto">
-              <Button asChild size="sm" variant="outline">
-                <a href={route(`/app/cursos/${course.id}?preview=student`)}>
-                  <HugeiconsIcon
-                    className="mr-2"
-                    icon={ViewIcon}
-                    size={16}
-                    strokeWidth={2}
-                  />
-                  Ver como aluno
-                </a>
-              </Button>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          actions={
+            <Button asChild size="sm" variant="outline">
+              <a href={route(`/app/cursos/${course.id}?preview=student`)}>
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
+                  icon={ViewIcon}
+                  size={16}
+                  strokeWidth={2}
+                />
+                Ver como aluna
+              </a>
+            </Button>
+          }
+          description={
+            course.subtitle || "Nenhum subtítulo cadastrado para este curso."
+          }
+          status={
+            <Badge variant={courseStatusPresentation.variant}>
+              {courseStatusPresentation.label}
+            </Badge>
+          }
+          title={course.title}
+        />
 
         <CourseManagementTabs
           certificate={
@@ -241,12 +233,20 @@ export default async function AdminCourseDetailPage({
           students={
             <section className="rounded-lg border bg-card">
               <div className="border-b px-5 py-4">
-                <h2 className="font-semibold text-xl">Alunos deste curso</h2>
+                <h2 className="font-semibold text-xl">Alunas deste Curso</h2>
                 <p className="mt-1 text-muted-foreground text-sm">
                   Últimas matrículas e situação de acesso.
                 </p>
               </div>
-              <CourseEnrollmentsTable enrollments={enrollments} />
+              <CourseEnrollmentsTable
+                courseId={course.id}
+                enrollments={enrollments}
+                hasNextPage={data.enrollmentsPage.hasNextPage}
+                page={data.enrollmentsPage.page}
+                pageSize={data.enrollmentsPage.pageSize}
+                search={data.enrollmentsPage.search}
+                totalCount={data.enrollmentsPage.totalCount}
+              />
             </section>
           }
         />

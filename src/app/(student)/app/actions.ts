@@ -22,13 +22,13 @@ export const completeLessonAction = async (formData: FormData) => {
   const session = await requireSession();
 
   if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite gravar progresso.");
+    throw new Error("O preview da aluna não permite gravar progresso.");
   }
 
   const lessonId = String(formData.get("lessonId") ?? "");
 
   if (!lessonId) {
-    throw new Error("Aula invalida.");
+    throw new Error("Aula inválida.");
   }
 
   const result = await completeLesson({
@@ -72,11 +72,11 @@ export const recordLessonWatchProgressAction = async ({
   const session = await requireSession();
 
   if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite gravar progresso.");
+    throw new Error("O preview da aluna não permite gravar progresso.");
   }
 
   if (!lessonId) {
-    throw new Error("Aula invalida.");
+    throw new Error("Aula inválida.");
   }
 
   const result = await recordLessonWatchProgress({
@@ -100,7 +100,7 @@ export const sendSupportRequestAction = async (
   const session = await requireSession();
 
   if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite enviar suporte.");
+    throw new Error("O preview da aluna não permite enviar suporte.");
   }
 
   const subject = readString(formData, "subject");
@@ -125,7 +125,9 @@ export const setLearningAnalyticsPreferenceAction = async (
 ): Promise<void> => {
   const session = await requireSession();
   if (!canMutateStudentExperience(session.role)) {
-    throw new Error("Preview de aluno nao permite alterar análises opcionais.");
+    throw new Error(
+      "O preview da aluna não permite alterar análises opcionais."
+    );
   }
   await setLearningAnalyticsPreference({
     enabled: formData.get("enabled") === "true",

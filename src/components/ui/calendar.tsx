@@ -55,6 +55,7 @@ function CalendarChevron({
 
   return (
     <HugeiconsIcon
+      aria-hidden="true"
       className={cn("size-4", className)}
       icon={icon}
       size={size}

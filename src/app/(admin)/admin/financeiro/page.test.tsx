@@ -14,6 +14,7 @@ vi.mock("@/features/payments/actions", () => ({
   retryFailedAsaasWebhookAction: vi.fn(),
 }));
 
+import { CoursesRevenueTable } from "./courses-revenue-table";
 import { PaymentReviewOperation } from "./financial-operations";
 import { FinancialOrderCard, FinancialStatementImportCard } from "./page";
 
@@ -85,6 +86,33 @@ describe("FinancialStatementImportCard", () => {
   });
 });
 
+describe("CoursesRevenueTable", () => {
+  it("shows the current page range and total filtered courses", () => {
+    const markup = renderToStaticMarkup(
+      <CoursesRevenueTable
+        data={[
+          {
+            courseId: "course-1",
+            courseTitle: "Curso",
+            paidOrders: 2,
+            totalOrders: 3,
+            totalRevenueInCents: 25_000,
+          },
+        ]}
+        hasNextPage
+        orderPage={1}
+        orderSearch=""
+        page={2}
+        pageSize={1}
+        search=""
+        totalCount={3}
+      />
+    );
+
+    expect(markup).toContain("2–2 de 3 cursos");
+  });
+});
+
 describe("PaymentReviewOperation", () => {
   it("hides amount mismatch decisions without mutable review access", () => {
     const markup = renderToStaticMarkup(
@@ -103,7 +131,7 @@ describe("PaymentReviewOperation", () => {
 
     expect(markup).not.toContain("Aprovar");
     expect(markup).not.toContain("Rejeitar");
-    expect(markup).toContain("Aguardando decisao de uma administradora.");
+    expect(markup).toContain("Aguardando decisão de uma administradora.");
   });
 
   it("renders one refund flow when a pending buyer identity review has no order card", () => {
@@ -177,7 +205,7 @@ describe("PaymentReviewOperation", () => {
     );
 
     expect(markup).toContain("Identidade da compra requer suporte");
-    expect(markup).toContain("Revisao rejected.");
+    expect(markup).toContain("Revisão rejeitada.");
     expect(markup).not.toContain("Solicitar estorno integral");
   });
 });

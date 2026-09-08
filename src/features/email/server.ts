@@ -15,6 +15,7 @@ import {
   markEmailProviderRejected,
 } from "@/features/email-delivery/server";
 import { isAccountActivationEmailIdempotencyKey } from "@/lib/account-activation-idempotency";
+import { PLATFORM_NAME } from "@/lib/brand";
 import { getServerEnv, isIsolatedE2eRuntime } from "@/lib/env";
 import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
 import type { HostedEmailTemplateVariables } from "./templates-contract";
@@ -387,7 +388,7 @@ export const sendPasswordResetEmail = async ({
     ...(idempotencyKey ? { idempotencyKey } : {}),
     ...(deliveryContext ? { deliveryContext } : {}),
     name: "auth-password-reset",
-    subject: "Criar ou redefinir senha do PROTEA-R Hub",
+    subject: `Criar ou redefinir senha do ${PLATFORM_NAME}`,
     to,
     USER_NAME: userName,
   });
@@ -416,7 +417,7 @@ export const sendAccessReleasedEmail = async ({
     ...(idempotencyKey ? { idempotencyKey } : {}),
     name: "access-released",
     PASSWORD_RESET_URL: `${appUrl}/recuperar-senha`,
-    subject: "Acesso liberado no PROTEA-R Hub",
+    subject: `Acesso liberado no ${PLATFORM_NAME}`,
     to,
     USER_NAME: userName,
   });
@@ -514,7 +515,7 @@ export const sendCertificateIssuedEmail = async ({
     ...(deliveryContext ? { deliveryContext } : {}),
     ...(idempotencyKey ? { idempotencyKey } : {}),
     name: "certificate-issued",
-    subject: "Seu certificado PROTEA-R Hub foi emitido",
+    subject: `Seu certificado ${PLATFORM_NAME} foi emitido`,
     to,
     USER_NAME: userName,
   });

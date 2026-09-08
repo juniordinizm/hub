@@ -1,5 +1,7 @@
 "use client";
 
+import { Loading03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Slot } from "radix-ui";
 import type * as React from "react";
@@ -7,7 +9,7 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-lg border border-transparent bg-clip-padding font-medium text-sm outline-none transition duration-150 ease-out focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "group/button inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap rounded-lg border border-transparent bg-clip-padding font-medium text-sm outline-none transition-[background-color,border-color,color,opacity,box-shadow,scale] duration-150 ease-out focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -44,6 +46,7 @@ const buttonVariants = cva(
 export type ButtonProps = React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean;
+    loading?: boolean;
   };
 
 function Button({
@@ -51,18 +54,41 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  children,
+  loading = false,
+  disabled,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
+  const isDisabled = disabled || loading;
+  const content = loading ? (
+    <>
+      <HugeiconsIcon
+        aria-hidden="true"
+        className="animate-spin"
+        data-icon="inline-start"
+        icon={Loading03Icon}
+      />
+      {children}
+    </>
+  ) : (
+    children
+  );
 
   return (
     <Comp
+      aria-busy={loading || undefined}
+      aria-disabled={asChild && isDisabled ? true : undefined}
       className={cn(buttonVariants({ variant, size, className }))}
+      data-loading={loading || undefined}
       data-size={size}
       data-slot="button"
       data-variant={variant}
+      disabled={asChild ? undefined : isDisabled}
       {...props}
-    />
+    >
+      {content}
+    </Comp>
   );
 }
 

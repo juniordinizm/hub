@@ -1,7 +1,25 @@
-import { Download01Icon } from "@hugeicons/core-free-icons";
+import { Analytics01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableRowHeader,
+} from "@/components/ui/table";
 import { getLessonAnalyticsMetrics } from "@/features/learning-analytics/server";
 
 export const dynamic = "force-dynamic";
@@ -12,12 +30,10 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
   return (
     <PageContainer>
       <div className="space-y-8">
-        <header className="space-y-2">
-          <h1 className="font-bold text-3xl tracking-tight">Aprendizagem</h1>
-          <p className="text-muted-foreground">
-            Dados agregados para melhorar aulas e identificar falhas técnicas.
-          </p>
-        </header>
+        <PageHeader
+          description="Dados agregados para melhorar aulas e identificar falhas técnicas."
+          title="Aprendizagem"
+        />
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -29,51 +45,102 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
             </div>
             <Button asChild variant="outline">
               <a href="/api/admin/learning-analytics/export">
-                <HugeiconsIcon icon={Download01Icon} />
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
+                  icon={Download01Icon}
+                />
                 Exportar métricas em CSV
               </a>
             </Button>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30 text-left">
-                <tr>
-                  <th className="p-4">Aula</th>
-                  <th className="p-4">Versão</th>
-                  <th className="p-4 text-right">Elegíveis</th>
-                  <th className="p-4 text-right">Iniciaram</th>
-                  <th className="p-4 text-right">Concluíram</th>
-                  <th className="p-4 text-right">Checkpoint mediano</th>
-                  <th className="p-4 text-right">Até concluir</th>
-                  <th className="p-4 text-right">Até próxima aula</th>
-                  <th className="p-4 text-right">Erros</th>
-                </tr>
-              </thead>
-              <tbody>
-                {metrics.map((metric) => (
-                  <tr className="border-t" key={metric.lessonId}>
-                    <td className="p-4">{metric.lessonTitle}</td>
-                    <td className="p-4 font-mono text-xs">
+          <Table>
+            <TableCaption className="sr-only">
+              Funil agregado de aprendizagem por aula e publicação
+            </TableCaption>
+            <TableHeader className="bg-muted/30">
+              <TableRow>
+                <TableHead>Aula</TableHead>
+                <TableHead>Versão</TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Elegíveis
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Iniciaram
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Concluíram
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Checkpoint mediano
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Até concluir
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Até próxima aula
+                </TableHead>
+                <TableHead className="whitespace-nowrap text-right">
+                  Erros
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {metrics.length > 0 ? (
+                metrics.map((metric) => (
+                  <TableRow key={metric.lessonId}>
+                    <TableRowHeader>{metric.lessonTitle}</TableRowHeader>
+                    <TableCell className="whitespace-nowrap font-mono text-xs">
                       {metric.coursePublicationId}
-                    </td>
-                    <td className="p-4 text-right">{metric.eligible}</td>
-                    <td className="p-4 text-right">{metric.started}</td>
-                    <td className="p-4 text-right">{metric.completed}</td>
-                    <td className="p-4 text-right">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {metric.eligible}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {metric.started}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {metric.completed}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
                       {formatPercent(metric.medianCheckpointPercent)}
-                    </td>
-                    <td className="p-4 text-right">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
                       {formatHours(metric.medianHoursToComplete)}
-                    </td>
-                    <td className="p-4 text-right">
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
                       {formatHours(metric.medianHoursToNextLesson)}
-                    </td>
-                    <td className="p-4 text-right">{metric.errorCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {metric.errorCount}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell className="h-48 p-0" colSpan={9}>
+                    <Empty className="rounded-none border-0 p-8">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <HugeiconsIcon
+                            aria-hidden="true"
+                            icon={Analytics01Icon}
+                          />
+                        </EmptyMedia>
+                        <EmptyTitle as="h3">
+                          Ainda não há métricas de aprendizagem
+                        </EmptyTitle>
+                        <EmptyDescription>
+                          Os dados aparecerão quando houver aulas publicadas e
+                          eventos agregados de aprendizagem.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </section>
       </div>
     </PageContainer>

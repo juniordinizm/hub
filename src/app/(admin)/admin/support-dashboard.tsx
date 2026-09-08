@@ -6,6 +6,7 @@ import {
 import Link from "next/link";
 import { AdminMetricCard } from "@/app/(admin)/admin/admin-metric-card";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getCourseDeliveryStatusPresentation } from "@/features/admin/status-presentation";
 import type { SupportCourseOperation } from "@/features/admin/support-server";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
@@ -40,22 +42,15 @@ export function SupportDashboard({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Operação de suporte
-              </h1>
-              <p className="max-w-2xl text-muted-foreground text-sm">
-                Consulte matrículas, histórico financeiro e Certificados no
-                contexto de cada Curso.
-              </p>
-            </div>
+        <PageHeader
+          actions={
             <Button asChild>
               <Link href={route("/admin/financeiro")}>Ver financeiro</Link>
             </Button>
-          </div>
-        </header>
+          }
+          description="Consulte matrículas, histórico financeiro e Certificados no contexto de cada Curso."
+          title="Operação de suporte"
+        />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AdminMetricCard
@@ -84,9 +79,9 @@ export function SupportDashboard({
           />
         </section>
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <Card>
           <CardHeader>
-            <CardTitle>Cursos em operação</CardTitle>
+            <CardTitle as="h2">Cursos em operação</CardTitle>
             <CardDescription>
               Abra um Curso para consultar somente as Alunas vinculadas a ele.
             </CardDescription>
@@ -95,16 +90,16 @@ export function SupportDashboard({
             {courses.length ? (
               courses.map((course) => (
                 <article
-                  className="rounded-lg bg-muted/20 p-4 shadow-[inset_0_0_0_1px_var(--border)]"
+                  className="border-b py-4 last:border-b-0"
                   key={course.id}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="truncate font-semibold text-base">
+                        <h3 className="type-card-title truncate">
                           {course.title}
-                        </h2>
-                        <Badge variant="secondary">{course.status}</Badge>
+                        </h3>
+                        <CourseStatusBadge status={course.status} />
                       </div>
                       <p className="mt-1 text-muted-foreground text-sm">
                         {course.activeEnrollmentCount} ativas de{" "}
@@ -151,4 +146,10 @@ export function SupportDashboard({
       </div>
     </PageContainer>
   );
+}
+
+function CourseStatusBadge({ status }: { status: string }): React.JSX.Element {
+  const presentation = getCourseDeliveryStatusPresentation(status);
+
+  return <Badge variant={presentation.variant}>{presentation.label}</Badge>;
 }

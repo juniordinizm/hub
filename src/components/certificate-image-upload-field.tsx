@@ -102,7 +102,7 @@ export function CertificateImageUploadField({
       {imageUrl && compactWhenImage ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5 ring-1 ring-foreground/5">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+            <span className="size-2 shrink-0 rounded-full bg-success" />
             <span className="truncate text-sm">
               {selectedFile?.name ?? imageName ?? "Imagem atual"}
             </span>
@@ -156,7 +156,11 @@ export function CertificateImageUploadField({
           type="button"
           variant="outline"
         >
-          <HugeiconsIcon data-icon="inline-start" icon={ImageUpload01Icon} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={ImageUpload01Icon}
+          />
           <span className="text-muted-foreground text-sm">{label}</span>
           <span className="text-xs">
             {kind === "background"
@@ -179,7 +183,11 @@ export function CertificateImageUploadField({
             type="button"
             variant="ghost"
           >
-            <HugeiconsIcon data-icon="inline-start" icon={Cancel01Icon} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Cancel01Icon}
+            />
             Remover
           </Button>
         </div>

@@ -4,11 +4,15 @@ owner: product
 last_verified_commit: e325b7e
 ---
 
-# Produto PROTEA-R Hub
+# Produto NeuroCapacitar Hub
 
 ## Propósito
 
-Centralizar venda, entrega e operação de Cursos da PROTEA-R. O Hub permite que uma Aluna compre ou receba acesso, percorra conteúdo em ordem, acompanhe progresso, interaja nas Aulas e obtenha Certificado. A equipe publica conteúdo, cuida de acessos e resolve exceções financeiras e de dados com rastreabilidade.
+Centralizar venda, entrega e operação de Cursos da NeuroCapacitar. O Hub permite
+que uma Aluna compre ou receba acesso, percorra conteúdo em ordem, acompanhe
+progresso, interaja nas Aulas e obtenha Certificado. PROTEA-R é um dos Cursos
+entregues pelo produto. A equipe publica conteúdo, cuida de acessos e resolve
+exceções financeiras e de dados com rastreabilidade.
 
 ## Público
 

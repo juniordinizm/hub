@@ -558,7 +558,7 @@ export const getAdminCourseContentSignal = ({
       label: "Rascunhos pendentes",
       helper: `${draftLessons} aula${
         draftLessons === 1 ? "" : "s"
-      } ainda não aparece para alunos.`,
+      } ainda não aparece para alunas.`,
     };
   }
 

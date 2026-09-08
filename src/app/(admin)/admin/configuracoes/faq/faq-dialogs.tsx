@@ -8,6 +8,7 @@ import {
   FloppyDiskIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import {
   AlertDialog,
@@ -60,7 +61,13 @@ export function FaqCreateDialog({
   return (
     <Dialog>
       <DialogTriggerButton>
-        <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={Add01Icon}
+          size={16}
+          strokeWidth={2}
+        />
         Nova pergunta
       </DialogTriggerButton>
       <DialogContent>
@@ -78,12 +85,12 @@ export function FaqCreateDialog({
             <FieldGroup>
               <input name="faqId" type="hidden" />
               <Field>
-                <FieldLabel>Pergunta</FieldLabel>
-                <Input name="question" required />
+                <FieldLabel htmlFor="faq-question-create">Pergunta</FieldLabel>
+                <Input id="faq-question-create" name="question" required />
               </Field>
               <Field>
-                <FieldLabel>Resposta</FieldLabel>
-                <Textarea name="answer" required />
+                <FieldLabel htmlFor="faq-answer-create">Resposta</FieldLabel>
+                <Textarea id="faq-answer-create" name="answer" required />
               </Field>
               <input name="sortOrder" type="hidden" value={nextSortOrder} />
               <label
@@ -100,10 +107,16 @@ export function FaqCreateDialog({
             </FieldGroup>
           </DialogBody>
           <DialogFooter>
-            <Button type="submit">
-              <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            <AdminMutationSubmitButton type="submit">
+              <HugeiconsIcon
+                aria-hidden="true"
+                data-icon="inline-start"
+                icon={FloppyDiskIcon}
+                size={18}
+                strokeWidth={2}
+              />
               Salvar FAQ
-            </Button>
+            </AdminMutationSubmitButton>
           </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>
@@ -131,7 +144,13 @@ export function FaqEditDialog({
     <Dialog {...dialogProps}>
       {!onOpenChange && (
         <DialogTriggerButton size="sm" variant="outline">
-          <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={Edit01Icon}
+            size={16}
+            strokeWidth={2}
+          />
           Editar FAQ
         </DialogTriggerButton>
       )}
@@ -148,12 +167,26 @@ export function FaqEditDialog({
             <FieldGroup>
               <input name="faqId" type="hidden" value={faq.id} />
               <Field>
-                <FieldLabel>Pergunta</FieldLabel>
-                <Input defaultValue={faq.question} name="question" required />
+                <FieldLabel htmlFor={`faq-question-${faq.id}`}>
+                  Pergunta
+                </FieldLabel>
+                <Input
+                  defaultValue={faq.question}
+                  id={`faq-question-${faq.id}`}
+                  name="question"
+                  required
+                />
               </Field>
               <Field>
-                <FieldLabel>Resposta</FieldLabel>
-                <Textarea defaultValue={faq.answer} name="answer" required />
+                <FieldLabel htmlFor={`faq-answer-${faq.id}`}>
+                  Resposta
+                </FieldLabel>
+                <Textarea
+                  defaultValue={faq.answer}
+                  id={`faq-answer-${faq.id}`}
+                  name="answer"
+                  required
+                />
               </Field>
               <input
                 defaultValue={faq.sortOrder}
@@ -174,10 +207,16 @@ export function FaqEditDialog({
             </FieldGroup>
           </DialogBody>
           <DialogFooter>
-            <Button type="submit">
-              <HugeiconsIcon icon={FloppyDiskIcon} size={18} strokeWidth={2} />
+            <AdminMutationSubmitButton type="submit">
+              <HugeiconsIcon
+                aria-hidden="true"
+                data-icon="inline-start"
+                icon={FloppyDiskIcon}
+                size={18}
+                strokeWidth={2}
+              />
               Salvar pergunta
-            </Button>
+            </AdminMutationSubmitButton>
           </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>
@@ -206,7 +245,13 @@ export function FaqDeleteDialog({
       {!onOpenChange && (
         <AlertDialogTrigger asChild>
           <Button size="sm" variant="destructive">
-            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Delete02Icon}
+              size={16}
+              strokeWidth={2}
+            />
             Excluir FAQ
           </Button>
         </AlertDialogTrigger>
@@ -214,7 +259,7 @@ export function FaqDeleteDialog({
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
-            <HugeiconsIcon icon={Delete02Icon} />
+            <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
           </AlertDialogMedia>
           <AlertDialogTitle>Excluir FAQ?</AlertDialogTitle>
           <AlertDialogDescription>
@@ -226,7 +271,13 @@ export function FaqDeleteDialog({
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel>
-            <HugeiconsIcon icon={Cancel01Icon} size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Cancel01Icon}
+              size={16}
+              strokeWidth={2}
+            />
             Cancelar
           </AlertDialogCancel>
           <form action={deleteFaqAction} id={`delete-faq-${faq.id}`}>
@@ -237,7 +288,13 @@ export function FaqDeleteDialog({
             type="submit"
             variant="destructive"
           >
-            <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Delete02Icon}
+              size={16}
+              strokeWidth={2}
+            />
             Confirmar exclusão
           </AlertDialogAction>
         </AlertDialogFooter>

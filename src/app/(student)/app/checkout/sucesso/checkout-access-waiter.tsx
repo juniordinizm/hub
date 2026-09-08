@@ -51,7 +51,7 @@ export function CheckoutAccessWaiter({
 
       if (data.canAccess && data.redirectTo) {
         stoppedRef.current = true;
-        setStatusText("Acesso liberado. Abrindo seu curso...");
+        setStatusText("Acesso liberado. Abrindo seu curso…");
         window.location.replace(data.redirectTo);
         return;
       }
@@ -95,12 +95,12 @@ export function CheckoutAccessWaiter({
       {courseId ? (
         <Button
           className="mt-3"
-          disabled={isChecking}
+          loading={isChecking}
           onClick={scheduleCheckAccess}
           type="button"
           variant="outline"
         >
-          {isChecking ? "Verificando..." : "Verificar agora"}
+          Verificar agora
         </Button>
       ) : null}
     </div>

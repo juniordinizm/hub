@@ -62,7 +62,7 @@ export function CertificateTemplateVisibilitySheet({
     >
       {compact ? (
         <>
-          <HugeiconsIcon icon={GridViewIcon} />
+          <HugeiconsIcon aria-hidden="true" icon={GridViewIcon} />
           <span className="sr-only">
             Campos {visibleCount}/{fields.length}
           </span>
@@ -170,7 +170,7 @@ export function CertificateTemplateVisibilitySheet({
                               <span
                                 className={
                                   hasOverlap
-                                    ? "shrink-0 text-amber-500 text-xs"
+                                    ? "shrink-0 text-warning text-xs"
                                     : "shrink-0 text-muted-foreground text-xs"
                                 }
                               >

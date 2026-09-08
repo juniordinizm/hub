@@ -65,6 +65,8 @@ export function LessonFocusToggle({
       variant="outline"
     >
       <HugeiconsIcon
+        aria-hidden="true"
+        data-icon="inline-start"
         icon={isFocusMode ? Minimize01Icon : Maximize01Icon}
         size={16}
         strokeWidth={2}

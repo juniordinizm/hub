@@ -18,24 +18,24 @@ export default function AdminAreaLoading(): React.JSX.Element {
           </div>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="order-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Skeleton className="h-[120px] rounded-xl" />
           <Skeleton className="h-[120px] rounded-xl" />
           <Skeleton className="h-[120px] rounded-xl" />
           <Skeleton className="h-[120px] rounded-xl" />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="order-1 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <Skeleton className="h-[280px] rounded-xl" />
           <Skeleton className="h-[280px] rounded-xl" />
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-3">
+        <section className="order-3 grid gap-4 xl:grid-cols-3">
           <Skeleton className="h-[250px] rounded-xl xl:col-span-2" />
           <Skeleton className="h-[250px] rounded-xl" />
         </section>
 
-        <section className="grid gap-4">
+        <section className="order-4 grid gap-4">
           <Skeleton className="h-[200px] rounded-xl" />
         </section>
       </div>

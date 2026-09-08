@@ -24,7 +24,7 @@ const adminNavItems = [
   ["Painel", "/admin", Analytics01Icon],
   ["Aprendizagem", "/admin/aprendizagem", Analytics01Icon],
   ["Cursos", "/admin/cursos", Book01Icon],
-  ["Alunos", "/admin/alunos", UserGroupIcon],
+  ["Alunas", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
   ["Configurações", "/admin/configuracoes", AccountSetting01Icon],
@@ -51,7 +51,12 @@ export function AdminSidebarNav({
           {navItems.map(([label, href, icon]) => (
             <SidebarMenuItem key={href}>
               <SidebarMenuLink href={route(href)} tooltip={label}>
-                <HugeiconsIcon icon={icon} size={18} strokeWidth={1.5} />
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  icon={icon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
                 <span>{label}</span>
               </SidebarMenuLink>
             </SidebarMenuItem>

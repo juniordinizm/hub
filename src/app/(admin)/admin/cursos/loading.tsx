@@ -17,10 +17,15 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
+        <div className="flex max-w-xl gap-2">
+          <Skeleton className="h-9 min-w-0 flex-1" />
+          <Skeleton className="h-9 w-20" />
+        </div>
+
         <section className="flex flex-wrap gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
-              className="flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-sidebar"
+              className="flex aspect-[24/25] w-full max-w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card"
               // biome-ignore lint/suspicious/noArrayIndexKey: skeleton array
               key={i}
             >

@@ -34,7 +34,7 @@ export const POST = async (request: Request): Promise<Response> => {
         error:
           error instanceof Error
             ? error.message
-            : "Nao foi possivel confirmar o upload.",
+            : "Não foi possível confirmar o upload.",
       },
       { status: 400 }
     );

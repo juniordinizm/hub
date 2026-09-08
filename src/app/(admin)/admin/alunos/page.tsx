@@ -5,6 +5,7 @@ import {
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import {
   Card,
   CardContent,
@@ -77,25 +78,16 @@ export default async function AdminStudentsPage({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Alunos e matrículas
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Lista centralizada por aluno, com consulta rápida e gestão das
-                matrículas por curso.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Lista centralizada por aluna, com consulta rápida e gestão das matrículas por curso."
+          title="Alunas e matrículas"
+        />
 
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <AdminMetricCard
-            helper="Todos os perfis com papel de aluno."
+            helper="Todos os perfis com papel de Aluna."
             icon={UserGroupIcon}
-            label="Alunos cadastrados"
+            label="Alunas cadastradas"
             value={studentAccessSummary.totalStudents.toString()}
           />
           <AdminMetricCard
@@ -118,20 +110,24 @@ export default async function AdminStudentsPage({
           />
         </section>
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">Alunos cadastrados</CardTitle>
+            <CardTitle as="h2" className="text-base">
+              Alunas cadastradas
+            </CardTitle>
             <CardDescription className="mt-1">
-              Nome, email, status geral de matrícula, cursos, primeira matrícula
-              e último acesso.
+              Nome, email, status geral de matrícula, cursos, expiração final e
+              último acesso.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <StudentsTable
               hasNextPage={data.hasNextPage}
               page={data.page}
+              pageSize={data.pageSize}
               search={data.search}
               students={students}
+              totalCount={data.totalCount}
             />
           </CardContent>
         </Card>

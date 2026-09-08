@@ -18,9 +18,11 @@ responsável pelo markup, plain text gerado, preview e versionamento editorial.
 
 ## Identidade visual
 
-As seis templates pertencem à mesma família Neuro Capacitar/PROTEA-R. O shell
-editorial usa canvas creme, faixa teal escura, acento laranja, card claro,
-CTA teal e rodapé institucional. Cada alias acrescenta uma variação semântica:
+As seis templates pertencem à família institucional NeuroCapacitar e podem
+apresentar a identidade de conteúdo PROTEA-R quando o Curso for a entidade em
+foco. PROTEA-R não é o nome global da plataforma. O shell editorial usa canvas
+creme, faixa teal escura, acento laranja, card claro, CTA teal e rodapé
+institucional. Cada alias acrescenta uma variação semântica:
 segurança da conta, acesso liberado, atenção à expiração, abertura de vendas,
 conquista de certificado ou solicitação operacional de suporte.
 
@@ -31,10 +33,17 @@ deve incluir `alt="PROTEA-R"`, dimensões explícitas, `border="0"` e
 `display:block`. Não usar ngrok, localhost, bucket Development, data URI ou
 fonte externa como dependência da identidade visual compartilhada.
 
-A paleta editorial deriva do Hub: `#0f2224` (teal escuro), `#326c71` (teal
-primário), `#234e52` (teal secundário), `#d97b34` (laranja), `#e8f0f0`
-(texto claro), `#7fa8aa` (muted), `#f7f3ef` (canvas), `#eadfd8` (borda quente)
-e `#17292b` (texto principal). O corpo usa fallback seguro
+Esse `alt` e esse asset são parte do contrato editorial já publicado e não
+devem ser trocados apenas por uma renomeação do shell web. Uma atualização da
+marca visual dos e-mails exige editar, testar e publicar os Hosted Templates;
+não pode ser feita alterando somente o código do Hub.
+
+A paleta editorial deriva do Hub. O CSS da aplicação web usa OKLCH, mas estes
+templates recebem valores hexadecimais porque HTML de e-mail precisa preservar
+compatibilidade com os clientes e o contrato já publicado: `#0f2224` (teal
+escuro), `#326c71` (teal primário), `#234e52` (teal secundário), `#d97b34`
+(laranja), `#e8f0f0` (texto claro), `#7fa8aa` (muted), `#f7f3ef` (canvas),
+`#eadfd8` (borda quente) e `#17292b` (texto principal). O corpo usa fallback seguro
 `Arial, Helvetica, sans-serif`; não carregar Lexend remotamente em email.
 
 Antes de uma publicação ou promoção, verificar que a URL pública da logo não

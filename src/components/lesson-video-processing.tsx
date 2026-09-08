@@ -33,7 +33,7 @@ export function LessonVideoProcessing({
     return (
       <div className="flex aspect-video flex-col items-center justify-center gap-6 rounded-none bg-background px-6 text-center">
         <div className="flex flex-col items-center gap-2">
-          <p className="font-medium text-foreground text-xs uppercase tracking-widest">
+          <p className="font-medium text-foreground text-sm">
             Vídeo indisponível
           </p>
           <p className="max-w-md font-light text-muted-foreground text-sm">
@@ -59,9 +59,7 @@ export function LessonVideoProcessing({
         </div>
       </div>
       <div className="flex flex-col items-center gap-2">
-        <p className="font-medium text-foreground text-xs uppercase tracking-widest">
-          Processando vídeo
-        </p>
+        <p className="font-medium text-foreground text-sm">Processando vídeo</p>
         <p className="max-w-md font-light text-muted-foreground text-sm">
           Estamos preparando as qualidades desta aula. Isso pode levar alguns
           minutos; atualizaremos esta página automaticamente.

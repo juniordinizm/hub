@@ -64,7 +64,11 @@ export function DatePickerField({
           type="button"
           variant="outline"
         >
-          <HugeiconsIcon icon={Calendar03Icon} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={Calendar03Icon}
+            strokeWidth={2}
+          />
           {selected ? format(selected, "dd/MM/yyyy") : placeholder}
         </Button>
       </PopoverTrigger>

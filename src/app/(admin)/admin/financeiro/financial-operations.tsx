@@ -3,8 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DatePickerField } from "@/components/date-picker-field";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { getPaymentReviewStatusPresentation } from "@/features/admin/status-presentation";
 import {
   confirmRefundPasswordAction,
   importAsaasStatementAction,
@@ -17,7 +28,7 @@ import {
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error
     ? error.message
-    : "Nao foi possivel concluir a operacao.";
+    : "Não foi possível concluir a operação.";
 
 type PaymentReviewType =
   | "amount_mismatch"
@@ -28,7 +39,7 @@ type PaymentReviewType =
   | "uncertain_result";
 
 const PAYMENT_REVIEW_LABELS: Record<PaymentReviewType, string> = {
-  amount_mismatch: "Divergencia de valor",
+  amount_mismatch: "Divergência de valor",
   buyer_identity: "Identidade da compra requer suporte",
   event_anomaly: "Anomalia de evento",
   partial_refund: "Reembolso parcial",
@@ -81,69 +92,75 @@ export function RefundOperation({
         Solicitar estorno integral
       </summary>
       <p className="mt-2 text-muted-foreground text-xs">
-        O acesso permanece ativo ate a confirmacao do webhook. O pedido deve ser
+        O acesso permanece ativo até a confirmação do webhook. O pedido deve ser
         confirmado digitando o identificador completo abaixo.
       </p>
       {confirmationToken ? (
-        <form action={requestRefund} className="mt-3 grid gap-3">
+        <form action={requestRefund} className="mt-3">
           <input
             name="confirmationToken"
             type="hidden"
             value={confirmationToken}
           />
           <input name="orderId" type="hidden" value={orderId} />
-          <div className="grid gap-1.5">
-            <label htmlFor={`refund-order-${orderId}`}>Confirme o pedido</label>
-            <input
-              autoComplete="off"
-              className="rounded-md border bg-background px-3 py-2 font-mono text-xs"
-              id={`refund-order-${orderId}`}
-              name="typedOrderId"
-              placeholder={orderId}
-              required
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor={`refund-reason-${orderId}`}>Motivo</label>
-            <textarea
-              className="min-h-20 rounded-md border bg-background px-3 py-2"
-              id={`refund-reason-${orderId}`}
-              name="reason"
-              required
-            />
-          </div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={`refund-order-${orderId}`}>
+                Confirme o pedido
+              </FieldLabel>
+              <Input
+                autoComplete="off"
+                className="font-mono text-xs"
+                id={`refund-order-${orderId}`}
+                name="typedOrderId"
+                placeholder={orderId}
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`refund-reason-${orderId}`}>
+                Motivo
+              </FieldLabel>
+              <Textarea
+                id={`refund-reason-${orderId}`}
+                name="reason"
+                required
+              />
+            </Field>
+          </FieldGroup>
           <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
+            className="mt-3 w-full sm:w-auto"
+            loading={pending}
             type="submit"
             variant="destructive"
           >
-            {pending ? "Solicitando..." : "Confirmar estorno integral"}
+            Confirmar estorno integral
           </Button>
         </form>
       ) : (
-        <form action={confirmPassword} className="mt-3 grid gap-3">
+        <form action={confirmPassword} className="mt-3">
           <input name="orderId" type="hidden" value={orderId} />
-          <div className="grid gap-1.5">
-            <label htmlFor={`refund-password-${orderId}`}>
-              Sua senha atual
-            </label>
-            <input
-              autoComplete="current-password"
-              className="rounded-md border bg-background px-3 py-2"
-              id={`refund-password-${orderId}`}
-              name="password"
-              required
-              type="password"
-            />
-          </div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={`refund-password-${orderId}`}>
+                Sua senha atual
+              </FieldLabel>
+              <Input
+                autoComplete="current-password"
+                id={`refund-password-${orderId}`}
+                name="password"
+                required
+                type="password"
+              />
+            </Field>
+          </FieldGroup>
           <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
+            className="mt-3 w-full sm:w-auto"
+            loading={pending}
             type="submit"
             variant="outline"
           >
-            {pending ? "Verificando..." : "Confirmar senha"}
+            Confirmar senha
           </Button>
         </form>
       )}
@@ -183,8 +200,8 @@ export function ReconcilePaymentOperation({
   return (
     <form action={reconcile} className="mt-2">
       <input name="orderId" type="hidden" value={orderId} />
-      <Button disabled={pending} size="sm" type="submit" variant="outline">
-        {pending ? "Conciliando..." : "Conciliar pagamento"}
+      <Button loading={pending} size="sm" type="submit" variant="outline">
+        Conciliar pagamento
       </Button>
       {error ? (
         <p aria-live="polite" className="mt-1 text-destructive text-xs">
@@ -238,8 +255,8 @@ export function ImportStatementOperation(): React.JSX.Element {
           placeholder="Selecionar data"
         />
       </Field>
-      <Button className="self-end" disabled={pending} type="submit">
-        {pending ? "Importando..." : "Importar extrato"}
+      <Button className="self-end" loading={pending} type="submit">
+        Importar extrato
       </Button>
       {message ? (
         <p
@@ -270,6 +287,7 @@ export function PaymentReviewOperation({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const statusPresentation = getPaymentReviewStatusPresentation(review.status);
 
   const resolve = async (formData: FormData): Promise<void> => {
     setError(null);
@@ -287,9 +305,14 @@ export function PaymentReviewOperation({
   if (review.status === "pending" && review.type === "buyer_identity") {
     return (
       <article className="rounded-lg border p-4">
-        <p className="font-medium text-sm">
-          {PAYMENT_REVIEW_LABELS[review.type]}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-medium text-sm">
+            {PAYMENT_REVIEW_LABELS[review.type]}
+          </p>
+          <Badge variant={statusPresentation.variant}>
+            {statusPresentation.label}
+          </Badge>
+        </div>
         <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
         <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
         <p className="mt-3 text-sm">
@@ -302,58 +325,62 @@ export function PaymentReviewOperation({
 
   return (
     <article className="rounded-lg border p-4">
-      <p className="font-medium text-sm">
-        {PAYMENT_REVIEW_LABELS[review.type]}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-medium text-sm">
+          {PAYMENT_REVIEW_LABELS[review.type]}
+        </p>
+        <Badge variant={statusPresentation.variant}>
+          {statusPresentation.label}
+        </Badge>
+      </div>
       <p className="mt-1 text-muted-foreground text-xs">{review.reason}</p>
       <p className="mt-2 font-mono text-xs">{review.providerCheckoutId}</p>
       {review.status === "pending" &&
       canManageFinancialReviews &&
       (review.type === "amount_mismatch" ||
         review.type === "terminal_conflict") ? (
-        <form action={resolve} className="mt-3 grid gap-3">
+        <form action={resolve} className="mt-3">
           <input name="reviewId" type="hidden" value={review.id} />
-          <div className="grid gap-1.5">
-            <label htmlFor={`review-decision-${review.id}`}>Decisao</label>
-            <select
-              className="rounded-md border bg-background px-3 py-2"
-              defaultValue=""
-              id={`review-decision-${review.id}`}
-              name="decision"
-              required
-            >
-              <option disabled value="">
-                Selecione
-              </option>
-              <option value="approved">Aprovar</option>
-              <option value="rejected">Rejeitar</option>
-            </select>
-          </div>
-          <div className="grid gap-1.5">
-            <label htmlFor={`review-reason-${review.id}`}>
-              Motivo da decisao
-            </label>
-            <textarea
-              className="min-h-20 rounded-md border bg-background px-3 py-2"
-              id={`review-reason-${review.id}`}
-              name="decisionReason"
-              required
-            />
-          </div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={`review-decision-${review.id}`}>
+                Decisão
+              </FieldLabel>
+              <Select defaultValue="" name="decision" required>
+                <SelectTrigger id={`review-decision-${review.id}`}>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="approved">Aprovar</SelectItem>
+                  <SelectItem value="rejected">Rejeitar</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`review-reason-${review.id}`}>
+                Motivo da decisão
+              </FieldLabel>
+              <Textarea
+                id={`review-reason-${review.id}`}
+                name="decisionReason"
+                required
+              />
+            </Field>
+          </FieldGroup>
           <Button
-            className="w-full sm:w-auto"
-            disabled={pending}
+            className="mt-3 w-full sm:w-auto"
+            loading={pending}
             type="submit"
             variant="outline"
           >
-            {pending ? "Salvando..." : "Registrar decisao"}
+            Registrar decisão
           </Button>
         </form>
       ) : (
         <p className="mt-3 text-muted-foreground text-sm">
           {review.status === "pending"
-            ? "Aguardando decisao de uma administradora."
-            : `Revisao ${review.status}.`}
+            ? "Aguardando decisão de uma administradora."
+            : `Revisão ${statusPresentation.label.toLowerCase()}.`}
         </p>
       )}
       {error ? (
@@ -397,23 +424,27 @@ export function RetryWebhookOperation({
 
   return (
     <div className="mt-3 grid gap-2">
-      <label className="grid gap-1 text-xs">
-        Motivo do reprocessamento
-        <input
-          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+      <Field>
+        <FieldLabel htmlFor={`retry-webhook-reason-${webhookEventId}`}>
+          Motivo do reprocessamento
+        </FieldLabel>
+        <Input
+          autoComplete="off"
+          id={`retry-webhook-reason-${webhookEventId}`}
           onChange={(event) => setReason(event.target.value)}
           required
           value={reason}
         />
-      </label>
+      </Field>
       <Button
-        disabled={pending || !reason.trim()}
+        disabled={!reason.trim()}
+        loading={pending}
         onClick={retry}
         size="sm"
         type="button"
         variant="outline"
       >
-        {pending ? "Reprocessando..." : "Reprocessar webhook falho"}
+        Reprocessar webhook falho
       </Button>
       {error ? (
         <p

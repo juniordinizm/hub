@@ -38,6 +38,7 @@ describe("SupportCourseStudentsPage", () => {
       hasNextPage: false,
       page: 1,
       pageSize: 100,
+      search: "",
       students: [
         {
           email: "student@example.test",
@@ -65,7 +66,7 @@ describe("SupportCourseStudentsPage", () => {
     expect(markup).not.toContain("Gerenciar Curso");
     expect(dependencies.getSupportCourseStudents).toHaveBeenCalledWith(
       "course-1",
-      { page: 1 }
+      { page: 1, search: "" }
     );
   });
 });

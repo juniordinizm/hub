@@ -54,7 +54,7 @@ export function ColorPicker({
         </label>
         <input
           aria-label={`${label ?? "Cor"} no seletor nativo`}
-          className="size-7 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-0.5"
+          className="size-11 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-0.5 sm:size-10"
           id={`${inputId}-native`}
           onChange={(event) => commit(event.target.value)}
           type="color"

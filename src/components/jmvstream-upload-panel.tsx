@@ -115,22 +115,22 @@ export function JmvstreamUploadPanel({
 
     try {
       setError(null);
-      setStatus("Verificando player na JMVStream...");
+      setStatus("Verificando player na JMVStream…");
       const result = await syncJmvstreamLessonPlayerAction({ lessonId });
 
       if (result.ready && result.playerUrl) {
         onPlayerReady?.(result.playerUrl);
-        setStatus("Video pronto para as alunas.");
+        setStatus("Vídeo pronto para as alunas.");
         router.refresh();
         return;
       }
 
-      setStatus("Video enviado. Aguardando processamento na JMVStream.");
+      setStatus("Vídeo enviado. Aguardando processamento na JMVStream.");
     } catch (syncError) {
       setError(
         syncError instanceof Error
           ? syncError.message
-          : "Nao foi possivel verificar o player na JMVStream."
+          : "Não foi possível verificar o player na JMVStream."
       );
     }
   }, [lessonId, onPlayerReady, router]);
@@ -166,12 +166,12 @@ export function JmvstreamUploadPanel({
     const file = droppedFile || inputRef.current?.files?.[0];
 
     if (!lessonId) {
-      setError("Crie a aula antes de enviar o video.");
+      setError("Crie a aula antes de enviar o vídeo.");
       return;
     }
 
     if (!file) {
-      setError("Selecione um arquivo de video.");
+      setError("Selecione um arquivo de vídeo.");
       return;
     }
 
@@ -180,7 +180,7 @@ export function JmvstreamUploadPanel({
     setIsUploading(true);
     setLocalFilename(file.name);
     setProgress(2);
-    setStatus("Etapa 1/4: Iniciando conexão segura...");
+    setStatus("Etapa 1/4: Iniciando conexão segura…");
     const abortController = new AbortController();
     uploadAbortControllerRef.current = abortController;
 
@@ -201,7 +201,7 @@ export function JmvstreamUploadPanel({
 
         const init = initResult.data;
         activeVideoHash = init.videoHash;
-        setStatus("Etapa 2/4: Enviando arquivo para a nuvem...");
+        setStatus("Etapa 2/4: Enviando arquivo para a nuvem…");
         const parts = await uploadFileParts({
           chunkSize: init.chunkSize,
           file,
@@ -212,8 +212,8 @@ export function JmvstreamUploadPanel({
 
         setIsUploading(false);
         setIsLocalProcessing(true);
-        setStatus("Etapa 3/4: Montando arquivo final...");
-        toast.info("Upload concluído. Processando na JMVStream...");
+        setStatus("Etapa 3/4: Montando arquivo final…");
+        toast.info("Upload concluído. Processando na JMVStream…");
         await completeJmvstreamUploadAction({
           filename: file.name,
           lessonId,
@@ -226,7 +226,7 @@ export function JmvstreamUploadPanel({
         });
         uploadCompleted = true;
         setProgress(100);
-        setStatus("Etapa 4/4: Sincronizando o player oficial...");
+        setStatus("Etapa 4/4: Sincronizando o player oficial…");
         const playerSync = await syncJmvstreamPlayerStatus(lessonId);
         setStatus(playerSync.status);
         if (playerSync.playerUrl) {
@@ -298,7 +298,7 @@ export function JmvstreamUploadPanel({
         setError(
           retryError instanceof Error
             ? retryError.message
-            : "Nao foi possivel apagar o video na JMVStream."
+            : "Não foi possível apagar o vídeo na JMVStream."
         );
       }
     });
@@ -313,13 +313,13 @@ export function JmvstreamUploadPanel({
       try {
         await discardJmvstreamUploadAction({ assetId: asset.id });
         setError(null);
-        toast.success("Sessao de upload descartada.");
+        toast.success("Sessão de upload descartada.");
         router.refresh();
       } catch (discardError) {
         setError(
           discardError instanceof Error
             ? discardError.message
-            : "Nao foi possivel descartar a sessao de upload."
+            : "Não foi possível descartar a sessão de upload."
         );
       }
     });
@@ -327,21 +327,21 @@ export function JmvstreamUploadPanel({
 
   const removeVideo = (): void => {
     if (!lessonId) {
-      setError("Aula invalida.");
+      setError("Aula inválida.");
       return;
     }
 
     setError(null);
-    setStatus("Removendo video da JMVStream...");
-    const toastId = toast.loading("Removendo vídeo...");
+    setStatus("Removendo vídeo da JMVStream…");
+    const toastId = toast.loading("Removendo vídeo…");
     startTransition(async () => {
       try {
         const result = await removeJmvstreamVideoFromLessonAction({ lessonId });
         onRemoveVideo?.();
         setStatus(
           result.deletePending
-            ? "Video removido da aula. Exclusao na JMVStream pendente."
-            : "Video removido."
+            ? "Vídeo removido da aula. Exclusão na JMVStream pendente."
+            : "Vídeo removido."
         );
         toast.success("Vídeo removido com sucesso.", { id: toastId });
         router.refresh();
@@ -349,7 +349,7 @@ export function JmvstreamUploadPanel({
         setError(
           removeError instanceof Error
             ? removeError.message
-            : "Nao foi possivel remover o video da JMVStream."
+            : "Não foi possível remover o vídeo da JMVStream."
         );
         setStatus(null);
         toast.error("Erro ao remover o vídeo.", { id: toastId });
@@ -367,8 +367,8 @@ export function JmvstreamUploadPanel({
                 {manualLinkSlot}
                 <div className="relative flex items-center">
                   <div className="grow border-t" />
-                  <span className="shrink-0 px-4 font-medium text-[10px] text-muted-foreground uppercase tracking-wider">
-                    OU
+                  <span className="shrink-0 px-4 font-medium text-muted-foreground text-xs">
+                    ou
                   </span>
                   <div className="grow border-t" />
                 </div>
@@ -405,6 +405,7 @@ export function JmvstreamUploadPanel({
                 <div className="flex items-center gap-3 text-left">
                   <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-background shadow-sm transition-transform duration-300 ease-out group-hover:scale-105">
                     <HugeiconsIcon
+                      aria-hidden="true"
                       className="text-muted-foreground"
                       icon={CloudUploadIcon}
                       size={20}
@@ -435,6 +436,7 @@ export function JmvstreamUploadPanel({
             {(error || hasFailedUpload) && !currentVideoHash && (
               <div className="relative z-20 flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-xs">
                 <HugeiconsIcon
+                  aria-hidden="true"
                   className="shrink-0"
                   icon={Alert01Icon}
                   size={14}
@@ -450,7 +452,7 @@ export function JmvstreamUploadPanel({
                     type="button"
                     variant="ghost"
                   >
-                    Descartar sessao
+                    Descartar sessão
                   </Button>
                 )}
               </div>
@@ -467,11 +469,12 @@ export function JmvstreamUploadPanel({
         )}
 
         {isUploadActive && (
-          <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 starting:opacity-0 shadow-sm transition-all duration-300 ease-out">
+          <div className="flex flex-col gap-4 rounded-xl border bg-card p-4 starting:opacity-0 shadow-sm transition-opacity duration-300 ease-out">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
               <div className="flex min-w-0 flex-1 items-start gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <HugeiconsIcon
+                    aria-hidden="true"
                     className={
                       isUploading || isProcessing ? "animate-spin" : ""
                     }
@@ -490,7 +493,11 @@ export function JmvstreamUploadPanel({
                       Hash: {currentVideoHash}
                     </p>
                   )}
-                  <p className="text-muted-foreground text-xs">
+                  <p
+                    aria-live="polite"
+                    className="text-muted-foreground text-xs"
+                    role="status"
+                  >
                     {isUploading
                       ? status
                       : getAssetStatusLabel(
@@ -504,23 +511,27 @@ export function JmvstreamUploadPanel({
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {isProcessing && (
                   <Button
-                    disabled={isPending}
+                    loading={isPending}
                     onClick={syncProcessingPlayer}
                     size="sm"
                     type="button"
                     variant="outline"
                   >
-                    <HugeiconsIcon
-                      className="mr-1.5 -ml-0.5"
-                      icon={ReloadIcon}
-                      size={14}
-                    />
+                    {isPending ? null : (
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        className="mr-1.5 -ml-0.5"
+                        data-icon="inline-start"
+                        icon={ReloadIcon}
+                        size={14}
+                      />
+                    )}
                     Verificar player agora
                   </Button>
                 )}
                 {asset?.deleteStatus === "failed" && (
                   <Button
-                    disabled={isPending}
+                    loading={isPending}
                     onClick={retryDelete}
                     size="sm"
                     type="button"
@@ -531,13 +542,13 @@ export function JmvstreamUploadPanel({
                 )}
                 {isUploading && (
                   <Button
-                    disabled={isCancellingUpload}
+                    loading={isCancellingUpload}
                     onClick={cancelUpload}
                     size="sm"
                     type="button"
                     variant="outline"
                   >
-                    {isCancellingUpload ? "Cancelando..." : "Cancelar upload"}
+                    Cancelar upload
                   </Button>
                 )}
                 {currentVideoHash && onRemoveVideo && !isUploading && (
@@ -550,6 +561,7 @@ export function JmvstreamUploadPanel({
                         variant="destructive"
                       >
                         <HugeiconsIcon
+                          aria-hidden="true"
                           className={
                             isPending
                               ? "mr-1.5 -ml-0.5 animate-spin"
@@ -558,13 +570,16 @@ export function JmvstreamUploadPanel({
                           icon={isPending ? Loading02Icon : Delete02Icon}
                           size={14}
                         />
-                        {isPending ? "Removendo..." : "Remover"}
+                        {isPending ? "Removendo…" : "Remover"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogMedia className="bg-destructive/10 text-destructive">
-                          <HugeiconsIcon icon={Delete02Icon} />
+                          <HugeiconsIcon
+                            aria-hidden="true"
+                            icon={Delete02Icon}
+                          />
                         </AlertDialogMedia>
                         <AlertDialogTitle>Remover vídeo</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -588,7 +603,7 @@ export function JmvstreamUploadPanel({
               <div className="flex items-center gap-3">
                 <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="absolute inset-y-0 left-0 bg-primary transition-all duration-300 ease-out"
+                    className="absolute inset-y-0 left-0 bg-primary transition-[width] duration-300 ease-out"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -601,6 +616,7 @@ export function JmvstreamUploadPanel({
             {error && (
               <div className="flex items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-destructive text-xs">
                 <HugeiconsIcon
+                  aria-hidden="true"
                   className="shrink-0"
                   icon={Alert01Icon}
                   size={14}
@@ -665,21 +681,21 @@ const syncJmvstreamPlayerStatus = async (
     if (playerSync.ready) {
       return {
         playerUrl: playerSync.playerUrl,
-        status: "Video pronto para as alunas.",
+        status: "Vídeo pronto para as alunas.",
       };
     }
   } catch {
     return {
       playerUrl: null,
       status:
-        "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)...",
+        "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)…",
     };
   }
 
   return {
     playerUrl: null,
     status:
-      "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)...",
+      "Processando as qualidades do vídeo na JMVStream (pode levar alguns minutos)…",
   };
 };
 
@@ -688,12 +704,12 @@ const getUploadErrorMessage = (uploadError: unknown): string => {
     return uploadError.message;
   }
 
-  return "Nao foi possivel enviar o video.";
+  return "Não foi possível enviar o vídeo.";
 };
 
 const getUploadFailureStatus = (uploadCompleted: boolean): null | string =>
   uploadCompleted
-    ? "Video enviado. Aguardando processamento na JMVStream."
+    ? "Vídeo enviado. Aguardando processamento na JMVStream."
     : null;
 
 const getAssetStatusLabel = (uploadStatus: string): string => {
@@ -702,7 +718,7 @@ const getAssetStatusLabel = (uploadStatus: string): string => {
   }
 
   if (uploadStatus === "processing") {
-    return "Processando qualidades e player...";
+    return "Processando qualidades e player…";
   }
 
   if (uploadStatus === "uploading") {

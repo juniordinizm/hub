@@ -11,6 +11,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -68,19 +69,10 @@ export default async function StudentDashboardPage(): Promise<React.JSX.Element>
       <div className="flex flex-col gap-8">
         {banners.length > 0 && <StudentBannersCarousel banners={banners} />}
 
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex-1 space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Seu espaço de aprendizagem
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Continue seus cursos, descubra novas possibilidades e acompanhe
-                o que está chegando.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Continue seus cursos, descubra novas possibilidades e acompanhe o que está chegando."
+          title="Seu espaço de aprendizagem"
+        />
 
         <div className="flex flex-col gap-12 pt-4">
           {courses.length === 0 ? (
@@ -133,9 +125,9 @@ function EmptyCoursesState(): React.JSX.Element {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <HugeiconsIcon icon={BookOpen01Icon} />
+          <HugeiconsIcon aria-hidden="true" icon={BookOpen01Icon} />
         </EmptyMedia>
-        <EmptyTitle>Novas experiências estão a caminho</EmptyTitle>
+        <EmptyTitle as="h2">Novas experiências estão a caminho</EmptyTitle>
         <EmptyDescription>
           Assim que houver um curso para você, ele aparecerá aqui.
         </EmptyDescription>
@@ -211,7 +203,7 @@ function _InfoPill({
 }): React.JSX.Element {
   return (
     <span className="inline-flex items-center gap-2 rounded-md border bg-background/45 px-3 py-2 text-muted-foreground">
-      <HugeiconsIcon icon={icon} />
+      <HugeiconsIcon aria-hidden="true" icon={icon} />
       {label}
     </span>
   );
@@ -255,7 +247,7 @@ function CourseCard({
   );
 
   return (
-    <article className="group relative flex aspect-[24/25] w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-sidebar text-sidebar-foreground shadow-sm transition-colors hover:border-primary/45">
+    <article className="group relative flex aspect-[24/25] w-full max-w-[340px] flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm transition-colors hover:border-primary/45">
       <div className="absolute inset-0 z-0">
         {course.thumbnailUrl ? (
           <CourseCoverImage
@@ -267,7 +259,7 @@ function CourseCard({
           />
         ) : (
           <>
-            <div className="absolute inset-0 bg-linear-to-br from-sidebar via-sidebar/95 to-primary/20" />
+            <div className="absolute inset-0 bg-linear-to-br from-card via-card/95 to-primary/20" />
             <div className="absolute top-[20%] -right-4 select-none opacity-10 transition-transform duration-500 group-hover:scale-105">
               <span className="font-black text-[8rem] leading-none tracking-tighter">
                 {getInitials(course.title)}
@@ -275,12 +267,13 @@ function CourseCard({
             </div>
           </>
         )}
-        <div className="absolute inset-0 bg-linear-to-b from-transparent via-sidebar/80 to-sidebar" />
+        <div className="absolute inset-0 bg-linear-to-b from-transparent via-card/80 to-card" />
 
         {!hasActiveAccess && (
           <div className="absolute inset-0 flex items-start justify-center bg-background/60 pt-24 backdrop-blur-[2px]">
             <HugeiconsIcon
-              className="text-sidebar-foreground/80 drop-shadow-md"
+              aria-hidden="true"
+              className="text-card-foreground/80 drop-shadow-md"
               icon={SquareLock02Icon}
               size={48}
             />
@@ -294,12 +287,16 @@ function CourseCard({
             className={
               hasActiveAccess
                 ? ""
-                : "border-sidebar-foreground/30 border-dashed bg-transparent text-sidebar-foreground/80 hover:bg-transparent"
+                : "border-card-foreground/30 border-dashed bg-transparent text-card-foreground/80 hover:bg-transparent"
             }
             variant={hasActiveAccess ? "default" : "outline"}
           >
             {hasActiveAccess && (
-              <HugeiconsIcon icon={CheckmarkCircle02Icon} size={14} />
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={CheckmarkCircle02Icon}
+                size={14}
+              />
             )}
             {accessLabel}
           </Badge>
@@ -314,12 +311,12 @@ function CourseCard({
           <div className="mt-2 flex items-start gap-4">
             <div className="flex-1">
               {course.subtitle || course.description ? (
-                <p className="line-clamp-2 text-sidebar-foreground/70 text-sm leading-5">
+                <p className="line-clamp-2 text-card-foreground/70 text-sm leading-5">
                   {course.description ?? course.subtitle}
                 </p>
               ) : null}
             </div>
-            <div className="shrink-0 pt-0.5 text-right font-medium text-sidebar-foreground/60 text-xs">
+            <div className="shrink-0 pt-0.5 text-right font-medium text-card-foreground/60 text-xs">
               {course.totalCount} aulas •{" "}
               {formatCourseWorkload(course.totalDurationSeconds)}
             </div>
@@ -331,17 +328,17 @@ function CourseCard({
         <div className="flex flex-col gap-5">
           {hasActiveAccess ? (
             <div>
-              <div className="mb-2 flex items-center justify-between text-sidebar-foreground/60 text-xs">
+              <div className="mb-2 flex items-center justify-between text-card-foreground/60 text-xs">
                 <span>
                   {course.completedCount}/{course.totalCount} aulas
                 </span>
-                <span className="font-semibold text-sidebar-foreground">
+                <span className="font-semibold text-card-foreground">
                   {course.progressPercent}%
                 </span>
               </div>
               <Progress
                 aria-label={`Progresso no curso ${course.title}: ${course.progressPercent}%`}
-                className="h-1 *:data-[slot=progress-indicator]:bg-emerald-500"
+                className="h-1"
                 value={course.progressPercent}
               />
             </div>
@@ -379,7 +376,12 @@ function CourseAccessControls({
           size="sm"
         >
           <Link href={primaryHref}>
-            <HugeiconsIcon icon={PlayIcon} size={16} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={PlayIcon}
+              size={16}
+            />
             {getShortCourseButtonLabel(
               course.progressPercent,
               Boolean(course.nextLessonId),
@@ -394,7 +396,12 @@ function CourseAccessControls({
           variant="secondary"
         >
           <Link href={cardHref}>
-            <HugeiconsIcon icon={Route03Icon} size={16} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Route03Icon}
+              size={16}
+            />
             Trilha
           </Link>
         </Button>
@@ -436,7 +443,11 @@ function CoursePurchaseForm({
   return (
     <Button asChild className="w-full" size="sm">
       <Link href={route(`/comprar/${course.slug}`)}>
-        <HugeiconsIcon icon={ShoppingBasketDone01Icon} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={ShoppingBasketDone01Icon}
+        />
         {course.accessStatus === "expired"
           ? "Renovar acesso"
           : "Adquirir acesso"}

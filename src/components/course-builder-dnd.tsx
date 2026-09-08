@@ -113,7 +113,12 @@ function SortableLesson({
           {...attributes}
           {...listeners}
         >
-          <HugeiconsIcon icon={Menu01Icon} size={18} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={Menu01Icon}
+            size={18}
+            strokeWidth={2}
+          />
         </Button>
       )}
       <div className="min-w-0 flex-1">{children}</div>

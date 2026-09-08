@@ -11,10 +11,8 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  EnrollmentExpirationControls,
-  statusLabels,
-} from "@/features/admin/enrollment-expiration-controls";
+import { EnrollmentExpirationControls } from "@/features/admin/enrollment-expiration-controls";
+import { getEnrollmentStatusPresentation } from "@/features/admin/status-presentation";
 import { formatDateTime } from "@/lib/formatters";
 import { StudentContentReleaseControls } from "./student-content-release-controls";
 import type { StudentSheetEnrollment } from "./student-management-types";
@@ -55,7 +53,7 @@ export function StudentEnrollmentList({
         <h2 className="font-semibold text-base">{title}</h2>
         <Empty className="rounded-lg border py-8">
           <EmptyHeader>
-            <EmptyTitle>Sem matrículas</EmptyTitle>
+            <EmptyTitle as="h3">Sem matrículas</EmptyTitle>
             <EmptyDescription>
               Esta aluna ainda não possui acesso liberado a nenhum Curso.
             </EmptyDescription>
@@ -76,11 +74,20 @@ export function StudentEnrollmentList({
       <div className="divide-y rounded-lg border" data-student-enrollment-list>
         {enrollments.map((enrollment) => {
           const isExpanded = expandedEnrollmentId === enrollment.id;
+          const statusPresentation = getEnrollmentStatusPresentation(
+            enrollment.status
+          );
           return (
             <div className="px-3" key={enrollment.id}>
               <div className="flex items-center gap-3 py-3">
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <HugeiconsIcon icon={ViewIcon} size={16} strokeWidth={2} />
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    data-icon="inline-start"
+                    icon={ViewIcon}
+                    size={16}
+                    strokeWidth={2}
+                  />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium text-sm">
@@ -90,8 +97,12 @@ export function StudentEnrollmentList({
                     Expira em {formatDateTime(enrollment.expiresAt)}
                   </span>
                 </span>
-                <Badge className="shrink-0" variant="outline">
-                  {statusLabels[enrollment.status] ?? enrollment.status}
+                <Badge
+                  aria-label={`Status: ${statusPresentation.label}`}
+                  className="shrink-0"
+                  variant={statusPresentation.variant}
+                >
+                  {statusPresentation.label}
                 </Badge>
                 <Button
                   aria-controls={`enrollment-${enrollment.id}`}

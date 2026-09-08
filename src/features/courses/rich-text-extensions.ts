@@ -29,7 +29,7 @@ export const editorExtensions = [
   sharedStarterKit,
   sharedLink,
   Placeholder.configure({
-    placeholder: "Escreva o conteudo da aula...",
+    placeholder: "Escreva o conteúdo da aula…",
   }),
   Typography,
 ];

@@ -60,7 +60,12 @@ function StudentNav({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuLink href={route("/app")} tooltip="Início">
-                <HugeiconsIcon icon={Home01Icon} size={18} strokeWidth={1.5} />
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  icon={Home01Icon}
+                  size={18}
+                  strokeWidth={1.5}
+                />
                 <span>Início</span>
               </SidebarMenuLink>
             </SidebarMenuItem>
@@ -71,6 +76,7 @@ function StudentNav({
                 tooltip="Certificados"
               >
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={Certificate01Icon}
                   size={18}
                   strokeWidth={1.5}
@@ -84,6 +90,7 @@ function StudentNav({
                 tooltip="Configurações"
               >
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={ShieldKeyIcon}
                   size={18}
                   strokeWidth={1.5}
@@ -107,6 +114,7 @@ function StudentNav({
                     tooltip={course.title}
                   >
                     <HugeiconsIcon
+                      aria-hidden="true"
                       icon={BookOpen01Icon}
                       size={18}
                       strokeWidth={1.5}
@@ -135,6 +143,7 @@ function StudentNav({
                 tooltip="Perguntas frequentes"
               >
                 <HugeiconsIcon
+                  aria-hidden="true"
                   icon={HelpCircleIcon}
                   size={18}
                   strokeWidth={1.5}

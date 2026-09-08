@@ -24,13 +24,13 @@ export default function StudentAreaError({
 
   return (
     <section className="mx-auto flex min-h-64 w-full max-w-xl flex-col items-start justify-center gap-4 px-6 py-12">
-      <h1 className="font-semibold text-2xl" ref={headingRef} tabIndex={-1}>
+      <h1 className="type-page-title" ref={headingRef} tabIndex={-1}>
         Não foi possível carregar esta área
       </h1>
-      <p className="text-muted-foreground">
+      <p className="type-body-sm text-muted-foreground">
         Tente novamente. Se continuar, informe o código abaixo ao suporte.
       </p>
-      <p className="font-mono text-muted-foreground text-sm">
+      <p className="type-code text-muted-foreground">
         Identificador de correlação: {correlationId}
       </p>
       <div className="flex flex-wrap gap-3">

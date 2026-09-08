@@ -178,11 +178,11 @@ function CertificateForm({
           Cancelar
         </Button>
         <Button
-          disabled={pending}
+          loading={pending}
           type="submit"
           variant={label.includes("Revogar") ? "destructive" : "default"}
         >
-          {pending ? "Salvando…" : label}
+          {label}
         </Button>
       </div>
       {localError || state.status === "error" ? (

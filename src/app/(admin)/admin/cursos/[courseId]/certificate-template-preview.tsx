@@ -441,7 +441,7 @@ export function CertificateTemplatePreview({
           const frame = getCertificatePreviewFrame(field);
           const hasOverlap = overlapFields.has(field.field);
           const overlapClassName = hasOverlap
-            ? "bg-amber-400/10 ring-2 ring-amber-500 ring-offset-1 ring-offset-background"
+            ? "bg-warning/10 ring-2 ring-warning ring-offset-1 ring-offset-background"
             : "";
           const overlapMarker = hasOverlap ? "true" : undefined;
           if (field.field === "qrCode") {

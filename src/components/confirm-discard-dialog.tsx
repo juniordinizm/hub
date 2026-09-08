@@ -29,7 +29,7 @@ export function ConfirmDiscardDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
-            <HugeiconsIcon icon={Alert01Icon} />
+            <HugeiconsIcon aria-hidden="true" icon={Alert01Icon} />
           </AlertDialogMedia>
           <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
           <AlertDialogDescription>

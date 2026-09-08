@@ -41,7 +41,7 @@ export default async function CheckoutSuccessPage({
     <PageContainer className="min-h-screen bg-background text-foreground">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
         <Badge variant="outline">Pagamento em verificação</Badge>
-        <h1 className="mt-4 font-bold text-2xl tracking-tight">
+        <h1 className="type-section-title mt-4">
           Seu acesso está sendo liberado
         </h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">

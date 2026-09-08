@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { SupportRequestDialog } from "@/components/support-request-dialog";
 import {
   Accordion,
@@ -33,26 +34,17 @@ export default async function StudentFaqPage(): Promise<React.JSX.Element> {
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4">
-            <div className="space-y-1">
-              <h1 className="font-bold text-3xl tracking-tight">
-                Perguntas frequentes
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Respostas rápidas sobre acesso, pagamento, progresso,
-                certificados e uso da plataforma.
-              </p>
-            </div>
-          </div>
-        </header>
+        <PageHeader
+          description="Respostas rápidas sobre acesso, pagamento, progresso, certificados e uso da plataforma."
+          title="Perguntas frequentes"
+        />
 
         <div className="flex flex-col gap-6">
           {faqs.length === 0 ? (
             <Card>
               <CardHeader>
                 <CardDescription>FAQ</CardDescription>
-                <CardTitle>Nenhuma pergunta publicada</CardTitle>
+                <CardTitle as="h2">Nenhuma pergunta publicada</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground text-sm leading-6">

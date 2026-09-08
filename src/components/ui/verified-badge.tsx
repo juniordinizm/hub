@@ -8,7 +8,7 @@ export function VerifiedBadge({
   return (
     <svg
       aria-label="Verificado"
-      className={cn("size-4 text-blue-500", className)}
+      className={cn("size-4 text-info", className)}
       fill="none"
       role="img"
       viewBox="0 0 24 24"

@@ -12,7 +12,7 @@ When instructions conflict, apply this order:
 
 1. User's explicit request for the current task.
 2. Project-specific instructions in this file.
-3. More specific local docs under `aidd_docs/`.
+3. Relevant canonical documents indexed in `docs/README.md`.
 4. Tooling output from source-of-truth commands.
 5. General coding conventions.
 
@@ -84,7 +84,7 @@ Canonical project documentation lives in `README.md`, `PRODUCT.md`, `CONTEXT.md`
 
 ### Required loading
 
-* Start with `docs/README.md` and follow its reading path.
+* Use `docs/README.md` to locate the domain or operational guide relevant to the task. Read broader product and architecture context when the change crosses those boundaries.
 * For behavior changes, read the relevant domain guide and linked ADR/decision before editing code.
 * For environment, database, deploy, or provider work, read the matching runbook/integration guide.
 * Treat `.0ref/`, `.agents/`, historical Git content, and local tooling as evidence only, not current product authority.

@@ -13,10 +13,11 @@ Este índice é a autoridade sobre onde cada informação vive. Código, schema,
 1. [README do projeto](../README.md): executar e verificar o repositório.
 2. [Produto](../PRODUCT.md): propósito, público, jornadas e limites.
 3. [Glossário](../CONTEXT.md): termos sem ambiguidade.
-4. [Arquitetura](architecture.md): módulos, fronteiras e fluxos.
-5. Guia de domínio relacionado à tarefa.
-6. ADR ou decisão relacionada.
-7. Integração e runbook operacional relacionado.
+4. [Sistema visual](../DESIGN.md): tokens, tipografia, estados e composição.
+5. [Arquitetura](architecture.md): módulos, fronteiras e fluxos.
+6. Guia de domínio relacionado à tarefa.
+7. ADR ou decisão relacionada.
+8. Integração e runbook operacional relacionado.
 
 Esse percurso permite localizar propósito, regra, racional, código, teste e operação em no máximo dois saltos a partir deste índice.
 
@@ -75,6 +76,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 - [Requalificação de prontidão e higiene operacional em 2026-09-03](reviews/2026-09-03-readiness-remediation-requalification.md)
 - [Revisão final de Production Readiness da liberação por Módulo](reviews/2026-09-06-module-content-release-production-readiness-review.md)
 - [Pesquisa externa da liberação por Módulo](reviews/2026-09-06-module-content-release-external-research.md)
+- [Comparação do sistema visual com a referência Vercel em 2026-09-07](reviews/2026-09-07-design-document-comparison.md)
 - [Requalificação de Production Readiness em 2026-09-01](reviews/2026-09-01-production-readiness-requalification.md)
 - [Auditoria de saúde do repositório e plano de normalização](reviews/2026-08-29-repository-health-audit.md)
 - [Requalificação de Production Readiness em 2026-08-26, retorno ao fluxo normal e bloqueios externos](reviews/2026-08-26-production-readiness-requalification.md)

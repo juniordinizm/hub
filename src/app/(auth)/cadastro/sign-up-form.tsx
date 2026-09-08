@@ -60,7 +60,7 @@ export function SignUpForm(): React.JSX.Element {
 
       if (!(response.ok && isSuccessfulSignUpPayload(payload))) {
         setError(
-          "Nao foi possivel criar a conta. Confira os dados e tente novamente."
+          "Não foi possível criar a conta. Confira os dados e tente novamente."
         );
         return;
       }
@@ -72,7 +72,7 @@ export function SignUpForm(): React.JSX.Element {
 
       if (!redirectResponse.ok) {
         setError(
-          "Sua conta foi criada, mas nao foi possivel iniciar a sessao."
+          "Sua conta foi criada, mas não foi possível iniciar a sessão."
         );
         return;
       }
@@ -80,7 +80,7 @@ export function SignUpForm(): React.JSX.Element {
       const data = (await redirectResponse.json()) as { redirectTo?: string };
       window.location.assign(data.redirectTo ?? "/app");
     } catch {
-      setError("Nao foi possivel criar a conta. Tente novamente.");
+      setError("Não foi possível criar a conta. Tente novamente.");
     } finally {
       setIsPending(false);
     }
@@ -99,7 +99,7 @@ export function SignUpForm(): React.JSX.Element {
             autoComplete="email"
             id="email"
             name="email"
-            placeholder="aluno@exemplo.com"
+            placeholder="aluna@exemplo.com"
             required
             type="email"
           />
@@ -134,14 +134,14 @@ export function SignUpForm(): React.JSX.Element {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Button className="mt-5 h-12 w-full" disabled={isPending} type="submit">
-        {isPending ? "Criando conta..." : "Criar conta"}
+      <Button className="mt-5 h-12 w-full" loading={isPending} type="submit">
+        Criar conta
       </Button>
       <Link
         className="mt-5 inline-flex text-muted-foreground text-sm hover:text-foreground"
         href={route("/entrar")}
       >
-        Ja tenho uma conta
+        Já tenho uma conta
       </Link>
     </form>
   );

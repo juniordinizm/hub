@@ -308,7 +308,7 @@ describe("CertificateTemplateEditor", () => {
     expect(trigger).toBeDefined();
     act(() => trigger?.click());
     expect(document.body.textContent).toContain(
-      "geracao do PDF e o envio do e-mail"
+      "geração do PDF e o envio do e-mail"
     );
 
     const confirm = [...document.body.querySelectorAll("button")].find(

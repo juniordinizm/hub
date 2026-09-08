@@ -55,7 +55,7 @@ export const POST = async (request: Request): Promise<Response> => {
         error:
           error instanceof Error
             ? error.message
-            : "Nao foi possivel preparar o upload.",
+            : "Não foi possível preparar o upload.",
       },
       { status: 400 }
     );

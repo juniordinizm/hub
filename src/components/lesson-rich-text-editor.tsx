@@ -332,7 +332,7 @@ function BlockFormatSelect({
     >
       <SelectTrigger
         aria-label="Tipo de bloco"
-        className="h-8 w-[8.75rem] bg-transparent"
+        className="h-10 w-[8.75rem] bg-transparent"
         size="sm"
       >
         <SelectValue />
@@ -417,15 +417,21 @@ function LinkPopover({
               aria-label="Inserir link"
               aria-pressed={isActive}
               className={cn(
+                "size-10",
                 isActive && "bg-secondary text-secondary-foreground"
               )}
               disabled={!editor}
-              size="icon-sm"
+              size="icon"
               title="Inserir link"
               type="button"
               variant={isActive ? "secondary" : "ghost"}
             >
-              <HugeiconsIcon icon={Link01Icon} size={16} strokeWidth={2} />
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={Link01Icon}
+                size={16}
+                strokeWidth={2}
+              />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -448,7 +454,7 @@ function LinkPopover({
                 applyLink();
               }
             }}
-            placeholder="https://..."
+            placeholder="https://exemplo.com/material"
             type="url"
             value={linkUrl}
           />
@@ -469,7 +475,12 @@ function LinkPopover({
               size="sm"
               type="button"
             >
-              <HugeiconsIcon icon={CheckIcon} size={14} strokeWidth={2} />
+              <HugeiconsIcon
+                aria-hidden="true"
+                icon={CheckIcon}
+                size={14}
+                strokeWidth={2}
+              />
               Aplicar
             </Button>
           </div>
@@ -525,14 +536,24 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
           label="Negrito"
           onClick={() => editor.chain().focus().toggleBold().run()}
         >
-          <HugeiconsIcon icon={TextBoldIcon} size={15} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={TextBoldIcon}
+            size={15}
+            strokeWidth={2}
+          />
         </BubbleButton>
         <BubbleButton
           isActive={bubbleState.isItalic}
           label="Itálico"
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
-          <HugeiconsIcon icon={TextItalicIcon} size={15} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={TextItalicIcon}
+            size={15}
+            strokeWidth={2}
+          />
         </BubbleButton>
         <BubbleButton
           isActive={bubbleState.isStrike}
@@ -540,6 +561,7 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
           onClick={() => editor.chain().focus().toggleStrike().run()}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             icon={TextStrikethroughIcon}
             size={15}
             strokeWidth={2}
@@ -552,6 +574,7 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
           onClick={() => editor.chain().focus().toggleBulletList().run()}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             icon={LeftToRightListBulletIcon}
             size={15}
             strokeWidth={2}
@@ -563,6 +586,7 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             icon={LeftToRightListNumberIcon}
             size={15}
             strokeWidth={2}
@@ -574,6 +598,7 @@ function EditorBubbleMenu({ editor }: { editor: Editor }): React.JSX.Element {
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             icon={LeftToRightBlockQuoteIcon}
             size={15}
             strokeWidth={2}
@@ -605,15 +630,23 @@ function ToolbarButton({
         <Button
           aria-label={label}
           aria-pressed={isActive}
-          className={cn(isActive && "bg-secondary text-secondary-foreground")}
+          className={cn(
+            "size-10",
+            isActive && "bg-secondary text-secondary-foreground"
+          )}
           disabled={isDisabled}
           onClick={onClick}
-          size="icon-sm"
+          size="icon"
           title={label}
           type="button"
           variant={isActive ? "secondary" : "ghost"}
         >
-          <HugeiconsIcon icon={icon} size={16} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={icon}
+            size={16}
+            strokeWidth={2}
+          />
         </Button>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
@@ -660,7 +693,7 @@ function BubbleButton({
           aria-label={label}
           aria-pressed={isActive}
           className={cn(
-            "flex size-8 items-center justify-center rounded-md transition-colors duration-100",
+            "flex size-10 items-center justify-center rounded-md outline-none transition-colors duration-100 focus-visible:ring-2 focus-visible:ring-ring/50",
             isActive
               ? "bg-secondary text-secondary-foreground"
               : "text-popover-foreground hover:bg-muted"

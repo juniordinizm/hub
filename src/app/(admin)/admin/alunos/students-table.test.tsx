@@ -36,4 +36,17 @@ describe("StudentsTable", () => {
     expect(markup).toContain("Gerenciar");
     expect(markup).not.toContain("Abrir ficha");
   });
+
+  it("announces the current page range and total result count", () => {
+    const markup = renderToStaticMarkup(
+      <StudentsTable
+        page={2}
+        pageSize={1}
+        students={[student]}
+        totalCount={3}
+      />
+    );
+
+    expect(markup).toContain("2–2 de 3 alunas");
+  });
 });

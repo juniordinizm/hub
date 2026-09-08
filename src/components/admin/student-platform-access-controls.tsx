@@ -3,7 +3,10 @@
 import { SquareLock02Icon, UndoIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useState } from "react";
-import { AdminMutationForm } from "@/components/admin-mutation-form";
+import {
+  AdminMutationForm,
+  AdminMutationSubmitButton,
+} from "@/components/admin-mutation-form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -79,6 +82,7 @@ export function StudentPlatformAccessControls({
           variant={isBlocked ? "outline" : "destructive"}
         >
           <HugeiconsIcon
+            aria-hidden="true"
             data-icon="inline-start"
             icon={isBlocked ? UndoIcon : SquareLock02Icon}
             size={16}
@@ -117,9 +121,9 @@ export function StudentPlatformAccessControls({
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" variant="outline">
+                <AdminMutationSubmitButton type="submit" variant="outline">
                   Restaurar acesso
-                </Button>
+                </AdminMutationSubmitButton>
               </div>
             </AdminMutationForm>
           ) : (
@@ -167,7 +171,10 @@ export function StudentPlatformAccessControls({
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogMedia className="bg-destructive/10 text-destructive">
-                        <HugeiconsIcon icon={SquareLock02Icon} />
+                        <HugeiconsIcon
+                          aria-hidden="true"
+                          icon={SquareLock02Icon}
+                        />
                       </AlertDialogMedia>
                       <AlertDialogTitle>
                         Confirmar bloqueio da plataforma

@@ -22,16 +22,29 @@ export function CourseActionsDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="h-8 w-8 p-0" size="sm" variant="outline">
-          <HugeiconsIcon icon={MoreHorizontalIcon} size={16} strokeWidth={2} />
-          <span className="sr-only">Opcoes</span>
+        <Button
+          className="size-11 p-0 sm:size-10"
+          size="icon"
+          variant="outline"
+        >
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={MoreHorizontalIcon}
+            size={16}
+            strokeWidth={2}
+          />
+          <span className="sr-only">Opções</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem asChild>
           <a href={route(`/app/cursos/${course.id}?preview=student`)}>
-            <HugeiconsIcon icon={ViewIcon} />
-            Preview como aluno
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={ViewIcon}
+            />
+            Preview como aluna
           </a>
         </DropdownMenuItem>
       </DropdownMenuContent>

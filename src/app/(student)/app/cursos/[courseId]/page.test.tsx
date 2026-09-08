@@ -94,7 +94,7 @@ describe("StudentCourseOverviewPage certificate feedback", () => {
   it("renders accessible success feedback without persisting the query signal", async () => {
     const markup = await renderPage();
 
-    expect(markup).toContain('role="alert"');
+    expect(markup).toContain('role="status"');
     expect(markup).toContain("Curso concluído");
     expect(markup).toContain("Seu certificado foi emitido");
     expect(markup).not.toContain("?certificate=issued");

@@ -6,7 +6,7 @@ function Empty({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 text-balance rounded-2xl border-dashed p-12 text-center",
+        "flex w-full min-w-0 flex-1 flex-col items-center justify-center gap-4 rounded-2xl border-dashed p-12 text-center",
         className
       )}
       data-slot="empty"
@@ -55,11 +55,17 @@ function EmptyMedia({
   );
 }
 
-function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
+function EmptyTitle({
+  as: Component = "div",
+  className,
+  ...props
+}: React.ComponentProps<"div"> & {
+  as?: "div" | "h2" | "h3";
+}) {
   return (
-    <div
+    <Component
       className={cn(
-        "font-heading font-medium text-lg tracking-tight",
+        "text-balance font-heading font-medium text-lg tracking-tight",
         className
       )}
       data-slot="empty-title"
@@ -70,9 +76,9 @@ function EmptyTitle({ className, ...props }: React.ComponentProps<"div">) {
 
 function EmptyDescription({ className, ...props }: React.ComponentProps<"p">) {
   return (
-    <div
+    <p
       className={cn(
-        "text-muted-foreground text-sm/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
+        "text-pretty text-muted-foreground text-sm/relaxed [&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4",
         className
       )}
       data-slot="empty-description"
@@ -85,7 +91,7 @@ function EmptyContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "flex w-full min-w-0 max-w-sm flex-col items-center gap-4 text-balance text-sm",
+        "flex w-full min-w-0 max-w-sm flex-col items-center gap-4 text-pretty text-sm",
         className
       )}
       data-slot="empty-content"

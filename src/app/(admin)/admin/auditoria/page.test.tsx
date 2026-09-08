@@ -22,7 +22,16 @@ describe("AuditoriaPage", () => {
   it("includes uncertain checkouts in the displayed financial backlog", async () => {
     dependencies.requirePermission.mockResolvedValue({ role: "admin" });
     dependencies.getAdminAuditData.mockResolvedValue({
-      auditLogs: [],
+      auditLogs: [
+        {
+          action: "course.created",
+          actorEmail: "admin@example.test",
+          createdAt: new Date("2026-09-07T12:00:00Z"),
+          targetId: "course-1",
+          targetName: "Curso de exemplo",
+          targetType: "course",
+        },
+      ],
       operationalBacklog: {
         alerts: [
           { code: "outbox_dead_letter", severity: "critical" as const },
@@ -75,6 +84,9 @@ describe("AuditoriaPage", () => {
     expect(markup).toContain("E-mails aceitos");
     expect(markup).toContain(">7<");
     expect(markup).toContain("Entregues: 6");
+    expect(markup).toContain("Alterações administrativas recentes");
+    expect(markup).toContain('scope="col"');
+    expect(markup).toContain("Curso de exemplo");
     expect(markup).toContain("Mensagens em dead letter");
     expect(markup).toContain(
       "Há mensagens que esgotaram as tentativas e exigem revisão manual."

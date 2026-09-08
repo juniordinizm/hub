@@ -17,7 +17,7 @@ export default async function CheckoutExpiredPage({
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <main className="max-w-2xl rounded-lg border bg-card p-6">
-        <h1 className="font-bold text-2xl tracking-tight">Checkout expirado</h1>
+        <h1 className="type-section-title">Checkout expirado</h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
           {retryPath
             ? "O prazo desta tentativa terminou sem confirmação. Volte ao curso para iniciar um novo checkout."

@@ -12,14 +12,14 @@ export default function PublicCheckoutSuccessPage(): React.JSX.Element {
   return (
     <PageContainer className="min-h-screen bg-background text-foreground">
       <section className="max-w-2xl rounded-lg border bg-card p-6">
-        <Badge variant="outline">Pagamento em confirmacao</Badge>
-        <h1 className="mt-4 font-bold text-2xl tracking-tight">
-          Seu acesso esta sendo preparado
+        <Badge variant="outline">Pagamento em confirmação</Badge>
+        <h1 className="type-section-title mt-4">
+          Seu acesso está sendo preparado
         </h1>
         <p className="mt-3 text-muted-foreground text-sm leading-6">
-          Assim que o pagamento for confirmado, enviaremos as instrucoes de
+          Assim que o pagamento for confirmado, enviaremos as instruções de
           acesso para o e-mail usado na compra. Se esta for sua primeira compra,
-          o e-mail tera um link para criar sua senha.
+          o e-mail terá um link para criar sua senha.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>

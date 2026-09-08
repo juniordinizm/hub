@@ -6,6 +6,7 @@ import { PageContainer } from "@/components/page-container";
 import { CERTIFICATE_PREVIEW_DIMENSIONS } from "@/features/certificates/preview";
 import { consumePublicCertificateLookup } from "@/features/certificates/public-rate-limit";
 import { getCertificateByCode } from "@/features/certificates/server";
+import { PLATFORM_BRAND } from "@/lib/brand";
 import { CertificatePublicActions } from "./certificate-public-actions";
 import { CertificatePublicCode } from "./certificate-public-code";
 import { CertificatePublicStatus } from "./certificate-public-status";
@@ -45,15 +46,9 @@ export default async function CertificateValidationPage({
     >
       <div className="mx-auto max-w-[1400px]" data-certificate-layout="split">
         <header className="mb-8 flex items-center justify-between border-border/60 border-b pb-4">
-          <Image
-            alt="NeuroCapacitar"
-            className="h-8 w-auto object-contain object-left"
-            height={100}
-            priority
-            src="/protear/logo-negativo.svg"
-            unoptimized
-            width={400}
-          />
+          <span className="font-semibold text-base tracking-tight">
+            {PLATFORM_BRAND}
+          </span>
           <div className="ml-auto text-right">
             <h1 className="font-heading font-semibold text-sm">
               Verificação de certificado

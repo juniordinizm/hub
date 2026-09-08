@@ -59,7 +59,7 @@ describe("CertificateTemplateCropDialog", () => {
       )
     );
     expect(document.body.textContent).toContain(
-      "Enquadre a imagem para a pagina A4 horizontal."
+      "Enquadre a imagem para a página A4 horizontal."
     );
     expect(
       document.body.querySelector('[data-slot="dialog-description"]')

@@ -88,7 +88,7 @@ export function BannerCropDialog({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Nao foi possivel preparar o banner."
+          : "Não foi possível preparar o banner."
       );
     } finally {
       setIsPreparing(false);
@@ -107,7 +107,7 @@ export function BannerCropDialog({
 
         <DialogBody className="space-y-6 p-4 sm:p-6">
           {sourceUrl ? (
-            <div className="relative h-72 overflow-hidden rounded-2xl border border-black/5 bg-muted/30 shadow-inner sm:h-105 dark:border-white/5">
+            <div className="relative h-72 overflow-hidden rounded-2xl border border-border/60 bg-muted/30 shadow-inner sm:h-105">
               <Cropper
                 aspect={BANNER_IMAGE_ASPECT_RATIO}
                 crop={crop}
@@ -159,18 +159,23 @@ export function BannerCropDialog({
               Cancelar
             </Button>
             <Button
-              disabled={!cropPixels || isPreparing}
+              disabled={!cropPixels}
+              loading={isPreparing}
               onClick={handleComplete}
               type="button"
             >
-              {isPreparing ? (
-                "Preparando..."
-              ) : (
+              {
                 <>
-                  <HugeiconsIcon className="mr-2" icon={CropIcon} size={16} />
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    className="mr-2"
+                    data-icon="inline-start"
+                    icon={CropIcon}
+                    size={16}
+                  />
                   Confirmar
                 </>
-              )}
+              }
             </Button>
           </div>
         </DialogFooter>

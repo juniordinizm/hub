@@ -10,10 +10,11 @@ export function AuthShell({
     <main className="grid min-h-screen bg-background text-foreground lg:grid-cols-[1fr_440px]">
       <section className="relative hidden overflow-hidden bg-muted lg:block">
         <Image
-          alt="Capa do curso PROTEA-R"
+          alt=""
           className="object-cover"
           fill
           priority
+          sizes="(min-width: 1024px) 60vw, 100vw"
           src="/protear/login-capa.png"
         />
       </section>

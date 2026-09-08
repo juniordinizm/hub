@@ -43,7 +43,7 @@ describe("CourseManagementTabs", () => {
           content={<p>Painel de conteúdo</p>}
           overview={<p>Painel de visão geral</p>}
           settings={<p>Painel de configurações</p>}
-          students={<p>Painel de alunos</p>}
+          students={<p>Painel de alunas</p>}
         />
       );
     });
@@ -164,7 +164,7 @@ describe("CourseManagementTabs", () => {
     });
     renderTabs();
 
-    expect(getTab("Alunos").getAttribute("data-state")).toBe("active");
+    expect(getTab("Alunas").getAttribute("data-state")).toBe("active");
   });
 
   it("keeps certificate state mounted and hides its inactive panel", () => {

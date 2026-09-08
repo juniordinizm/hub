@@ -45,7 +45,11 @@ export function CertificateCopyLinkButton({
         type="button"
         variant="outline"
       >
-        <HugeiconsIcon data-icon="inline-start" icon={CopyLinkIcon} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={CopyLinkIcon}
+        />
         {copyStatus === "success" ? "Link copiado" : "Copiar link"}
       </Button>
       <span aria-atomic="true" aria-live="polite" className="sr-only">

@@ -137,7 +137,7 @@ export function CourseOverview({
         className="grid gap-4 md:grid-cols-3"
       >
         <CourseMetric
-          helper="Alunos com acesso liberado."
+          helper="Alunas com acesso liberado."
           label="Matrículas ativas"
           value={overviewSummary.activeEnrollmentCount}
         />

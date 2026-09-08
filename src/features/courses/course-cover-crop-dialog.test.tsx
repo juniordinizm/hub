@@ -56,7 +56,7 @@ describe("CourseCoverCropDialog", () => {
     );
 
     expect(document.body.textContent).toContain(
-      "Enquadre a imagem para o card do curso (960 × 1000 px, proporcao 24:25)."
+      "Enquadre a imagem para o card do curso (960 × 1000 px, proporção 24:25)."
     );
     expect(
       document.body.querySelector('[data-testid="cropper"]')

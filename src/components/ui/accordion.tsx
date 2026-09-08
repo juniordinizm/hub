@@ -44,7 +44,7 @@ function AccordionTrigger({
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
         className={cn(
-          "group/accordion-trigger relative flex flex-1 items-start justify-between gap-6 border border-transparent p-4 text-left font-medium text-sm outline-none transition-all hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 **:data-[slot=accordion-trigger-icon]:ml-auto **:data-[slot=accordion-trigger-icon]:size-4 **:data-[slot=accordion-trigger-icon]:text-muted-foreground",
+          "group/accordion-trigger relative flex flex-1 items-start justify-between gap-6 border border-transparent p-4 text-left font-medium text-sm outline-none transition-[background-color,border-color,color] hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 **:data-[slot=accordion-trigger-icon]:ml-auto **:data-[slot=accordion-trigger-icon]:size-4 **:data-[slot=accordion-trigger-icon]:text-muted-foreground",
           className
         )}
         data-slot="accordion-trigger"
@@ -52,12 +52,14 @@ function AccordionTrigger({
       >
         {children}
         <HugeiconsIcon
+          aria-hidden="true"
           className="pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden"
           data-slot="accordion-trigger-icon"
           icon={ArrowDown01Icon}
           strokeWidth={2}
         />
         <HugeiconsIcon
+          aria-hidden="true"
           className="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline"
           data-slot="accordion-trigger-icon"
           icon={ArrowUp01Icon}

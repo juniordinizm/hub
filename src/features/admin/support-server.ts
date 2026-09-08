@@ -39,7 +39,13 @@ export interface SupportCourseStudentsPage {
   hasNextPage: boolean;
   page: number;
   pageSize: number;
+  search: string;
   students: SupportCourseStudentSummary[];
+}
+
+export interface SupportCourseStudentsQuery {
+  page?: number;
+  search?: string;
 }
 
 export interface SupportCourseStudentContext {
@@ -173,7 +179,7 @@ export const getSupportCourseOperations = async (): Promise<
 
 export const getSupportCourseStudents = async (
   courseId: string,
-  options: { page?: number } = {}
+  options: SupportCourseStudentsQuery = {}
 ): Promise<SupportCourseStudentsPage> => {
   await requirePermission("viewStudentOperations");
 
@@ -181,6 +187,7 @@ export const getSupportCourseStudents = async (
   const page = Number.isFinite(requestedPage)
     ? Math.min(MAX_PAGE, Math.max(1, requestedPage))
     : 1;
+  const search = options.search?.trim() ?? "";
   const offset = (page - 1) * DEFAULT_PAGE_SIZE;
   const { rows } = await getPool().query<{
     email: string;
@@ -206,16 +213,18 @@ export const getSupportCourseStudents = async (
       join users u on u.id = e.user_id
       join profiles p on p.user_id = u.id and p.role = 'student'
       where e.course_id = $1
+        and ($2 = '' or u.name ilike $3 or u.email ilike $3)
       order by u.name asc, u.id asc
-      limit $2 offset $3
+      limit $4 offset $5
     `,
-    [courseId, DEFAULT_PAGE_SIZE + 1, offset]
+    [courseId, search, `%${search}%`, DEFAULT_PAGE_SIZE + 1, offset]
   );
 
   return {
     hasNextPage: rows.length > DEFAULT_PAGE_SIZE,
     page,
     pageSize: DEFAULT_PAGE_SIZE,
+    search,
     students: rows.slice(0, DEFAULT_PAGE_SIZE).map((row) => ({
       email: row.email,
       enrollmentId: row.enrollment_id,

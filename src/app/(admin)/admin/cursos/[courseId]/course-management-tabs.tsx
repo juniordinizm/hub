@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const COURSE_MANAGEMENT_TABS = [
   { label: "Visão geral", value: "overview" },
   { label: "Conteúdo", value: "content" },
-  { label: "Alunos", value: "students" },
+  { label: "Alunas", value: "students" },
   { label: "Configurações", value: "settings" },
   { label: "Certificado", value: "certificate" },
 ] as const;

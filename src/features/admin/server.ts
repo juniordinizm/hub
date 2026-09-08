@@ -190,6 +190,32 @@ export interface AdminCourseCatalogQuery {
   search?: string | undefined;
 }
 
+const DEFAULT_ADMIN_REVENUE_PAGE_SIZE = 5;
+const MAX_ADMIN_REVENUE_PAGE_SIZE = 100;
+const MAX_ADMIN_REVENUE_PAGE = 1000;
+const DEFAULT_ADMIN_COURSE_ENROLLMENT_PAGE_SIZE = 50;
+const MAX_ADMIN_COURSE_ENROLLMENT_PAGE = 1000;
+
+export interface AdminCourseRevenueQuery {
+  page?: number | undefined;
+  pageSize?: number | undefined;
+  search?: string | undefined;
+}
+
+export interface AdminCourseRevenuePage {
+  courses: CourseRevenueSummary[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
+  totalCount: number;
+}
+
+export interface AdminCourseEnrollmentQuery {
+  page?: number | undefined;
+  search?: string | undefined;
+}
+
 export interface AdminFaq {
   answer: string;
   id: string;
@@ -725,6 +751,41 @@ const readLessonEditor = async ({
   };
 };
 
+interface AdminEnrollmentDatabaseRow {
+  content_release_mode?: ContentReleaseMode;
+  content_release_started_at?: Date | null;
+  course_id: string;
+  course_title: string;
+  email: string;
+  expires_at: Date;
+  id: string;
+  last_access_at: Date | null;
+  name: string;
+  next_module_release_at?: Date | null;
+  original_expires_at: Date;
+  revoked_reason: string | null;
+  starts_at: Date;
+  status: string;
+  user_id: string;
+}
+
+const mapAdminEnrollment = (
+  row: AdminEnrollmentDatabaseRow
+): AdminEnrollment => ({
+  courseId: row.course_id,
+  courseTitle: row.course_title,
+  email: row.email,
+  expiresAt: row.expires_at,
+  id: row.id,
+  lastAccessAt: row.last_access_at,
+  name: row.name,
+  originalExpiresAt: row.original_expires_at,
+  revokedReason: row.revoked_reason,
+  startsAt: row.starts_at,
+  status: row.status,
+  userId: row.user_id,
+});
+
 const readEnrollments = async (
   courseId?: string,
   userIds?: readonly string[]
@@ -810,16 +871,78 @@ const readEnrollments = async (
   }));
 };
 
+const readCourseEnrollmentsPage = async (
+  courseId: string,
+  options: AdminCourseEnrollmentQuery = {}
+): Promise<{
+  enrollments: AdminEnrollment[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
+  totalCount: number;
+}> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_COURSE_ENROLLMENT_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const search = options.search?.trim() ?? "";
+  const pageSize = DEFAULT_ADMIN_COURSE_ENROLLMENT_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+  const { rows } = await getPool().query<
+    AdminEnrollmentDatabaseRow & { total_count: number }
+  >(
+    `
+      select e.id, e.user_id, u.name, u.email, c.id as course_id, c.title as course_title,
+             e.status, e.starts_at, e.expires_at,
+             coalesce(latest_grant.base_expires_at, e.expires_at) as original_expires_at,
+             e.revoked_reason, p.last_access_at,
+             count(*) over()::int as total_count
+      from enrollments e
+      join users u on u.id = e.user_id
+      left join profiles p on p.user_id = u.id
+      join courses c on c.id = e.course_id
+      left join lateral (
+        select eg.base_expires_at
+        from enrollment_grants eg
+        where eg.user_id = e.user_id
+          and eg.course_id = e.course_id
+        order by eg.effective_expires_at desc, eg.updated_at desc
+        limit 1
+      ) latest_grant on true
+      where e.course_id = $1
+        and ($2 = '' or u.name ilike $3 or u.email ilike $3)
+      order by e.updated_at desc, e.id desc
+      limit $4 offset $5
+    `,
+    [courseId, search, `%${search}%`, pageSize + 1, offset]
+  );
+
+  return {
+    enrollments: rows.slice(0, pageSize).map(mapAdminEnrollment),
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    search,
+    totalCount: rows[0]?.total_count ?? 0,
+  };
+};
+
 interface AdminOrderQuery {
   page?: number;
+  pageSize?: number;
   search?: string;
 }
+
+const DEFAULT_ADMIN_ORDER_PAGE_SIZE = 20;
 
 const readOrders = async (
   courseId?: string,
   options: AdminOrderQuery = {}
 ): Promise<AdminOrder[]> => {
-  const pageSize = courseId ? 40 : 20;
+  const pageSize = courseId
+    ? 40
+    : (options.pageSize ?? DEFAULT_ADMIN_ORDER_PAGE_SIZE);
   const page = Math.max(1, Math.trunc(options.page ?? 1));
   const search = options.search?.trim() ?? "";
   const filters: string[] = [];
@@ -983,6 +1106,61 @@ const readCourseRevenue = async (): Promise<CourseRevenueSummary[]> => {
   }));
 };
 
+const readCourseRevenuePage = async (
+  options: AdminCourseRevenueQuery = {}
+): Promise<AdminCourseRevenuePage> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_REVENUE_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_REVENUE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_REVENUE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_REVENUE_PAGE_SIZE;
+  const search = options.search?.trim() ?? "";
+  const offset = (page - 1) * pageSize;
+  const { rows } = await getPool().query<{
+    course_id: string;
+    course_title: string;
+    total_orders: number;
+    paid_orders: number;
+    total_revenue_in_cents: number;
+    total_count: number;
+  }>(
+    `
+      select c.id as course_id, c.title as course_title,
+             count(o.id)::int as total_orders,
+             count(case when o.status = 'paid' then 1 end)::int as paid_orders,
+             coalesce(sum(case when o.status = 'paid' then o.amount_in_cents else 0 end), 0)::bigint as total_revenue_in_cents,
+             count(*) over()::int as total_count
+      from courses c
+      left join orders o on o.course_id = c.id
+      where ($1 = '' or c.title ilike $2)
+      group by c.id, c.title
+      order by total_revenue_in_cents desc, c.title asc, c.id asc
+      limit $3 offset $4
+    `,
+    [search, `%${search}%`, pageSize + 1, offset]
+  );
+
+  return {
+    courses: rows.slice(0, pageSize).map((row) => ({
+      courseId: row.course_id,
+      courseTitle: row.course_title,
+      totalOrders: row.total_orders,
+      paidOrders: row.paid_orders,
+      totalRevenueInCents: Number(row.total_revenue_in_cents),
+    })),
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    search,
+    totalCount: rows[0]?.total_count ?? rows.length,
+  };
+};
+
 const readFaqs = async (): Promise<AdminFaq[]> => {
   const { rows } = await getPool().query<{
     answer: string;
@@ -1095,6 +1273,7 @@ const readStudentProfiles = async (
     userId: string;
   }>;
   search: string;
+  totalCount: number;
 }> => {
   const requestedPage = Math.trunc(options.page ?? 1);
   const page = Number.isFinite(requestedPage)
@@ -1115,10 +1294,12 @@ const readStudentProfiles = async (
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     user_id: string;
+    total_count: number;
   }>(
     `
       select u.id as user_id, u.name, u.email, p.last_access_at,
-             p.platform_blocked_at, p.platform_blocked_reason
+             p.platform_blocked_at, p.platform_blocked_reason,
+             count(*) over()::int as total_count
       from profiles p
       join users u on u.id = p.user_id
       where p.role = 'student'
@@ -1142,6 +1323,7 @@ const readStudentProfiles = async (
       userId: row.user_id,
     })),
     search,
+    totalCount: rows[0]?.total_count ?? rows.length,
   };
 };
 
@@ -1175,6 +1357,7 @@ export const getAdminStudentsData = async (
   pageSize: number;
   search: string;
   students: AdminStudentSummary[];
+  totalCount: number;
 }> => {
   await requirePermission("manageEnrollmentAccess");
   const profilePage = await readStudentProfiles(options);
@@ -1190,6 +1373,7 @@ export const getAdminStudentsData = async (
     pageSize: profilePage.pageSize,
     search: profilePage.search,
     students: summarizeAdminStudents(enrollments, profilePage.profiles),
+    totalCount: profilePage.totalCount,
   };
 };
 
@@ -1255,23 +1439,34 @@ export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {
 };
 
 export const getAdminFinancialData = async (
-  orderQuery: AdminOrderQuery = {}
+  orderQuery: AdminOrderQuery = {},
+  revenueQuery: AdminCourseRevenueQuery = {}
 ): Promise<{
   certificates: AdminCertificate[];
-  coursesRevenue: CourseRevenueSummary[];
+  coursesRevenue: AdminCourseRevenuePage;
   orders: AdminOrder[];
+  ordersHasNextPage: boolean;
   paymentReviews: AdminPaymentReview[];
 }> => {
   await requirePermission("viewFinancials");
-  const [orders, certificates, paymentReviews, coursesRevenue] =
+  const [orderRows, certificates, paymentReviews, coursesRevenue] =
     await Promise.all([
-      readOrders(undefined, orderQuery),
+      readOrders(undefined, {
+        ...orderQuery,
+        pageSize: DEFAULT_ADMIN_ORDER_PAGE_SIZE + 1,
+      }),
       readCertificates(),
       readPaymentReviews(),
-      readCourseRevenue(),
+      readCourseRevenuePage(revenueQuery),
     ]);
 
-  return { certificates, coursesRevenue, orders, paymentReviews };
+  return {
+    certificates,
+    coursesRevenue,
+    orders: orderRows.slice(0, DEFAULT_ADMIN_ORDER_PAGE_SIZE),
+    ordersHasNextPage: orderRows.length > DEFAULT_ADMIN_ORDER_PAGE_SIZE,
+    paymentReviews,
+  };
 };
 
 export const getAdminCourseOverviewSummary = async (
@@ -1301,19 +1496,27 @@ export const getAdminCourseOverviewSummary = async (
 };
 
 export const getAdminCourseDetailData = async (
-  courseId: string
+  courseId: string,
+  enrollmentQuery: AdminCourseEnrollmentQuery = {}
 ): Promise<{
   course: AdminCourse;
   enrollments: AdminEnrollment[];
+  enrollmentsPage: {
+    hasNextPage: boolean;
+    page: number;
+    pageSize: number;
+    search: string;
+    totalCount: number;
+  };
   lessons: AdminLesson[];
   modules: AdminModule[];
 } | null> => {
   await requirePermission("manageContent");
-  const [courses, modules, lessons, enrollments] = await Promise.all([
+  const [courses, modules, lessons, enrollmentsPage] = await Promise.all([
     readCourses(courseId),
     readModules(courseId),
     readLessons(courseId),
-    readEnrollments(courseId),
+    readCourseEnrollmentsPage(courseId, enrollmentQuery),
   ]);
   const course = courses[0];
 
@@ -1323,7 +1526,14 @@ export const getAdminCourseDetailData = async (
 
   return {
     course,
-    enrollments,
+    enrollments: enrollmentsPage.enrollments,
+    enrollmentsPage: {
+      hasNextPage: enrollmentsPage.hasNextPage,
+      page: enrollmentsPage.page,
+      pageSize: enrollmentsPage.pageSize,
+      search: enrollmentsPage.search,
+      totalCount: enrollmentsPage.totalCount,
+    },
     lessons,
     modules,
   };

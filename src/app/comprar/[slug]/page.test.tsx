@@ -101,8 +101,8 @@ describe("PurchasePage", () => {
   });
 
   it.each([
-    ["checkout_disabled", "Checkout indisponivel"],
-    ["course_unavailable", "Curso indisponivel"],
+    ["checkout_disabled", "Checkout indisponível"],
+    ["course_unavailable", "Curso indisponível"],
   ])("renderiza a indisponibilidade %s", async (reason, message) => {
     dependencies.getPurchaseHandoffView.mockResolvedValue({
       kind: "unavailable",

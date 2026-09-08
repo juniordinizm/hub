@@ -86,7 +86,7 @@ export function CourseAvailabilityForm({
           </p>
         </div>
         <Button
-          disabled={isPending}
+          loading={isPending}
           onClick={() => {
             startTransition(async () => {
               await restoreCourseAction(course.id);
@@ -191,7 +191,7 @@ export function CourseAvailabilityForm({
               defaultValue={course.launchLandingUrl ?? ""}
               id="course-launch-landing"
               name="launchLandingUrl"
-              placeholder="https://..."
+              placeholder="https://exemplo.com/curso"
               type="url"
             />
           </Field>
@@ -229,7 +229,7 @@ export function CourseAvailabilityForm({
       ) : null}
 
       <div className="flex flex-wrap gap-2">
-        <Button disabled={isPending} size="sm" type="submit">
+        <Button loading={isPending} size="sm" type="submit">
           Salvar disponibilidade
         </Button>
         <AlertDialog>

@@ -95,10 +95,12 @@ export function ResourceItem({
 }
 
 export function ResourceItemDragHandle({
+  ariaLabel,
   attributes,
   listeners,
   icon: Icon,
 }: {
+  ariaLabel: string;
   // biome-ignore lint/suspicious/noExplicitAny: dnd-kit typings
   attributes: any;
   // biome-ignore lint/suspicious/noExplicitAny: dnd-kit typings
@@ -107,13 +109,15 @@ export function ResourceItemDragHandle({
   icon: any;
 }) {
   return (
-    <div
-      className="cursor-grab p-1 text-muted-foreground opacity-50 transition-opacity hover:text-foreground active:cursor-grabbing group-hover:opacity-100"
+    <button
+      aria-label={ariaLabel}
+      className="relative flex size-11 shrink-0 cursor-grab items-center justify-center p-0 text-muted-foreground opacity-50 outline-none transition-[color,opacity] hover:text-foreground focus-visible:rounded-md focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing group-hover:opacity-100 sm:size-10"
       {...attributes}
       {...listeners}
+      type="button"
     >
-      <HugeiconsIcon icon={Icon} size={20} strokeWidth={2} />
-    </div>
+      <HugeiconsIcon aria-hidden="true" icon={Icon} size={20} strokeWidth={2} />
+    </button>
   );
 }
 
@@ -172,18 +176,23 @@ export function ResourceDeleteAction({
       <AlertDialogTrigger asChild>
         <Button
           aria-label="Remover"
-          className="size-8 text-muted-foreground opacity-50 hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-100"
+          className="size-11 text-muted-foreground opacity-50 hover:bg-destructive/10 hover:text-destructive hover:opacity-100 group-hover:opacity-100 sm:size-10"
           size="icon"
           type="button"
           variant="ghost"
         >
-          <HugeiconsIcon icon={Delete02Icon} size={16} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={Delete02Icon}
+            size={16}
+            strokeWidth={2}
+          />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-destructive/10 text-destructive">
-            <HugeiconsIcon icon={Delete02Icon} />
+            <HugeiconsIcon aria-hidden="true" icon={Delete02Icon} />
           </AlertDialogMedia>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
@@ -229,7 +238,12 @@ export function ResourceDropzoneEmpty() {
         aria-hidden="true"
         className="mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border bg-background"
       >
-        <HugeiconsIcon className="opacity-60" icon={FileImageIcon} size={18} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          className="opacity-60"
+          icon={FileImageIcon}
+          size={18}
+        />
       </div>
       <p className="mb-1.5 font-medium text-sm">Arraste seus arquivos aqui</p>
       <p className="text-muted-foreground text-xs">Suporta diversos formatos</p>

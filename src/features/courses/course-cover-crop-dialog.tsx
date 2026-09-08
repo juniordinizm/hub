@@ -92,7 +92,7 @@ export function CourseCoverCropDialog({
       toast.error(
         error instanceof Error
           ? error.message
-          : "Nao foi possivel preparar a capa."
+          : "Não foi possível preparar a capa."
       );
     } finally {
       setIsPreparing(false);
@@ -106,13 +106,13 @@ export function CourseCoverCropDialog({
           <DialogTitle>Ajustar capa do curso</DialogTitle>
           <DialogDescription>
             Enquadre a imagem para o card do curso ({COURSE_COVER_CARD_WIDTH} ×{" "}
-            {COURSE_COVER_CARD_HEIGHT} px, proporcao 24:25).
+            {COURSE_COVER_CARD_HEIGHT} px, proporção 24:25).
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody className="space-y-6 p-4 sm:p-6">
           {sourceUrl ? (
-            <div className="relative h-72 overflow-hidden rounded-2xl border border-black/5 bg-muted/30 shadow-inner sm:h-105 dark:border-white/5">
+            <div className="relative h-72 overflow-hidden rounded-2xl border border-border/60 bg-muted/30 shadow-inner sm:h-105">
               <Cropper
                 aspect={COURSE_COVER_ASPECT_RATIO}
                 crop={crop}
@@ -164,18 +164,23 @@ export function CourseCoverCropDialog({
               Cancelar
             </Button>
             <Button
-              disabled={!cropPixels || isPreparing}
+              disabled={!cropPixels}
+              loading={isPreparing}
               onClick={handleComplete}
               type="button"
             >
-              {isPreparing ? (
-                "Preparando..."
-              ) : (
+              {
                 <>
-                  <HugeiconsIcon className="mr-2" icon={CropIcon} size={16} />
+                  <HugeiconsIcon
+                    aria-hidden="true"
+                    className="mr-2"
+                    data-icon="inline-start"
+                    icon={CropIcon}
+                    size={16}
+                  />
                   Usar recorte
                 </>
-              )}
+              }
             </Button>
           </div>
         </DialogFooter>

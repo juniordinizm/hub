@@ -37,7 +37,7 @@ export function SortableTableRow({
       ? {
           position: "relative" as const,
           zIndex: 10,
-          backgroundColor: "hsl(var(--muted) / 0.5)",
+          backgroundColor: "color-mix(in oklch, var(--muted) 50%, transparent)",
         }
       : {}),
   };
@@ -53,13 +53,20 @@ export function SortableTableRow({
       style={style}
     >
       <TableCell className="w-[40px] px-2 py-3 text-center align-middle">
-        <div
-          className="flex cursor-grab items-center justify-center text-muted-foreground/40 transition-colors hover:text-foreground active:cursor-grabbing group-hover/sortable:text-muted-foreground"
+        <button
+          aria-label="Reordenar item"
+          className="relative flex size-11 cursor-grab items-center justify-center rounded-md border-0 bg-transparent p-0 text-muted-foreground/40 outline-none transition-[color,background-color] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 active:cursor-grabbing group-hover/sortable:text-muted-foreground sm:size-10"
           {...attributes}
           {...listeners}
+          type="button"
         >
-          <HugeiconsIcon icon={Menu01Icon} size={20} strokeWidth={2} />
-        </div>
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={Menu01Icon}
+            size={20}
+            strokeWidth={2}
+          />
+        </button>
       </TableCell>
       {children}
     </TableRow>

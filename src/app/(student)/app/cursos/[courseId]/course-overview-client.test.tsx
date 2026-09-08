@@ -56,6 +56,43 @@ describe("CourseOverviewClient scheduled modules", () => {
     expect(markup).not.toContain("bg-gradient-to-br");
   });
 
+  it("passes the course cover to lessons without their own thumbnail", () => {
+    const markup = renderToStaticMarkup(
+      <CourseOverviewClient
+        courseThumbnailUrl="/course-cover.webp"
+        modules={[
+          {
+            availableAt: null,
+            description: null,
+            id: "module-1",
+            lessonCount: 1,
+            lessons: [
+              {
+                availability: { kind: "available" },
+                durationSeconds: 600,
+                hasVideo: false,
+                id: "lesson-1",
+                isCompleted: false,
+                thumbnailUrl: null,
+                title: "Aula sem vídeo",
+                watchedPercent: 0,
+              },
+            ],
+            releaseState: "available",
+            sortOrder: 1,
+            title: "Módulo 1",
+            totalDurationSeconds: 600,
+          },
+        ]}
+        nextLessonId={null}
+        previewMode={null}
+      />
+    );
+
+    expect(markup).toContain("course-cover.webp");
+    expect(markup).toContain("object-cover");
+  });
+
   it("shows future lesson cards without lesson links or rich content", () => {
     const markup = renderToStaticMarkup(
       <CourseOverviewClient

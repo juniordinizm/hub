@@ -3,8 +3,8 @@
 import { CustomerService01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { sendSupportRequestAction } from "@/app/(student)/app/actions";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogBody,
@@ -55,6 +55,7 @@ export function SupportRequestDialog({
         type="button"
       >
         <HugeiconsIcon
+          aria-hidden="true"
           icon={CustomerService01Icon}
           size={18}
           strokeWidth={1.5}
@@ -69,7 +70,13 @@ export function SupportRequestDialog({
         size={triggerSize}
         variant={triggerVariant}
       >
-        <HugeiconsIcon icon={CustomerService01Icon} size={18} strokeWidth={2} />
+        <HugeiconsIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          icon={CustomerService01Icon}
+          size={18}
+          strokeWidth={2}
+        />
         {triggerLabel}
       </DialogTriggerButton>
     );
@@ -111,7 +118,7 @@ export function SupportRequestDialog({
                   id="support-message"
                   maxLength={1800}
                   name="message"
-                  placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido."
+                  placeholder="Conte o que aconteceu e inclua detalhes como curso, aula ou pedido…"
                   required
                   rows={6}
                 />
@@ -119,14 +126,16 @@ export function SupportRequestDialog({
             </FieldGroup>
           </DialogBody>
           <DialogFooter>
-            <Button type="submit">
+            <AdminMutationSubmitButton type="submit">
               <HugeiconsIcon
+                aria-hidden="true"
+                data-icon="inline-start"
                 icon={CustomerService01Icon}
                 size={18}
                 strokeWidth={2}
               />
               Enviar suporte
-            </Button>
+            </AdminMutationSubmitButton>
           </DialogFooter>
         </AutoCloseDialogForm>
       </DialogContent>

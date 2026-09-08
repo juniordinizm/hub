@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Clock01Icon,
   File01Icon,
@@ -6,6 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +24,7 @@ export type LessonLockReason = "time" | "sequence";
 export interface LessonCardProps {
   className?: string;
   durationText: string;
+  fallbackImageUrl?: string | null;
   hasVideo?: boolean;
   lockReason?: LessonLockReason;
   status: LessonStatus;
@@ -33,6 +37,7 @@ export interface LessonCardProps {
 export function LessonCard({
   title,
   durationText,
+  fallbackImageUrl,
   status,
   hasVideo = true,
   lockReason,
@@ -43,6 +48,20 @@ export function LessonCard({
 }: LessonCardProps): React.JSX.Element {
   const isLocked = status === "locked";
   const CenterIcon = getCenterIcon({ hasVideo, isLocked });
+  const imageSources = [thumbnailUrl, fallbackImageUrl].filter(
+    (source, index, sources): source is string =>
+      Boolean(source) && sources.indexOf(source) === index
+  );
+  const imageSourceKey = imageSources.join("\u0000");
+  const [failedImageState, setFailedImageState] = useState<{
+    key: string;
+    urls: string[];
+  }>({ key: "", urls: [] });
+  const failedImageUrls =
+    failedImageState.key === imageSourceKey ? failedImageState.urls : [];
+  const imageUrl =
+    imageSources.find((source) => !failedImageUrls.includes(source)) ?? null;
+
   const centerIconClassName =
     !isLocked && hasVideo ? "translate-x-[2px]" : undefined;
 
@@ -57,21 +76,29 @@ export function LessonCard({
           "relative isolate aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted transition-[opacity,filter]",
           "after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.1)] dark:after:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)]",
           !isLocked &&
-            "after:transition-shadow after:duration-300 group-hover:after:shadow-[inset_0_0_0_2px_hsl(var(--primary))]",
+            "after:transition-shadow after:duration-300 group-hover:after:shadow-[inset_0_0_0_2px_var(--primary)]",
           isLocked && "opacity-60 grayscale-[50%]"
         )}
       >
-        {thumbnailUrl ? (
+        {imageUrl ? (
           <Image
             alt={title}
             className={cn(
-              "object-cover transition-transform duration-500",
+              "object-cover object-center transition-transform duration-500",
               !isLocked && "group-hover:scale-105"
             )}
             fill
+            onError={() => {
+              setFailedImageState((current) => {
+                const urls = current.key === imageSourceKey ? current.urls : [];
+                return urls.includes(imageUrl)
+                  ? current
+                  : { key: imageSourceKey, urls: [...urls, imageUrl] };
+              });
+            }}
             sizes="280px"
-            src={thumbnailUrl}
-            unoptimized={thumbnailUnoptimized}
+            src={imageUrl}
+            unoptimized={thumbnailUnoptimized || imageUrl === fallbackImageUrl}
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-chart-4/80 to-background" />
@@ -98,12 +125,13 @@ export function LessonCard({
         <div className="absolute inset-0 z-10 flex items-center justify-center">
           <div
             className={cn(
-              "flex size-10 items-center justify-center rounded-full bg-white/90 text-background shadow-sm backdrop-blur-sm transition-transform duration-300",
+              "flex size-10 items-center justify-center rounded-full bg-primary-foreground/90 text-background shadow-sm backdrop-blur-sm transition-transform duration-300",
               !isLocked && "group-hover:scale-110",
-              isLocked && "bg-white/50"
+              isLocked && "bg-primary-foreground/50"
             )}
           >
             <HugeiconsIcon
+              aria-hidden="true"
               className={centerIconClassName}
               icon={CenterIcon}
               size={20}
@@ -137,8 +165,7 @@ function getStatusBadge({
   lockReason: LessonLockReason | undefined;
   status: LessonStatus;
 }): React.JSX.Element | null {
-  const className =
-    "absolute top-3 left-3 font-bold text-[10px] uppercase tracking-wider shadow-sm";
+  const className = "absolute top-3 left-3 font-semibold text-xs shadow-sm";
 
   if (status === "in_progress") {
     return (
@@ -166,14 +193,9 @@ function getStatusBadge({
   }
   if (lockReason === "time") {
     return (
-      <Badge
-        className={cn(
-          className,
-          "gap-1 bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-400 dark:text-amber-950 dark:hover:bg-amber-400"
-        )}
-        variant="default"
-      >
+      <Badge className={cn(className, "gap-1")} variant="warning">
         <HugeiconsIcon
+          aria-hidden="true"
           data-icon="inline-start"
           icon={Clock01Icon}
           size={13}
@@ -185,14 +207,9 @@ function getStatusBadge({
   }
   if (lockReason === "sequence") {
     return (
-      <Badge
-        className={cn(
-          className,
-          "gap-1 bg-sky-700 text-white hover:bg-sky-700 dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-300"
-        )}
-        variant="default"
-      >
+      <Badge className={cn(className, "gap-1")} variant="info">
         <HugeiconsIcon
+          aria-hidden="true"
           data-icon="inline-start"
           icon={SquareLock02Icon}
           size={13}

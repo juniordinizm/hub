@@ -1,14 +1,14 @@
-import type { Metadata } from "next";
-import { Geist_Mono, Lexend_Deca } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import { StagingBanner } from "@/components/environment/staging-banner";
+import { PLATFORM_BRAND, PLATFORM_NAME } from "@/lib/brand";
 import { getPublicAppUrl } from "@/lib/public-app-config";
 import { getStagingPresentation } from "@/lib/staging-presentation";
 import "./globals.css";
 
-const lexendDeca = Lexend_Deca({
-  variable: "--font-lexend-deca",
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -20,13 +20,18 @@ const stagingPresentation = getStagingPresentation(process.env);
 
 export const metadata: Metadata = {
   title: {
-    default: "PROTEA-R Hub",
-    template: "%s | PROTEA-R Hub",
+    default: PLATFORM_NAME,
+    template: `%s | ${PLATFORM_NAME}`,
   },
-  description: "Plataforma de cursos PROTEA-R para alunos e equipe.",
-  applicationName: "PROTEA-R Hub",
+  description: `Plataforma de cursos da ${PLATFORM_BRAND} para Alunas e equipe.`,
+  applicationName: PLATFORM_NAME,
   metadataBase: new URL(publicAppUrl),
   ...(stagingPresentation.robots ? { robots: stagingPresentation.robots } : {}),
+};
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "oklch(0.237 0.025 204.4)",
 };
 
 import { Toaster } from "@/components/ui/sonner";
@@ -38,7 +43,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      className={`${lexendDeca.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       lang="pt-BR"
     >
       <body className="flex min-h-full flex-col">

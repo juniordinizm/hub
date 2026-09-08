@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageContainer } from "@/components/page-container";
+import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   getSupportCourseOperations,
   getSupportCourseStudents,
@@ -36,9 +38,10 @@ export default async function SupportCourseStudentsPage({
     10
   );
   const page = Number.isFinite(requestedPage) ? requestedPage : 1;
+  const search = firstSearchParam(query.q)?.trim() ?? "";
   const [courses, studentsPage] = await Promise.all([
     getSupportCourseOperations(),
-    getSupportCourseStudents(courseId, { page }),
+    getSupportCourseStudents(courseId, { page, search }),
   ]);
   const course = courses.find((candidate) => candidate.id === courseId);
 
@@ -49,37 +52,45 @@ export default async function SupportCourseStudentsPage({
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
-        <header className="border-b pb-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1">
-              <p className="font-medium text-muted-foreground text-sm">
-                Operação de suporte
-              </p>
-              <h1 className="font-bold text-3xl tracking-tight">
-                {course.title}
-              </h1>
-              <p className="text-muted-foreground text-sm">
-                Consulte matrículas e abra o contexto operacional de cada aluna.
-                Conteúdo e configurações do Curso não estão disponíveis.
-              </p>
-            </div>
+        <PageHeader
+          actions={
             <Button asChild variant="outline">
               <Link href={route("/admin/operacao/cursos")}>
-                Voltar aos Cursos
+                Voltar aos cursos
               </Link>
             </Button>
-          </div>
-        </header>
+          }
+          description="Consulte matrículas e abra o contexto operacional de cada aluna. Conteúdo e configurações do curso não estão disponíveis."
+          title={course.title}
+        />
 
-        <Card className="border-none bg-card shadow-sm ring-1 ring-border/50">
+        <Card>
           <CardHeader>
-            <CardTitle>Alunas matriculadas</CardTitle>
+            <CardTitle as="h2">Alunas matriculadas</CardTitle>
             <CardDescription>
               {course.activeEnrollmentCount} ativas de{" "}
               {course.totalEnrollmentCount} matrículas neste Curso.
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <form
+              action={`/admin/operacao/cursos/${courseId}/alunas`}
+              className="mb-5 flex max-w-xl gap-2"
+              method="get"
+            >
+              <label className="sr-only" htmlFor="support-student-search">
+                Buscar alunas
+              </label>
+              <Input
+                aria-label="Buscar alunas"
+                className="min-w-0 flex-1"
+                defaultValue={studentsPage.search}
+                id="support-student-search"
+                name="q"
+                placeholder="Buscar por nome ou e-mail…"
+              />
+              <Button type="submit">Buscar</Button>
+            </form>
             <SupportCourseStudentsTable
               courseId={courseId}
               students={studentsPage.students}
@@ -94,12 +105,26 @@ export default async function SupportCourseStudentsPage({
           >
             {studentsPage.page > 1 ? (
               <Button asChild variant="outline">
-                <Link href={`?page=${studentsPage.page - 1}`}>Anterior</Link>
+                <Link
+                  href={`?${new URLSearchParams({
+                    ...(studentsPage.search ? { q: studentsPage.search } : {}),
+                    page: String(studentsPage.page - 1),
+                  })}`}
+                >
+                  Anterior
+                </Link>
               </Button>
             ) : null}
             {studentsPage.hasNextPage ? (
               <Button asChild variant="outline">
-                <Link href={`?page=${studentsPage.page + 1}`}>Próxima</Link>
+                <Link
+                  href={`?${new URLSearchParams({
+                    ...(studentsPage.search ? { q: studentsPage.search } : {}),
+                    page: String(studentsPage.page + 1),
+                  })}`}
+                >
+                  Próxima
+                </Link>
               </Button>
             ) : null}
           </nav>

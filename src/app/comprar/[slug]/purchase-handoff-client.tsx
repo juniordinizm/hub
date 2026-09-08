@@ -420,15 +420,15 @@ export function PurchaseHandoffClient({
         aria-live="polite"
         className="max-w-2xl rounded-lg border bg-card p-6"
       >
-        <h1 className="font-bold text-2xl tracking-tight">{courseTitle}</h1>
+        <h1 className="type-page-title">{courseTitle}</h1>
         {state.kind === "starting" ? (
           <p className="mt-3 text-muted-foreground text-sm">
-            Iniciando checkout seguro...
+            Iniciando checkout seguro…
           </p>
         ) : null}
         {state.kind === "processing" ? (
           <div className="mt-3 space-y-2 text-muted-foreground text-sm">
-            <p>O checkout esta sendo preparado. Nao inicie outra tentativa.</p>
+            <p>O checkout está sendo preparado. Não inicie outra tentativa.</p>
             <p>Referencia do pedido: {state.orderId}</p>
             {state.manualCheck ? (
               <Button onClick={handleManualCheck} type="button">
@@ -440,7 +440,7 @@ export function PurchaseHandoffClient({
         {state.kind === "retry" ? (
           <div className="mt-3 space-y-4">
             <p className="text-muted-foreground text-sm">
-              Nao foi possivel iniciar o checkout.
+              Não foi possível iniciar o checkout.
             </p>
             <Button onClick={handleRetry} type="button">
               Tentar novamente
@@ -449,7 +449,7 @@ export function PurchaseHandoffClient({
         ) : null}
         {state.kind === "unavailable" ? (
           <p className="mt-3 text-muted-foreground text-sm">
-            Checkout indisponivel. Entre em contato com o suporte.
+            Checkout indisponível. Entre em contato com o suporte.
           </p>
         ) : null}
       </section>

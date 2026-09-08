@@ -992,7 +992,7 @@ export function CertificateTemplateForm({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon icon={Undo02Icon} />
+                        <HugeiconsIcon aria-hidden="true" icon={Undo02Icon} />
                         <span className="sr-only">Desfazer</span>
                       </Button>
                     </PreviewToolbarTooltip>
@@ -1020,7 +1020,10 @@ export function CertificateTemplateForm({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon icon={AlignHorizontalCenterIcon} />
+                        <HugeiconsIcon
+                          aria-hidden="true"
+                          icon={AlignHorizontalCenterIcon}
+                        />
                         <span className="sr-only">
                           Centralizar horizontalmente
                         </span>
@@ -1050,7 +1053,10 @@ export function CertificateTemplateForm({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon icon={AlignVerticalCenterIcon} />
+                        <HugeiconsIcon
+                          aria-hidden="true"
+                          icon={AlignVerticalCenterIcon}
+                        />
                         <span className="sr-only">
                           Centralizar verticalmente
                         </span>
@@ -1066,7 +1072,10 @@ export function CertificateTemplateForm({
                         type="button"
                         variant="ghost"
                       >
-                        <HugeiconsIcon icon={FitToScreenIcon} />
+                        <HugeiconsIcon
+                          aria-hidden="true"
+                          icon={FitToScreenIcon}
+                        />
                         <span className="sr-only">
                           Ajustar tamanho ao conteúdo
                         </span>

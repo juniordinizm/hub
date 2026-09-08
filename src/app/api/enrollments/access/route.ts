@@ -9,7 +9,7 @@ export const GET = async (request: Request): Promise<Response> => {
   const session = await getCurrentSession();
 
   if (!session) {
-    return NextResponse.json({ error: "Nao autorizado." }, { status: 401 });
+    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
   if (!canMutateStudentExperience(session.role)) {
@@ -31,7 +31,7 @@ export const GET = async (request: Request): Promise<Response> => {
 
   if (!courseId) {
     return NextResponse.json(
-      { error: "Curso nao informado." },
+      { error: "Curso não informado." },
       { status: 400 }
     );
   }

@@ -75,8 +75,8 @@ export function CoursePublicationAction({
 
   return (
     <form onSubmit={handleSubmit}>
-      <Button disabled={isPending} size="sm" type="submit">
-        {isPending ? copy.pending : copy.idle}
+      <Button loading={isPending} size="sm" type="submit">
+        {copy.idle}
       </Button>
     </form>
   );

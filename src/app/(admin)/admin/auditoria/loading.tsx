@@ -20,7 +20,17 @@ export default function Loading(): React.JSX.Element {
               <Skeleton className="h-6 w-[200px]" />
               <Skeleton className="mt-2 h-4 w-[400px]" />
             </div>
-            <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
+            <div className="grid divide-y md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
+              <div className="space-y-2 p-5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <div className="space-y-2 p-5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-4 w-32" />
+              </div>
               <div className="space-y-2 p-5">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-8 w-16" />

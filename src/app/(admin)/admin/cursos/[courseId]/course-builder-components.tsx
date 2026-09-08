@@ -9,6 +9,8 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import type React from "react";
+import { useId } from "react";
+import { AdminMutationSubmitButton } from "@/components/admin-mutation-form";
 import { AutoCloseDialogForm } from "@/components/auto-close-dialog-form";
 import { CourseBuilderClient } from "@/components/course-builder-dnd";
 import { DiscardAwareDialog } from "@/components/discard-aware-dialog";
@@ -40,6 +42,7 @@ import type {
   AdminLesson,
   AdminModule,
 } from "@/features/admin/server";
+import { getCourseContentStatusPresentation } from "@/features/admin/status-presentation";
 import { parseLessonContent } from "@/features/courses/lesson-content";
 import { formatLessonDuration } from "@/features/videos/jmvstream";
 import { route } from "@/lib/routes";
@@ -48,13 +51,7 @@ type CourseData = AdminCourse;
 type ModuleData = AdminModule;
 type LessonData = AdminLesson;
 
-const CONTENT_STATUS_LABELS: Record<string, string> = {
-  active: "publicado",
-  archived: "arquivado",
-  draft: "rascunho",
-};
 const DEFAULT_MODULE_RELEASE_DELAY_DAYS = 8;
-
 export function CourseBuilderWrapper({
   course,
   editable,
@@ -124,6 +121,9 @@ export function ModuleSection({
     (total, lesson) => total + lesson.durationSeconds,
     0
   );
+  const statusPresentation = getCourseContentStatusPresentation(
+    moduleData.status
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
@@ -139,6 +139,7 @@ export function ModuleSection({
           variant="ghost"
         >
           <HugeiconsIcon
+            aria-hidden="true"
             className={expanded ? "rotate-0" : "-rotate-90"}
             icon={ArrowDown01Icon}
             size={16}
@@ -150,10 +151,8 @@ export function ModuleSection({
             <h3 className="min-w-0 break-words font-semibold leading-snug">
               {moduleData.title}
             </h3>
-            <Badge
-              variant={moduleData.status === "active" ? "default" : "outline"}
-            >
-              {CONTENT_STATUS_LABELS[moduleData.status] ?? moduleData.status}
+            <Badge variant={statusPresentation.variant}>
+              {statusPresentation.label}
             </Badge>
             <Badge variant="outline">
               {moduleData.releaseDelayDays === 0
@@ -175,7 +174,13 @@ export function ModuleSection({
             title="Nova aula"
             trigger={
               <DialogTriggerButton size="sm" variant="outline">
-                <HugeiconsIcon icon={Add01Icon} size={16} strokeWidth={2} />
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
+                  icon={Add01Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
                 Nova aula
               </DialogTriggerButton>
             }
@@ -190,7 +195,13 @@ export function ModuleSection({
             title="Editar módulo"
             trigger={
               <DialogTriggerButton size="sm" variant="ghost">
-                <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  data-icon="inline-start"
+                  icon={Edit01Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
                 Editar
               </DialogTriggerButton>
             }
@@ -217,6 +228,7 @@ export function LessonRow({
   const hasVideo = Boolean(lesson.videoEmbedUrl || lesson.videoExternalId);
   const hasText = parseLessonContent(lesson.contentJson)?.type === "text";
   const hasAnyContent = hasVideo || hasText;
+  const statusPresentation = getCourseContentStatusPresentation(lesson.status);
   let contentLabel = "Texto";
   if (hasVideo && hasText) {
     contentLabel = "Vídeo + texto";
@@ -245,8 +257,8 @@ export function LessonRow({
         ) : (
           <Badge variant="destructive">Sem conteúdo</Badge>
         )}
-        <Badge variant={lesson.status === "active" ? "default" : "outline"}>
-          {CONTENT_STATUS_LABELS[lesson.status] ?? lesson.status}
+        <Badge variant={statusPresentation.variant}>
+          {statusPresentation.label}
         </Badge>
         <div className="hidden items-center gap-2 text-muted-foreground text-xs md:flex">
           <span>{formatLessonDuration(lesson.durationSeconds)}</span>
@@ -262,7 +274,13 @@ export function LessonRow({
           variant="ghost"
         >
           <Link href={route(`/admin/cursos/${courseId}/aulas/${lesson.id}`)}>
-            <HugeiconsIcon icon={Edit01Icon} size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
+              icon={Edit01Icon}
+              size={16}
+              strokeWidth={2}
+            />
             Editar
           </Link>
         </Button>
@@ -286,6 +304,10 @@ export function ModuleForm({
   const releaseModeIdPrefix = moduleData?.id ?? "new-module";
   const immediateReleaseId = `${releaseModeIdPrefix}-release-immediate`;
   const delayedReleaseId = `${releaseModeIdPrefix}-release-delayed`;
+  const fieldIdPrefix = useId();
+  const titleId = `module-title-${fieldIdPrefix}`;
+  const descriptionId = `module-description-${fieldIdPrefix}`;
+  const statusId = `module-status-${fieldIdPrefix}`;
 
   return (
     <div className="flex flex-col gap-4">
@@ -304,17 +326,19 @@ export function ModuleForm({
               type="hidden"
             />
             <Field>
-              <FieldLabel>Título</FieldLabel>
+              <FieldLabel htmlFor={titleId}>Título</FieldLabel>
               <Input
                 defaultValue={moduleData?.title ?? ""}
+                id={titleId}
                 name="title"
                 required
               />
             </Field>
             <Field>
-              <FieldLabel>Descrição</FieldLabel>
+              <FieldLabel htmlFor={descriptionId}>Descrição</FieldLabel>
               <Textarea
                 defaultValue={moduleData?.description ?? ""}
+                id={descriptionId}
                 name="description"
               />
             </Field>
@@ -371,12 +395,12 @@ export function ModuleForm({
             </fieldset>
             {moduleData ? (
               <Field>
-                <FieldLabel>Status</FieldLabel>
+                <FieldLabel htmlFor={statusId}>Status</FieldLabel>
                 <Select
                   defaultValue={moduleData.status ?? "draft"}
                   name="status"
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id={statusId}>
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -390,14 +414,16 @@ export function ModuleForm({
           </FieldGroup>
         </DialogBody>
         <DialogFooter>
-          <Button className="w-fit" type="submit">
+          <AdminMutationSubmitButton className="w-fit" type="submit">
             <HugeiconsIcon
+              aria-hidden="true"
+              data-icon="inline-start"
               icon={moduleData ? FloppyDiskIcon : Add01Icon}
               size={18}
               strokeWidth={2}
             />
             {moduleData ? "Salvar módulo" : "Criar módulo"}
-          </Button>
+          </AdminMutationSubmitButton>
         </DialogFooter>
       </AutoCloseDialogForm>
     </div>
@@ -411,6 +437,11 @@ export function LessonEditorSidebarFields({
   formId: string;
   lesson: LessonData;
 }): React.JSX.Element {
+  const fieldIdPrefix = useId();
+  const titleId = `lesson-title-${fieldIdPrefix}`;
+  const descriptionId = `lesson-description-${fieldIdPrefix}`;
+  const requiredId = `lesson-is-required-${fieldIdPrefix}`;
+
   return (
     <FieldGroup>
       <input form={formId} name="lessonId" type="hidden" value={lesson.id} />
@@ -422,20 +453,22 @@ export function LessonEditorSidebarFields({
       />
       <input form={formId} name="isRequired" type="hidden" value="false" />
       <Field>
-        <FieldLabel>Título da aula</FieldLabel>
+        <FieldLabel htmlFor={titleId}>Título da aula</FieldLabel>
         <Input
           defaultValue={lesson.title}
           form={formId}
+          id={titleId}
           name="title"
           required
         />
       </Field>
       <Field>
-        <FieldLabel>Descrição (opcional)</FieldLabel>
+        <FieldLabel htmlFor={descriptionId}>Descrição (opcional)</FieldLabel>
         <Textarea
           className="resize-none"
           defaultValue={lesson.description ?? ""}
           form={formId}
+          id={descriptionId}
           name="description"
           rows={4}
         />
@@ -445,11 +478,11 @@ export function LessonEditorSidebarFields({
           defaultChecked={lesson.isRequired}
           disabled={lesson.coursePublicationStatus === "published"}
           form={formId}
-          id="lesson-is-required"
+          id={requiredId}
           name="isRequired"
           value="on"
         />
-        <FieldLabel htmlFor="lesson-is-required">
+        <FieldLabel htmlFor={requiredId}>
           Aula obrigatória para conclusão do curso
         </FieldLabel>
       </Field>
@@ -464,6 +497,10 @@ export function CreateLessonDraftForm({
   moduleId: string;
   nextSortOrder: number;
 }): React.JSX.Element {
+  const fieldIdPrefix = useId();
+  const titleId = `draft-lesson-title-${fieldIdPrefix}`;
+  const descriptionId = `draft-lesson-description-${fieldIdPrefix}`;
+
   return (
     <AutoCloseDialogForm
       action={createLessonDraftAction}
@@ -474,20 +511,28 @@ export function CreateLessonDraftForm({
           <input name="moduleId" type="hidden" value={moduleId} />
           <input name="sortOrder" type="hidden" value={nextSortOrder} />
           <Field>
-            <FieldLabel>Título</FieldLabel>
-            <Input name="title" required />
+            <FieldLabel htmlFor={titleId}>Título</FieldLabel>
+            <Input id={titleId} name="title" required />
           </Field>
           <Field>
-            <FieldLabel>Descrição (opcional)</FieldLabel>
-            <Textarea name="description" />
+            <FieldLabel htmlFor={descriptionId}>
+              Descrição (opcional)
+            </FieldLabel>
+            <Textarea id={descriptionId} name="description" />
           </Field>
         </FieldGroup>
       </DialogBody>
       <DialogFooter>
-        <Button type="submit">
-          <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+        <AdminMutationSubmitButton type="submit">
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={Add01Icon}
+            size={18}
+            strokeWidth={2}
+          />
           Criar e editar
-        </Button>
+        </AdminMutationSubmitButton>
       </DialogFooter>
     </AutoCloseDialogForm>
   );
@@ -511,7 +556,13 @@ export function CreateModuleDialog({
       title="Novo módulo"
       trigger={
         <DialogTriggerButton variant={triggerVariant}>
-          <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={2} />
+          <HugeiconsIcon
+            aria-hidden="true"
+            data-icon="inline-start"
+            icon={Add01Icon}
+            size={18}
+            strokeWidth={2}
+          />
           {triggerLabel}
         </DialogTriggerButton>
       }
