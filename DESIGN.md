@@ -334,16 +334,18 @@ opção antes de combinar utilitários de tamanho e peso em cada tela:
 
 | Papel | Classe | Contrato |
 |---|---|---|
-| título de página | `.type-page-title` | `clamp(1.875rem, 1.65rem + 0.8vw, 2.25rem)`, peso 650, `1.1`, tracking `-0.03em`, balanceado |
-| título de seção | `.type-section-title` | `1.25rem`, peso 600, `1.2`, tracking `-0.015em`, balanceado |
-| título de card | `.type-card-title` | `1rem`, peso 600, `1.25` |
+| título de página | `.type-page-title` | `clamp(1.75rem, 1.6rem + 0.65vw, 2rem)`, peso 650, `1.1`, tracking `-0.03em`, balanceado |
+| título de seção | `.type-section-title` | `1.125rem`, peso 600, `1.2`, tracking `-0.015em`, balanceado |
+| título de card | `.type-card-title` | `0.9375rem`, peso 600, `1.25` |
 | corpo | `.type-body` | `1rem`, `1.6`, texto pretty |
 | corpo auxiliar | `.type-body-sm` | `0.875rem`, `1.5`, texto pretty |
-| label | `.type-label` | `0.875rem`, peso 500, `1.25` |
+| label | `.type-label` | `0.8125rem`, peso 500, `1.25` |
 | meta/caption | `.type-meta` | `0.75rem`, `1.4` |
 | identificador | `.type-code` | Geist Mono, `0.75rem`, `tabular-nums`, quebra segura |
 
-As classes expressam papel, não um tamanho conveniente. O elemento ainda deve
+As classes expressam papel, não um tamanho conveniente. O corpo de leitura
+permanece em `1rem` para preservar o piso de legibilidade; a redução concentra
+se em títulos, títulos de card, descrições auxiliares e labels. O elemento ainda deve
 ser o heading semântico correto (`h1`, `h2`, `h3`) e peers equivalentes devem
 compartilhar papel, peso, line-height e tratamento numérico. Uma exceção local
 precisa ser explicada pelo conteúdo ou pela densidade da tarefa, não pelo

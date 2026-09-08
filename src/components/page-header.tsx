@@ -27,7 +27,7 @@ export function PageHeader({
             {status}
           </div>
           {description ? (
-            <p className="type-body-sm max-w-2xl text-muted-foreground sm:text-base">
+            <p className="type-body-sm w-full text-muted-foreground">
               {description}
             </p>
           ) : null}
