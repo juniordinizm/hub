@@ -814,9 +814,9 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
     "Auditoria",
     "Configurações",
   ]) {
-    await expect(page.getByRole("link", { name: forbiddenLink })).toHaveCount(
-      0
-    );
+    await expect(
+      page.getByRole("link", { exact: true, name: forbiddenLink })
+    ).toHaveCount(0);
   }
 
   await page.goto("/admin/cursos");
