@@ -77,7 +77,7 @@ test("public surfaces have no moderate or higher accessibility violations", asyn
   });
   await page.goto(`/comprar/${fixture.course.slug}`);
   await expect(
-    page.getByText("O checkout esta sendo preparado.", { exact: false })
+    page.getByText("O checkout está sendo preparado.", { exact: false })
   ).toBeVisible();
   await assertNoBlockingAccessibilityViolations(
     page,
@@ -97,7 +97,7 @@ test("public surfaces have no moderate or higher accessibility violations", asyn
     });
   });
   await page.goto(`/comprar/${fixture.course.slug}`);
-  await expect(page.getByText("Checkout indisponivel")).toBeVisible();
+  await expect(page.getByText("Checkout indisponível")).toBeVisible();
   await assertNoBlockingAccessibilityViolations(page, "public purchase");
 });
 

@@ -210,7 +210,7 @@ test("checkout remount reuses the stored UUID and one provider mutation", async 
 
   await page.goto(`/comprar/${fixture.course.slug}`);
   await expect(
-    page.getByText("O checkout esta sendo preparado.")
+    page.getByText("O checkout está sendo preparado.")
   ).toBeVisible();
   await page.reload();
   await page.waitForURL("http://127.0.0.1:4570/checkout/**");
@@ -235,7 +235,7 @@ test("authenticated purchase blocks active, revoked, blocked, and team accounts 
 
   await signIn(page, fixture.studentWithGrant, APP_URL_PATTERN);
   await page.goto(`/comprar/${fixture.course.slug}`);
-  await expect(page.getByText("Sua Matricula ja esta ativa.")).toBeVisible();
+  await expect(page.getByText("Sua Matrícula já está ativa.")).toBeVisible();
 
   await page.context().clearCookies();
   await signIn(page, fixture.studentWithRevokedAccess, APP_URL_PATTERN);
@@ -623,7 +623,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
     )
   );
   const completionAlert = page
-    .getByRole("alert")
+    .getByRole("status")
     .filter({ hasText: "Curso concluído" });
   await expect(completionAlert).toContainText("Curso concluído");
   await expect(completionAlert).toContainText(
@@ -810,7 +810,7 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
   ).toBeVisible();
   for (const forbiddenLink of [
     "Aprendizagem",
-    "Alunos",
+    "Alunas",
     "Auditoria",
     "Configurações",
   ]) {
@@ -821,7 +821,9 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
 
   await page.goto("/admin/cursos");
   await expect(page).toHaveURL(ADMIN_URL_PATTERN);
-  await expect(page.getByRole("heading", { name: "Cursos" })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { exact: true, name: "Cursos" })
+  ).toHaveCount(0);
 
   await page.goto(`/admin/operacao/cursos/${fixture.course.id}/alunas`);
   const enrollmentRow = page
