@@ -137,6 +137,61 @@ describe("Asaas reconciliation", () => {
     ).toBe(true);
   });
 
+  it("closes a related anomaly review after a safe reconciliation", async () => {
+    const pendingOrder = {
+      ...orderRow,
+      provider_payment_status: null,
+      status: "pending",
+    };
+    const confirmedPayment = {
+      ...payment,
+      refunds: [],
+      status: "RECEIVED",
+    };
+    const transactionQueries: Array<{
+      text: string;
+      values?: unknown[];
+    }> = [];
+    const client = {
+      query: vi.fn((text: string, values?: unknown[]) => {
+        transactionQueries.push(values ? { text, values } : { text });
+        if (text.includes("set status = 'paid'")) {
+          return Promise.resolve({ rows: [{ id: "order-1" }] });
+        }
+        if (text.includes("type in ('event_anomaly'")) {
+          return Promise.resolve({ rows: [{ id: "review-1" }] });
+        }
+        return Promise.resolve(
+          text.includes("from orders") ? { rows: [pendingOrder] } : { rows: [] }
+        );
+      }),
+      release: vi.fn(),
+    };
+    dependencies.getPool.mockReturnValue({
+      connect: vi.fn().mockResolvedValue(client),
+      query: vi.fn().mockResolvedValue({ rows: [pendingOrder] }),
+    });
+
+    await reconcileAsaasPayment({
+      actorUserId: "admin-1",
+      gateway: new FakeAsaasGateway({ getPayment: confirmedPayment }),
+      orderId: "order-1",
+      reviewId: "review-1",
+    });
+
+    expect(
+      transactionQueries.some(
+        ({ text, values }) =>
+          text.includes("update payment_reviews") && values?.[0] === "review-1"
+      )
+    ).toBe(true);
+    expect(
+      transactionQueries.some(({ text }) =>
+        text.includes("payment_review.resolved")
+      )
+    ).toBe(true);
+  });
+
   it("does not grant a PIX payment that is only confirmed", async () => {
     const pendingOrder = {
       ...orderRow,
@@ -585,6 +640,16 @@ describe("Asaas reconciliation", () => {
     expect(gateway.calls.getInstallment).toEqual(["ins-1"]);
     expect(gateway.calls.listInstallmentPayments).toEqual(["ins-1"]);
     expect(gateway.calls.getPayment).toEqual([]);
+    const installmentPersistence = transactionQueries.find(({ text }) =>
+      text.includes("asaas_installment_payments")
+    );
+    expect(installmentPersistence?.text).toContain("financial_events");
+    expect(installmentPersistence?.values?.[1]).toBe("order-1");
+    expect(
+      transactionQueries
+        .find(({ text }) => text.includes("payment_installment_count"))
+        ?.values?.at(-1)
+    ).toBe(3);
     expect(
       transactionQueries.find(({ text }) =>
         text.includes("update refund_requests")
@@ -710,6 +775,12 @@ describe("Asaas reconciliation", () => {
         ]),
       ]
     );
+    const auditQuery = clientQuery.mock.calls.find(([text]) =>
+      text.includes("asaas.statement_imported")
+    );
+    expect(auditQuery?.[0]).toContain("'inserted', $3::int");
+    expect(auditQuery?.[0]).toContain("'updated', $4::int");
+    expect(auditQuery?.[0]).toContain("'resumedFromOffset', $5::int");
   });
 
   it("resumes from the committed page cursor after a later page fails", async () => {
@@ -843,6 +914,8 @@ describe("Asaas reconciliation", () => {
       "order-1",
       "terminal_conflict",
       expect.stringContaining("disputed"),
+      12_990,
+      12_500,
     ]);
     expect(
       transactionQueries.find(({ text }) => text.includes("set status = case"))
@@ -892,7 +965,13 @@ describe("Asaas reconciliation", () => {
       transactionQueries.find(({ text }) =>
         text.includes("insert into payment_reviews")
       )?.values
-    ).toEqual(["order-1", "amount_mismatch", expect.stringContaining("13000")]);
+    ).toEqual([
+      "order-1",
+      "amount_mismatch",
+      expect.stringContaining("13000"),
+      13_000,
+      12_510,
+    ]);
     expect(
       transactionQueries.some(({ text }) =>
         text.includes("update refund_requests")
@@ -901,7 +980,7 @@ describe("Asaas reconciliation", () => {
     expect(
       transactionQueries
         .find(({ text }) => text.includes("paid_amount_in_cents"))
-        ?.values?.at(-1)
+        ?.values?.at(-2)
     ).toBe(false);
   });
 
@@ -938,11 +1017,17 @@ describe("Asaas reconciliation", () => {
       transactionQueries.find(({ text }) =>
         text.includes("insert into payment_reviews")
       )?.values
-    ).toEqual(["order-1", "event_anomaly", expect.stringContaining("liquido")]);
+    ).toEqual([
+      "order-1",
+      "event_anomaly",
+      expect.stringContaining("liquido"),
+      12_990,
+      13_500,
+    ]);
     expect(
       transactionQueries
         .find(({ text }) => text.includes("paid_amount_in_cents"))
-        ?.values?.at(-1)
+        ?.values?.at(-2)
     ).toBe(false);
   });
 
@@ -981,7 +1066,7 @@ describe("Asaas reconciliation", () => {
       text.includes("paid_amount_in_cents")
     );
     expect(evidenceUpdate?.values?.at(-2)).toBe(false);
-    expect(evidenceUpdate?.values?.at(-1)).toBe(false);
+    expect(evidenceUpdate?.values?.at(-1)).toBeNull();
     expect(
       transactionQueries.find(({ text }) =>
         text.includes("insert into payment_reviews")
@@ -990,6 +1075,8 @@ describe("Asaas reconciliation", () => {
       "order-1",
       "event_anomaly",
       expect.stringContaining("regressivo"),
+      12_990,
+      0,
     ]);
   });
 });

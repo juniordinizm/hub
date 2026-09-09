@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   getAdminCourseContentSignal,
   getAdminCourseOperationalState,
-  getAdminFinancialSignal,
   getAdminOperationSignal,
   summarizeAdminCourseContent,
   summarizeAdminCourseHealth,
-  summarizeAdminFinancialHealth,
   summarizeAdminStudentAccess,
 } from "./presentation";
 
@@ -55,6 +53,7 @@ describe("admin presentation", () => {
       coursesNeedingAttention: [
         {
           id: "course-incomplete",
+          actionTab: "settings",
           missingCount: 3,
           readinessPercent: 25,
           title: "Curso incompleto",
@@ -70,11 +69,13 @@ describe("admin presentation", () => {
         coursesNeedingAttention: 3,
         failedWebhooks: 1,
         pendingOrders: 2,
+        retryableWebhooks: 0,
       })
     ).toEqual({
+      actionHref: "/admin/auditoria",
       tone: "attention",
-      label: "Revisar webhooks",
-      helper: "1 evento com falha pode afetar liberacao de acesso.",
+      label: "Revisar integração",
+      helper: "1 falho e 0 em retry podem afetar a liberação de acesso.",
     });
   });
 
@@ -86,9 +87,26 @@ describe("admin presentation", () => {
         pendingOrders: 0,
       })
     ).toEqual({
+      actionHref: null,
       tone: "healthy",
-      label: "Operacao saudavel",
-      helper: "Catalogo, pedidos e webhooks sem pendencias criticas.",
+      label: "Operação saudável",
+      helper: "Catálogo, pedidos e webhooks sem pendências críticas.",
+    });
+  });
+
+  it("keeps retryable webhooks visible without treating them as failures", () => {
+    expect(
+      getAdminOperationSignal({
+        coursesNeedingAttention: 0,
+        failedWebhooks: 0,
+        pendingOrders: 0,
+        retryableWebhooks: 2,
+      })
+    ).toEqual({
+      actionHref: "/admin/auditoria",
+      tone: "watch",
+      label: "Integração em retry",
+      helper: "2 webhooks aguardam uma nova tentativa automática.",
     });
   });
 
@@ -116,41 +134,6 @@ describe("admin presentation", () => {
       expiringSoonStudents: 1,
       notEnrolledStudents: 1,
       totalStudents: 2,
-    });
-  });
-
-  it("summarizes financial health from order statuses", () => {
-    const summary = summarizeAdminFinancialHealth([
-      { amountInCents: 50_000, status: "paid" },
-      { amountInCents: 70_000, status: "paid" },
-      { amountInCents: 90_000, status: "pending" },
-      { amountInCents: 30_000, status: "refunded" },
-    ]);
-
-    expect(summary).toEqual({
-      averagePaidTicketInCents: 60_000,
-      checkoutConversionPercent: 50,
-      disputedOrders: 0,
-      paidOrders: 2,
-      paidRevenueInCents: 120_000,
-      pendingOrders: 1,
-      pendingRevenueInCents: 90_000,
-      refundedOrders: 1,
-      totalOrders: 4,
-    });
-  });
-
-  it("prioritizes disputed financial orders", () => {
-    expect(
-      getAdminFinancialSignal({
-        disputedOrders: 2,
-        pendingOrders: 5,
-        refundedOrders: 1,
-      })
-    ).toEqual({
-      tone: "attention",
-      label: "Disputas abertas",
-      helper: "2 pedidos em disputa exige acompanhamento manual.",
     });
   });
 

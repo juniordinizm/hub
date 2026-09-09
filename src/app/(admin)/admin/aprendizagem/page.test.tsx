@@ -17,6 +17,7 @@ describe("LearningAnalyticsPage", () => {
       {
         completed: 1,
         coursePublicationId: "publication-1",
+        courseTitle: "Curso de exemplo",
         eligible: 2,
         errorCount: 0,
         lessonId: "lesson-1",
@@ -24,6 +25,7 @@ describe("LearningAnalyticsPage", () => {
         medianCheckpointPercent: 50,
         medianHoursToComplete: 1.5,
         medianHoursToNextLesson: null,
+        publicationNumber: 2,
         started: 2,
       },
     ]);

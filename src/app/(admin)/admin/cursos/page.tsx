@@ -31,11 +31,8 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
-import {
-  type AdminCourse,
-  type AdminCourseCatalogQuery,
-  getAdminCourseCatalogData,
-} from "@/features/admin/server";
+import type { AdminCourse } from "@/features/admin/server";
+import { getAdminCourseCatalogData } from "@/features/admin/server";
 import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
 import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
@@ -74,16 +71,11 @@ export default async function AdminCoursesPage({
   await requirePermission("manageContent");
   const params = (await searchParams) ?? {};
   const rawPage = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
-  const options: AdminCourseCatalogQuery = {
+  const data = await getAdminCourseCatalogData({
     page: Number.isFinite(rawPage) ? rawPage : 1,
-    search: firstSearchParam(params.q),
-  };
-  const data = await getAdminCourseCatalogData(options);
+  });
   const pageHref = (targetPage: number): string => {
     const query = new URLSearchParams();
-    if (data.search) {
-      query.set("q", data.search);
-    }
     query.set("page", String(targetPage));
     return `/admin/cursos?${query.toString()}`;
   };
@@ -116,23 +108,6 @@ export default async function AdminCoursesPage({
           title="Cursos"
         />
 
-        <form
-          action="/admin/cursos"
-          className="flex max-w-xl gap-2"
-          method="get"
-        >
-          <input name="page" type="hidden" value="1" />
-          <Input
-            aria-label="Buscar cursos"
-            autoComplete="off"
-            className="min-w-0 flex-1"
-            defaultValue={data.search}
-            name="q"
-            placeholder="Buscar por título, subtítulo ou slug…"
-          />
-          <Button type="submit">Buscar</Button>
-        </form>
-
         <section className="flex flex-wrap gap-5">
           {data.courses.length === 0 ? (
             <Empty className="w-full">
@@ -140,42 +115,31 @@ export default async function AdminCoursesPage({
                 <EmptyMedia variant="icon">
                   <HugeiconsIcon aria-hidden="true" icon={Book01Icon} />
                 </EmptyMedia>
-                <EmptyTitle as="h2">
-                  {data.search
-                    ? "Nenhum curso encontrado"
-                    : "Nenhum curso cadastrado"}
-                </EmptyTitle>
+                <EmptyTitle as="h2">Nenhum curso cadastrado</EmptyTitle>
                 <EmptyDescription>
-                  {data.search
-                    ? `A busca por “${data.search}” não retornou cursos.`
-                    : "Crie o primeiro curso para começar a adicionar módulos e aulas."}
+                  Crie o primeiro curso para começar a adicionar módulos e
+                  aulas.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                {data.search ? (
-                  <Button asChild variant="outline">
-                    <Link href="/admin/cursos">Limpar busca</Link>
-                  </Button>
-                ) : (
-                  <DiscardAwareDialog
-                    description="Crie o curso antes de cadastrar seus módulos e aulas."
-                    title="Novo curso"
-                    trigger={
-                      <DialogTriggerButton>
-                        <HugeiconsIcon
-                          aria-hidden="true"
-                          data-icon="inline-start"
-                          icon={Add01Icon}
-                          size={18}
-                          strokeWidth={2}
-                        />
-                        Criar primeiro curso
-                      </DialogTriggerButton>
-                    }
-                  >
-                    <CourseForm priceFieldId="empty-course-price" />
-                  </DiscardAwareDialog>
-                )}
+                <DiscardAwareDialog
+                  description="Crie o curso antes de cadastrar seus módulos e aulas."
+                  title="Novo curso"
+                  trigger={
+                    <DialogTriggerButton>
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        data-icon="inline-start"
+                        icon={Add01Icon}
+                        size={18}
+                        strokeWidth={2}
+                      />
+                      Criar primeiro curso
+                    </DialogTriggerButton>
+                  }
+                >
+                  <CourseForm priceFieldId="empty-course-price" />
+                </DiscardAwareDialog>
               </EmptyContent>
             </Empty>
           ) : (

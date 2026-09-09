@@ -81,13 +81,19 @@ Até lá, a documentação descreve o payload real do código e não promete com
 
 ## Sincronização e limpeza
 
-- cron `/api/cron/jmvstream` chama `syncPendingJmvstreamPlayers` a cada quinze minutos;
+- cron `/api/cron/jmvstream` adquire o lease, expira sessões de upload stale e
+  chama `syncPendingJmvstreamPlayers` a cada quinze minutos;
 - a execução adquire advisory lock de sessão; uma segunda invocação retorna
   `skipped` sem repetir chamadas externas;
 - `expireStaleJmvstreamUploads` marca sessões abandonadas;
 - remoções chamam funções por Aula/Módulo/Curso e persistem falha para retry;
 - `retryJmvstreamAssetDelete` só deve operar após conferir o hash;
 - upload manual por URL usa `syncManualJmvstreamVideoAsset`.
+
+`getJmvstreamHealthSummary`, usado em Admin > Configurações, é somente leitura:
+ele não expira uploads nem altera `jmvstream_video_assets`. A tela exibe apenas
+pendências/falhas locais acionáveis e aponta a operadora para o portal JMVStream
+quando a investigação pertence ao provider.
 
 ## Falhas e recuperação
 

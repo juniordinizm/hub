@@ -117,6 +117,36 @@ const getOptionalString = (value: unknown): string | undefined =>
 const getNullableString = (value: unknown): string | null =>
   isNonEmptyString(value) ? value : null;
 
+const getOptionalProviderDate = (value: unknown): string | undefined => {
+  if (value === null || value === undefined) {
+    return;
+  }
+  if (!isNonEmptyString(value)) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return value;
+};
+
+const getOptionalPositiveInteger = (value: unknown): number | undefined => {
+  if (value === null || value === undefined) {
+    return;
+  }
+  if (!Number.isSafeInteger(value) || (value as number) < 1) {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return value as number;
+};
+
+const getOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (value === null || value === undefined) {
+    return;
+  }
+  if (typeof value !== "boolean") {
+    throw new Error(INVALID_RESPONSE_MESSAGE);
+  }
+  return value;
+};
+
 const createValidationError = (message: string): AsaasGatewayError =>
   new AsaasGatewayError({
     kind: "validation",
@@ -279,15 +309,25 @@ const parsePayment = (value: unknown): AsaasPayment => {
 
   const transactionReceiptUrl = getOptionalString(value.transactionReceiptUrl);
   const installmentId = getOptionalString(value.installment);
+  const anticipated = getOptionalBoolean(value.anticipated);
+  const clientPaymentDate = getOptionalProviderDate(value.clientPaymentDate);
+  const dueDate = getOptionalProviderDate(value.dueDate);
+  const installmentNumber = getOptionalPositiveInteger(value.installmentNumber);
+  const paymentDate = getOptionalProviderDate(value.paymentDate);
 
   return {
+    ...(anticipated === undefined ? {} : { anticipated }),
     billingType: value.billingType,
+    ...(clientPaymentDate ? { clientPaymentDate } : {}),
     checkoutSession: getNullableString(value.checkoutSession),
     customer: value.customer,
+    ...(dueDate ? { dueDate } : {}),
     externalReference: getNullableString(value.externalReference),
     id: value.id,
     ...(installmentId ? { installmentId } : {}),
+    ...(installmentNumber === undefined ? {} : { installmentNumber }),
     netValueInCents: providerDecimalToCents(value.netValue),
+    ...(paymentDate ? { paymentDate } : {}),
     refunds: rawRefunds.map(parseRefund),
     status: value.status,
     ...(transactionReceiptUrl ? { transactionReceiptUrl } : {}),
@@ -651,7 +691,7 @@ export class AsaasClient implements AsaasGateway {
   ): Promise<AsaasPaymentPage> {
     assertNonEmptyId(installmentId, "ID do parcelamento");
     return await this.request(
-      `/v3/installments/${encodeURIComponent(installmentId)}/payments`,
+      `/v3/installments/${encodeURIComponent(installmentId)}/payments?limit=100&offset=0`,
       { method: "GET" },
       "query",
       parsePaymentPage
@@ -704,7 +744,7 @@ export class AsaasClient implements AsaasGateway {
   ): Promise<AsaasFinancialTransactionPage> {
     const { finishDate, limit = 100, offset = 0, order, startDate } = filters;
     if (!(ISO_DATE_RE.test(startDate) && ISO_DATE_RE.test(finishDate))) {
-      throw createValidationError("Periodo do extrato invalido.");
+      throw createValidationError("Periodo das movimentacoes invalido.");
     }
     if (
       !Number.isInteger(limit) ||

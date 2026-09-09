@@ -17,61 +17,84 @@ import {
 } from "@/features/operations/server";
 import {
   listOutboxDeadLetters,
-  type OutboxDeadLetterMessage,
+  type OutboxDeadLetterPage,
 } from "@/features/outbox/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import type { AdminFinancialPeriod } from "./financial-period";
+import {
+  getAdminFinancialPeriodLabel,
+  getAdminFinancialPeriodStart,
+} from "./financial-period";
+import type {
+  AdminOrderCheckoutFilter,
+  AdminOrderPaymentMethodFilter,
+  AdminOrderStatusFilter,
+} from "./order-filters";
+import type { AdminFinancialHealthSummary } from "./presentation";
 
 export interface AdminOverview {
   activeEnrollments: number;
   courses: number;
+  failedWebhooks: number;
   paidOrders: number;
-  recentWebhooks: Array<{
-    id: string;
-    eventKey: string;
-    eventName: string;
-    errorMessage: string | null;
-    status: string;
-    createdAt: Date;
-  }>;
+  paidRevenueInCents: number;
+  pendingOrders: number;
+  retryableWebhooks: number;
   students: number;
+}
+
+export interface AdminDashboardCourseHealth {
+  description: string | null;
+  id: string;
+  moduleCount: number;
+  publishedLessonCount: number;
+  status: string;
+  thumbnailUrl: string | null;
+  title: string;
+  totalLessonCount: number;
+}
+
+export interface AdminDashboardRecentOrder {
+  amountInCents: number;
+  courseTitle: string;
+  createdAt: Date;
+  customerEmail: string | null;
+  customerName: string | null;
+  id: string;
+  status: string;
+}
+
+export interface AdminDashboardRecentCertificate {
+  code: string;
+  courseTitle: string;
+  issuedAt: Date;
+  studentName: string;
 }
 
 export const getAdminOverview = async (): Promise<AdminOverview> => {
   await requirePermission("viewAdminPanel");
 
   const pool = getPool();
-  const [counts, webhooks] = await Promise.all([
-    pool.query<{
-      courses: number;
-      students: number;
-      active_enrollments: number;
-      paid_orders: number;
-    }>(
-      `
-        select
-          (select count(*)::int from courses) as courses,
-          (select count(*)::int from profiles where role = 'student') as students,
-          (select count(*)::int from enrollments where status = 'active') as active_enrollments,
-          (select count(*)::int from orders where status = 'paid') as paid_orders
-      `
-    ),
-    pool.query<{
-      event_key: string;
-      id: string;
-      event_name: string;
-      error_message: string | null;
-      status: string;
-      created_at: Date;
-    }>(
-      `
-        select id, event_key, event_name, status, error_message, created_at
-        from webhook_events
-        where provider = 'asaas'
-        order by created_at desc
-        limit 8
-      `
-    ),
-  ]);
+  const counts = await pool.query<{
+    active_enrollments: number;
+    courses: number;
+    failed_webhooks: number;
+    paid_orders: number;
+    paid_revenue_in_cents: number | string;
+    pending_orders: number;
+    retryable_webhooks: number;
+    students: number;
+  }>(`
+      select
+        (select count(*)::int from courses) as courses,
+        (select count(*)::int from profiles where role = 'student') as students,
+        (select count(*)::int from enrollments where status = 'active') as active_enrollments,
+        (select count(*)::int from orders where status = 'paid') as paid_orders,
+        (select coalesce(sum(coalesce(paid_amount_in_cents, amount_in_cents)) filter (where status = 'paid'), 0)::bigint from orders) as paid_revenue_in_cents,
+        (select count(*)::int from orders where status = 'pending' and checkout_status not in ('failed', 'cancelled', 'expired')) as pending_orders,
+        (select count(*)::int from webhook_events where provider = 'asaas' and status = 'failed') as failed_webhooks,
+        (select count(*)::int from webhook_events where provider = 'asaas' and status = 'retryable') as retryable_webhooks
+    `);
   const countRow = counts.rows[0];
 
   return {
@@ -79,14 +102,10 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
     students: countRow?.students ?? 0,
     activeEnrollments: countRow?.active_enrollments ?? 0,
     paidOrders: countRow?.paid_orders ?? 0,
-    recentWebhooks: webhooks.rows.map((row) => ({
-      id: row.id,
-      eventKey: row.event_key,
-      eventName: row.event_name,
-      errorMessage: row.error_message,
-      status: row.status,
-      createdAt: row.created_at,
-    })),
+    paidRevenueInCents: Number(countRow?.paid_revenue_in_cents ?? 0),
+    pendingOrders: countRow?.pending_orders ?? 0,
+    retryableWebhooks: countRow?.retryable_webhooks ?? 0,
+    failedWebhooks: countRow?.failed_webhooks ?? 0,
   };
 };
 
@@ -107,12 +126,22 @@ export interface AdminAuditLog {
   targetType: string;
 }
 
-export interface AdminCertificate {
-  code: string;
-  courseId: string;
-  courseTitle: string;
-  issuedAt: Date;
-  studentName: string;
+export interface AdminStatementImportHistory {
+  actorEmail: string | null;
+  completedAt: Date;
+  finishDate: string;
+  inserted: number;
+  resumedFromOffset: number;
+  startDate: string;
+  updated: number;
+}
+
+export interface AdminStatementImportProgress {
+  actorEmail: string | null;
+  finishDate: string;
+  nextOffset: number;
+  startDate: string;
+  updatedAt: Date;
 }
 
 export interface AdminCourse {
@@ -187,28 +216,13 @@ const MAX_ADMIN_COURSE_PAGE = 1000;
 export interface AdminCourseCatalogQuery {
   page?: number | undefined;
   pageSize?: number | undefined;
-  search?: string | undefined;
 }
 
-const DEFAULT_ADMIN_REVENUE_PAGE_SIZE = 5;
-const MAX_ADMIN_REVENUE_PAGE_SIZE = 100;
-const MAX_ADMIN_REVENUE_PAGE = 1000;
 const DEFAULT_ADMIN_COURSE_ENROLLMENT_PAGE_SIZE = 50;
 const MAX_ADMIN_COURSE_ENROLLMENT_PAGE = 1000;
 
-export interface AdminCourseRevenueQuery {
-  page?: number | undefined;
-  pageSize?: number | undefined;
-  search?: string | undefined;
-}
-
-export interface AdminCourseRevenuePage {
+export interface AdminCourseRevenueData {
   courses: CourseRevenueSummary[];
-  hasNextPage: boolean;
-  page: number;
-  pageSize: number;
-  search: string;
-  totalCount: number;
 }
 
 export interface AdminCourseEnrollmentQuery {
@@ -280,32 +294,162 @@ const parsePaymentReviewType = (value: unknown): PaymentReviewType => {
 };
 
 export interface AdminPaymentReview {
+  amountInCents: number;
+  courseTitle: string;
+  createdAt: Date;
+  customerEmail: string | null;
+  customerName: string | null;
   id: string;
+  observedAmountInCents?: number | null;
+  observedFeeAmountInCents?: number | null;
+  observedNetAmountInCents?: number | null;
   orderId: string;
+  orderStatus: string;
+  paidAmountInCents: number | null;
   providerCheckoutId: string | null;
+  providerPaymentId: string | null;
+  providerPaymentStatus: string | null;
   reason: string;
   status: "approved" | "pending" | "rejected";
   type: PaymentReviewType;
 }
 
+export interface AdminPaymentReviewHistory extends AdminPaymentReview {
+  decisionReason: string | null;
+  resolvedAt: Date | null;
+  resolvedByEmail: string | null;
+  status: "approved" | "rejected";
+}
+
+export interface AdminPaymentReviewPage {
+  hasNextPage: boolean;
+  history: AdminPaymentReviewHistory[];
+  historyTotalCount: number;
+  page: number;
+  pageSize: number;
+  reviews: AdminPaymentReview[];
+  totalCount: number;
+}
+
+export interface AdminWebhookEvent {
+  attemptCount: number;
+  createdAt: Date;
+  errorMessage: string | null;
+  eventKey: string;
+  eventName: string;
+  id: string;
+  nextAttemptAt: Date | null;
+  status: string;
+}
+
+export interface AdminWebhookEventPage {
+  events: AdminWebhookEvent[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  search: string;
+  totalCount: number;
+}
+
+export interface AdminWebhookEventQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+}
+
+export interface AdminPaymentReviewQuery {
+  page?: number;
+  pageSize?: number;
+}
+
 export interface AdminOrder {
   amountInCents: number;
+  checkoutAttemptCount: number;
+  checkoutErrorMessage: string | null;
+  checkoutLastAttemptAt: Date | null;
+  checkoutNextAttemptAt: Date | null;
   checkoutStatus: string;
   courseId: string;
   courseTitle: string;
+  createdAt: Date;
   customerEmail: string | null;
   customerName: string | null;
   feeAmountInCents: number | null;
+  hasPendingBuyerIdentityReview?: boolean;
   id: string;
+  installmentPaymentCount?: number;
+  installmentPaymentsSyncedAt?: Date | null;
   netAmountInCents: number | null;
   paidAmountInCents: number | null;
   paidAt: Date | null;
+  paymentInstallmentCount: number | null;
   paymentMethod: string | null;
   providerCheckoutId: string | null;
+  providerInstallmentId: string | null;
   providerPaymentId: string | null;
   providerPaymentStatus: string | null;
+  providerRefundCreatedAt: string | null;
+  providerRefundEndToEndId: string | null;
+  providerRefundReceiptUrl: string | null;
+  providerRefundStatus: string | null;
+  providerRiskStatus: string | null;
+  refundConfirmedAt: Date | null;
+  refundErrorCode: string | null;
+  refundedAmountInCents: number | null;
+  refundRequestCreatedAt: Date | null;
   refundRequestStatus: string | null;
   status: string;
+}
+
+export interface AdminInstallmentPayment {
+  anticipated: boolean | null;
+  clientPaymentDate: string | null;
+  dueDate: string | null;
+  feeAmountInCents: number | null;
+  installmentNumber: number | null;
+  netValueInCents: number | null;
+  paymentDate: string | null;
+  providerPaymentId: string;
+  status: string;
+  valueInCents: number;
+}
+
+export interface AdminOrderPage {
+  hasNextPage: boolean;
+  orders: AdminOrder[];
+  totalCount: number;
+}
+
+export interface AdminFinancialOverviewData {
+  coursesRevenue: AdminCourseRevenueData;
+  financialHealth: AdminFinancialHealthSummary;
+  paymentReviews: AdminPaymentReviewPage;
+}
+
+export interface AdminFinancialAnalytics {
+  averageReceivedTicketInCents: number;
+  estimatedNetRevenueInCents: number;
+  feesInCents: number;
+  grossReceivedInCents: number;
+  missingFeeEvidenceOrders: number;
+  paidOrders: number;
+  pendingOrders: number;
+  pendingRevenueInCents: number;
+  period: AdminFinancialPeriod;
+  periodLabel: string;
+  refundedOrders: number;
+  refundedRevenueInCents: number;
+  refundRatePercent: number | null;
+}
+
+export interface AdminFinancialAnalysisData {
+  analytics: AdminFinancialAnalytics;
+}
+
+export interface AdminFinancialOrdersData {
+  orders: AdminOrder[];
+  ordersHasNextPage: boolean;
+  ordersTotalCount: number;
 }
 
 export interface AdminSettings {
@@ -357,6 +501,118 @@ export interface AdminStudentSheetData {
   student: AdminStudentDetail;
 }
 
+const readDashboardCourseHealth = async (): Promise<
+  AdminDashboardCourseHealth[]
+> => {
+  const { rows } = await getPool().query<{
+    description: string | null;
+    id: string;
+    module_count: number;
+    published_lesson_count: number;
+    status: string;
+    thumbnail_url: string | null;
+    title: string;
+    total_lesson_count: number;
+  }>(`
+    select
+      c.id,
+      c.title,
+      c.status,
+      c.description,
+      c.thumbnail_url,
+      (
+        select count(*)::int
+        from modules m
+        where m.course_id = c.id
+      ) as module_count,
+      (
+        select count(*)::int
+        from lessons l
+        join modules m on m.id = l.module_id
+        where m.course_id = c.id
+      ) as total_lesson_count,
+      (
+        select count(*)::int
+        from lessons l
+        join modules m on m.id = l.module_id
+        where m.course_id = c.id and l.is_published = true
+      ) as published_lesson_count
+    from courses c
+    order by c.created_at desc
+  `);
+
+  return rows.map((row) => ({
+    description: row.description,
+    id: row.id,
+    moduleCount: row.module_count,
+    publishedLessonCount: row.published_lesson_count,
+    status: row.status,
+    thumbnailUrl: row.thumbnail_url,
+    title: row.title,
+    totalLessonCount: row.total_lesson_count,
+  }));
+};
+
+const readDashboardRecentOrders = async (): Promise<
+  AdminDashboardRecentOrder[]
+> => {
+  const { rows } = await getPool().query<{
+    amount_in_cents: number;
+    course_title: string;
+    created_at: Date;
+    customer_email: string | null;
+    customer_name: string | null;
+    id: string;
+    status: string;
+  }>(`
+    select
+      o.id,
+      o.amount_in_cents,
+      o.created_at,
+      o.customer_name,
+      o.customer_email,
+      o.status,
+      c.title as course_title
+    from orders o
+    join courses c on c.id = o.course_id
+    order by o.created_at desc, o.id desc
+    limit 4
+  `);
+
+  return rows.map((row) => ({
+    amountInCents: row.amount_in_cents,
+    courseTitle: row.course_title,
+    createdAt: row.created_at,
+    customerEmail: row.customer_email,
+    customerName: row.customer_name,
+    id: row.id,
+    status: row.status,
+  }));
+};
+
+const readDashboardRecentCertificates = async (): Promise<
+  AdminDashboardRecentCertificate[]
+> => {
+  const { rows } = await getPool().query<{
+    code: string;
+    course_title_snapshot: string;
+    issued_at: Date;
+    student_name_snapshot: string;
+  }>(`
+    select code, course_title_snapshot, student_name_snapshot, issued_at
+    from certificates
+    order by issued_at desc, id desc
+    limit 6
+  `);
+
+  return rows.map((row) => ({
+    code: row.code,
+    courseTitle: row.course_title_snapshot,
+    issuedAt: row.issued_at,
+    studentName: row.student_name_snapshot,
+  }));
+};
+
 const readCourses = async (
   courseId?: string,
   options: AdminCourseCatalogQuery = {}
@@ -371,18 +627,12 @@ const readCourses = async (
   const pageSize = Number.isFinite(requestedPageSize)
     ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
     : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
-  const search = options.search?.trim() ?? "";
   const values: unknown[] = [];
   const filters: string[] = [];
 
   if (courseId) {
     values.push(courseId);
     filters.push(`courses.id = $${values.length}`);
-  } else if (search) {
-    values.push(`%${search}%`);
-    filters.push(
-      `(courses.title ilike $${values.length} or courses.subtitle ilike $${values.length} or courses.slug ilike $${values.length})`
-    );
   }
 
   const pagination = courseId
@@ -929,235 +1179,610 @@ const readCourseEnrollmentsPage = async (
 };
 
 interface AdminOrderQuery {
+  checkout?: AdminOrderCheckoutFilter | undefined;
   page?: number;
   pageSize?: number;
+  paymentMethod?: AdminOrderPaymentMethodFilter | undefined;
   search?: string;
+  status?: AdminOrderStatusFilter | undefined;
 }
 
 const DEFAULT_ADMIN_ORDER_PAGE_SIZE = 20;
+export const MAX_ADMIN_ORDER_PAGE = 1000;
+const DEFAULT_ADMIN_REVIEW_PAGE_SIZE = 20;
+const MAX_ADMIN_REVIEW_PAGE = 1000;
+const MAX_ADMIN_REVIEW_PAGE_SIZE = 100;
+
+const getCheckoutPredicate = (
+  tableAlias: string,
+  checkout: AdminOrderCheckoutFilter
+): string => {
+  const prefix = tableAlias ? `${tableAlias}.` : "";
+  if (checkout === "open") {
+    return `${prefix}status = 'pending' and ${prefix}checkout_status not in ('failed', 'cancelled', 'expired')`;
+  }
+  return `${prefix}status = 'pending' and ${prefix}checkout_status in ('failed', 'cancelled', 'expired')`;
+};
 
 const readOrders = async (
-  courseId?: string,
   options: AdminOrderQuery = {}
-): Promise<AdminOrder[]> => {
-  const pageSize = courseId
-    ? 40
-    : (options.pageSize ?? DEFAULT_ADMIN_ORDER_PAGE_SIZE);
-  const page = Math.max(1, Math.trunc(options.page ?? 1));
+): Promise<AdminOrderPage> => {
+  const pageSize = options.pageSize ?? DEFAULT_ADMIN_ORDER_PAGE_SIZE;
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_ORDER_PAGE, Math.max(1, requestedPage))
+    : 1;
   const search = options.search?.trim() ?? "";
   const filters: string[] = [];
-  const values: unknown[] = [];
-  if (courseId) {
-    values.push(courseId);
-    filters.push(`o.course_id = $${values.length}`);
+  const filterValues: unknown[] = [];
+  if (options.checkout) {
+    filters.push(getCheckoutPredicate("o", options.checkout));
+  }
+  if (options.status) {
+    filterValues.push(options.status);
+    filters.push(`o.status = $${filterValues.length}`);
+  }
+  if (options.paymentMethod === "UNKNOWN") {
+    filters.push("(o.payment_method is null or btrim(o.payment_method) = '')");
+  } else if (options.paymentMethod === "OTHER") {
+    filters.push(
+      "(o.payment_method is not null and btrim(o.payment_method) <> '' and upper(o.payment_method) not in ('PIX', 'CREDIT_CARD'))"
+    );
+  } else if (options.paymentMethod) {
+    filterValues.push(options.paymentMethod);
+    filters.push(`upper(o.payment_method) = $${filterValues.length}`);
   }
   if (search) {
-    values.push(`%${search}%`);
-    const parameter = `$${values.length}`;
+    filterValues.push(`%${search}%`);
+    const parameter = `$${filterValues.length}`;
     filters.push(`(
       o.id::text ilike ${parameter}
       or o.provider_checkout_id ilike ${parameter}
       or o.provider_payment_id ilike ${parameter}
       or o.customer_email ilike ${parameter}
+      or o.customer_name ilike ${parameter}
     )`);
   }
-  const paginationClause = courseId
-    ? "limit 40"
-    : (() => {
-        values.push(pageSize, (page - 1) * pageSize);
-        return `limit $${values.length - 1} offset $${values.length}`;
-      })();
+  const values = [...filterValues];
+  values.push(pageSize + 1, (page - 1) * pageSize);
+  const paginationClause = `limit $${values.length - 1} offset $${values.length}`;
   const { rows } = await getPool().query<{
     amount_in_cents: number;
+    checkout_attempt_count: number;
+    checkout_error_message: string | null;
+    checkout_last_attempt_at: Date | null;
+    checkout_next_attempt_at: Date | null;
     checkout_status: string;
     course_id: string;
     course_title: string;
+    created_at: Date;
     customer_email: string | null;
     customer_name: string | null;
     fee_amount_in_cents: number | null;
+    has_pending_buyer_identity_review?: boolean;
     id: string;
+    installment_payment_count?: number;
+    installment_payments_synced_at: Date | null;
     net_amount_in_cents: number | null;
+    payment_installment_count: number | null;
     paid_at: Date | null;
     paid_amount_in_cents: number | null;
     payment_method: string | null;
     provider_checkout_id: string | null;
+    provider_installment_id: string | null;
     provider_payment_id: string | null;
     provider_payment_status: string | null;
+    provider_refund_created_at: string | null;
+    provider_refund_end_to_end_id: string | null;
+    provider_refund_receipt_url: string | null;
+    provider_refund_status: string | null;
+    provider_risk_status: string | null;
+    refund_confirmed_at: Date | null;
+    refund_error_code: string | null;
+    refund_request_created_at: Date | null;
     refund_request_status: string | null;
+    provider_refunded_amount_in_cents: number | null;
     status: string;
+    total_count: number;
   }>(
     `
       select o.id, c.id as course_id, c.title as course_title,
-             o.provider_checkout_id, o.provider_payment_id, o.status,
-             o.checkout_status, o.provider_payment_status, o.payment_method,
-             o.amount_in_cents, o.paid_amount_in_cents, o.net_amount_in_cents,
-             o.fee_amount_in_cents, o.customer_email, o.customer_name, o.paid_at,
-             rr.status as refund_request_status
+              o.created_at, o.checkout_attempt_count, o.checkout_last_attempt_at,
+              o.checkout_next_attempt_at, o.checkout_error_message,
+              o.provider_checkout_id, o.provider_installment_id,
+              o.provider_payment_id, o.status,
+              o.checkout_status, o.provider_payment_status, o.provider_risk_status,
+              o.payment_method,
+              o.amount_in_cents, o.paid_amount_in_cents, o.net_amount_in_cents,
+              o.payment_installment_count,
+              o.fee_amount_in_cents, o.customer_email, o.customer_name, o.paid_at,
+              rr.status as refund_request_status, rr.created_at as refund_request_created_at,
+              rr.confirmed_at as refund_confirmed_at, rr.provider_refund_status,
+              rr.provider_refund_created_at, rr.provider_refund_end_to_end_id,
+               rr.provider_refund_receipt_url,
+               rr.provider_refunded_amount_in_cents, rr.error_message as refund_error_code,
+              installment_summary.installment_payment_count,
+              installment_summary.installment_payments_synced_at,
+              exists (
+                select 1
+                from payment_reviews pending_identity_review
+                where pending_identity_review.order_id = o.id
+                  and pending_identity_review.status = 'pending'
+                  and pending_identity_review.type = 'buyer_identity'
+              ) as has_pending_buyer_identity_review,
+               count(*) over()::int as total_count
       from orders o
       join courses c on c.id = o.course_id
       left join refund_requests rr on rr.order_id = o.id
+      left join lateral (
+        select
+          count(*)::int as installment_payment_count,
+          max(synced_at) as installment_payments_synced_at
+        from asaas_installment_payments
+        where order_id = o.id
+      ) installment_summary on true
       ${filters.length ? `where ${filters.join(" and ")}` : ""}
-      order by o.created_at desc
+       order by o.created_at desc, o.id desc
       ${paginationClause}
     `,
     values
   );
 
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from orders o
+        join courses c on c.id = o.course_id
+        ${filters.length ? `where ${filters.join(" and ")}` : ""}
+      `,
+      filterValues
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
+  return {
+    hasNextPage: rows.length > pageSize,
+    orders: rows.slice(0, pageSize).map((row) => ({
+      amountInCents: row.amount_in_cents,
+      checkoutAttemptCount: row.checkout_attempt_count,
+      checkoutErrorMessage: row.checkout_error_message,
+      checkoutLastAttemptAt: row.checkout_last_attempt_at,
+      checkoutNextAttemptAt: row.checkout_next_attempt_at,
+      checkoutStatus: row.checkout_status,
+      courseId: row.course_id,
+      courseTitle: row.course_title,
+      createdAt: row.created_at,
+      customerEmail: row.customer_email,
+      customerName: row.customer_name,
+      feeAmountInCents: row.fee_amount_in_cents,
+      ...(row.has_pending_buyer_identity_review === undefined
+        ? {}
+        : {
+            hasPendingBuyerIdentityReview:
+              row.has_pending_buyer_identity_review,
+          }),
+      id: row.id,
+      ...(row.installment_payment_count === undefined
+        ? {}
+        : { installmentPaymentCount: row.installment_payment_count }),
+      ...(row.installment_payments_synced_at === undefined
+        ? {}
+        : {
+            installmentPaymentsSyncedAt: row.installment_payments_synced_at,
+          }),
+      netAmountInCents: row.net_amount_in_cents,
+      paymentInstallmentCount: row.payment_installment_count,
+      paidAt: row.paid_at,
+      paidAmountInCents: row.paid_amount_in_cents,
+      paymentMethod: row.payment_method,
+      providerCheckoutId: row.provider_checkout_id,
+      providerInstallmentId: row.provider_installment_id,
+      providerPaymentId: row.provider_payment_id,
+      providerPaymentStatus: row.provider_payment_status,
+      providerRiskStatus: row.provider_risk_status,
+      providerRefundEndToEndId: row.provider_refund_end_to_end_id,
+      providerRefundCreatedAt: row.provider_refund_created_at,
+      providerRefundReceiptUrl: row.provider_refund_receipt_url,
+      providerRefundStatus: row.provider_refund_status,
+      refundConfirmedAt: row.refund_confirmed_at,
+      refundErrorCode: row.refund_error_code,
+      refundRequestCreatedAt: row.refund_request_created_at,
+      refundRequestStatus: row.refund_request_status,
+      refundedAmountInCents: row.provider_refunded_amount_in_cents,
+      status: row.status,
+    })),
+    totalCount,
+  };
+};
+
+const readInstallmentPayments = async (
+  orderId: string
+): Promise<AdminInstallmentPayment[]> => {
+  const { rows } = await getPool().query<{
+    anticipated: boolean | null;
+    client_payment_date: string | null;
+    due_date: string | null;
+    fee_amount_in_cents: number | null;
+    installment_number: number | null;
+    net_value_in_cents: number | null;
+    payment_date: string | null;
+    provider_payment_id: string;
+    status: string;
+    value_in_cents: number;
+  }>(
+    `
+      select
+        ip.anticipated,
+        ip.client_payment_date,
+        ip.due_date,
+        ip.fee_amount_in_cents,
+        ip.installment_number,
+        ip.net_value_in_cents,
+        ip.payment_date,
+        ip.provider_payment_id,
+        ip.status,
+        ip.value_in_cents
+      from asaas_installment_payments ip
+      join orders o on o.id = ip.order_id
+      where ip.order_id = $1 and o.provider = 'asaas'
+      order by ip.installment_number nulls last, ip.provider_payment_id
+    `,
+    [orderId]
+  );
+
   return rows.map((row) => ({
+    anticipated: row.anticipated,
+    clientPaymentDate: row.client_payment_date,
+    dueDate: row.due_date,
+    feeAmountInCents: row.fee_amount_in_cents,
+    installmentNumber: row.installment_number,
+    netValueInCents: row.net_value_in_cents,
+    paymentDate: row.payment_date,
+    providerPaymentId: row.provider_payment_id,
+    status: row.status,
+    valueInCents: row.value_in_cents,
+  }));
+};
+
+export const getAdminInstallmentPayments = async (
+  orderId: string
+): Promise<AdminInstallmentPayment[]> => {
+  await requirePermission("viewFinancials");
+  return await readInstallmentPayments(orderId);
+};
+
+const readFinancialHealth = async (): Promise<AdminFinancialHealthSummary> => {
+  const { rows } = await getPool().query<{
+    abandoned_checkout_orders: number;
+    disputed_orders: number;
+    failed_webhooks: number;
+    paid_orders: number;
+    paid_revenue_in_cents: number | string;
+    pending_orders: number;
+    pending_revenue_in_cents: number | string;
+    ready_webhooks: number;
+    refunded_orders: number;
+    retryable_webhooks: number;
+    total_orders: number;
+  }>(`
+    select
+      count(*)::int as total_orders,
+      count(*) filter (where status = 'paid')::int as paid_orders,
+      coalesce(sum(coalesce(paid_amount_in_cents, amount_in_cents)) filter (where status = 'paid'), 0)::bigint as paid_revenue_in_cents,
+      count(*) filter (where ${getCheckoutPredicate("", "open")})::int as pending_orders,
+      coalesce(sum(amount_in_cents) filter (
+        where ${getCheckoutPredicate("", "open")}
+      ), 0)::bigint as pending_revenue_in_cents,
+      count(*) filter (
+        where ${getCheckoutPredicate("", "closed")}
+      )::int as abandoned_checkout_orders,
+      count(*) filter (where status = 'disputed')::int as disputed_orders,
+      count(*) filter (where status = 'refunded')::int as refunded_orders,
+      (select count(*)::int from webhook_events where provider = 'asaas' and status = 'failed') as failed_webhooks,
+      (select count(*)::int from webhook_events where provider = 'asaas' and status = 'retryable') as retryable_webhooks,
+      (select count(*)::int from webhook_events where provider = 'asaas' and status in ('received', 'processing')) as ready_webhooks
+    from orders
+  `);
+  const row = rows[0];
+  const totalOrders = row?.total_orders ?? 0;
+  const paidOrders = row?.paid_orders ?? 0;
+  const paidRevenueInCents = Number(row?.paid_revenue_in_cents ?? 0);
+
+  return {
+    abandonedCheckoutOrders: row?.abandoned_checkout_orders ?? 0,
+    averagePaidTicketInCents: paidOrders
+      ? Math.round(paidRevenueInCents / paidOrders)
+      : 0,
+    checkoutConversionPercent: totalOrders
+      ? Math.round((paidOrders / totalOrders) * 100)
+      : 0,
+    disputedOrders: row?.disputed_orders ?? 0,
+    failedWebhooks: row?.failed_webhooks ?? 0,
+    paidOrders,
+    paidRevenueInCents,
+    pendingOrders: row?.pending_orders ?? 0,
+    pendingRevenueInCents: Number(row?.pending_revenue_in_cents ?? 0),
+    readyWebhooks: row?.ready_webhooks ?? 0,
+    refundedOrders: row?.refunded_orders ?? 0,
+    retryableWebhooks: row?.retryable_webhooks ?? 0,
+    totalOrders,
+  };
+};
+
+const readFinancialAnalytics = async (
+  period: AdminFinancialPeriod
+): Promise<AdminFinancialAnalytics> => {
+  const periodEnd = new Date();
+  const fromDate = getAdminFinancialPeriodStart(period, periodEnd);
+  const { rows } = await getPool().query<{
+    fees_in_cents: number | string;
+    gross_received_in_cents: number | string;
+    missing_fee_evidence_orders: number;
+    paid_orders: number;
+    pending_orders: number;
+    pending_revenue_in_cents: number | string;
+    refunded_orders: number;
+    refunded_revenue_in_cents: number | string;
+  }>(
+    `
+      with received_orders as (
+        select
+          count(*) filter (
+            where status in ('paid', 'refunded', 'disputed')
+              and ($1::timestamptz is null or coalesce(paid_at, created_at) >= $1::timestamptz)
+              and coalesce(paid_at, created_at) <= $2::timestamptz
+          )::int as paid_orders,
+          coalesce(sum(coalesce(paid_amount_in_cents, amount_in_cents)) filter (
+            where status in ('paid', 'refunded', 'disputed')
+              and ($1::timestamptz is null or coalesce(paid_at, created_at) >= $1::timestamptz)
+              and coalesce(paid_at, created_at) <= $2::timestamptz
+          ), 0)::bigint as gross_received_in_cents,
+          coalesce(sum(coalesce(fee_amount_in_cents, 0)) filter (
+            where status in ('paid', 'refunded', 'disputed')
+              and ($1::timestamptz is null or coalesce(paid_at, created_at) >= $1::timestamptz)
+              and coalesce(paid_at, created_at) <= $2::timestamptz
+          ), 0)::bigint as fees_in_cents,
+          count(*) filter (
+            where status in ('paid', 'refunded', 'disputed')
+              and ($1::timestamptz is null or coalesce(paid_at, created_at) >= $1::timestamptz)
+              and coalesce(paid_at, created_at) <= $2::timestamptz
+              and (fee_amount_in_cents is null or net_amount_in_cents is null)
+          )::int as missing_fee_evidence_orders,
+          count(*) filter (
+            where ${getCheckoutPredicate("", "open")}
+              and ($1::timestamptz is null or created_at >= $1::timestamptz)
+              and created_at <= $2::timestamptz
+          )::int as pending_orders,
+          coalesce(sum(amount_in_cents) filter (
+            where ${getCheckoutPredicate("", "open")}
+              and ($1::timestamptz is null or created_at >= $1::timestamptz)
+              and created_at <= $2::timestamptz
+          ), 0)::bigint as pending_revenue_in_cents
+        from orders
+      ),
+      refunds as (
+        select
+          count(*) filter (
+            where (
+              rr.status = 'confirmed'
+              or o.status = 'refunded'
+            )
+              and ($1::timestamptz is null or coalesce(rr.confirmed_at, o.refunded_at) >= $1::timestamptz)
+              and coalesce(rr.confirmed_at, o.refunded_at) <= $2::timestamptz
+          )::int as refunded_orders,
+          coalesce(sum(
+            case
+              when rr.status = 'confirmed' then coalesce(
+                rr.provider_refunded_amount_in_cents,
+                coalesce(o.paid_amount_in_cents, o.amount_in_cents)
+              )
+              when o.status = 'refunded' then
+                coalesce(o.paid_amount_in_cents, o.amount_in_cents)
+              else 0
+            end
+          ) filter (
+            where (
+              rr.status = 'confirmed'
+              or o.status = 'refunded'
+            )
+              and ($1::timestamptz is null or coalesce(rr.confirmed_at, o.refunded_at) >= $1::timestamptz)
+              and coalesce(rr.confirmed_at, o.refunded_at) <= $2::timestamptz
+          ), 0)::bigint as refunded_revenue_in_cents
+        from orders o
+        left join refund_requests rr on rr.order_id = o.id
+      )
+      select received_orders.*, refunds.*
+      from received_orders cross join refunds
+    `,
+    [fromDate, periodEnd]
+  );
+  const row = rows[0];
+  const grossReceivedInCents = Number(row?.gross_received_in_cents ?? 0);
+  const feesInCents = Number(row?.fees_in_cents ?? 0);
+  const refundedRevenueInCents = Number(row?.refunded_revenue_in_cents ?? 0);
+  const paidOrders = row?.paid_orders ?? 0;
+  const averageReceivedTicketInCents = paidOrders
+    ? Math.round(grossReceivedInCents / paidOrders)
+    : 0;
+  const refundedOrders = row?.refunded_orders ?? 0;
+  const refundRatePercent = paidOrders
+    ? Number(((refundedOrders / paidOrders) * 100).toFixed(1))
+    : null;
+
+  return {
+    averageReceivedTicketInCents,
+    estimatedNetRevenueInCents:
+      grossReceivedInCents - feesInCents - refundedRevenueInCents,
+    feesInCents,
+    grossReceivedInCents,
+    missingFeeEvidenceOrders: row?.missing_fee_evidence_orders ?? 0,
+    paidOrders,
+    pendingOrders: row?.pending_orders ?? 0,
+    pendingRevenueInCents: Number(row?.pending_revenue_in_cents ?? 0),
+    period,
+    periodLabel: getAdminFinancialPeriodLabel(period),
+    refundRatePercent,
+    refundedOrders,
+    refundedRevenueInCents,
+  };
+};
+
+const readPaymentReviews = async (
+  options: AdminPaymentReviewQuery = {}
+): Promise<AdminPaymentReviewPage> => {
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_REVIEW_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_ADMIN_REVIEW_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_REVIEW_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_ADMIN_REVIEW_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
+  interface AdminPaymentReviewRow {
+    amount_in_cents: number;
+    course_title: string;
+    created_at: Date;
+    customer_email: string | null;
+    customer_name: string | null;
+    decision_reason: string | null;
+    id: string;
+    observed_amount_in_cents?: number | null;
+    observed_fee_amount_in_cents?: number | null;
+    observed_net_amount_in_cents?: number | null;
+    order_id: string;
+    order_status: string;
+    paid_amount_in_cents: number | null;
+    provider_checkout_id: string | null;
+    provider_payment_id: string | null;
+    provider_payment_status: string | null;
+    reason: string;
+    resolved_at: Date | null;
+    resolved_by_email: string | null;
+    status: "approved" | "pending" | "rejected";
+    total_count: number;
+    type: unknown;
+  }
+  const reviewSelect = `
+    select pr.id, pr.order_id, pr.type, pr.status, pr.reason,
+           pr.created_at, pr.decision_reason, pr.resolved_at,
+           o.provider_checkout_id, o.provider_payment_id, o.provider_payment_status,
+           o.amount_in_cents, o.paid_amount_in_cents, o.status as order_status,
+           pr.observed_amount_in_cents, pr.observed_net_amount_in_cents,
+           pr.observed_fee_amount_in_cents,
+           o.customer_email, o.customer_name, c.title as course_title,
+           resolved.email as resolved_by_email,
+           count(*) over()::int as total_count
+    from payment_reviews pr
+    join orders o on o.id = pr.order_id
+    join courses c on c.id = o.course_id
+    left join users resolved on resolved.id = pr.resolved_by_user_id
+  `;
+  const [pendingResult, historyResult] = await Promise.all([
+    getPool().query<AdminPaymentReviewRow>(
+      `${reviewSelect}
+       where pr.status = 'pending'
+       order by pr.created_at asc, pr.id asc
+       limit $1 offset $2`,
+      [pageSize + 1, offset]
+    ),
+    getPool().query<AdminPaymentReviewRow>(
+      `${reviewSelect}
+       where pr.status <> 'pending'
+       order by coalesce(pr.resolved_at, pr.created_at) desc, pr.id desc
+       limit 5`
+    ),
+  ]);
+  let pendingTotalCount = pendingResult.rows[0]?.total_count ?? 0;
+  if (pendingResult.rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      "select count(*)::int as total_count from payment_reviews where status = 'pending'"
+    );
+    pendingTotalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+  const mapReview = (row: AdminPaymentReviewRow): AdminPaymentReview => ({
     amountInCents: row.amount_in_cents,
-    checkoutStatus: row.checkout_status,
-    courseId: row.course_id,
     courseTitle: row.course_title,
+    createdAt: row.created_at,
     customerEmail: row.customer_email,
     customerName: row.customer_name,
-    feeAmountInCents: row.fee_amount_in_cents,
     id: row.id,
-    netAmountInCents: row.net_amount_in_cents,
-    paidAt: row.paid_at,
+    orderId: row.order_id,
+    orderStatus: row.order_status,
+    ...(row.observed_amount_in_cents === undefined
+      ? {}
+      : { observedAmountInCents: row.observed_amount_in_cents }),
+    ...(row.observed_fee_amount_in_cents === undefined
+      ? {}
+      : { observedFeeAmountInCents: row.observed_fee_amount_in_cents }),
+    ...(row.observed_net_amount_in_cents === undefined
+      ? {}
+      : { observedNetAmountInCents: row.observed_net_amount_in_cents }),
     paidAmountInCents: row.paid_amount_in_cents,
-    paymentMethod: row.payment_method,
     providerCheckoutId: row.provider_checkout_id,
     providerPaymentId: row.provider_payment_id,
     providerPaymentStatus: row.provider_payment_status,
-    refundRequestStatus: row.refund_request_status,
-    status: row.status,
-  }));
-};
-
-const readCertificates = async (
-  courseId?: string
-): Promise<AdminCertificate[]> => {
-  const { rows } = await getPool().query<{
-    code: string;
-    course_id: string;
-    course_title_snapshot: string;
-    issued_at: Date;
-    student_name_snapshot: string;
-  }>(
-    `
-      select code, course_id, student_name_snapshot, course_title_snapshot, issued_at
-      from certificates
-      ${courseId ? "where course_id = $1" : ""}
-      order by issued_at desc
-      limit 40
-    `,
-    courseId ? [courseId] : undefined
-  );
-
-  return rows.map((row) => ({
-    code: row.code,
-    courseId: row.course_id,
-    courseTitle: row.course_title_snapshot,
-    issuedAt: row.issued_at,
-    studentName: row.student_name_snapshot,
-  }));
-};
-
-const readPaymentReviews = async (): Promise<AdminPaymentReview[]> => {
-  const { rows } = await getPool().query<{
-    id: string;
-    order_id: string;
-    provider_checkout_id: string | null;
-    reason: string;
-    status: "approved" | "pending" | "rejected";
-    type: unknown;
-  }>(`
-    select pr.id, pr.order_id, pr.type, pr.status, pr.reason, o.provider_checkout_id
-    from payment_reviews pr
-    join orders o on o.id = pr.order_id
-    order by pr.created_at desc
-    limit 40
-  `);
-
-  return rows.map((row) => ({
-    id: row.id,
-    orderId: row.order_id,
-    providerCheckoutId: row.provider_checkout_id,
     reason: row.reason,
     status: row.status,
     type: parsePaymentReviewType(row.type),
-  }));
+  });
+  const mapHistory = (
+    row: AdminPaymentReviewRow
+  ): AdminPaymentReviewHistory => {
+    if (row.status === "pending") {
+      throw new Error("Historico de revisao financeira invalido.");
+    }
+    return {
+      ...mapReview(row),
+      decisionReason: row.decision_reason,
+      resolvedAt: row.resolved_at,
+      resolvedByEmail: row.resolved_by_email,
+      status: row.status,
+    };
+  };
+
+  return {
+    hasNextPage: pendingResult.rows.length > pageSize,
+    history: historyResult.rows.map(mapHistory),
+    historyTotalCount: historyResult.rows[0]?.total_count ?? 0,
+    page,
+    pageSize,
+    reviews: pendingResult.rows.slice(0, pageSize).map(mapReview),
+    totalCount: pendingTotalCount,
+  };
 };
 
-const readCourseRevenue = async (): Promise<CourseRevenueSummary[]> => {
+const readCourseRevenue = async (): Promise<AdminCourseRevenueData> => {
   const { rows } = await getPool().query<{
     course_id: string;
     course_title: string;
     total_orders: number;
     paid_orders: number;
     total_revenue_in_cents: number;
-  }>(`
-    select c.id as course_id, c.title as course_title,
-           count(o.id)::int as total_orders,
-           count(case when o.status = 'paid' then 1 end)::int as paid_orders,
-           coalesce(sum(case when o.status = 'paid' then o.amount_in_cents else 0 end), 0)::bigint as total_revenue_in_cents
-    from courses c
-    left join orders o on o.course_id = c.id
-    group by c.id, c.title
-    order by total_revenue_in_cents desc
-  `);
-
-  return rows.map((row) => ({
-    courseId: row.course_id,
-    courseTitle: row.course_title,
-    totalOrders: row.total_orders,
-    paidOrders: row.paid_orders,
-    totalRevenueInCents: Number(row.total_revenue_in_cents),
-  }));
-};
-
-const readCourseRevenuePage = async (
-  options: AdminCourseRevenueQuery = {}
-): Promise<AdminCourseRevenuePage> => {
-  const requestedPage = Math.trunc(options.page ?? 1);
-  const page = Number.isFinite(requestedPage)
-    ? Math.min(MAX_ADMIN_REVENUE_PAGE, Math.max(1, requestedPage))
-    : 1;
-  const requestedPageSize = Math.trunc(
-    options.pageSize ?? DEFAULT_ADMIN_REVENUE_PAGE_SIZE
-  );
-  const pageSize = Number.isFinite(requestedPageSize)
-    ? Math.min(MAX_ADMIN_REVENUE_PAGE_SIZE, Math.max(1, requestedPageSize))
-    : DEFAULT_ADMIN_REVENUE_PAGE_SIZE;
-  const search = options.search?.trim() ?? "";
-  const offset = (page - 1) * pageSize;
-  const { rows } = await getPool().query<{
-    course_id: string;
-    course_title: string;
-    total_orders: number;
-    paid_orders: number;
-    total_revenue_in_cents: number;
-    total_count: number;
   }>(
     `
       select c.id as course_id, c.title as course_title,
              count(o.id)::int as total_orders,
              count(case when o.status = 'paid' then 1 end)::int as paid_orders,
-             coalesce(sum(case when o.status = 'paid' then o.amount_in_cents else 0 end), 0)::bigint as total_revenue_in_cents,
-             count(*) over()::int as total_count
-      from courses c
-      left join orders o on o.course_id = c.id
-      where ($1 = '' or c.title ilike $2)
-      group by c.id, c.title
-      order by total_revenue_in_cents desc, c.title asc, c.id asc
-      limit $3 offset $4
-    `,
-    [search, `%${search}%`, pageSize + 1, offset]
+             coalesce(sum(case when o.status = 'paid' then coalesce(o.paid_amount_in_cents, o.amount_in_cents) else 0 end), 0)::bigint as total_revenue_in_cents
+       from courses c
+       left join orders o on o.course_id = c.id
+       group by c.id, c.title
+       order by total_revenue_in_cents desc, c.title asc, c.id asc
+    `
   );
-
   return {
-    courses: rows.slice(0, pageSize).map((row) => ({
+    courses: rows.map((row) => ({
       courseId: row.course_id,
       courseTitle: row.course_title,
       totalOrders: row.total_orders,
       paidOrders: row.paid_orders,
       totalRevenueInCents: Number(row.total_revenue_in_cents),
     })),
-    hasNextPage: rows.length > pageSize,
-    page,
-    pageSize,
-    search,
-    totalCount: rows[0]?.total_count ?? rows.length,
   };
 };
 
@@ -1258,6 +1883,77 @@ const readAuditLogs = async (): Promise<AdminAuditLog[]> => {
   }));
 };
 
+export const getAdminStatementImportHistory = async (): Promise<
+  AdminStatementImportHistory[]
+> => {
+  await requirePermission("manageFinancialOperations");
+  const { rows } = await getPool().query<{
+    actor_email: string | null;
+    completed_at: Date;
+    finish_date: string;
+    inserted: string;
+    resumed_from_offset: string;
+    start_date: string;
+    updated: string;
+  }>(`
+    select
+      a.created_at as completed_at,
+      split_part(a.target_id, ':', 1) as start_date,
+      split_part(a.target_id, ':', 2) as finish_date,
+      u.email as actor_email,
+      coalesce(nullif(a.metadata->>'inserted', ''), '0') as inserted,
+      coalesce(nullif(a.metadata->>'updated', ''), '0') as updated,
+      coalesce(nullif(a.metadata->>'resumedFromOffset', ''), '0') as resumed_from_offset
+    from audit_logs a
+    left join users u on u.id = a.actor_user_id
+    where a.action = 'asaas.statement_imported'
+      and a.target_type = 'asaas_statement'
+      and a.target_id is not null
+    order by a.created_at desc
+    limit 5
+  `);
+
+  return rows.map((row) => ({
+    actorEmail: row.actor_email,
+    completedAt: row.completed_at,
+    finishDate: row.finish_date,
+    inserted: Number(row.inserted),
+    resumedFromOffset: Number(row.resumed_from_offset),
+    startDate: row.start_date,
+    updated: Number(row.updated),
+  }));
+};
+
+export const getAdminStatementImportProgress =
+  async (): Promise<AdminStatementImportProgress | null> => {
+    await requirePermission("manageFinancialOperations");
+    const { rows } = await getPool().query<{
+      actor_email: string | null;
+      finish_date: string;
+      next_offset: number;
+      start_date: string;
+      updated_at: Date;
+    }>(`
+    select c.start_date, c.finish_date, c.next_offset, c.updated_at,
+           u.email as actor_email
+    from asaas_statement_import_cursors c
+    left join users u on u.id = c.started_by_user_id
+    where c.status = 'running'
+    order by c.updated_at desc
+    limit 1
+  `);
+    const row = rows[0];
+    return row
+      ? {
+          actorEmail: row.actor_email,
+          finishDate: row.finish_date,
+          nextOffset: row.next_offset,
+          startDate: row.start_date,
+          updatedAt: row.updated_at,
+        }
+      : null;
+  };
+
 const readStudentProfiles = async (
   options: AdminStudentsQuery = {}
 ): Promise<{
@@ -1327,25 +2023,18 @@ const readStudentProfiles = async (
   };
 };
 
-export const getAdminDashboardData = async (): Promise<{
-  courses: AdminCourse[];
-  coursesRevenue: CourseRevenueSummary[];
-  lessons: AdminLesson[];
-  modules: AdminModule[];
-  orders: AdminOrder[];
+export const getAdminDashboardProjection = async (): Promise<{
+  courses: AdminDashboardCourseHealth[];
+  recentCertificates: AdminDashboardRecentCertificate[];
+  recentOrders: AdminDashboardRecentOrder[];
 }> => {
   await requirePermission("manageContent");
-  const [courses, modules, lessons, orders, coursesRevenue] = await Promise.all(
-    [
-      readCourses(),
-      readModules(),
-      readLessons(),
-      readOrders(),
-      readCourseRevenue(),
-    ]
-  );
-
-  return { courses, coursesRevenue, lessons, modules, orders };
+  const [courses, recentOrders, recentCertificates] = await Promise.all([
+    readDashboardCourseHealth(),
+    readDashboardRecentOrders(),
+    readDashboardRecentCertificates(),
+  ]);
+  return { courses, recentCertificates, recentOrders };
 };
 
 export const getAdminStudentsData = async (
@@ -1377,18 +2066,92 @@ export const getAdminStudentsData = async (
   };
 };
 
-export const getAdminAuditData = async (): Promise<{
+export const getAdminAuditData = async ({
+  outboxPage = 1,
+}: {
+  outboxPage?: number;
+} = {}): Promise<{
   auditLogs: AdminAuditLog[];
   operationalBacklog: OperationalBacklogSnapshot;
-  outboxDeadLetters: OutboxDeadLetterMessage[];
+  outboxDeadLetters: OutboxDeadLetterPage;
 }> => {
   await requirePermission("viewGlobalAudit");
   const [auditLogs, outboxDeadLetters, operationalBacklog] = await Promise.all([
     readAuditLogs(),
-    listOutboxDeadLetters(),
+    listOutboxDeadLetters({ page: outboxPage }),
     getOperationalBacklogSnapshot(),
   ]);
   return { auditLogs, operationalBacklog, outboxDeadLetters };
+};
+
+export const getAdminWebhookEvents = async (
+  options: AdminWebhookEventQuery = {}
+): Promise<AdminWebhookEventPage> => {
+  await requirePermission("viewGlobalAudit");
+
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_ADMIN_REVIEW_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(options.pageSize ?? 20);
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_ADMIN_REVIEW_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : 20;
+  const search = options.search?.trim() ?? "";
+  const { rows } = await getPool().query<{
+    attempt_count: number;
+    created_at: Date;
+    error_message: string | null;
+    event_key: string;
+    event_name: string;
+    id: string;
+    next_attempt_at: Date | null;
+    status: string;
+    total_count: number;
+  }>(
+    `
+      select
+        id,
+        event_key,
+        event_name,
+        status,
+        attempt_count,
+        next_attempt_at,
+        error_message,
+        created_at,
+        count(*) over()::int as total_count
+      from webhook_events
+      where provider = 'asaas'
+        and status in ('failed', 'retryable')
+        and (
+          $1 = ''
+          or event_key ilike $2
+          or event_name ilike $2
+          or error_message ilike $2
+        )
+      order by created_at desc, id desc
+      limit $3 offset $4
+    `,
+    [search, `%${search}%`, pageSize + 1, (page - 1) * pageSize]
+  );
+
+  return {
+    events: rows.slice(0, pageSize).map((row) => ({
+      attemptCount: row.attempt_count,
+      createdAt: row.created_at,
+      errorMessage: row.error_message,
+      eventKey: row.event_key,
+      eventName: row.event_name,
+      id: row.id,
+      nextAttemptAt: row.next_attempt_at,
+      status: row.status,
+    })),
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    search,
+    totalCount: rows[0]?.total_count ?? rows.length,
+  };
 };
 
 export const getAdminSettingsData = async (): Promise<{
@@ -1404,7 +2167,6 @@ export const getAdminCourseCatalogData = async (
   hasNextPage: boolean;
   page: number;
   pageSize: number;
-  search: string;
   courses: AdminCourse[];
   lessons: AdminLesson[];
   modules: AdminModule[];
@@ -1420,8 +2182,7 @@ export const getAdminCourseCatalogData = async (
   const pageSize = Number.isFinite(requestedPageSize)
     ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
     : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
-  const search = options.search?.trim() ?? "";
-  const courses = await readCourses(undefined, { page, pageSize, search });
+  const courses = await readCourses(undefined, { page, pageSize });
   return {
     courses: courses.slice(0, pageSize),
     hasNextPage: courses.length > pageSize,
@@ -1429,7 +2190,6 @@ export const getAdminCourseCatalogData = async (
     modules: [],
     page,
     pageSize,
-    search,
   };
 };
 
@@ -1438,34 +2198,38 @@ export const getAdminFaqData = async (): Promise<{ faqs: AdminFaq[] }> => {
   return { faqs: await readFaqs() };
 };
 
-export const getAdminFinancialData = async (
-  orderQuery: AdminOrderQuery = {},
-  revenueQuery: AdminCourseRevenueQuery = {}
-): Promise<{
-  certificates: AdminCertificate[];
-  coursesRevenue: AdminCourseRevenuePage;
-  orders: AdminOrder[];
-  ordersHasNextPage: boolean;
-  paymentReviews: AdminPaymentReview[];
-}> => {
+export const getAdminFinancialOverviewData = async (
+  reviewQuery: AdminPaymentReviewQuery = {}
+): Promise<AdminFinancialOverviewData> => {
   await requirePermission("viewFinancials");
-  const [orderRows, certificates, paymentReviews, coursesRevenue] =
-    await Promise.all([
-      readOrders(undefined, {
-        ...orderQuery,
-        pageSize: DEFAULT_ADMIN_ORDER_PAGE_SIZE + 1,
-      }),
-      readCertificates(),
-      readPaymentReviews(),
-      readCourseRevenuePage(revenueQuery),
-    ]);
+  const [financialHealth, paymentReviews, coursesRevenue] = await Promise.all([
+    readFinancialHealth(),
+    readPaymentReviews(reviewQuery),
+    readCourseRevenue(),
+  ]);
+
+  return { coursesRevenue, financialHealth, paymentReviews };
+};
+
+export const getAdminFinancialAnalysisData = async (
+  period: AdminFinancialPeriod
+): Promise<AdminFinancialAnalysisData> => {
+  await requirePermission("viewFinancials");
+  const analytics = await readFinancialAnalytics(period);
+
+  return { analytics };
+};
+
+export const getAdminFinancialOrdersData = async (
+  orderQuery: AdminOrderQuery = {}
+): Promise<AdminFinancialOrdersData> => {
+  await requirePermission("viewFinancials");
+  const orderPage = await readOrders(orderQuery);
 
   return {
-    certificates,
-    coursesRevenue,
-    orders: orderRows.slice(0, DEFAULT_ADMIN_ORDER_PAGE_SIZE),
-    ordersHasNextPage: orderRows.length > DEFAULT_ADMIN_ORDER_PAGE_SIZE,
-    paymentReviews,
+    orders: orderPage.orders.slice(0, DEFAULT_ADMIN_ORDER_PAGE_SIZE),
+    ordersHasNextPage: orderPage.hasNextPage,
+    ordersTotalCount: orderPage.totalCount,
   };
 };
 

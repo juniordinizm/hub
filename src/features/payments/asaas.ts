@@ -41,13 +41,18 @@ export interface AsaasRefundEvidence {
 }
 
 export interface AsaasPayment {
+  anticipated?: boolean;
   billingType: string;
   checkoutSession: string | null;
+  clientPaymentDate?: string;
   customer: string;
+  dueDate?: string;
   externalReference: string | null;
   id: string;
   installmentId?: string;
+  installmentNumber?: number;
   netValueInCents: number;
+  paymentDate?: string;
   refunds: AsaasRefundEvidence[];
   status: string;
   transactionReceiptUrl?: string;

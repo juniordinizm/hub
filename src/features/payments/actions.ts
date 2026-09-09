@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { getAdminInstallmentPayments } from "@/features/admin/server";
 import { requeueFailedAsaasWebhook } from "@/features/payments/asaas-webhook-worker";
 import {
   createAsaasCheckoutIntent,
@@ -23,11 +24,14 @@ import {
 } from "@/features/payments/refunds";
 import { requirePermission } from "@/lib/auth-permissions";
 import { getServerEnv } from "@/lib/env";
+import { formatDateInput } from "@/lib/formatters";
 import { requireSession } from "@/lib/session";
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const startCourseCheckoutAction = async (
   formData: FormData
@@ -130,10 +134,20 @@ export const reconcileAsaasPaymentAction = async (
   if (!orderId) {
     throw new Error("Pedido invalido.");
   }
+  const reviewId = readString(formData, "reviewId");
   await reconcileAsaasPayment({
     actorUserId: session.user.id,
     orderId,
+    ...(reviewId ? { reviewId } : {}),
   });
+};
+
+export const getAdminInstallmentPaymentsAction = async (orderId: string) => {
+  const normalizedOrderId = orderId.trim();
+  if (!UUID_PATTERN.test(normalizedOrderId)) {
+    throw new Error("Pedido invalido.");
+  }
+  return await getAdminInstallmentPayments(normalizedOrderId);
 };
 
 export const importAsaasStatementAction = async (
@@ -143,10 +157,13 @@ export const importAsaasStatementAction = async (
   const startDate = readString(formData, "startDate");
   const finishDate = readString(formData, "finishDate");
   if (!(ISO_DATE_RE.test(startDate) && ISO_DATE_RE.test(finishDate))) {
-    throw new Error("Periodo do extrato invalido.");
+    throw new Error("Periodo das movimentacoes invalido.");
   }
   if (startDate > finishDate) {
     throw new Error("A data inicial deve anteceder a data final.");
+  }
+  if (finishDate > formatDateInput(new Date())) {
+    throw new Error("O período das movimentações deve estar encerrado.");
   }
   return await importAsaasFinancialStatement({
     actorUserId: session.user.id,

@@ -48,6 +48,7 @@ export interface AdminCourseHealthSummary {
   activeCourses: number;
   averageReadinessPercent: number;
   coursesNeedingAttention: Array<{
+    actionTab: AdminCourseActionTab;
     id: string;
     missingCount: number;
     readinessPercent: number;
@@ -60,9 +61,11 @@ export interface AdminOperationSignalInput {
   coursesNeedingAttention: number;
   failedWebhooks: number;
   pendingOrders: number;
+  retryableWebhooks?: number;
 }
 
 export interface AdminOperationSignal {
+  actionHref: string | null;
   helper: string;
   label: string;
   tone: "attention" | "healthy" | "watch";
@@ -82,27 +85,20 @@ export interface AdminStudentAccessSummary {
   totalStudents: number;
 }
 
-export interface AdminFinancialOrderInput {
-  amountInCents: number;
-  status: string;
-}
-
 export interface AdminFinancialHealthSummary {
+  abandonedCheckoutOrders: number;
   averagePaidTicketInCents: number;
   checkoutConversionPercent: number;
   disputedOrders: number;
+  failedWebhooks: number;
   paidOrders: number;
   paidRevenueInCents: number;
   pendingOrders: number;
   pendingRevenueInCents: number;
+  readyWebhooks: number;
   refundedOrders: number;
+  retryableWebhooks: number;
   totalOrders: number;
-}
-
-export interface AdminFinancialSignal {
-  helper: string;
-  label: string;
-  tone: "attention" | "healthy" | "watch";
 }
 
 export interface AdminLessonContentInput {
@@ -307,6 +303,10 @@ export const summarizeAdminCourseHealth = (
 ): AdminCourseHealthSummary => {
   const courseReadiness = courses.map((course) => ({
     ...getCourseReadiness(course),
+    actionTab:
+      course.hasDescription && course.hasThumbnail
+        ? ("content" as const)
+        : ("settings" as const),
     id: course.id,
     status: course.status,
     title: course.title,
@@ -332,7 +332,8 @@ export const summarizeAdminCourseHealth = (
           left.title.localeCompare(right.title)
       )
       .slice(0, MAX_ATTENTION_COURSES)
-      .map(({ id, missingCount, readinessPercent, title }) => ({
+      .map(({ actionTab, id, missingCount, readinessPercent, title }) => ({
+        actionTab,
         id,
         missingCount,
         readinessPercent,
@@ -346,31 +347,47 @@ export const getAdminOperationSignal = ({
   coursesNeedingAttention,
   failedWebhooks,
   pendingOrders,
+  retryableWebhooks = 0,
 }: AdminOperationSignalInput): AdminOperationSignal => {
+  const webhookAttentionCount = failedWebhooks + retryableWebhooks;
   if (failedWebhooks > 0) {
     return {
+      actionHref: "/admin/auditoria",
       tone: "attention",
-      label: "Revisar webhooks",
-      helper: `${failedWebhooks} evento${
+      label: "Revisar integração",
+      helper: `${failedWebhooks} falho${
         failedWebhooks === 1 ? "" : "s"
-      } com falha pode afetar liberacao de acesso.`,
+      } e ${retryableWebhooks} em retry podem afetar a liberação de acesso.`,
+    };
+  }
+
+  if (webhookAttentionCount > 0) {
+    return {
+      actionHref: "/admin/auditoria",
+      tone: "watch",
+      label: "Integração em retry",
+      helper: `${retryableWebhooks} webhook${
+        retryableWebhooks === 1 ? "" : "s"
+      } aguarda${retryableWebhooks === 1 ? "" : "m"} uma nova tentativa automática.`,
     };
   }
 
   if (pendingOrders > 0) {
     return {
+      actionHref: "/admin/financeiro",
       tone: "watch",
       label: "Pedidos pendentes",
       helper: `${pendingOrders} pedido${
         pendingOrders === 1 ? "" : "s"
-      } ainda aguardando confirmacao.`,
+      } ainda aguardando confirmação.`,
     };
   }
 
   if (coursesNeedingAttention > 0) {
     return {
+      actionHref: "/admin/cursos",
       tone: "watch",
-      label: "Catalogo em ajuste",
+      label: "Catálogo em ajuste",
       helper: `${coursesNeedingAttention} curso${
         coursesNeedingAttention === 1 ? "" : "s"
       } ainda precisa de acabamento para venda.`,
@@ -378,9 +395,10 @@ export const getAdminOperationSignal = ({
   }
 
   return {
+    actionHref: null,
     tone: "healthy",
-    label: "Operacao saudavel",
-    helper: "Catalogo, pedidos e webhooks sem pendencias criticas.",
+    label: "Operação saudável",
+    helper: "Catálogo, pedidos e webhooks sem pendências críticas.",
   };
 };
 
@@ -413,84 +431,6 @@ export const summarizeAdminStudentAccess = (
     .length,
   totalStudents: students.length,
 });
-
-export const summarizeAdminFinancialHealth = (
-  orders: readonly AdminFinancialOrderInput[]
-): AdminFinancialHealthSummary => {
-  const paidOrders = orders.filter((order) => order.status === "paid");
-  const pendingOrders = orders.filter((order) => order.status === "pending");
-  const disputedOrders = orders.filter((order) => order.status === "disputed");
-  const refundedOrders = orders.filter((order) => order.status === "refunded");
-  const paidRevenueInCents = paidOrders.reduce(
-    (sum, order) => sum + order.amountInCents,
-    0
-  );
-  const pendingRevenueInCents = pendingOrders.reduce(
-    (sum, order) => sum + order.amountInCents,
-    0
-  );
-
-  return {
-    averagePaidTicketInCents: paidOrders.length
-      ? Math.round(paidRevenueInCents / paidOrders.length)
-      : 0,
-    checkoutConversionPercent: orders.length
-      ? Math.round((paidOrders.length / orders.length) * 100)
-      : 0,
-    disputedOrders: disputedOrders.length,
-    paidOrders: paidOrders.length,
-    paidRevenueInCents,
-    pendingOrders: pendingOrders.length,
-    pendingRevenueInCents,
-    refundedOrders: refundedOrders.length,
-    totalOrders: orders.length,
-  };
-};
-
-export const getAdminFinancialSignal = ({
-  disputedOrders,
-  pendingOrders,
-  refundedOrders,
-}: Pick<
-  AdminFinancialHealthSummary,
-  "disputedOrders" | "pendingOrders" | "refundedOrders"
->): AdminFinancialSignal => {
-  if (disputedOrders > 0) {
-    return {
-      tone: "attention",
-      label: "Disputas abertas",
-      helper: `${disputedOrders} pedido${
-        disputedOrders === 1 ? "" : "s"
-      } em disputa exige acompanhamento manual.`,
-    };
-  }
-
-  if (pendingOrders > 0) {
-    return {
-      tone: "watch",
-      label: "Aguardando pagamento",
-      helper: `${pendingOrders} checkout${
-        pendingOrders === 1 ? "" : "s"
-      } ainda nao virou acesso pago.`,
-    };
-  }
-
-  if (refundedOrders > 0) {
-    return {
-      tone: "watch",
-      label: "Reembolsos registrados",
-      helper: `${refundedOrders} pedido${
-        refundedOrders === 1 ? "" : "s"
-      } reembolsado deve estar refletido no acesso.`,
-    };
-  }
-
-  return {
-    tone: "healthy",
-    label: "Receita sem alerta",
-    helper: "Pedidos recentes sem disputa, pendencia ou reembolso aberto.",
-  };
-};
 
 export const summarizeAdminCourseContent = ({
   lessons,

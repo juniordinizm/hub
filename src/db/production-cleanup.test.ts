@@ -40,9 +40,9 @@ const createSnapshot = () =>
   });
 
 describe("production cleanup contract", () => {
-  it("pins the exact 0043 table set and four preserved identity tables", () => {
-    expect(PRODUCTION_CLEANUP_TABLES).toHaveLength(38);
-    expect(TRUNCATED_OPERATIONAL_TABLES).toHaveLength(34);
+  it("includes financial history in operational cleanup and preserves identity tables", () => {
+    expect(PRODUCTION_CLEANUP_TABLES).toHaveLength(42);
+    expect(TRUNCATED_OPERATIONAL_TABLES).toHaveLength(38);
     expect(TRUNCATED_OPERATIONAL_TABLES).not.toEqual(
       expect.arrayContaining(["accounts", "profiles", "sessions", "users"])
     );

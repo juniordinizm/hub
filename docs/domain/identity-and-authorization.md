@@ -86,7 +86,7 @@ Admin continua usando sua projeção própria e não herda a restrição de
 Certificado mais recente aplicada ao Suporte.
 
 `manageFinancialOperations` e `manageFinancialReviews` são capacidades mutáveis
-exclusivas de Admin. Conciliação por pagamento e importação de extrato exigem a
+exclusivas de Admin. Conciliação por pagamento e sincronização local do extrato exigem a
 primeira; qualquer decisão manual que altere Revisão, Pedido ou acesso exige a
 segunda. `viewFinancials` permanece estritamente leitura. `executeRefund` continua
 separada para o Suporte iniciar o fluxo explícito de estorno autorizado.

@@ -20,11 +20,18 @@ import {
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
-  getAdminDashboardData,
-  getAdminFinancialData,
+  getAdminDashboardProjection,
+  getAdminFinancialAnalysisData,
+  getAdminFinancialOrdersData,
+  getAdminFinancialOverviewData,
+  getAdminInstallmentPayments,
   getAdminLessonEditorData,
+  getAdminOverview,
+  getAdminStatementImportHistory,
+  getAdminStatementImportProgress,
   getAdminStudentDetail,
   getAdminStudentsData,
+  getAdminWebhookEvents,
 } from "./server";
 
 const courseId = "course-1";
@@ -100,6 +107,276 @@ beforeEach(() => {
 });
 
 describe("admin read projections", () => {
+  it("keeps overview aggregates global", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          active_enrollments: 17,
+          courses: 4,
+          failed_webhooks: 23,
+          paid_orders: 31,
+          paid_revenue_in_cents: "123456",
+          pending_orders: 9,
+          retryable_webhooks: 0,
+          students: 12,
+        },
+      ],
+    });
+
+    await expect(getAdminOverview()).resolves.toEqual({
+      activeEnrollments: 17,
+      courses: 4,
+      failedWebhooks: 23,
+      paidOrders: 31,
+      paidRevenueInCents: 123_456,
+      pendingOrders: 9,
+      students: 12,
+      retryableWebhooks: 0,
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(query).toHaveBeenCalledTimes(1);
+    const aggregateSql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(aggregateSql).toContain(
+      "sum(coalesce(paid_amount_in_cents, amount_in_cents))"
+    );
+    expect(aggregateSql).toContain("status = 'pending'");
+    expect(aggregateSql).toContain("status = 'failed'");
+    expect(aggregateSql).not.toContain("limit 8");
+  });
+
+  it("keeps financial health global and counts retryable Asaas webhooks", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("retryable_webhooks")) {
+        return {
+          rows: [
+            {
+              abandoned_checkout_orders: 6,
+              disputed_orders: 2,
+              failed_webhooks: 1,
+              paid_orders: 3,
+              paid_revenue_in_cents: "30000",
+              pending_orders: 4,
+              pending_revenue_in_cents: "40000",
+              refunded_orders: 1,
+              retryable_webhooks: 4,
+              total_orders: 10,
+            },
+          ],
+        };
+      }
+
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialOverviewData();
+
+    expect(data.financialHealth).toEqual({
+      abandonedCheckoutOrders: 6,
+      averagePaidTicketInCents: 10_000,
+      checkoutConversionPercent: 30,
+      disputedOrders: 2,
+      failedWebhooks: 1,
+      paidOrders: 3,
+      paidRevenueInCents: 30_000,
+      pendingOrders: 4,
+      pendingRevenueInCents: 40_000,
+      readyWebhooks: 0,
+      refundedOrders: 1,
+      retryableWebhooks: 4,
+      totalOrders: 10,
+    });
+
+    const healthSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("retryable_webhooks")
+      )?.[0]
+    );
+    expect(healthSql).not.toContain("limit");
+    expect(healthSql).toContain("status = 'failed'");
+    expect(healthSql).toContain("status = 'retryable'");
+    expect(healthSql).toContain("ready_webhooks");
+    expect(healthSql).toContain("abandoned_checkout_orders");
+    expect(healthSql).toContain("checkout_status not in");
+    expect(healthSql).toContain(
+      "sum(coalesce(paid_amount_in_cents, amount_in_cents))"
+    );
+  });
+
+  it("loads the overview and orders projections independently", async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await getAdminFinancialOverviewData();
+
+    const overviewSql = query.mock.calls.map(([sql]) => String(sql));
+    expect(overviewSql.some((sql) => sql.includes("from orders o"))).toBe(
+      false
+    );
+
+    query.mockReset();
+    query.mockResolvedValue({ rows: [] });
+    await getAdminFinancialOrdersData();
+
+    const ordersSql = query.mock.calls.map(([sql]) => String(sql));
+    expect(
+      ordersSql.some((sql) => sql.includes("select c.id as course_id"))
+    ).toBe(false);
+    expect(ordersSql.some((sql) => sql.includes("from payment_reviews"))).toBe(
+      true
+    );
+  });
+
+  it("projects period analysis with explicit gross, fee and refund values", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("gross_received_in_cents")) {
+        return {
+          rows: [
+            {
+              fees_in_cents: "500",
+              gross_received_in_cents: "10000",
+              paid_orders: 2,
+              pending_orders: 3,
+              pending_revenue_in_cents: "15000",
+              refunded_orders: 1,
+              refunded_revenue_in_cents: "500",
+            },
+          ],
+        };
+      }
+      if (sql.includes("retryable_webhooks")) {
+        return { rows: [{}] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(getAdminFinancialAnalysisData("30d")).resolves.toEqual({
+      analytics: {
+        averageReceivedTicketInCents: 5000,
+        estimatedNetRevenueInCents: 9000,
+        feesInCents: 500,
+        grossReceivedInCents: 10_000,
+        missingFeeEvidenceOrders: 0,
+        paidOrders: 2,
+        pendingOrders: 3,
+        pendingRevenueInCents: 15_000,
+        period: "30d",
+        periodLabel: "Últimos 30 dias",
+        refundRatePercent: 50,
+        refundedOrders: 1,
+        refundedRevenueInCents: 500,
+      },
+    });
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
+    const analyticsSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("gross_received_in_cents")
+      )?.[0]
+    );
+    expect(analyticsSql).toContain("with received_orders as");
+    expect(analyticsSql).toContain(
+      "coalesce(paid_amount_in_cents, amount_in_cents)"
+    );
+    expect(analyticsSql).toContain("status = 'pending'");
+    expect(analyticsSql).toContain("checkout_status not in");
+    expect(analyticsSql).toContain(
+      "coalesce(paid_at, created_at) <= $2::timestamptz"
+    );
+    expect(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("gross_received_in_cents")
+      )?.[1]
+    ).toEqual([expect.any(Date), expect.any(Date)]);
+  });
+
+  it("preserves the order total when a bounded page has no rows", async () => {
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from orders o") &&
+        sql.includes("count(*)::int as total_count")
+      ) {
+        return { rows: [{ total_count: 42 }] };
+      }
+      if (sql.includes("from orders o")) {
+        return { rows: [] };
+      }
+      if (sql.includes("retryable_webhooks")) {
+        return { rows: [{}] };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialOrdersData({ page: 999_999 });
+
+    expect(data.orders).toEqual([]);
+    expect(data.ordersTotalCount).toBe(42);
+    const orderQuery = query.mock.calls.find(
+      ([sql, values]) =>
+        String(sql).includes("from orders o") &&
+        Array.isArray(values) &&
+        values.length === 2
+    );
+    expect(orderQuery?.[1]).toEqual([21, 19_980]);
+  });
+
+  it("returns a compact history of completed statement imports", async () => {
+    const completedAt = new Date("2026-09-08T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          actor_email: "admin@example.test",
+          completed_at: completedAt,
+          finish_date: "2026-08-31",
+          inserted: "12",
+          resumed_from_offset: "100",
+          start_date: "2026-08-01",
+          updated: "3",
+        },
+      ],
+    });
+
+    await expect(getAdminStatementImportHistory()).resolves.toEqual([
+      {
+        actorEmail: "admin@example.test",
+        completedAt,
+        finishDate: "2026-08-31",
+        inserted: 12,
+        resumedFromOffset: 100,
+        startDate: "2026-08-01",
+        updated: 3,
+      },
+    ]);
+
+    expect(requirePermission).toHaveBeenCalledWith("manageFinancialOperations");
+    expect(query).toHaveBeenCalledTimes(1);
+    const historySql = String(query.mock.calls[0]?.[0]);
+    expect(historySql).toContain("asaas.statement_imported");
+    expect(historySql).toContain("limit 5");
+  });
+
+  it("exposes an active statement import cursor to the admin", async () => {
+    const updatedAt = new Date("2026-09-08T12:00:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          actor_email: "admin@example.test",
+          finish_date: "2026-09-08",
+          next_offset: 200,
+          start_date: "2026-09-01",
+          updated_at: updatedAt,
+        },
+      ],
+    });
+
+    await expect(getAdminStatementImportProgress()).resolves.toEqual({
+      actorEmail: "admin@example.test",
+      finishDate: "2026-09-08",
+      nextOffset: 200,
+      startDate: "2026-09-01",
+      updatedAt,
+    });
+    expect(requirePermission).toHaveBeenCalledWith("manageFinancialOperations");
+  });
+
   it("keeps the course catalog projection bounded without loading lesson content", async () => {
     query.mockResolvedValue({ rows: [courseRow] });
 
@@ -115,6 +392,44 @@ describe("admin read projections", () => {
     expect(sql).not.toContain("l.content_json");
     expect(sql).not.toContain("select l.*");
     expect(requirePermission).toHaveBeenCalledWith("manageContent");
+  });
+
+  it("pages actionable Asaas webhooks without exposing payload data", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          attempt_count: 2,
+          created_at: new Date("2026-09-08T12:00:00.000Z"),
+          error_message: "delivery failed",
+          event_key: "event-21",
+          event_name: "PAYMENT_RECEIVED",
+          id: "webhook-21",
+          next_attempt_at: null,
+          status: "failed",
+          total_count: 21,
+        },
+      ],
+    });
+
+    await expect(
+      getAdminWebhookEvents({ page: 2, search: "PAYMENT" })
+    ).resolves.toMatchObject({
+      events: [
+        expect.objectContaining({
+          attemptCount: 2,
+          eventKey: "event-21",
+          status: "failed",
+        }),
+      ],
+      hasNextPage: false,
+      page: 2,
+      search: "PAYMENT",
+      totalCount: 21,
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("viewGlobalAudit");
+    expect(query.mock.calls[0]?.[1]).toEqual(["PAYMENT", "%PAYMENT%", 21, 20]);
+    expect(String(query.mock.calls[0]?.[0])).not.toContain("payload");
   });
 
   it("bounds the student projection and returns pagination metadata", async () => {
@@ -155,15 +470,31 @@ describe("admin read projections", () => {
 
   it("projects buyer identity payment reviews with their order in the financial read", async () => {
     query.mockImplementation((sql: string) => {
-      if (sql.includes("from payment_reviews")) {
+      if (
+        sql.includes("from payment_reviews") &&
+        sql.includes("pr.status = 'pending'")
+      ) {
         return {
           rows: [
             {
+              amount_in_cents: 12_990,
+              course_title: "Course one",
+              created_at: new Date("2026-09-08T12:00:00.000Z"),
+              customer_email: "student@example.test",
+              customer_name: "Student",
+              decision_reason: null,
               id: "review-1",
               order_id: "order-1",
+              order_status: "pending",
+              paid_amount_in_cents: null,
               provider_checkout_id: "chk-1",
+              provider_payment_id: "pay-1",
+              provider_payment_status: "PENDING",
               reason: "buyer_identity_team_account",
+              resolved_at: null,
+              resolved_by_email: null,
               status: "pending",
+              total_count: 1,
               type: "buyer_identity",
             },
           ],
@@ -172,29 +503,111 @@ describe("admin read projections", () => {
       return { rows: [] };
     });
 
-    const data = await getAdminFinancialData();
+    const data = await getAdminFinancialOverviewData();
 
-    expect(data.paymentReviews).toEqual([
-      {
-        id: "review-1",
-        orderId: "order-1",
-        providerCheckoutId: "chk-1",
-        reason: "buyer_identity_team_account",
-        status: "pending",
-        type: "buyer_identity",
-      },
-    ]);
+    expect(data.paymentReviews).toEqual({
+      hasNextPage: false,
+      history: [],
+      historyTotalCount: 0,
+      page: 1,
+      pageSize: 20,
+      reviews: [
+        {
+          amountInCents: 12_990,
+          courseTitle: "Course one",
+          createdAt: new Date("2026-09-08T12:00:00.000Z"),
+          customerEmail: "student@example.test",
+          customerName: "Student",
+          id: "review-1",
+          orderId: "order-1",
+          orderStatus: "pending",
+          paidAmountInCents: null,
+          providerCheckoutId: "chk-1",
+          providerPaymentId: "pay-1",
+          providerPaymentStatus: "PENDING",
+          reason: "buyer_identity_team_account",
+          status: "pending",
+          type: "buyer_identity",
+        },
+      ],
+      totalCount: 1,
+    });
     expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
     const reviewSql = String(
       query.mock.calls.find(([sql]) =>
-        String(sql).includes("from payment_reviews")
+        String(sql).includes("from payment_reviews pr")
       )?.[0]
     );
     expect(reviewSql).toContain("pr.type");
     expect(reviewSql).toContain("join orders o on o.id = pr.order_id");
+    expect(reviewSql).toContain("pr.status = 'pending'");
+    expect(reviewSql).toContain("order by pr.created_at asc");
   });
 
-  it("keeps course revenue search and pagination on the server projection", async () => {
+  it("returns the latest resolved payment reviews as separate history", async () => {
+    const resolvedAt = new Date("2026-09-08T13:00:00.000Z");
+    query.mockImplementation((sql: string) => {
+      if (
+        sql.includes("from payment_reviews") &&
+        sql.includes("pr.status <> 'pending'")
+      ) {
+        return {
+          rows: [
+            {
+              amount_in_cents: 12_990,
+              course_title: "Course one",
+              created_at: new Date("2026-09-08T12:00:00.000Z"),
+              customer_email: "student@example.test",
+              customer_name: "Student",
+              decision_reason: "Valor conferido no Asaas.",
+              id: "review-1",
+              order_id: "order-1",
+              order_status: "paid",
+              paid_amount_in_cents: 12_990,
+              provider_checkout_id: "chk-1",
+              provider_payment_id: "pay-1",
+              provider_payment_status: "RECEIVED",
+              reason: "amount_mismatch",
+              resolved_at: resolvedAt,
+              resolved_by_email: "admin@example.test",
+              status: "approved",
+              total_count: 1,
+              type: "amount_mismatch",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getAdminFinancialOverviewData();
+
+    expect(data.paymentReviews.history).toEqual([
+      {
+        amountInCents: 12_990,
+        courseTitle: "Course one",
+        createdAt: new Date("2026-09-08T12:00:00.000Z"),
+        customerEmail: "student@example.test",
+        customerName: "Student",
+        decisionReason: "Valor conferido no Asaas.",
+        id: "review-1",
+        orderId: "order-1",
+        orderStatus: "paid",
+        paidAmountInCents: 12_990,
+        providerCheckoutId: "chk-1",
+        providerPaymentId: "pay-1",
+        providerPaymentStatus: "RECEIVED",
+        reason: "amount_mismatch",
+        resolvedAt,
+        resolvedByEmail: "admin@example.test",
+        status: "approved",
+        type: "amount_mismatch",
+      },
+    ]);
+    expect(data.paymentReviews.historyTotalCount).toBe(1);
+  });
+
+  it("projects course revenue without a second pagination model", async () => {
     query.mockImplementation((sql: string) => {
       if (sql.includes("from courses c")) {
         return {
@@ -203,7 +616,6 @@ describe("admin read projections", () => {
               course_id: courseId,
               course_title: "Course one",
               paid_orders: 4,
-              total_count: 7,
               total_orders: 5,
               total_revenue_in_cents: 51_600,
             },
@@ -214,10 +626,7 @@ describe("admin read projections", () => {
       return { rows: [] };
     });
 
-    const data = await getAdminFinancialData(
-      { page: 2, search: "order" },
-      { page: 3, pageSize: 5, search: "Course" }
-    );
+    const data = await getAdminFinancialOverviewData({ page: 3, pageSize: 5 });
 
     expect(data.coursesRevenue).toEqual({
       courses: [
@@ -229,20 +638,58 @@ describe("admin read projections", () => {
           totalRevenueInCents: 51_600,
         },
       ],
-      hasNextPage: false,
-      page: 3,
-      pageSize: 5,
-      search: "Course",
-      totalCount: 7,
     });
 
     const revenueCall = query.mock.calls.find(([sql]) =>
       String(sql).includes("from courses c")
     );
-    expect(revenueCall?.[1]).toEqual(["Course", "%Course%", 6, 10]);
+    expect(revenueCall?.[1]).toBeUndefined();
     expect(String(revenueCall?.[0])).toContain("group by c.id, c.title");
-    expect(String(revenueCall?.[0])).toContain("count(*) over()");
+    expect(String(revenueCall?.[0])).toContain(
+      "coalesce(o.paid_amount_in_cents, o.amount_in_cents)"
+    );
     expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
+  });
+
+  it("reads individual installment evidence only for the requested Asaas order", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          anticipated: false,
+          client_payment_date: "2026-09-01",
+          due_date: "2026-09-01",
+          fee_amount_in_cents: 100,
+          installment_number: 1,
+          net_value_in_cents: 4900,
+          payment_date: "2026-09-01",
+          provider_payment_id: "pay-1",
+          status: "RECEIVED",
+          value_in_cents: 5000,
+        },
+      ],
+    });
+
+    await expect(getAdminInstallmentPayments("order-1")).resolves.toEqual([
+      {
+        anticipated: false,
+        clientPaymentDate: "2026-09-01",
+        dueDate: "2026-09-01",
+        feeAmountInCents: 100,
+        installmentNumber: 1,
+        netValueInCents: 4900,
+        paymentDate: "2026-09-01",
+        providerPaymentId: "pay-1",
+        status: "RECEIVED",
+        valueInCents: 5000,
+      },
+    ]);
+
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
+    expect(query.mock.calls[0]?.[1]).toEqual(["order-1"]);
+    expect(String(query.mock.calls[0]?.[0])).toContain(
+      "from asaas_installment_payments ip"
+    );
+    expect(String(query.mock.calls[0]?.[0])).toContain("o.provider = 'asaas'");
   });
 
   it("uses one lookahead order to expose financial pagination truthfully", async () => {
@@ -251,22 +698,39 @@ describe("admin read projections", () => {
         return {
           rows: Array.from({ length: 21 }, (_, index) => ({
             amount_in_cents: 10_000,
+            checkout_attempt_count: 1,
+            checkout_error_message: null,
+            checkout_last_attempt_at: new Date("2026-09-07T11:55:00.000Z"),
+            checkout_next_attempt_at: null,
             checkout_status: "active",
             course_id: courseId,
             course_title: "Course one",
+            created_at: new Date("2026-09-07T12:00:00.000Z"),
             customer_email: "student@example.test",
             customer_name: `Student ${index + 1}`,
             fee_amount_in_cents: 0,
             id: `order-${index + 1}`,
             net_amount_in_cents: 10_000,
+            payment_installment_count: null,
             paid_at: new Date("2026-09-07T12:00:00.000Z"),
             paid_amount_in_cents: 10_000,
             payment_method: "PIX",
             provider_checkout_id: `checkout-${index + 1}`,
+            provider_installment_id: null,
             provider_payment_id: `payment-${index + 1}`,
             provider_payment_status: "RECEIVED",
+            provider_refund_created_at: null,
+            provider_refund_end_to_end_id: null,
+            provider_refund_receipt_url: null,
+            provider_refund_status: null,
+            provider_risk_status: null,
+            refund_confirmed_at: null,
+            refund_error_code: null,
+            refund_request_created_at: null,
             refund_request_status: null,
+            provider_refunded_amount_in_cents: null,
             status: "paid",
+            total_count: 21,
           })),
         };
       }
@@ -274,14 +738,85 @@ describe("admin read projections", () => {
       return { rows: [] };
     });
 
-    const data = await getAdminFinancialData({ page: 1 });
+    const data = await getAdminFinancialOrdersData({ page: 1 });
 
     expect(data.orders).toHaveLength(20);
     expect(data.ordersHasNextPage).toBe(true);
+    expect(data.ordersTotalCount).toBe(21);
+    expect(data.orders[0]).toMatchObject({
+      checkoutAttemptCount: 1,
+      checkoutErrorMessage: null,
+      providerRiskStatus: null,
+      refundRequestStatus: null,
+    });
     const orderCall = query.mock.calls.find(([sql]) =>
       String(sql).includes("from orders o")
     );
     expect(orderCall?.[1]).toEqual([21, 0]);
+    expect(String(orderCall?.[0])).toContain(
+      "order by o.created_at desc, o.id desc"
+    );
+  });
+
+  it("includes the buyer name when filtering financial orders", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from orders o")) {
+        return { rows: [] };
+      }
+
+      return { rows: [] };
+    });
+
+    await getAdminFinancialOrdersData({ page: 1, search: "Student" });
+
+    const orderCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from orders o")
+    );
+    expect(orderCall?.[1]).toEqual(["%Student%", 21, 0]);
+    expect(String(orderCall?.[0])).toContain("o.customer_name ilike");
+  });
+
+  it("applies status and payment method filters before paginating orders", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from orders o")) {
+        return { rows: [] };
+      }
+
+      return { rows: [] };
+    });
+
+    await getAdminFinancialOrdersData({
+      checkout: "open",
+      page: 2,
+      paymentMethod: "CREDIT_CARD",
+      status: "pending",
+    });
+
+    const orderCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from orders o")
+    );
+    expect(orderCall?.[1]).toEqual(["pending", "CREDIT_CARD", 21, 20]);
+    expect(String(orderCall?.[0])).toContain("o.status = $1");
+    expect(String(orderCall?.[0])).toContain("upper(o.payment_method) = $2");
+    expect(String(orderCall?.[0])).toContain(
+      "o.checkout_status not in ('failed', 'cancelled', 'expired')"
+    );
+  });
+
+  it("keeps blank payment methods in the unknown bucket, not the other bucket", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from orders o")) {
+        return { rows: [] };
+      }
+      return { rows: [] };
+    });
+
+    await getAdminFinancialOrdersData({ paymentMethod: "OTHER" });
+
+    const orderCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from orders o")
+    );
+    expect(String(orderCall?.[0])).toContain("btrim(o.payment_method) <> ''");
   });
 
   it.each([
@@ -290,6 +825,9 @@ describe("admin read projections", () => {
     42,
   ])("fails closed when payment review type drifts to %s", async (type) => {
     query.mockImplementation((sql: string) => {
+      if (sql.includes("pr.status <> 'pending'")) {
+        return { rows: [] };
+      }
       if (sql.includes("from payment_reviews")) {
         return {
           rows: [
@@ -307,7 +845,7 @@ describe("admin read projections", () => {
       return { rows: [] };
     });
 
-    await expect(getAdminFinancialData()).rejects.toThrow(
+    await expect(getAdminFinancialOverviewData()).rejects.toThrow(
       "Revisao financeira invalida."
     );
   });
@@ -500,22 +1038,53 @@ describe("admin read projections", () => {
     expect(lessonEditorSql).toContain("m.release_delay_days");
   });
 
-  it("projects module release days in the unscoped dashboard read", async () => {
-    query.mockImplementation((sql: string) => ({
-      rows: sql.includes("select m.id, m.course_id") ? [moduleRow] : [],
-    }));
+  it("uses the bounded course-health projection for the dashboard", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("from orders o") || sql.includes("from certificates")) {
+        return { rows: [] };
+      }
 
-    const data = await getAdminDashboardData();
+      return {
+        rows: [
+          {
+            description: "Course description",
+            id: courseId,
+            module_count: 2,
+            published_lesson_count: 3,
+            status: "active",
+            thumbnail_url: "https://example.test/thumb.jpg",
+            title: "Course one",
+            total_lesson_count: 4,
+          },
+        ],
+      };
+    });
 
-    expect(data.modules).toEqual([
-      expect.objectContaining({ id: "module-1", releaseDelayDays: 8 }),
-    ]);
-    const moduleSql = String(
-      query.mock.calls.find(([sql]) =>
-        String(sql).includes("select m.id, m.course_id")
-      )?.[0]
-    );
-    expect(moduleSql).toContain("m.release_delay_days");
+    await expect(getAdminDashboardProjection()).resolves.toEqual({
+      courses: [
+        {
+          description: "Course description",
+          id: courseId,
+          moduleCount: 2,
+          publishedLessonCount: 3,
+          status: "active",
+          thumbnailUrl: "https://example.test/thumb.jpg",
+          title: "Course one",
+          totalLessonCount: 4,
+        },
+      ],
+      recentCertificates: [],
+      recentOrders: [],
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("manageContent");
+    expect(query).toHaveBeenCalledTimes(3);
+    const dashboardSql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(dashboardSql).not.toContain("content_json");
+    expect(dashboardSql).not.toContain("select l.*");
+    expect(dashboardSql).not.toContain("select m.*");
+    expect(dashboardSql).not.toContain("from orders");
+    expect(dashboardSql).not.toContain("revenue");
   });
 
   it("keeps the student list within the measured read budget without N+1 queries", async () => {

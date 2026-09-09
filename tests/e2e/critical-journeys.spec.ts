@@ -22,6 +22,7 @@ const fixturePath = resolve(
 );
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
+const OPEN_ORDER_DETAILS_NAME_PATTERN = /Abrir detalhes do pedido de /;
 const STUDENT_SEARCH_PLACEHOLDER_PATTERN = /Buscar/;
 const CORRELATION_ID_PATTERN = /Identificador de correlação/;
 const DOWNLOAD_PDF_PATTERN = /Baixar PDF/;
@@ -861,13 +862,21 @@ test("refund requires password and explicit destructive confirmation @mobile", a
 
   await page.context().clearCookies();
   await signIn(page, fixture.support, ADMIN_URL_PATTERN);
-  await page.goto(`/admin/financeiro?q=${attemptId}`);
+  await page.goto(`/admin/financeiro?tab=orders&q=${attemptId}`);
+  const detailsButton = page.getByRole("button", {
+    name: OPEN_ORDER_DETAILS_NAME_PATTERN,
+  });
+  await expect(detailsButton).toBeVisible();
+  await detailsButton.click();
+  const orderDetails = page.getByRole("dialog");
+  await expect(orderDetails).toBeVisible();
   await expect(
-    page.getByText(`checkout chk_${attemptId}`, { exact: true }).first()
+    orderDetails.getByText(`chk_${attemptId}`, { exact: true })
   ).toBeVisible();
-  const refundDisclosure = page
-    .getByText("Solicitar estorno integral", { exact: true })
-    .first();
+  const refundDisclosure = orderDetails.getByText(
+    "Solicitar estorno integral",
+    { exact: true }
+  );
   const refundOperation = refundDisclosure.locator("..");
   await expect(refundDisclosure).toBeVisible();
   await refundDisclosure.click();

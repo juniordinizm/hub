@@ -319,6 +319,8 @@ describe("Asaas webhook processor", () => {
       EVENT_ID,
       "event_anomaly",
       "installment_enrichment_pending",
+      4330,
+      null,
     ]);
   });
 
@@ -453,7 +455,7 @@ describe("Asaas webhook processor", () => {
   });
 
   it("grants once from a card installment after validating the aggregate total", async () => {
-    const { context } = createContext({
+    const { context, queries } = createContext({
       orderRow: createOrderRow({ amount_in_cents: 30_000 }),
     });
     const applyPaidAccess = vi.fn(async () => undefined);
@@ -489,6 +491,10 @@ describe("Asaas webhook processor", () => {
     });
 
     expect(applyPaidAccess).toHaveBeenCalledOnce();
+    const paymentUpdate = queries.find(({ text }) =>
+      text.includes("payment_installment_count")
+    );
+    expect(paymentUpdate?.values?.at(-1)).toBe(3);
   });
 
   it("reviews an installment above the order snapshot limit without granting access", async () => {
@@ -900,7 +906,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "amount_mismatch", "amount_mismatch"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "amount_mismatch",
+      "amount_mismatch",
+      10_000,
+      null,
+    ]);
   });
 
   it("keeps a pending amount review blocking a later exact payment", async () => {
@@ -1128,7 +1141,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "event_anomaly", "event_anomaly"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "event_anomaly",
+      "event_anomaly",
+      12_990,
+      null,
+    ]);
   });
 
   it("casts nullable provider identifiers before PostgreSQL null checks", async () => {
@@ -1640,7 +1660,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "amount_mismatch", "amount_mismatch"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "amount_mismatch",
+      "amount_mismatch",
+      10_000,
+      null,
+    ]);
   });
 
   it.each([
@@ -1676,7 +1703,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "event_anomaly", "event_anomaly"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "event_anomaly",
+      "event_anomaly",
+      null,
+      null,
+    ]);
   });
 
   it("persists refund before payment and treats absent public identity/grant as a revocation no-op", async () => {
@@ -1716,7 +1750,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "event_anomaly", "event_anomaly"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "event_anomaly",
+      "event_anomaly",
+      null,
+      null,
+    ]);
     expect(
       queries.some(({ text }) => text.includes("update refund_requests"))
     ).toBe(false);
@@ -1742,7 +1783,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "terminal_conflict", "terminal_conflict"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "terminal_conflict",
+      "terminal_conflict",
+      12_990,
+      null,
+    ]);
     expect(
       queries.some(({ text }) => text.includes("update refund_requests"))
     ).toBe(true);
@@ -1932,7 +1980,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "terminal_conflict", "terminal_conflict"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "terminal_conflict",
+      "terminal_conflict",
+      10_000,
+      null,
+    ]);
     expect(
       queries.some(({ text }) => text.includes("update refund_requests"))
     ).toBe(false);
@@ -1962,7 +2017,14 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "partial_refund", "partial_refund"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "partial_refund",
+      "partial_refund",
+      12_990,
+      null,
+    ]);
   });
 
   it("does not reactivate a refunded order on a late paid event", async () => {
@@ -1987,6 +2049,13 @@ describe("Asaas webhook processor", () => {
     expect(
       queries.find(({ text }) => text.includes("insert into payment_reviews"))
         ?.values
-    ).toEqual([ORDER_ID, EVENT_ID, "terminal_conflict", "terminal_conflict"]);
+    ).toEqual([
+      ORDER_ID,
+      EVENT_ID,
+      "terminal_conflict",
+      "terminal_conflict",
+      12_990,
+      null,
+    ]);
   });
 });

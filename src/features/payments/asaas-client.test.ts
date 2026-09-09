@@ -463,6 +463,57 @@ describe("AsaasClient", () => {
     );
   });
 
+  it("preserves individual installment scheduling fields", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        anticipated: false,
+        billingType: "CREDIT_CARD",
+        checkoutSession: "chk_123",
+        clientPaymentDate: "2026-09-10",
+        customer: "cus_123",
+        dueDate: "2026-09-15",
+        id: "pay_123",
+        installment: "ins_123",
+        installmentNumber: 2,
+        netValue: 98.01,
+        paymentDate: null,
+        refunds: [],
+        status: "PENDING",
+        value: 100,
+      })
+    );
+
+    await expect(
+      createClient(fetcher).getPayment("pay_123")
+    ).resolves.toMatchObject({
+      anticipated: false,
+      clientPaymentDate: "2026-09-10",
+      dueDate: "2026-09-15",
+      installmentId: "ins_123",
+      installmentNumber: 2,
+    });
+  });
+
+  it("requests the full supported installment page", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      Response.json({
+        data: [],
+        hasMore: false,
+        limit: 100,
+        object: "list",
+        offset: 0,
+        totalCount: 0,
+      })
+    );
+
+    await expect(
+      createClient(fetcher).listInstallmentPayments("ins/123")
+    ).resolves.toMatchObject({ limit: 100, offset: 0, totalCount: 0 });
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      "https://api-sandbox.asaas.com/v3/installments/ins%2F123/payments?limit=100&offset=0"
+    );
+  });
+
   it("lists payments with explicit repair filters and pagination", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       Response.json({

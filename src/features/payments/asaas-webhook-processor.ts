@@ -19,6 +19,7 @@ import {
   type AsaasFinancialReviewReason,
   decideAsaasAdverseEventWithoutInstallment,
   decideAsaasFinancialEvent,
+  getAsaasPaymentFinancialEvidence,
   isAsaasAccessRevokingEvent,
 } from "./asaas-financial-events";
 import {
@@ -504,29 +505,71 @@ const insertReview = async ({
   client,
   eventId,
   orderId,
+  observedPayment,
   reason,
   type,
 }: {
   client: PoolClient;
   eventId: string;
   orderId: string;
+  observedPayment?: {
+    netValueInCents: number | null;
+    valueInCents: number | null;
+  };
   reason: ProcessorReviewReason;
   type?: AsaasFinancialReviewReason | "buyer_identity";
 }): Promise<void> => {
   const reviewType: AsaasFinancialReviewReason | "buyer_identity" =
     type ?? (reason as AsaasFinancialReviewReason);
+  if (observedPayment === undefined) {
+    await client.query(
+      `insert into payment_reviews (
+         order_id,
+         webhook_event_id,
+         type,
+         reason
+       )
+       values ($1, $2, $3::payment_review_type, $4)
+       on conflict (webhook_event_id)
+         where webhook_event_id is not null
+         do nothing`,
+      [orderId, eventId, reviewType, reason]
+    );
+    return;
+  }
   await client.query(
     `insert into payment_reviews (
        order_id,
        webhook_event_id,
        type,
-       reason
+       reason,
+       observed_amount_in_cents,
+       observed_net_amount_in_cents,
+       observed_fee_amount_in_cents
      )
-     values ($1, $2, $3::payment_review_type, $4)
+     values (
+       $1,
+       $2,
+       $3::payment_review_type,
+       $4,
+       $5::integer,
+       $6::integer,
+       case when $5::integer is not null and $6::integer is not null and $6::integer between 0 and $5::integer
+         then $5::integer - $6::integer
+         else null
+       end
+     )
      on conflict (webhook_event_id)
        where webhook_event_id is not null
        do nothing`,
-    [orderId, eventId, reviewType, reason]
+    [
+      orderId,
+      eventId,
+      reviewType,
+      reason,
+      observedPayment?.valueInCents ?? null,
+      observedPayment?.netValueInCents ?? null,
+    ]
   );
 };
 
@@ -679,6 +722,10 @@ const persistDecision = async ({
            when $27::boolean then $28
            else fee_amount_in_cents
          end,
+         payment_installment_count = case
+           when $29::boolean then $30
+           else payment_installment_count
+         end,
          paid_at = case
            when $5::boolean and $6::order_status = 'paid'
              then coalesce(paid_at, now())
@@ -741,6 +788,8 @@ const persistDecision = async ({
       updates.netAmountInCents ?? null,
       updates.feeAmountInCents !== undefined,
       updates.feeAmountInCents ?? null,
+      updates.paymentInstallmentCount !== undefined,
+      updates.paymentInstallmentCount ?? null,
     ]
   );
   return getString(result.rows[0], "id") !== null;
@@ -758,6 +807,9 @@ const preserveProviderEvidence = (
     ...(decision.updates.netAmountInCents === undefined
       ? {}
       : { netAmountInCents: decision.updates.netAmountInCents }),
+    ...(decision.updates.paymentInstallmentCount === undefined
+      ? {}
+      : { paymentInstallmentCount: decision.updates.paymentInstallmentCount }),
     ...(decision.updates.paymentMethod === undefined
       ? {}
       : { paymentMethod: decision.updates.paymentMethod }),
@@ -1184,9 +1236,18 @@ const decidePreparedEvent = ({
     providerPaymentStatus: order.providerPaymentStatus,
     providerRiskStatus: order.providerRiskStatus,
   };
-  return preparation.installmentEnrichmentFailure
+  const decision = preparation.installmentEnrichmentFailure
     ? decideAsaasAdverseEventWithoutInstallment({ payload, snapshot })
     : decideAsaasFinancialEvent({ payload, snapshot });
+  return preparation.installment
+    ? {
+        ...decision,
+        updates: {
+          ...decision.updates,
+          paymentInstallmentCount: preparation.installment.installmentCount,
+        },
+      }
+    : decision;
 };
 
 const applyConservativeEnrichmentFailure = async ({
@@ -1195,6 +1256,7 @@ const applyConservativeEnrichmentFailure = async ({
   dependencies,
   event,
   order,
+  payload,
   preparation,
 }: {
   context: ProcessorContext;
@@ -1202,6 +1264,7 @@ const applyConservativeEnrichmentFailure = async ({
   dependencies: ProcessorDependencies;
   event: ProcessorEvent;
   order: LockedOrderRow;
+  payload: unknown;
   preparation: AsaasBuyerIdentityPreparation;
 }): Promise<boolean> => {
   if (!preparation.installmentEnrichmentFailure) {
@@ -1211,6 +1274,7 @@ const applyConservativeEnrichmentFailure = async ({
     client: context.client,
     eventId: event.id,
     orderId: order.id,
+    observedPayment: getAsaasPaymentFinancialEvidence(payload),
     reason: "installment_enrichment_pending",
     type: "event_anomaly",
   });
@@ -1318,6 +1382,7 @@ export const createAsaasWebhookProcessor = (
         client: context.client,
         eventId: event.id,
         orderId,
+        observedPayment: getAsaasPaymentFinancialEvidence(financialPayload),
         reason: "event_anomaly",
       });
       await insertSafeAlert({
@@ -1333,6 +1398,7 @@ export const createAsaasWebhookProcessor = (
       dependencies,
       event,
       order,
+      payload: financialPayload,
       preparation,
     });
     if (appliedConservatively) {
@@ -1354,6 +1420,7 @@ export const createAsaasWebhookProcessor = (
         client: context.client,
         eventId: event.id,
         orderId,
+        observedPayment: getAsaasPaymentFinancialEvidence(financialPayload),
         reason: decision.reviewReason,
       });
     }

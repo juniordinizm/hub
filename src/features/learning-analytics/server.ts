@@ -134,6 +134,7 @@ export const recordLearningAnalyticsEvent = async ({
 export interface LessonAnalyticsMetric {
   completed: number;
   coursePublicationId: string;
+  courseTitle: string;
   eligible: number;
   errorCount: number;
   lessonId: string;
@@ -141,6 +142,7 @@ export interface LessonAnalyticsMetric {
   medianCheckpointPercent: number | null;
   medianHoursToComplete: number | null;
   medianHoursToNextLesson: number | null;
+  publicationNumber: number;
   started: number;
 }
 
@@ -151,6 +153,7 @@ export const getLessonAnalyticsMetrics = async (): Promise<
   const result = await getPool().query<{
     completed: string;
     course_publication_id: string;
+    course_title: string;
     eligible: string;
     error_count: string;
     lesson_id: string;
@@ -158,6 +161,7 @@ export const getLessonAnalyticsMetrics = async (): Promise<
     median_checkpoint_percent: number | null;
     median_hours_to_complete: number | null;
     median_hours_to_next_lesson: number | null;
+    publication_number: number;
     started: string;
   }>(`
     with analytics_events as (
@@ -256,6 +260,8 @@ export const getLessonAnalyticsMetrics = async (): Promise<
       l.id as lesson_id,
       l.title as lesson_title,
       cp.id as course_publication_id,
+      c.title as course_title,
+      cp.publication_number,
       coalesce(eligible.eligible, 0) as eligible,
       coalesce(analytics.started, 0) as started,
       coalesce(completed.completed, 0) as completed,
@@ -264,6 +270,7 @@ export const getLessonAnalyticsMetrics = async (): Promise<
       completion_timing.median_hours_to_complete,
       next_lesson_timing.median_hours_to_next_lesson
     from course_publications cp
+    join courses c on c.id = cp.course_id
     join modules m on m.course_publication_id = cp.id and m.status = 'active'
     join lessons l on l.course_publication_id = cp.id and l.module_id = m.id and l.status = 'active'
     left join eligible on eligible.course_publication_id = cp.id
@@ -277,6 +284,7 @@ export const getLessonAnalyticsMetrics = async (): Promise<
   return result.rows.map((row) => ({
     completed: Number(row.completed),
     coursePublicationId: row.course_publication_id,
+    courseTitle: row.course_title,
     eligible: Number(row.eligible),
     errorCount: Number(row.error_count),
     lessonId: row.lesson_id,
@@ -293,6 +301,7 @@ export const getLessonAnalyticsMetrics = async (): Promise<
       row.median_hours_to_next_lesson === null
         ? null
         : Number(row.median_hours_to_next_lesson),
+    publicationNumber: row.publication_number,
     started: Number(row.started),
   }));
 };

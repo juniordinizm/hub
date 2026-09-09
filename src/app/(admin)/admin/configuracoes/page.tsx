@@ -1,12 +1,13 @@
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import {
   AdminMutationForm,
   AdminMutationSubmitButton,
 } from "@/components/admin-mutation-form";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -22,6 +23,7 @@ import {
   getAdminFaqData,
   getAdminSettingsData,
 } from "@/features/admin/server";
+import { JMVSTREAM_PORTAL_URL } from "@/features/jmvstream/portal";
 import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { BannerGallery } from "./banners/banner-gallery";
@@ -72,21 +74,19 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     {jmvstreamHealth.message}
                   </CardDescription>
                 </div>
-                <Badge
-                  variant={
-                    jmvstreamHealth.auth === "ok" ? "default" : "destructive"
-                  }
-                >
-                  {jmvstreamHealth.auth === "ok" ? "Conectada" : "Revisar"}
-                </Badge>
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={JMVSTREAM_PORTAL_URL}
+                    rel="noopener"
+                    target="_blank"
+                  >
+                    Abrir portal JMVStream
+                  </Link>
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
-                <HealthTile
-                  label="Galerias"
-                  value={jmvstreamHealth.folderCount}
-                />
+              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
                 <HealthTile
                   label="Uploads ativos"
                   value={jmvstreamHealth.processingUploads}
@@ -104,6 +104,12 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                   value={jmvstreamHealth.failedDeletes}
                 />
               </div>
+              {jmvstreamHealth.auth === "error" ? (
+                <p className="border-t p-4 text-destructive text-sm">
+                  A conexão com a JMVStream precisa de revisão. Os estados
+                  locais continuam disponíveis para diagnóstico.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

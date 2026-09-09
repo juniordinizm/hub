@@ -1,8 +1,11 @@
 export type AdminStatusBadgeVariant =
   | "default"
   | "destructive"
+  | "info"
   | "outline"
-  | "secondary";
+  | "secondary"
+  | "success"
+  | "warning";
 
 export interface AdminStatusPresentation {
   label: string;
@@ -19,9 +22,9 @@ export const getEnrollmentStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "active":
-      return { label: "Ativa", variant: "default" };
+      return { label: "Ativa", variant: "success" };
     case "expired":
-      return { label: "Expirada", variant: "secondary" };
+      return { label: "Expirada", variant: "warning" };
     case "revoked":
       return { label: "Revogada", variant: "destructive" };
     default:
@@ -34,9 +37,9 @@ export const getCourseDeliveryStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "active":
-      return { label: "Ativo", variant: "default" };
+      return { label: "Ativo", variant: "success" };
     case "draft":
-      return { label: "Rascunho", variant: "outline" };
+      return { label: "Rascunho", variant: "warning" };
     case "archived":
       return { label: "Arquivado", variant: "secondary" };
     default:
@@ -49,9 +52,9 @@ export const getCourseContentStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "active":
-      return { label: "Publicado", variant: "default" };
+      return { label: "Publicado", variant: "success" };
     case "draft":
-      return { label: "Rascunho", variant: "outline" };
+      return { label: "Rascunho", variant: "warning" };
     case "archived":
       return { label: "Arquivado", variant: "secondary" };
     default:
@@ -64,13 +67,13 @@ export const getCourseAvailabilityStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (preset) {
     case "available":
-      return { label: "Disponível", variant: "default" };
+      return { label: "Disponível", variant: "success" };
     case "coming_soon":
-      return { label: "Em breve", variant: "secondary" };
+      return { label: "Em breve", variant: "info" };
     case "draft":
-      return { label: "Rascunho", variant: "outline" };
+      return { label: "Rascunho", variant: "warning" };
     case "sales_paused":
-      return { label: "Vendas pausadas", variant: "secondary" };
+      return { label: "Vendas pausadas", variant: "warning" };
     case "archived":
       return { label: "Arquivado", variant: "secondary" };
     default:
@@ -83,11 +86,11 @@ export const getOrderStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "pending":
-      return { label: "Pendente", variant: "secondary" };
+      return { label: "Pendente", variant: "warning" };
     case "paid":
-      return { label: "Pago", variant: "default" };
+      return { label: "Pago", variant: "success" };
     case "refunded":
-      return { label: "Reembolsado", variant: "secondary" };
+      return { label: "Reembolsado", variant: "info" };
     case "disputed":
       return { label: "Em disputa", variant: "destructive" };
     case "cancelled":
@@ -102,11 +105,11 @@ export const getCheckoutStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "pending":
-      return { label: "Pendente", variant: "secondary" };
+      return { label: "Pendente", variant: "warning" };
     case "creating":
-      return { label: "Criando", variant: "secondary" };
+      return { label: "Criando", variant: "warning" };
     case "active":
-      return { label: "Ativo", variant: "default" };
+      return { label: "Ativo", variant: "success" };
     case "failed":
       return { label: "Falhou", variant: "destructive" };
     case "uncertain":
@@ -114,7 +117,7 @@ export const getCheckoutStatusPresentation = (
     case "cancelled":
       return { label: "Cancelado", variant: "outline" };
     case "expired":
-      return { label: "Expirado", variant: "secondary" };
+      return { label: "Expirado", variant: "warning" };
     default:
       return fallbackStatus();
   }
@@ -125,15 +128,15 @@ export const getWebhookStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "received":
-      return { label: "Recebido", variant: "outline" };
+      return { label: "Recebido", variant: "info" };
     case "processing":
-      return { label: "Processando", variant: "secondary" };
+      return { label: "Processando", variant: "warning" };
     case "processed":
-      return { label: "Processado", variant: "default" };
+      return { label: "Processado", variant: "success" };
     case "ignored":
       return { label: "Ignorado", variant: "outline" };
     case "retryable":
-      return { label: "Aguardando nova tentativa", variant: "secondary" };
+      return { label: "Aguardando nova tentativa", variant: "warning" };
     case "failed":
       return { label: "Falhou", variant: "destructive" };
     default:
@@ -146,15 +149,73 @@ export const getProviderPaymentStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status.trim().toLowerCase()) {
     case "pending":
-      return { label: "Pendente", variant: "secondary" };
+      return { label: "Pendente", variant: "warning" };
     case "confirmed":
-      return { label: "Confirmado", variant: "default" };
+      return { label: "Confirmado", variant: "success" };
     case "received":
-      return { label: "Recebido", variant: "default" };
+      return { label: "Recebido", variant: "success" };
+    case "received_in_cash":
+      return { label: "Recebido em dinheiro", variant: "success" };
     case "overdue":
       return { label: "Em atraso", variant: "destructive" };
     case "deleted":
       return { label: "Removido", variant: "outline" };
+    case "refunded":
+      return { label: "Reembolsado", variant: "info" };
+    case "partially_refunded":
+      return { label: "Reembolso parcial", variant: "warning" };
+    case "refund_in_progress":
+      return { label: "Reembolso em processamento", variant: "warning" };
+    case "refund_denied":
+      return { label: "Reembolso recusado", variant: "destructive" };
+    case "chargeback_requested":
+      return { label: "Contestação solicitada", variant: "destructive" };
+    case "chargeback_dispute":
+      return { label: "Contestação em análise", variant: "destructive" };
+    case "awaiting_chargeback_reversal":
+      return {
+        label: "Aguardando reversão da contestação",
+        variant: "warning",
+      };
+    default:
+      return fallbackStatus();
+  }
+};
+
+export const getProviderRiskStatusPresentation = (
+  status: string
+): AdminStatusPresentation => {
+  switch (status.trim().toLowerCase()) {
+    case "awaiting_risk_analysis":
+      return { label: "Aguardando análise de risco", variant: "warning" };
+    case "approved_by_risk_analysis":
+      return { label: "Risco aprovado", variant: "success" };
+    case "reproved_by_risk_analysis":
+      return { label: "Risco reprovado", variant: "destructive" };
+    default:
+      return fallbackStatus();
+  }
+};
+
+export const getProviderRefundStatusPresentation = (
+  status: string
+): AdminStatusPresentation => {
+  switch (status.trim().toLowerCase()) {
+    case "pending":
+      return { label: "Pendente", variant: "warning" };
+    case "done":
+      return { label: "Concluído", variant: "success" };
+    case "cancelled":
+    case "canceled":
+      return { label: "Cancelado", variant: "outline" };
+    case "refunded":
+      return { label: "Reembolsado", variant: "success" };
+    case "partially_refunded":
+      return { label: "Reembolso parcial", variant: "warning" };
+    case "refund_in_progress":
+      return { label: "Em processamento", variant: "warning" };
+    case "refund_denied":
+      return { label: "Recusado", variant: "destructive" };
     default:
       return fallbackStatus();
   }
@@ -165,15 +226,15 @@ export const getRefundRequestStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "requested":
-      return { label: "Solicitado", variant: "secondary" };
+      return { label: "Solicitado", variant: "warning" };
     case "processing":
-      return { label: "Processando", variant: "secondary" };
+      return { label: "Processando", variant: "warning" };
     case "uncertain":
       return { label: "Resultado incerto", variant: "destructive" };
     case "failed":
       return { label: "Falhou", variant: "destructive" };
     case "confirmed":
-      return { label: "Confirmado", variant: "default" };
+      return { label: "Confirmado", variant: "success" };
     default:
       return fallbackStatus();
   }
@@ -184,9 +245,9 @@ export const getPaymentReviewStatusPresentation = (
 ): AdminStatusPresentation => {
   switch (status) {
     case "pending":
-      return { label: "Pendente", variant: "secondary" };
+      return { label: "Pendente", variant: "warning" };
     case "approved":
-      return { label: "Aprovada", variant: "default" };
+      return { label: "Aprovada", variant: "success" };
     case "rejected":
       return { label: "Rejeitada", variant: "destructive" };
     default:

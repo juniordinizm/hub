@@ -505,6 +505,34 @@
       "when": 1788635572536,
       "tag": "0071_content_release_observability_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1788924761197,
+      "tag": "0072_admin_order_installment_count",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1788931160610,
+      "tag": "0073_strange_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1788938611383,
+      "tag": "0074_boring_nitro",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1788980097750,
+      "tag": "0075_installment_schedule_and_observed_evidence",
+      "breakpoints": true
     }
   ]
 }

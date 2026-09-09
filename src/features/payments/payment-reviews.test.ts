@@ -20,6 +20,9 @@ const createClient = (
     access_duration_months: number | null;
     course_id: string;
     order_id: string;
+    observed_amount_in_cents?: number | null;
+    observed_fee_amount_in_cents?: number | null;
+    observed_net_amount_in_cents?: number | null;
     status: "pending";
     type:
       | "amount_mismatch"
@@ -51,7 +54,7 @@ describe("payment review resolution", () => {
     vi.clearAllMocks();
   });
 
-  it("resolves terminal conflicts after the admin permission boundary", async () => {
+  it("requires reconciliation instead of a generic terminal conflict decision", async () => {
     const client = createClient({
       access_duration_months: 12,
       course_id: "course-1",
@@ -62,14 +65,17 @@ describe("payment review resolution", () => {
     });
     dependencies.connect.mockResolvedValue(client);
 
-    await resolvePaymentReview({
-      actorUserId: "admin-1",
-      decision: "rejected",
-      decisionReason: " conflito confirmado ",
-      reviewId: "review-1",
-    });
+    await expect(
+      resolvePaymentReview({
+        actorUserId: "admin-1",
+        decision: "rejected",
+        decisionReason: " conflito confirmado ",
+        reviewId: "review-1",
+      })
+    ).rejects.toThrow("Conflito terminal exige conciliacao do pagamento.");
 
-    expect(client.query).toHaveBeenCalledWith("commit");
+    expect(client.query).toHaveBeenCalledWith("rollback");
+    expect(client.query).not.toHaveBeenCalledWith("commit");
     expect(client.release).toHaveBeenCalledOnce();
   });
 
@@ -219,6 +225,9 @@ describe("payment review resolution", () => {
       access_duration_months: 12,
       course_id: "course-1",
       order_id: "order-1",
+      observed_amount_in_cents: 13_000,
+      observed_fee_amount_in_cents: 390,
+      observed_net_amount_in_cents: 12_610,
       status: "pending",
       type: "amount_mismatch",
       user_id: "user-1",

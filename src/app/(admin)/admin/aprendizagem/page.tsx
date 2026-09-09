@@ -31,8 +31,8 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
     <PageContainer>
       <div className="space-y-8">
         <PageHeader
-          description="Dados agregados para melhorar aulas e identificar falhas técnicas."
-          title="Aprendizagem"
+          description="Relatório avançado agregado para melhorar aulas e identificar falhas técnicas."
+          title="Relatório de aprendizagem"
         />
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -60,6 +60,7 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
             </TableCaption>
             <TableHeader className="bg-muted/30">
               <TableRow>
+                <TableHead>Curso</TableHead>
                 <TableHead>Aula</TableHead>
                 <TableHead>Versão</TableHead>
                 <TableHead className="whitespace-nowrap text-right">
@@ -89,9 +90,10 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
               {metrics.length > 0 ? (
                 metrics.map((metric) => (
                   <TableRow key={metric.lessonId}>
-                    <TableRowHeader>{metric.lessonTitle}</TableRowHeader>
+                    <TableRowHeader>{metric.courseTitle}</TableRowHeader>
+                    <TableCell>{metric.lessonTitle}</TableCell>
                     <TableCell className="whitespace-nowrap font-mono text-xs">
-                      {metric.coursePublicationId}
+                      v{metric.publicationNumber}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {metric.eligible}
@@ -118,7 +120,7 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
                 ))
               ) : (
                 <TableRow>
-                  <TableCell className="h-48 p-0" colSpan={9}>
+                  <TableCell className="h-48 p-0" colSpan={10}>
                     <Empty className="rounded-none border-0 p-8">
                       <EmptyHeader>
                         <EmptyMedia variant="icon">

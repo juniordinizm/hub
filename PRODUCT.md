@@ -130,11 +130,22 @@ administrativo não faz parte do produto atual; uma adoção futura exigirá dec
 especificação próprias. Não há workflow de anonimização ou solicitações de dados
 no produto atual.
 
+A rota Financeiro organiza a operação em Visão geral, Pedidos e Análises. A visão
+operacional mantém a fila de revisões, a conciliação e a sincronização local do extrato
+próximas dos pedidos; Análises compara por período recebimentos confirmados,
+recebimentos em aberto, taxas e reembolsos, sempre marcando o líquido como estimativa
+baseada nos snapshots. Recebimento confirmado não é saldo disponível no Asaas. Compras
+parceladas entram no resumo global pelo total agregado; depois de uma conciliação que
+valide o parcelamento, o detalhe do Pedido também mostra as cobranças individuais,
+separando valores confirmados e ainda não confirmados sem inferir saldo em conta.
+A trilha `financial_events` preserva ocorrências financeiras normalizadas para auditoria
+e evolução de análises, mas não substitui o fechamento contábil do Asaas.
+
 ## Critérios de qualidade
 
 - decisões financeiras e de acesso rastreáveis;
 - acesso negado por padrão quando identidade ou estado são ambíguos;
 - conteúdo utilizável com semântica, teclado e hierarquia de títulos;
 - operação recuperável por logs, IDs externos e runbooks;
-- dados históricos preservados por snapshots;
+- dados históricos preservados por snapshots e eventos financeiros normalizados;
 - limitações comunicadas sem prometer garantias inexistentes.

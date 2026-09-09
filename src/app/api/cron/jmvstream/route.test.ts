@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   createCorrelationId: vi.fn(() => "correlation-id"),
+  expireStaleJmvstreamUploads: vi.fn(),
   getScheduledJobEarlyResponse: vi.fn(),
   observeOperation: vi.fn(),
   runWithScheduledJobLease: vi.fn(),
@@ -15,6 +16,9 @@ vi.mock("next/server", () => ({
 }));
 vi.mock("@/features/jmvstream/server", () => ({
   syncPendingJmvstreamPlayers: dependencies.syncPendingJmvstreamPlayers,
+}));
+vi.mock("@/features/jmvstream/asset-persistence", () => ({
+  expireStaleJmvstreamUploads: dependencies.expireStaleJmvstreamUploads,
 }));
 vi.mock("@/features/operations/scheduled-job-lease", () => ({
   runWithScheduledJobLease: dependencies.runWithScheduledJobLease,
@@ -41,6 +45,7 @@ describe("GET /api/cron/jmvstream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dependencies.getScheduledJobEarlyResponse.mockReturnValue(null);
+    dependencies.expireStaleJmvstreamUploads.mockResolvedValue(undefined);
     dependencies.observeOperation.mockImplementation(
       async ({ execute }: { execute: () => Promise<unknown> }) => execute()
     );
@@ -112,6 +117,7 @@ describe("GET /api/cron/jmvstream", () => {
       123_456,
       isLeaseOwner
     );
+    expect(dependencies.expireStaleJmvstreamUploads).toHaveBeenCalledOnce();
     await expect(response.json()).resolves.toEqual(syncResult);
   });
 

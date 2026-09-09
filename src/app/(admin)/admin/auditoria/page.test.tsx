@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   getAdminAuditData: vi.fn(),
+  getAdminWebhookEvents: vi.fn(),
   requirePermission: vi.fn(),
 }));
 
 vi.mock("@/features/admin/server", () => ({
   getAdminAuditData: dependencies.getAdminAuditData,
+  getAdminWebhookEvents: dependencies.getAdminWebhookEvents,
 }));
 vi.mock("@/lib/auth-permissions", () => ({
   requirePermission: dependencies.requirePermission,
@@ -15,12 +17,23 @@ vi.mock("@/lib/auth-permissions", () => ({
 vi.mock("./outbox-dead-letters", () => ({
   OutboxDeadLetterReprocess: () => null,
 }));
+vi.mock("@/components/admin/retry-webhook-operation", () => ({
+  RetryWebhookOperation: () => null,
+}));
 
 import AuditoriaPage from "./page";
 
 describe("AuditoriaPage", () => {
   it("includes uncertain checkouts in the displayed financial backlog", async () => {
     dependencies.requirePermission.mockResolvedValue({ role: "admin" });
+    dependencies.getAdminWebhookEvents.mockResolvedValue({
+      events: [],
+      hasNextPage: false,
+      page: 1,
+      pageSize: 20,
+      search: "",
+      totalCount: 0,
+    });
     dependencies.getAdminAuditData.mockResolvedValue({
       auditLogs: [
         {
@@ -74,7 +87,13 @@ describe("AuditoriaPage", () => {
           retryable: 0,
         },
       },
-      outboxDeadLetters: [],
+      outboxDeadLetters: {
+        hasNextPage: false,
+        messages: [],
+        page: 1,
+        pageSize: 20,
+        totalCount: 0,
+      },
     });
 
     const markup = renderToStaticMarkup(await AuditoriaPage());

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { StagingBanner } from "@/components/environment/staging-banner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { PLATFORM_BRAND, PLATFORM_NAME } from "@/lib/brand";
 import { getPublicAppUrl } from "@/lib/public-app-config";
 import { getStagingPresentation } from "@/lib/staging-presentation";
@@ -48,7 +49,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         {stagingPresentation.isStaging ? <StagingBanner /> : null}
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-right" />
       </body>
     </html>

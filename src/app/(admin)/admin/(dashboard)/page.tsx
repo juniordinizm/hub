@@ -1,7 +1,7 @@
 import {
-  Analytics01Icon,
   Book01Icon,
   BookOpen01Icon,
+  Certificate01Icon,
   Invoice01Icon,
   ShoppingCart01Icon,
   UserCircleIcon,
@@ -21,41 +21,54 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 
 import {
+  type AdminOperationSignal,
   getAdminOperationSignal,
   summarizeAdminCourseHealth,
 } from "@/features/admin/presentation";
 import {
-  getAdminDashboardData,
+  getAdminDashboardProjection,
   getAdminOverview,
 } from "@/features/admin/server";
-import {
-  getOrderStatusPresentation,
-  getWebhookStatusPresentation,
-} from "@/features/admin/status-presentation";
+import { getOrderStatusPresentation } from "@/features/admin/status-presentation";
 import { getSupportCourseOperations } from "@/features/admin/support-server";
 import { requirePermission } from "@/lib/auth-permissions";
-import { formatCurrencyInCents, formatDate } from "@/lib/formatters";
+import {
+  formatCurrencyInCents,
+  formatDate,
+  formatDateTime,
+} from "@/lib/formatters";
 import { route } from "@/lib/routes";
 import { AdminMetricCard } from "../admin-metric-card";
 import { SupportDashboard } from "../support-dashboard";
 
 export const dynamic = "force-dynamic";
 
+const getOperationSignalBadgeVariant = (
+  tone: AdminOperationSignal["tone"]
+): "destructive" | "success" | "warning" => {
+  if (tone === "attention") {
+    return "destructive";
+  }
+  if (tone === "watch") {
+    return "warning";
+  }
+  return "success";
+};
+
 const metrics = [
   {
     label: "Cursos",
     key: "courses",
     icon: BookOpen01Icon,
-    helper: "Publicados e prontos",
+    helper: "Cursos cadastrados",
   },
   {
     label: "Alunas",
     key: "students",
     icon: UserGroupIcon,
-    helper: "Cadastros ativos",
+    helper: "Perfis cadastrados",
   },
   {
     label: "Acessos",
@@ -81,47 +94,26 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
-    getAdminDashboardData(),
+    getAdminDashboardProjection(),
   ]);
   const courseHealth = summarizeAdminCourseHealth(
-    data.courses.map((course) => {
-      const courseModules = data.modules.filter(
-        (moduleData) => moduleData.courseId === course.id
-      );
-      const courseLessons = data.lessons.filter((lesson) =>
-        courseModules.some((moduleData) => moduleData.id === lesson.moduleId)
-      );
-
-      return {
-        hasDescription: Boolean(course.description?.trim()),
-        hasThumbnail: Boolean(course.thumbnailUrl),
-        id: course.id,
-        moduleCount: courseModules.length,
-        publishedLessonCount: courseLessons.filter(
-          (lesson) => lesson.isPublished
-        ).length,
-        status: course.status,
-        title: course.title,
-        totalLessonCount: courseLessons.length,
-      };
-    })
-  );
-  const failedWebhooks = overview.recentWebhooks.filter(
-    (webhook) => webhook.status === "failed"
-  ).length;
-  const pendingOrders = data.orders.filter(
-    (order) => order.status === "pending"
-  ).length;
-  const paidRevenueInCents = data.coursesRevenue.reduce(
-    (sum, course) => sum + course.totalRevenueInCents,
-    0
+    data.courses.map((course) => ({
+      hasDescription: Boolean(course.description?.trim()),
+      hasThumbnail: Boolean(course.thumbnailUrl),
+      id: course.id,
+      moduleCount: course.moduleCount,
+      publishedLessonCount: course.publishedLessonCount,
+      status: course.status,
+      title: course.title,
+      totalLessonCount: course.totalLessonCount,
+    }))
   );
   const operationSignal = getAdminOperationSignal({
     coursesNeedingAttention: courseHealth.coursesNeedingAttention.length,
-    failedWebhooks,
-    pendingOrders,
+    failedWebhooks: overview.failedWebhooks,
+    pendingOrders: overview.pendingOrders,
+    retryableWebhooks: overview.retryableWebhooks,
   });
-  const recentOrders = data.orders.slice(0, 4);
 
   return (
     <PageContainer>
@@ -184,30 +176,39 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                     acesso.
                   </CardDescription>
                 </div>
-                <Badge
-                  variant={
-                    operationSignal.tone === "attention"
-                      ? "destructive"
-                      : "secondary"
-                  }
-                >
-                  {operationSignal.label}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={getOperationSignalBadgeVariant(
+                      operationSignal.tone
+                    )}
+                  >
+                    {operationSignal.label}
+                  </Badge>
+                  {operationSignal.actionHref ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={route(operationSignal.actionHref)}>
+                        Abrir
+                      </Link>
+                    </Button>
+                  ) : null}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
                 <AdminSignalTile
                   label="Receita paga"
-                  value={formatCurrencyInCents(paidRevenueInCents)}
+                  value={formatCurrencyInCents(overview.paidRevenueInCents)}
                 />
                 <AdminSignalTile
                   label="Pedidos pendentes"
-                  value={pendingOrders.toString()}
+                  value={overview.pendingOrders.toString()}
                 />
                 <AdminSignalTile
-                  label="Webhooks com falha"
-                  value={failedWebhooks.toString()}
+                  label="Webhooks a verificar"
+                  value={(
+                    overview.failedWebhooks + overview.retryableWebhooks
+                  ).toString()}
                 />
               </div>
               <div className="border-t bg-muted/10 p-5">
@@ -239,224 +240,141 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
-                Próximas ações
+                Catálogo pendente
               </CardTitle>
               <CardDescription className="mt-1">
-                Atalhos para as rotinas que mais impactam a experiência da
-                aluna.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              <AdminActionLink
-                description="Completar capas, aulas publicadas e checkout."
-                href="/admin/cursos"
-                icon={Book01Icon}
-                label="Ajustar catálogo"
-              />
-              <AdminActionLink
-                description="Conferir pedidos, certificados e webhooks."
-                href="/admin/financeiro"
-                icon={Invoice01Icon}
-                label="Conferir financeiro"
-              />
-              <AdminActionLink
-                description="Ver acessos ativos, expirados e sem curso."
-                href="/admin/alunos"
-                icon={UserGroupIcon}
-                label="Revisar Alunas"
-              />
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="order-3 grid gap-4 xl:grid-cols-3">
-          <Card className="xl:col-span-2">
-            <CardHeader className="pb-4">
-              <CardTitle as="h2" className="text-base">
-                Cursos que precisam de atenção
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Priorizados pelos itens que ainda faltam para venda e consumo.
+                Abra diretamente a área que precisa de ajuste.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
               {courseHealth.coursesNeedingAttention.length ? (
                 courseHealth.coursesNeedingAttention.map((course) => (
-                  <div
-                    className="flex flex-col gap-3 border-b py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+                  <Link
+                    className="rounded-lg border bg-muted/10 p-3 transition-colors hover:bg-muted/40"
+                    href={route(
+                      `/admin/cursos/${course.id}?tab=${course.actionTab}`
+                    )}
                     key={course.id}
                   >
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{course.title}</p>
-                      <p className="text-muted-foreground text-xs">
-                        {course.missingCount} item
-                        {course.missingCount === 1 ? "" : "s"} pendente
-                        {course.missingCount === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                    <div className="w-full shrink-0 sm:w-32">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground text-xs">
-                          Progresso
-                        </span>
-                        <span className="font-medium text-xs">
-                          {course.readinessPercent}%
-                        </span>
-                      </div>
-                      <Progress
-                        aria-label={`Prontidão do curso ${course.title}: ${course.readinessPercent}%`}
-                        className="h-1.5"
-                        value={course.readinessPercent}
-                      />
-                    </div>
-                  </div>
+                    <p className="font-medium text-sm">{course.title}</p>
+                    <p className="mt-1 text-muted-foreground text-xs">
+                      Abrir{" "}
+                      {course.actionTab === "content"
+                        ? "conteúdo"
+                        : "configurações"}
+                    </p>
+                  </Link>
                 ))
               ) : (
-                <div className="flex items-center justify-center rounded-lg border border-dashed p-8 text-center">
-                  <p className="text-muted-foreground text-sm">
-                    Todos os cursos cadastrados passaram pelo checklist mínimo.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-4">
-              <CardTitle as="h2" className="text-base">
-                Pedidos recentes
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Últimas movimentações do checkout.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {recentOrders.length ? (
-                recentOrders.map((order) => (
-                  <div
-                    className="flex flex-col justify-between border-b py-3 last:border-b-0"
-                    key={order.id}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate font-medium text-sm">
-                        {order.customerName ?? order.customerEmail ?? "Aluna"}
-                      </p>
-                      <OrderStatusBadge status={order.status} />
-                    </div>
-                    <div className="mt-2 flex items-end justify-between gap-3">
-                      <p className="truncate text-muted-foreground text-xs">
-                        {order.courseTitle}
-                      </p>
-                      <p className="font-semibold text-sm">
-                        {formatCurrencyInCents(order.amountInCents)}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center rounded-lg border border-dashed p-6 text-center">
-                  <p className="text-muted-foreground text-sm">
-                    Nenhum pedido registrado ainda.
-                  </p>
-                </div>
+                <p className="text-muted-foreground text-sm">
+                  Nenhum Curso pendente.
+                </p>
               )}
             </CardContent>
           </Card>
         </section>
 
-        <section className="order-4 grid gap-4">
+        <section className="order-3 grid gap-4 xl:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle as="h2" className="text-base">
+                Últimas compras
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Movimentações mais recentes do checkout.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2">
+              {data.recentOrders.length ? (
+                data.recentOrders.map((order) => {
+                  const status = getOrderStatusPresentation(order.status);
+
+                  return (
+                    <Link
+                      className="flex flex-col justify-between border-b py-3 transition-colors last:border-b-0 hover:bg-muted/20"
+                      href={route(
+                        `/admin/financeiro?tab=orders&q=${encodeURIComponent(order.id)}`
+                      )}
+                      key={order.id}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate font-medium text-sm">
+                          {order.customerName ?? order.customerEmail ?? "Aluna"}
+                        </p>
+                        <Badge className="shrink-0" variant={status.variant}>
+                          {status.label}
+                        </Badge>
+                      </div>
+                      <div className="mt-2 flex items-end justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-muted-foreground text-xs">
+                            {order.courseTitle}
+                          </p>
+                          <p className="mt-1 text-muted-foreground text-xs">
+                            {formatDateTime(order.createdAt)}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-sm">
+                          {formatCurrencyInCents(order.amountInCents)}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Nenhuma compra registrada ainda.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
                 <HugeiconsIcon
                   aria-hidden="true"
-                  icon={Analytics01Icon}
+                  icon={Certificate01Icon}
                   size={18}
                   strokeWidth={2}
                 />
                 <CardTitle as="h2" className="font-medium text-base">
-                  Webhooks recentes
+                  Últimos certificados emitidos
                 </CardTitle>
               </div>
               <CardDescription className="mt-1">
-                Últimos eventos recebidos do provedor de pagamento.
+                Emissões mais recentes da plataforma.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-0">
-              {overview.recentWebhooks.length ? (
-                overview.recentWebhooks.map((event, index) => (
-                  <div key={event.eventKey}>
-                    <div className="flex flex-col gap-2 rounded-md px-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="font-medium text-foreground text-sm">
-                          {event.eventName}
-                        </p>
-                        <p className="mt-0.5 truncate font-mono text-muted-foreground text-xs">
-                          {event.eventKey}
-                        </p>
-                        {event.errorMessage ? (
-                          <p className="mt-1 text-destructive text-xs">
-                            {event.errorMessage}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <WebhookStatusBadge status={event.status} />
-                        <span className="text-muted-foreground text-xs tabular-nums">
-                          {formatDate(event.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                    {index < overview.recentWebhooks.length - 1 ? (
-                      <Separator className="my-1 opacity-50" />
-                    ) : null}
-                  </div>
+            <CardContent className="grid gap-2">
+              {data.recentCertificates.length ? (
+                data.recentCertificates.map((certificate) => (
+                  <Link
+                    className="flex flex-col justify-between rounded-lg border bg-muted/20 p-3 transition-colors hover:bg-muted/40"
+                    href={route(`/certificados/${certificate.code}`)}
+                    key={certificate.code}
+                  >
+                    <span className="block font-medium text-sm">
+                      {certificate.studentName}
+                    </span>
+                    <span className="mt-0.5 block text-muted-foreground text-xs">
+                      {certificate.courseTitle}
+                    </span>
+                    <span className="mt-2 block font-mono text-muted-foreground text-xs">
+                      {certificate.code} · {formatDate(certificate.issuedAt)}
+                    </span>
+                  </Link>
                 ))
               ) : (
-                <div className="flex items-center justify-center p-6 text-center">
-                  <p className="text-muted-foreground text-sm">
-                    Nenhum webhook recebido ainda.
-                  </p>
-                </div>
+                <p className="text-muted-foreground text-sm">
+                  Nenhum certificado emitido ainda.
+                </p>
               )}
             </CardContent>
           </Card>
         </section>
       </div>
     </PageContainer>
-  );
-}
-
-function AdminActionLink({
-  description,
-  href,
-  icon,
-  label,
-}: {
-  description: string;
-  href: string;
-  // biome-ignore lint/suspicious/noExplicitAny: type from hugeicons
-  icon: any;
-  label: string;
-}): React.JSX.Element {
-  return (
-    <Link
-      className="group flex items-start gap-4 rounded-lg border bg-muted/10 p-3 transition-colors hover:bg-muted/40"
-      href={route(href)}
-    >
-      <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-        <HugeiconsIcon
-          aria-hidden="true"
-          icon={icon}
-          size={18}
-          strokeWidth={2}
-        />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-sm">{label}</p>
-        <p className="mt-0.5 text-muted-foreground text-xs">{description}</p>
-      </div>
-    </Link>
   );
 }
 
@@ -490,20 +408,4 @@ function InfoRow({
       <span className="font-semibold">{value}</span>
     </div>
   );
-}
-
-function OrderStatusBadge({ status }: { status: string }): React.JSX.Element {
-  const presentation = getOrderStatusPresentation(status);
-
-  return (
-    <Badge className="shrink-0" variant={presentation.variant}>
-      {presentation.label}
-    </Badge>
-  );
-}
-
-function WebhookStatusBadge({ status }: { status: string }): React.JSX.Element {
-  const presentation = getWebhookStatusPresentation(status);
-
-  return <Badge variant={presentation.variant}>{presentation.label}</Badge>;
 }

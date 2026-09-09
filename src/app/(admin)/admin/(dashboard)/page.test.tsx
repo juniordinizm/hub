@@ -2,14 +2,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
-  getAdminDashboardData: vi.fn(),
+  getAdminDashboardProjection: vi.fn(),
   getAdminOverview: vi.fn(),
   getSupportCourseOperations: vi.fn(),
   requirePermission: vi.fn(),
 }));
 
 vi.mock("@/features/admin/server", () => ({
-  getAdminDashboardData: dependencies.getAdminDashboardData,
+  getAdminDashboardProjection: dependencies.getAdminDashboardProjection,
   getAdminOverview: dependencies.getAdminOverview,
 }));
 vi.mock("@/features/admin/support-server", () => ({
@@ -22,23 +22,24 @@ vi.mock("@/lib/auth-permissions", () => ({
 import AdminPage from "./page";
 
 beforeEach(() => {
-  dependencies.getAdminDashboardData.mockReset();
+  dependencies.getAdminDashboardProjection.mockReset();
   dependencies.getAdminOverview.mockReset();
   dependencies.getSupportCourseOperations.mockReset();
   dependencies.requirePermission.mockReset();
   dependencies.getAdminOverview.mockResolvedValue({
     activeEnrollments: 0,
     courses: 0,
+    failedWebhooks: 0,
     paidOrders: 0,
-    recentWebhooks: [],
+    paidRevenueInCents: 0,
+    pendingOrders: 0,
+    retryableWebhooks: 0,
     students: 0,
   });
-  dependencies.getAdminDashboardData.mockResolvedValue({
+  dependencies.getAdminDashboardProjection.mockResolvedValue({
     courses: [],
-    coursesRevenue: [],
-    lessons: [],
-    modules: [],
-    orders: [],
+    recentCertificates: [],
+    recentOrders: [],
   });
   dependencies.getSupportCourseOperations.mockResolvedValue([]);
 });
@@ -52,7 +53,7 @@ describe("AdminPage", () => {
     expect(markup).toContain("Operação de suporte");
     expect(dependencies.getSupportCourseOperations).toHaveBeenCalledOnce();
     expect(dependencies.getAdminOverview).not.toHaveBeenCalled();
-    expect(dependencies.getAdminDashboardData).not.toHaveBeenCalled();
+    expect(dependencies.getAdminDashboardProjection).not.toHaveBeenCalled();
   });
 
   it("preserves the authoring dashboard for admin", async () => {
@@ -62,7 +63,41 @@ describe("AdminPage", () => {
 
     expect(markup).toContain("Central do LMS");
     expect(dependencies.getAdminOverview).toHaveBeenCalledOnce();
-    expect(dependencies.getAdminDashboardData).toHaveBeenCalledOnce();
+    expect(dependencies.getAdminDashboardProjection).toHaveBeenCalledOnce();
     expect(dependencies.getSupportCourseOperations).not.toHaveBeenCalled();
+  });
+
+  it("keeps recent purchases and certificates in the admin home", async () => {
+    dependencies.requirePermission.mockResolvedValue({ role: "admin" });
+    dependencies.getAdminDashboardProjection.mockResolvedValue({
+      courses: [],
+      recentCertificates: [
+        {
+          code: "CERT-1",
+          courseTitle: "Curso de exemplo",
+          issuedAt: new Date("2026-09-08T12:00:00.000Z"),
+          studentName: "Aluna exemplo",
+        },
+      ],
+      recentOrders: [
+        {
+          amountInCents: 12_900,
+          courseTitle: "Curso de exemplo",
+          createdAt: new Date("2026-09-08T11:00:00.000Z"),
+          customerEmail: "aluna@example.test",
+          customerName: "Aluna exemplo",
+          id: "order-1",
+          status: "paid",
+        },
+      ],
+    });
+
+    const markup = renderToStaticMarkup(await AdminPage());
+
+    expect(markup).toContain("Últimas compras");
+    expect(markup).toContain("Últimos certificados emitidos");
+    expect(markup).toContain("CERT-1");
+    expect(markup).toContain("Aluna exemplo");
+    expect(markup).toContain("/admin/financeiro?tab=orders&amp;q=order-1");
   });
 });

@@ -8,6 +8,7 @@ const escapeCsv = (value: number | string | null): string =>
 export async function GET(): Promise<Response> {
   const metrics = await getLessonAnalyticsMetrics();
   const header = [
+    "curso",
     "aula",
     "versao_curso",
     "elegiveis",
@@ -20,8 +21,9 @@ export async function GET(): Promise<Response> {
   ];
   const rows = metrics.map((metric) =>
     [
+      metric.courseTitle,
       metric.lessonTitle,
-      metric.coursePublicationId,
+      metric.publicationNumber,
       metric.eligible,
       metric.started,
       metric.completed,

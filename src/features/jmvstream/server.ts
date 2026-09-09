@@ -5,7 +5,6 @@ import {
 } from "@/features/jmvstream/asset-deletion";
 import {
   discardJmvstreamUpload as discardJmvstreamUploadCommand,
-  expireStaleJmvstreamUploads,
   getJmvstreamAssets,
   getJmvstreamAssetsForLesson as getJmvstreamAssetsForLessonQuery,
   markJmvstreamUploadFailed as markJmvstreamUploadFailedCommand,
@@ -73,7 +72,6 @@ export interface JmvstreamHealthSummary {
 
 export const getJmvstreamHealthSummary =
   async (): Promise<JmvstreamHealthSummary> => {
-    await expireStaleJmvstreamUploads();
     const assets = await getJmvstreamAssets();
     const failedUploads = countAssetsWithStatus(assets, "uploadStatus", [
       "failed",

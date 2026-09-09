@@ -6,6 +6,9 @@ import { applyPaidWebhookAccess } from "@/features/enrollments/server";
 interface PaymentReviewRow {
   access_duration_months: number | null;
   course_id: string;
+  observed_amount_in_cents: number | null;
+  observed_fee_amount_in_cents: number | null;
+  observed_net_amount_in_cents: number | null;
   order_id: string;
   status: "pending" | "paid" | "cancelled" | "refunded" | "disputed";
   type:
@@ -13,7 +16,8 @@ interface PaymentReviewRow {
     | "buyer_identity"
     | "event_anomaly"
     | "partial_refund"
-    | "terminal_conflict";
+    | "terminal_conflict"
+    | "uncertain_result";
   user_id: string | null;
 }
 
@@ -28,6 +32,9 @@ const selectPendingReview = async ({
     `
       select
         payment_reviews.order_id,
+        payment_reviews.observed_amount_in_cents,
+        payment_reviews.observed_net_amount_in_cents,
+        payment_reviews.observed_fee_amount_in_cents,
         payment_reviews.type,
         orders.status,
         orders.course_id,
@@ -55,15 +62,30 @@ const approveAmountMismatch = async ({
   if (!(review.user_id && review.access_duration_months)) {
     throw new Error("Pedido sem dados suficientes para liberar o acesso.");
   }
+  if (review.observed_amount_in_cents == null) {
+    throw new Error(
+      "Divergencia sem valor observado; concilie o pagamento antes de liberar o acesso."
+    );
+  }
 
   const paid = await client.query<{ id: string }>(
     `
       update orders
-      set status = 'paid', paid_at = coalesce(paid_at, now()), updated_at = now()
+      set status = 'paid',
+          paid_amount_in_cents = coalesce(paid_amount_in_cents, $2),
+          net_amount_in_cents = coalesce(net_amount_in_cents, $3),
+          fee_amount_in_cents = coalesce(fee_amount_in_cents, $4),
+          paid_at = coalesce(paid_at, now()),
+          updated_at = now()
       where id = $1 and status = 'pending'
       returning id
     `,
-    [review.order_id]
+    [
+      review.order_id,
+      review.observed_amount_in_cents,
+      review.observed_net_amount_in_cents,
+      review.observed_fee_amount_in_cents,
+    ]
   );
 
   if (!paid.rows[0]) {
@@ -115,6 +137,14 @@ export const resolvePaymentReview = async ({
       throw new Error(
         "Reembolso parcial exige tratamento financeiro especifico."
       );
+    }
+
+    if (review.type === "terminal_conflict") {
+      throw new Error("Conflito terminal exige conciliacao do pagamento.");
+    }
+
+    if (review.type === "uncertain_result") {
+      throw new Error("Resultado incerto exige conciliacao do pagamento.");
     }
 
     const trimmedDecisionReason = decisionReason.trim();

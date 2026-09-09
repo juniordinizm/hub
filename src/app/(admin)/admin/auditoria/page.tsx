@@ -1,7 +1,11 @@
+import Link from "next/link";
+import { RetryWebhookOperation } from "@/components/admin/retry-webhook-operation";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -12,14 +16,42 @@ import {
   TableRow,
   TableRowHeader,
 } from "@/components/ui/table";
-
-import { getAdminAuditData } from "@/features/admin/server";
+import {
+  getAdminAuditData,
+  getAdminWebhookEvents,
+} from "@/features/admin/server";
+import { getWebhookStatusPresentation } from "@/features/admin/status-presentation";
 import type { OperationalAlert } from "@/features/operations/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { formatDate } from "@/lib/formatters";
+import { route } from "@/lib/routes";
 import { OutboxDeadLetterReprocess } from "./outbox-dead-letters";
 
 export const dynamic = "force-dynamic";
+
+interface AuditSearchParams {
+  outboxPage?: string | string[] | undefined;
+  webhookPage?: string | string[] | undefined;
+  webhookQ?: string | string[] | undefined;
+}
+
+const firstSearchParameter = (value: string | string[] | undefined): string =>
+  Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
+
+const auditPageHref = (page: number, search: string): string => {
+  const params = new URLSearchParams();
+  if (page > 1) {
+    params.set("webhookPage", String(page));
+  }
+  if (search) {
+    params.set("webhookQ", search);
+  }
+  const query = params.toString();
+  return query ? `/admin/auditoria?${query}` : "/admin/auditoria";
+};
+
+const outboxPageHref = (page: number): string =>
+  page > 1 ? `/admin/auditoria?outboxPage=${page}` : "/admin/auditoria";
 
 const OPERATIONAL_ALERT_PRESENTATION = {
   email_delivery_dead_letter: {
@@ -118,6 +150,8 @@ function formatAuditMessage(log: {
       return `Atualizou o módulo ${target}`;
     case "module.deleted":
       return `Excluiu o módulo ${target}`;
+    case "module.upserted":
+      return `Atualizou o módulo ${target}`;
 
     case "lesson.created":
       return `Criou a aula ${target}`;
@@ -125,6 +159,13 @@ function formatAuditMessage(log: {
       return `Atualizou a aula ${target}`;
     case "lesson.deleted":
       return `Excluiu a aula ${target}`;
+    case "lesson.upserted":
+      return `Atualizou a aula ${target}`;
+
+    case "course_publication.prepared":
+      return `Preparou uma publicação para ${target}`;
+    case "course_publication.published":
+      return `Publicou o conteúdo de ${target}`;
 
     case "enrollment.created":
       return `Nova matrícula para ${target}`;
@@ -168,16 +209,46 @@ function formatAuditMessage(log: {
       return `Atualizou o FAQ ${target}`;
     case "faq.deleted":
       return `Excluiu o FAQ ${target}`;
+    case "faq.reordered":
+      return "Reordenou as perguntas frequentes";
+    case "banner.saved":
+      return `Atualizou o banner ${target}`;
+    case "banner.deleted":
+      return `Excluiu o banner ${target}`;
+    case "banners.reordered":
+      return "Reordenou os banners";
 
     default:
       return `Ação do sistema (${log.action}) efetuada em ${target}`;
   }
 }
 
-export default async function AuditoriaPage(): Promise<React.JSX.Element> {
-  const [session, data] = await Promise.all([
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this page composes independent operational sections with role-scoped actions
+export default async function AuditoriaPage({
+  searchParams,
+}: {
+  searchParams?: Promise<AuditSearchParams>;
+} = {}): Promise<React.JSX.Element> {
+  const query = (await searchParams) ?? {};
+  const requestedWebhookPage = Number.parseInt(
+    firstSearchParameter(query.webhookPage),
+    10
+  );
+  const webhookPage = Number.isFinite(requestedWebhookPage)
+    ? requestedWebhookPage
+    : 1;
+  const webhookSearch = firstSearchParameter(query.webhookQ).trim();
+  const requestedOutboxPage = Number.parseInt(
+    firstSearchParameter(query.outboxPage),
+    10
+  );
+  const outboxPage = Number.isFinite(requestedOutboxPage)
+    ? requestedOutboxPage
+    : 1;
+  const [session, data, webhookEvents] = await Promise.all([
     requirePermission("viewAdminPanel"),
-    getAdminAuditData(),
+    getAdminAuditData({ outboxPage }),
+    getAdminWebhookEvents({ page: webhookPage, search: webhookSearch }),
   ]);
 
   return (
@@ -334,6 +405,112 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
         <section className="overflow-hidden rounded-lg border bg-card">
           <div className="border-b p-5">
             <h2 className="font-semibold text-lg">
+              Webhooks que exigem recuperação
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Eventos Asaas falhos ou em retry. O portal do Asaas mostra a
+              entrega externa; esta fila mostra o estado local e o efeito no
+              Hub.
+            </p>
+          </div>
+          <div className="border-b p-5">
+            <form className="flex max-w-xl gap-2" method="get">
+              <Input
+                aria-label="Buscar webhooks"
+                defaultValue={webhookSearch}
+                name="webhookQ"
+                placeholder="Evento, chave ou erro…"
+              />
+              <Button type="submit" variant="outline">
+                Buscar
+              </Button>
+            </form>
+          </div>
+          {webhookEvents.events.length ? (
+            <div className="divide-y">
+              {webhookEvents.events.map((event) => {
+                const status = getWebhookStatusPresentation(event.status);
+
+                return (
+                  <article className="p-5" key={event.id}>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-sm">
+                            {event.eventName}
+                          </p>
+                          <Badge variant={status.variant}>{status.label}</Badge>
+                        </div>
+                        <p className="mt-1 break-all font-mono text-muted-foreground text-xs">
+                          {event.eventKey}
+                        </p>
+                        {event.errorMessage ? (
+                          <p className="mt-2 text-destructive text-sm">
+                            {event.errorMessage}
+                          </p>
+                        ) : null}
+                      </div>
+                      <dl className="grid shrink-0 gap-1 text-right text-xs">
+                        <div>
+                          <dt className="sr-only">Criado em</dt>
+                          <dd className="text-muted-foreground">
+                            {formatDate(event.createdAt)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted-foreground">Tentativas</dt>
+                          <dd className="font-medium tabular-nums">
+                            {event.attemptCount}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+                    {session.role === "admin" ? (
+                      <RetryWebhookOperation webhookEventId={event.id} />
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="p-5 text-muted-foreground text-sm">
+              Nenhum webhook falho ou em retry encontrado.
+            </p>
+          )}
+          {webhookEvents.page > 1 || webhookEvents.hasNextPage ? (
+            <nav
+              aria-label="Paginação de webhooks"
+              className="flex items-center justify-between border-t p-5"
+            >
+              {webhookEvents.page > 1 ? (
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={route(
+                    auditPageHref(webhookEvents.page - 1, webhookSearch)
+                  )}
+                >
+                  Anteriores
+                </Link>
+              ) : (
+                <span />
+              )}
+              {webhookEvents.hasNextPage ? (
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={route(
+                    auditPageHref(webhookEvents.page + 1, webhookSearch)
+                  )}
+                >
+                  Próximos
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
+        </section>
+
+        <section className="overflow-hidden rounded-lg border bg-card">
+          <div className="border-b p-5">
+            <h2 className="font-semibold text-lg">
               Mensagens pendentes de revisão
             </h2>
             <p className="mt-1 text-muted-foreground text-sm">
@@ -341,9 +518,9 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               administradores podem reprocessar uma vez, informando o motivo.
             </p>
           </div>
-          {data.outboxDeadLetters.length ? (
+          {data.outboxDeadLetters.messages.length ? (
             <div className="grid gap-4 p-5 md:grid-cols-2">
-              {data.outboxDeadLetters.map((message) => (
+              {data.outboxDeadLetters.messages.map((message) => (
                 <article className="rounded-lg border p-4" key={message.id}>
                   <p className="font-medium text-sm">{message.topic}</p>
                   <p className="mt-1 font-mono text-muted-foreground text-xs">
@@ -382,6 +559,32 @@ export default async function AuditoriaPage(): Promise<React.JSX.Element> {
               Nenhuma mensagem em dead letter.
             </p>
           )}
+          {data.outboxDeadLetters.page > 1 ||
+          data.outboxDeadLetters.hasNextPage ? (
+            <nav
+              aria-label="Paginação de dead letters"
+              className="flex items-center justify-between border-t p-5"
+            >
+              {data.outboxDeadLetters.page > 1 ? (
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={route(outboxPageHref(data.outboxDeadLetters.page - 1))}
+                >
+                  Anteriores
+                </Link>
+              ) : (
+                <span />
+              )}
+              {data.outboxDeadLetters.hasNextPage ? (
+                <Link
+                  className="text-sm underline underline-offset-4"
+                  href={route(outboxPageHref(data.outboxDeadLetters.page + 1))}
+                >
+                  Próximas
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
         </section>
 
         <div className="overflow-hidden rounded-lg border bg-card">
