@@ -831,10 +831,11 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
   const manageButton = enrollmentRow.getByRole("button", {
-    name: "Consultar",
+    name: `Ações de ${fixture.studentWithGrant.name}`,
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
   await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
@@ -875,7 +876,7 @@ test("refund requires password and explicit destructive confirmation @mobile", a
     orderDetails.getByText(`chk_${attemptId}`, { exact: true })
   ).toBeVisible();
   const refundDisclosure = orderDetails.getByText(
-    "Solicitar estorno integral",
+    "Solicitar reembolso integral",
     { exact: true }
   );
   const refundOperation = refundDisclosure.locator("..");
@@ -1180,6 +1181,7 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(
@@ -1221,6 +1223,7 @@ test("admin manages a student from the course context Sheet", async ({
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
