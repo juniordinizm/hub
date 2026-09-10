@@ -47,7 +47,7 @@ export function SupportDashboard({
           <CardHeader className="border-b pb-4">
             <CardTitle as="h2">Cursos em operação</CardTitle>
             <CardDescription>
-              Abra um Curso para consultar somente as Alunas vinculadas a ele.
+              Abra um Curso para consultar somente os Alunos vinculados a ele.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -94,7 +94,7 @@ export function SupportDashboard({
                           `/admin/operacao/cursos/${course.id}/alunas`
                         )}
                       >
-                        Consultar Alunas
+                        Consultar Alunos
                       </Link>
                     </Button>
                   </div>

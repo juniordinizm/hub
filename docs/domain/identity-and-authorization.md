@@ -19,7 +19,7 @@ Define Conta, sessão, perfil, papéis, permissões e bloqueios. Termos comercia
 - `two_factors`: estrutura legada de uma tentativa anterior de autenticação,
   mantida apenas para preservar o histórico de migrations; não é registrada nem
   consultada pela aplicação atual.
-- `profiles`: papel, bloqueio de plataforma e dados complementares da Aluna.
+- `profiles`: papel, bloqueio de plataforma e dados complementares do Aluno.
 - papéis: `admin`, `support`, `student`.
 
 Não existe Better Auth Admin Plugin nem Organization Plugin. Não existe organização, tenant, convite ou equipe de cliente no domínio atual.
@@ -77,7 +77,7 @@ Páginas, Route Handlers, Server Actions e projeções aplicam essas capacidades
 servidor. `support` usa consultas próprias por Curso e não executa primeiro uma
 consulta ampla para filtrá-la depois.
 
-A ficha contextual de `support` combina somente dados da Aluna no Curso
+A ficha contextual de `support` combina somente dados do Aluno no Curso
 selecionado: estado e validade da Matrícula, bloqueio contextual, progresso das
 Aulas obrigatórias, Certificado mais recente, Pedidos e reembolsos associados e
 auditoria restrita aos agregados permitidos. Ela não consulta nem mostra edição
@@ -128,7 +128,7 @@ auditoria. A tabela legada `two_factors` não é lida nem escrita pela aplicaç�
 - o provider não altera nome, e-mail, verificação ou credenciais;
 - checkout público nasce sem PII local e omite `customer`/`customerData` na criação;
 - depois do evento financeiro autoritativo, o Hub consulta nome/e-mail do cliente Asaas;
-- no checkout público, Compradora = Aluna;
+- no checkout público, Compradora = Aluno;
 - compra pública pode acontecer antes de existir Conta com credencial;
 - Conta criada a partir da compra não é considerada verificada pelo provider;
 - Conta existente não é sobrescrita pelos dados do checkout;
@@ -193,9 +193,9 @@ de token ausente preserva o link de recuperação exigido.
 
 As páginas `/` e `/entrar` aguardam uma requisição antes de resolver a sessão: uma Conta já autenticada é redirecionada para sua área, e essa leitura nunca ocorre durante o build.
 
-## Fronteira Admin e Aluna
+## Fronteira Admin e Aluno
 
-`getStudentPreviewMode`, `canAccessStudentRoute` e `canMutateStudentExperience`, em `src/features/courses/preview.ts`, permitem visualização controlada da experiência da Aluna. Preview de Admin não deve gravar progresso nem simular autorização real.
+`getStudentPreviewMode`, `canAccessStudentRoute` e `canMutateStudentExperience`, em `src/features/courses/preview.ts`, permitem visualização controlada da experiência do Aluno. Preview de Admin não deve gravar progresso nem simular autorização real.
 
 ## Concorrência e segurança
 

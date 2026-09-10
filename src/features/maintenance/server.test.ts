@@ -164,7 +164,7 @@ describe("runMaintenance", () => {
       "delete from webhook_events"
     );
     expect(query).toHaveBeenCalledWith(
-      "delete from learning_analytics_events where occurred_at < now() - interval '90 days'"
+      "delete from learning_analytics_events where occurred_at < now() - interval '12 months'"
     );
     const analyticsAggregationQuery = query.mock.calls.find(([sql]) =>
       String(sql).includes("insert into learning_analytics_daily_metrics")

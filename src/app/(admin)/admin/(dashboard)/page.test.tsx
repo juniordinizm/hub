@@ -180,7 +180,7 @@ describe("AdminPage", () => {
           courseTitle: "Curso de exemplo",
           issuedAt: new Date("2026-09-08T12:00:00.000Z"),
           status: "valid",
-          studentName: "Aluna exemplo",
+          studentName: "Aluno exemplo",
         },
       ],
       recentOrders: [
@@ -189,8 +189,8 @@ describe("AdminPage", () => {
           checkoutStatus: "active",
           courseTitle: "Curso de exemplo",
           createdAt: new Date("2026-09-08T11:00:00.000Z"),
-          customerEmail: "aluna@example.test",
-          customerName: "Aluna exemplo",
+          customerEmail: "aluno@example.test",
+          customerName: "Aluno exemplo",
           id: "order-1",
           paidAmountInCents: 12_900,
           status: "paid",
@@ -206,7 +206,7 @@ describe("AdminPage", () => {
     expect(markup).toContain("Os 5 certificados emitidos mais recentemente.");
     expect(markup).toContain("<table");
     expect(markup).toContain("CERT-1");
-    expect(markup).toContain("Aluna exemplo");
+    expect(markup).toContain("Aluno exemplo");
     expect(markup).toContain("/admin/financeiro?tab=orders&amp;q=order-1");
     expect(markup).toContain("/certificados/CERT-1");
     expect(markup).not.toContain(">Arquivo<");
@@ -224,7 +224,7 @@ describe("AdminPage", () => {
               completedAt: new Date("2026-09-08T13:00:00.000Z"),
               courseId: "course-1",
               courseTitle: "Curso de exemplo",
-              studentName: "Aluna exemplo",
+              studentName: "Aluno exemplo",
             },
           ],
           pendingCount: 1,
@@ -291,7 +291,7 @@ describe("AdminPage", () => {
               completedAt: new Date("2026-09-08T13:00:00.000Z"),
               courseId: "course-1",
               courseTitle: "Curso de exemplo",
-              studentName: "Aluna exemplo",
+              studentName: "Aluno exemplo",
             },
           ],
           pendingCount: 1,
@@ -321,7 +321,7 @@ describe("AdminPage", () => {
               createdAt: new Date("2026-09-08T14:00:00.000Z"),
               deliveryState: "delivered",
               id: "support-1",
-              studentName: "Aluna exemplo",
+              studentName: "Aluno exemplo",
               subject: "Dúvida sobre acesso",
             },
           ],

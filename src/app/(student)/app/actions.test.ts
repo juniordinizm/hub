@@ -154,7 +154,7 @@ describe("setCourseSaleInterestAction", () => {
     formData.set("interested", "true");
 
     await expect(setCourseSaleInterestAction(formData)).rejects.toThrow(
-      "Apenas alunas podem demonstrar interesse."
+      "Apenas alunos podem demonstrar interesse."
     );
     expect(dependencies.setCourseSaleInterest).not.toHaveBeenCalled();
   });

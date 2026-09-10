@@ -39,14 +39,14 @@ const getStudentResultSummary = ({
   totalCount: number;
 }): string => {
   if (totalCount === 0) {
-    return search ? "Nenhuma Aluna corresponde à busca" : "Nenhuma matrícula";
+    return search ? "Nenhum Aluno corresponde à busca" : "Nenhuma matrícula";
   }
   if (studentCount === 0) {
-    return `Nenhuma Aluna nesta página · ${totalCount} no total`;
+    return `Nenhum Aluno nesta página · ${totalCount} no total`;
   }
   const firstResult = (page - 1) * pageSize + 1;
   const lastResult = Math.min(firstResult + studentCount - 1, totalCount);
-  return `${firstResult}–${lastResult} de ${totalCount} aluna${totalCount === 1 ? "" : "s"}`;
+  return `${firstResult}–${lastResult} de ${totalCount} aluno${totalCount === 1 ? "" : "s"}`;
 };
 
 export default async function SupportCourseStudentsPage({
@@ -82,13 +82,13 @@ export default async function SupportCourseStudentsPage({
               <Link href={route("/admin")}>Voltar ao painel</Link>
             </Button>
           }
-          description="Consulte matrículas e abra o contexto operacional de cada aluna. Conteúdo e configurações do curso não estão disponíveis."
+          description="Consulte matrículas e abra o contexto operacional de cado aluno. Conteúdo e configurações do curso não estão disponíveis."
           title={course.title}
         />
 
         <Card>
           <CardHeader>
-            <CardTitle as="h2">Alunas matriculadas</CardTitle>
+            <CardTitle as="h2">Alunos matriculadas</CardTitle>
             <CardDescription>
               {course.activeEnrollmentCount} ativas de{" "}
               {course.totalEnrollmentCount} matrículas neste Curso.
@@ -102,11 +102,11 @@ export default async function SupportCourseStudentsPage({
                 method="get"
               >
                 <label className="sr-only" htmlFor="support-student-search">
-                  Buscar alunas
+                  Buscar alunos
                 </label>
                 <input name="page" type="hidden" value="1" />
                 <Input
-                  aria-label="Buscar alunas"
+                  aria-label="Buscar alunos"
                   autoComplete="off"
                   className="min-w-0 flex-1"
                   defaultValue={studentsPage.search}
@@ -138,7 +138,7 @@ export default async function SupportCourseStudentsPage({
             })}
           </span>
           {studentsPage.page > 1 || studentsPage.hasNextPage ? (
-            <nav aria-label="Paginação de alunas" className="flex gap-2">
+            <nav aria-label="Paginação de alunos" className="flex gap-2">
               {studentsPage.page > 1 ? (
                 <Button asChild variant="outline">
                   <Link

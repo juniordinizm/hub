@@ -19,6 +19,11 @@ export interface AdminStudentProfileInput {
   userId: string;
 }
 
+export interface AdminStudentEffectiveAccessInput {
+  activeEnrollments: number;
+  nextExpiration: Date | null;
+}
+
 export interface AdminStudentSummary {
   activeEnrollments: number;
   courseCount: number;
@@ -27,6 +32,7 @@ export interface AdminStudentSummary {
   lastAccessAt: Date | null;
   latestExpiration: Date | null;
   name: string;
+  nextExpiration: Date | null;
   platformBlockedAt: Date | null;
   platformBlockedReason: string | null;
   revokedEnrollments: number;
@@ -44,6 +50,7 @@ const createEmptyStudentSummary = (
   lastAccessAt: student.lastAccessAt,
   latestExpiration: null,
   name: student.name,
+  nextExpiration: null,
   platformBlockedAt: student.platformBlockedAt,
   platformBlockedReason: student.platformBlockedReason,
   revokedEnrollments: 0,
@@ -61,6 +68,7 @@ const createStudentSummary = (
   lastAccessAt: enrollment.lastAccessAt,
   latestExpiration: enrollment.expiresAt,
   name: enrollment.name,
+  nextExpiration: enrollment.status === "active" ? enrollment.expiresAt : null,
   platformBlockedAt: null,
   platformBlockedReason: null,
   revokedEnrollments: enrollment.status === "revoked" ? 1 : 0,
@@ -102,6 +110,13 @@ const mergeEnrollmentIntoSummary = (
   }
 
   if (
+    enrollment.status === "active" &&
+    (!current.nextExpiration || enrollment.expiresAt < current.nextExpiration)
+  ) {
+    current.nextExpiration = enrollment.expiresAt;
+  }
+
+  if (
     !current.firstEnrollmentAt ||
     enrollment.startsAt < current.firstEnrollmentAt
   ) {
@@ -116,9 +131,41 @@ const mergeEnrollmentIntoSummary = (
   }
 };
 
+const getEffectiveStudentStatus = (
+  summary: AdminStudentSummary,
+  access: AdminStudentEffectiveAccessInput
+): string => {
+  if (summary.platformBlockedAt) {
+    return "blocked";
+  }
+  if (access.activeEnrollments > 0) {
+    return "active";
+  }
+  if (summary.courseCount === 0) {
+    return "not_enrolled";
+  }
+  if (summary.revokedEnrollments === summary.courseCount) {
+    return "revoked";
+  }
+  return "inactive";
+};
+
+const applyEffectiveAccessProjection = (
+  summary: AdminStudentSummary,
+  access: AdminStudentEffectiveAccessInput
+): void => {
+  summary.activeEnrollments = access.activeEnrollments;
+  summary.nextExpiration = access.nextExpiration;
+  summary.status = getEffectiveStudentStatus(summary, access);
+};
+
 export const summarizeAdminStudents = (
   enrollments: AdminEnrollmentSummaryInput[],
-  studentProfiles: AdminStudentProfileInput[] = []
+  studentProfiles: AdminStudentProfileInput[] = [],
+  effectiveAccessByUserId?: ReadonlyMap<
+    string,
+    AdminStudentEffectiveAccessInput
+  >
 ): AdminStudentSummary[] => {
   const byUserId = new Map<string, AdminStudentSummary>();
 
@@ -135,6 +182,17 @@ export const summarizeAdminStudents = (
     }
 
     mergeEnrollmentIntoSummary(current, enrollment);
+  }
+
+  if (effectiveAccessByUserId) {
+    for (const [userId, access] of effectiveAccessByUserId) {
+      const summary = byUserId.get(userId);
+      if (!summary) {
+        continue;
+      }
+
+      applyEffectiveAccessProjection(summary, access);
+    }
   }
 
   return [...byUserId.values()].sort((first, second) =>

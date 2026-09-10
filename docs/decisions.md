@@ -71,7 +71,7 @@ Toda Aula obrigatória pode ser concluída manualmente sem mínimo de visualiza�
 **Tema:** currículo vivo, coortes e liberação temporal.
 **Estado:** currículo e liberação temporal implementados e cobertos por testes de domínio, checkout, enforcement e integração PostgreSQL quando o ambiente descartável está disponível.
 
-`Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluna + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente.
+`Course` é identidade comercial; `CoursePublication` é revisão interna em lote. Matrícula ativa sempre recebe a publicação vigente; Curso novo e refilmado é novo produto e nova compra/concessão. A primeira conclusão é histórica por Aluno + Curso; certificado permanece válido após atualização de conteúdo e não é reemitido automaticamente.
 
 Não haverá coorte. A necessidade real foi delimitada a liberação relativa por Módulo: `D+N` equivale a `N × 24 horas` em UTC desde o início do episódio contínuo de entrega. Renovação preserva a âncora; recompra após perda total reinicia. Matrículas anteriores ao rollout mantêm acesso integral. Depois da primeira Matrícula agendada, publicação pode reduzir atrasos, mas não aumentar o atraso efetivo de Aula existente, inclusive por movimentação. Admin pode liberar integralmente uma Matrícula com motivo e auditoria, sem restauração do bloqueio no mesmo episódio. Ver [ADR-0007](adr/0007-course-versioning-and-enrollment-curriculum.md), [ADR-0010](adr/0010-relative-module-content-release.md) e a [especificação aceita](superpowers/specs/2026-09-04-module-content-release-design.md).
 
@@ -80,7 +80,7 @@ Não haverá coorte. A necessidade real foi delimitada a liberação relativa po
 **Tema:** ciclo de Certificados.
 **Estado:** aprovado e implementado.
 
-Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin pode emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `support` pode somente reemitir o Certificado existente mais recente da Aluna no Curso, com confirmação, motivo e auditoria; não pode emitir, revogar nem reconciliar manualmente. Essa separação, ratificada no [DEC-DISC-014](#dec-disc-014), está implementada com bloqueio transacional do registro mais recente e negação servidor-side. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
+Certificado tem snapshots, código público, estado válido/revogado e reemissão. Revogado bloqueia emissão automática; somente reemissão manual cria novo válido. Admin pode emitir, revogar e reemitir com confirmação e motivo: correção de identidade, snapshot de Curso, duplicidade/falha técnica, elegibilidade, integridade, obrigação legal/conformidade ou outro motivo documentado. `support` pode somente reemitir o Certificado existente mais recente do Aluno no Curso, com confirmação, motivo e auditoria; não pode emitir, revogar nem reconciliar manualmente. Essa separação, ratificada no [DEC-DISC-014](#dec-disc-014), está implementada com bloqueio transacional do registro mais recente e negação servidor-side. `/certificados/[code]` é a página canônica para validação, preview e compartilhamento. O PDF só pode ser obtido publicamente quando o Certificado está `valid` e `ready`, por rota rate-limited que verifica o hash e entrega URL assinada curta; `pending`, `failed` e `revoked` não oferecem download. A revogação bloqueia novos downloads, sem prometer recolher cópias já obtidas. O verificador público mostra status, data e categoria legível, sem detalhes internos. O e-mail aponta para a página canônica; Curso é a entrada contextual e `/app/certificados` o arquivo global autenticado. Ver [ADR-0006](adr/0006-certificate-lifecycle.md).
 
 ## DEC-DISC-007
 
@@ -90,7 +90,7 @@ Certificado tem snapshots, código público, estado válido/revogado e reemissã
 No checkout autenticado, a Conta é a da sessão; o provider não pode alterar nome, e-mail,
 verificação ou credenciais. No checkout público, o Pedido nasce sem PII e o Asaas coleta
 os dados do pagador. Depois do evento financeiro autoritativo, o Hub consulta o cliente
-Asaas, persiste uma vez somente nome/e-mail necessários e registra Compradora = Aluna. O
+Asaas, persiste uma vez somente nome/e-mail necessários e registra Compradora = Aluno. O
 provider informa identidade pretendida, mas não verifica Conta.
 
 O e-mail normalizado vincula o Pedido a uma Conta Student existente ou cria Conta local
@@ -119,9 +119,9 @@ O workflow de solicitações e anonimização foi removido: não havia solicitan
 **Tema:** analytics de aprendizagem padrão com opt-out.
 **Estado:** aprovado, implementado e ratificado juridicamente em 2026-08-21.
 
-Para a plataforma pequena atual, analytics técnico minimizado fica habilitado por padrão, sem modal, consentimento ou área dedicada. A Aluna tem controle claro em **Conta > Configurações** para desligar análises opcionais. Desativar remove eventos brutos identificáveis, bloqueia eventos futuros e exclui a Aluna das consultas analíticas; não altera acesso, sequência, progresso, conclusão ou Certificado.
+Para a plataforma pequena atual, analytics técnico minimizado fica habilitado por padrão, sem modal, consentimento ou área dedicada. O Aluno tem controle claro em **Conta > Configurações** para desligar análises opcionais. Desativar remove eventos brutos identificáveis, bloqueia eventos futuros e exclui o Aluno das consultas analíticas; não altera acesso, sequência, progresso, conclusão ou Certificado.
 
-Admin vê somente métricas agregadas por Aula e `CoursePublication`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 90 dias para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
+Admin vê somente métricas agregadas por Aula e `CoursePublication`. Não há lista nominal de inatividade, reengajamento manual, contato automático ou CRM analítico. Retenção é 12 meses para eventos brutos e 13 meses para métricas agregadas. Ver [ADR-0008](adr/0008-optional-learning-analytics.md).
 
 A ratificação jurídica exigida por esta decisão foi concedida pelo responsável de produto em 2026-08-21, cobrindo base legal, transparência, prazos e canal de direitos declarados na política de privacidade pública.
 
@@ -189,16 +189,16 @@ cancela Checkouts ativos. Ver [ADR-0009](adr/0009-course-availability-and-sale-i
 
 ## DEC-DISC-013
 
-**Tema:** gestão contextual de Alunas no painel Admin.
+**Tema:** gestão contextual de Alunos no painel Admin.
 **Estado:** aprovado e implementado em código.
 
-`/admin/alunos` permanece como lista canônica. A ficha de uma Aluna abre em um
+`/admin/alunos` permanece como lista canônica. A ficha de um Aluno abre em um
 `StudentManagementSheet` lateral, sem estado de seleção na URL, e carrega os dados sob
 demanda por GET administrativo protegido. O mesmo Sheet é usado pela aba de Alunos do
 Curso: a lista geral mostra plataforma, todas as Matrículas e todos os Certificados;
 o contexto do Curso mostra somente a Matrícula e os Certificados daquele Curso.
 
-Os dialogs anteriores de Aluna e Matrícula são substituídos pelo Sheet compartilhado.
+Os dialogs anteriores de Aluno e Matrícula são substituídos pelo Sheet compartilhado.
 Mutação mantém o Sheet aberto, refaz a leitura e mostra confirmação. A rota individual
 `/admin/alunos/[userId]` é removida e acessos antigos retornam 404; autorização das
 actions e regras de domínio não mudam.
@@ -212,16 +212,16 @@ a implementação ativa foi removida e as migrations históricas foram preservad
 
 `support` é uma função operacional distinta de `student` e `admin`, autorizada a:
 
-- abrir o painel operacional e consultar contagens de Cursos e Alunas por Curso;
+- abrir o painel operacional e consultar contagens de Cursos e Alunos por Curso;
 - consultar identidade mínima, Matrícula, progresso, Certificados, Pedidos e
-  histórico auditável restrito à Aluna e ao Curso;
+  histórico auditável restrito ao Aluno e ao Curso;
 - ajustar validade e bloquear ou restaurar uma Matrícula, sempre com motivo e
   auditoria;
 - consultar toda a operação financeira da plataforma, incluindo receita,
   Pedidos, disputas, reembolsos e Revisões;
 - executar reembolso integral após confirmação recente de senha, digitação do
   identificador do Pedido, motivo e auditoria;
-- reemitir somente o Certificado existente mais recente da Aluna no Curso.
+- reemitir somente o Certificado existente mais recente do Aluno no Curso.
 
 `support` não pode administrar Curso, conteúdo, preço, disponibilidade, template,
 banner, FAQ, configuração ou provider; acessar analytics pedagógico detalhado ou
@@ -245,7 +245,7 @@ sessões existentes.
 
 Somente a recuperação pública de senha permanece fora da outbox, por decisão de
 segurança: a URL contém token secreto e não deve ser persistida na fila. A falha de
-envio nesse caminho é apenas registrada em log e a Aluna precisa solicitar de novo.
+envio nesse caminho é apenas registrada em log e o Aluno precisa solicitar de novo.
 Ativação legada de conta e mensagem do formulário de suporte são entregues pela outbox
 com retentativa, idempotência e dead-letter; o suporte migrou para a outbox no PR do
 Sprint 1 de 2026-08-21, com o agregado `support_requests`.

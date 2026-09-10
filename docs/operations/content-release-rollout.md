@@ -16,7 +16,7 @@ coorte ou regra por Aula.
    `bun run db:migrations:check`.
 2. Crie um Curso piloto com dois Módulos: D+0 e D+1. Use uma Matrícula de
    teste cuja âncora esteja controlada; não espere dias reais.
-3. Abra o overview como Aluna e confirme:
+3. Abra o overview como Aluno e confirme:
    - título, contagem e duração do Módulo futuro aparecem;
    - título, thumbnail, player, material e comentário de Aula futura não
      aparecem;

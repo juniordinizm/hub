@@ -84,8 +84,8 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `SHARED_DEVELOPMENT_SEED_CONFIRMATION` | seed Development | confirmação literal `development` | não |
 | `DEVELOPMENT_ADMIN_EMAIL` | seed Development | Conta Admin fictícia | dado interno |
 | `DEVELOPMENT_ADMIN_PASSWORD` | seed Development | Conta Admin fictícia | sim |
-| `DEVELOPMENT_STUDENT_EMAIL` | seed Development | Conta Aluna fictícia | dado interno |
-| `DEVELOPMENT_STUDENT_PASSWORD` | seed Development | Conta Aluna fictícia | sim |
+| `DEVELOPMENT_STUDENT_EMAIL` | seed Development | Conta de Aluno fictício | dado interno |
+| `DEVELOPMENT_STUDENT_PASSWORD` | seed Development | Conta de Aluno fictício | sim |
 | `E2E_TEST_MODE` | somente CI com `CI=true` | limite Better Auth | não |
 | `E2E_DATABASE_URL` | Playwright; banco descartável já migrado | seed e servidor E2E | sim |
 | `E2E_R2_BUCKET_NAME` | Playwright; confirmação explícita do bucket R2 isolado | seed e teardown E2E | não |
@@ -304,7 +304,7 @@ Bootstrap Admin em dev exige `INTERNAL_BOOTSTRAP_SECRET`; em produção a rota r
 
 ## Manutenção técnica
 
-`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, remove em lotes reservas Asaas pré-autorização abandonadas há mais de 15 minutos, sanitiza payloads de webhook Asaas vencidos há 30 dias, consolida analytics diários e remove eventos brutos após 90 dias e agregados após 13 meses. A limpeza de checkout exige estado canônico e checkout `pending`, zero tentativas e ausência completa de URL, IDs e estados do provedor. A sanitização troca somente o JSON bruto por `{}` e preserva os metadados operacionais. Ambas respeitam lease/deadline; a sanitização não disputa evento `processing` com lock vigente. Não executa anonimização ou pedidos de dados.
+`GET /api/cron/maintenance` exige `CRON_SECRET` em produção e executa diariamente: expira sessões e rate limits, remove em lotes reservas Asaas pré-autorização abandonadas há mais de 15 minutos, sanitiza payloads de webhook Asaas vencidos há 30 dias, consolida analytics diários e remove eventos brutos após 12 meses e agregados após 13 meses. A limpeza de checkout exige estado canônico e checkout `pending`, zero tentativas e ausência completa de URL, IDs e estados do provedor. A sanitização troca somente o JSON bruto por `{}` e preserva os metadados operacionais. Ambas respeitam lease/deadline; a sanitização não disputa evento `processing` com lock vigente. Não executa anonimização ou pedidos de dados.
 
 ## Verificação local
 

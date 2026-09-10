@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 import { CourseEnrollmentsTable } from "./course-enrollments-table";
 
 describe("CourseEnrollmentsTable", () => {
-  it("opens the shared contextual Sheet through one Gerenciar action", () => {
+  it("opens the shared contextual Sheet through one contextual action", () => {
     const markup = renderToStaticMarkup(
       <CourseEnrollmentsTable
         courseId="course-1"
@@ -43,7 +43,10 @@ describe("CourseEnrollmentsTable", () => {
       />
     );
 
-    expect(markup).toContain("Gerenciar");
+    expect(markup).toContain("Ações de Student");
+    expect(markup).toContain("Ativa");
+    expect(markup).not.toContain(">Matrícula</th>");
+    expect(markup).not.toContain("Expira em");
     expect(markup).not.toContain(">Ver<");
   });
 
@@ -54,19 +57,22 @@ describe("CourseEnrollmentsTable", () => {
         enrollments={[]}
         hasNextPage
         page={2}
-        pageSize={50}
         search="student"
+        statusFilter="expired"
         totalCount={51}
       />
     );
 
-    expect(markup).toContain("Nenhuma matrícula nesta página");
+    expect(markup).toContain("Nenhum Aluno nesta página");
     expect(markup).toContain('name="enrollmentQ"');
+    expect(markup).toContain('name="enrollmentStatus"');
+    expect(markup).toContain('value="expired"');
     expect(markup).toContain(
-      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student"'
+      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student&amp;enrollmentStatus=expired"'
     );
     expect(markup).toContain(
-      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student&amp;enrollmentPage=3"'
+      'href="/admin/cursos/course-1?tab=students&amp;enrollmentQ=student&amp;enrollmentStatus=expired&amp;enrollmentPage=3"'
     );
+    expect(markup).not.toContain("de 51 matrículas");
   });
 });

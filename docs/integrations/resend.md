@@ -31,7 +31,7 @@ Depois que o domínio é verificado, o Resend permite usar endereços remetentes
 nesse domínio sem criar uma caixa correspondente. Isso não transforma
 `notificacoes@neurocapacitar.com.br` em endereço capaz de receber mensagens.
 `sendTransactionalEmail` usa `SUPPORT_EMAIL` como `Reply-To` padrão; o chamado
-de suporte é a exceção e aponta a resposta diretamente à Aluna.
+de suporte é a exceção e aponta a resposta diretamente ao Aluno.
 
 ## Decisão de reputação
 

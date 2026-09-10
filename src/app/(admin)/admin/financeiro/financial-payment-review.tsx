@@ -78,7 +78,10 @@ export function PaymentReviewHistorySheet({
           Histórico ({totalCount})
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full max-w-xl gap-0 p-0" side="right">
+      <SheetContent
+        className="w-full gap-0 p-0 data-[side=right]:sm:max-w-2xl"
+        side="right"
+      >
         <SheetHeader className="border-b pr-14">
           <SheetTitle>Histórico de revisões</SheetTitle>
           <SheetDescription>{historyDescription}</SheetDescription>

@@ -120,7 +120,7 @@ export function JmvstreamUploadPanel({
 
       if (result.ready && result.playerUrl) {
         onPlayerReady?.(result.playerUrl);
-        setStatus("Vídeo pronto para as alunas.");
+        setStatus("Vídeo pronto para os alunos.");
         router.refresh();
         return;
       }
@@ -681,7 +681,7 @@ const syncJmvstreamPlayerStatus = async (
     if (playerSync.ready) {
       return {
         playerUrl: playerSync.playerUrl,
-        status: "Vídeo pronto para as alunas.",
+        status: "Vídeo pronto para os alunos.",
       };
     }
   } catch {

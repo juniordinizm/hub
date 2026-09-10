@@ -199,7 +199,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               Conteúdo editorial
             </h2>
             <p className="mt-1 text-muted-foreground text-sm">
-              Atualize os conteúdos compartilhados na área da aluna.
+              Atualize os conteúdos compartilhados na área do aluno.
             </p>
           </div>
           <Card className="xl:col-span-2">
@@ -209,7 +209,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               </CardTitle>
               <CardDescription className="mt-1">
                 Configure os banners rotativos exibidos na página inicial da
-                área da aluna. Arraste para reordenar. (Máx. 5 imagens)
+                área do aluno. Arraste para reordenar. (Máx. 5 imagens)
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -224,7 +224,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     Perguntas frequentes
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Conteúdo exibido na área da aluna para reduzir dúvidas
+                    Conteúdo exibido na área do aluno para reduzir dúvidas
                     operacionais.
                   </CardDescription>
                 </div>

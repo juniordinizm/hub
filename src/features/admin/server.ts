@@ -1,6 +1,7 @@
 import "server-only";
 import { getPool } from "@/db";
 import {
+  type AdminStudentEffectiveAccessInput,
   type AdminStudentSummary,
   summarizeAdminStudents,
 } from "@/features/admin/students";
@@ -34,6 +35,12 @@ import type {
   AdminFinancialHealthSummary,
   AdminStudentAccessSummary,
 } from "./presentation";
+import {
+  type AdminEnrollmentStatusFilter,
+  type AdminStudentAccessFilter,
+  parseAdminEnrollmentStatusFilter,
+  parseAdminStudentAccessFilter,
+} from "./student-filters";
 
 export interface AdminOverview {
   activeEnrollments: number;
@@ -296,11 +303,12 @@ export interface AdminEnrollment {
   userId: string;
 }
 
-const DEFAULT_ADMIN_STUDENT_PAGE_SIZE = 100;
+const DEFAULT_ADMIN_STUDENT_PAGE_SIZE = 50;
 const MAX_ADMIN_STUDENT_PAGE_SIZE = 250;
 const MAX_ADMIN_STUDENT_PAGE = 1000;
 
 export interface AdminStudentsQuery {
+  access?: AdminStudentAccessFilter | undefined;
   page?: number | undefined;
   pageSize?: number | undefined;
   search?: string | undefined;
@@ -340,6 +348,8 @@ export interface AdminCourseRevenueData {
 export interface AdminCourseEnrollmentQuery {
   page?: number | undefined;
   search?: string | undefined;
+  status?: AdminEnrollmentStatusFilter | undefined;
+  studentId?: string | undefined;
 }
 
 export interface AdminFaq {
@@ -597,6 +607,7 @@ export interface AdminStudentDetail {
     revokedReason: string | null;
     startedAt: Date;
     status: string;
+    userId: string;
   }>;
   name: string;
   platformBlockedAt: Date | null;
@@ -1746,8 +1757,26 @@ const readCourseEnrollmentsPage = async (
     ? Math.min(MAX_ADMIN_COURSE_ENROLLMENT_PAGE, Math.max(1, requestedPage))
     : 1;
   const search = options.search?.trim() ?? "";
+  const statusFilter = parseAdminEnrollmentStatusFilter(options.status);
+  const studentId = options.studentId?.trim() ?? "";
   const pageSize = DEFAULT_ADMIN_COURSE_ENROLLMENT_PAGE_SIZE;
   const offset = (page - 1) * pageSize;
+  const baseQueryValues: unknown[] = [courseId, search, `%${search}%`];
+  const enrollmentFilters = [
+    "e.course_id = $1",
+    "($2 = '' or u.name ilike $3 or u.email ilike $3)",
+  ];
+  if (statusFilter !== "all") {
+    baseQueryValues.push(statusFilter);
+    enrollmentFilters.push(`e.status::text = $${baseQueryValues.length}::text`);
+  }
+  if (studentId) {
+    baseQueryValues.push(studentId);
+    enrollmentFilters.push(`e.user_id = $${baseQueryValues.length}::text`);
+  }
+  const limitParameter = baseQueryValues.length + 1;
+  const offsetParameter = baseQueryValues.length + 2;
+  const queryValues = [...baseQueryValues, pageSize + 1, offset];
   const { rows } = await getPool().query<
     AdminEnrollmentDatabaseRow & { total_count: number }
   >(
@@ -1769,24 +1798,23 @@ const readCourseEnrollmentsPage = async (
         order by eg.effective_expires_at desc, eg.updated_at desc
         limit 1
       ) latest_grant on true
-      where e.course_id = $1
-        and ($2 = '' or u.name ilike $3 or u.email ilike $3)
+      where ${enrollmentFilters.join("\n        and ")}
       order by e.updated_at desc, e.id desc
-      limit $4 offset $5
+      limit $${limitParameter} offset $${offsetParameter}
     `,
-    [courseId, search, `%${search}%`, pageSize + 1, offset]
+    queryValues
   );
   let totalCount = rows[0]?.total_count ?? 0;
   if (rows.length === 0 && page > 1) {
+    const countValues = [...baseQueryValues];
     const countResult = await getPool().query<{ total_count: number }>(
       `
         select count(*)::int as total_count
         from enrollments e
         join users u on u.id = e.user_id
-        where e.course_id = $1
-          and ($2 = '' or u.name ilike $3 or u.email ilike $3)
+        where ${enrollmentFilters.join("\n          and ")}
       `,
-      [courseId, search, `%${search}%`]
+      countValues
     );
     totalCount = countResult.rows[0]?.total_count ?? 0;
   }
@@ -2584,9 +2612,11 @@ const readStudentProfiles = async (
   page: number;
   pageSize: number;
   profiles: Array<{
+    activeEnrollments: number;
     email: string;
     lastAccessAt: Date | null;
     name: string;
+    nextExpiration: Date | null;
     platformBlockedAt: Date | null;
     platformBlockedReason: string | null;
     userId: string;
@@ -2605,11 +2635,41 @@ const readStudentProfiles = async (
     ? Math.min(MAX_ADMIN_STUDENT_PAGE_SIZE, Math.max(1, requestedPageSize))
     : DEFAULT_ADMIN_STUDENT_PAGE_SIZE;
   const search = options.search?.trim() ?? "";
+  const accessFilter = parseAdminStudentAccessFilter(options.access);
   const offset = (page - 1) * pageSize;
+  const queryValues: unknown[] = [search, `%${search}%`];
+  const accessFilterClause =
+    accessFilter === "all"
+      ? ""
+      : `
+        and (
+          ($3::text = 'active'
+            and coalesce(effective_access.active_enrollments, 0) > 0
+            and p.platform_blocked_at is null)
+          or ($3::text = 'without_access'
+            and (coalesce(effective_access.active_enrollments, 0) = 0
+              or p.platform_blocked_at is not null))
+          or ($3::text = 'blocked'
+            and p.platform_blocked_at is not null)
+          or ($3::text = 'expiring'
+            and coalesce(effective_access.active_enrollments, 0) > 0
+            and p.platform_blocked_at is null
+            and effective_access.next_expiration >= now()
+            and effective_access.next_expiration <= now() + interval '30 days')
+        )
+      `;
+  if (accessFilter !== "all") {
+    queryValues.push(accessFilter);
+  }
+  const limitParameter = queryValues.length + 1;
+  const offsetParameter = queryValues.length + 2;
+  queryValues.push(pageSize + 1, offset);
   const { rows } = await getPool().query<{
+    active_enrollment_count: number;
     email: string;
     last_access_at: Date | null;
     name: string;
+    next_expiration: Date | null;
     platform_blocked_at: Date | null;
     platform_blocked_reason: string | null;
     user_id: string;
@@ -2618,27 +2678,68 @@ const readStudentProfiles = async (
     `
       select u.id as user_id, u.name, u.email, p.last_access_at,
              p.platform_blocked_at, p.platform_blocked_reason,
+             coalesce(effective_access.active_enrollments, 0)::int
+               as active_enrollment_count,
+             effective_access.next_expiration,
              count(*) over()::int as total_count
       from profiles p
       join users u on u.id = p.user_id
+      left join lateral (
+        select count(*)::int as active_enrollments,
+               min(e.expires_at) as next_expiration
+        from enrollments e
+        join courses c on c.id = e.course_id
+        where e.user_id = u.id
+          and e.status = 'active'
+          and e.starts_at <= now()
+          and e.expires_at >= now()
+          and c.status = 'active'
+          and exists (
+            select 1
+            from course_publications cp
+            where cp.course_id = c.id and cp.status = 'published'
+          )
+      ) effective_access on true
       where p.role = 'student'
         and ($1 = '' or u.name ilike $2 or u.email ilike $2)
+        ${accessFilterClause}
       order by u.name asc, u.id asc
-      limit $3 offset $4
+      limit $${limitParameter} offset $${offsetParameter}
     `,
-    [search, `%${search}%`, pageSize + 1, offset]
+    queryValues
   );
   let totalCount = rows[0]?.total_count ?? 0;
   if (rows.length === 0 && page > 1) {
+    const countValues: unknown[] = [search, `%${search}%`];
+    if (accessFilter !== "all") {
+      countValues.push(accessFilter);
+    }
     const countResult = await getPool().query<{ total_count: number }>(
       `
         select count(*)::int as total_count
         from profiles p
         join users u on u.id = p.user_id
+        left join lateral (
+          select count(*)::int as active_enrollments,
+                 min(e.expires_at) as next_expiration
+          from enrollments e
+          join courses c on c.id = e.course_id
+          where e.user_id = u.id
+            and e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        ) effective_access on true
         where p.role = 'student'
           and ($1 = '' or u.name ilike $2 or u.email ilike $2)
+          ${accessFilterClause}
       `,
-      [search, `%${search}%`]
+      countValues
     );
     totalCount = countResult.rows[0]?.total_count ?? 0;
   }
@@ -2648,9 +2749,11 @@ const readStudentProfiles = async (
     page,
     pageSize,
     profiles: rows.slice(0, pageSize).map((row) => ({
+      activeEnrollments: row.active_enrollment_count,
       email: row.email,
       lastAccessAt: row.last_access_at,
       name: row.name,
+      nextExpiration: row.next_expiration,
       platformBlockedAt: row.platform_blocked_at,
       platformBlockedReason: row.platform_blocked_reason,
       userId: row.user_id,
@@ -2683,7 +2786,7 @@ const readAdminStudentAccessSummary =
               where cp.course_id = c.id and cp.status = 'published'
             )
         )::int as active_enrollments,
-        max(e.expires_at) filter (
+        min(e.expires_at) filter (
           where e.status = 'active'
             and e.starts_at <= now()
             and e.expires_at >= now()
@@ -2693,7 +2796,7 @@ const readAdminStudentAccessSummary =
               from course_publications cp
               where cp.course_id = c.id and cp.status = 'published'
             )
-        ) as latest_expiration
+        ) as next_expiration
       from profiles p
       left join enrollments e on e.user_id = p.user_id
       left join courses c on c.id = e.course_id
@@ -2711,8 +2814,8 @@ const readAdminStudentAccessSummary =
         count(*) filter (
           where active_enrollments > 0
             and platform_blocked_at is null
-            and latest_expiration >= now()
-            and latest_expiration <= now() + interval '30 days'
+            and next_expiration >= now()
+            and next_expiration <= now() + interval '30 days'
       )::int as expiring_soon_students
     from student_summary
   `);
@@ -2766,6 +2869,16 @@ export const getAdminStudentsData = async (
     undefined,
     profilePage.profiles.map((profile) => profile.userId)
   );
+  const effectiveAccessByUserId = new Map<
+    string,
+    AdminStudentEffectiveAccessInput
+  >();
+  for (const profile of profilePage.profiles) {
+    effectiveAccessByUserId.set(profile.userId, {
+      activeEnrollments: profile.activeEnrollments,
+      nextExpiration: profile.nextExpiration,
+    });
+  }
 
   return {
     accessSummary,
@@ -2774,7 +2887,11 @@ export const getAdminStudentsData = async (
     page: profilePage.page,
     pageSize: profilePage.pageSize,
     search: profilePage.search,
-    students: summarizeAdminStudents(enrollments, profilePage.profiles),
+    students: summarizeAdminStudents(
+      enrollments,
+      profilePage.profiles,
+      effectiveAccessByUserId
+    ),
     totalCount: profilePage.totalCount,
   };
 };
@@ -3302,6 +3419,7 @@ export const getAdminStudentDetail = async (
           revokedReason: row.revoked_reason,
           startedAt: row.starts_at,
           status: row.status,
+          userId: row.user_id,
         },
       ];
     }),

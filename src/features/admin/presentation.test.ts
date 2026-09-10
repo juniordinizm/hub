@@ -165,13 +165,15 @@ describe("admin presentation", () => {
         {
           activeEnrollments: 1,
           courseCount: 1,
-          latestExpiration: new Date("2026-07-10T00:00:00.000Z"),
+          latestExpiration: new Date("2027-02-10T00:00:00.000Z"),
+          nextExpiration: new Date("2026-07-10T00:00:00.000Z"),
           status: "active",
         },
         {
           activeEnrollments: 0,
           courseCount: 0,
           latestExpiration: null,
+          nextExpiration: null,
           status: "not_enrolled",
         },
       ],

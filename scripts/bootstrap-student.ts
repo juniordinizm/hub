@@ -25,7 +25,7 @@ config({ path: ".env", quiet: true });
 
 const email = process.argv[2] ?? "aluno@gmail.com";
 const password = process.argv[3] ?? "Camila15!";
-const name = process.argv[4] ?? "Camila Aluna";
+const name = process.argv[4] ?? "Camilo Aluno";
 const courseSlug = process.argv[5] ?? "protea-r";
 const rawDatabaseUrl =
   process.env.DATABASE_URL_DIRECT ?? process.env.DATABASE_URL;
@@ -76,7 +76,7 @@ const main = async (): Promise<void> => {
   }
 
   if (!userId) {
-    throw new Error("Nao foi possivel criar ou localizar a aluna.");
+    throw new Error("Nao foi possivel criar ou localizar o aluno.");
   }
 
   const [course] = await db
@@ -137,7 +137,7 @@ const main = async (): Promise<void> => {
     client.release();
   }
 
-  console.log(`Aluna pronta: ${email} / ${course.title}`);
+  console.log(`Aluno pronto: ${email} / ${course.title}`);
 };
 
 try {

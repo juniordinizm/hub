@@ -288,6 +288,27 @@ describe("AdminCourseDetailPage overview", () => {
     });
   });
 
+  it("passes the selected student context for contextual management", async () => {
+    await AdminCourseDetailPage({
+      params: Promise.resolve({ courseId: course.id }),
+      searchParams: Promise.resolve({
+        enrollmentAction: "certificate",
+        enrollmentStudentId: "student-1",
+        tab: "students",
+      }),
+    });
+
+    expect(dependencies.getAdminCourseTabData).toHaveBeenCalledWith({
+      courseId: course.id,
+      enrollmentQuery: {
+        page: 1,
+        search: "",
+        studentId: "student-1",
+      },
+      tab: "students",
+    });
+  });
+
   it("derives the operational state from the real course signals", async () => {
     const purchaseLink = {
       available: true as const,
@@ -381,7 +402,7 @@ describe("AdminCourseDetailPage header", () => {
       markup.indexOf("</header>") + "</header>".length
     );
 
-    expect(headerMarkup).toContain("Ver como aluna");
+    expect(headerMarkup).toContain("Ver como aluno");
     expect(headerMarkup).toContain(`/app/cursos/${course.id}?preview=student`);
     expect(headerMarkup).not.toContain("Preparar alterações");
     expect(headerMarkup).not.toContain("Publicar alterações");

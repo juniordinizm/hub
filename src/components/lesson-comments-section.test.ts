@@ -10,6 +10,6 @@ describe("lesson comments section moderation UI", () => {
 
     expect(source).toContain("restoreLessonCommentAction");
     expect(source).toContain("Desocultar");
-    expect(source).toContain("Comentário ocultado da área da aluna.");
+    expect(source).toContain("Comentário ocultado da área do aluno.");
   });
 });

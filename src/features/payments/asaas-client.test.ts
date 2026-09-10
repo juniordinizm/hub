@@ -5,10 +5,10 @@ import {
   DEFAULT_ASAAS_TIMEOUT_MS,
 } from "./asaas-client";
 
-const PROVIDER_SECRET_OR_PII_RE = /aluna@example|sandbox-token/;
-const TRANSPORT_SECRET_OR_PII_RE = /sandbox-token|aluna@example|Motivo privado/;
+const PROVIDER_SECRET_OR_PII_RE = /aluno@example|sandbox-token/;
+const TRANSPORT_SECRET_OR_PII_RE = /sandbox-token|aluno@example|Motivo privado/;
 const CUSTOMER_PII_RE =
-  /aluna@example|Rua privada|12345678900|11999999999|01001000/;
+  /aluno@example|Rua privada|12345678900|11999999999|01001000/;
 
 const checkoutResponse = {
   id: "chk_123",
@@ -199,10 +199,10 @@ describe("AsaasClient", () => {
       Response.json({
         address: "Rua privada",
         cpfCnpj: "12345678900",
-        email: "aluna@example.com",
+        email: "aluno@example.com",
         id: "cus_123",
         mobilePhone: "11999999999",
-        name: "Aluna Teste",
+        name: "Aluno Teste",
         phone: "1133333333",
         postalCode: "01001000",
       })
@@ -210,9 +210,9 @@ describe("AsaasClient", () => {
 
     await expect(createClient(fetcher).getCustomer("cus_123")).resolves.toEqual(
       {
-        email: "aluna@example.com",
+        email: "aluno@example.com",
         id: "cus_123",
-        name: "Aluna Teste",
+        name: "Aluno Teste",
       }
     );
     expect(fetcher).toHaveBeenCalledWith(
@@ -234,18 +234,18 @@ describe("AsaasClient", () => {
   it("encodes the customer ID in the path", async () => {
     const fetcher = vi.fn().mockResolvedValue(
       Response.json({
-        email: "aluna@example.com",
+        email: "aluno@example.com",
         id: "cus/with space",
-        name: "Aluna Teste",
+        name: "Aluno Teste",
       })
     );
 
     await expect(
       createClient(fetcher).getCustomer("cus/with space")
     ).resolves.toEqual({
-      email: "aluna@example.com",
+      email: "aluno@example.com",
       id: "cus/with space",
-      name: "Aluna Teste",
+      name: "Aluno Teste",
     });
     expect(fetcher.mock.calls[0]?.[0]).toBe(
       "https://api-sandbox.asaas.com/v3/customers/cus%2Fwith%20space"
@@ -271,29 +271,29 @@ describe("AsaasClient", () => {
   it.each([
     ["null", null],
     ["array", []],
-    ["missing id", { email: "aluna@example.com", name: "Aluna Teste" }],
+    ["missing id", { email: "aluno@example.com", name: "Aluno Teste" }],
     [
       "different id",
-      { email: "aluna@example.com", id: "cus_other", name: "Aluna Teste" },
+      { email: "aluno@example.com", id: "cus_other", name: "Aluno Teste" },
     ],
     [
       "non-string id",
-      { email: "aluna@example.com", id: 123, name: "Aluna Teste" },
+      { email: "aluno@example.com", id: 123, name: "Aluno Teste" },
     ],
-    ["missing name", { email: "aluna@example.com", id: "cus_123" }],
+    ["missing name", { email: "aluno@example.com", id: "cus_123" }],
     [
       "non-string name",
-      { email: "aluna@example.com", id: "cus_123", name: null },
+      { email: "aluno@example.com", id: "cus_123", name: null },
     ],
-    ["empty name", { email: "aluna@example.com", id: "cus_123", name: "" }],
+    ["empty name", { email: "aluno@example.com", id: "cus_123", name: "" }],
     [
       "whitespace name",
-      { email: "aluna@example.com", id: "cus_123", name: "   " },
+      { email: "aluno@example.com", id: "cus_123", name: "   " },
     ],
-    ["missing email", { id: "cus_123", name: "Aluna Teste" }],
-    ["non-string email", { email: null, id: "cus_123", name: "Aluna Teste" }],
-    ["empty email", { email: "", id: "cus_123", name: "Aluna Teste" }],
-    ["whitespace email", { email: "   ", id: "cus_123", name: "Aluna Teste" }],
+    ["missing email", { id: "cus_123", name: "Aluno Teste" }],
+    ["non-string email", { email: null, id: "cus_123", name: "Aluno Teste" }],
+    ["empty email", { email: "", id: "cus_123", name: "Aluno Teste" }],
+    ["whitespace email", { email: "   ", id: "cus_123", name: "Aluno Teste" }],
   ] as const)("rejects an invalid customer response: %s", async (_label, payload) => {
     const fetcher = vi.fn().mockResolvedValue(Response.json(payload));
     const promise = createClient(fetcher).getCustomer("cus_123");
@@ -318,7 +318,7 @@ describe("AsaasClient", () => {
           errors: [
             {
               code: "customer_lookup_error",
-              description: "aluna@example.com Rua privada 12345678900",
+              description: "aluno@example.com Rua privada 12345678900",
             },
           ],
         },
@@ -340,7 +340,7 @@ describe("AsaasClient", () => {
     const fetcher = vi
       .fn()
       .mockRejectedValue(
-        new Error("aluna@example.com Rua privada 12345678900")
+        new Error("aluno@example.com Rua privada 12345678900")
       );
     const promise = createClient(fetcher).getCustomer("cus_123");
 
@@ -648,7 +648,7 @@ describe("AsaasClient", () => {
           errors: [
             {
               code: "provider_code",
-              description: "aluna@example.com sandbox-token",
+              description: "aluno@example.com sandbox-token",
             },
           ],
         },
@@ -690,7 +690,7 @@ describe("AsaasClient", () => {
   it.each([
     "sandbox-token",
     "prefix-sandbox-token-suffix",
-    "aluna@example.com",
+    "aluno@example.com",
     "free text",
     "code\r\ninjected",
     "a".repeat(65),
@@ -743,7 +743,7 @@ describe("AsaasClient", () => {
   it("marks transport failures during mutations unknown without leaking causes", async () => {
     const fetcher = vi
       .fn()
-      .mockRejectedValue(new Error("sandbox-token aluna@example.com"));
+      .mockRejectedValue(new Error("sandbox-token aluno@example.com"));
 
     const promise = createClient(fetcher).refundPayment({
       description: "Motivo privado",

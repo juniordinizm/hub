@@ -96,17 +96,24 @@ describe("StudentManagementSheetContent", () => {
         capabilities={adminCapabilities}
         data={globalPayload}
         onRefresh={vi.fn()}
+        showActions={false}
       />
     );
 
     expect(markup).toContain("Acesso na plataforma");
-    expect(markup).toContain("Matrículas");
+    expect(markup).toContain("Cursos do Aluno");
     expect(markup).toContain("Certificados");
     expect(markup).toContain("Curso 1");
     expect(markup).toContain("Curso 2");
-    expect(markup).toContain('data-slot="tabs"');
+    expect(markup).not.toContain("Bloquear acesso");
+    expect(markup).not.toContain('data-slot="tabs"');
     expect(markup).not.toContain('data-slot="accordion"');
-    expect(markup).not.toContain('aria-expanded="');
+    expect(markup).toContain("Abrir no Curso");
+    expect(markup).toContain(
+      'href="/admin/cursos/course-1?tab=students&amp;enrollmentStudentId=student-1"'
+    );
+    expect(markup).not.toContain("aria-pressed=");
+    expect(markup).not.toContain('aria-controls="enrollment-');
   });
 
   it("limits the course context to the selected course and hides platform actions", () => {
@@ -124,6 +131,7 @@ describe("StudentManagementSheetContent", () => {
         capabilities={adminCapabilities}
         data={data}
         onRefresh={vi.fn()}
+        showActions={false}
       />
     );
 
@@ -133,9 +141,12 @@ describe("StudentManagementSheetContent", () => {
     expect(markup).not.toContain("Acesso na plataforma");
     expect(markup).not.toContain("Bloquear acesso na plataforma");
     expect(markup).not.toContain("Plataforma ativa");
-    expect(markup).toContain('data-slot="tabs"');
+    expect(markup).not.toContain("Ajustar validade");
+    expect(markup).not.toContain('data-slot="tabs"');
     expect(markup).not.toContain('data-slot="accordion"');
-    expect(markup).not.toContain('aria-expanded="');
+    expect(markup).not.toContain('data-slot="dialog-trigger"');
+    expect(markup).not.toContain("aria-pressed=");
+    expect(markup).not.toContain('aria-controls="enrollment-');
   });
 
   it("explains why manual issuance is unavailable without enrollment", () => {
@@ -169,12 +180,48 @@ describe("StudentManagementSheetContent", () => {
     );
 
     expect(markup).not.toContain("Emitir certificado manual");
-    expect(markup).toContain("É necessário matricular a aluna em um Curso");
+    expect(markup).toContain("É necessário matricular o aluno em um Curso");
+  });
+
+  it("offers manual issuance only when the selected Course has no certificate", () => {
+    const withCertificate = renderToStaticMarkup(
+      <StudentCertificateOperations
+        canIssue={true}
+        canReissue={true}
+        canRevoke={true}
+        certificates={globalPayload.certificates.slice(0, 1)}
+        courses={[selectedEnrollment]}
+        onRefresh={vi.fn()}
+        userId="student-1"
+      />
+    );
+    const withoutCertificate = renderToStaticMarkup(
+      <StudentCertificateOperations
+        canIssue={true}
+        canReissue={true}
+        canRevoke={true}
+        certificates={[]}
+        courses={[selectedEnrollment]}
+        onRefresh={vi.fn()}
+        userId="student-1"
+      />
+    );
+
+    expect(withCertificate).not.toContain("Nova emissão");
+    expect(withCertificate).toContain("Ações");
+    expect(withoutCertificate).toContain("Nova emissão");
+    expect(withoutCertificate).toContain("Emitir certificado manual");
   });
 
   it("keeps support in course scope without platform controls", () => {
     const supportData: StudentSheetPayload = {
       ...globalPayload,
+      context: { courseId: "course-1", courseTitle: "Curso 1" },
+      student: {
+        ...globalPayload.student,
+        enrollments: [selectedEnrollment],
+      },
+      certificates: globalPayload.certificates.slice(0, 1),
       supportContext: {
         audit: [
           {
@@ -208,7 +255,8 @@ describe("StudentManagementSheetContent", () => {
 
     expect(markup).not.toContain("Acesso na plataforma");
     expect(markup).not.toContain("Bloquear acesso na plataforma");
-    expect(markup).toContain("Matrículas");
+    expect(markup).toContain("Detalhes da matrícula");
+    expect(markup).not.toContain("Nova emissão");
     expect(markup).toContain("Operação");
   });
 
@@ -275,7 +323,7 @@ describe("StudentManagementSheetContent", () => {
       />
     );
 
-    expect(markup).toContain("Reemitir");
+    expect(markup).toContain("Ações do certificado");
     expect(markup).not.toContain("Emitir certificado manual");
     expect(markup).not.toContain("Revogar");
   });

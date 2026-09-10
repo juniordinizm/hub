@@ -14,13 +14,13 @@ O Hub precisa encontrar falhas técnicas e entender, de forma agregada, como as 
 
 ## Decisão
 
-O Hub registra por padrão eventos minimizados de início, checkpoint por faixa de 10%, conclusão e falha técnica. A Aluna pode desativar essa análise em **Conta > Configurações**, sem modal, bloqueio ou tela dedicada. A preferência é oposição/opt-out, nunca consentimento.
+O Hub registra por padrão eventos minimizados de início, checkpoint por faixa de 10%, conclusão e falha técnica. O Aluno pode desativar essa análise em **Conta > Configurações**, sem modal, bloqueio ou tela dedicada. A preferência é oposição/opt-out, nunca consentimento.
 
-Ausência de uma linha em `learning_analytics_preferences` significa analytics habilitado. Ao desativar, o Hub remove os eventos brutos identificáveis da Aluna, deixa de aceitar eventos futuros e exclui seu progresso essencial das consultas analíticas. Métricas diárias já materializadas permanecem somente agregadas.
+Ausência de uma linha em `learning_analytics_preferences` significa analytics habilitado. Ao desativar, o Hub remove os eventos brutos identificáveis do Aluno, deixa de aceitar eventos futuros e exclui seu progresso essencial das consultas analíticas. Métricas diárias já materializadas permanecem somente agregadas.
 
-O Admin vê métricas por Aula e `CoursePublication`, com exportação CSV sem Conta, Matrícula, e-mail ou outro identificador pessoal. O Hub não mantém lista de Alunas inativas, registro de reengajamento, ação de contato nem automação de mensagens baseada nesses dados.
+O Admin seleciona um Curso e um período de 1, 3, 6 ou 12 meses. A tela mostra uma linha por Aula da publicação vigente, na ordem curricular; início, conclusão e falha somam todas as versões da mesma Aula, enquanto checkpoint e tempos usam os registros disponíveis das versões. O KPI de visualização média do Curso calcula a média, entre Matrículas ativas com analytics habilitado, do maior percentual registrado em cada Aula ativa; conclusão vale 100% e ausência de registro vale 0%, inclusive quando o registro veio de uma versão anterior da mesma Aula. Matrículas ativas continuam sendo uma fotografia atual do Curso, sem soma entre versões. Versões históricas ficam acessíveis nos detalhes, e a exportação CSV fica limitada ao Curso e período selecionados, sem Conta, Matrícula, e-mail ou outro identificador pessoal. O Hub não mantém lista de Alunos inativos, registro de reengajamento, ação de contato nem automação de mensagens baseada nesses dados.
 
-Eventos brutos ficam até 90 dias; métricas agregadas, até 13 meses. A limpeza programada continua condicionada à habilitação operacional e à referência jurídica formal.
+Eventos brutos ficam até 12 meses; métricas agregadas, até 13 meses. A limpeza programada continua condicionada à habilitação operacional e à política jurídica ratificada.
 
 ## Consequências
 

@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({ redirect: dependencies.redirect }));
 vi.mock("@/db", () => ({ getDb: dependencies.getDb }));
 vi.mock("@/lib/auth", () => ({ getAuth: dependencies.getAuth }));
 
-import { requireRole } from "./session";
+import { recordStudentLastAccess, requireRole } from "./session";
 
 const setDatabaseIdentity = (role: "admin" | "student" | "support") => {
   const limit = vi.fn().mockResolvedValue([
@@ -33,6 +33,9 @@ const setDatabaseIdentity = (role: "admin" | "student" | "support") => {
           where: vi.fn(() => ({ limit })),
         })),
       })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(undefined) })),
     })),
   });
 };
@@ -75,5 +78,20 @@ describe("requireRole", () => {
     await expect(requireRole(["student"])).resolves.toMatchObject({
       role: "student",
     });
+  });
+});
+
+describe("recordStudentLastAccess", () => {
+  it("updates only the student profile access timestamp", async () => {
+    const where = vi.fn().mockResolvedValue(undefined);
+    const set = vi.fn().mockReturnValue({ where });
+    const update = vi.fn().mockReturnValue({ set });
+    dependencies.getDb.mockReturnValue({ update });
+
+    await recordStudentLastAccess("student-1");
+
+    expect(update).toHaveBeenCalledOnce();
+    expect(set).toHaveBeenCalledWith({ lastAccessAt: expect.any(Date) });
+    expect(where).toHaveBeenCalledOnce();
   });
 });

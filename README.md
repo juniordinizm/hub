@@ -6,7 +6,7 @@ last_verified_commit: e121349ad0a625857037617a71259c7f4e22b1ce
 
 # NeuroCapacitar Hub
 
-Plataforma de cursos da NeuroCapacitar: catálogo e aprendizagem para Alunas,
+Plataforma de cursos da NeuroCapacitar: catálogo e aprendizagem para Alunos,
 autoria e operação para Admin/Suporte, comércio Asaas, vídeo via JMVStream,
 mídia via Cloudflare R2, e-mail via Resend e Postgres/Neon. PROTEA-R é um Curso
 disponível na plataforma, não o nome do produto.

@@ -1,11 +1,13 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import type React from "react";
+import { Progress } from "@/components/ui/progress";
 
 export function AdminMetricCard({
   help,
   helper,
   icon: Icon,
   label,
+  progress,
   value,
 }: {
   help?: React.ReactNode;
@@ -13,6 +15,7 @@ export function AdminMetricCard({
   // biome-ignore lint/suspicious/noExplicitAny: type from hugeicons
   icon?: any;
   label: string;
+  progress?: { ariaLabel: string; value: number };
   value: string;
 }): React.JSX.Element {
   return (
@@ -36,7 +39,18 @@ export function AdminMetricCard({
         )}
       </div>
       <div className="mt-2">
-        <p className="font-bold text-2xl tabular-nums">{value}</p>
+        <div
+          className={progress ? "flex min-w-0 items-center gap-3" : undefined}
+        >
+          <p className="font-bold text-2xl tabular-nums">{value}</p>
+          {progress ? (
+            <Progress
+              aria-label={progress.ariaLabel}
+              className="h-2 min-w-0 flex-1"
+              value={Math.min(100, Math.max(0, progress.value))}
+            />
+          ) : null}
+        </div>
         <p className="mt-1 text-muted-foreground text-xs">{helper}</p>
       </div>
     </div>

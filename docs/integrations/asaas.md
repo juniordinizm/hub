@@ -335,7 +335,7 @@ da identidade pretendida do pagador:
 - checkout autenticado usa a Conta da sessão;
 - checkout público nasce sem PII e o Asaas coleta os dados do pagador;
 - após evento financeiro autoritativo, o Hub consulta somente nome/e-mail do cliente;
-- no fluxo público, Compradora = Aluna;
+- no fluxo público, Compradora = Aluno;
 - a compra pode ocorrer antes de existir credencial;
 - o Asaas não verifica Conta e não sobrescreve Conta existente;
 - compra como presente ou para terceiro está fora do escopo.

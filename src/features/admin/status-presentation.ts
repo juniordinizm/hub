@@ -32,6 +32,27 @@ export const getEnrollmentStatusPresentation = (
   }
 };
 
+export const getStudentAccessStatusPresentation = (
+  status: string
+): AdminStatusPresentation => {
+  switch (status) {
+    case "active":
+      return { label: "Acesso ativo", variant: "success" };
+    case "expired":
+      return { label: "Acesso expirado", variant: "warning" };
+    case "revoked":
+      return { label: "Acesso revogado", variant: "destructive" };
+    case "blocked":
+      return { label: "Plataforma bloqueada", variant: "destructive" };
+    case "inactive":
+      return { label: "Sem acesso ativo", variant: "warning" };
+    case "not_enrolled":
+      return { label: "Sem matrícula", variant: "secondary" };
+    default:
+      return fallbackStatus();
+  }
+};
+
 export const getCertificateStatusPresentation = (
   status: string
 ): AdminStatusPresentation => {

@@ -245,7 +245,7 @@ const createFixture = async ({
   await testPool.query(
     `
       insert into users (id, name, email, email_verified)
-      values ($1, 'Aluna de concorrencia', $2, true)
+      values ($1, 'Aluno de concorrencia', $2, true)
     `,
     [userId, `${userId}@example.test`]
   );
@@ -543,7 +543,7 @@ describe("emissao concorrente de certificado", () => {
         courseId: fixture.courseId,
         coursePublicationId: fixture.coursePublicationId,
         courseTitle: "Curso de concorrencia",
-        studentName: "Aluna de concorrencia",
+        studentName: "Aluno de concorrencia",
         userId: fixture.userId,
         workloadHours: 8,
       });
@@ -552,7 +552,7 @@ describe("emissao concorrente de certificado", () => {
         courseId: fixture.courseId,
         coursePublicationId: fixture.coursePublicationId,
         courseTitle: "Curso de concorrencia",
-        studentName: "Aluna de concorrencia",
+        studentName: "Aluno de concorrencia",
         userId: fixture.userId,
         workloadHours: 8,
       });
@@ -613,7 +613,7 @@ describe("emissao concorrente de certificado", () => {
           student_name_snapshot, course_title_snapshot,
           workload_hours_snapshot, status
         )
-        values ($1, $2, $3, $4, 'Aluna de concorrencia', 'Curso de concorrencia', 8, $5)
+        values ($1, $2, $3, $4, 'Aluno de concorrencia', 'Curso de concorrencia', 8, $5)
       `,
       [
         fixture.userId,

@@ -374,7 +374,7 @@ test("public signup creates a student account without granting a course", async 
   const fixture = await readFixture();
   const suffix = crypto.randomUUID().replaceAll("-", "");
   const email = `cadastro-${suffix}@example.test`;
-  const name = "Aluna de cadastro publico";
+  const name = "Aluno de cadastro publico";
 
   await page.goto("/cadastro");
   await page.getByLabel("Nome completo").fill(name);
@@ -695,7 +695,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   await page.goto(`/certificados/${certificateCode}`);
   await expect(page.getByText("Certificado válido")).toBeVisible();
   await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
-  await expect(page.getByText("Aluna para conclusao")).toBeVisible();
+  await expect(page.getByText("Aluno para conclusao")).toBeVisible();
   await expect(page.getByText(certificateCode)).toBeVisible();
   const publicPdfPath = `/certificados/${certificateCode}/pdf`;
   const publicPreviewPath = `/certificados/${certificateCode}/preview`;
@@ -759,7 +759,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   expect(JSON.stringify(delivery)).not.toContain(
     fixture.studentForCompletion.email
   );
-  expect(JSON.stringify(delivery)).not.toContain("Aluna para conclusao");
+  expect(JSON.stringify(delivery)).not.toContain("Aluno para conclusao");
 });
 
 test("admin is authorized and a student is redirected away from admin", async ({
@@ -811,7 +811,7 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
   ).toBeVisible();
   for (const forbiddenLink of [
     "Aprendizagem",
-    "Alunas",
+    "Alunos",
     "Auditoria",
     "Configurações",
   ]) {

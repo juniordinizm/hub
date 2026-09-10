@@ -11,6 +11,7 @@ import {
   getProviderRefundStatusPresentation,
   getProviderRiskStatusPresentation,
   getRefundRequestStatusPresentation,
+  getStudentAccessStatusPresentation,
   getWebhookStatusPresentation,
 } from "./status-presentation";
 
@@ -27,6 +28,25 @@ describe("admin status presentation", () => {
     expect(getEnrollmentStatusPresentation("revoked")).toEqual({
       label: "Revogada",
       variant: "destructive",
+    });
+  });
+
+  it("keeps aggregate student access states explicit", () => {
+    expect(getStudentAccessStatusPresentation("active")).toEqual({
+      label: "Acesso ativo",
+      variant: "success",
+    });
+    expect(getStudentAccessStatusPresentation("blocked")).toEqual({
+      label: "Plataforma bloqueada",
+      variant: "destructive",
+    });
+    expect(getStudentAccessStatusPresentation("inactive")).toEqual({
+      label: "Sem acesso ativo",
+      variant: "warning",
+    });
+    expect(getStudentAccessStatusPresentation("not_enrolled")).toEqual({
+      label: "Sem matrícula",
+      variant: "secondary",
     });
   });
 

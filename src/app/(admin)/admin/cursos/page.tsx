@@ -132,7 +132,7 @@ export default async function AdminCoursesPage({
               <CourseForm priceFieldId="header-course-price" />
             </DiscardAwareDialog>
           }
-          description="Gerencie cursos em uma visão limpa. Entre em um curso para organizar módulos, aulas, alunas e publicação."
+          description="Gerencie cursos em uma visão limpa. Entre em um curso para organizar módulos, aulas, alunos e publicação."
           title="Cursos"
         />
 

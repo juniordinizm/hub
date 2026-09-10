@@ -1,10 +1,31 @@
 "use client";
 
+import {
+  Certificate01Icon,
+  MoreHorizontalIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { FinanceHelp } from "@/components/admin/finance-help";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Field,
   FieldDescription,
@@ -14,11 +35,24 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableRowHeader,
+} from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { getCertificateStatusPresentation } from "@/features/admin/status-presentation";
+import { getAdminCourseStudentUrl } from "@/features/admin/student-navigation";
 import {
   type CertificateActionState,
   certificateActionInitialState,
@@ -33,6 +67,7 @@ import {
   certificateReasonLabel,
 } from "@/features/certificates/reasons";
 import { formatDateTime } from "@/lib/formatters";
+import { route } from "@/lib/routes";
 import type {
   StudentSheetCertificate,
   StudentSheetEnrollment,
@@ -122,11 +157,13 @@ function CertificateForm({
                 <SelectValue placeholder="Selecione o Curso" />
               </SelectTrigger>
               <SelectContent>
-                {courses.map((course) => (
-                  <SelectItem key={course.courseId} value={course.courseId}>
-                    {course.courseTitle}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {courses.map((course) => (
+                    <SelectItem key={course.courseId} value={course.courseId}>
+                      {course.courseTitle}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -140,11 +177,13 @@ function CertificateForm({
               <SelectValue placeholder="Selecione uma categoria" />
             </SelectTrigger>
             <SelectContent>
-              {CERTIFICATE_REASON_CODES.map((reason) => (
-                <SelectItem key={reason} value={reason}>
-                  {certificateReasonLabel(reason)}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                {CERTIFICATE_REASON_CODES.map((reason) => (
+                  <SelectItem key={reason} value={reason}>
+                    {certificateReasonLabel(reason)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </Field>
@@ -173,7 +212,7 @@ function CertificateForm({
           Confirmo que revisei os dados e entendo que a operação será auditada.
         </FieldLabel>
       </Field>
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         <Button onClick={onCancel} type="button" variant="ghost">
           Cancelar
         </Button>
@@ -194,144 +233,199 @@ function CertificateForm({
   );
 }
 
-const getRenderStatusLabel = (
-  status: StudentSheetCertificate["renderStatus"]
-): string => {
-  if (status === "ready") {
-    return "Pronto";
-  }
-  if (status === "pending") {
-    return "Preparando";
-  }
-  return "Indisponível";
-};
-
-function CertificateHistoryActions({
-  activeKind,
+function CertificateActionMenu({
+  canReissue,
   canRevoke,
-  isActive,
+  certificate,
+  manageHref,
   onSelectOperation,
-  status,
 }: {
-  activeKind: "reissue" | "revoke" | null;
+  canReissue: boolean;
   canRevoke: boolean;
-  isActive: boolean;
+  certificate: StudentSheetCertificate;
+  manageHref?: string;
   onSelectOperation: (kind: "reissue" | "revoke") => void;
-  status: StudentSheetCertificate["status"];
+}): React.JSX.Element {
+  const canReissueCertificate = canReissue && certificate.canReissue;
+  const canRevokeCertificate = canRevoke && certificate.status === "valid";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label={`Ações do certificado ${certificate.code}`}
+          className="size-10"
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          <HugeiconsIcon
+            aria-hidden="true"
+            icon={MoreHorizontalIcon}
+            size={16}
+            strokeWidth={2}
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuGroup>
+          <DropdownMenuItem asChild>
+            <Link
+              href={route(`/certificados/${certificate.code}`)}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              Ver certificado
+            </Link>
+          </DropdownMenuItem>
+          {manageHref ? (
+            <DropdownMenuItem asChild>
+              <Link href={manageHref}>Gerenciar</Link>
+            </DropdownMenuItem>
+          ) : null}
+          {canReissueCertificate ? (
+            <DropdownMenuItem onSelect={() => onSelectOperation("reissue")}>
+              Reemitir
+            </DropdownMenuItem>
+          ) : null}
+          {canRevokeCertificate ? (
+            <DropdownMenuItem
+              onSelect={() => onSelectOperation("revoke")}
+              variant="destructive"
+            >
+              Revogar
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function CertificateTable({
+  canReissue,
+  canRevoke,
+  certificates,
+  courseScoped,
+  onSelectOperation,
+  userId,
+}: {
+  canReissue: boolean;
+  canRevoke: boolean;
+  certificates: StudentSheetCertificate[];
+  courseScoped: boolean;
+  onSelectOperation: (
+    certificate: StudentSheetCertificate,
+    kind: "reissue" | "revoke"
+  ) => void;
+  userId: string;
 }): React.JSX.Element {
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {canRevoke && status === "valid" ? (
-        <Button
-          onClick={() => onSelectOperation("revoke")}
-          size="sm"
-          type="button"
-          variant={
-            isActive && activeKind === "revoke" ? "destructive" : "outline"
-          }
-        >
-          Revogar
-        </Button>
-      ) : null}
-      <Button
-        onClick={() => onSelectOperation("reissue")}
-        size="sm"
-        type="button"
-        variant={isActive && activeKind === "reissue" ? "secondary" : "outline"}
-      >
-        Reemitir
-      </Button>
+    <div className="overflow-hidden rounded-lg border">
+      <Table className="table-fixed">
+        <TableCaption className="sr-only">
+          Histórico de certificados do Aluno
+        </TableCaption>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[42%]">Certificado</TableHead>
+            <TableHead className="w-[18%]">Status</TableHead>
+            <TableHead className="w-[25%] whitespace-nowrap">
+              Emitido em
+            </TableHead>
+            <TableHead className="w-[15%] whitespace-nowrap text-right">
+              Ações
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {certificates.map((certificate) => {
+            const statusPresentation = getCertificateStatusPresentation(
+              certificate.status
+            );
+
+            return (
+              <TableRow key={certificate.id}>
+                <TableRowHeader className="max-w-[260px]">
+                  <span
+                    className="block truncate"
+                    title={certificate.courseTitle}
+                  >
+                    {certificate.courseTitle}
+                  </span>
+                  <span
+                    className="mt-1 block truncate font-mono text-muted-foreground text-xs"
+                    title={certificate.code}
+                  >
+                    {certificate.code}
+                  </span>
+                </TableRowHeader>
+                <TableCell className="align-top">
+                  <div className="min-w-0">
+                    <Badge variant={statusPresentation.variant}>
+                      {statusPresentation.label}
+                    </Badge>
+                  </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatDateTime(certificate.issuedAt)}
+                </TableCell>
+                <TableCell className="text-right align-top">
+                  <div className="flex flex-col items-end gap-1">
+                    <CertificateActionMenu
+                      canReissue={canReissue}
+                      canRevoke={canRevoke}
+                      certificate={certificate}
+                      {...(courseScoped
+                        ? {}
+                        : {
+                            manageHref: getAdminCourseStudentUrl(
+                              certificate.courseId,
+                              userId,
+                              "certificate"
+                            ),
+                          })}
+                      onSelectOperation={(kind) =>
+                        onSelectOperation(certificate, kind)
+                      }
+                    />
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
-function CertificateHistoryItem({
-  activeOperation,
-  canReissue,
-  canReissueHistorical,
-  canRevoke,
-  certificate,
-  courses,
-  onOperationSuccess,
-  onSelectOperation,
-  userId,
+function CertificateSectionHeader({
+  canManageCertificates,
 }: {
-  activeOperation: ActiveCertificateOperation;
-  canReissue: boolean;
-  canReissueHistorical: boolean;
-  canRevoke: boolean;
-  certificate: StudentSheetCertificate;
-  courses: StudentSheetEnrollment[];
-  onOperationSuccess: () => void | Promise<void>;
-  onSelectOperation: (kind: "reissue" | "revoke") => void;
-  userId: string;
+  canManageCertificates: boolean;
 }): React.JSX.Element {
-  const activeCertificate =
-    activeOperation && activeOperation.kind !== "issue"
-      ? activeOperation.certificate
-      : null;
-  const activeKind =
-    activeOperation && activeOperation.kind !== "issue"
-      ? activeOperation.kind
-      : null;
-  const isActive = activeCertificate?.id === certificate.id;
-  const operationAction =
-    activeKind === "revoke"
-      ? revokeCertificateAction
-      : reissueCertificateAction;
-  const operationLabel =
-    activeKind === "revoke" ? "Revogar certificado" : "Reemitir certificado";
-  const showOperations =
-    canReissue && (canReissueHistorical || certificate.canReissue);
-  const showHistoryNotice = !(canReissueHistorical || certificate.canReissue);
-
   return (
-    <div className="p-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-sm">
-            {certificate.courseTitle}
-          </p>
-          <p className="mt-1 font-mono text-muted-foreground text-xs">
-            {certificate.code}
-          </p>
-          <p className="mt-1 text-muted-foreground text-xs">
-            Emitido em {formatDateTime(certificate.issuedAt)} ·{" "}
-            {getRenderStatusLabel(certificate.renderStatus)}
-          </p>
-        </div>
-        <Badge
-          variant={certificate.status === "valid" ? "secondary" : "destructive"}
-        >
-          {certificate.status === "valid" ? "Válido" : "Revogado"}
-        </Badge>
+    <div>
+      <div className="flex items-center gap-1">
+        <h2 className="font-semibold text-base">Certificados</h2>
+        <FinanceHelp
+          description="Consulte o histórico de certificados e use as operações administrativas somente quando a evidência estiver revisada."
+          details={[
+            "Válido indica um certificado disponível; Revogado indica que ele não deve mais ser usado como documento vigente.",
+            canManageCertificates
+              ? "A emissão manual aparece apenas para Cursos sem certificado; Reemitir fica disponível somente no último registro do Curso."
+              : "Use Ações para abrir a página pública de validação do Certificado.",
+            "O estado de preparo do arquivo é separado da validade do Certificado.",
+          ]}
+          title="Certificados do Aluno"
+        />
       </div>
-      {showOperations ? (
-        <CertificateHistoryActions
-          activeKind={activeKind}
-          canRevoke={canRevoke}
-          isActive={isActive}
-          onSelectOperation={onSelectOperation}
-          status={certificate.status}
-        />
-      ) : null}
-      {showHistoryNotice ? (
-        <p className="mt-3 text-muted-foreground text-xs">
-          Registro histórico; somente o certificado mais recente pode ser
-          reemitido.
-        </p>
-      ) : null}
-      {isActive && activeKind ? (
-        <CertificateForm
-          action={operationAction}
-          certificateId={certificate.id}
-          courses={courses}
-          label={operationLabel}
-          onCancel={() => onSelectOperation(activeKind)}
-          onSuccess={onOperationSuccess}
-          userId={userId}
-        />
-      ) : null}
+      <p className="mt-1 text-muted-foreground text-sm">
+        {canManageCertificates
+          ? "Histórico, validação pública e operações permitidas no escopo atual."
+          : "Histórico e validação pública dos Certificados deste Aluno."}
+      </p>
     </div>
   );
 }
@@ -343,6 +437,8 @@ export function StudentCertificateOperations({
   certificates,
   courses,
   onRefresh,
+  courseScoped = false,
+  showHeading = true,
   userId,
 }: {
   canIssue: boolean;
@@ -351,30 +447,50 @@ export function StudentCertificateOperations({
   certificates: StudentSheetCertificate[];
   courses: StudentSheetEnrollment[];
   onRefresh: () => void | Promise<void>;
+  courseScoped?: boolean;
+  showHeading?: boolean;
   userId: string;
 }): React.JSX.Element {
   const [activeOperation, setActiveOperation] =
     useState<ActiveCertificateOperation>(null);
-  const hasCourses = courses.length > 0;
+  const certificateCourseIds = new Set(
+    certificates.map((certificate) => certificate.courseId)
+  );
+  const issuanceCourses = canIssue
+    ? courses.filter((course) => !certificateCourseIds.has(course.courseId))
+    : [];
   const onOperationSuccess = async (): Promise<void> => {
     setActiveOperation(null);
     await onRefresh();
   };
+  const activeCertificate =
+    activeOperation && activeOperation.kind !== "issue"
+      ? activeOperation.certificate
+      : null;
+  const operationAction =
+    activeOperation?.kind === "revoke"
+      ? revokeCertificateAction
+      : reissueCertificateAction;
+  const operationLabel =
+    activeOperation?.kind === "revoke"
+      ? "Revogar certificado"
+      : "Reemitir certificado";
+  const canManageCertificates = canIssue || canReissue || canRevoke;
 
   return (
     <section className="flex flex-col gap-4" data-student-certificates>
-      <div>
-        <h2 className="font-semibold text-base">Certificados</h2>
-        <p className="mt-1 text-muted-foreground text-sm">
-          Histórico e operações administrativas desta aluna.
-        </p>
-      </div>
-      {canIssue && hasCourses ? (
-        <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-          <div>
+      {showHeading ? (
+        <CertificateSectionHeader
+          canManageCertificates={canManageCertificates}
+        />
+      ) : null}
+
+      {issuanceCourses.length > 0 ? (
+        <div className="flex flex-col items-start gap-3 rounded-lg border bg-muted/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <p className="font-medium text-sm">Nova emissão</p>
             <p className="mt-1 text-muted-foreground text-xs">
-              Emita um certificado manual usando os dados históricos do Curso.
+              Disponível somente para Curso sem certificado registrado.
             </p>
           </div>
           <Button
@@ -390,56 +506,71 @@ export function StudentCertificateOperations({
             }
           >
             {activeOperation?.kind === "issue"
-              ? "Fechar"
+              ? "Cancelar emissão"
               : "Emitir certificado manual"}
           </Button>
         </div>
       ) : null}
-      {canIssue && !hasCourses ? (
+
+      {canIssue && courses.length === 0 && certificates.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-          É necessário matricular a aluna em um Curso antes de emitir um
+          É necessário matricular o aluno em um Curso antes de emitir um
           certificado manual.
         </p>
       ) : null}
-      {canIssue && activeOperation?.kind === "issue" ? (
+
+      {activeOperation?.kind === "issue" ? (
         <CertificateForm
           action={issueManualCertificateAction}
-          courses={courses}
+          courses={issuanceCourses}
           label="Emitir certificado"
           onCancel={() => setActiveOperation(null)}
           onSuccess={onOperationSuccess}
           userId={userId}
         />
       ) : null}
-      {certificates.length ? (
-        <div className="divide-y rounded-lg border" data-certificate-history>
-          {certificates.map((certificate) => (
-            <CertificateHistoryItem
-              activeOperation={activeOperation}
-              canReissue={canReissue}
-              canReissueHistorical={canIssue}
-              canRevoke={canRevoke}
-              certificate={certificate}
-              courses={courses}
-              key={certificate.id}
-              onOperationSuccess={onOperationSuccess}
-              onSelectOperation={(kind) =>
-                setActiveOperation((current) =>
-                  current?.kind === kind &&
-                  current.certificate.id === certificate.id
-                    ? null
-                    : { certificate, kind }
-                )
-              }
-              userId={userId}
-            />
-          ))}
-        </div>
+
+      {certificates.length > 0 ? (
+        <CertificateTable
+          canReissue={canReissue}
+          canRevoke={canRevoke}
+          certificates={certificates}
+          courseScoped={courseScoped}
+          onSelectOperation={(certificate, kind) =>
+            setActiveOperation((current) =>
+              current?.kind === kind &&
+              current.certificate.id === certificate.id
+                ? null
+                : { certificate, kind }
+            )
+          }
+          userId={userId}
+        />
       ) : (
-        <p className="rounded-lg border border-dashed p-4 text-muted-foreground text-sm">
-          Nenhum certificado registrado para este contexto.
-        </p>
+        <Empty className="rounded-lg border border-dashed py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon aria-hidden="true" icon={Certificate01Icon} />
+            </EmptyMedia>
+            <EmptyTitle as="h3">Nenhum certificado registrado</EmptyTitle>
+            <EmptyDescription>
+              Os certificados emitidos para este Aluno aparecerão aqui.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
+
+      {activeCertificate && activeOperation?.kind !== "issue" ? (
+        <CertificateForm
+          action={operationAction}
+          certificateId={activeCertificate.id}
+          courses={courses}
+          label={operationLabel}
+          onCancel={() => setActiveOperation(null)}
+          onSuccess={onOperationSuccess}
+          userId={userId}
+        />
+      ) : null}
     </section>
   );
 }

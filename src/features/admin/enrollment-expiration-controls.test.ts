@@ -14,8 +14,9 @@ describe("enrollment expiration controls", () => {
     expect(source).toContain('value="set_exact"');
     expect(source).toContain("minDate");
     expect(source).toContain("Salvar ajuste");
-    expect(source).toContain("Expiração original");
-    expect(source).toContain("Expiração atual");
+    expect(source).toContain("Ajustar validade");
+    expect(source).not.toContain("EnrollmentControlButtons");
+    expect(source).not.toContain("activeControl");
     expect(source).not.toContain('type="radio"');
     expect(source).not.toContain("extend_1_day");
     expect(source).not.toContain("extend_7_days");

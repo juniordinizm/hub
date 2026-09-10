@@ -248,9 +248,9 @@ function formatAuditMessage(log: {
       return `Restaurou o acesso de ${target}`;
 
     case "student.created":
-      return `Cadastrou a Aluna ${target}`;
+      return `Cadastrou o Aluno ${target}`;
     case "student.updated":
-      return `Atualizou os dados da Aluna ${target}`;
+      return `Atualizou os dados do Aluno ${target}`;
     case "student.platform_blocked":
       return `Bloqueou ${target} na plataforma`;
     case "student.platform_restored":

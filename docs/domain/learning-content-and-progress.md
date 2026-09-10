@@ -10,7 +10,7 @@ last_verified_commit: e325b7e
 
 `Course` é a identidade comercial. `CoursePublication` é uma revisão interna materializada de Módulos e Aulas, com estados `draft`, `published` e `retired`. Há no máximo uma publicação publicada e uma em rascunho por Curso.
 
-Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto, toda Matrícula ativa lê a publicação `published` vigente. Uma publicação nova alcança todas as Alunas com Matrícula ativa; acesso expirado, revogado ou bloqueado não lê conteúdo novo. Ver [ADR-0007](../adr/0007-course-versioning-and-enrollment-curriculum.md).
+Matrícula concede acesso comercial ao Curso, não a uma publicação. Portanto, toda Matrícula ativa lê a publicação `published` vigente. Uma publicação nova alcança todas os Alunos com Matrícula ativa; acesso expirado, revogado ou bloqueado não lê conteúdo novo. Ver [ADR-0007](../adr/0007-course-versioning-and-enrollment-curriculum.md).
 
 ## Regras de domínio
 
@@ -30,19 +30,19 @@ Módulo ativo pode carregar `release_delay_days`. Em Matrícula `scheduled`, o c
 
 ### REG-LEA-002 Progresso é vivo
 
-`getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente e reconhecem conclusões da mesma chave curricular em publicação anterior. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de uma Aluna já certificada; o certificado continua histórico e acessível.
+`getStudentCourseOverview`, `getStudentLessonWorkspace` e `completeLesson`, em `src/features/courses/server.ts`, calculam o progresso pelas Aulas obrigatórias ativas da publicação vigente e reconhecem conclusões da mesma chave curricular em publicação anterior. Aulas opcionais não entram no denominador. Publicar Aula obrigatória nova pode reduzir o percentual de um Aluno já certificado; o certificado continua histórico e acessível.
 
 ### REG-LEA-003 Sequência e conclusão de Aula
 
-`isLessonAvailable`, em `src/features/progress/rules.ts`, libera a Aula concluída, as anteriores e a primeira pendente. `completeLesson` é idempotente. A Aluna pode marcar qualquer Aula manualmente, sem visualização mínima. Evento JMVStream reconhecido em 98% ou mais é apenas uma segunda via automática. Repetições não duplicam `lesson_progress`.
+`isLessonAvailable`, em `src/features/progress/rules.ts`, libera a Aula concluída, as anteriores e a primeira pendente. `completeLesson` é idempotente. O Aluno pode marcar qualquer Aula manualmente, sem visualização mínima. Evento JMVStream reconhecido em 98% ou mais é apenas uma segunda via automática. Repetições não duplicam `lesson_progress`.
 
 ### REG-LEA-004 Conclusão do Curso é histórica
 
-`CourseCompletion` tem unicidade por Aluna e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. `completeLesson` serializa por Conta e Curso, antes de gravar progresso e calcular o resumo; somente a transação que insere a primeira `CourseCompletion` pode disparar a emissão automática. Uma tentativa concorrente que encontra a conclusão existente não atualiza a linha e não tenta emitir Certificado ou gravar outbox. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão. Conclusões históricas sem Certificado só entram no fluxo por reconciliação confirmada de Admin, em lote limitado; não há backfill silencioso.
+`CourseCompletion` tem unicidade por Aluno e Curso e registra a primeira publicação/data de conclusão. Ela nasce automaticamente quando todas as Aulas obrigatórias vigentes forem concluídas, ou na emissão manual de certificado se ainda não existir. `completeLesson` serializa por Conta e Curso, antes de gravar progresso e calcular o resumo; somente a transação que insere a primeira `CourseCompletion` pode disparar a emissão automática. Uma tentativa concorrente que encontra a conclusão existente não atualiza a linha e não tenta emitir Certificado ou gravar outbox. Revogar ou reemitir certificado não a apaga nem a reabre. Não existe ação administrativa separada para marcar conclusão. Conclusões históricas sem Certificado só entram no fluxo por reconciliação confirmada de Admin, em lote limitado; não há backfill silencioso.
 
 ### REG-LEA-004A Carga horária exibida
 
-O valor exibido no catálogo, na experiência da Aluna e no certificado é a
+O valor exibido no catálogo, na experiência do Aluno e no certificado é a
 carga horária efetiva do Curso. Sem override, ela é derivada pela soma das
 durações das Aulas da publicação e atualizada quando o conteúdo muda. Um
 administrador pode informar `courses.workload_hours_override` nas
@@ -58,7 +58,7 @@ Vídeo usa JMVStream; capa, banner e materiais usam R2. Um ativo só pode ser re
 
 Analytics é minimizado, habilitado por padrão e pode ser desligado em **Conta > Configurações**. Não altera acesso, sequência, progresso, conclusão ou certificado. O servidor deriva Matrícula, Aula e `CoursePublication`; o cliente não escolhe a identidade do evento. Eventos e métricas preservam a publicação para auditoria e comparação histórica, enquanto as consultas de elegibilidade usam a publicação vigente.
 
-O painel é agregado por Aula e Publicação: elegíveis, início, conclusão, checkpoint mediano, tempos e falhas. Não exibe Aluna, Conta, e-mail, inatividade ou automação de reengajamento.
+O painel administrativo permite selecionar um Curso e um período de 1, 3, 6 ou 12 meses. Para o Curso escolhido, a tabela mostra uma linha por Aula da publicação vigente, na ordem do Curso; as contagens de início, conclusão e falha somam todas as versões da mesma chave curricular, enquanto checkpoint e tempos são recalculados sobre os registros disponíveis das versões. O KPI de visualização média do Curso calcula, para cada Matrícula ativa com analytics habilitado, a média do maior percentual registrado em cada Aula ativa; uma Aula concluída vale 100% e uma Aula sem registro vale 0%, inclusive quando o registro veio de uma versão anterior da mesma Aula. Matrículas ativas representam a fotografia atual do Curso e não são somadas entre versões. As versões históricas ficam disponíveis nos detalhes, e os KPIs e a exportação CSV ficam limitados ao Curso e período selecionados. Não exibe Aluno, Conta, e-mail, inatividade ou automação de reengajamento.
 
 ## Evidências
 

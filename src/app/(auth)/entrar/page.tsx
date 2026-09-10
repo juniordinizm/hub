@@ -9,7 +9,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { PLATFORM_NAME } from "@/lib/brand";
 import { route } from "@/lib/routes";
 import { getCurrentSession } from "@/lib/session";
 import { SignInForm } from "./sign-in-form";
@@ -30,7 +29,6 @@ export default async function SignInPage(): Promise<React.JSX.Element> {
     <AuthShell>
       <Card className="mx-auto w-full max-w-sm bg-card/95">
         <CardHeader>
-          <CardDescription>{PLATFORM_NAME}</CardDescription>
           <CardTitle as="h1" className="type-page-title">
             Bem-vinda de volta
           </CardTitle>

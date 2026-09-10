@@ -122,7 +122,7 @@ export const GET = async (
   const session = await readAllowedSession();
   if (session === "team") {
     return unavailableResponse(
-      "Apenas alunas podem consultar checkout.",
+      "Apenas alunos podem consultar checkout.",
       403,
       undefined,
       true
@@ -179,7 +179,7 @@ export const POST = async (
     return unavailableResponse("Serviço de checkout indisponível.", 503);
   }
   if (session === "team") {
-    return unavailableResponse("Apenas alunas podem iniciar checkout.", 403);
+    return unavailableResponse("Apenas alunos podem iniciar checkout.", 403);
   }
   if (session === "blocked") {
     return unavailableResponse(

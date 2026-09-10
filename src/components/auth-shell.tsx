@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function AuthShell({
   children,
@@ -19,7 +20,13 @@ export function AuthShell({
         />
       </section>
       <section className="flex min-h-screen items-center px-6 py-10 sm:px-10">
-        {children}
+        <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
+          <BrandLogo
+            className="h-10 w-auto max-w-full object-contain object-left"
+            preload
+          />
+          {children}
+        </div>
       </section>
     </main>
   );

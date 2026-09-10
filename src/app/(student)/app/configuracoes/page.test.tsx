@@ -6,6 +6,9 @@ const dependencies = vi.hoisted(() => ({
   requireSession: vi.fn(),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 vi.mock("@/app/(student)/app/actions", () => ({
   setLearningAnalyticsPreferenceAction: vi.fn(),
   updateCertificateNameAction: vi.fn(),

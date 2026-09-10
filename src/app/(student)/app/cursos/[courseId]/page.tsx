@@ -55,7 +55,7 @@ function getIncompleteCertificateDescription({
       : `Faltam ${remainingLessons} aulas obrigatórias.`;
   const expectedName = studentName
     ? ` O nome previsto é ${studentName}.`
-    : " O certificado usará o nome do perfil da Aluna.";
+    : " O certificado usará o nome do perfil do Aluno.";
 
   return `${lessonLabel}${expectedName}`;
 }

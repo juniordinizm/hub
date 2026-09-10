@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     default: PLATFORM_NAME,
     template: `%s | ${PLATFORM_NAME}`,
   },
-  description: `Plataforma de cursos da ${PLATFORM_BRAND} para Alunas e equipe.`,
+  description: `Plataforma de cursos da ${PLATFORM_BRAND} para Alunos e equipe.`,
   applicationName: PLATFORM_NAME,
   metadataBase: new URL(publicAppUrl),
   ...(stagingPresentation.robots ? { robots: stagingPresentation.robots } : {}),

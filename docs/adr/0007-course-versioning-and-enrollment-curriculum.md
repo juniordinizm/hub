@@ -22,11 +22,11 @@ O Hub atende poucos alunos e o produto decidiu que alterações de um Curso deve
 - Alteração de conteúdo é sempre preparada e publicada em lote. Não há edição direta da publicação publicada.
 - Retirar conteúdo preserva a publicação anterior, mídia, progresso, analytics e auditoria.
 
-`CourseCompletion` registra a primeira conclusão de Aluna + Curso independentemente de certificado. Certificado conserva a publicação de origem e seus snapshots, mas a unicidade de certificado válido é Aluna + Curso. Depois de uma publicação nova, progresso pode diminuir; recuperar 100% não emite nem reemite certificado automaticamente.
+`CourseCompletion` registra a primeira conclusão de Aluno + Curso independentemente de certificado. Certificado conserva a publicação de origem e seus snapshots, mas a unicidade de certificado válido é Aluno + Curso. Depois de uma publicação nova, progresso pode diminuir; recuperar 100% não emite nem reemite certificado automaticamente.
 
 ## Consequências
 
-O histórico de certificado prova uma conclusão passada, não que a Aluna completou todo o currículo vivo atual. Revogação e reemissão não alteram `CourseCompletion`; reemissão mantém a publicação de origem. Atualização pedagógica não é motivo de reemissão.
+O histórico de certificado prova uma conclusão passada, não que o Aluno completou todo o currículo vivo atual. Revogação e reemissão não alteram `CourseCompletion`; reemissão mantém a publicação de origem. Atualização pedagógica não é motivo de reemissão.
 
 ## Alternativas rejeitadas
 

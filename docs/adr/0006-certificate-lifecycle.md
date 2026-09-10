@@ -31,7 +31,7 @@ isso não reescreve o PDF nem a evidência do Certificado. Previews existentes,
 inclusive previews de teste, não são objeto de backfill nem de revalidação
 semântica por esta mudança; previews futuros usam o renderizador corrigido.
 
-Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin pode executar emissão, revogação e reemissão, inclusive a partir de um registro histórico, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor. Conforme [DEC-DISC-014](../decisions.md#dec-disc-014), `support` pode somente reemitir o Certificado existente mais recente da Aluna no Curso; emissão, revogação e reconciliação permanecem exclusivas de Admin. A capacidade é validada na action e a regra adicional de registro mais recente é validada no comando sob lock transacional.
+Persistir snapshots no momento da emissão. Revogar com motivo, autoria e data. Reemitir criando novo Certificado e novo código, preservando o anterior revogado. Admin pode executar emissão, revogação e reemissão, inclusive a partir de um registro histórico, sempre com motivo obrigatório e confirmação validada na interface e novamente no servidor. Conforme [DEC-DISC-014](../decisions.md#dec-disc-014), `support` pode somente reemitir o Certificado existente mais recente do Aluno no Curso; emissão, revogação e reconciliação permanecem exclusivas de Admin. A capacidade é validada na action e a regra adicional de registro mais recente é validada no comando sob lock transacional.
 
 A emissão automática pertence exclusivamente à transação que insere a primeira `CourseCompletion`. Emissão, reemissão e progresso final compartilham lock transacional por Conta e Curso; encontrar uma Conclusão existente não tenta Certificado nem outbox.
 
@@ -41,7 +41,7 @@ A reconciliação preserva a publicação e a data da Conclusão, usa título e 
 
 O motivo usa uma categoria padronizada e um detalhe interno. Na consulta pública de um certificado revogado, mostrar somente o estado, a data e a categoria legível; não expor o detalhe, que pode conter dados pessoais ou uma apuração sensível.
 
-O e-mail de emissão aponta para a página pública canônica, não para o arquivo global autenticado nem para a URL assinada. A página do Curso oferece a entrada contextual do Certificado daquela conclusão; `/app/certificados` permanece como arquivo global autenticado de todos os registros da Aluna.
+O e-mail de emissão aponta para a página pública canônica, não para o arquivo global autenticado nem para a URL assinada. A página do Curso oferece a entrada contextual do Certificado daquela conclusão; `/app/certificados` permanece como arquivo global autenticado de todos os registros do Aluno.
 
 ## Alternativas
 

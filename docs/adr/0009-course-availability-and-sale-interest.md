@@ -10,7 +10,7 @@ last_verified_commit: d0acbf4c5ad81ec14bf7c2aeab34054091c36526
 
 `courses.status = active` controlava simultaneamente catálogo, checkout, capa
 pública e acesso. Arquivar ou voltar a rascunho fechava vendas, mas também
-retirava o Curso de alunas com Matrícula válida.
+retirava o Curso de alunos com Matrícula válida.
 
 ## Decisão
 

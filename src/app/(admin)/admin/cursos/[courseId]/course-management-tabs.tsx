@@ -23,11 +23,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ADMIN_COURSE_STUDENT_ID_PARAM } from "@/features/admin/student-navigation";
 
 const COURSE_MANAGEMENT_TABS = [
   { label: "Visão geral", value: "overview" },
   { label: "Conteúdo", value: "content" },
-  { label: "Alunas", value: "students" },
+  { label: "Alunos", value: "students" },
   { label: "Configurações", value: "settings" },
   { label: "Certificado", value: "certificate" },
 ] as const;
@@ -237,6 +238,9 @@ export function CourseManagementTabs({
     if (value !== "students") {
       nextSearchParams.delete("enrollmentPage");
       nextSearchParams.delete("enrollmentQ");
+      nextSearchParams.delete("enrollmentStatus");
+      nextSearchParams.delete(ADMIN_COURSE_STUDENT_ID_PARAM);
+      nextSearchParams.delete("enrollmentAction");
     }
 
     const query = nextSearchParams.toString();

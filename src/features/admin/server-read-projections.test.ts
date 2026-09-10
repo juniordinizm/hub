@@ -579,9 +579,11 @@ describe("admin read projections", () => {
         return {
           rows: [
             {
+              active_enrollment_count: 1,
               email: "student@example.test",
               last_access_at: null,
               name: "Student",
+              next_expiration: new Date("2026-12-01T00:00:00.000Z"),
               platform_blocked_at: null,
               platform_blocked_reason: null,
               total_count: 3,
@@ -598,7 +600,7 @@ describe("admin read projections", () => {
     ).resolves.toMatchObject({
       hasNextPage: false,
       page: 2,
-      pageSize: 100,
+      pageSize: 50,
       search: "student",
       totalCount: 3,
     });
@@ -608,8 +610,159 @@ describe("admin read projections", () => {
     );
     expect(String(profileCall?.[0])).toContain("limit $3");
     expect(String(profileCall?.[0])).toContain("offset $4");
-    expect(profileCall?.[1]).toEqual(["student", "%student%", 101, 100]);
+    expect(String(profileCall?.[0])).toContain("left join lateral");
+    expect(String(profileCall?.[0])).toContain("course_publications");
+    expect(profileCall?.[1]).toEqual(["student", "%student%", 51, 50]);
+    const accessSummaryCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("total_students")
+    );
+    const accessSummarySql = String(accessSummaryCall?.[0]).toLowerCase();
+    expect(accessSummarySql).toContain("min(e.expires_at)");
+    expect(accessSummarySql).toContain("as next_expiration");
     expect(requirePermission).toHaveBeenCalledWith("manageEnrollmentAccess");
+  });
+
+  it("applies the student access filter to the bounded profile projection", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("total_students")) {
+        return {
+          rows: [
+            {
+              active_students: 1,
+              expiring_soon_students: 0,
+              total_students: 1,
+              without_active_access_students: 0,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from profiles")) {
+        return {
+          rows: [
+            {
+              active_enrollment_count: 0,
+              email: "blocked@example.test",
+              last_access_at: null,
+              name: "Blocked Student",
+              next_expiration: null,
+              platform_blocked_at: new Date("2026-09-01T00:00:00.000Z"),
+              platform_blocked_reason: "support",
+              total_count: 1,
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      getAdminStudentsData({ access: "blocked" })
+    ).resolves.toMatchObject({
+      students: [{ status: "blocked" }],
+      totalCount: 1,
+    });
+
+    const profileCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("from profiles")
+    );
+    expect(profileCall?.[1]).toEqual(["", "%%", "blocked", 51, 0]);
+    expect(String(profileCall?.[0])).toContain("$3::text = 'blocked'");
+  });
+
+  it("applies the enrollment status filter to the course student projection", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) over()")) {
+        return {
+          rows: [
+            {
+              course_id: courseId,
+              course_title: "Course one",
+              email: "student@example.test",
+              expires_at: new Date("2026-12-01T00:00:00.000Z"),
+              id: "enrollment-1",
+              last_access_at: null,
+              name: "Student",
+              original_expires_at: new Date("2026-12-01T00:00:00.000Z"),
+              revoked_reason: "manual",
+              starts_at: new Date("2026-01-01T00:00:00.000Z"),
+              status: "revoked",
+              total_count: 1,
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      return { rows: [courseRow] };
+    });
+
+    await expect(
+      getAdminCourseTabData({
+        courseId,
+        enrollmentQuery: { status: "revoked" },
+        tab: "students",
+      })
+    ).resolves.toMatchObject({
+      enrollmentsPage: { totalCount: 1 },
+      tab: "students",
+    });
+
+    const enrollmentCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("count(*) over()")
+    );
+    expect(enrollmentCall?.[1]).toEqual([courseId, "", "%%", "revoked", 51, 0]);
+    expect(String(enrollmentCall?.[0])).toContain("e.status::text = $4::text");
+  });
+
+  it("applies the selected student filter to the course projection", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) over()")) {
+        return {
+          rows: [
+            {
+              course_id: courseId,
+              course_title: "Course one",
+              email: "student@example.test",
+              expires_at: new Date("2026-12-01T00:00:00.000Z"),
+              id: "enrollment-1",
+              last_access_at: null,
+              name: "Student",
+              original_expires_at: new Date("2026-12-01T00:00:00.000Z"),
+              revoked_reason: null,
+              starts_at: new Date("2026-01-01T00:00:00.000Z"),
+              status: "active",
+              total_count: 1,
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      return { rows: [courseRow] };
+    });
+
+    await expect(
+      getAdminCourseTabData({
+        courseId,
+        enrollmentQuery: { studentId: "student-1" },
+        tab: "students",
+      })
+    ).resolves.toMatchObject({
+      enrollmentsPage: { totalCount: 1 },
+      tab: "students",
+    });
+
+    const enrollmentCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("count(*) over()")
+    );
+    expect(enrollmentCall?.[1]).toEqual([
+      courseId,
+      "",
+      "%%",
+      "student-1",
+      51,
+      0,
+    ]);
+    expect(String(enrollmentCall?.[0])).toContain("e.user_id = $4::text");
   });
 
   it("projects buyer identity payment reviews with their order in the financial read", async () => {
@@ -1581,9 +1734,11 @@ describe("admin read projections", () => {
     const studentCount = 250;
     const enrollmentsPerStudent = 3;
     const profiles = Array.from({ length: studentCount }, (_, index) => ({
+      active_enrollment_count: 1,
       email: `student-${index}@example.test`,
       last_access_at: null,
       name: `Student ${index}`,
+      next_expiration: new Date("2027-01-01T00:00:00.000Z"),
       platform_blocked_at: null,
       platform_blocked_reason: null,
       user_id: `student-${index}`,

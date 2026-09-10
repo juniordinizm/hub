@@ -108,7 +108,7 @@ O Hub tem dois registros principais:
 - **Operação:** Admin e Suporte precisam localizar estados, exceções, evidências
   e próximas ações com rapidez. A interface pode ser densa, mas cada estado
   crítico precisa de texto claro, ação de recuperação e evidência suficiente.
-- **Aprendizagem:** a Aluna precisa identificar a próxima Aula, entender seu
+- **Aprendizagem:** o Aluno precisa identificar a próxima Aula, entender seu
   progresso e consumir conteúdo sem competir com controles administrativos.
 
 As permissões são distintas: `admin`, `support` e `student` não são apenas
@@ -121,7 +121,7 @@ As áreas autenticadas seguem esta estrutura comprovada:
 
 - Admin e Suporte: `src/app/(admin)/admin`, com `PanelLayout` e navegação
   administrativa;
-- Aluna: `src/app/(student)/app`, com `PanelLayout` e navegação de aprendizagem;
+- Aluno: `src/app/(student)/app`, com `PanelLayout` e navegação de aprendizagem;
 - shell compartilhado: `src/components/panel-layout.tsx`;
 - contêiner de página: `src/components/page-container.tsx`;
 - cabeçalho de página: `src/components/page-header.tsx`.
@@ -513,7 +513,7 @@ conjunto filtrado for vazio ou quando a tabela estiver em viewport estreito.
 
 ## Conteúdo, terminologia e confiança
 
-Use os termos definidos em [CONTEXT.md](CONTEXT.md): Aluna, Curso, Módulo, Aula,
+Use os termos definidos em [CONTEXT.md](CONTEXT.md): Aluno, Curso, Módulo, Aula,
 Matrícula, Concessão, Pedido, Progresso, Conclusão e Certificado não são
 sinônimos intercambiáveis.
 
@@ -522,7 +522,7 @@ sinônimos intercambiáveis.
 - mensagens de erro dizem o que falhou e qual recuperação é possível;
 - estados ambíguos comunicam a incerteza e não liberam confiança visual falsa;
 - Admin e Suporte recebem detalhes operacionais necessários, sem transformar
-  dados técnicos em copy para Alunas;
+  dados técnicos em copy para Alunos;
 - não expor e-mail, identidade, payload, segredo, motivo interno ou detalhe de
   provider quando a tela não precisa disso;
 - labels de status devem ser consistentes entre lista, detalhe, filtro e ação;

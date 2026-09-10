@@ -241,14 +241,14 @@ No Asaas Checkout, os itens podem ser enviados inline. Portanto, essa vinculaç�
 
 Fluxo atual:
 
-1. A action valida sessão e papel de Aluna.
+1. A action valida sessão e papel de Aluno.
 2. Carrega o Curso ativo.
 3. Impede compra quando já há Matrícula ativa.
 4. Exige preço positivo e produto remoto.
 5. Gera `externalId` no formato `order_UUID`.
 6. Cria o checkout AbacatePay com PIX e cartão.
 7. Somente depois persiste o Pedido `pending`.
-8. Redireciona a Aluna à URL hospedada.
+8. Redireciona o Aluno à URL hospedada.
 
 Implementação:
 
@@ -529,7 +529,7 @@ O provider vaza para um módulo que deveria conhecer apenas direitos de acesso:
 - `abacatepay_dispute`;
 - `abacatepay_refund`;
 - filtros SQL específicos;
-- mensagens apresentadas à Aluna.
+- mensagens apresentadas ao Aluno.
 
 Esse é o principal vazamento de locality: trocar a implementação financeira exige editar Concessão e Matrícula.
 
@@ -1216,7 +1216,7 @@ adapter foram aprovadas.
   `ASAAS_WEBHOOK_ENABLED=false` continuam protegendo o runtime. As variáveis
   AbacatePay permanecem configuradas remotamente até o smoke financeiro Asaas.
   Em 2026-07-29, a responsável confirmou explicitamente que todos os dados de todas as
-  branches são testes descartáveis, incluindo pagamentos, Cursos, Contas de Aluna e
+  branches são testes descartáveis, incluindo pagamentos, Cursos, Contas de Aluno e
   demais registros da aplicação. A limpeza pode, portanto, remover todo o conteúdo
   operacional, preservando somente infraestrutura, schema e journal necessários para a
   promoção. A decisão posterior determinou preservar a Conta Admin atual e apagar as

@@ -75,7 +75,7 @@ const createFixture = async (): Promise<EnrollmentContentReleaseFixture> => {
   await pool.query(
     `
       insert into users (id, name, email, email_verified)
-      values ($1, 'Aluna de serializacao', $2, true)
+      values ($1, 'Aluno de serializacao', $2, true)
     `,
     [userId, `${userId}@example.test`]
   );

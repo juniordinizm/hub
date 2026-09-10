@@ -14,6 +14,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import { PLATFORM_NAME } from "@/lib/brand";
 import { getInitials } from "@/lib/get-initials";
 import { route } from "@/lib/routes";
 import type { AppRole } from "@/lib/session";
@@ -68,9 +68,10 @@ function SidebarHeaderContent() {
   return (
     <div className="flex w-full items-center justify-between gap-2 px-2">
       <div className="flex min-w-0 flex-1 items-center">
-        <span className="truncate font-semibold text-sm tracking-tight">
-          {PLATFORM_NAME}
-        </span>
+        <BrandLogo
+          className="h-auto max-h-10 w-[90%] object-contain object-left"
+          preload
+        />
       </div>
       <SidebarTrigger className="shrink-0" />
     </div>
@@ -360,16 +361,14 @@ function PanelLayoutInner({
             </div>
 
             <div className="flex flex-1 items-center justify-center md:hidden">
-              <span className="truncate font-semibold text-sm tracking-tight">
-                {PLATFORM_NAME}
-              </span>
+              <BrandLogo className="h-8 w-auto max-w-full object-contain" />
             </div>
 
             {isPreviewActive && (
               <div className="hidden items-center gap-3 text-sm md:flex">
                 <div className="flex items-center gap-1.5 rounded-md border border-warning/20 bg-warning/10 px-2.5 py-1 text-warning">
                   <span className="font-semibold text-xs">
-                    Preview de aluna
+                    Preview de aluno
                   </span>
                   <span className="hidden text-muted-foreground text-xs lg:inline">
                     · Progresso, duração detectada e certificado não serão

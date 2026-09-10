@@ -171,6 +171,8 @@ describe("enrollment server SQL contracts", () => {
 
     expect(extendSource).toContain("preserveContentRelease: true");
     expect(setSource).toContain("preserveContentRelease: true");
+    expect(setSource).toContain("$2::timestamptz < $3::timestamptz");
+    expect(setSource).toContain("effective_expires_at = $2::timestamptz");
     expect(restoreSource).toContain("preserveContentRelease: true");
     expect(paidAndManualGrantSource).not.toContain(
       "preserveContentRelease: true"

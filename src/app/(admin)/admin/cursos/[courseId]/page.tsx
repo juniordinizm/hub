@@ -23,6 +23,11 @@ import {
   getAdminCourseTabData,
 } from "@/features/admin/server";
 import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
+import { parseAdminEnrollmentStatusFilter } from "@/features/admin/student-filters";
+import {
+  ADMIN_COURSE_STUDENT_ID_PARAM,
+  parseAdminCourseStudentAction,
+} from "@/features/admin/student-navigation";
 import {
   getCertificateTemplatesForCourse,
   hasCertificateIssuerProfile,
@@ -151,11 +156,21 @@ export default async function AdminCourseDetailPage({
     ? requestedEnrollmentPage
     : 1;
   const enrollmentSearch = firstSearchParam(query.enrollmentQ)?.trim() ?? "";
+  const enrollmentStatus = parseAdminEnrollmentStatusFilter(
+    firstSearchParam(query.enrollmentStatus)
+  );
+  const enrollmentStudentId =
+    firstSearchParam(query[ADMIN_COURSE_STUDENT_ID_PARAM])?.trim() ?? "";
+  const enrollmentAction = parseAdminCourseStudentAction(
+    firstSearchParam(query.enrollmentAction)
+  );
   const data = await getAdminCourseTabData({
     courseId,
     enrollmentQuery: {
       page: enrollmentPage,
       search: enrollmentSearch,
+      ...(enrollmentStatus === "all" ? {} : { status: enrollmentStatus }),
+      ...(enrollmentStudentId ? { studentId: enrollmentStudentId } : {}),
     },
     tab: activeTab,
   });
@@ -204,7 +219,7 @@ export default async function AdminCourseDetailPage({
                   size={16}
                   strokeWidth={2}
                 />
-                Ver como aluna
+                Ver como aluno
               </a>
             </Button>
           }
@@ -270,7 +285,7 @@ export default async function AdminCourseDetailPage({
                           Configurações do curso
                         </CardTitle>
                         <CardDescription>
-                          Dados que aparecem para a aluna e conectam o Curso ao
+                          Dados que aparecem para o aluno e conectam o Curso ao
                           checkout externo.
                         </CardDescription>
                       </div>
@@ -305,20 +320,25 @@ export default async function AdminCourseDetailPage({
             data.tab === "students" ? (
               <section className="rounded-lg border bg-card">
                 <div className="border-b px-5 py-4">
-                  <h2 className="font-semibold text-xl">Alunas deste Curso</h2>
+                  <h2 className="font-semibold text-xl">Alunos deste Curso</h2>
                   <p className="mt-1 text-muted-foreground text-sm">
-                    Últimas matrículas e situação de acesso.
+                    Matrículas deste Curso, situação de acesso e ações
+                    específicas do Curso.
                   </p>
                 </div>
-                <CourseEnrollmentsTable
-                  courseId={course.id}
-                  enrollments={data.enrollmentsPage.enrollments}
-                  hasNextPage={data.enrollmentsPage.hasNextPage}
-                  page={data.enrollmentsPage.page}
-                  pageSize={data.enrollmentsPage.pageSize}
-                  search={data.enrollmentsPage.search}
-                  totalCount={data.enrollmentsPage.totalCount}
-                />
+                <div className="p-4 sm:p-5">
+                  <CourseEnrollmentsTable
+                    courseId={course.id}
+                    enrollments={data.enrollmentsPage.enrollments}
+                    hasNextPage={data.enrollmentsPage.hasNextPage}
+                    initialAction={enrollmentAction}
+                    initialStudentId={enrollmentStudentId || undefined}
+                    page={data.enrollmentsPage.page}
+                    search={data.enrollmentsPage.search}
+                    statusFilter={enrollmentStatus}
+                    totalCount={data.enrollmentsPage.totalCount}
+                  />
+                </div>
               </section>
             ) : null
           }

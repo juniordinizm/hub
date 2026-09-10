@@ -77,6 +77,7 @@ export interface AdminStudentAccessInput {
   activeEnrollments: number;
   courseCount: number;
   latestExpiration: Date | null;
+  nextExpiration: Date | null;
   status: string;
 }
 
@@ -431,7 +432,7 @@ export const summarizeAdminStudentAccess = (
     (student) =>
       student.status === "active" &&
       student.activeEnrollments > 0 &&
-      isExpiringSoon(student.latestExpiration, now)
+      isExpiringSoon(student.nextExpiration, now)
   ).length,
   totalStudents: students.length,
   withoutActiveAccessStudents: students.filter(
@@ -505,7 +506,7 @@ export const getAdminCourseContentSignal = ({
       label: "Rascunhos pendentes",
       helper: `${draftLessons} aula${
         draftLessons === 1 ? "" : "s"
-      } ainda não aparece para alunas.`,
+      } ainda não aparece para alunos.`,
     };
   }
 

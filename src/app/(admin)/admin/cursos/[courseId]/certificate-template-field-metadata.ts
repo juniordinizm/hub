@@ -25,7 +25,7 @@ export const certificateFieldMetadata: Record<
   CertificateFieldMetadata
 > = {
   studentName: {
-    description: "Nome da aluna conforme o perfil no momento da emissão.",
+    description: "Nome do aluno conforme o perfil no momento da emissão.",
     group: "automatic",
     label: "Nome no certificado",
     source: "emission",
@@ -43,7 +43,7 @@ export const certificateFieldMetadata: Record<
     source: "course",
   },
   completedAt: {
-    description: "Data em que a aluna concluiu os requisitos.",
+    description: "Data em que o aluno concluiu os requisitos.",
     group: "automatic",
     label: "Data de conclusão",
     source: "emission",

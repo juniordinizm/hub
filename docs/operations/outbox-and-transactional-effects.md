@@ -51,7 +51,7 @@ devolve o certificado a `pending` antes de reentregar a mesma mensagem.
   `auth.account-activation/<order-id>/v1`; payload exatamente `userId` e `orderId`.
 - `email.course-sales-opened`: emitido ao abrir vendas; agregado `course_interest`; chave por Interesse; payload somente `interestId`. Vendas novamente fechadas adiam sem consumir tentativa.
 - `payments.checkout-cancel`: emitido ao fechar vendas; agregado `order`; chave por Pedido; payload somente `orderId`. Pedido já pago ou Checkout já terminal conclui como no-op.
-- `email.support-request`: emitido quando uma Aluna envia o formulário de suporte;
+- `email.support-request`: emitido quando um Aluno envia o formulário de suporte;
   agregado `support_request`; chave `email.support-request/<request-id>/v1`;
   payload somente `requestId`. A ação normaliza e valida antes de conectar, abre
   uma transação, adquire advisory lock por `support-request:<userId>`, conta,

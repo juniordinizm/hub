@@ -312,7 +312,7 @@ const getDashboardIssues = ({
     actionLabel: "Ver alunos",
     count: operations.access.expiringStudentCount,
     description:
-      "Alunas têm pelo menos um acesso efetivo que vence nos próximos 30 dias.",
+      "Alunos têm pelo menos um acesso efetivo que vence nos próximos 30 dias.",
     href: "/admin/alunos",
     label: "Acessos vencendo em 30 dias",
     tone: "watch",
@@ -462,7 +462,7 @@ function DashboardSummary({
     {
       helper: "Perfis de estudante",
       icon: UserGroupIcon,
-      label: "Alunas cadastradas",
+      label: "Alunos cadastrados",
       value: formatCount(overview.students),
     },
     {
@@ -1360,7 +1360,7 @@ function RecentCertificatesTable({
       </TableCaption>
       <TableHeader>
         <TableRow>
-          <TableHead>Aluna</TableHead>
+          <TableHead>Aluno</TableHead>
           <TableHead>Curso</TableHead>
           <TableHead>Código</TableHead>
           <TableHead>Estado</TableHead>

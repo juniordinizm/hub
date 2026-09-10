@@ -102,7 +102,7 @@ quando a investigação pertence ao provider.
 - parte falhou => repetir a parte, preservando ETags válidos;
 - complete falhou => não criar nova sessão até consultar estado da atual;
 - player pendente => cron/manual sync;
-- player com ativo local `failed` => a experiência da Aluna interrompe o polling e oferece suporte; não expor `last_error` do provedor;
+- player com ativo local `failed` => a experiência do Aluno interrompe o polling e oferece suporte; não expor `last_error` do provedor;
 - deleção falhou => manter registro `needs_review` e tentar pelo comando autorizado;
 - hash já associado => `assertJmvstreamVideoHashAvailable` deve impedir duplicidade.
 

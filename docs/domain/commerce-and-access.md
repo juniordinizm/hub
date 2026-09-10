@@ -144,7 +144,7 @@ Matrículas usam `paid_order`; revogações financeiras usam razões neutras
 
 Admin pode conceder `full_access` uma vez no episódio atual com motivo, evento e auditoria. Support recebe modo, âncora e próxima liberação apenas para diagnóstico.
 
-Admin pode usar preview; a mutação de experiência da Aluna continua proibida no preview.
+Admin pode usar preview; a mutação de experiência do Aluno continua proibida no preview.
 
 ### REG-COM-006 Expiração é calculada sobre a Concessão paga
 

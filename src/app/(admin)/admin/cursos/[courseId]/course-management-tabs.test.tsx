@@ -77,7 +77,7 @@ describe("CourseManagementTabs", () => {
           content={<p>Painel de conteúdo</p>}
           overview={<p>Painel de visão geral</p>}
           settings={<p>Painel de configurações</p>}
-          students={<p>Painel de alunas</p>}
+          students={<p>Painel de alunos</p>}
         />
       );
     });
@@ -91,7 +91,7 @@ describe("CourseManagementTabs", () => {
           content={<p>Painel de conteúdo</p>}
           overview={<p>Painel de visão geral</p>}
           settings={<DirtySettingsControls />}
-          students={<p>Painel de alunas</p>}
+          students={<p>Painel de alunos</p>}
         />
       );
     });
@@ -217,7 +217,7 @@ describe("CourseManagementTabs", () => {
     });
     renderTabs();
 
-    expect(getTab("Alunas").getAttribute("data-state")).toBe("active");
+    expect(getTab("Alunos").getAttribute("data-state")).toBe("active");
   });
 
   it("mounts only the selected panel", () => {

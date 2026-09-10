@@ -293,7 +293,7 @@ export function CourseAvailabilityForm({
               <AlertDialogTitle>Arquivar este Curso?</AlertDialogTitle>
               <AlertDialogDescription>
                 O Curso sairá da vitrine, as vendas serão fechadas e todas as
-                alunas perderão acesso até uma restauração.
+                alunos perderão acesso até uma restauração.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

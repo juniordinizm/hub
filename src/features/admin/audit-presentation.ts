@@ -31,10 +31,10 @@ const ADMIN_AUDIT_ACTION_LABELS: Record<string, string> = {
   "module.updated": "Módulo atualizado",
   "module.upserted": "Módulo atualizado",
   "settings.updated": "Configurações globais atualizadas",
-  "student.created": "Aluna cadastrada",
-  "student.platform_blocked": "Aluna bloqueada na plataforma",
-  "student.platform_restored": "Acesso da Aluna restaurado na plataforma",
-  "student.updated": "Dados da Aluna atualizados",
+  "student.created": "Aluno cadastrado",
+  "student.platform_blocked": "Aluno bloqueado na plataforma",
+  "student.platform_restored": "Acesso do Aluno restaurado na plataforma",
+  "student.updated": "Dados do Aluno atualizados",
 };
 
 export const getAdminAuditActionLabel = (action: string): string => {

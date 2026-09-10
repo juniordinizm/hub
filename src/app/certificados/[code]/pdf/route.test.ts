@@ -33,7 +33,7 @@ const readyCertificate = {
   revokedAt: null,
   revokedReasonCategory: null,
   status: "valid" as const,
-  studentName: "Aluna",
+  studentName: "Aluno",
   workloadHours: 8,
 };
 

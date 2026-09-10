@@ -516,7 +516,7 @@ describe("outbox email delivery", () => {
           certificate_code: "PRT-001",
           course_title: "Curso de teste",
           student_email: "student@example.test",
-          student_name: "Aluna Teste",
+          student_name: "Aluno Teste",
         },
       ],
     });
@@ -545,7 +545,7 @@ describe("outbox email delivery", () => {
       },
       idempotencyKey: "email.certificate-issued/certificate-1/v1",
       to: "student@example.test",
-      userName: "Aluna Teste",
+      userName: "Aluno Teste",
     });
   });
 
@@ -563,7 +563,7 @@ describe("outbox email delivery", () => {
           course_title: "Curso público",
           sales_status: "open",
           student_email: "student@example.test",
-          student_name: "Aluna Teste",
+          student_name: "Aluno Teste",
         },
       ],
     });
@@ -598,7 +598,7 @@ describe("outbox email delivery", () => {
       },
       idempotencyKey: "email.course-sales-opened/interest-1/v1",
       to: "student@example.test",
-      userName: "Aluna Teste",
+      userName: "Aluno Teste",
     });
     expect(transactionQuery).toHaveBeenCalledWith(
       expect.stringContaining("delete from course_sale_interests"),
@@ -620,7 +620,7 @@ describe("outbox email delivery", () => {
             course_title: "Curso público",
             sales_status: "closed",
             student_email: "student@example.test",
-            student_name: "Aluna Teste",
+            student_name: "Aluno Teste",
           },
         ],
       }),
@@ -651,7 +651,7 @@ describe("outbox email delivery", () => {
           course_title: "Curso de suporte",
           message: "Mensagem de teste controlada.",
           student_email: "student@example.test",
-          student_name: "Aluna Teste",
+          student_name: "Aluno Teste",
           subject: "Dúvida controlada",
         },
       ],
@@ -685,7 +685,7 @@ describe("outbox email delivery", () => {
       idempotencyKey: "email.support-request/request-1/v1",
       message: "Mensagem de teste controlada.",
       studentEmail: "student@example.test",
-      studentName: "Aluna Teste",
+      studentName: "Aluno Teste",
       subject: "Dúvida controlada",
     });
   });

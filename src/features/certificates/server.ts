@@ -426,7 +426,7 @@ const issueCertificate = async ({
   const source = snapshot.rows[0];
 
   if (!source) {
-    throw new CertificateDomainError("Aluna ou curso nao localizado.");
+    throw new CertificateDomainError("Aluno ou curso nao localizado.");
   }
 
   const issuedAt = new Date().toISOString();
@@ -705,7 +705,7 @@ export const issueManualCertificate = async ({
     );
     if (!enrollment.rows[0]) {
       throw new CertificateDomainError(
-        "A aluna nao possui matricula no curso."
+        "O aluno nao possui matricula no curso."
       );
     }
     const certificateHistory = await client.query<{
@@ -725,7 +725,7 @@ export const issueManualCertificate = async ({
     const existingCertificate = certificateHistory.rows[0];
     if (existingCertificate?.status === "valid") {
       throw new CertificateDomainError(
-        "A aluna ja possui um certificado valido para este curso."
+        "O aluno ja possui um certificado valido para este curso."
       );
     }
     if (existingCertificate?.status === "revoked") {
@@ -1121,7 +1121,8 @@ export const getCertificateOperationsForUser = async (
     workload_hours_snapshot: number;
   }>(
     `
-      select certificate.id, certificate.code, certificate.student_name_snapshot,
+      select certificate.id, certificate.course_id, certificate.code,
+             certificate.student_name_snapshot,
              certificate.course_title_snapshot, certificate.workload_hours_snapshot,
              certificate.issued_at, certificate.revoked_at,
              certificate.revoked_reason_category, certificate.status,
