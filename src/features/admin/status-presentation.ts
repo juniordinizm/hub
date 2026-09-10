@@ -32,6 +32,19 @@ export const getEnrollmentStatusPresentation = (
   }
 };
 
+export const getCertificateStatusPresentation = (
+  status: string
+): AdminStatusPresentation => {
+  switch (status) {
+    case "valid":
+      return { label: "Válido", variant: "success" };
+    case "revoked":
+      return { label: "Revogado", variant: "destructive" };
+    default:
+      return fallbackStatus();
+  }
+};
+
 export const getCourseDeliveryStatusPresentation = (
   status: string
 ): AdminStatusPresentation => {

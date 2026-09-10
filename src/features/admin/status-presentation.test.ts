@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getCertificateStatusPresentation,
   getCheckoutStatusPresentation,
   getCourseAvailabilityStatusPresentation,
   getCourseContentStatusPresentation,
@@ -25,6 +26,17 @@ describe("admin status presentation", () => {
     });
     expect(getEnrollmentStatusPresentation("revoked")).toEqual({
       label: "Revogada",
+      variant: "destructive",
+    });
+  });
+
+  it("keeps certificate validity states explicit", () => {
+    expect(getCertificateStatusPresentation("valid")).toEqual({
+      label: "Válido",
+      variant: "success",
+    });
+    expect(getCertificateStatusPresentation("revoked")).toEqual({
+      label: "Revogado",
       variant: "destructive",
     });
   });

@@ -58,7 +58,6 @@ const renderOrdersTable = (
       hasNextPage={false}
       orders={[paidOrder]}
       page={1}
-      pageSize={20}
       search=""
       totalCount={1}
       {...overrides}
@@ -80,7 +79,7 @@ describe("FinancialOrdersTable", () => {
     expect(markup).toContain("Valor");
     expect(markup).toContain("Registrado em");
     expect(markup).toContain("Detalhes");
-    expect(markup).toContain("1–1 de 21 pedidos");
+    expect(markup).not.toContain("1–1 de 21 pedidos");
     expect(markup).toContain("Student");
     expect(markup).toContain("Curso de organização");
     expect(markup).toContain("R$");

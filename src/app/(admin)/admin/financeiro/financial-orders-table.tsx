@@ -62,34 +62,6 @@ const getOrderPageHref = ({
   return query ? `/admin/financeiro?${query}` : "/admin/financeiro";
 };
 
-const getOrderResultSummary = ({
-  hasActiveFilter,
-  orderCount,
-  page,
-  pageSize,
-  totalCount,
-}: {
-  hasActiveFilter: boolean;
-  orderCount: number;
-  page: number;
-  pageSize: number;
-  totalCount: number;
-}): string => {
-  if (totalCount === 0) {
-    return hasActiveFilter
-      ? "Nenhum pedido corresponde aos filtros"
-      : "Nenhum pedido";
-  }
-  if (orderCount === 0) {
-    return `Nenhum pedido nesta página · ${totalCount} no total`;
-  }
-  const firstResult = (page - 1) * pageSize + 1;
-  const lastResult = Math.min(firstResult + orderCount - 1, totalCount);
-  return `${firstResult}–${lastResult} de ${totalCount} pedido${
-    totalCount === 1 ? "" : "s"
-  }`;
-};
-
 function OrderTableEmptyState({
   hasActiveFilter,
   totalCount,
@@ -132,7 +104,6 @@ export function FinancialOrdersTable({
   hasNextPage,
   orders,
   page,
-  pageSize,
   paymentMethod,
   search,
   status,
@@ -143,7 +114,6 @@ export function FinancialOrdersTable({
   hasNextPage: boolean;
   orders: AdminOrder[];
   page: number;
-  pageSize: number;
   paymentMethod?: AdminOrderPaymentMethodFilter | undefined;
   search: string;
   status?: AdminOrderStatusFilter | undefined;
@@ -152,13 +122,6 @@ export function FinancialOrdersTable({
   const hasActiveFilter = Boolean(
     search || status || paymentMethod || checkout
   );
-  const resultSummary = getOrderResultSummary({
-    hasActiveFilter,
-    orderCount: orders.length,
-    page,
-    pageSize,
-    totalCount,
-  });
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -238,10 +201,7 @@ export function FinancialOrdersTable({
       {page > 1 || hasNextPage ? (
         <div className="mt-4">
           <Separator />
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
-            <span aria-live="polite" className="text-muted-foreground text-sm">
-              {resultSummary}
-            </span>
+          <div className="flex justify-end gap-3 pt-4">
             <nav aria-label="Paginação de pedidos" className="flex gap-2">
               {page > 1 ? (
                 <Button asChild variant="outline">
@@ -284,14 +244,7 @@ export function FinancialOrdersTable({
             </nav>
           </div>
         </div>
-      ) : (
-        <div className="mt-4">
-          <Separator />
-          <span aria-live="polite" className="text-muted-foreground text-sm">
-            <span className="mt-4 block">{resultSummary}</span>
-          </span>
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -346,27 +346,32 @@ export function FinancialOverview({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
-              <FinanceStatusTile
-                href={getOrdersHref({ checkout: "open", status: "pending" })}
-                label="Pendentes"
-                value={financialHealth.pendingOrders.toString()}
-              />
-              <FinanceStatusTile
-                href={getOrdersHref({ status: "paid" })}
-                label="Pagos"
-                value={financialHealth.paidOrders.toString()}
-              />
-              <FinanceStatusTile
-                href={getOrdersHref({ status: "disputed" })}
-                label="Disputas"
-                value={financialHealth.disputedOrders.toString()}
-              />
-              <FinanceStatusTile
-                href={getOrdersHref({ status: "refunded" })}
-                label="Reembolsos"
-                value={financialHealth.refundedOrders.toString()}
-              />
+            <div className="p-5 sm:p-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <FinanceStatusTile
+                  href={getOrdersHref({
+                    checkout: "open",
+                    status: "pending",
+                  })}
+                  label="Pendentes"
+                  value={financialHealth.pendingOrders.toString()}
+                />
+                <FinanceStatusTile
+                  href={getOrdersHref({ status: "paid" })}
+                  label="Pagos"
+                  value={financialHealth.paidOrders.toString()}
+                />
+                <FinanceStatusTile
+                  href={getOrdersHref({ status: "disputed" })}
+                  label="Disputas"
+                  value={financialHealth.disputedOrders.toString()}
+                />
+                <FinanceStatusTile
+                  href={getOrdersHref({ status: "refunded" })}
+                  label="Reembolsos"
+                  value={financialHealth.refundedOrders.toString()}
+                />
+              </div>
             </div>
             {financialHealth.abandonedCheckoutOrders > 0 ? (
               <p className="px-5 py-3 text-muted-foreground text-xs">
@@ -523,14 +528,16 @@ function FinanceStatusTile({
 }): React.JSX.Element {
   return (
     <Link
-      className="group flex flex-col justify-center bg-card p-5 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      className="group flex h-full min-h-[126px] flex-col rounded-xl bg-card p-4 shadow-sm ring-1 ring-border/50 transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       href={href}
     >
-      <p className="font-medium text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1.5 font-bold text-2xl tabular-nums tracking-tight">
+      <p className="font-medium text-muted-foreground text-sm tracking-tight">
+        {label}
+      </p>
+      <p className="mt-2 font-bold text-2xl tabular-nums tracking-tight">
         {value}
       </p>
-      <span className="mt-2 text-muted-foreground text-xs underline-offset-4 group-hover:underline">
+      <span className="mt-1 text-muted-foreground text-xs underline-offset-4 group-hover:underline">
         Ver pedidos
       </span>
     </Link>

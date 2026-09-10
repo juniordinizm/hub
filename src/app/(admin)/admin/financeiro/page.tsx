@@ -215,7 +215,6 @@ export default async function AdminFinancePage({
                     hasNextPage={ordersData.ordersHasNextPage}
                     orders={ordersData.orders}
                     page={orderPage}
-                    pageSize={20}
                     paymentMethod={orderPaymentMethod}
                     search={orderSearch}
                     status={orderStatus}

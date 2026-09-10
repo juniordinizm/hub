@@ -1187,30 +1187,30 @@ describe("admin read projections", () => {
 
   it("uses the bounded course-health projection for the dashboard", async () => {
     query.mockImplementation((sql: string) => {
-      if (sql.includes("from orders o") || sql.includes("from certificates")) {
-        return { rows: [] };
+      if (sql.includes("course_health as")) {
+        return {
+          rows: [
+            {
+              active_courses: 1,
+              attention_count: 1,
+              average_readiness_percent: 75,
+              draft_courses: 0,
+              has_description: true,
+              has_published_publication: true,
+              has_thumbnail: true,
+              id: courseId,
+              module_count: 2,
+              published_lesson_count: 3,
+              readiness_percent: 75,
+              status: "active",
+              title: "Course one",
+              total_lesson_count: 4,
+            },
+          ],
+        };
       }
 
-      return {
-        rows: [
-          {
-            active_courses: 1,
-            attention_count: 1,
-            average_readiness_percent: 75,
-            draft_courses: 0,
-            has_description: true,
-            has_published_publication: true,
-            has_thumbnail: true,
-            id: courseId,
-            module_count: 2,
-            published_lesson_count: 3,
-            readiness_percent: 75,
-            status: "active",
-            title: "Course one",
-            total_lesson_count: 4,
-          },
-        ],
-      };
+      return { rows: [] };
     });
 
     await expect(getAdminDashboardProjection()).resolves.toEqual({
@@ -1219,12 +1219,14 @@ describe("admin read projections", () => {
         averageReadinessPercent: 75,
         coursesNeedingAttention: [
           {
+            actionTab: "content",
             hasDescription: true,
             hasPublishedPublication: true,
             hasThumbnail: true,
             id: courseId,
             moduleCount: 2,
             publishedLessonCount: 3,
+            readinessPercent: 75,
             status: "active",
             title: "Course one",
             totalLessonCount: 4,
@@ -1232,6 +1234,77 @@ describe("admin read projections", () => {
         ],
         coursesNeedingAttentionCount: 1,
         draftCourses: 0,
+        salesPausedCourses: 0,
+      },
+      operations: {
+        access: {
+          expiringEnrollmentCount: 0,
+          expiringStudentCount: 0,
+        },
+        certificates: {
+          pending: [],
+          pendingCount: 0,
+        },
+        financial: {
+          disputedOrderCount: 0,
+          failedRefundCount: 0,
+          pendingPaymentReviewCount: 0,
+          pendingRefundCount: 0,
+          pendingRevenueInCents: 0,
+          refundedOrderCount: 0,
+          uncertainCheckoutCount: 0,
+          uncertainRefundCount: 0,
+          uncorrelatedOrderCount: 0,
+        },
+        integrations: {
+          backlog: {
+            alerts: [],
+            emailDelivery: {
+              accepted: 0,
+              bounced: 0,
+              complained: 0,
+              deadLetters: 0,
+              delivered: 0,
+              oldestRetryAt: null,
+              retrying: 0,
+            },
+            outbox: {
+              deadLetters: 0,
+              oldestReadyAt: null,
+              ready: 0,
+              superseded: 0,
+            },
+            payments: {
+              uncertainCheckouts: 0,
+              uncertainRefunds: 0,
+              uncorrelatedOrders: 0,
+            },
+            videos: {
+              oldestPendingAt: null,
+              pending: 0,
+            },
+            webhooks: {
+              failed: 0,
+              oldestFailedAt: null,
+              oldestReadyAt: null,
+              oldestRetryAt: null,
+              ready: 0,
+              retryable: 0,
+            },
+          },
+          failedJmvDeleteCount: 0,
+          failedJmvUploadCount: 0,
+          pendingJmvDeleteCount: 0,
+          processingJmvUploadCount: 0,
+        },
+        supportRequests: {
+          deliveredCount: 0,
+          failedCount: 0,
+          pendingCount: 0,
+          recent: [],
+          sentCount: 0,
+          totalCount: 0,
+        },
       },
       recentCertificates: [],
       recentOrders: [],
@@ -1239,14 +1312,269 @@ describe("admin read projections", () => {
 
     expect(requirePermission).toHaveBeenCalledWith("manageContent");
     expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
-    expect(query).toHaveBeenCalledTimes(3);
-    const dashboardSql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(requirePermission).toHaveBeenCalledWith("viewGlobalAudit");
+    expect(query).toHaveBeenCalledTimes(9);
+    const dashboardSql = String(
+      query.mock.calls.find(([sql]) =>
+        String(sql).includes("course_health as")
+      )?.[0]
+    ).toLowerCase();
     expect(dashboardSql).not.toContain("content_json");
     expect(dashboardSql).not.toContain("select l.*");
     expect(dashboardSql).not.toContain("select m.*");
     expect(dashboardSql).not.toContain("from orders");
     expect(dashboardSql).not.toContain("revenue");
     expect(dashboardSql).toContain("has_published_publication");
+  });
+
+  it("projects daily operational queues with source-specific semantics", async () => {
+    const completedAt = new Date("2026-09-01T12:00:00.000Z");
+    const issuedAt = new Date("2026-09-08T12:00:00.000Z");
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("course_health as")) {
+        return {
+          rows: [
+            {
+              active_courses: 1,
+              attention_count: 0,
+              average_readiness_percent: 100,
+              draft_courses: 0,
+              has_description: true,
+              has_published_publication: true,
+              has_thumbnail: true,
+              id: courseId,
+              module_count: 1,
+              published_lesson_count: 1,
+              readiness_percent: 100,
+              status: "active",
+              title: "Course one",
+              total_lesson_count: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes("order by o.created_at desc")) {
+        return {
+          rows: [
+            {
+              amount_in_cents: 12_900,
+              checkout_status: "active",
+              course_title: "Course one",
+              created_at: issuedAt,
+              customer_email: "student@example.test",
+              customer_name: "Student",
+              id: "order-1",
+              paid_amount_in_cents: 12_900,
+              status: "paid",
+            },
+          ],
+        };
+      }
+      if (sql.includes("course_title_snapshot") && sql.includes("limit 5")) {
+        return {
+          rows: [
+            {
+              code: "CERT-1",
+              course_title_snapshot: "Course one",
+              issued_at: issuedAt,
+              status: "valid",
+              student_name_snapshot: "Student",
+            },
+          ],
+        };
+      }
+      if (sql.includes("expiring_enrollments")) {
+        return {
+          rows: [
+            {
+              expiring_enrollments: 4,
+              expiring_students: 3,
+            },
+          ],
+        };
+      }
+      if (sql.includes("pending_payment_reviews")) {
+        return {
+          rows: [
+            {
+              disputed_orders: 2,
+              failed_refunds: 1,
+              pending_payment_reviews: 3,
+              pending_refunds: 4,
+              pending_revenue_in_cents: "45000",
+              refunded_orders: 5,
+            },
+          ],
+        };
+      }
+      if (sql.includes("eligible_completions")) {
+        return {
+          rows: [
+            {
+              completed_at: completedAt,
+              course_id: courseId,
+              course_title: "Course one",
+              student_name: "Student",
+              total_count: 7,
+            },
+          ],
+        };
+      }
+      if (
+        sql.includes("from jmvstream_video_assets") &&
+        !sql.includes("outbox_ready")
+      ) {
+        return {
+          rows: [
+            {
+              failed_deletes: 1,
+              failed_uploads: 2,
+              pending_deletes: 3,
+              processing_uploads: 4,
+            },
+          ],
+        };
+      }
+      if (sql.includes("support_delivery")) {
+        return {
+          rows: [
+            {
+              course_title: "Course one",
+              created_at: completedAt,
+              delivered_count: 2,
+              delivery_state: "delayed",
+              failed_count: 1,
+              id: "support-1",
+              pending_count: 3,
+              sent_count: 1,
+              student_name: "Student",
+              subject: "Preciso de ajuda",
+              total_count: 6,
+            },
+          ],
+        };
+      }
+      if (sql.includes("outbox_ready")) {
+        return {
+          rows: [
+            {
+              dead_letters: "2",
+              email_accepted: "3",
+              email_bounced: "1",
+              email_complained: "0",
+              email_delivered: "4",
+              email_webhook_dead_letters: "1",
+              email_webhook_oldest_retry_at: null,
+              email_webhook_retrying: "2",
+              oldest_outbox_at: null,
+              oldest_video_at: null,
+              oldest_webhook_failed_at: null,
+              oldest_webhook_ready_at: null,
+              oldest_webhook_retry_at: null,
+              outbox_ready: "5",
+              outbox_superseded: "0",
+              uncertain_checkouts: "6",
+              uncertain_refunds: "7",
+              uncorrelated_orders: "8",
+              videos_pending: "9",
+              webhooks_failed: "10",
+              webhooks_ready: "11",
+              webhooks_retryable: "12",
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+
+    const data = await getAdminDashboardProjection();
+
+    expect(data.operations).toMatchObject({
+      access: {
+        expiringEnrollmentCount: 4,
+        expiringStudentCount: 3,
+      },
+      certificates: {
+        pending: [
+          {
+            completedAt,
+            courseId,
+            courseTitle: "Course one",
+            studentName: "Student",
+          },
+        ],
+        pendingCount: 7,
+      },
+      financial: {
+        disputedOrderCount: 2,
+        failedRefundCount: 1,
+        pendingPaymentReviewCount: 3,
+        pendingRefundCount: 4,
+        pendingRevenueInCents: 45_000,
+        refundedOrderCount: 5,
+        uncertainCheckoutCount: 6,
+        uncertainRefundCount: 7,
+        uncorrelatedOrderCount: 8,
+      },
+      integrations: {
+        failedJmvDeleteCount: 1,
+        failedJmvUploadCount: 2,
+        pendingJmvDeleteCount: 3,
+        processingJmvUploadCount: 4,
+      },
+      supportRequests: {
+        deliveredCount: 2,
+        failedCount: 1,
+        pendingCount: 3,
+        recent: [
+          {
+            courseTitle: "Course one",
+            createdAt: completedAt,
+            deliveryState: "delayed",
+            id: "support-1",
+            studentName: "Student",
+            subject: "Preciso de ajuda",
+          },
+        ],
+        sentCount: 1,
+        totalCount: 6,
+      },
+    });
+    expect(data.recentCertificates).toEqual([
+      {
+        code: "CERT-1",
+        courseTitle: "Course one",
+        issuedAt,
+        status: "valid",
+        studentName: "Student",
+      },
+    ]);
+    expect(
+      String(
+        query.mock.calls.find(([sql]) =>
+          String(sql).includes("order by o.created_at desc")
+        )?.[0]
+      ).toLowerCase()
+    ).toContain("limit 5");
+    expect(
+      String(
+        query.mock.calls.find(([sql]) =>
+          String(sql).includes("from certificates")
+        )?.[0]
+      ).toLowerCase()
+    ).toContain("limit 5");
+    expect(data.operations.integrations.backlog.payments).toEqual({
+      uncertainCheckouts: 6,
+      uncertainRefunds: 7,
+      uncorrelatedOrders: 8,
+    });
+    expect(
+      String(
+        query.mock.calls.find(([sql]) =>
+          String(sql).includes("support_delivery")
+        )?.[0]
+      )
+    ).toContain("email.support-request");
   });
 
   it("keeps the student list within the measured read budget without N+1 queries", async () => {

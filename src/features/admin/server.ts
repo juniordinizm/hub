@@ -47,12 +47,14 @@ export interface AdminOverview {
 }
 
 export interface AdminDashboardCourseHealth {
+  actionTab: "content" | "settings";
   hasDescription: boolean;
   hasPublishedPublication: boolean;
   hasThumbnail: boolean;
   id: string;
   moduleCount: number;
   publishedLessonCount: number;
+  readinessPercent: number;
   status: string;
   title: string;
   totalLessonCount: number;
@@ -64,6 +66,7 @@ export interface AdminDashboardCourseHealthProjection {
   coursesNeedingAttention: AdminDashboardCourseHealth[];
   coursesNeedingAttentionCount: number;
   draftCourses: number;
+  salesPausedCourses: number;
 }
 
 export interface AdminDashboardRecentOrder {
@@ -82,7 +85,69 @@ export interface AdminDashboardRecentCertificate {
   code: string;
   courseTitle: string;
   issuedAt: Date;
+  status: "revoked" | "valid";
   studentName: string;
+}
+
+export type AdminDashboardSupportDeliveryState =
+  | "delayed"
+  | "delivered"
+  | "failed"
+  | "queued"
+  | "sending"
+  | "sent";
+
+export interface AdminDashboardPendingCertificate {
+  completedAt: Date;
+  courseId: string;
+  courseTitle: string;
+  studentName: string;
+}
+
+export interface AdminDashboardSupportRequest {
+  courseTitle: string | null;
+  createdAt: Date;
+  deliveryState: AdminDashboardSupportDeliveryState;
+  id: string;
+  studentName: string;
+  subject: string;
+}
+
+export interface AdminDashboardOperations {
+  access: {
+    expiringEnrollmentCount: number;
+    expiringStudentCount: number;
+  };
+  certificates: {
+    pending: AdminDashboardPendingCertificate[];
+    pendingCount: number;
+  };
+  financial: {
+    disputedOrderCount: number;
+    failedRefundCount: number;
+    pendingPaymentReviewCount: number;
+    pendingRefundCount: number;
+    pendingRevenueInCents: number;
+    refundedOrderCount: number;
+    uncertainCheckoutCount: number;
+    uncertainRefundCount: number;
+    uncorrelatedOrderCount: number;
+  };
+  integrations: {
+    backlog: OperationalBacklogSnapshot;
+    failedJmvDeleteCount: number;
+    failedJmvUploadCount: number;
+    pendingJmvDeleteCount: number;
+    processingJmvUploadCount: number;
+  };
+  supportRequests: {
+    deliveredCount: number;
+    failedCount: number;
+    pendingCount: number;
+    recent: AdminDashboardSupportRequest[];
+    sentCount: number;
+    totalCount: number;
+  };
 }
 
 export const getAdminOverview = async (): Promise<AdminOverview> => {
@@ -108,10 +173,13 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
           select count(*)::int
           from enrollments e
           join courses c on c.id = e.course_id
+          join profiles p on p.user_id = e.user_id
           where e.status = 'active'
             and e.starts_at <= now()
             and e.expires_at >= now()
             and c.status = 'active'
+            and p.role = 'student'
+            and p.platform_blocked_at is null
             and exists (
               select 1
               from course_publications cp
@@ -545,6 +613,302 @@ export interface AdminStudentSheetData {
   student: AdminStudentDetail;
 }
 
+const readDashboardAccessOperations = async (): Promise<
+  AdminDashboardOperations["access"]
+> => {
+  const { rows } = await getPool().query<{
+    expiring_enrollments: number;
+    expiring_students: number;
+  }>(`
+    select
+      count(*)::int as expiring_enrollments,
+      count(distinct e.user_id)::int as expiring_students
+    from enrollments e
+    join courses c on c.id = e.course_id
+    join profiles p on p.user_id = e.user_id and p.role = 'student'
+    where e.status = 'active'
+      and e.starts_at <= now()
+      and e.expires_at >= now()
+      and e.expires_at <= now() + interval '30 days'
+      and c.status = 'active'
+      and p.platform_blocked_at is null
+      and exists (
+        select 1
+        from course_publications cp
+        where cp.course_id = c.id and cp.status = 'published'
+      )
+  `);
+  const row = rows[0];
+
+  return {
+    expiringEnrollmentCount: row?.expiring_enrollments ?? 0,
+    expiringStudentCount: row?.expiring_students ?? 0,
+  };
+};
+
+const readDashboardFinancialOperations = async (): Promise<
+  Pick<
+    AdminDashboardOperations["financial"],
+    | "disputedOrderCount"
+    | "failedRefundCount"
+    | "pendingPaymentReviewCount"
+    | "pendingRefundCount"
+    | "pendingRevenueInCents"
+    | "refundedOrderCount"
+  >
+> => {
+  const { rows } = await getPool().query<{
+    disputed_orders: number;
+    failed_refunds: number;
+    pending_payment_reviews: number;
+    pending_refunds: number;
+    pending_revenue_in_cents: number | string;
+    refunded_orders: number;
+  }>(`
+    select
+      (select count(*)::int from payment_reviews where status = 'pending')
+        as pending_payment_reviews,
+      (select count(*)::int
+       from refund_requests
+       where status in ('requested', 'processing')) as pending_refunds,
+      (select count(*)::int
+       from refund_requests
+       where status = 'failed') as failed_refunds,
+      (select count(*)::int from orders where status = 'disputed')
+        as disputed_orders,
+      (select count(*)::int from orders where status = 'refunded')
+        as refunded_orders,
+      (select coalesce(sum(amount_in_cents), 0)::bigint
+       from orders
+       where status = 'pending'
+         and checkout_status not in ('failed', 'cancelled', 'expired'))
+        as pending_revenue_in_cents
+  `);
+  const row = rows[0];
+
+  return {
+    disputedOrderCount: row?.disputed_orders ?? 0,
+    failedRefundCount: row?.failed_refunds ?? 0,
+    pendingPaymentReviewCount: row?.pending_payment_reviews ?? 0,
+    pendingRefundCount: row?.pending_refunds ?? 0,
+    pendingRevenueInCents: Number(row?.pending_revenue_in_cents ?? 0),
+    refundedOrderCount: row?.refunded_orders ?? 0,
+  };
+};
+
+const readDashboardPendingCertificates = async (): Promise<
+  AdminDashboardOperations["certificates"]
+> => {
+  const { rows } = await getPool().query<{
+    completed_at: Date;
+    course_id: string;
+    course_title: string;
+    student_name: string;
+    total_count: number;
+  }>(`
+    with eligible_completions as (
+      select
+        completion.id,
+        completion.completed_at,
+        completion.course_id,
+        course.title as course_title,
+        student.name as student_name
+      from course_completions completion
+      join courses course
+        on course.id = completion.course_id
+       and course.certificate_enabled = true
+      join users student on student.id = completion.user_id
+      join course_publications publication
+        on publication.id = completion.course_publication_id
+       and publication.course_id = completion.course_id
+      where exists (
+        select 1
+        from certificate_templates template
+        where template.course_id = completion.course_id
+          and template.status = 'published'
+      )
+        and exists (
+          select 1
+          from certificate_issuer_profiles issuer
+          where issuer.id = 'global'
+        )
+        and not exists (
+          select 1
+          from certificates certificate
+          where certificate.user_id = completion.user_id
+            and certificate.course_id = completion.course_id
+        )
+    )
+    select
+      completed_at,
+      course_id,
+      course_title,
+      student_name,
+      count(*) over()::int as total_count
+    from eligible_completions
+    order by completed_at asc, id asc
+    limit 5
+  `);
+
+  return {
+    pending: rows.map((row) => ({
+      completedAt: row.completed_at,
+      courseId: row.course_id,
+      courseTitle: row.course_title,
+      studentName: row.student_name,
+    })),
+    pendingCount: rows[0]?.total_count ?? 0,
+  };
+};
+
+const readDashboardJmvOperations = async (): Promise<
+  Pick<
+    AdminDashboardOperations["integrations"],
+    | "failedJmvDeleteCount"
+    | "failedJmvUploadCount"
+    | "pendingJmvDeleteCount"
+    | "processingJmvUploadCount"
+  >
+> => {
+  const { rows } = await getPool().query<{
+    failed_deletes: number;
+    failed_uploads: number;
+    pending_deletes: number;
+    processing_uploads: number;
+  }>(`
+    select
+      count(*) filter (where upload_status = 'failed')::int as failed_uploads,
+      count(*) filter (where upload_status in ('uploading', 'processing'))::int
+        as processing_uploads,
+      count(*) filter (where delete_status = 'failed')::int as failed_deletes,
+      count(*) filter (where delete_status = 'pending')::int as pending_deletes
+    from jmvstream_video_assets
+  `);
+  const row = rows[0];
+
+  return {
+    failedJmvDeleteCount: row?.failed_deletes ?? 0,
+    failedJmvUploadCount: row?.failed_uploads ?? 0,
+    pendingJmvDeleteCount: row?.pending_deletes ?? 0,
+    processingJmvUploadCount: row?.processing_uploads ?? 0,
+  };
+};
+
+const readDashboardSupportRequests = async (): Promise<
+  AdminDashboardOperations["supportRequests"]
+> => {
+  const { rows } = await getPool().query<{
+    course_title: string | null;
+    created_at: Date;
+    delivery_state: AdminDashboardSupportDeliveryState;
+    failed_count: number;
+    id: string;
+    pending_count: number;
+    sent_count: number;
+    student_name: string;
+    subject: string;
+    total_count: number;
+    delivered_count: number;
+  }>(`
+    with support_delivery as (
+      select
+        request.id,
+        request.course_title,
+        request.created_at,
+        request.subject,
+        student.name as student_name,
+        case
+          when outbox.status in ('dead_letter', 'superseded')
+            or email.status in ('failed', 'suppressed', 'bounced', 'complained')
+            then 'failed'
+          when email.status = 'delivered' or outbox.status = 'delivered'
+            then 'delivered'
+          when email.status = 'accepted'
+            then 'sent'
+          when email.status = 'sending'
+            or outbox.status = 'processing'
+            then 'sending'
+          when email.status in ('acceptance_unknown', 'delayed')
+            or outbox.status = 'retrying'
+            then 'delayed'
+          else 'queued'
+        end as delivery_state
+      from support_requests request
+      join users student on student.id = request.user_id
+      left join outbox_messages outbox
+        on outbox.aggregate_type = 'support_request'
+       and outbox.aggregate_id = request.id::text
+       and outbox.topic = 'email.support-request'
+      left join email_messages email on email.outbox_message_id = outbox.id
+    )
+    select
+      id,
+      course_title,
+      created_at,
+      delivery_state,
+      subject,
+      student_name,
+      count(*) over()::int as total_count,
+      count(*) filter (where delivery_state = 'failed') over()::int
+        as failed_count,
+      count(*) filter (
+        where delivery_state in ('queued', 'sending', 'delayed')
+      ) over()::int as pending_count,
+      count(*) filter (where delivery_state = 'sent') over()::int
+        as sent_count,
+      count(*) filter (where delivery_state = 'delivered') over()::int
+        as delivered_count
+    from support_delivery
+    order by created_at desc, id desc
+    limit 5
+  `);
+
+  const firstRow = rows[0];
+  return {
+    deliveredCount: firstRow?.delivered_count ?? 0,
+    failedCount: firstRow?.failed_count ?? 0,
+    pendingCount: firstRow?.pending_count ?? 0,
+    recent: rows.map((row) => ({
+      courseTitle: row.course_title,
+      createdAt: row.created_at,
+      deliveryState: row.delivery_state,
+      id: row.id,
+      studentName: row.student_name,
+      subject: row.subject,
+    })),
+    sentCount: firstRow?.sent_count ?? 0,
+    totalCount: firstRow?.total_count ?? 0,
+  };
+};
+
+const readDashboardOperations = async (): Promise<AdminDashboardOperations> => {
+  const [access, financial, certificates, jmv, supportRequests, backlog] =
+    await Promise.all([
+      readDashboardAccessOperations(),
+      readDashboardFinancialOperations(),
+      readDashboardPendingCertificates(),
+      readDashboardJmvOperations(),
+      readDashboardSupportRequests(),
+      getOperationalBacklogSnapshot(),
+    ]);
+
+  return {
+    access,
+    certificates,
+    financial: {
+      ...financial,
+      uncertainCheckoutCount: backlog.payments.uncertainCheckouts,
+      uncertainRefundCount: backlog.payments.uncertainRefunds,
+      uncorrelatedOrderCount: backlog.payments.uncorrelatedOrders,
+    },
+    integrations: {
+      backlog,
+      ...jmv,
+    },
+    supportRequests,
+  };
+};
+
 const readDashboardCourseHealth =
   async (): Promise<AdminDashboardCourseHealthProjection> => {
     const { rows } = await getPool().query<{
@@ -559,6 +923,7 @@ const readDashboardCourseHealth =
       module_count: number;
       published_lesson_count: number;
       readiness_percent: number;
+      sales_paused_courses: number;
       status: string;
       title: string;
       total_lesson_count: number;
@@ -586,6 +951,7 @@ const readDashboardCourseHealth =
         c.id,
         c.title,
         c.status,
+        c.sales_status,
         c.created_at,
         (nullif(btrim(c.description), '') is not null) as has_description,
         (c.thumbnail_url is not null) as has_thumbnail,
@@ -614,6 +980,7 @@ const readDashboardCourseHealth =
         c.id,
         c.title,
         c.status,
+        c.sales_status,
         c.created_at,
         c.description,
         c.thumbnail_url,
@@ -649,6 +1016,9 @@ const readDashboardCourseHealth =
       count(*) filter (where readiness_percent < 100) over ()::int as attention_count,
       count(*) filter (where status = 'active') over ()::int as active_courses,
       count(*) filter (where status = 'draft') over ()::int as draft_courses,
+      count(*) filter (
+        where status = 'active' and sales_status = 'closed'
+      ) over ()::int as sales_paused_courses,
       round(avg(readiness_percent) over ())::int as average_readiness_percent
     from scored_courses
     order by readiness_percent asc, title asc, id asc
@@ -662,18 +1032,28 @@ const readDashboardCourseHealth =
       coursesNeedingAttention: rows
         .filter((row) => row.readiness_percent < 100)
         .map((row) => ({
+          actionTab:
+            row.has_description &&
+            row.has_thumbnail &&
+            row.module_count > 0 &&
+            row.total_lesson_count > 0 &&
+            row.published_lesson_count > 0
+              ? "content"
+              : "settings",
           hasDescription: row.has_description,
           hasPublishedPublication: row.has_published_publication,
           hasThumbnail: row.has_thumbnail,
           id: row.id,
           moduleCount: row.module_count,
           publishedLessonCount: row.published_lesson_count,
+          readinessPercent: row.readiness_percent,
           status: row.status,
           title: row.title,
           totalLessonCount: row.total_lesson_count,
         })),
       coursesNeedingAttentionCount: firstRow?.attention_count ?? 0,
       draftCourses: firstRow?.draft_courses ?? 0,
+      salesPausedCourses: firstRow?.sales_paused_courses ?? 0,
     };
   };
 
@@ -704,7 +1084,7 @@ const readDashboardRecentOrders = async (): Promise<
     from orders o
     join courses c on c.id = o.course_id
     order by o.created_at desc, o.id desc
-    limit 4
+    limit 5
   `);
 
   return rows.map((row) => ({
@@ -727,18 +1107,25 @@ const readDashboardRecentCertificates = async (): Promise<
     code: string;
     course_title_snapshot: string;
     issued_at: Date;
+    status: "revoked" | "valid";
     student_name_snapshot: string;
   }>(`
-    select code, course_title_snapshot, student_name_snapshot, issued_at
+    select
+      code,
+      course_title_snapshot,
+      student_name_snapshot,
+      issued_at,
+      status
     from certificates
     order by issued_at desc, id desc
-    limit 6
+    limit 5
   `);
 
   return rows.map((row) => ({
     code: row.code,
     courseTitle: row.course_title_snapshot,
     issuedAt: row.issued_at,
+    status: row.status,
     studentName: row.student_name_snapshot,
   }));
 };
@@ -2341,17 +2728,21 @@ const readAdminStudentAccessSummary =
 
 export const getAdminDashboardProjection = async (): Promise<{
   courseHealth: AdminDashboardCourseHealthProjection;
+  operations: AdminDashboardOperations;
   recentCertificates: AdminDashboardRecentCertificate[];
   recentOrders: AdminDashboardRecentOrder[];
 }> => {
   await requirePermission("manageContent");
   await requirePermission("viewFinancials");
-  const [courseHealth, recentOrders, recentCertificates] = await Promise.all([
-    readDashboardCourseHealth(),
-    readDashboardRecentOrders(),
-    readDashboardRecentCertificates(),
-  ]);
-  return { courseHealth, recentCertificates, recentOrders };
+  await requirePermission("viewGlobalAudit");
+  const [courseHealth, recentOrders, recentCertificates, operations] =
+    await Promise.all([
+      readDashboardCourseHealth(),
+      readDashboardRecentOrders(),
+      readDashboardRecentCertificates(),
+      readDashboardOperations(),
+    ]);
+  return { courseHealth, operations, recentCertificates, recentOrders };
 };
 
 export const getAdminStudentsData = async (

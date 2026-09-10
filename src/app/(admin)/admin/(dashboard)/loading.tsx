@@ -12,38 +12,44 @@ export default async function AdminAreaLoading(): Promise<React.JSX.Element> {
   );
 }
 
-function LoadingHeader({ actionCount }: { actionCount: number }) {
-  const actionKeys = actionCount === 1 ? ["main"] : ["catalog", "finance"];
-
+function LoadingHeader() {
   return (
     <header className="border-b pb-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex-1 space-y-3">
-          <Skeleton className="h-9 w-64" />
-          <Skeleton className="h-5 w-full max-w-[400px]" />
-        </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {actionKeys.map((key) => (
-            <Skeleton
-              className="h-9 w-32"
-              key={`dashboard-loading-action-${key}`}
-            />
-          ))}
-        </div>
+      <div className="flex flex-col gap-3">
+        <Skeleton className="h-9 w-56" />
+        <Skeleton className="h-5 w-full max-w-[420px]" />
       </div>
     </header>
   );
 }
 
-function MetricLoadingGrid(): React.JSX.Element {
-  const metricKeys = ["courses", "students", "access", "orders"];
+function MetricLoadingBand(): React.JSX.Element {
+  const metricKeys = ["revenue", "students", "access", "expiring", "orders"];
+
+  return (
+    <section>
+      <Skeleton className="mb-3 h-5 w-28" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {metricKeys.map((key) => (
+          <Skeleton
+            className="h-[126px] rounded-xl"
+            key={`dashboard-loading-metric-${key}`}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SupportMetricLoadingGrid(): React.JSX.Element {
+  const metricKeys = ["orders", "revenue", "enrollments", "courses"];
 
   return (
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {metricKeys.map((key) => (
         <Skeleton
-          className="h-[120px] rounded-xl"
-          key={`dashboard-loading-metric-${key}`}
+          className="h-[126px] rounded-xl"
+          key={`support-loading-metric-${key}`}
         />
       ))}
     </section>
@@ -53,16 +59,53 @@ function MetricLoadingGrid(): React.JSX.Element {
 function AdminDashboardLoading(): React.JSX.Element {
   return (
     <PageContainer>
-      <div className="flex flex-col gap-8">
-        <LoadingHeader actionCount={2} />
-        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <Skeleton className="h-[280px] rounded-xl" />
-          <Skeleton className="h-[280px] rounded-xl" />
+      <div aria-busy="true" className="flex flex-col gap-6" role="status">
+        <span className="sr-only">Carregando o painel administrativo…</span>
+        <LoadingHeader />
+        <MetricLoadingBand />
+        <section>
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div className="grid gap-2">
+              <Skeleton className="h-5 w-52" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </div>
+            <Skeleton className="h-5 w-28" />
+          </div>
+          <div className="grid gap-4">
+            <Skeleton className="h-[340px] rounded-xl" />
+            <Skeleton className="h-[420px] rounded-xl" />
+          </div>
         </section>
-        <MetricLoadingGrid />
-        <section className="grid gap-4 xl:grid-cols-2">
-          <Skeleton className="h-[250px] rounded-xl" />
-          <Skeleton className="h-[250px] rounded-xl" />
+        <section>
+          <div className="mb-3 grid gap-2">
+            <Skeleton className="h-5 w-56" />
+            <Skeleton className="h-4 w-80 max-w-full" />
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Skeleton className="h-[460px] rounded-xl" />
+            <Skeleton className="h-[400px] rounded-xl" />
+          </div>
+        </section>
+        <section>
+          <div className="mb-3 grid gap-2">
+            <Skeleton className="h-5 w-52" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton className="h-[240px] rounded-xl" />
+            <Skeleton className="h-[210px] rounded-xl" />
+            <Skeleton className="h-[270px] rounded-xl" />
+          </div>
+        </section>
+        <section>
+          <div className="mb-3 grid gap-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+          <div className="grid gap-4">
+            <Skeleton className="h-[360px] rounded-xl" />
+            <Skeleton className="h-[420px] rounded-xl" />
+          </div>
         </section>
       </div>
     </PageContainer>
@@ -72,10 +115,11 @@ function AdminDashboardLoading(): React.JSX.Element {
 function SupportDashboardLoading(): React.JSX.Element {
   return (
     <PageContainer>
-      <div className="flex flex-col gap-8">
-        <LoadingHeader actionCount={1} />
-        <MetricLoadingGrid />
+      <div aria-busy="true" className="flex flex-col gap-6" role="status">
+        <span className="sr-only">Carregando o painel de suporte…</span>
+        <LoadingHeader />
         <Skeleton className="h-[360px] rounded-xl" />
+        <SupportMetricLoadingGrid />
       </div>
     </PageContainer>
   );
