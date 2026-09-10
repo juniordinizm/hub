@@ -31,11 +31,8 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { saveCourseAction } from "@/features/admin/actions";
-import {
-  type AdminCourse,
-  type AdminCourseCatalogQuery,
-  getAdminCourseCatalogData,
-} from "@/features/admin/server";
+import type { AdminCourse } from "@/features/admin/server";
+import { getAdminCourseCatalogData } from "@/features/admin/server";
 import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
 import { resolveCourseAvailability } from "@/features/courses/availability";
 import { CourseCoverImage } from "@/features/courses/course-cover-image";
@@ -60,6 +57,28 @@ const getInitials = (title: string): string =>
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
 
+const getCourseResultSummary = ({
+  courseCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  courseCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum Curso";
+  }
+  if (courseCount === 0) {
+    return `Nenhum Curso nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + courseCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} Curso${totalCount === 1 ? "" : "s"}`;
+};
+
 interface AdminCoursesPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -74,16 +93,17 @@ export default async function AdminCoursesPage({
   await requirePermission("manageContent");
   const params = (await searchParams) ?? {};
   const rawPage = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
-  const options: AdminCourseCatalogQuery = {
+  const data = await getAdminCourseCatalogData({
     page: Number.isFinite(rawPage) ? rawPage : 1,
-    search: firstSearchParam(params.q),
-  };
-  const data = await getAdminCourseCatalogData(options);
+  });
+  const resultSummary = getCourseResultSummary({
+    courseCount: data.courses.length,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
+  });
   const pageHref = (targetPage: number): string => {
     const query = new URLSearchParams();
-    if (data.search) {
-      query.set("q", data.search);
-    }
     query.set("page", String(targetPage));
     return `/admin/cursos?${query.toString()}`;
   };
@@ -112,26 +132,9 @@ export default async function AdminCoursesPage({
               <CourseForm priceFieldId="header-course-price" />
             </DiscardAwareDialog>
           }
-          description="Gerencie cursos em uma visão limpa. Entre em um curso para organizar módulos, aulas, alunas e publicação."
+          description="Gerencie cursos em uma visão limpa. Entre em um curso para organizar módulos, aulas, alunos e publicação."
           title="Cursos"
         />
-
-        <form
-          action="/admin/cursos"
-          className="flex max-w-xl gap-2"
-          method="get"
-        >
-          <input name="page" type="hidden" value="1" />
-          <Input
-            aria-label="Buscar cursos"
-            autoComplete="off"
-            className="min-w-0 flex-1"
-            defaultValue={data.search}
-            name="q"
-            placeholder="Buscar por título, subtítulo ou slug…"
-          />
-          <Button type="submit">Buscar</Button>
-        </form>
 
         <section className="flex flex-wrap gap-5">
           {data.courses.length === 0 ? (
@@ -140,42 +143,31 @@ export default async function AdminCoursesPage({
                 <EmptyMedia variant="icon">
                   <HugeiconsIcon aria-hidden="true" icon={Book01Icon} />
                 </EmptyMedia>
-                <EmptyTitle as="h2">
-                  {data.search
-                    ? "Nenhum curso encontrado"
-                    : "Nenhum curso cadastrado"}
-                </EmptyTitle>
+                <EmptyTitle as="h2">Nenhum curso cadastrado</EmptyTitle>
                 <EmptyDescription>
-                  {data.search
-                    ? `A busca por “${data.search}” não retornou cursos.`
-                    : "Crie o primeiro curso para começar a adicionar módulos e aulas."}
+                  Crie o primeiro curso para começar a adicionar módulos e
+                  aulas.
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                {data.search ? (
-                  <Button asChild variant="outline">
-                    <Link href="/admin/cursos">Limpar busca</Link>
-                  </Button>
-                ) : (
-                  <DiscardAwareDialog
-                    description="Crie o curso antes de cadastrar seus módulos e aulas."
-                    title="Novo curso"
-                    trigger={
-                      <DialogTriggerButton>
-                        <HugeiconsIcon
-                          aria-hidden="true"
-                          data-icon="inline-start"
-                          icon={Add01Icon}
-                          size={18}
-                          strokeWidth={2}
-                        />
-                        Criar primeiro curso
-                      </DialogTriggerButton>
-                    }
-                  >
-                    <CourseForm priceFieldId="empty-course-price" />
-                  </DiscardAwareDialog>
-                )}
+                <DiscardAwareDialog
+                  description="Crie o curso antes de cadastrar seus módulos e aulas."
+                  title="Novo curso"
+                  trigger={
+                    <DialogTriggerButton>
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        data-icon="inline-start"
+                        icon={Add01Icon}
+                        size={18}
+                        strokeWidth={2}
+                      />
+                      Criar primeiro curso
+                    </DialogTriggerButton>
+                  }
+                >
+                  <CourseForm priceFieldId="empty-course-price" />
+                </DiscardAwareDialog>
               </EmptyContent>
             </Empty>
           ) : (
@@ -230,12 +222,7 @@ export default async function AdminCoursesPage({
 
                     <div className="mt-auto pt-10">
                       <h3 className="line-clamp-2 font-bold text-lg">
-                        <Link
-                          className="before:absolute before:inset-0"
-                          href={route(`/admin/cursos/${course.id}`)}
-                        >
-                          {course.title}
-                        </Link>
+                        {course.title}
                       </h3>
                       <div className="mt-2 flex items-start gap-4">
                         <div className="flex-1">
@@ -246,8 +233,8 @@ export default async function AdminCoursesPage({
                           ) : null}
                         </div>
                         <div className="shrink-0 pt-0.5 text-right font-medium text-card-foreground/60 text-xs">
-                          {course.moduleCount ?? 0} módulos •{" "}
-                          {course.lessonCount ?? 0} aulas
+                          {course.moduleCount} módulos • {course.lessonCount}{" "}
+                          aulas
                         </div>
                       </div>
                     </div>
@@ -278,30 +265,24 @@ export default async function AdminCoursesPage({
           )}
         </section>
 
-        <div className="flex items-center justify-between border-t pt-4">
-          <span className="text-muted-foreground text-sm">
-            Página {data.page}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <span aria-live="polite" className="text-muted-foreground text-sm">
+            {resultSummary}
           </span>
-          <div className="flex gap-2">
-            {data.page > 1 ? (
-              <Button asChild variant="outline">
-                <Link href={pageHref(data.page - 1)}>Anterior</Link>
-              </Button>
-            ) : (
-              <Button disabled variant="outline">
-                Anterior
-              </Button>
-            )}
-            {data.hasNextPage ? (
-              <Button asChild variant="outline">
-                <Link href={pageHref(data.page + 1)}>Próxima</Link>
-              </Button>
-            ) : (
-              <Button disabled variant="outline">
-                Próxima
-              </Button>
-            )}
-          </div>
+          {data.page > 1 || data.hasNextPage ? (
+            <nav aria-label="Paginação de Cursos" className="flex gap-2">
+              {data.page > 1 ? (
+                <Button asChild variant="outline">
+                  <Link href={pageHref(data.page - 1)}>Anterior</Link>
+                </Button>
+              ) : null}
+              {data.hasNextPage ? (
+                <Button asChild variant="outline">
+                  <Link href={pageHref(data.page + 1)}>Próxima</Link>
+                </Button>
+              ) : null}
+            </nav>
+          ) : null}
         </div>
       </div>
     </PageContainer>

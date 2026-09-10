@@ -235,7 +235,7 @@ describe("certificate rendering field values", () => {
     }
     const studentNameSnapshot: CertificateRenderSnapshot = {
       ...snapshot,
-      student: { name: "Aluna com nome comprido" },
+      student: { name: "Aluno com nome comprido" },
       template: {
         ...snapshot.template,
         fields: [
@@ -260,7 +260,7 @@ describe("certificate rendering field values", () => {
 
     expect(document.fontSize).toHaveBeenCalledWith(30);
     expect(document.text).toHaveBeenCalledWith(
-      "Aluna com nome comprido",
+      "Aluno com nome comprido",
       expect.any(Number),
       expect.any(Number),
       expect.objectContaining({ height: expect.any(Number) })

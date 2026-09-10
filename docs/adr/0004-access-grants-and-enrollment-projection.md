@@ -8,7 +8,7 @@ last_verified_commit: 9419c09b9c7f4a4f3f977e896f51374548080dd8
 
 ## Contexto
 
-Uma Conta pode adquirir o mesmo Curso mais de uma vez. Reembolso, disputa, renovação e ajuste pertencem à origem individual; a experiência da Aluna precisa de um único acesso atual.
+Uma Conta pode adquirir o mesmo Curso mais de uma vez. Reembolso, disputa, renovação e ajuste pertencem à origem individual; a experiência do Aluno precisa de um único acesso atual.
 
 ## Decisão
 

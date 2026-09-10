@@ -117,7 +117,7 @@ describe("renderCertificatePdf", () => {
         issuedAt: snapshot.certificate.issuedAt,
       },
       course: { title: "Curso E2E certificável", workloadHours: 1 },
-      student: { name: "Aluna para conclusao" },
+      student: { name: "Aluno para conclusao" },
       template: {
         ...snapshot.template,
         fields: createDefaultCertificateTemplateFields(),

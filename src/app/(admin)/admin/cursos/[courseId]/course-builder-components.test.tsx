@@ -261,7 +261,7 @@ describe("module content release controls", () => {
     expect(delayDays?.getAttribute("min")).toBe("1");
     expect(delayDays?.getAttribute("step")).toBe("1");
     expect(document.body.textContent).toContain(
-      "Cada dia equivale a 24 horas desde o início do acesso da Aluna."
+      "Cada dia equivale a 24 horas desde o início do acesso do Aluno."
     );
   });
 

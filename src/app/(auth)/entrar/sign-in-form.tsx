@@ -94,7 +94,7 @@ export function SignInForm(): React.JSX.Element {
             autoComplete="email"
             id="email"
             name="email"
-            placeholder="aluna@exemplo.com"
+            placeholder="aluno@exemplo.com"
             required
             type="email"
           />

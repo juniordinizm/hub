@@ -7,6 +7,7 @@ import {
   PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ResourceDeleteAction,
@@ -74,15 +75,12 @@ export function SortableBannerItem({
           <p className="min-w-0 flex-1 truncate font-medium text-[13px]">
             {banner.linkUrl ? banner.linkUrl : "Sem link configurado"}
           </p>
-          <span
-            className={`shrink-0 rounded-md px-1.5 py-0.5 font-semibold text-xs ${
-              banner.isActive
-                ? "bg-success/15 text-success"
-                : "bg-muted/80 text-muted-foreground"
-            }`}
+          <Badge
+            className="shrink-0"
+            variant={banner.isActive ? "success" : "outline"}
           >
             {banner.isActive ? "Ativo" : "Inativo"}
-          </span>
+          </Badge>
         </div>
         <p className="truncate text-muted-foreground text-xs">
           {banner.buttonText ? `Botão: ${banner.buttonText}` : "Sem botão"}

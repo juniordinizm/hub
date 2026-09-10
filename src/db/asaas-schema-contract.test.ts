@@ -2,12 +2,15 @@ import { readFile } from "node:fs/promises";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import {
+  asaasInstallmentPayments,
   asaasStatementImportCursors,
   buyerIdentityStatusEnum,
   checkoutStatusEnum,
   courses,
   enrollmentGrantSourceTypeEnum,
   enrollmentGrants,
+  financialEventSourceEnum,
+  financialEvents,
   orderStatusEnum,
   orders,
   paymentReviews,
@@ -121,6 +124,7 @@ describe("Asaas persistence contract", () => {
         "provider_settlement_status",
         "provider_refund_status",
         "provider_dispute_status",
+        "payment_installment_count",
       ])
     );
     expect(columnNames(orders)).not.toContain("provider_order_id");
@@ -142,6 +146,7 @@ describe("Asaas persistence contract", () => {
         "orders_financial_amounts_non_negative",
         "orders_paid_evidence_consistent",
         "orders_refunded_evidence_consistent",
+        "orders_actual_installment_count_valid",
       ])
     );
   });
@@ -242,6 +247,16 @@ describe("Asaas persistence contract", () => {
     expect(indexNames(paymentReviews)).toContain(
       "payment_reviews_webhook_event_unique_idx"
     );
+    expect(columnNames(paymentReviews)).toEqual(
+      expect.arrayContaining([
+        "observed_amount_in_cents",
+        "observed_net_amount_in_cents",
+        "observed_fee_amount_in_cents",
+      ])
+    );
+    expect(checkNames(paymentReviews)).toContain(
+      "payment_reviews_observed_amounts_non_negative"
+    );
 
     expect(columnNames(refundRequests)).not.toContain("provider_refund_id");
     expect(columnNames(refundRequests)).toEqual(
@@ -295,6 +310,116 @@ describe("Asaas persistence contract", () => {
     expect(migration).not.toContain(
       '"paid_amount_in_cents" IS DISTINCT FROM "amount_in_cents"'
     );
+  });
+
+  it("keeps a normalized append-only financial event trail", async () => {
+    expect(financialEventSourceEnum.enumValues).toEqual([
+      "order",
+      "webhook",
+      "statement",
+      "refund",
+      "review",
+      "installment",
+      "migration",
+    ]);
+    expect(columnNames(financialEvents)).toEqual(
+      expect.arrayContaining([
+        "source",
+        "event_key",
+        "event_type",
+        "occurred_at",
+        "order_id",
+        "webhook_event_id",
+        "refund_request_id",
+        "payment_review_id",
+        "provider_payment_id",
+        "provider_transaction_id",
+        "order_status_before",
+        "order_status_after",
+        "provider_payment_status_before",
+        "provider_payment_status_after",
+        "amount_in_cents",
+        "value_in_cents",
+        "fee_amount_in_cents",
+        "net_amount_in_cents",
+        "refund_amount_in_cents",
+        "metadata",
+      ])
+    );
+    expect(indexNames(financialEvents)).toEqual(
+      expect.arrayContaining([
+        "financial_events_provider_source_key_unique_idx",
+        "financial_events_order_occurred_idx",
+        "financial_events_payment_occurred_idx",
+        "financial_events_transaction_idx",
+        "financial_events_occurred_idx",
+      ])
+    );
+    expect(checkNames(financialEvents)).toEqual(
+      expect.arrayContaining([
+        "financial_events_event_key_not_empty",
+        "financial_events_event_type_not_empty",
+        "financial_events_amounts_non_negative",
+      ])
+    );
+
+    const migration = await readFile(
+      new URL("./migrations/0074_boring_nitro.sql", import.meta.url),
+      "utf8"
+    );
+    expect(migration).toContain('CREATE TABLE "financial_events"');
+    expect(migration).toContain("record_financial_order_event");
+    expect(migration).toContain("webhook.associated");
+    expect(migration).toContain("financial_events_append_only");
+    expect(migration).toContain(
+      "ON CONFLICT (provider, source, event_key) DO NOTHING"
+    );
+    expect(migration).toContain("financial_events_amounts_non_negative");
+  });
+
+  it("persists individual Asaas installment payment evidence", async () => {
+    expect(columnNames(asaasInstallmentPayments)).toEqual(
+      expect.arrayContaining([
+        "order_id",
+        "provider_installment_id",
+        "provider_payment_id",
+        "installment_number",
+        "status",
+        "due_date",
+        "payment_date",
+        "client_payment_date",
+        "value_in_cents",
+        "net_value_in_cents",
+        "fee_amount_in_cents",
+        "anticipated",
+        "synced_at",
+      ])
+    );
+    expect(indexNames(asaasInstallmentPayments)).toEqual(
+      expect.arrayContaining([
+        "asaas_installment_payments_provider_payment_unique_idx",
+        "asaas_installment_payments_order_number_idx",
+        "asaas_installment_payments_installment_status_idx",
+      ])
+    );
+    expect(checkNames(asaasInstallmentPayments)).toEqual(
+      expect.arrayContaining([
+        "asaas_installment_payments_installment_number_positive",
+        "asaas_installment_payments_amounts_consistent",
+      ])
+    );
+    const migration = await readFile(
+      new URL(
+        "./migrations/0075_installment_schedule_and_observed_evidence.sql",
+        import.meta.url
+      ),
+      "utf8"
+    );
+    expect(migration).toContain('CREATE TABLE "asaas_installment_payments"');
+    expect(migration).toContain(
+      'ALTER TYPE "public"."financial_event_source" ADD VALUE \'installment\''
+    );
+    expect(migration).toContain('"observed_amount_in_cents" integer');
   });
 
   it("deduplicates financial review by durable webhook identity", async () => {

@@ -114,6 +114,7 @@ function CalendarDayButton({
       size="icon"
       variant="ghost"
       {...props}
+      type="button"
     />
   );
 }

@@ -37,7 +37,7 @@ export function LessonCommentsSection({
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-semibold text-xl tracking-tight">
               {context === "admin"
-                ? "Comentários das alunas"
+                ? "Comentários dos alunos"
                 : "Dúvidas e comentários"}
             </h2>
             <Badge variant="outline">
@@ -176,7 +176,7 @@ function CommentBody({
 
       {comment.isHidden ? (
         <div className="space-y-2 rounded-md bg-muted px-3 py-2 text-muted-foreground text-sm">
-          <p className="italic">Comentário ocultado da área da aluna.</p>
+          <p className="italic">Comentário ocultado da área do aluno.</p>
           {canModerate ? (
             <p className="whitespace-pre-wrap break-words text-xs leading-5">
               {comment.body}

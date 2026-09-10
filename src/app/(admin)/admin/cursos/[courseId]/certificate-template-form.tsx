@@ -76,6 +76,7 @@ import { CertificateTemplateOverflowNotice } from "./certificate-template-overfl
 import { CertificateTemplateOverlapNotice } from "./certificate-template-overlap-notice";
 import { CertificateTemplatePreview } from "./certificate-template-preview";
 import { CertificateTemplateVisibilitySheet } from "./certificate-template-visibility-sheet";
+import { useCourseTabDirty } from "./course-management-tabs";
 
 const CERTIFICATE_TEMPLATE_FORM_ID = "certificate-template-editor-form";
 
@@ -446,6 +447,7 @@ export function CertificateTemplateForm({
   const signatureObjectUrl = useOwnedObjectUrl(signatureFile);
   const backgroundImageName = template?.spec.backgroundKey?.split("/").at(-1);
   const signatureImageName = template?.signatureKey?.split("/").at(-1);
+  useCourseTabDirty("certificate", isDirty);
 
   // Estado para os URLs das imagens que são mostrados no Preview
   // Se o usuário selecionou um arquivo local, setamos aqui para preview.

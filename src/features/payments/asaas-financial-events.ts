@@ -61,6 +61,7 @@ export interface AsaasFinancialEventDecision {
     feeAmountInCents?: number;
     netAmountInCents?: number;
     orderStatus?: AsaasFinancialOrderSnapshot["orderStatus"];
+    paymentInstallmentCount?: number;
     paidAmountInCents?: number;
     paymentMethod?: string;
     providerCheckoutStatus?: string;
@@ -189,6 +190,22 @@ export interface QueriedAsaasPaymentEvidence {
   status: string;
   valueInCents: number;
 }
+
+export interface AsaasPaymentFinancialEvidence {
+  netValueInCents: number | null;
+  valueInCents: number | null;
+}
+
+export const getAsaasPaymentFinancialEvidence = (
+  payload: unknown
+): AsaasPaymentFinancialEvidence => {
+  const payment =
+    isRecord(payload) && isRecord(payload.payment) ? payload.payment : null;
+  return {
+    netValueInCents: parseAsaasDecimalToCents(payment?.netValue),
+    valueInCents: parseAsaasDecimalToCents(payment?.value),
+  };
+};
 
 const getCheckoutStatus = (
   event: string

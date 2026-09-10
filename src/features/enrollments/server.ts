@@ -920,10 +920,10 @@ export const setEnrollmentExpiration = async ({
       `
         update enrollment_grants
         set status = case
-              when $2 < $3 then 'expired'::enrollment_grant_status
+              when $2::timestamptz < $3::timestamptz then 'expired'::enrollment_grant_status
               else 'active'::enrollment_grant_status
             end,
-            effective_expires_at = $2,
+            effective_expires_at = $2::timestamptz,
             updated_at = now()
         where id = $1
       `,

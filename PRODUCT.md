@@ -9,16 +9,16 @@ last_verified_commit: e325b7e
 ## Propósito
 
 Centralizar venda, entrega e operação de Cursos da NeuroCapacitar. O Hub permite
-que uma Aluna compre ou receba acesso, percorra conteúdo em ordem, acompanhe
+que um Aluno compre ou receba acesso, percorra conteúdo em ordem, acompanhe
 progresso, interaja nas Aulas e obtenha Certificado. PROTEA-R é um dos Cursos
 entregues pelo produto. A equipe publica conteúdo, cuida de acessos e resolve
 exceções financeiras e de dados com rastreabilidade.
 
 ## Público
 
-- **Aluna:** aprende, acompanha acesso/progresso, comenta, baixa materiais e consulta Certificados.
+- **Aluno:** aprende, acompanha acesso/progresso, comenta, baixa materiais e consulta Certificados.
 - **Compradora:** fornece identidade no checkout hospedado Asaas. Na compra de Curso
-  atual, Compradora e Aluna são a mesma pessoa; compra para terceiro permanece fora do
+  atual, Compradora e Aluno são a mesma pessoa; compra para terceiro permanece fora do
   escopo.
 - **Especialista:** define conteúdo, experiência pedagógica e decisões de produto.
 - **Suporte:** atende acesso, financeiro, Certificados e solicitações de dados conforme permissão.
@@ -30,7 +30,7 @@ Os termos têm definição estrita no [glossário](CONTEXT.md).
 
 ### Compra e liberação
 
-1. Visitante ou Aluna autenticada escolhe Curso ativo e segue para o handoff transitório do checkout.
+  1. Visitante ou Aluno autenticado escolhe Curso ativo e segue para o handoff transitório do checkout.
 2. Hub persiste o Pedido, o snapshot do cronograma e seus demais snapshots antes de criar o checkout hospedado Asaas com
    item inline; não existe produto remoto por Curso.
 3. Webhook autenticado entra em inbox durável e o worker atualiza o Pedido.
@@ -51,18 +51,18 @@ fluxo protegido e da requalificação externa vigente.
 
 ### Aprendizagem
 
-1. Aluna autenticada vê Cursos acessíveis e catálogo.
+  1. Aluno autenticado vê Cursos acessíveis e catálogo.
 2. Acesso depende de Conta e Matrícula efetivas.
 3. Aulas obedecem à sequência e ao atraso temporal do Módulo na publicação vigente; Matrículas antigas permanecem integrais.
 4. Vídeo, texto, materiais e comentários formam a experiência.
-5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; a Aluna acompanha preparo, disponibilidade ou falha. O Curso oferece a entrada contextual, `/app/certificados` mantém o arquivo global e `/certificados/[code]` é a página canônica de validação, preview, download e compartilhamento quando o documento está válido e pronto.
-6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; a Aluna pode desligá-lo em Configurações sem afetar a jornada pedagógica.
+5. A primeira Conclusão do Curso pode iniciar a emissão automática de Certificado conforme regra vigente; o Aluno acompanha preparo, disponibilidade ou falha. O Curso oferece a entrada contextual, `/app/certificados` mantém o arquivo global e `/certificados/[code]` é a página canônica de validação, preview, download e compartilhamento quando o documento está válido e pronto.
+6. Analytics técnico minimizado fica habilitado por padrão para melhoria das Aulas; o Aluno pode desligá-lo em Configurações sem afetar a jornada pedagógica.
 
 ### Operação
 
 1. Admin cria Curso, Módulos e Aulas.
 2. Admin publica conteúdo quando dados mínimos estão prontos e não aumenta atrasos efetivos após Matrículas programadas.
-3. Admin/Suporte consulta Alunas, acessos, financeiro, Certificados e auditoria conforme permissão.
+3. Admin/Suporte consulta Alunos, acessos, financeiro, Certificados e auditoria conforme permissão.
 4. Exceções usam ajustes, bloqueios, revisões, reembolso e revogação/reemissão; pedidos de dados são tratados excepcionalmente, não por inbox permanente.
 5. O painel de aprendizagem mostra somente métricas agregadas por Aula e Publicação; não há acompanhamento individual por inatividade.
 6. Admin controla separadamente entrega, presença na vitrine e novas vendas. Pausar vendas preserva o acesso vigente; “Em breve” aceita interesse sem cobrança ou Matrícula.
@@ -121,7 +121,7 @@ houver política jurídica formal e demanda real.
 `admin` possui todas as permissões em `rolePermissions`, de `src/lib/auth-policy.ts`.
 A fronteira granular aprovada no
 [DEC-DISC-014](docs/decisions.md#dec-disc-014) autoriza `support` a analisar Cursos,
-Alunas, Matrículas e finanças; operar validade e bloqueio de Matrícula; reemitir
+Alunos, Matrículas e finanças; operar validade e bloqueio de Matrícula; reemitir
 somente o Certificado mais recente; e executar reembolso integral. Autoria,
 configuração, moderação, analytics detalhado, decisão financeira, conciliação,
 retry, bloqueio de plataforma, emissão e revogação permanecem exclusivas de
@@ -130,11 +130,22 @@ administrativo não faz parte do produto atual; uma adoção futura exigirá dec
 especificação próprias. Não há workflow de anonimização ou solicitações de dados
 no produto atual.
 
+A rota Financeiro organiza a operação em Visão geral, Pedidos e Análises. A visão
+operacional mantém a fila de revisões, a conciliação e a sincronização local do extrato
+próximas dos pedidos; Análises compara por período recebimentos confirmados,
+recebimentos em aberto, taxas e reembolsos, sempre marcando o líquido como estimativa
+baseada nos snapshots. Recebimento confirmado não é saldo disponível no Asaas. Compras
+parceladas entram no resumo global pelo total agregado; depois de uma conciliação que
+valide o parcelamento, o detalhe do Pedido também mostra as cobranças individuais,
+separando valores confirmados e ainda não confirmados sem inferir saldo em conta.
+A trilha `financial_events` preserva ocorrências financeiras normalizadas para auditoria
+e evolução de análises, mas não substitui o fechamento contábil do Asaas.
+
 ## Critérios de qualidade
 
 - decisões financeiras e de acesso rastreáveis;
 - acesso negado por padrão quando identidade ou estado são ambíguos;
 - conteúdo utilizável com semântica, teclado e hierarquia de títulos;
 - operação recuperável por logs, IDs externos e runbooks;
-- dados históricos preservados por snapshots;
+- dados históricos preservados por snapshots e eventos financeiros normalizados;
 - limitações comunicadas sem prometer garantias inexistentes.

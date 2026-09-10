@@ -17,7 +17,7 @@ O racional histórico para a escolha de Next.js, React, Postgres/Neon e Vercel n
 ### Rotas
 
 - `src/app/(auth)`: entrada e recuperação de senha.
-- `src/app/(student)`: área autenticada da Aluna.
+- `src/app/(student)`: área autenticada do Aluno.
 - `src/app/(admin)`: painel de Admin/Suporte.
 - `src/app/api`: Better Auth, checkout, webhooks, mídia, crons e health check.
 - `src/app/certificados/[code]`: página pública canônica de validação, preview e compartilhamento; as subrotas `preview` e `pdf` mediam artefatos privados sem publicar chaves do R2.
@@ -118,7 +118,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 ### Certificado, analytics e manutenção
 
-- cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados da Aluna, Curso e emissão em `render_snapshot`;
+- cada Curso pode publicar uma versão imutável de template A4, vinculada ao perfil emissor global; novas emissões congelam template, dados do Aluno, Curso e emissão em `render_snapshot`;
 - `completeLesson` usa lock transacional por Conta e Curso antes do progresso e do resumo; somente a transação que insere a primeira `CourseCompletion` pode criar o Certificado automático `pending` e a mensagem `certificate.render`;
 - o worker obtém claim persistido, grava o artefato privado no R2 e só então enfileira o e-mail que aponta para `/certificados/[code]`. A página do Curso é a entrada contextual do Certificado; `/app/certificados` é o arquivo global autenticado. Ambas distinguem `pending`, `ready`, `failed` e revogado sem transformar a lista autenticada no destino canônico de compartilhamento;
 - `issueManualCertificate`, `revokeCertificate` e `reissueCertificate` controlam lifecycle com confirmação validada no servidor; reemissão cria nova evidência e preserva a anterior revogada;
@@ -127,7 +127,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - não existe workflow de solicitações ou anonimização de dados. `runMaintenance` executa
   limpeza técnica limitada: sessões e rate limits expirados, reservas Asaas
   inequivocamente pré-provider abandonadas, sanitização do payload bruto da inbox Asaas
-  após 30 dias, agregação diária de analytics e retenção de analytics brutos por 90 dias
+  após 30 dias, agregação diária de analytics e retenção de analytics brutos por 12 meses
   e agregados por 13 meses.
 
 ## Observabilidade
@@ -190,8 +190,8 @@ Comece no guia de domínio, siga a evidência para o símbolo da feature e entã
 
 O plano 008 trata tamanho como sinal, não como motivo suficiente para mover código. O mapa atual identifica responsabilidades independentes antes de qualquer extração:
 
-- `courses/server.ts`: catálogo, acesso da aluna, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
-- `admin/server.ts`: read models por superfície: catálogo/autoria, alunas/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
+- `courses/server.ts`: catálogo, acesso do aluno, leitura de aula, progresso e coordenação de conclusão. A conclusão preserva sua transação e delega a elegibilidade, emissão e enfileiramento ao símbolo `issueCompletionCertificateIfEligible` de `certificates/server.ts`.
+- `admin/server.ts`: read models por superfície: catálogo/autoria, alunos/acesso, financeiro, auditoria e configurações. Cada extração deve manter a projeção e a autorização server-side.
 - `enrollments/access.ts` responde acesso de Curso/Aula por Matrícula ativa, conteúdo publicado e atraso do Módulo; `enrollments/server.ts` mantém concessões, projeção, override integral e ajustes de expiração, que compartilham transações e não devem ser separados arbitrariamente.
 - `payments/provider.ts` cria o adapter Asaas; `checkout.ts` concentra a intenção
   compartilhada, `asaas-financial-events.ts` decide eventos e consultas,
@@ -204,7 +204,7 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 ### Orçamento atual de leitura administrativa
 
-`getAdminStudentsData` consulta uma página limitada de perfis e somente as matrículas dos usuários daquela página. A ordenação é estável por nome e ID, a busca é server-side por nome/e-mail e o retorno informa `page`, `pageSize`, `search` e `hasNextPage`. O teste `admin/server-read-projections.test.ts` mantém o orçamento histórico de 250 Alunas como caso explícito, enquanto o padrão de runtime é 100 Alunas por página. A tabela deve preservar busca, detalhes por Aluna e navegação sem carregar a coleção inteira.
+`getAdminStudentsData` consulta uma página limitada de perfis e somente as matrículas dos usuários daquela página. A ordenação é estável por nome e ID, a busca é server-side por nome/e-mail e o retorno informa `page`, `pageSize`, `search` e `hasNextPage`. O teste `admin/server-read-projections.test.ts` mantém o orçamento histórico de 250 Alunos como caso explícito, enquanto o padrão de runtime é 100 Alunos por página. A tabela deve preservar busca, detalhes por Aluno e navegação sem carregar a coleção inteira.
 
 ### Interfaces, consumidores e efeitos
 
@@ -218,8 +218,8 @@ O plano 008 trata tamanho como sinal, não como motivo suficiente para mover có
 
 - **Símbolos:** `getAdmin*Data`, `getAdminOverview`, `getAdminStudentSheetData` e editores de curso/aula; actions nomeadas por comando.
 - **Consumidores:** páginas, tabelas e Sheets Admin. `authoring.ts` é chamado por actions, nunca por JSX.
-- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunas/acesso, financeiro, auditoria e configurações; a ficha de Aluna é carregada sob demanda por GET protegido, sem estado de seleção na URL. A action chama o caso de uso e revalida as superfícies administrativas afetadas.
-- **Ficha contextual de Aluna:** `/admin/alunos` e a aba de alunos do Curso usam o mesmo `StudentManagementSheet`. A lista geral mostra plataforma, todas as Matrículas e Certificados; o contexto de Curso mostra somente a Matrícula e os Certificados daquele Curso. A antiga rota `/admin/alunos/[userId]` não faz parte do produto e retorna 404.
+- **Invariante, queries e efeitos:** `requireRole` autentica a entrada. Os parsers por comando validam `FormData` antes de SQL/provider. `admin/server.ts` só projeta dados de catálogo, Alunos/acesso, financeiro, auditoria e configurações; a ficha de Aluno é carregada sob demanda por GET protegido, sem estado de seleção na URL. A action chama o caso de uso e revalida as superfícies administrativas afetadas.
+- **Ficha contextual de Aluno:** `/admin/alunos` e a aba de alunos do Curso usam o mesmo `StudentManagementSheet`. A lista geral mostra plataforma, todas as Matrículas e Certificados; o contexto de Curso mostra somente a Matrícula e os Certificados daquele Curso. A antiga rota `/admin/alunos/[userId]` não faz parte do produto e retorna 404.
 
 #### Acesso e comércio
 

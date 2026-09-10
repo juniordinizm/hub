@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { StagingBanner } from "@/components/environment/staging-banner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { PLATFORM_BRAND, PLATFORM_NAME } from "@/lib/brand";
 import { getPublicAppUrl } from "@/lib/public-app-config";
 import { getStagingPresentation } from "@/lib/staging-presentation";
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     default: PLATFORM_NAME,
     template: `%s | ${PLATFORM_NAME}`,
   },
-  description: `Plataforma de cursos da ${PLATFORM_BRAND} para Alunas e equipe.`,
+  description: `Plataforma de cursos da ${PLATFORM_BRAND} para Alunos e equipe.`,
   applicationName: PLATFORM_NAME,
   metadataBase: new URL(publicAppUrl),
   ...(stagingPresentation.robots ? { robots: stagingPresentation.robots } : {}),
@@ -48,7 +49,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col">
         {stagingPresentation.isStaging ? <StagingBanner /> : null}
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="top-right" />
       </body>
     </html>

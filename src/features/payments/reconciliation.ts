@@ -47,6 +47,15 @@ interface ReconciliationOrder {
   userId: string | null;
 }
 
+type ReconciliationPayment = AsaasPayment & {
+  installmentCount?: number;
+};
+
+interface ReconciliationPaymentResult {
+  installmentPayments: AsaasPayment[];
+  payment: ReconciliationPayment;
+}
+
 const persistedOrderStatuses = new Set<PersistedOrderStatus>([
   "cancelled",
   "disputed",
@@ -239,23 +248,226 @@ const adaptQueriedPaymentDecision = ({
 const insertReconciliationReview = async ({
   client,
   orderId,
+  observedPayment,
   reason,
   type,
 }: {
   client: PoolClient;
   orderId: string;
+  observedPayment?: {
+    netValueInCents: number | null;
+    valueInCents: number | null;
+  };
   reason: string;
   type: ReconciliationReviewType;
 }): Promise<void> => {
+  if (observedPayment === undefined) {
+    await client.query(
+      `insert into payment_reviews (order_id, type, reason)
+       select $1, $2::payment_review_type, $3
+       where not exists (
+         select 1
+         from payment_reviews
+         where order_id = $1 and type = $2::payment_review_type and status = 'pending'
+       )`,
+      [orderId, type, reason]
+    );
+    return;
+  }
   await client.query(
-    `insert into payment_reviews (order_id, type, reason)
-     select $1, $2::payment_review_type, $3
+    `insert into payment_reviews (
+       order_id,
+       type,
+       reason,
+       observed_amount_in_cents,
+       observed_net_amount_in_cents,
+       observed_fee_amount_in_cents
+     )
+     select
+       $1,
+       $2::payment_review_type,
+       $3,
+       $4::integer,
+       $5::integer,
+       case when $4::integer is not null and $5::integer is not null
+         and $5::integer between 0 and $4::integer
+         then $4::integer - $5::integer
+         else null
+       end
      where not exists (
        select 1
        from payment_reviews
        where order_id = $1 and type = $2::payment_review_type and status = 'pending'
      )`,
-    [orderId, type, reason]
+    [
+      orderId,
+      type,
+      reason,
+      observedPayment?.valueInCents ?? null,
+      observedPayment?.netValueInCents ?? null,
+    ]
+  );
+};
+
+const persistInstallmentPayments = async ({
+  client,
+  installmentId,
+  orderId,
+  payments,
+}: {
+  client: PoolClient;
+  installmentId: string;
+  orderId: string;
+  payments: readonly AsaasPayment[];
+}): Promise<void> => {
+  if (payments.length === 0) {
+    return;
+  }
+
+  const serializedPayments = payments.map((payment) => ({
+    anticipated: payment.anticipated ?? null,
+    clientPaymentDate: payment.clientPaymentDate ?? null,
+    dueDate: payment.dueDate ?? null,
+    feeAmountInCents:
+      payment.netValueInCents >= 0 &&
+      payment.netValueInCents <= payment.valueInCents
+        ? payment.valueInCents - payment.netValueInCents
+        : null,
+    installmentNumber: payment.installmentNumber ?? null,
+    netValueInCents:
+      payment.netValueInCents >= 0 &&
+      payment.netValueInCents <= payment.valueInCents
+        ? payment.netValueInCents
+        : null,
+    paymentDate: payment.paymentDate ?? null,
+    providerInstallmentId: installmentId,
+    providerPaymentId: payment.id,
+    status: payment.status,
+    valueInCents: payment.valueInCents,
+  }));
+
+  await client.query(
+    `
+      with incoming as (
+        select *
+        from jsonb_to_recordset($1::jsonb) as payment (
+          "providerInstallmentId" text,
+          "providerPaymentId" text,
+          "installmentNumber" integer,
+          status text,
+          "dueDate" text,
+          "paymentDate" text,
+          "clientPaymentDate" text,
+          "valueInCents" integer,
+          "netValueInCents" integer,
+          "feeAmountInCents" integer,
+          anticipated boolean
+        )
+      ),
+      upserted as (
+        insert into asaas_installment_payments (
+          order_id,
+          provider_installment_id,
+          provider_payment_id,
+          installment_number,
+          status,
+          due_date,
+          payment_date,
+          client_payment_date,
+          value_in_cents,
+          net_value_in_cents,
+          fee_amount_in_cents,
+          anticipated,
+          synced_at,
+          metadata
+        )
+        select
+          $2,
+          "providerInstallmentId",
+          "providerPaymentId",
+          "installmentNumber",
+          status,
+          "dueDate",
+          "paymentDate",
+          "clientPaymentDate",
+          "valueInCents",
+          "netValueInCents",
+          "feeAmountInCents",
+          anticipated,
+          now(),
+          jsonb_build_object('source', 'reconciliation')
+        from incoming
+        on conflict (provider_payment_id) do update set
+          order_id = excluded.order_id,
+          provider_installment_id = excluded.provider_installment_id,
+          installment_number = excluded.installment_number,
+          status = excluded.status,
+          due_date = excluded.due_date,
+          payment_date = excluded.payment_date,
+          client_payment_date = excluded.client_payment_date,
+          value_in_cents = excluded.value_in_cents,
+          net_value_in_cents = excluded.net_value_in_cents,
+          fee_amount_in_cents = excluded.fee_amount_in_cents,
+          anticipated = excluded.anticipated,
+          synced_at = now(),
+          metadata = excluded.metadata,
+          updated_at = now()
+        returning
+          order_id,
+          provider_installment_id,
+          provider_payment_id,
+          installment_number,
+          status,
+          due_date,
+          payment_date,
+          client_payment_date,
+          value_in_cents,
+          net_value_in_cents,
+          fee_amount_in_cents,
+          anticipated
+      )
+      insert into financial_events (
+        source,
+        event_key,
+        event_type,
+        provider,
+        occurred_at,
+        order_id,
+        provider_payment_id,
+        provider_installment_id,
+        provider_payment_status_after,
+        amount_in_cents,
+        value_in_cents,
+        fee_amount_in_cents,
+        net_amount_in_cents,
+        metadata
+      )
+      select
+        'installment'::financial_event_source,
+        'installment:' || provider_payment_id || ':' || md5(concat_ws('|', provider_installment_id, installment_number::text, status, due_date, payment_date, client_payment_date, value_in_cents::text, net_value_in_cents::text, fee_amount_in_cents::text, anticipated::text)),
+        'installment.payment_synced',
+        'asaas',
+        now(),
+        order_id,
+        provider_payment_id,
+        provider_installment_id,
+        status,
+        value_in_cents,
+        value_in_cents,
+        fee_amount_in_cents,
+        net_value_in_cents,
+        jsonb_build_object(
+          'installmentNumber', installment_number,
+          'dueDate', due_date,
+          'paymentDate', payment_date,
+          'clientPaymentDate', client_payment_date,
+          'anticipated', anticipated,
+          'source', 'reconciliation'
+        )
+      from upserted
+      on conflict (provider, source, event_key) do nothing
+    `,
+    [JSON.stringify(serializedPayments), orderId]
   );
 };
 
@@ -304,11 +516,14 @@ const getReconciliationPayment = async ({
 }: {
   gateway: AsaasGateway;
   order: ReconciliationOrder;
-}): Promise<AsaasPayment> => {
+}): Promise<ReconciliationPaymentResult> => {
   if (!order.providerInstallmentId) {
-    return await runCoordinatedAsaasQuery({
-      operation: () => gateway.getPayment(order.providerPaymentId),
-    });
+    return {
+      installmentPayments: [],
+      payment: await runCoordinatedAsaasQuery({
+        operation: () => gateway.getPayment(order.providerPaymentId),
+      }),
+    };
   }
 
   const installment = await runCoordinatedAsaasQuery({
@@ -338,16 +553,20 @@ const getReconciliationPayment = async ({
     findExactAsaasRefundEvidence(installment.refunds, order.amountInCents) !==
     null;
   return {
-    billingType: installment.billingType,
-    checkoutSession: installment.checkoutSession,
-    customer: payments[0]?.customer ?? "",
-    externalReference: null,
-    id: order.providerPaymentId,
-    installmentId: installment.id,
-    netValueInCents: installment.netValueInCents,
-    refunds: installment.refunds,
-    status: resolveInstallmentPaymentStatus(payments, hasFullRefund),
-    valueInCents: installment.valueInCents,
+    installmentPayments: payments,
+    payment: {
+      billingType: installment.billingType,
+      checkoutSession: installment.checkoutSession,
+      customer: payments[0]?.customer ?? "",
+      externalReference: null,
+      id: order.providerPaymentId,
+      installmentCount: installment.installmentCount,
+      installmentId: installment.id,
+      netValueInCents: installment.netValueInCents,
+      refunds: installment.refunds,
+      status: resolveInstallmentPaymentStatus(payments, hasFullRefund),
+      valueInCents: installment.valueInCents,
+    },
   };
 };
 
@@ -417,6 +636,80 @@ const openReconciliationBuyerIdentityReview = async ({
   });
 };
 
+const resolveReconciledPaymentReview = async ({
+  actorUserId,
+  client,
+  orderId,
+  reviewId,
+}: {
+  actorUserId: string;
+  client: PoolClient;
+  orderId: string;
+  reviewId: string;
+}): Promise<void> => {
+  const reason = "Pagamento reconciliado sem nova divergencia.";
+  const resolved = await client.query<{ id: string }>(
+    `update payment_reviews
+     set status = 'approved',
+         decision_reason = $3,
+         resolved_by_user_id = $4,
+         resolved_at = now(),
+         updated_at = now()
+     where id = $1
+       and order_id = $2
+       and status = 'pending'
+       and type in ('event_anomaly', 'partial_refund', 'terminal_conflict', 'uncertain_result')
+     returning id`,
+    [reviewId, orderId, reason, actorUserId]
+  );
+  if (!resolved.rows[0]) {
+    return;
+  }
+
+  await client.query(
+    `insert into audit_logs (
+       actor_user_id,
+       action,
+       target_type,
+       target_id,
+       metadata
+     )
+     values (
+       $1,
+       'payment_review.resolved',
+       'payment_review',
+       $2,
+       jsonb_build_object(
+         'decision', 'approved',
+         'reason', $3::text,
+         'source', 'asaas.payment_reconciled'
+       )
+     )`,
+    [actorUserId, reviewId, reason]
+  );
+};
+
+const hasSafeReconciliationOutcome = ({
+  currentOrderStatus,
+  decision,
+  paymentAccessApplied,
+}: {
+  currentOrderStatus: PersistedOrderStatus;
+  decision: ReconciliationDecision;
+  paymentAccessApplied: boolean;
+}): boolean => {
+  if (decision.reviewType) {
+    return false;
+  }
+  if (currentOrderStatus !== "pending") {
+    return true;
+  }
+  if (decision.canRevokeForRefund) {
+    return true;
+  }
+  return decision.shouldGrantAccess && paymentAccessApplied;
+};
+
 const applyReconciledConfirmedPayment = async ({
   client,
   order,
@@ -425,7 +718,7 @@ const applyReconciledConfirmedPayment = async ({
   client: PoolClient;
   order: ReconciliationOrder;
   preparation: AsaasBuyerIdentityPreparation;
-}): Promise<void> => {
+}): Promise<boolean> => {
   if (preparation.kind === "review_required") {
     await persistConfirmedPaymentStatus({
       client,
@@ -437,10 +730,10 @@ const applyReconciledConfirmedPayment = async ({
       orderId: order.id,
       reason: preparation.reason,
     });
-    return;
+    return false;
   }
 
-  await applyConfirmedPaymentAccess({
+  return await applyConfirmedPaymentAccess({
     client,
     onIdentityReview: async (reason) => {
       await openReconciliationBuyerIdentityReview({
@@ -485,14 +778,38 @@ const hasExactPaymentCorrelation = ({
   );
 };
 
+const persistReconciliationInstallmentPayments = async ({
+  client,
+  installmentId,
+  orderId,
+  payments,
+}: {
+  client: PoolClient;
+  installmentId: string | null;
+  orderId: string;
+  payments: readonly AsaasPayment[];
+}): Promise<void> => {
+  if (!(installmentId && payments.length > 0)) {
+    return;
+  }
+  await persistInstallmentPayments({
+    client,
+    installmentId,
+    orderId,
+    payments,
+  });
+};
+
 export const reconcileAsaasPayment = async ({
   actorUserId,
   gateway = getAsaasProviderClient(),
   orderId,
+  reviewId,
 }: {
   actorUserId: string;
   gateway?: AsaasGateway;
   orderId: string;
+  reviewId?: string;
 }): Promise<void> => {
   const pool = getPool();
   const initial = await pool.query(
@@ -510,7 +827,11 @@ export const reconcileAsaasPayment = async ({
     throw new Error("Pedido Asaas sem pagamento correlacionado.");
   }
 
-  const payment = await getReconciliationPayment({ gateway, order });
+  const reconciliationPayment = await getReconciliationPayment({
+    gateway,
+    order,
+  });
+  const payment = reconciliationPayment.payment;
   if (!hasExactPaymentCorrelation({ order, payment })) {
     throw new Error("A consulta Asaas nao corresponde ao Pedido informado.");
   }
@@ -551,6 +872,12 @@ export const reconcileAsaasPayment = async ({
       order: current,
       payment,
     });
+    await persistReconciliationInstallmentPayments({
+      client,
+      installmentId: order.providerInstallmentId,
+      orderId,
+      payments: reconciliationPayment.installmentPayments,
+    });
     const feeInCents = payment.valueInCents - payment.netValueInCents;
     await client.query(
       `update orders
@@ -563,6 +890,7 @@ export const reconcileAsaasPayment = async ({
              case when $10 then $5 else net_amount_in_cents end,
            fee_amount_in_cents =
              case when $10 then $6 else fee_amount_in_cents end,
+           payment_installment_count = coalesce($11::integer, payment_installment_count),
            receipt_url = coalesce($7, receipt_url),
            updated_at = now()
        where id = $1 and provider_payment_id = $8`,
@@ -577,6 +905,7 @@ export const reconcileAsaasPayment = async ({
         payment.id,
         decision.shouldUpdateProviderPaymentStatus,
         decision.canPersistMoney,
+        payment.installmentCount ?? null,
       ]
     );
 
@@ -584,13 +913,18 @@ export const reconcileAsaasPayment = async ({
       await insertReconciliationReview({
         client,
         orderId,
+        observedPayment: {
+          netValueInCents: payment.netValueInCents,
+          valueInCents: payment.valueInCents,
+        },
         reason: decision.reviewReason,
         type: decision.reviewType,
       });
     }
 
+    let paymentAccessApplied = true;
     if (decision.shouldGrantAccess) {
-      await applyReconciledConfirmedPayment({
+      paymentAccessApplied = await applyReconciledConfirmedPayment({
         client,
         order: current,
         preparation: buyerIdentityPreparation,
@@ -647,6 +981,21 @@ export const reconcileAsaasPayment = async ({
         ]
       );
       await closeRefundedBuyerIdentityReview({ client, now, orderId });
+    }
+    if (
+      reviewId &&
+      hasSafeReconciliationOutcome({
+        currentOrderStatus: current.status,
+        decision,
+        paymentAccessApplied,
+      })
+    ) {
+      await resolveReconciledPaymentReview({
+        actorUserId,
+        client,
+        orderId,
+        reviewId,
+      });
     }
     await auditReconciliation({
       action: "asaas.payment_reconciled",
@@ -738,7 +1087,9 @@ const persistStatementPage = async ({
       [cursorKey]
     );
     if (cursor.rows[0]?.next_offset !== expectedOffset) {
-      throw new Error("A importacao do extrato avancou em outra execucao.");
+      throw new Error(
+        "A sincronizacao das movimentacoes avancou em outra execucao."
+      );
     }
 
     const serializedTransactions = transactions.map((transaction) => ({
@@ -817,9 +1168,9 @@ const persistStatementPage = async ({
            'asaas_statement',
            $2,
            jsonb_build_object(
-             'inserted', $3,
-             'updated', $4,
-             'resumedFromOffset', $5
+            'inserted', $3::int,
+            'updated', $4::int,
+            'resumedFromOffset', $5::int
            )
          )`,
         [
@@ -894,5 +1245,7 @@ export const importAsaasFinancialStatement = async ({
     }
     offset = nextOffset;
   }
-  throw new Error("Extrato Asaas excedeu o limite seguro de paginacao.");
+  throw new Error(
+    "A sincronizacao de movimentacoes Asaas excedeu o limite seguro de paginacao."
+  );
 };

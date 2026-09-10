@@ -28,6 +28,7 @@ const student = {
       revokedReason: null,
       startedAt: new Date("2026-01-01T00:00:00.000Z"),
       status: "active",
+      userId: "student-1",
     },
     {
       courseId: "course-2",
@@ -38,6 +39,7 @@ const student = {
       revokedReason: null,
       startedAt: new Date("2026-02-01T00:00:00.000Z"),
       status: "expired",
+      userId: "student-1",
     },
   ],
   name: "Student",

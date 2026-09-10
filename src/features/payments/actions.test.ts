@@ -7,6 +7,7 @@ const dependencies = vi.hoisted(() => ({
     expiredUrl: `https://hub.example/checkout/expirado?attemptId=${attemptId}`,
     successUrl: "https://hub.example/checkout/sucesso",
   })),
+  getAdminInstallmentPayments: vi.fn(),
   getServerEnv: vi.fn(),
   importAsaasFinancialStatement: vi.fn(),
   issueRefundConfirmation: vi.fn(),
@@ -43,6 +44,9 @@ vi.mock("@/features/payments/asaas-webhook-worker", () => ({
 vi.mock("@/features/payments/payment-reviews", () => ({
   resolvePaymentReview: dependencies.resolvePaymentReview,
 }));
+vi.mock("@/features/admin/server", () => ({
+  getAdminInstallmentPayments: dependencies.getAdminInstallmentPayments,
+}));
 vi.mock("@/lib/auth-permissions", () => ({
   requirePermission: dependencies.requirePermission,
 }));
@@ -55,6 +59,7 @@ vi.mock("@/lib/session", () => ({
 
 import {
   confirmRefundPasswordAction,
+  getAdminInstallmentPaymentsAction,
   importAsaasStatementAction,
   reconcileAsaasPaymentAction,
   requestFullRefundAction,
@@ -66,6 +71,31 @@ import {
 const ATTEMPT_ID = "7fb3447e-2702-48f8-abe2-6c47b091bdcb";
 const COURSE_ID = "4a45d650-fc63-44c9-b2d1-6c73d52de84c";
 const SCHEDULE_DIGEST = "a".repeat(64);
+
+describe("admin installment payments action", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("rejects malformed order ids before reading financial data", async () => {
+    await expect(
+      getAdminInstallmentPaymentsAction("not-an-order")
+    ).rejects.toThrow("Pedido invalido.");
+    expect(dependencies.getAdminInstallmentPayments).not.toHaveBeenCalled();
+  });
+
+  it("loads the local installment schedule through the financial projection", async () => {
+    const orderId = ATTEMPT_ID;
+    dependencies.getAdminInstallmentPayments.mockResolvedValue([]);
+
+    await expect(getAdminInstallmentPaymentsAction(orderId)).resolves.toEqual(
+      []
+    );
+    expect(dependencies.getAdminInstallmentPayments).toHaveBeenCalledWith(
+      orderId
+    );
+  });
+});
 
 describe("authenticated checkout action", () => {
   beforeEach(() => {
@@ -221,6 +251,20 @@ describe("financial mutation actions", () => {
     });
   });
 
+  it("passes a related review when reconciliation starts from an exception", async () => {
+    const form = new FormData();
+    form.set("orderId", ATTEMPT_ID);
+    form.set("reviewId", "review-1");
+
+    await reconcileAsaasPaymentAction(form);
+
+    expect(dependencies.reconcileAsaasPayment).toHaveBeenCalledWith({
+      actorUserId: "admin-user",
+      orderId: ATTEMPT_ID,
+      reviewId: "review-1",
+    });
+  });
+
   it("requires mutable financial access to import a statement", async () => {
     dependencies.importAsaasFinancialStatement.mockResolvedValue({
       completed: true,
@@ -265,6 +309,17 @@ describe("financial mutation actions", () => {
       decisionReason: "evidencia insuficiente",
       reviewId: ATTEMPT_ID,
     });
+  });
+
+  it("rejects statement imports that include a future date", async () => {
+    const form = new FormData();
+    form.set("startDate", "2099-07-01");
+    form.set("finishDate", "2099-07-30");
+
+    await expect(importAsaasStatementAction(form)).rejects.toThrow(
+      "O período das movimentações deve estar encerrado."
+    );
+    expect(dependencies.importAsaasFinancialStatement).not.toHaveBeenCalled();
   });
 
   it("allows support to confirm and execute a full refund", async () => {

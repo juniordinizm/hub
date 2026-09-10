@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
   getCurrentSession: vi.fn(),
+  recordStudentLastAccess: vi.fn(),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/session", () => ({
   getCurrentSession: dependencies.getCurrentSession,
+  recordStudentLastAccess: dependencies.recordStudentLastAccess,
 }));
 
 import { GET } from "./route";
@@ -48,5 +50,21 @@ describe("GET /api/auth/redirect", () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "blocked" });
+  });
+
+  it("records the last access before redirecting an authenticated student", async () => {
+    dependencies.getCurrentSession.mockResolvedValue({
+      platformBlockedAt: null,
+      role: "student",
+      user: { id: "student-1" },
+    });
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ redirectTo: "/app" });
+    expect(dependencies.recordStudentLastAccess).toHaveBeenCalledWith(
+      "student-1"
+    );
   });
 });

@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 export const PRODUCTION_CLEANUP_TABLES = [
   "accounts",
   "app_settings",
+  "asaas_financial_transactions",
+  "asaas_installment_payments",
+  "asaas_statement_import_cursors",
   "audit_logs",
   "certificate_issuer_profiles",
   "certificate_template_asset_cleanup",
@@ -17,6 +20,7 @@ export const PRODUCTION_CLEANUP_TABLES = [
   "enrollment_grants",
   "enrollments",
   "faq_items",
+  "financial_events",
   "jmvstream_folders",
   "jmvstream_video_assets",
   "learning_analytics_daily_metrics",

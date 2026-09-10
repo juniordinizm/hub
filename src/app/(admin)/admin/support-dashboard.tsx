@@ -1,10 +1,6 @@
-import {
-  BookOpen01Icon,
-  Invoice01Icon,
-  UserGroupIcon,
-} from "@hugeicons/core-free-icons";
+import { BookOpen01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import { AdminMetricCard } from "@/app/(admin)/admin/admin-metric-card";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -16,81 +12,49 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { getCourseDeliveryStatusPresentation } from "@/features/admin/status-presentation";
-import type { SupportCourseOperation } from "@/features/admin/support-server";
+import type { SupportCourseOperationsPage } from "@/features/admin/support-server";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export function SupportDashboard({
-  courses,
+  data,
 }: {
-  courses: SupportCourseOperation[];
+  data: SupportCourseOperationsPage;
 }): React.JSX.Element {
-  const totalEnrollments = courses.reduce(
-    (sum, course) => sum + course.totalEnrollmentCount,
-    0
-  );
-  const paidOrders = courses.reduce(
-    (sum, course) => sum + course.paidOrderCount,
-    0
-  );
-  const paidRevenueInCents = courses.reduce(
-    (sum, course) => sum + course.paidRevenueInCents,
-    0
-  );
-
   return (
     <PageContainer>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-6">
         <PageHeader
           actions={
             <Button asChild>
               <Link href={route("/admin/financeiro")}>Ver financeiro</Link>
             </Button>
           }
+          className="pb-4"
           description="Consulte matrículas, histórico financeiro e Certificados no contexto de cada Curso."
           title="Operação de suporte"
         />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <AdminMetricCard
-            helper="Cursos disponíveis para consulta operacional."
-            icon={BookOpen01Icon}
-            label="Cursos"
-            value={courses.length.toString()}
-          />
-          <AdminMetricCard
-            helper="Soma das matrículas em todos os Cursos."
-            icon={UserGroupIcon}
-            label="Matrículas"
-            value={totalEnrollments.toString()}
-          />
-          <AdminMetricCard
-            helper="Pedidos atualmente confirmados como pagos."
-            icon={Invoice01Icon}
-            label="Pedidos pagos"
-            value={paidOrders.toString()}
-          />
-          <AdminMetricCard
-            helper="Receita dos Pedidos atualmente pagos."
-            icon={Invoice01Icon}
-            label="Receita paga"
-            value={formatCurrencyInCents(paidRevenueInCents)}
-          />
-        </section>
-
         <Card>
-          <CardHeader>
+          <CardHeader className="border-b pb-4">
             <CardTitle as="h2">Cursos em operação</CardTitle>
             <CardDescription>
-              Abra um Curso para consultar somente as Alunas vinculadas a ele.
+              Abra um Curso para consultar somente os Alunos vinculados a ele.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            {courses.length ? (
-              courses.map((course) => (
+          <CardContent className="p-0">
+            {data.courses.length ? (
+              data.courses.map((course) => (
                 <article
-                  className="border-b py-4 last:border-b-0"
+                  className="border-b px-5 py-4 last:border-b-0"
                   key={course.id}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -130,23 +94,148 @@ export function SupportDashboard({
                           `/admin/operacao/cursos/${course.id}/alunas`
                         )}
                       >
-                        Consultar Alunas
+                        Consultar Alunos
                       </Link>
                     </Button>
                   </div>
                 </article>
               ))
             ) : (
-              <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
-                Nenhum Curso disponível para consulta.
-              </p>
+              <Empty className="border-0 py-8">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <HugeiconsIcon aria-hidden="true" icon={BookOpen01Icon} />
+                  </EmptyMedia>
+                  <EmptyTitle as="h3">
+                    {data.totalCount > 0
+                      ? "Nenhum Curso nesta página"
+                      : "Nenhum Curso disponível"}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {data.totalCount > 0
+                      ? "Volte uma página para continuar a consulta."
+                      : "Não há Cursos disponíveis para consulta operacional."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
           </CardContent>
         </Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <span aria-live="polite" className="text-muted-foreground text-sm">
+            {getCourseResultSummary({
+              courseCount: data.courses.length,
+              page: data.page,
+              pageSize: data.pageSize,
+              totalCount: data.totalCount,
+            })}
+          </span>
+          {data.page > 1 || data.hasNextPage ? (
+            <nav aria-label="Paginação de Cursos" className="flex gap-2">
+              {data.page > 1 ? (
+                <Button asChild variant="outline">
+                  <Link href={getCoursePageHref(data.page - 1)}>Anterior</Link>
+                </Button>
+              ) : null}
+              {data.hasNextPage ? (
+                <Button asChild variant="outline">
+                  <Link href={getCoursePageHref(data.page + 1)}>Próxima</Link>
+                </Button>
+              ) : null}
+            </nav>
+          ) : null}
+        </div>
+
+        <SupportSummary data={data} />
       </div>
     </PageContainer>
   );
 }
+
+function SupportSummary({
+  data,
+}: {
+  data: SupportCourseOperationsPage;
+}): React.JSX.Element {
+  const metrics = [
+    ["Cursos", data.totalCount.toString(), "Disponíveis para consulta"],
+    [
+      "Matrículas",
+      data.totals.totalEnrollmentCount.toString(),
+      "Somadas entre os Cursos",
+    ],
+    [
+      "Pedidos pagos",
+      data.totals.paidOrderCount.toString(),
+      "Confirmados no histórico",
+    ],
+    [
+      "Receita paga",
+      formatCurrencyInCents(data.totals.paidRevenueInCents),
+      "Pedidos confirmados",
+    ],
+  ] as const;
+
+  return (
+    <section aria-labelledby="support-summary-title" className="grid gap-3">
+      <div>
+        <h2 className="type-section-title" id="support-summary-title">
+          Visão rápida
+        </h2>
+        <p className="type-body-sm mt-1 text-muted-foreground">
+          Totais globais usados como contexto para o atendimento.
+        </p>
+      </div>
+      <Card className="overflow-hidden" density="compact" size="sm">
+        <CardContent className="p-0">
+          <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
+            {metrics.map(([label, value, helper]) => (
+              <div
+                className="flex min-h-24 min-w-0 flex-col justify-center p-5"
+                key={label}
+              >
+                <span className="type-label truncate text-muted-foreground">
+                  {label}
+                </span>
+                <span className="mt-1 font-semibold text-2xl tabular-nums tracking-tight">
+                  {value}
+                </span>
+                <span className="mt-1 truncate text-muted-foreground text-xs">
+                  {helper}
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
+const getCoursePageHref = (page: number): string =>
+  page > 1 ? `/admin?page=${page}` : "/admin";
+
+const getCourseResultSummary = ({
+  courseCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  courseCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum Curso";
+  }
+  if (courseCount === 0) {
+    return `Nenhum Curso nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + courseCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} Curso${totalCount === 1 ? "" : "s"}`;
+};
 
 function CourseStatusBadge({ status }: { status: string }): React.JSX.Element {
   const presentation = getCourseDeliveryStatusPresentation(status);

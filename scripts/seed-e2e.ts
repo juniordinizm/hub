@@ -237,7 +237,7 @@ const seedCertificateRecord = async ({
         revoked_reason_category
       )
       values (
-        $1, $2, $3, $4, 'Aluna com acesso', $5, 2,
+        $1, $2, $3, $4, 'Aluno com acesso', $5, 2,
         $6::certificate_status, $7::certificate_render_status, $8,
         $9, $10, $11, $12, $13
       )
@@ -376,43 +376,43 @@ export const seedE2e = async (): Promise<E2eFixture> => {
   ] = await Promise.all([
     createUser({
       email: studentEmail,
-      name: "Aluna com acesso",
+      name: "Aluno com acesso",
       role: "student",
     }),
     createUser({
       email: completionStudentEmail,
-      name: "Aluna para conclusao",
+      name: "Aluno para conclusao",
       role: "student",
     }),
     createUser({
       email: noGrantEmail,
-      name: "Aluna sem acesso",
+      name: "Aluno sem acesso",
       role: "student",
     }),
     createUser({ email: adminEmail, name: "Admin E2E", role: "admin" }),
     createUser({
       email: `se${suffix}@example.com`,
-      name: "Aluna com acesso expirado",
+      name: "Aluno com acesso expirado",
       role: "student",
     }),
     createUser({
       email: `sr${suffix}@example.com`,
-      name: "Aluna com acesso revogado",
+      name: "Aluno com acesso revogado",
       role: "student",
     }),
     createUser({
       email: blockedStudentEmail,
-      name: "Aluna com Conta bloqueada",
+      name: "Aluno com Conta bloqueada",
       role: "student",
     }),
     createUser({
       email: authenticatedPurchaseStudentEmail,
-      name: "Aluna para compra autenticada",
+      name: "Aluno para compra autenticada",
       role: "student",
     }),
     createUser({
       email: blockedPurchaseStudentEmail,
-      name: "Aluna para bloqueio apos login",
+      name: "Aluno para bloqueio apos login",
       role: "student",
     }),
     createUser({ email: supportEmail, name: "Suporte E2E", role: "support" }),
@@ -784,7 +784,7 @@ export const seedE2e = async (): Promise<E2eFixture> => {
       studentWithGrant: {
         email: studentEmail,
         id: studentId,
-        name: "Aluna com acesso",
+        name: "Aluno com acesso",
         password: E2E_PASSWORD,
       },
       studentWithExpiredAccess: {

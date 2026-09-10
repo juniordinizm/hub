@@ -171,25 +171,27 @@ describe("StudentManagementSheet interaction states", () => {
     expect(document.body.textContent).toContain("Student");
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    let certificatesTab: HTMLButtonElement | undefined;
+    expect(
+      document.querySelector(
+        'a[href="/admin/cursos/course-1?tab=students&enrollmentStudentId=student-1"]'
+      )
+    ).toBeTruthy();
+    expect(document.body.textContent).toContain("Abrir no Curso");
+    expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull();
+    expect(document.body.textContent).not.toContain("Ações da Matrícula");
+    expect(document.querySelector("details")).toBeNull();
     await act(async () => {
-      certificatesTab = Array.from(
-        document.body.querySelectorAll('[role="tab"]')
-      ).find((tab) => tab.textContent === "Certificados") as
-        | HTMLButtonElement
-        | undefined;
-      certificatesTab?.dispatchEvent(
-        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
-      );
-      certificatesTab?.dispatchEvent(
-        new MouseEvent("mousedown", { bubbles: true, button: 0 })
-      );
-      certificatesTab?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, button: 0 })
-      );
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      const closeDialog = document.querySelector(
+        '[data-slot="dialog-close"]'
+      ) as HTMLButtonElement | null;
+      closeDialog?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(certificatesTab?.getAttribute("aria-selected")).toBe("true");
-    expect(document.body.textContent).toContain("Nova emissão");
+
+    expect(document.querySelector('[role="tablist"]')).toBeNull();
+    expect(document.querySelector("[data-student-certificates]")).toBeTruthy();
+    expect(document.body.textContent).toContain(
+      "Nenhum certificado registrado"
+    );
   });
 });

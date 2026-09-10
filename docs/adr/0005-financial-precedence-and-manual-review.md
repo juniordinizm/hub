@@ -26,6 +26,10 @@ evento for ambíguo ou conflitante.
 - o valor bruto `value`, convertido na borda, deve coincidir exatamente com o snapshot
   do Pedido em centavos; a tolerância é zero;
 - divergência de valor não libera acesso e abre revisão;
+- uma aprovação manual de `amount_mismatch` exige que o valor observado do Asaas
+  esteja persistido na própria Revisão; o `paid_amount_in_cents` antigo do Pedido
+  não substitui essa evidência. A aprovação pode completar valores líquidos e taxas
+  somente quando também houver evidência correspondente;
 - uma Revisão pendente do Pedido bloqueia pagamento posterior de conceder acesso ou
   marcar o Pedido como pago; o processor preserva apenas a evidência segura do provider
   até decisão manual;
@@ -45,9 +49,23 @@ evento for ambíguo ou conflitante.
 
 Uma decisão manual exige `manageFinancialReviews`, capacidade mutável exclusiva de
 Admin, motivo obrigatório e trilha de auditoria. `viewFinancials` é somente leitura.
-Revisões `buyer_identity`, `event_anomaly` e `partial_refund` não admitem encerramento
-genérico porque a resolução precisa comprovar e aplicar o efeito financeiro específico.
-Ela resolve a exceção registrada; não apaga o evento externo nem reescreve o histórico.
+Somente `amount_mismatch` admite uma decisão genérica explícita de liberar ou manter
+o bloqueio. `buyer_identity` exige reembolso integral; `event_anomaly`,
+`terminal_conflict` e `uncertain_result` exigem conciliação/reprocessamento; e
+`partial_refund` exige tratamento financeiro específico. Esses tipos não aceitam
+aprovação ou rejeição genérica. Quando a conciliação é iniciada a partir de uma Revisão, ela pode resolver
+a revisão vinculada somente se não abrir nova divergência e produzir um resultado
+financeiro seguro. A decisão resolve a exceção registrada; não apaga o evento externo
+nem reescreve o histórico.
+
+### Trilha financeira
+
+Ocorrências financeiras também são registradas em `financial_events` como uma
+trilha append-only. O registro normaliza a origem, a chave idempotente, a data,
+os estados antes/depois quando disponíveis, valores, identificadores externos e
+vínculos seguros ao Pedido, webhook, reembolso ou Revisão. A migration inicial
+faz backfill somente de snapshots marcados; ela não inventa transições que não
+foram preservadas. Payloads brutos continuam sujeitos à retenção da inbox.
 
 ## Alternativas
 

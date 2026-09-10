@@ -2,11 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   getAdminCourseContentSignal,
   getAdminCourseOperationalState,
-  getAdminFinancialSignal,
   getAdminOperationSignal,
   summarizeAdminCourseContent,
   summarizeAdminCourseHealth,
-  summarizeAdminFinancialHealth,
   summarizeAdminStudentAccess,
 } from "./presentation";
 
@@ -29,6 +27,7 @@ describe("admin presentation", () => {
     const summary = summarizeAdminCourseHealth([
       {
         hasDescription: true,
+        hasPublishedPublication: true,
         hasThumbnail: true,
         id: "course-ready",
         moduleCount: 2,
@@ -39,6 +38,7 @@ describe("admin presentation", () => {
       },
       {
         hasDescription: false,
+        hasPublishedPublication: true,
         hasThumbnail: true,
         id: "course-incomplete",
         moduleCount: 0,
@@ -51,16 +51,64 @@ describe("admin presentation", () => {
 
     expect(summary).toEqual({
       activeCourses: 1,
-      averageReadinessPercent: 63,
+      averageReadinessPercent: 70,
       coursesNeedingAttention: [
         {
           id: "course-incomplete",
+          actionTab: "settings",
           missingCount: 3,
-          readinessPercent: 25,
+          readinessPercent: 40,
           title: "Curso incompleto",
         },
       ],
+      coursesNeedingAttentionCount: 1,
       draftCourses: 1,
+    });
+  });
+
+  it("keeps the full catalog backlog separate from the priority sample", () => {
+    const summary = summarizeAdminCourseHealth(
+      Array.from({ length: 5 }, (_, index) => ({
+        hasDescription: false,
+        hasPublishedPublication: true,
+        hasThumbnail: false,
+        id: `course-${index}`,
+        moduleCount: 0,
+        publishedLessonCount: 0,
+        status: "draft",
+        title: `Curso ${index}`,
+        totalLessonCount: 0,
+      }))
+    );
+
+    expect(summary.coursesNeedingAttention).toHaveLength(4);
+    expect(summary.coursesNeedingAttentionCount).toBe(5);
+  });
+
+  it("does not present an empty catalog as zero percent readiness", () => {
+    expect(summarizeAdminCourseHealth([]).averageReadinessPercent).toBeNull();
+  });
+
+  it("keeps an unpublished course in catalog priorities", () => {
+    const summary = summarizeAdminCourseHealth([
+      {
+        hasDescription: true,
+        hasPublishedPublication: false,
+        hasThumbnail: true,
+        id: "course-unpublished",
+        moduleCount: 1,
+        publishedLessonCount: 1,
+        status: "active",
+        title: "Curso sem publicação",
+        totalLessonCount: 1,
+      },
+    ]);
+
+    expect(summary.averageReadinessPercent).toBe(80);
+    expect(summary.coursesNeedingAttentionCount).toBe(1);
+    expect(summary.coursesNeedingAttention[0]).toMatchObject({
+      actionTab: "content",
+      readinessPercent: 80,
     });
   });
 
@@ -70,11 +118,13 @@ describe("admin presentation", () => {
         coursesNeedingAttention: 3,
         failedWebhooks: 1,
         pendingOrders: 2,
+        retryableWebhooks: 0,
       })
     ).toEqual({
+      actionHref: "/admin/auditoria",
       tone: "attention",
-      label: "Revisar webhooks",
-      helper: "1 evento com falha pode afetar liberacao de acesso.",
+      label: "Revisar integração",
+      helper: "1 falho e 0 em retry podem afetar a liberação de acesso.",
     });
   });
 
@@ -86,9 +136,26 @@ describe("admin presentation", () => {
         pendingOrders: 0,
       })
     ).toEqual({
+      actionHref: null,
       tone: "healthy",
-      label: "Operacao saudavel",
-      helper: "Catalogo, pedidos e webhooks sem pendencias criticas.",
+      label: "Operação saudável",
+      helper: "Catálogo, pedidos e webhooks sem pendências críticas.",
+    });
+  });
+
+  it("keeps retryable webhooks visible without treating them as failures", () => {
+    expect(
+      getAdminOperationSignal({
+        coursesNeedingAttention: 0,
+        failedWebhooks: 0,
+        pendingOrders: 0,
+        retryableWebhooks: 2,
+      })
+    ).toEqual({
+      actionHref: "/admin/auditoria",
+      tone: "watch",
+      label: "Integração em retry",
+      helper: "2 webhooks aguardam uma nova tentativa automática.",
     });
   });
 
@@ -98,13 +165,15 @@ describe("admin presentation", () => {
         {
           activeEnrollments: 1,
           courseCount: 1,
-          latestExpiration: new Date("2026-07-10T00:00:00.000Z"),
+          latestExpiration: new Date("2027-02-10T00:00:00.000Z"),
+          nextExpiration: new Date("2026-07-10T00:00:00.000Z"),
           status: "active",
         },
         {
           activeEnrollments: 0,
           courseCount: 0,
           latestExpiration: null,
+          nextExpiration: null,
           status: "not_enrolled",
         },
       ],
@@ -114,43 +183,8 @@ describe("admin presentation", () => {
     expect(summary).toEqual({
       activeStudents: 1,
       expiringSoonStudents: 1,
-      notEnrolledStudents: 1,
       totalStudents: 2,
-    });
-  });
-
-  it("summarizes financial health from order statuses", () => {
-    const summary = summarizeAdminFinancialHealth([
-      { amountInCents: 50_000, status: "paid" },
-      { amountInCents: 70_000, status: "paid" },
-      { amountInCents: 90_000, status: "pending" },
-      { amountInCents: 30_000, status: "refunded" },
-    ]);
-
-    expect(summary).toEqual({
-      averagePaidTicketInCents: 60_000,
-      checkoutConversionPercent: 50,
-      disputedOrders: 0,
-      paidOrders: 2,
-      paidRevenueInCents: 120_000,
-      pendingOrders: 1,
-      pendingRevenueInCents: 90_000,
-      refundedOrders: 1,
-      totalOrders: 4,
-    });
-  });
-
-  it("prioritizes disputed financial orders", () => {
-    expect(
-      getAdminFinancialSignal({
-        disputedOrders: 2,
-        pendingOrders: 5,
-        refundedOrders: 1,
-      })
-    ).toEqual({
-      tone: "attention",
-      label: "Disputas abertas",
-      helper: "2 pedidos em disputa exige acompanhamento manual.",
+      withoutActiveAccessStudents: 1,
     });
   });
 

@@ -34,6 +34,12 @@ e-mail, acesso, reembolso e demais estados do ciclo permanece pendente de
 registro sanitizado; não repetir cobrança para produzir evidência.
 Checkout, processamento financeiro e reembolso usam exclusivamente Asaas.
 
+No estado atual do working tree, as migrations `0072_admin_order_installment_count`
+até `0075_installment_schedule_and_observed_evidence` também fazem parte do contrato
+do Financeiro. A cadeia até `0075` foi aplicada no Development em 2026-09-09 e a
+leitura local confirmou as tabelas de eventos e cobranças individuais. Esta alteração
+não aplica migrations em Staging ou Production; a promoção segue o fluxo de release.
+
 O release de manutenção de 2026-08-02 promoveu o código e a migration
 `0053_course_payment_offers` para Production pelo workflow protegido
 `30735668308`. O deployment permaneceu com checkout e webhook desabilitados e todas as
@@ -152,6 +158,11 @@ transação local, preserva a primeira cobrança em `provider_payment_id`, conci
 cobranças e usa o endpoint de estorno do parcelamento. O contrato está descrito em
 [DEC-DISC-011](../decisions.md#dec-disc-011) e nos casos da
 [pesquisa oficial](../reviews/2026-07-30-asaas-payment-configuration-research.md).
+
+Após a validação do agregado, o processor persiste a quantidade efetiva em
+`orders.payment_installment_count`. O campo é nulo quando a evidência histórica não está
+disponível; telas administrativas não usam `payment_max_installment_count` como se fosse a
+quantidade escolhida pela Compradora.
 
 `src/features/payments/checkout.ts` usa o UUID estável fornecido pela entrada como ID do
 Pedido e uma `externalReference` opaca sem PII. O insert `pending` com identidade local
@@ -324,7 +335,7 @@ da identidade pretendida do pagador:
 - checkout autenticado usa a Conta da sessão;
 - checkout público nasce sem PII e o Asaas coleta os dados do pagador;
 - após evento financeiro autoritativo, o Hub consulta somente nome/e-mail do cliente;
-- no fluxo público, Compradora = Aluna;
+- no fluxo público, Compradora = Aluno;
 - a compra pode ocorrer antes de existir credencial;
 - o Asaas não verifica Conta e não sobrescreve Conta existente;
 - compra como presente ou para terceiro está fora do escopo.
@@ -532,7 +543,9 @@ A conciliação administrativa tem dois comandos separados:
   `provider_checkout_id` do Pedido. Referência ou sessão conflitante é rejeitada. A
   consulta também exige igualdade entre `value` e o snapshot interno, preserva estados
   terminais e evidência de pagamento segundo a ADR-0005, abre Revisão em conflito e
-  atualiza somente o Pedido bloqueado. Reembolso integral exatamente comprovado pode
+  atualiza somente o Pedido bloqueado. Para um Pedido com `provider_installment_id`,
+  também consulta `GET /v3/installments/{id}/payments` e atualiza cada cobrança
+  individual por `provider_payment_id`; reembolso integral exatamente comprovado pode
   revogar a Concessão e confirmar a solicitação na mesma transação;
 - por extrato, consulta `GET /v3/financialTransactions` em período fechado, páginas de
   100 e ordem crescente, persistindo cada movimento em
@@ -565,6 +578,32 @@ O extrato publicado expõe `id`, `type`, `value` e `date`, mas não um vínculo 
 direto com `payment`. Portanto, o Hub não tenta correlacionar tarifa e Pedido por
 proximidade de data ou valor. O painel mostra bruto, líquido e tarifa derivados da
 cobrança detalhada/webhook; o extrato permanece evidência contábil independente.
+
+Além da projeção atual do Pedido e das linhas do extrato, `financial_events` mantém
+uma trilha append-only de ocorrências normalizadas. Ela conserva a chave do webhook
+ou da movimentação, data, estados antes/depois quando disponíveis, valores,
+identificadores externos e o vínculo seguro com o Pedido. A migration inicial marca
+registros históricos como snapshot; ela não inventa transições que não foram
+preservadas anteriormente. O payload bruto da inbox segue a retenção de 30 dias.
+
+A análise financeira administrativa distingue três leituras que não devem ser
+misturadas: recebimento confirmado é a soma bruta dos Pedidos com evidência de
+pagamento; recebimento em aberto é a soma de Pedidos `pending` cujo Checkout ainda não
+foi encerrado; e líquido estimado desconta taxas e reembolsos confirmados. Cada leitura
+fica limitada ao período selecionado até o momento da consulta. O primeiro
+usa o `paid_amount_in_cents` capturado na evidência, com fallback para o snapshot de
+oferta, e cada Pedido parcelado entra uma única vez pelo total agregado. Esses valores
+não são o saldo disponível no Asaas. Quando a conciliação valida um parcelamento, as
+cobranças individuais são persistidas em `asaas_installment_payments`; o detalhe do
+Pedido mostra seus status, valores brutos confirmados e ainda não confirmados, além da
+última sincronização. Isso continua sendo evidência do estado das cobranças, não prova
+de liquidação bancária ou de saldo na conta.
+
+Na área administrativa, os detalhes do Pedido também expõem tentativas e falhas
+sanitizadas do Checkout, evidências de reembolso, a quantidade efetiva de parcelas
+quando o agregado Asaas a comprova e, quando sincronizadas, as cobranças individuais.
+Essas informações ficam no detalhe do Pedido; a tabela permanece resumida para
+consulta rápida.
 
 ## PII e retenção
 

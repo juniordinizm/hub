@@ -93,7 +93,7 @@ const createCourseOverviewRow = ({
   module_sort_order: 1,
   module_title: "Module one",
   release_delay_days: 0,
-  student_name: "Aluna Teste",
+  student_name: "Aluno Teste",
   thumbnail_url: courseThumbnailUrl,
   video_embed_url: videoEmbedUrl,
   video_external_id: videoExternalId,
@@ -311,7 +311,7 @@ describe("student experience reads", () => {
       isPreview: false,
       nextLessonId: "lesson-2",
       progressPercent: 33,
-      studentName: "Aluna Teste",
+      studentName: "Aluno Teste",
       totalCount: 3,
     });
     expect(overview?.modules[0]?.lessons).toMatchObject([
@@ -845,7 +845,7 @@ describe("course completion writes", () => {
               completed_lessons: 0,
               course_publication_id: "publication-1",
               course_title: "Course one",
-              student_name: "Aluna Teste",
+              student_name: "Aluno Teste",
               total_lessons: 0,
               workload_hours: 1,
             },

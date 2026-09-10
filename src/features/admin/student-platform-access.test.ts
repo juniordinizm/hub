@@ -3,11 +3,18 @@ import { describe, expect, it } from "vitest";
 
 describe("student platform access management", () => {
   it("adds global platform controls to the general students table", async () => {
-    const [studentsTableSource, sheetSource, platformSource] =
+    const [studentsTableSource, actionMenuSource, sheetSource, platformSource] =
       await Promise.all([
         readFile(
           new URL(
             "../../app/(admin)/admin/alunos/students-table.tsx",
+            import.meta.url
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "../../components/admin/student-actions-menu.tsx",
             import.meta.url
           ),
           "utf8"
@@ -28,8 +35,10 @@ describe("student platform access management", () => {
         ),
       ]);
 
-    expect(studentsTableSource).toContain("StudentManagementSheet");
-    expect(studentsTableSource).toContain("Gerenciar");
+    expect(studentsTableSource).toContain("StudentActionsMenu");
+    expect(actionMenuSource).toContain("StudentManagementSheet");
+    expect(actionMenuSource).toContain("StudentActionDialog");
+    expect(actionMenuSource).toContain("Bloquear acesso da plataforma");
     expect(sheetSource).toContain("StudentPlatformAccessControls");
     expect(platformSource).toContain("Bloquear acesso");
     expect(platformSource).toContain("Restaurar acesso");
@@ -66,7 +75,8 @@ describe("student platform access management", () => {
 
     expect(studentsTableSource).not.toContain("EnrollmentExpirationControls");
     expect(sheetSource).toContain("StudentEnrollmentList");
-    expect(courseTableSource).toContain("StudentManagementSheet");
+    expect(courseTableSource).toContain("StudentsTable");
+    expect(courseTableSource).toContain("createCourseStudentsTableContext");
   });
 
   it("persists global platform blocks on the student profile and audits them", async () => {

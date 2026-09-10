@@ -26,6 +26,7 @@ describe("admin students summary", () => {
         lastAccessAt: null,
         latestExpiration: null,
         name: "Aluno Sem Curso",
+        nextExpiration: null,
         platformBlockedAt: null,
         platformBlockedReason: null,
         revokedEnrollments: 0,
@@ -70,6 +71,7 @@ describe("admin students summary", () => {
         lastAccessAt: new Date("2026-02-01T00:00:00.000Z"),
         latestExpiration: new Date("2027-02-10T00:00:00.000Z"),
         name: "Aluno Teste",
+        nextExpiration: new Date("2027-01-10T00:00:00.000Z"),
         platformBlockedAt: null,
         platformBlockedReason: null,
         revokedEnrollments: 0,
@@ -77,5 +79,48 @@ describe("admin students summary", () => {
         userId: "user-1",
       },
     ]);
+  });
+
+  it("uses effective access projections when they are available", () => {
+    const students = summarizeAdminStudents(
+      [
+        {
+          courseTitle: "Curso arquivado",
+          email: "aluno@example.com",
+          expiresAt: new Date("2027-01-10T00:00:00.000Z"),
+          id: "enrollment-1",
+          lastAccessAt: null,
+          name: "Aluno Teste",
+          startsAt: new Date("2026-01-10T00:00:00.000Z"),
+          status: "active",
+          userId: "user-1",
+        },
+      ],
+      [
+        {
+          email: "aluno@example.com",
+          lastAccessAt: null,
+          name: "Aluno Teste",
+          platformBlockedAt: null,
+          platformBlockedReason: null,
+          userId: "user-1",
+        },
+      ],
+      new Map([
+        [
+          "user-1",
+          {
+            activeEnrollments: 0,
+            nextExpiration: null,
+          },
+        ],
+      ])
+    );
+
+    expect(students[0]).toMatchObject({
+      activeEnrollments: 0,
+      nextExpiration: null,
+      status: "inactive",
+    });
   });
 });

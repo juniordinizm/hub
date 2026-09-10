@@ -22,6 +22,7 @@ const fixturePath = resolve(
 );
 const ADMIN_URL_PATTERN = /\/admin$/;
 const APP_URL_PATTERN = /\/app$/;
+const OPEN_ORDER_DETAILS_NAME_PATTERN = /Abrir detalhes do pedido de /;
 const STUDENT_SEARCH_PLACEHOLDER_PATTERN = /Buscar/;
 const CORRELATION_ID_PATTERN = /Identificador de correlação/;
 const DOWNLOAD_PDF_PATTERN = /Baixar PDF/;
@@ -373,7 +374,7 @@ test("public signup creates a student account without granting a course", async 
   const fixture = await readFixture();
   const suffix = crypto.randomUUID().replaceAll("-", "");
   const email = `cadastro-${suffix}@example.test`;
-  const name = "Aluna de cadastro publico";
+  const name = "Aluno de cadastro publico";
 
   await page.goto("/cadastro");
   await page.getByLabel("Nome completo").fill(name);
@@ -694,7 +695,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   await page.goto(`/certificados/${certificateCode}`);
   await expect(page.getByText("Certificado válido")).toBeVisible();
   await expect(page.getByText(fixture.certifiableCourse.title)).toBeVisible();
-  await expect(page.getByText("Aluna para conclusao")).toBeVisible();
+  await expect(page.getByText("Aluno para conclusao")).toBeVisible();
   await expect(page.getByText(certificateCode)).toBeVisible();
   const publicPdfPath = `/certificados/${certificateCode}/pdf`;
   const publicPreviewPath = `/certificados/${certificateCode}/preview`;
@@ -758,7 +759,7 @@ test("final lesson issues, renders, delivers, and validates a certificate", asyn
   expect(JSON.stringify(delivery)).not.toContain(
     fixture.studentForCompletion.email
   );
-  expect(JSON.stringify(delivery)).not.toContain("Aluna para conclusao");
+  expect(JSON.stringify(delivery)).not.toContain("Aluno para conclusao");
 });
 
 test("admin is authorized and a student is redirected away from admin", async ({
@@ -810,7 +811,7 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
   ).toBeVisible();
   for (const forbiddenLink of [
     "Aprendizagem",
-    "Alunas",
+    "Alunos",
     "Auditoria",
     "Configurações",
   ]) {
@@ -830,10 +831,11 @@ test("support navigation and student Sheet preserve the role boundary @mobile", 
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
   const manageButton = enrollmentRow.getByRole("button", {
-    name: "Consultar",
+    name: `Ações de ${fixture.studentWithGrant.name}`,
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
   await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
@@ -861,13 +863,22 @@ test("refund requires password and explicit destructive confirmation @mobile", a
 
   await page.context().clearCookies();
   await signIn(page, fixture.support, ADMIN_URL_PATTERN);
-  await page.goto(`/admin/financeiro?q=${attemptId}`);
+  await page.goto(`/admin/financeiro?tab=orders&q=${attemptId}`);
+  const detailsButton = page.getByRole("button", {
+    name: OPEN_ORDER_DETAILS_NAME_PATTERN,
+  });
+  await expect(detailsButton).toBeVisible();
+  await detailsButton.click();
+  const orderDetails = page.getByRole("dialog");
+  await expect(orderDetails).toBeVisible();
+  await orderDetails.getByText("Detalhes técnicos", { exact: true }).click();
   await expect(
-    page.getByText(`checkout chk_${attemptId}`, { exact: true }).first()
+    orderDetails.getByText(`chk_${attemptId}`, { exact: true })
   ).toBeVisible();
-  const refundDisclosure = page
-    .getByText("Solicitar estorno integral", { exact: true })
-    .first();
+  const refundDisclosure = orderDetails.getByText(
+    "Solicitar reembolso integral",
+    { exact: true }
+  );
   const refundOperation = refundDisclosure.locator("..");
   await expect(refundDisclosure).toBeVisible();
   await refundDisclosure.click();
@@ -878,10 +889,12 @@ test("refund requires password and explicit destructive confirmation @mobile", a
     .getByRole("button", { name: "Confirmar senha" })
     .click();
 
-  await expect(refundOperation.getByLabel("Confirme o pedido")).toBeVisible();
-  await expect(refundOperation.getByLabel("Motivo")).toBeVisible();
+  await expect(refundOperation.getByLabel("ID do Pedido")).toBeVisible();
+  await expect(
+    refundOperation.getByLabel("Motivo da solicitação")
+  ).toBeVisible();
   const destructiveButton = refundOperation.getByRole("button", {
-    name: "Confirmar estorno integral",
+    name: "Confirmar solicitação de reembolso",
   });
   await expect(destructiveButton).toBeVisible();
 
@@ -1160,22 +1173,21 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
-  await page.goto("/admin/alunos");
+  await page.goto(`/admin/cursos/${fixture.course.id}?tab=students`);
 
   const studentRow = page
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
-  const manageButton = studentRow.getByRole("button", { name: "Gerenciar" });
+  const manageButton = studentRow.getByRole("button", {
+    name: `Ações de ${fixture.studentWithGrant.name}`,
+  });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Gerenciar certificados" }).click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(
-    studentSheet.getByRole("heading", { name: fixture.studentWithGrant.name })
-  ).toBeVisible();
-  await studentSheet.getByRole("tab", { name: "Certificados" }).click();
-  await expect(
-    studentSheet.getByRole("heading", { name: "Certificados" })
+    studentSheet.getByRole("heading", { name: "Gerenciar certificados" })
   ).toBeVisible();
   await studentSheet.getByText("Emitir certificado manual").click();
   await expect(
@@ -1205,10 +1217,11 @@ test("admin manages a student from the course context Sheet", async ({
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
   const manageButton = enrollmentRow.getByRole("button", {
-    name: "Gerenciar",
+    name: `Ações de ${fixture.studentWithGrant.name}`,
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
+  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(studentSheet.getByText("Curso em contexto")).toBeVisible();
@@ -1218,7 +1231,7 @@ test("admin manages a student from the course context Sheet", async ({
       .locator("..")
       .getByText("Curso E2E", { exact: true })
   ).toBeVisible();
-  await expect(studentSheet.getByText("Acesso ao Curso")).toBeVisible();
+  await expect(studentSheet.getByText("Detalhes da matrícula")).toBeVisible();
   await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
 });
 

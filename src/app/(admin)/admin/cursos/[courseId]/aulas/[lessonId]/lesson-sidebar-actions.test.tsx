@@ -79,6 +79,20 @@ describe("LessonSidebarActions", () => {
     await act(async () => undefined);
   };
 
+  const submitForm = async (): Promise<void> => {
+    const form = container.querySelector<HTMLFormElement>("#lesson-form");
+    if (!form) {
+      throw new Error("Expected lesson form");
+    }
+
+    act(() => {
+      form.dispatchEvent(
+        new SubmitEvent("submit", { bubbles: true, cancelable: true })
+      );
+    });
+    await act(async () => undefined);
+  };
+
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     vi.clearAllMocks();
@@ -129,6 +143,18 @@ describe("LessonSidebarActions", () => {
     await clickSave();
 
     expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(dependencies.toastSuccess).toHaveBeenCalledWith(
+      "Aula salva com sucesso!",
+      { id: "toast-1" }
+    );
+  });
+
+  it("uses the same save path when the form is submitted by keyboard", async () => {
+    renderActions();
+
+    await submitForm();
+
+    expect(dependencies.saveLesson).toHaveBeenCalledOnce();
     expect(dependencies.toastSuccess).toHaveBeenCalledWith(
       "Aula salva com sucesso!",
       { id: "toast-1" }

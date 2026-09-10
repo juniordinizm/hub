@@ -146,7 +146,7 @@ test("support surfaces have no moderate or higher accessibility violations", asy
 
   await page.goto("/admin/financeiro");
   await expect(
-    page.getByRole("heading", { name: "Receita e liberação de acesso" })
+    page.getByRole("heading", { exact: true, name: "Financeiro" })
   ).toBeVisible();
   await assertNoBlockingAccessibilityViolations(page, "support financials");
 });

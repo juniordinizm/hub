@@ -266,7 +266,7 @@ const main = async (): Promise<void> => {
     }),
     ensureUser({
       email: studentEmail,
-      name: "Aluna Development",
+      name: "Aluno Development",
       password: studentPassword,
       role: "student",
     }),

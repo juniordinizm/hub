@@ -59,8 +59,8 @@ const insertedOrder = {
   checkout_status: "creating",
   checkout_url: null,
   course_id: COURSE_ID,
-  customer_email: "aluna@example.com",
-  customer_name: "Aluna Exemplo",
+  customer_email: "aluno@example.com",
+  customer_name: "Aluno Exemplo",
   id: ATTEMPT_ID,
   payment_allow_credit_card: true,
   payment_allow_pix: true,
@@ -125,9 +125,9 @@ const createGateway = (
 const authenticatedInput = (gateway: FakeAsaasGateway) => ({
   attemptId: ATTEMPT_ID,
   buyer: {
-    email: " Aluna@Example.com ",
+    email: " Aluno@Example.com ",
     kind: "authenticated" as const,
-    name: " Aluna Exemplo ",
+    name: " Aluno Exemplo ",
     userId: "user-1",
   },
   callbacks,
@@ -643,8 +643,8 @@ describe("createAsaasCheckoutIntent", () => {
           10_000,
           12,
           JSON.stringify({ version: 1, clock: "elapsed_24h", modules: [] }),
-          "aluna@example.com",
-          "Aluna Exemplo",
+          "aluno@example.com",
+          "Aluno Exemplo",
           "formacao-neuro",
           "Formação prática em neuroeduca",
           course.description,
@@ -1317,7 +1317,7 @@ describe("createAsaasCheckoutIntent", () => {
     ["rejected", "failed"],
     ["unknown", "uncertain"],
   ] as const)("persists a safe %s provider failure as %s", async (outcome, expectedStatus) => {
-    const unsafeMessage = "token=secret aluna@example.com provider body";
+    const unsafeMessage = "token=secret aluno@example.com provider body";
     let persistedFailureValues: unknown[] | undefined;
     const gateway = createGateway(
       new AsaasGatewayError({
@@ -1364,7 +1364,7 @@ describe("createAsaasCheckoutIntent", () => {
     expect(persistedFailureValues?.[1]).toBe(expectedStatus);
     expect(persistedFailureValues?.join(" ")).not.toContain("secret");
     expect(persistedFailureValues?.join(" ")).not.toContain(
-      "aluna@example.com"
+      "aluno@example.com"
     );
     expect(persistedFailureValues?.join(" ")).toContain("provider_error");
     expect(gateway.calls.createCheckout).toHaveLength(1);

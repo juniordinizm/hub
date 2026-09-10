@@ -10,7 +10,7 @@ import {
 const validAuthPasswordReset = {
   ACTION_URL: "https://example.test/reset/token",
   name: "auth-password-reset",
-  USER_NAME: "Aluna de teste",
+  USER_NAME: "Aluno de teste",
 } satisfies HostedEmailTemplateVariables;
 
 const validAccessReleased = {
@@ -18,7 +18,7 @@ const validAccessReleased = {
   COURSE_TITLE: "Curso de teste",
   name: "access-released",
   PASSWORD_RESET_URL: "https://example.test/recuperar-senha",
-  USER_NAME: "Aluna de teste",
+  USER_NAME: "Aluno de teste",
 } satisfies HostedEmailTemplateVariables;
 
 const validAccessExpiryWarning = {
@@ -26,7 +26,7 @@ const validAccessExpiryWarning = {
   COURSE_TITLE: "Curso de teste",
   DAYS_REMAINING: "7 dias",
   name: "access-expiry-warning",
-  USER_NAME: "Aluna de teste",
+  USER_NAME: "Aluno de teste",
 } satisfies HostedEmailTemplateVariables;
 
 const validCertificateIssued = {
@@ -34,22 +34,22 @@ const validCertificateIssued = {
   CERTIFICATE_CODE: "CERT-123",
   COURSE_TITLE: "Curso de teste",
   name: "certificate-issued",
-  USER_NAME: "Aluna de teste",
+  USER_NAME: "Aluno de teste",
 } satisfies HostedEmailTemplateVariables;
 
 const validCourseSalesOpened = {
   ACTION_URL: "https://example.test/comprar/curso-de-teste",
   COURSE_TITLE: "Curso de teste",
   name: "course-sales-opened",
-  USER_NAME: "Aluna de teste",
+  USER_NAME: "Aluno de teste",
 } satisfies HostedEmailTemplateVariables;
 
 const validSupportRequest = {
   COURSE_TITLE: "Curso de teste",
   MESSAGE: "Preciso de ajuda para acessar o curso.",
   name: "support-request",
-  STUDENT_EMAIL: "aluna@example.test",
-  STUDENT_NAME: "Aluna de teste",
+  STUDENT_EMAIL: "aluno@example.test",
+  STUDENT_NAME: "Aluno de teste",
   SUPPORT_SUBJECT: "Não consigo acessar o curso",
 } satisfies HostedEmailTemplateVariables;
 
@@ -127,7 +127,7 @@ describe("hosted template variables", () => {
     expect(() =>
       validateHostedTemplateVariables({
         name: "auth-password-reset",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("ACTION_URL is required");
   });
@@ -149,7 +149,7 @@ describe("hosted template variables", () => {
       validateHostedTemplateVariables({
         COURSE_TITLE: "Curso de teste",
         name: "access-released",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("ACTION_URL is required");
 
@@ -158,7 +158,7 @@ describe("hosted template variables", () => {
         ACTION_URL: "https://example.test/app/cursos/curso-1",
         COURSE_TITLE: "Curso de teste",
         name: "access-released",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("PASSWORD_RESET_URL is required");
   });
@@ -169,7 +169,7 @@ describe("hosted template variables", () => {
         ACTION_URL: "https://example.test/certificados/CERT-123",
         COURSE_TITLE: "Curso de teste",
         name: "certificate-issued",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("CERTIFICATE_CODE is required");
   });
@@ -180,7 +180,7 @@ describe("hosted template variables", () => {
         ACTION_URL: 123,
         COURSE_TITLE: "Curso de teste",
         name: "course-sales-opened",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("ACTION_URL must be a string");
 
@@ -190,7 +190,7 @@ describe("hosted template variables", () => {
         COURSE_TITLE: "Curso de teste",
         DAYS_REMAINING: 7,
         name: "access-expiry-warning",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).toThrow("DAYS_REMAINING must be a string");
 
@@ -199,8 +199,8 @@ describe("hosted template variables", () => {
         COURSE_TITLE: 42,
         MESSAGE: "Mensagem válida",
         name: "support-request",
-        STUDENT_EMAIL: "aluna@example.test",
-        STUDENT_NAME: "Aluna de teste",
+        STUDENT_EMAIL: "aluno@example.test",
+        STUDENT_NAME: "Aluno de teste",
         SUPPORT_SUBJECT: "Assunto válido",
       })
     ).toThrow("COURSE_TITLE must be a string");

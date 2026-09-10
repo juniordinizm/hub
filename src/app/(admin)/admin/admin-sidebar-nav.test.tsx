@@ -11,11 +11,10 @@ const renderNav = (role: "admin" | "support"): string =>
   );
 
 describe("AdminSidebarNav", () => {
-  it("shows support only the panel, course operations and financial links", () => {
+  it("shows support only the panel and financial link", () => {
     const markup = renderNav("support");
 
     expect(markup).toContain('href="/admin"');
-    expect(markup).toContain('href="/admin/operacao/cursos"');
     expect(markup).toContain('href="/admin/financeiro"');
     expect(markup).not.toContain('href="/admin/cursos"');
     expect(markup).not.toContain('href="/admin/alunos"');

@@ -144,7 +144,7 @@ export function CourseContentPanel({
       {publicationState.hasDraft ? null : (
         <p className="rounded-lg border bg-muted/30 px-4 py-3 text-muted-foreground text-sm">
           Prepare alterações para editar a estrutura atual. O conteúdo publicado
-          permanece disponível às alunas até a próxima publicação.
+          permanece disponível aos alunos até a próxima publicação.
         </p>
       )}
 

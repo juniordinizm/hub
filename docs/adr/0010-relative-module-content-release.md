@@ -9,7 +9,7 @@ last_verified_commit: b6e6d63
 ## Contexto
 
 O Hub precisa entregar parte de um Curso imediatamente e Módulos posteriores depois de
-um intervalo relativo ao início do acesso de cada Aluna. A decisão precisa preservar o
+um intervalo relativo ao início do acesso de cada Aluno. A decisão precisa preservar o
 ledger de Concessões, a projeção de Matrícula, o currículo vivo e a sequência
 pedagógica sem introduzir coortes ou jobs de desbloqueio.
 

@@ -1,12 +1,13 @@
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import {
   AdminMutationForm,
   AdminMutationSubmitButton,
 } from "@/components/admin-mutation-form";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -22,6 +23,7 @@ import {
   getAdminFaqData,
   getAdminSettingsData,
 } from "@/features/admin/server";
+import { JMVSTREAM_PORTAL_URL } from "@/features/jmvstream/portal";
 import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { BannerGallery } from "./banners/banner-gallery";
@@ -60,7 +62,15 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
           title="Configurações globais"
         />
 
-        <section className="grid gap-4">
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="xl:col-span-2">
+            <h2 className="font-semibold text-lg" id="settings-operations">
+              Integrações e dados operacionais
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Acompanhe integrações externas e os dados usados em certificados.
+            </p>
+          </div>
           <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -72,21 +82,19 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     {jmvstreamHealth.message}
                   </CardDescription>
                 </div>
-                <Badge
-                  variant={
-                    jmvstreamHealth.auth === "ok" ? "default" : "destructive"
-                  }
-                >
-                  {jmvstreamHealth.auth === "ok" ? "Conectada" : "Revisar"}
-                </Badge>
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={JMVSTREAM_PORTAL_URL}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Abrir portal JMVStream
+                  </Link>
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
-                <HealthTile
-                  label="Galerias"
-                  value={jmvstreamHealth.folderCount}
-                />
+              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
                 <HealthTile
                   label="Uploads ativos"
                   value={jmvstreamHealth.processingUploads}
@@ -104,6 +112,12 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                   value={jmvstreamHealth.failedDeletes}
                 />
               </div>
+              {jmvstreamHealth.auth === "error" ? (
+                <p className="border-t p-4 text-destructive text-sm">
+                  A conexão com a JMVStream precisa de revisão. Os estados
+                  locais continuam disponíveis para diagnóstico.
+                </p>
+              ) : null}
             </CardContent>
           </Card>
           <Card>
@@ -180,21 +194,29 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               </AdminMutationForm>
             </CardContent>
           </Card>
-          <Card>
+          <div className="pt-4 xl:col-span-2">
+            <h2 className="font-semibold text-lg" id="settings-editorial">
+              Conteúdo editorial
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Atualize os conteúdos compartilhados na área do aluno.
+            </p>
+          </div>
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
                 Banners do dashboard
               </CardTitle>
               <CardDescription className="mt-1">
                 Configure os banners rotativos exibidos na página inicial da
-                área da aluna. Arraste para reordenar. (Máx. 5 imagens)
+                área do aluno. Arraste para reordenar. (Máx. 5 imagens)
               </CardDescription>
             </CardHeader>
             <CardContent>
               <BannerGallery initialBanners={sortedBanners} />
             </CardContent>
           </Card>
-          <Card>
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -202,7 +224,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                     Perguntas frequentes
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Conteúdo exibido na área da aluna para reduzir dúvidas
+                    Conteúdo exibido na área do aluno para reduzir dúvidas
                     operacionais.
                   </CardDescription>
                 </div>

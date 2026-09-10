@@ -15,38 +15,79 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { StudentsTable, type StudentTableRow } from "./students-table";
+import { createGlobalStudentsTableContext } from "./students-table-context";
 
 const student: StudentTableRow = {
-  courseCount: 1,
-  email: "aluna@example.com",
-  enrollments: [],
-  firstEnrollmentAt: null,
+  email: "aluno@example.com",
   lastAccessAt: null,
-  latestExpiration: null,
-  name: "Aluna Teste",
+  name: "Aluno Teste",
   platformBlockedAt: null,
   platformBlockedReason: null,
+  status: "active",
   userId: "student-1",
 };
 
 describe("StudentsTable", () => {
-  it("exposes one Gerenciar action for the shared student Sheet", () => {
+  it("exposes the shared student action menu with one-line identity columns", () => {
     const markup = renderToStaticMarkup(<StudentsTable students={[student]} />);
 
-    expect(markup).toContain("Gerenciar");
-    expect(markup).not.toContain("Abrir ficha");
+    expect(markup).toContain("Nome");
+    expect(markup).toContain("E-mail");
+    expect(markup).toContain("Ações de Aluno Teste");
+    expect(markup).toContain("Acesso ativo");
+    expect(markup).toContain("Último acesso");
+    expect(markup).toContain("Sem registro");
+    expect(markup).not.toContain("Cursos");
+    expect(markup).not.toContain("Expiração");
+    expect(markup).not.toContain("Gerenciar");
   });
 
-  it("announces the current page range and total result count", () => {
+  it("keeps pagination controls without repeating the result count", () => {
+    const markup = renderToStaticMarkup(
+      <StudentsTable page={2} students={[student]} totalCount={3} />
+    );
+
+    expect(markup).toContain("Anterior");
+    expect(markup).not.toContain("de 3 alunos");
+  });
+
+  it("shows a recorded last access in the compact row", () => {
     const markup = renderToStaticMarkup(
       <StudentsTable
-        page={2}
-        pageSize={1}
-        students={[student]}
-        totalCount={3}
+        students={[
+          {
+            ...student,
+            lastAccessAt: "2026-08-05T12:00:00.000Z",
+          },
+        ]}
       />
     );
 
-    expect(markup).toContain("2–2 de 3 alunas");
+    expect(markup).toContain("05/08/2026");
+    expect(markup).not.toContain("Sem registro");
+  });
+
+  it("exposes the access filter without adding another line to each row", () => {
+    const markup = renderToStaticMarkup(
+      <StudentsTable
+        context={createGlobalStudentsTableContext("blocked")}
+        students={[student]}
+      />
+    );
+
+    expect(markup).toContain("Filtros");
+    expect(markup).toContain("Estado do acesso: Plataforma bloqueada");
+    expect(markup).not.toContain("Próxima expiração");
+  });
+
+  it("distinguishes a filtered empty result from an empty page", () => {
+    const markup = renderToStaticMarkup(
+      <StudentsTable search="sem resultado" students={[]} totalCount={0} />
+    );
+
+    expect(markup).toContain("Nenhum Aluno encontrado");
+    expect(markup).toContain(
+      "A busca por “sem resultado” não retornou Alunos."
+    );
   });
 });

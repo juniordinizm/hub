@@ -1,0 +1,2 @@
+ALTER TABLE "orders" ADD COLUMN "payment_installment_count" integer;--> statement-breakpoint
+ALTER TABLE "orders" ADD CONSTRAINT "orders_actual_installment_count_valid" CHECK ("orders"."payment_installment_count" is null or "orders"."payment_installment_count" between 2 and 21);

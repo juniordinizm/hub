@@ -347,9 +347,27 @@ export interface OutboxDeadLetterMessage {
   topic: string;
 }
 
-export const listOutboxDeadLetters = async (): Promise<
-  OutboxDeadLetterMessage[]
-> => {
+export interface OutboxDeadLetterPage {
+  hasNextPage: boolean;
+  messages: OutboxDeadLetterMessage[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export const listOutboxDeadLetters = async ({
+  page = 1,
+  pageSize = 20,
+}: {
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<OutboxDeadLetterPage> => {
+  const normalizedPage = Number.isFinite(page)
+    ? Math.min(1000, Math.max(1, Math.trunc(page)))
+    : 1;
+  const normalizedPageSize = Number.isFinite(pageSize)
+    ? Math.min(100, Math.max(1, Math.trunc(pageSize)))
+    : 20;
   const result = await getPool().query<{
     attempts: number;
     created_at: Date;
@@ -357,23 +375,40 @@ export const listOutboxDeadLetters = async (): Promise<
     last_error_at: Date | null;
     last_error_code: string | null;
     topic: string;
+    total_count: number;
   }>(
     `
-      select id, topic, attempts, last_error_code, last_error_at, created_at
+      select id, topic, attempts, last_error_code, last_error_at, created_at,
+             count(*) over()::int as total_count
       from outbox_messages
       where status = 'dead_letter'
       order by last_error_at desc nulls last, created_at desc
-      limit 50
-    `
+      limit $1 offset $2
+    `,
+    [normalizedPageSize + 1, (normalizedPage - 1) * normalizedPageSize]
   );
-  return result.rows.map((row) => ({
-    attempts: row.attempts,
-    createdAt: row.created_at,
-    id: row.id,
-    lastErrorAt: row.last_error_at,
-    lastErrorCode: row.last_error_code,
-    topic: row.topic,
-  }));
+  let totalCount = result.rows[0]?.total_count ?? 0;
+  if (result.rows.length === 0 && normalizedPage > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      "select count(*)::int as total_count from outbox_messages where status = 'dead_letter'"
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
+  return {
+    hasNextPage: result.rows.length > normalizedPageSize,
+    messages: result.rows.slice(0, normalizedPageSize).map((row) => ({
+      attempts: row.attempts,
+      createdAt: row.created_at,
+      id: row.id,
+      lastErrorAt: row.last_error_at,
+      lastErrorCode: row.last_error_code,
+      topic: row.topic,
+    })),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    totalCount,
+  };
 };
 
 export const pruneOutboxRecords = async (): Promise<{

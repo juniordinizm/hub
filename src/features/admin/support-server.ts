@@ -11,6 +11,8 @@ import { requirePermission } from "@/lib/auth-permissions";
 
 const DEFAULT_PAGE_SIZE = 100;
 const MAX_PAGE = 10_000;
+const DEFAULT_COURSE_PAGE_SIZE = 20;
+const MAX_COURSE_PAGE_SIZE = 100;
 
 export interface SupportCourseOperation {
   activeEnrollmentCount: number;
@@ -22,6 +24,24 @@ export interface SupportCourseOperation {
   status: string;
   title: string;
   totalEnrollmentCount: number;
+}
+
+export interface SupportCourseOperationsPage {
+  courses: SupportCourseOperation[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totals: {
+    paidOrderCount: number;
+    paidRevenueInCents: number;
+    totalEnrollmentCount: number;
+  };
+}
+
+export interface SupportCourseOperationsQuery {
+  page?: number;
+  pageSize?: number;
 }
 
 export interface SupportCourseStudentSummary {
@@ -41,6 +61,7 @@ export interface SupportCourseStudentsPage {
   pageSize: number;
   search: string;
   students: SupportCourseStudentSummary[];
+  totalCount: number;
 }
 
 export interface SupportCourseStudentsQuery {
@@ -102,79 +123,135 @@ export interface SupportCourseStudentContext {
   };
 }
 
-export const getSupportCourseOperations = async (): Promise<
-  SupportCourseOperation[]
-> => {
-  await requirePermission("viewCourseOperations");
-
-  const { rows } = await getPool().query<{
-    active_enrollment_count: number;
-    id: string;
-    paid_order_count: number;
-    paid_revenue_in_cents: number;
-    refunded_order_count: number;
-    refunded_revenue_in_cents: number;
-    status: string;
-    title: string;
-    total_enrollment_count: number;
-  }>(`
+const SUPPORT_COURSE_STATS_SQL = `
+  select
+    c.id,
+    c.title,
+    c.status,
+    enrollment_stats.total_enrollment_count,
+    enrollment_stats.active_enrollment_count,
+    financial_stats.paid_order_count,
+    financial_stats.refunded_order_count,
+    financial_stats.paid_revenue_in_cents,
+    financial_stats.refunded_revenue_in_cents
+  from courses c
+  cross join lateral (
     select
-      c.id,
-      c.title,
-      c.status,
-      enrollment_stats.total_enrollment_count,
-      enrollment_stats.active_enrollment_count,
-      financial_stats.paid_order_count,
-      financial_stats.refunded_order_count,
-      financial_stats.paid_revenue_in_cents,
-      financial_stats.refunded_revenue_in_cents
-    from courses c
-    cross join lateral (
-      select
-        count(*)::int as total_enrollment_count,
-        count(*) filter (where e.status = 'active')::int
-          as active_enrollment_count
-      from enrollments e
-      where e.course_id = c.id
-    ) enrollment_stats
-    cross join lateral (
-      select
-        count(*) filter (where o.status = 'paid')::int as paid_order_count,
-        count(*) filter (where o.status = 'refunded')::int
-          as refunded_order_count,
-        coalesce(
-          sum(coalesce(o.paid_amount_in_cents, o.amount_in_cents))
-            filter (where o.status = 'paid'),
-          0
-        )::int as paid_revenue_in_cents,
-        coalesce(
-          sum(
-            coalesce(
-              rr.provider_refunded_amount_in_cents,
-              o.paid_amount_in_cents,
-              o.amount_in_cents
-            )
-          ) filter (where o.status = 'refunded'),
-          0
-        )::int as refunded_revenue_in_cents
-      from orders o
-      left join refund_requests rr on rr.order_id = o.id
-      where o.course_id = c.id
-    ) financial_stats
-    order by c.title asc, c.id asc
-  `);
+      count(*)::int as total_enrollment_count,
+      count(*) filter (
+        where e.status = 'active'
+          and e.starts_at <= now()
+          and e.expires_at >= now()
+          and c.status = 'active'
+          and exists (
+            select 1
+            from course_publications cp
+            where cp.course_id = c.id and cp.status = 'published'
+          )
+      )::int as active_enrollment_count
+    from enrollments e
+    where e.course_id = c.id
+  ) enrollment_stats
+  cross join lateral (
+    select
+      count(*) filter (where o.status = 'paid')::int as paid_order_count,
+      count(*) filter (where o.status = 'refunded')::int
+        as refunded_order_count,
+      coalesce(
+        sum(coalesce(o.paid_amount_in_cents, o.amount_in_cents))
+          filter (where o.status = 'paid'),
+        0
+      ) as paid_revenue_in_cents,
+      coalesce(
+        sum(
+          coalesce(
+            rr.provider_refunded_amount_in_cents,
+            o.paid_amount_in_cents,
+            o.amount_in_cents
+          )
+        ) filter (where o.status = 'refunded'),
+        0
+      ) as refunded_revenue_in_cents
+    from orders o
+    left join refund_requests rr on rr.order_id = o.id
+    where o.course_id = c.id
+  ) financial_stats`;
 
-  return rows.map((row) => ({
-    activeEnrollmentCount: row.active_enrollment_count,
-    id: row.id,
-    paidOrderCount: row.paid_order_count,
-    paidRevenueInCents: row.paid_revenue_in_cents,
-    refundedOrderCount: row.refunded_order_count,
-    refundedRevenueInCents: row.refunded_revenue_in_cents,
-    status: row.status,
-    title: row.title,
-    totalEnrollmentCount: row.total_enrollment_count,
-  }));
+export const getSupportCourseOperations = async (
+  options: SupportCourseOperationsQuery = {}
+): Promise<SupportCourseOperationsPage> => {
+  await requirePermission("viewCourseOperations");
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(MAX_PAGE, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_COURSE_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_COURSE_PAGE_SIZE;
+  const [summaryResult, pageResult] = await Promise.all([
+    getPool().query<{
+      paid_order_count: number;
+      paid_revenue_in_cents: number | string;
+      total_count: number;
+      total_enrollment_count: number;
+    }>(
+      `
+        select
+          count(*)::int as total_count,
+          coalesce(sum(paid_order_count), 0)::int as paid_order_count,
+          coalesce(sum(paid_revenue_in_cents), 0)::bigint as paid_revenue_in_cents,
+          coalesce(sum(total_enrollment_count), 0)::int as total_enrollment_count
+        from (${SUPPORT_COURSE_STATS_SQL}) course_stats
+      `
+    ),
+    getPool().query<{
+      active_enrollment_count: number;
+      id: string;
+      paid_order_count: number;
+      paid_revenue_in_cents: number | string;
+      refunded_order_count: number;
+      refunded_revenue_in_cents: number | string;
+      status: string;
+      title: string;
+      total_enrollment_count: number;
+    }>(
+      `
+        select *
+        from (${SUPPORT_COURSE_STATS_SQL}) course_stats
+        order by title asc, id asc
+        limit $1 offset $2
+      `,
+      [pageSize + 1, (page - 1) * pageSize]
+    ),
+  ]);
+  const summary = summaryResult.rows[0];
+  const rows = pageResult.rows;
+
+  return {
+    courses: rows.slice(0, pageSize).map((row) => ({
+      activeEnrollmentCount: row.active_enrollment_count,
+      id: row.id,
+      paidOrderCount: row.paid_order_count,
+      paidRevenueInCents: Number(row.paid_revenue_in_cents),
+      refundedOrderCount: row.refunded_order_count,
+      refundedRevenueInCents: Number(row.refunded_revenue_in_cents),
+      status: row.status,
+      title: row.title,
+      totalEnrollmentCount: row.total_enrollment_count,
+    })),
+    hasNextPage: rows.length > pageSize,
+    page,
+    pageSize,
+    totalCount: summary?.total_count ?? 0,
+    totals: {
+      paidOrderCount: summary?.paid_order_count ?? 0,
+      paidRevenueInCents: Number(summary?.paid_revenue_in_cents ?? 0),
+      totalEnrollmentCount: summary?.total_enrollment_count ?? 0,
+    },
+  };
 };
 
 export const getSupportCourseStudents = async (
@@ -197,6 +274,7 @@ export const getSupportCourseStudents = async (
     name: string;
     platform_blocked: boolean;
     starts_at: Date;
+    total_count: number;
     user_id: string;
   }>(
     `
@@ -208,7 +286,8 @@ export const getSupportCourseStudents = async (
         e.status as enrollment_status,
         e.starts_at,
         e.expires_at,
-        (p.platform_blocked_at is not null) as platform_blocked
+        (p.platform_blocked_at is not null) as platform_blocked,
+        count(*) over()::int as total_count
       from enrollments e
       join users u on u.id = e.user_id
       join profiles p on p.user_id = u.id and p.role = 'student'
@@ -219,6 +298,21 @@ export const getSupportCourseStudents = async (
     `,
     [courseId, search, `%${search}%`, DEFAULT_PAGE_SIZE + 1, offset]
   );
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from enrollments e
+        join users u on u.id = e.user_id
+        join profiles p on p.user_id = u.id and p.role = 'student'
+        where e.course_id = $1
+          and ($2 = '' or u.name ilike $3 or u.email ilike $3)
+      `,
+      [courseId, search, `%${search}%`]
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
 
   return {
     hasNextPage: rows.length > DEFAULT_PAGE_SIZE,
@@ -235,7 +329,55 @@ export const getSupportCourseStudents = async (
       startsAt: row.starts_at,
       userId: row.user_id,
     })),
+    totalCount,
   };
+};
+
+export const getSupportCourse = async (
+  courseId: string
+): Promise<Pick<
+  SupportCourseOperation,
+  "activeEnrollmentCount" | "id" | "title" | "totalEnrollmentCount"
+> | null> => {
+  await requirePermission("viewCourseOperations");
+  const { rows } = await getPool().query<{
+    active_enrollment_count: number;
+    id: string;
+    title: string;
+    total_enrollment_count: number;
+  }>(
+    `
+      select
+        c.id,
+        c.title,
+        count(e.id)::int as total_enrollment_count,
+        count(e.id) filter (
+          where e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        )::int as active_enrollment_count
+      from courses c
+      left join enrollments e on e.course_id = c.id
+      where c.id = $1
+      group by c.id, c.title
+    `,
+    [courseId]
+  );
+  const row = rows[0];
+  return row
+    ? {
+        activeEnrollmentCount: row.active_enrollment_count,
+        id: row.id,
+        title: row.title,
+        totalEnrollmentCount: row.total_enrollment_count,
+      }
+    : null;
 };
 
 export const getSupportCourseStudentContext = async ({

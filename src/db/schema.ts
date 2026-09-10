@@ -137,6 +137,15 @@ export const refundRequestStatusEnum = pgEnum("refund_request_status", [
   "failed",
   "confirmed",
 ]);
+export const financialEventSourceEnum = pgEnum("financial_event_source", [
+  "order",
+  "webhook",
+  "statement",
+  "refund",
+  "review",
+  "installment",
+  "migration",
+]);
 export const outboxStatusEnum = pgEnum("outbox_status", [
   "pending",
   "processing",
@@ -1052,6 +1061,7 @@ export const orders = pgTable(
     paymentMaxInstallmentCount: integer("payment_max_installment_count")
       .default(1)
       .notNull(),
+    paymentInstallmentCount: integer("payment_installment_count"),
     accessDurationMonths: integer("access_duration_months"),
     paidAmountInCents: integer("paid_amount_in_cents"),
     netAmountInCents: integer("net_amount_in_cents"),
@@ -1084,6 +1094,7 @@ export const orders = pgTable(
       table.checkoutStatus,
       table.checkoutNextAttemptAt
     ),
+    index("orders_created_at_id_idx").on(table.createdAt, table.id),
     uniqueIndex("orders_external_unique_idx").on(table.externalId),
     index("orders_course_status_idx").on(table.courseId, table.status),
     check(
@@ -1101,6 +1112,10 @@ export const orders = pgTable(
     check(
       "orders_payment_installment_requires_card",
       sql`${table.paymentAllowCreditCard} or ${table.paymentMaxInstallmentCount} = 1`
+    ),
+    check(
+      "orders_actual_installment_count_valid",
+      sql`${table.paymentInstallmentCount} is null or ${table.paymentInstallmentCount} between 2 and 21`
     ),
     check(
       "orders_amount_in_cents_non_negative",
@@ -1187,6 +1202,9 @@ export const paymentReviews = pgTable(
     type: paymentReviewTypeEnum("type").notNull(),
     status: paymentReviewStatusEnum("status").default("pending").notNull(),
     reason: text("reason").notNull(),
+    observedAmountInCents: integer("observed_amount_in_cents"),
+    observedNetAmountInCents: integer("observed_net_amount_in_cents"),
+    observedFeeAmountInCents: integer("observed_fee_amount_in_cents"),
     decisionReason: text("decision_reason"),
     resolvedByUserId: text("resolved_by_user_id").references(() => users.id, {
       onDelete: "set null",
@@ -1208,6 +1226,12 @@ export const paymentReviews = pgTable(
       .where(sql`${table.webhookEventId} is not null`),
     index("payment_reviews_order_status_idx").on(table.orderId, table.status),
     index("payment_reviews_status_idx").on(table.status),
+    check(
+      "payment_reviews_observed_amounts_non_negative",
+      sql`(${table.observedAmountInCents} is null or ${table.observedAmountInCents} >= 0)
+        and (${table.observedNetAmountInCents} is null or ${table.observedNetAmountInCents} >= 0)
+        and (${table.observedFeeAmountInCents} is null or ${table.observedFeeAmountInCents} >= 0)`
+    ),
   ]
 );
 
@@ -1266,6 +1290,135 @@ export const asaasFinancialTransactions = pgTable(
       table.providerTransactionId
     ),
     index("asaas_financial_transactions_date_idx").on(table.transactionDate),
+  ]
+);
+
+export const asaasInstallmentPayments = pgTable(
+  "asaas_installment_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    providerInstallmentId: text("provider_installment_id").notNull(),
+    providerPaymentId: text("provider_payment_id").notNull(),
+    installmentNumber: integer("installment_number"),
+    status: text("status").notNull(),
+    dueDate: text("due_date"),
+    paymentDate: text("payment_date"),
+    clientPaymentDate: text("client_payment_date"),
+    valueInCents: integer("value_in_cents").notNull(),
+    netValueInCents: integer("net_value_in_cents"),
+    feeAmountInCents: integer("fee_amount_in_cents"),
+    anticipated: boolean("anticipated"),
+    syncedAt: timestamp("synced_at", tz).defaultNow().notNull(),
+    metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("asaas_installment_payments_provider_payment_unique_idx").on(
+      table.providerPaymentId
+    ),
+    index("asaas_installment_payments_order_number_idx").on(
+      table.orderId,
+      table.installmentNumber
+    ),
+    index("asaas_installment_payments_installment_status_idx").on(
+      table.providerInstallmentId,
+      table.status
+    ),
+    check(
+      "asaas_installment_payments_installment_number_positive",
+      sql`${table.installmentNumber} is null or ${table.installmentNumber} >= 1`
+    ),
+    check(
+      "asaas_installment_payments_amounts_consistent",
+      sql`${table.valueInCents} > 0
+        and (${table.netValueInCents} is null or (${table.netValueInCents} >= 0 and ${table.netValueInCents} <= ${table.valueInCents}))
+        and (${table.feeAmountInCents} is null or ${table.feeAmountInCents} >= 0)`
+    ),
+  ]
+);
+
+export const financialEvents = pgTable(
+  "financial_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    source: financialEventSourceEnum("source").notNull(),
+    eventKey: text("event_key").notNull(),
+    eventType: text("event_type").notNull(),
+    provider: text("provider").notNull(),
+    occurredAt: timestamp("occurred_at", tz).notNull(),
+    orderId: uuid("order_id").references(() => orders.id, {
+      onDelete: "set null",
+    }),
+    webhookEventId: uuid("webhook_event_id").references(
+      () => webhookEvents.id,
+      { onDelete: "set null" }
+    ),
+    refundRequestId: uuid("refund_request_id").references(
+      () => refundRequests.id,
+      { onDelete: "set null" }
+    ),
+    paymentReviewId: uuid("payment_review_id").references(
+      () => paymentReviews.id,
+      { onDelete: "set null" }
+    ),
+    actorUserId: text("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    providerCheckoutId: text("provider_checkout_id"),
+    providerPaymentId: text("provider_payment_id"),
+    providerInstallmentId: text("provider_installment_id"),
+    providerTransactionId: text("provider_transaction_id"),
+    orderStatusBefore: text("order_status_before"),
+    orderStatusAfter: text("order_status_after"),
+    checkoutStatusBefore: text("checkout_status_before"),
+    checkoutStatusAfter: text("checkout_status_after"),
+    providerPaymentStatusBefore: text("provider_payment_status_before"),
+    providerPaymentStatusAfter: text("provider_payment_status_after"),
+    refundStatusBefore: text("refund_status_before"),
+    refundStatusAfter: text("refund_status_after"),
+    paymentMethod: text("payment_method"),
+    amountInCents: integer("amount_in_cents"),
+    valueInCents: integer("value_in_cents"),
+    feeAmountInCents: integer("fee_amount_in_cents"),
+    netAmountInCents: integer("net_amount_in_cents"),
+    refundAmountInCents: integer("refund_amount_in_cents"),
+    metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("financial_events_provider_source_key_unique_idx").on(
+      table.provider,
+      table.source,
+      table.eventKey
+    ),
+    index("financial_events_order_occurred_idx").on(
+      table.orderId,
+      table.occurredAt
+    ),
+    index("financial_events_payment_occurred_idx").on(
+      table.providerPaymentId,
+      table.occurredAt
+    ),
+    index("financial_events_transaction_idx").on(table.providerTransactionId),
+    index("financial_events_occurred_idx").on(table.occurredAt),
+    check(
+      "financial_events_event_key_not_empty",
+      sql`length(trim(${table.eventKey})) > 0`
+    ),
+    check(
+      "financial_events_event_type_not_empty",
+      sql`length(trim(${table.eventType})) > 0`
+    ),
+    check(
+      "financial_events_amounts_non_negative",
+      sql`(${table.amountInCents} is null or ${table.amountInCents} >= 0)
+        and (${table.feeAmountInCents} is null or ${table.feeAmountInCents} >= 0)
+        and (${table.netAmountInCents} is null or ${table.netAmountInCents} >= 0)
+        and (${table.refundAmountInCents} is null or ${table.refundAmountInCents} >= 0)`
+    ),
   ]
 );
 

@@ -83,6 +83,7 @@ import {
   getResourceTypeLabel,
   getResourceExtension as getSharedResourceExtension,
 } from "@/features/courses/resource-presentation";
+import { JMVSTREAM_PORTAL_URL } from "@/features/jmvstream/portal";
 import {
   type LessonResourceUploadPreview,
   uploadLessonResource,
@@ -266,12 +267,21 @@ export function LessonVideoControls({
 
   return (
     <div className="flex min-w-0 flex-col gap-5 rounded-xl border bg-background p-6 shadow-sm">
-      <div className="flex flex-col gap-1">
-        <h3 className="font-semibold text-base">Vídeo da aula</h3>
-        <p className="text-muted-foreground text-sm">
-          Adicione o conteúdo em vídeo colando um link externo ou enviando o
-          arquivo.
-        </p>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h3 className="font-semibold text-base">Vídeo da aula</h3>
+          <p className="text-muted-foreground text-sm">
+            Associe um vídeo existente ou envie um arquivo para a JMVStream.
+          </p>
+        </div>
+        <a
+          className="shrink-0 text-primary text-sm underline underline-offset-4"
+          href={JMVSTREAM_PORTAL_URL}
+          rel="noopener"
+          target="_blank"
+        >
+          Abrir portal JMVStream
+        </a>
       </div>
 
       <input

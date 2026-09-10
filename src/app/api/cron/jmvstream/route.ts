@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { scheduledJobs } from "@/config/scheduled-jobs";
+import { expireStaleJmvstreamUploads } from "@/features/jmvstream/asset-persistence";
 import { syncPendingJmvstreamPlayers } from "@/features/jmvstream/server";
 import { runWithScheduledJobLease } from "@/features/operations/scheduled-job-lease";
 import { getScheduledJobEarlyResponse } from "@/features/operations/scheduled-job-request";
@@ -27,8 +28,10 @@ export const GET = async (request: Request): Promise<Response> => {
     execute: async () => {
       const lockResult = await runWithScheduledJobLease({
         deadlineMs: scheduledJobs.jmvstream.deadlineMs,
-        execute: ({ deadlineAt, isLeaseOwner }) =>
-          syncPendingJmvstreamPlayers(20, deadlineAt, isLeaseOwner),
+        execute: async ({ deadlineAt, isLeaseOwner }) => {
+          await expireStaleJmvstreamUploads();
+          return syncPendingJmvstreamPlayers(20, deadlineAt, isLeaseOwner);
+        },
         jobName: "jmvstream",
         leaseMs: scheduledJobs.jmvstream.leaseMs,
       });

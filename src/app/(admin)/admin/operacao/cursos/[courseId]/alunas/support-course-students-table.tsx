@@ -1,58 +1,64 @@
 "use client";
 
-import { ViewIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { StudentManagementSheet } from "@/components/admin/student-management-sheet";
+import type { StudentActionMenuStudent } from "@/components/admin/student-actions-menu";
+import { StudentActionsMenu } from "@/components/admin/student-actions-menu";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { getEnrollmentStatusPresentation } from "@/features/admin/status-presentation";
 import type { SupportCourseStudentSummary } from "@/features/admin/support-server";
-import { formatDateTime } from "@/lib/formatters";
 
 interface SupportCourseStudentRow extends SupportCourseStudentSummary {
   courseId: string;
 }
 
-const supportCapabilities = {
+const supportEnrollmentCapabilities = {
   canManageCertificates: false,
   canManageEnrollmentAccess: false,
   canManageEnrollmentSupport: true,
   canManagePlatformAccess: false,
+  canReissueCertificates: false,
+} as const;
+
+const supportCertificateCapabilities = {
+  canManageCertificates: false,
+  canManageEnrollmentAccess: false,
+  canManageEnrollmentSupport: false,
+  canManagePlatformAccess: false,
   canReissueCertificates: true,
 } as const;
 
-const columns: ColumnDef<SupportCourseStudentRow>[] = [
+const toStudentTableRow = (
+  student: SupportCourseStudentRow
+): StudentActionMenuStudent => ({
+  email: student.email,
+  name: student.name,
+  platformBlockedAt: student.platformBlocked ? "blocked" : null,
+  platformBlockedReason: null,
+  userId: student.userId,
+});
+
+const columns = [
   {
     accessorKey: "name",
-    header: "Aluna",
+    header: "Nome",
     meta: { rowHeader: true },
-    cell: ({ row }) => (
-      <div className="min-w-0">
-        <p className="truncate font-medium">{row.original.name}</p>
-        <p className="truncate text-muted-foreground text-xs">
-          {row.original.email}
-        </p>
-      </div>
+    cell: ({ row }: { row: { original: SupportCourseStudentRow } }) => (
+      <span className="block max-w-[220px] truncate font-medium">
+        {row.original.name}
+      </span>
     ),
   },
   {
-    accessorKey: "startsAt",
-    header: "Matrícula",
-    meta: { align: "right", nowrap: true },
-    cell: ({ row }) => formatDateTime(row.original.startsAt),
-  },
-  {
-    accessorKey: "expiresAt",
-    header: "Expira em",
-    meta: { align: "right", nowrap: true },
-    cell: ({ row }) => formatDateTime(row.original.expiresAt),
+    accessorKey: "email",
+    header: "E-mail",
+    cell: ({ row }: { row: { original: SupportCourseStudentRow } }) => (
+      <span className="block max-w-[260px] truncate">{row.original.email}</span>
+    ),
   },
   {
     accessorKey: "enrollmentStatus",
-    header: "Acesso",
-    cell: ({ row }) => {
+    header: "Status",
+    cell: ({ row }: { row: { original: SupportCourseStudentRow } }) => {
       const presentation = getEnrollmentStatusPresentation(
         row.original.enrollmentStatus
       );
@@ -76,32 +82,17 @@ const columns: ColumnDef<SupportCourseStudentRow>[] = [
     id: "actions",
     header: "Ações",
     meta: { align: "right", nowrap: true },
-    cell: ({ row }) => {
+    cell: ({ row }: { row: { original: SupportCourseStudentRow } }) => {
       const courseId = encodeURIComponent(row.original.courseId);
       const userId = encodeURIComponent(row.original.userId);
 
       return (
-        <StudentManagementSheet
-          capabilities={supportCapabilities}
+        <StudentActionsMenu
+          certificateCapabilities={supportCertificateCapabilities}
           courseId={row.original.courseId}
           dataUrl={`/api/admin/operations/courses/${courseId}/students/${userId}`}
-          trigger={
-            <Button
-              aria-label={`Consultar ${row.original.name}`}
-              size="sm"
-              variant="outline"
-            >
-              <HugeiconsIcon
-                aria-hidden="true"
-                data-icon="inline-start"
-                icon={ViewIcon}
-                size={16}
-                strokeWidth={2}
-              />
-              Consultar
-            </Button>
-          }
-          userId={row.original.userId}
+          enrollmentCapabilities={supportEnrollmentCapabilities}
+          student={toStudentTableRow(row.original)}
         />
       );
     },
@@ -117,10 +108,10 @@ export function SupportCourseStudentsTable({
 }): React.JSX.Element {
   return (
     <DataTable
-      caption="Alunas matriculadas no curso"
+      caption="Alunos matriculadas no curso"
       columns={columns}
       data={students.map((student) => ({ ...student, courseId }))}
-      emptyDescription="Este Curso ainda não possui alunas matriculadas."
+      emptyDescription="Este Curso ainda não possui alunos matriculados."
       emptyTitle="Nenhuma matrícula encontrada"
       showPagination={false}
       showSearch={false}

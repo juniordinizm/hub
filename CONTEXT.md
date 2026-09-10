@@ -10,14 +10,15 @@ Este arquivo fixa vocabulário de produto. Regras, implementação e decisões v
 
 ## Pessoas e identidades
 
-**Aluna**  
+**Aluno**
+
 Pessoa que consome Cursos no Hub. É papel de negócio e não prova que tenha efetuado a compra.
 
 **Conta**  
 Identidade autenticável do Hub, identificada por e-mail e protegida por credenciais e sessões. Seu papel técnico é `student`, `support` ou `admin`.
 
 **Compradora**  
-Pessoa que informa dados no checkout e assume a relação financeira do Pedido. Pode ser ou não a Aluna; e-mail de compra e e-mail de Conta não são sinônimos sem regra explícita de vínculo.
+Pessoa que informa dados no checkout e assume a relação financeira do Pedido. Pode ser ou não o Aluno; e-mail de compra e e-mail de Conta não são sinônimos sem regra explícita de vínculo.
 
 **Especialista**  
 Responsável pelo conteúdo, experiência pedagógica e decisões de produto. No escopo atual há uma única especialista, sem marketplace ou tenancy por especialista.
@@ -49,7 +50,7 @@ Modo de Matrícula que ignora atrasos temporais. Admin pode concedê-lo uma vez 
 Revogação manual de acesso a Curso específico; não bloqueia automaticamente a Conta inteira.
 
 **Bloqueio de plataforma**  
-Suspensão da Conta na experiência da Aluna, mais ampla que bloqueio de Matrícula e sem apagar histórico.
+Suspensão da Conta na experiência do Aluno, mais ampla que bloqueio de Matrícula e sem apagar histórico.
 
 **Revisão financeira**  
 Fila humana quando o sistema não pode aplicar evento financeiro com segurança, como conflito entre estados terminais ou valor divergente.
@@ -75,7 +76,7 @@ Produto educacional vendável e publicável, composto por Módulos e Aulas.
 Revisão interna materializada de Módulos e Aulas, com estados rascunho, publicada e aposentada. A publicação vigente define o currículo vivo de todas as Matrículas ativas do Curso; não é produto nem direito comercial individual.
 
 **Conclusão de Curso (`CourseCompletion`)**
-Primeira conclusão histórica de uma Aluna em um Curso, com data e publicação de origem. Somente a transação que cria essa primeira evidência pode iniciar a emissão automática de Certificado. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
+Primeira conclusão histórica de um Aluno em um Curso, com data e publicação de origem. Somente a transação que cria essa primeira evidência pode iniciar a emissão automática de Certificado. Não é apagada por publicação posterior, revogação ou reemissão de certificado.
 
 **Módulo**  
 Agrupamento ordenado de Aulas dentro de Curso e unidade de disponibilidade temporal. Todas as Aulas herdam o momento de liberação do Módulo atual.
@@ -96,16 +97,16 @@ Condição que define quantos períodos de 24 horas após o início da entrega d
 Âncora do episódio contínuo em que uma Matrícula efetiva recebe conteúdo programado. Renovação contínua preserva a âncora; novo direito após perda total inicia outra.
 
 **Certificado**  
-Documento para uma Aluna e Curso, com snapshots exibidos. O lifecycle é serializado por Conta e Curso; o preparo do PDF pode estar pendente, pronto ou falho. Pode ser válido, revogado ou reemitido.
+Documento para um Aluno e Curso, com snapshots exibidos. O lifecycle é serializado por Conta e Curso; o preparo do PDF pode estar pendente, pronto ou falho. Pode ser válido, revogado ou reemitido.
 
 **Evento de aprendizagem**
 Registro técnico minimizado e idempotente de início, checkpoint, conclusão ou falha. É analytics, não autoridade de Progresso, acesso ou Certificado.
 
 **Preferência de analytics de aprendizagem**
-Controle de opt-out da Aluna para os eventos técnicos opcionais. Por padrão, analytics está habilitado; desativar não muda acesso, sequência, progresso, conclusão ou Certificado.
+Controle de opt-out do Aluno para os eventos técnicos opcionais. Por padrão, analytics está habilitado; desativar não muda acesso, sequência, progresso, conclusão ou Certificado.
 
 **Métrica agregada de aprendizagem**
-Contagem ou medida por Aula e Publicação de Curso que não apresenta Conta, Matrícula, Aluna, e-mail ou lista de inatividade.
+Contagem ou medida por Aula e Publicação de Curso que não apresenta Conta, Matrícula, Aluno, e-mail ou lista de inatividade.
 
 ## Durações
 

@@ -47,17 +47,8 @@ const scheduleDescription: Record<string, string> = {
 const markdownCode = String.fromCharCode(96);
 const documentedCronLine = (path: string, description: string): string =>
   ["- ", markdownCode, path, markdownCode, " ", description].join("");
-const documentedJmvstreamCron = [
-  "cron ",
-  markdownCode,
-  "/api/cron/jmvstream",
-  markdownCode,
-  " chama ",
-  markdownCode,
-  "syncPendingJmvstreamPlayers",
-  markdownCode,
-  " a cada quinze minutos",
-].join("");
+const documentedJmvstreamCron =
+  /cron `\/api\/cron\/jmvstream` adquire o lease, expira sessões de upload stale e\s+chama `syncPendingJmvstreamPlayers` a cada quinze minutos/;
 const releaseFlowFrequentCronPattern =
   /Asaas, JMVStream, outbox e\s+Resend a cada quinze minutos/;
 const releaseFlowEnrollmentCronPattern =
@@ -98,7 +89,7 @@ describe("Operational documentation contracts", () => {
     expect(releaseFlow).toMatch(releaseFlowFrequentCronPattern);
     expect(releaseFlow).toMatch(releaseFlowEnrollmentCronPattern);
     expect(releaseFlow).toMatch(releaseFlowMaintenanceCronPattern);
-    expect(jmvstream).toContain(documentedJmvstreamCron);
+    expect(jmvstream).toMatch(documentedJmvstreamCron);
   });
 
   it("documents the implemented support enrollment capability", () => {

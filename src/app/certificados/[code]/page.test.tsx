@@ -35,7 +35,7 @@ describe("CertificateValidationPage", () => {
       revokedAt: null,
       revokedReasonCategory: null,
       status: "valid",
-      studentName: "Aluna",
+      studentName: "Aluno",
       workloadHours: 8,
     });
 
@@ -73,6 +73,8 @@ describe("CertificateValidationPage", () => {
     expect(markup).toContain("Baixar PDF");
     expect(markup).toContain("Copiar link");
     expect(markup).not.toContain("A4 · PDF");
+    expect(markup).toContain('alt="NeuroCapacitar"');
+    expect(markup).toContain('src="/protear/logo-negativo.svg"');
   });
 
   it("keeps a pending certificate visible without exposing a PDF action", async () => {
@@ -88,7 +90,7 @@ describe("CertificateValidationPage", () => {
       revokedAt: null,
       revokedReasonCategory: null,
       status: "valid",
-      studentName: "Aluna",
+      studentName: "Aluno",
       workloadHours: 8,
     });
 
@@ -119,7 +121,7 @@ describe("CertificateValidationPage", () => {
       revokedAt: new Date("2026-07-22T12:00:00.000Z"),
       revokedReasonCategory: "other",
       status: "revoked",
-      studentName: "Aluna",
+      studentName: "Aluno",
       workloadHours: 8,
     });
 
@@ -150,7 +152,7 @@ describe("CertificateValidationPage", () => {
       revokedAt: null,
       revokedReasonCategory: null,
       status: "valid",
-      studentName: "Aluna",
+      studentName: "Aluno",
       workloadHours: 8,
     });
 

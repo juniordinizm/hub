@@ -94,7 +94,10 @@ export function CertificateTemplateVisibilitySheet({
       ) : (
         <SheetTrigger asChild>{triggerButton}</SheetTrigger>
       )}
-      <SheetContent className="w-[min(90vw,24rem)] sm:max-w-sm" side="right">
+      <SheetContent
+        className="w-[min(92vw,28rem)] data-[side=right]:sm:max-w-md"
+        side="right"
+      >
         <SheetHeader className="border-b px-4 py-4 pr-14">
           <SheetTitle>Campos e visibilidade</SheetTitle>
           <SheetDescription>

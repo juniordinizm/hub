@@ -331,7 +331,7 @@ describe("transactional email", () => {
     await sendAccessReleasedEmail({
       courseTitle: "Curso geral",
       to: "student@example.test",
-      userName: "Aluna de teste",
+      userName: "Aluno de teste",
     });
 
     const [email] = send.mock.calls[0] ?? [];
@@ -345,7 +345,7 @@ describe("transactional email", () => {
           ACTION_URL: "https://hub.example.test/app",
           COURSE_TITLE: "Curso geral",
           PASSWORD_RESET_URL: "https://hub.example.test/recuperar-senha",
-          USER_NAME: "Aluna de teste",
+          USER_NAME: "Aluno de teste",
         },
       },
       to: "student@example.test",
@@ -386,7 +386,7 @@ describe("transactional email", () => {
       daysRemaining,
       idempotencyKey,
       to: "student@example.test",
-      userName: "Aluna de teste",
+      userName: "Aluno de teste",
     });
 
     const [email, options] = send.mock.calls[0] ?? [];
@@ -399,7 +399,7 @@ describe("transactional email", () => {
           ACTION_URL: "https://hub.example.test/app/cursos/course-expiry",
           COURSE_TITLE: "Curso de expiração",
           DAYS_REMAINING: expectedDaysRemaining,
-          USER_NAME: "Aluna de teste",
+          USER_NAME: "Aluno de teste",
         },
       },
       to: "student@example.test",
@@ -421,7 +421,7 @@ describe("transactional email", () => {
       courseTitle: "Curso de suporte",
       message: "Mensagem de teste controlada.",
       studentEmail: "student@example.test",
-      studentName: "Aluna de suporte",
+      studentName: "Aluno de suporte",
       subject: "Dúvida controlada",
     });
 
@@ -437,7 +437,7 @@ describe("transactional email", () => {
           COURSE_TITLE: "Curso de suporte",
           MESSAGE: "Mensagem de teste controlada.",
           STUDENT_EMAIL: "student@example.test",
-          STUDENT_NAME: "Aluna de suporte",
+          STUDENT_NAME: "Aluno de suporte",
           SUPPORT_SUBJECT: "Dúvida controlada",
         },
       },
@@ -457,7 +457,7 @@ describe("transactional email", () => {
     await sendSupportRequestEmail({
       message: "Mensagem sem curso.",
       studentEmail: "student@example.test",
-      studentName: "Aluna sem curso",
+      studentName: "Aluno sem curso",
       subject: "Dúvida geral",
     });
 
@@ -473,7 +473,7 @@ describe("transactional email", () => {
           COURSE_TITLE: "Não informado",
           MESSAGE: "Mensagem sem curso.",
           STUDENT_EMAIL: "student@example.test",
-          STUDENT_NAME: "Aluna sem curso",
+          STUDENT_NAME: "Aluno sem curso",
           SUPPORT_SUBJECT: "Dúvida geral",
         },
       },
@@ -493,7 +493,7 @@ describe("transactional email", () => {
     const variables = {
       ACTION_URL: "https://hub.example.test/recuperar-senha/token",
       name: "auth-password-reset",
-      USER_NAME: "Aluna de teste",
+      USER_NAME: "Aluno de teste",
     } satisfies HostedEmailTemplateVariables;
 
     await sendHostedTemplateEmail({
@@ -515,7 +515,7 @@ describe("transactional email", () => {
           id: "auth-password-reset",
           variables: {
             ACTION_URL: "https://hub.example.test/recuperar-senha/token",
-            USER_NAME: "Aluna de teste",
+            USER_NAME: "Aluno de teste",
           },
         },
         to: "student@example.test",
@@ -545,7 +545,7 @@ describe("transactional email", () => {
       name: "access-released",
       PASSWORD_RESET_URL: "https://hub.example.test/recuperar-senha",
       to: "student@example.test",
-      USER_NAME: "Aluna de teste",
+      USER_NAME: "Aluno de teste",
     });
 
     expect(send).toHaveBeenCalledTimes(1);
@@ -558,7 +558,7 @@ describe("transactional email", () => {
           ACTION_URL: "https://hub.example.test/app/cursos/course-1",
           COURSE_TITLE: "Curso de teste",
           PASSWORD_RESET_URL: "https://hub.example.test/recuperar-senha",
-          USER_NAME: "Aluna de teste",
+          USER_NAME: "Aluno de teste",
         },
       },
       to: "student@example.test",
@@ -576,7 +576,7 @@ describe("transactional email", () => {
       DAYS_REMAINING: "7 dias",
       name: "access-expiry-warning",
       to: "student@example.test",
-      USER_NAME: "Aluna de teste",
+      USER_NAME: "Aluno de teste",
     });
 
     expect(send).toHaveBeenCalledTimes(1);
@@ -588,7 +588,7 @@ describe("transactional email", () => {
           ACTION_URL: "https://hub.example.test/app/cursos/course-1",
           COURSE_TITLE: "Curso de expiração",
           DAYS_REMAINING: "7 dias",
-          USER_NAME: "Aluna de teste",
+          USER_NAME: "Aluno de teste",
         },
       },
       to: "student@example.test",
@@ -607,7 +607,7 @@ describe("transactional email", () => {
       name: "support-request",
       replyTo: "student@example.test",
       STUDENT_EMAIL: "student@example.test",
-      STUDENT_NAME: "Aluna de suporte",
+      STUDENT_NAME: "Aluno de suporte",
       subject: "Dúvida controlada",
       SUPPORT_SUBJECT: "Dúvida controlada",
       to: "support@example.test",
@@ -624,7 +624,7 @@ describe("transactional email", () => {
           COURSE_TITLE: "Curso de suporte",
           MESSAGE: "Mensagem de teste controlada.",
           STUDENT_EMAIL: "student@example.test",
-          STUDENT_NAME: "Aluna de suporte",
+          STUDENT_NAME: "Aluno de suporte",
           SUPPORT_SUBJECT: "Dúvida controlada",
         },
       },
@@ -748,7 +748,7 @@ describe("transactional email", () => {
         name: "access-released",
         PASSWORD_RESET_URL: "https://hub.example.test/recuperar-senha",
         to: "student@example.test",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).rejects.toThrow("Idempotency key reused with a different payload");
 
@@ -787,7 +787,7 @@ describe("transactional email", () => {
         PASSWORD_RESET_URL:
           "https://preview.neurocapacitar.com.br/recuperar-senha",
         to: "blocked@example.test",
-        USER_NAME: "Aluna de teste",
+        USER_NAME: "Aluno de teste",
       })
     ).rejects.toThrow("Email recipient is not allowlisted for Staging.");
 

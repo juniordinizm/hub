@@ -319,7 +319,7 @@ e cria fixtures estáveis sem truncar tabelas ou chamar providers. O conjunto
 inicial inclui:
 
 - um Admin fictício;
-- uma Aluna fictícia;
+ - um Aluno fictício;
 - um Curso publicado;
 - módulos e aulas;
 - uma Concessão ativa;

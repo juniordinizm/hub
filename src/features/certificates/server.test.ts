@@ -25,6 +25,7 @@ vi.mock("@/lib/env", () => ({
 import {
   assertCertificateReissueTargetAllowed,
   getCertificateByCode,
+  getCertificateOperationsForUser,
   issueCompletionCertificateIfEligible,
   issueManualCertificate,
   reconcileHistoricalCourseCertificates,
@@ -68,6 +69,40 @@ describe("certificate reissue authority", () => {
   });
 });
 
+describe("certificate operation projection", () => {
+  it("returns the course id needed by scoped student management", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          can_reissue: true,
+          code: "PRT-123",
+          course_id: "course-1",
+          course_title_snapshot: "Curso 1",
+          id: "certificate-1",
+          issued_at: new Date("2026-08-01T12:00:00.000Z"),
+          render_status: "ready",
+          revoked_at: null,
+          revoked_reason_category: null,
+          status: "valid",
+          student_name_snapshot: "Aluno",
+          workload_hours_snapshot: 8,
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await expect(getCertificateOperationsForUser("student-1")).resolves.toEqual(
+      [
+        expect.objectContaining({
+          code: "PRT-123",
+          courseId: "course-1",
+        }),
+      ]
+    );
+    expect(String(query.mock.calls[0]?.[0])).toContain("certificate.course_id");
+  });
+});
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -82,7 +117,7 @@ const renderSnapshot = {
     displayName: "Emissora",
     legalName: "Emissora LTDA",
   },
-  student: { name: "Aluna" },
+  student: { name: "Aluno" },
   template: {
     backgroundKey: "templates/background.webp",
     fields: [
@@ -152,7 +187,7 @@ describe("certificate lifecycle reasons", () => {
                 backgroundKey: renderSnapshot.template.backgroundKey,
                 fields: renderSnapshot.template.fields,
               },
-              student_name: "Aluna",
+              student_name: "Aluno",
               template_id: renderSnapshot.template.id,
               template_version: 1,
               workload_hours: 24,
@@ -244,7 +279,7 @@ describe("certificate lifecycle reasons", () => {
                 backgroundKey: "templates/background.webp",
                 fields: renderSnapshot.template.fields,
               },
-              student_name: "Aluna",
+              student_name: "Aluno",
               template_id: renderSnapshot.template.id,
               template_version: 1,
               workload_hours: 8,
@@ -376,7 +411,7 @@ describe("certificate lifecycle reasons", () => {
                 backgroundKey: "templates/background.webp",
                 fields: renderSnapshot.template.fields,
               },
-              student_name: "Aluna",
+              student_name: "Aluno",
               template_id: renderSnapshot.template.id,
               template_version: 1,
               workload_hours: 8,
@@ -521,7 +556,7 @@ describe("certificate lifecycle reasons", () => {
           revoked_reason: "Dados pessoais ou alegacao sensivel.",
           revoked_reason_category: "integrity_review",
           status: "revoked",
-          student_name_snapshot: "Aluna",
+          student_name_snapshot: "Aluno",
           workload_hours_snapshot: 8,
         },
       ],
@@ -552,7 +587,7 @@ describe("certificate lifecycle reasons", () => {
           revoked_at: null,
           revoked_reason_category: null,
           status: "valid",
-          student_name_snapshot: "Aluna",
+          student_name_snapshot: "Aluno",
           workload_hours_snapshot: 8,
         },
       ],
@@ -606,7 +641,7 @@ describe("automatic completion certificate retries", () => {
         coursePublicationId: "publication-1",
         courseTitle: "Curso",
         completedAt: new Date("2026-07-22T12:00:00.000Z"),
-        studentName: "Aluna",
+        studentName: "Aluno",
         userId: "student-1",
         workloadHours: 8,
       })
@@ -669,7 +704,7 @@ describe("automatic completion certificate retries", () => {
         coursePublicationId: "publication-1",
         courseTitle: "Curso",
         completedAt: new Date("2026-07-22T12:00:00.000Z"),
-        studentName: "Aluna",
+        studentName: "Aluno",
         userId: "student-1",
         workloadHours: 8,
       })
@@ -724,7 +759,7 @@ describe("automatic completion certificate retries", () => {
         coursePublicationId: "publication-1",
         courseTitle: "Curso",
         completedAt: new Date("2026-07-22T12:00:00.000Z"),
-        studentName: "Aluna",
+        studentName: "Aluno",
         userId: "student-1",
         workloadHours: 8,
       })
@@ -806,7 +841,7 @@ describe("automatic completion certificate retries", () => {
           certificateId: null,
           completedLessons: 1,
           courseTitle: "Curso",
-          studentName: "Aluna",
+          studentName: "Aluno",
           totalLessons: 1,
           workloadHours: 8,
         },
@@ -859,7 +894,7 @@ describe("automatic completion certificate retries", () => {
           certificateId: null,
           completedLessons: 1,
           courseTitle: "Curso",
-          studentName: "Aluna",
+          studentName: "Aluno",
           totalLessons: 1,
           workloadHours: 8,
         },

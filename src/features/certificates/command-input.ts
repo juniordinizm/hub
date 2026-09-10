@@ -16,7 +16,7 @@ const issueCertificateSchema = z.object({
   courseId: requiredString("Informe o curso."),
   reasonCategory: certificateReasonSchema,
   reasonDetail: requiredString("Informe o detalhe interno do motivo."),
-  userId: requiredString("Informe a aluna."),
+  userId: requiredString("Informe o aluno."),
 });
 
 const changeCertificateSchema = z.object({

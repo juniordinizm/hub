@@ -152,7 +152,7 @@ const PendingCertificateReconciliation = ({
             <AlertDialogTitle>Emitir certificados pendentes?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta ação inicia a geração do PDF e o envio do e-mail para cada
-              aluna elegível. Certificados com qualquer histórico, inclusive
+              aluno elegível. Certificados com qualquer histórico, inclusive
               revogados, não serão duplicados.
             </AlertDialogDescription>
           </AlertDialogHeader>

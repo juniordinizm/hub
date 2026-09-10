@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { grantEnrollmentFullContentAccessAction } from "@/features/admin/actions";
 import { formatDateTime } from "@/lib/formatters";
 import type { StudentSheetEnrollment } from "./student-management-types";
@@ -43,59 +44,54 @@ export function StudentContentReleaseControls({
   };
 
   return (
-    <details className="mt-4 rounded-lg border bg-muted/20 p-3">
-      <summary className="cursor-pointer font-medium text-sm">
-        Liberar conteúdo integral
-      </summary>
-      <div className="mt-3">
-        <p className="font-medium text-sm">Liberação de conteúdo</p>
+    <div className="mt-4 rounded-lg border bg-muted/20 p-3">
+      <p className="font-medium text-sm">Liberar conteúdo integral</p>
+      <p className="mt-1 text-muted-foreground text-xs">
+        Liberação programada
+        {enrollment.contentReleaseStartedAt
+          ? ` desde ${formatDateTime(enrollment.contentReleaseStartedAt)}`
+          : ""}
+        . Esta ação é irreversível neste episódio.
+      </p>
+      {enrollment.nextModuleReleaseAt ? (
         <p className="mt-1 text-muted-foreground text-xs">
-          Liberação programada
-          {enrollment.contentReleaseStartedAt
-            ? ` desde ${formatDateTime(enrollment.contentReleaseStartedAt)}`
-            : ""}
-          . Esta ação é irreversível neste episódio.
+          Próximo Módulo em {formatDateTime(enrollment.nextModuleReleaseAt)}
         </p>
-        {enrollment.nextModuleReleaseAt ? (
-          <p className="mt-1 text-muted-foreground text-xs">
-            Próximo Módulo em {formatDateTime(enrollment.nextModuleReleaseAt)}
-          </p>
-        ) : null}
-        <label
-          className="mt-3 block font-medium text-xs"
-          htmlFor={`release-reason-${enrollment.id}`}
+      ) : null}
+      <label
+        className="mt-3 block font-medium text-xs"
+        htmlFor={`release-reason-${enrollment.id}`}
+      >
+        Motivo
+      </label>
+      <Textarea
+        aria-describedby={
+          error ? `release-reason-help-${enrollment.id}` : undefined
+        }
+        className="mt-1 min-h-20"
+        id={`release-reason-${enrollment.id}`}
+        onChange={(event) => setReason(event.target.value)}
+        value={reason}
+      />
+      <Button
+        aria-busy={isPending}
+        className="mt-3"
+        disabled={isPending || !reason.trim()}
+        onClick={submit}
+        size="sm"
+        type="button"
+      >
+        {isPending ? "Liberando…" : "Liberar conteúdo integral"}
+      </Button>
+      {error ? (
+        <p
+          className="mt-2 text-destructive text-xs"
+          id={`release-reason-help-${enrollment.id}`}
+          role="alert"
         >
-          Motivo
-        </label>
-        <textarea
-          aria-describedby={
-            error ? `release-reason-help-${enrollment.id}` : undefined
-          }
-          className="mt-1 min-h-20 w-full rounded-md border bg-background p-2 text-sm"
-          id={`release-reason-${enrollment.id}`}
-          onChange={(event) => setReason(event.target.value)}
-          value={reason}
-        />
-        <Button
-          aria-busy={isPending}
-          className="mt-3"
-          disabled={isPending || !reason.trim()}
-          onClick={submit}
-          size="sm"
-          type="button"
-        >
-          {isPending ? "Liberando…" : "Liberar conteúdo integral"}
-        </Button>
-        {error ? (
-          <p
-            className="mt-2 text-destructive text-xs"
-            id={`release-reason-help-${enrollment.id}`}
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </details>
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }

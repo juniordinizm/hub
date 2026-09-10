@@ -2,7 +2,7 @@
 
 import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,40 +30,64 @@ export function LessonSidebarActions({
   const [isPending, startTransition] = useTransition();
   const statusId = `${formId}-status`;
 
-  const handleSave = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    const form = document.getElementById(formId) as HTMLFormElement;
-    if (!form) {
-      return;
-    }
-
-    if (!form.checkValidity()) {
-      form.reportValidity();
-      return;
-    }
-
-    const formData = new FormData(form);
-    formData.set("status", status);
-    setErrorMessage(null);
-
-    const toastId = toast.loading("Salvando aula…");
-
-    startTransition(async () => {
-      try {
-        const result = await saveLessonAction(formData);
-        if (!result.ok) {
-          setErrorMessage(result.message);
-          toast.error(result.message, { id: toastId });
-          return;
-        }
-
-        toast.success("Aula salva com sucesso!", { id: toastId });
-      } catch {
-        const message = "Não foi possível salvar a aula. Tente novamente.";
-        setErrorMessage(message);
-        toast.error(message, { id: toastId });
+  const saveForm = useCallback(
+    (form: HTMLFormElement): void => {
+      if (isPending) {
+        return;
       }
-    });
+
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      const formData = new FormData(form);
+      formData.set("status", status);
+      setErrorMessage(null);
+
+      const toastId = toast.loading("Salvando aula…");
+
+      startTransition(async () => {
+        try {
+          const result = await saveLessonAction(formData);
+          if (!result.ok) {
+            setErrorMessage(result.message);
+            toast.error(result.message, { id: toastId });
+            return;
+          }
+
+          toast.success("Aula salva com sucesso!", { id: toastId });
+        } catch {
+          const message = "Não foi possível salvar a aula. Tente novamente.";
+          setErrorMessage(message);
+          toast.error(message, { id: toastId });
+        }
+      });
+    },
+    [isPending, status]
+  );
+
+  useEffect(() => {
+    const form = document.getElementById(formId);
+    if (!(form instanceof HTMLFormElement)) {
+      return;
+    }
+
+    const handleSubmit = (event: SubmitEvent): void => {
+      event.preventDefault();
+      saveForm(form);
+    };
+
+    form.addEventListener("submit", handleSubmit);
+    return () => form.removeEventListener("submit", handleSubmit);
+  }, [formId, saveForm]);
+
+  const handleSave = (event: React.MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    const form = document.getElementById(formId);
+    if (form instanceof HTMLFormElement) {
+      saveForm(form);
+    }
   };
 
   return (

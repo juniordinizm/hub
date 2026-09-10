@@ -71,6 +71,18 @@ export default function Loading(): React.JSX.Element {
               <Skeleton className="h-10 w-full" />
             </div>
           </section>
+
+          <section className="overflow-hidden rounded-lg border bg-card">
+            <div className="border-b p-4">
+              <Skeleton className="h-5 w-full" />
+            </div>
+            <div className="space-y-4 p-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </section>
         </div>
       </div>
     </PageContainer>

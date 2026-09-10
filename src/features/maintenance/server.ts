@@ -168,7 +168,7 @@ export const runMaintenance = async ({
     return result;
   }
   const analyticsEvents = await pool.query(
-    "delete from learning_analytics_events where occurred_at < now() - interval '90 days'"
+    "delete from learning_analytics_events where occurred_at < now() - interval '12 months'"
   );
   result.learningAnalyticsEventsRemoved = analyticsEvents.rowCount ?? 0;
 

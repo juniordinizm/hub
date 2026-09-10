@@ -390,7 +390,7 @@ export function ModuleForm({
                 </div>
               </RadioGroup>
               <p className="text-muted-foreground text-xs">
-                Cada dia equivale a 24 horas desde o início do acesso da Aluna.
+                Cada dia equivale a 24 horas desde o início do acesso do Aluno.
               </p>
             </fieldset>
             {moduleData ? (

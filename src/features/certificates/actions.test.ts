@@ -76,14 +76,14 @@ describe("certificate server actions", () => {
   it("returns expected domain failures as typed action state", async () => {
     dependencies.issueManualCertificate.mockRejectedValueOnce(
       new CertificateDomainError(
-        "A aluna ja possui um certificado valido para este curso."
+        "O aluno ja possui um certificado valido para este curso."
       )
     );
 
     await expect(
       issueManualCertificateAction({ status: "idle" }, validIssueFormData())
     ).resolves.toEqual({
-      message: "A aluna ja possui um certificado valido para este curso.",
+      message: "O aluno ja possui um certificado valido para este curso.",
       status: "error",
     });
   });

@@ -24,7 +24,7 @@ const adminNavItems = [
   ["Painel", "/admin", Analytics01Icon],
   ["Aprendizagem", "/admin/aprendizagem", Analytics01Icon],
   ["Cursos", "/admin/cursos", Book01Icon],
-  ["Alunas", "/admin/alunos", UserGroupIcon],
+  ["Alunos", "/admin/alunos", UserGroupIcon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
   ["Auditoria", "/admin/auditoria", HistoryIcon],
   ["Configurações", "/admin/configuracoes", AccountSetting01Icon],

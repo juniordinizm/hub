@@ -144,7 +144,7 @@ Matrículas usam `paid_order`; revogações financeiras usam razões neutras
 
 Admin pode conceder `full_access` uma vez no episódio atual com motivo, evento e auditoria. Support recebe modo, âncora e próxima liberação apenas para diagnóstico.
 
-Admin pode usar preview; a mutação de experiência da Aluna continua proibida no preview.
+Admin pode usar preview; a mutação de experiência do Aluno continua proibida no preview.
 
 ### REG-COM-006 Expiração é calculada sobre a Concessão paga
 
@@ -194,14 +194,37 @@ O token de confirmação e sua auditoria usam uma transação local. A reserva e
 auditoria usam outra transação local antes da mutação externa. A persistência da
 evidência ou da falha ocorre depois da resposta do provider.
 
-Conciliação por pagamento e importação de extrato são mutações administrativas e
+Conciliação por pagamento e sincronização local do extrato são mutações administrativas e
 exigem `manageFinancialOperations`, exclusiva de Admin. Toda resolução manual de
 Revisão exige `manageFinancialReviews`, também exclusiva de Admin; `viewFinancials`
-autoriza somente leitura. `buyer_identity`, `event_anomaly` e `partial_refund` não
-aceitam aprovação ou rejeição genérica: exigem, respectivamente, reembolso integral,
-conciliação/reprocessamento ou tratamento financeiro específico. A área financeira
-oculta os controles mutáveis para Suporte, mas a autorização do servidor permanece a
-barreira efetiva.
+autoriza somente leitura. `amount_mismatch` pode aceitar uma decisão explícita de
+liberar ou manter o bloqueio; `buyer_identity` exige reembolso integral;
+`event_anomaly`, `terminal_conflict` e `uncertain_result` exigem
+conciliação/reprocessamento; e `partial_refund` exige tratamento financeiro
+específico. Esses tipos não aceitam aprovação ou rejeição genérica. Uma conciliação
+iniciada a partir de uma Revisão só a encerra quando não há nova divergência e o
+resultado financeiro é seguro. A área financeira oculta os controles mutáveis para
+Suporte, mas a autorização do servidor permanece a barreira efetiva.
+
+**Projeção administrativa:** o resumo financeiro separa Pedido em aberto de
+checkout encerrado sem pagamento. Estados `failed`, `cancelled` e `expired` do
+Checkout não entram no valor em aberto, embora continuem na contagem de pedidos
+registrados. Webhooks falhos, em retry e em processamento são apresentados como
+estados distintos; a lista completa e o reprocessamento permanecem na Auditoria.
+Análises por período usam a data de pagamento, ou a criação quando ela não existe,
+limitadas ao intervalo selecionado até o momento da consulta,
+e identificam o líquido como estimativa derivada dos snapshots do Pedido. O valor
+confirmado usa `paid_amount_in_cents` quando há evidência do pagamento e só recorre a
+`amount_in_cents` como fallback; o valor em aberto usa o preço do Pedido pendente e
+exclui Checkouts encerrados. Nenhum desses agregados é saldo disponível no Asaas.
+O Hub registra uma compra parcelada uma vez pelo total agregado nos resumos; quando
+a conciliação valida o parcelamento, também sincroniza as cobranças individuais em
+`asaas_installment_payments`. O detalhe do Pedido apresenta o status de cada cobrança
+e um resumo de valores confirmados e ainda não confirmados, sempre como evidência do
+Asaas, não como prova de saldo disponível ou liquidação bancária.
+Uma trilha append-only em `financial_events` também registra ocorrências futuras
+de Pedido, webhook, sincronização, reembolso e Revisão; snapshots de backfill
+não reconstituem transições anteriores à sua criação.
 
 ### REG-COM-009 Oferta de pagamento pertence ao Curso e ao Pedido
 
@@ -231,6 +254,18 @@ decisão derivada; o payload original permanece na inbox. ID, Checkout, quantida
 total devem coincidir com o snapshot. Eventos das demais parcelas são aceitos somente
 quando mantêm o mesmo agregado. Conciliação lista todas as cobranças, e reembolso integral
 usa `POST /v3/installments/{id}/refund`.
+
+Quando o agregado é validado, o processor também persiste a quantidade efetiva em
+`orders.payment_installment_count`. O valor permanece nulo quando a evidência histórica
+não está disponível; a interface comunica essa limitação e não confunde o teto de parcelas
+da oferta com a escolha feita pela Compradora.
+
+Na conciliação, `GET /v3/installments/{id}/payments` é consultado e cada cobrança
+individual é atualizada por `provider_payment_id`. O Hub preserva vencimento, datas
+do provedor como texto, status, valor, líquido, tarifa e antecipação. A tela pode
+somar cobranças com status confirmado ou ainda não confirmado para facilitar o
+acompanhamento diário, mas status de pagamento não é convertido em saldo de caixa;
+o fechamento oficial continua no Asaas.
 
 **Limitação do fornecedor:** o Checkout hospedado não aceita preço diferente por método
 ou quantidade de parcelas e não documenta, por sessão, quem absorve o custo do

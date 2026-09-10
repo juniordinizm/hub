@@ -39,7 +39,7 @@ export default function PrivacyNoticePage(): React.JSX.Element {
             podem permanecer para acompanhamento de qualidade.
           </p>
           <p>
-            Registros brutos ficam por até 90 dias e métricas agregadas por até
+            Registros brutos ficam por até 12 meses e métricas agregadas por até
             13 meses. Mensagens enviadas pelo formulário de suporte ficam
             registradas por até 90 dias para atendimento. Para exercer direitos
             sobre seus dados, use o canal de suporte informado pela

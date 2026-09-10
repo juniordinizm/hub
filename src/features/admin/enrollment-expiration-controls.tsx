@@ -6,7 +6,6 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useState } from "react";
 import {
   AdminMutationForm,
   AdminMutationSubmitButton,
@@ -33,7 +32,7 @@ import {
   blockEnrollmentAccessAction,
   restoreEnrollmentAccessAction,
 } from "@/features/admin/actions";
-import { formatDateInput, formatDateTime } from "@/lib/formatters";
+import { formatDateInput } from "@/lib/formatters";
 
 export interface EnrollmentExpirationControlData {
   courseTitle: string;
@@ -46,60 +45,46 @@ export interface EnrollmentExpirationControlData {
   userId: string;
 }
 
-type EnrollmentControl = "adjust" | "block" | "restore";
-
 export function EnrollmentExpirationControls({
   enrollment,
   onSuccess,
 }: {
   enrollment: EnrollmentExpirationControlData;
-  onSuccess?: () => void | Promise<void>;
+  onSuccess?: (() => void | Promise<void>) | undefined;
 }): React.JSX.Element {
-  const [activeControl, setActiveControl] = useState<EnrollmentControl | null>(
-    null
-  );
   const isBlocked = enrollment.status === "revoked";
   const isManuallyBlocked =
     isBlocked && enrollment.revokedReason === "manual_access_block";
   const canChangeExpiration = !isBlocked;
   const canBlockAccess =
     enrollment.status === "active" || enrollment.status === "expired";
-  const closeAfterSuccess = async (): Promise<void> => {
-    setActiveControl(null);
-    await onSuccess?.();
-  };
 
   return (
     <div className="flex flex-col gap-3" data-enrollment-controls>
       {isBlocked && !isManuallyBlocked ? <PaymentBlockNotice /> : null}
-      <EnrollmentControlButtons
-        activeControl={activeControl}
-        canBlockAccess={canBlockAccess}
-        canChangeExpiration={canChangeExpiration}
-        isManuallyBlocked={isManuallyBlocked}
-        onSelect={setActiveControl}
-      />
-      {activeControl === "adjust" ? (
-        <EnrollmentAdjustmentForm
+      {canChangeExpiration ? (
+        <EnrollmentAdjustmentSection
           enrollment={enrollment}
-          onCancel={() => setActiveControl(null)}
-          onSuccess={closeAfterSuccess}
+          onSuccess={onSuccess}
         />
       ) : null}
-      {activeControl === "block" ? (
-        <EnrollmentBlockForm
+      {canBlockAccess ? (
+        <EnrollmentBlockSection enrollment={enrollment} onSuccess={onSuccess} />
+      ) : null}
+      {isManuallyBlocked ? (
+        <EnrollmentRestoreSection
           enrollment={enrollment}
-          onCancel={() => setActiveControl(null)}
-          onSuccess={closeAfterSuccess}
+          onSuccess={onSuccess}
         />
       ) : null}
-      {activeControl === "restore" ? (
-        <EnrollmentRestoreForm
-          enrollment={enrollment}
-          onCancel={() => setActiveControl(null)}
-          onSuccess={closeAfterSuccess}
-        />
-      ) : null}
+      {isManuallyBlocked ||
+      canBlockAccess ||
+      canChangeExpiration ||
+      (isBlocked && !isManuallyBlocked) ? null : (
+        <p className="text-muted-foreground text-sm">
+          Não há ações disponíveis para esta Matrícula no estado atual.
+        </p>
+      )}
     </div>
   );
 }
@@ -116,113 +101,126 @@ function PaymentBlockNotice(): React.JSX.Element {
   );
 }
 
-function EnrollmentControlButtons({
-  activeControl,
-  canBlockAccess,
-  canChangeExpiration,
-  isManuallyBlocked,
-  onSelect,
+function EnrollmentAdjustmentSection({
+  enrollment,
+  onSuccess,
 }: {
-  activeControl: EnrollmentControl | null;
-  canBlockAccess: boolean;
-  canChangeExpiration: boolean;
-  isManuallyBlocked: boolean;
-  onSelect: (control: EnrollmentControl) => void;
-}): React.JSX.Element | null {
-  if (!(canChangeExpiration || canBlockAccess || isManuallyBlocked)) {
-    return null;
-  }
-
+  enrollment: EnrollmentExpirationControlData;
+  onSuccess?: (() => void | Promise<void>) | undefined;
+}): React.JSX.Element {
   return (
-    <div className="flex flex-wrap gap-2">
-      {canChangeExpiration ? (
-        <Button
-          onClick={() => onSelect("adjust")}
-          size="sm"
-          type="button"
-          variant={activeControl === "adjust" ? "secondary" : "outline"}
+    <section
+      aria-labelledby={`enrollment-adjust-${enrollment.id}`}
+      className="rounded-lg border bg-muted/10 p-4"
+    >
+      <div>
+        <h4
+          className="flex items-center gap-2 font-semibold text-sm"
+          id={`enrollment-adjust-${enrollment.id}`}
         >
           <HugeiconsIcon
             aria-hidden="true"
-            data-icon="inline-start"
             icon={FloppyDiskIcon}
             size={16}
             strokeWidth={2}
           />
           Ajustar validade
-        </Button>
-      ) : null}
-      {canBlockAccess ? (
-        <Button
-          onClick={() => onSelect("block")}
-          size="sm"
-          type="button"
-          variant={activeControl === "block" ? "destructive" : "outline"}
+        </h4>
+        <p className="mt-1 text-muted-foreground text-xs">
+          Defina a nova data em que o acesso a este Curso deve terminar.
+        </p>
+      </div>
+      <EnrollmentAdjustmentForm enrollment={enrollment} onSuccess={onSuccess} />
+    </section>
+  );
+}
+
+function EnrollmentBlockSection({
+  enrollment,
+  onSuccess,
+}: {
+  enrollment: EnrollmentExpirationControlData;
+  onSuccess?: (() => void | Promise<void>) | undefined;
+}): React.JSX.Element {
+  return (
+    <section
+      aria-labelledby={`enrollment-block-${enrollment.id}`}
+      className="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+    >
+      <div>
+        <h4
+          className="flex items-center gap-2 font-semibold text-sm"
+          id={`enrollment-block-${enrollment.id}`}
         >
           <HugeiconsIcon
             aria-hidden="true"
-            data-icon="inline-start"
             icon={SquareLock02Icon}
             size={16}
             strokeWidth={2}
           />
-          Bloquear acesso
-        </Button>
-      ) : null}
-      {isManuallyBlocked ? (
-        <Button
-          onClick={() => onSelect("restore")}
-          size="sm"
-          type="button"
-          variant={activeControl === "restore" ? "secondary" : "outline"}
+          Bloquear acesso ao Curso
+        </h4>
+        <p className="mt-1 text-muted-foreground text-xs">
+          Revogue a Matrícula manualmente para interromper o acesso a este
+          Curso.
+        </p>
+      </div>
+      <EnrollmentBlockForm enrollment={enrollment} onSuccess={onSuccess} />
+    </section>
+  );
+}
+
+function EnrollmentRestoreSection({
+  enrollment,
+  onSuccess,
+}: {
+  enrollment: EnrollmentExpirationControlData;
+  onSuccess?: (() => void | Promise<void>) | undefined;
+}): React.JSX.Element {
+  return (
+    <section
+      aria-labelledby={`enrollment-restore-${enrollment.id}`}
+      className="rounded-lg border bg-muted/10 p-4"
+    >
+      <div>
+        <h4
+          className="flex items-center gap-2 font-semibold text-sm"
+          id={`enrollment-restore-${enrollment.id}`}
         >
           <HugeiconsIcon
             aria-hidden="true"
-            data-icon="inline-start"
             icon={UndoIcon}
             size={16}
             strokeWidth={2}
           />
-          Restaurar acesso
-        </Button>
-      ) : null}
-    </div>
+          Restaurar acesso ao Curso
+        </h4>
+        <p className="mt-1 text-muted-foreground text-xs">
+          Reative a Matrícula bloqueada manualmente após revisar o caso.
+        </p>
+      </div>
+      <EnrollmentRestoreForm enrollment={enrollment} onSuccess={onSuccess} />
+    </section>
   );
 }
 
 function EnrollmentAdjustmentForm({
   enrollment,
-  onCancel,
   onSuccess,
 }: {
   enrollment: EnrollmentExpirationControlData;
-  onCancel: () => void;
-  onSuccess: () => void | Promise<void>;
+  onSuccess?: (() => void | Promise<void>) | undefined;
 }): React.JSX.Element {
   const controlId = `enrollment-${enrollment.id}`;
   return (
     <AdminMutationForm
       action={adjustEnrollmentExpirationAction}
-      className="flex flex-col gap-4 border-t pt-4"
+      className="mt-4 flex flex-col gap-4"
       onSuccess={onSuccess}
     >
       <input name="enrollmentId" type="hidden" value={enrollment.id} />
       <input name="userId" type="hidden" value={enrollment.userId} />
       <input name="adjustment" type="hidden" value="set_exact" />
-      <dl className="grid gap-3 rounded-lg border bg-muted/20 p-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-muted-foreground text-xs">Expiração original</dt>
-          <dd className="mt-1 font-medium">
-            {formatDateTime(enrollment.originalExpiresAt)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground text-xs">Expiração atual</dt>
-          <dd className="mt-1 font-medium">
-            {formatDateTime(enrollment.expiresAt)}
-          </dd>
-        </div>
-      </dl>
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor={`${controlId}-expires`}>
@@ -248,26 +246,28 @@ function EnrollmentAdjustmentForm({
           />
         </Field>
       </FieldGroup>
-      <ControlFormActions onCancel={onCancel} submitLabel="Salvar ajuste" />
+      <div className="flex justify-end">
+        <AdminMutationSubmitButton type="submit">
+          Salvar ajuste
+        </AdminMutationSubmitButton>
+      </div>
     </AdminMutationForm>
   );
 }
 
 function EnrollmentBlockForm({
   enrollment,
-  onCancel,
   onSuccess,
 }: {
   enrollment: EnrollmentExpirationControlData;
-  onCancel: () => void;
-  onSuccess: () => void | Promise<void>;
+  onSuccess?: (() => void | Promise<void>) | undefined;
 }): React.JSX.Element {
   const controlId = `enrollment-${enrollment.id}`;
   const formId = `${controlId}-block-form`;
   return (
     <AdminMutationForm
       action={blockEnrollmentAccessAction}
-      className="flex flex-col gap-4 border-t pt-4"
+      className="mt-4 flex flex-col gap-4"
       id={formId}
       onSuccess={onSuccess}
     >
@@ -290,10 +290,7 @@ function EnrollmentBlockForm({
           />
         </Field>
       </FieldGroup>
-      <div className="flex justify-end gap-2">
-        <Button onClick={onCancel} type="button" variant="ghost">
-          Cancelar
-        </Button>
+      <div className="flex justify-end">
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button type="button" variant="destructive">
@@ -307,7 +304,7 @@ function EnrollmentBlockForm({
               </AlertDialogMedia>
               <AlertDialogTitle>Confirmar bloqueio do Curso</AlertDialogTitle>
               <AlertDialogDescription>
-                A aluna perderá o acesso imediato a este Curso. Deseja
+                O aluno perderá o acesso imediato a este Curso. Deseja
                 confirmar?
               </AlertDialogDescription>
             </AlertDialogHeader>
@@ -330,18 +327,16 @@ function EnrollmentBlockForm({
 
 function EnrollmentRestoreForm({
   enrollment,
-  onCancel,
   onSuccess,
 }: {
   enrollment: EnrollmentExpirationControlData;
-  onCancel: () => void;
-  onSuccess: () => void | Promise<void>;
+  onSuccess?: (() => void | Promise<void>) | undefined;
 }): React.JSX.Element {
   const controlId = `enrollment-${enrollment.id}`;
   return (
     <AdminMutationForm
       action={restoreEnrollmentAccessAction}
-      className="flex flex-col gap-4 border-t pt-4"
+      className="mt-4 flex flex-col gap-4"
       onSuccess={onSuccess}
     >
       <input name="enrollmentId" type="hidden" value={enrollment.id} />
@@ -359,32 +354,11 @@ function EnrollmentRestoreForm({
           />
         </Field>
       </FieldGroup>
-      <ControlFormActions
-        onCancel={onCancel}
-        submitLabel="Restaurar acesso"
-        variant="outline"
-      />
+      <div className="flex justify-end">
+        <AdminMutationSubmitButton type="submit" variant="outline">
+          Restaurar acesso
+        </AdminMutationSubmitButton>
+      </div>
     </AdminMutationForm>
-  );
-}
-
-function ControlFormActions({
-  onCancel,
-  submitLabel,
-  variant = "default",
-}: {
-  onCancel: () => void;
-  submitLabel: string;
-  variant?: "default" | "outline";
-}): React.JSX.Element {
-  return (
-    <div className="flex justify-end gap-2">
-      <Button onClick={onCancel} type="button" variant="ghost">
-        Cancelar
-      </Button>
-      <AdminMutationSubmitButton type="submit" variant={variant}>
-        {submitLabel}
-      </AdminMutationSubmitButton>
-    </div>
   );
 }
