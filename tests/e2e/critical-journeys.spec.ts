@@ -889,10 +889,12 @@ test("refund requires password and explicit destructive confirmation @mobile", a
     .getByRole("button", { name: "Confirmar senha" })
     .click();
 
-  await expect(refundOperation.getByLabel("Confirme o pedido")).toBeVisible();
-  await expect(refundOperation.getByLabel("Motivo")).toBeVisible();
+  await expect(refundOperation.getByLabel("ID do Pedido")).toBeVisible();
+  await expect(
+    refundOperation.getByLabel("Motivo da solicitação")
+  ).toBeVisible();
   const destructiveButton = refundOperation.getByRole("button", {
-    name: "Confirmar estorno integral",
+    name: "Confirmar solicitação de reembolso",
   });
   await expect(destructiveButton).toBeVisible();
 
@@ -1171,7 +1173,7 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
 }) => {
   const fixture = await readFixture();
   await signIn(page, fixture.admin, ADMIN_URL_PATTERN);
-  await page.goto("/admin/alunos");
+  await page.goto(`/admin/cursos/${fixture.course.id}?tab=students`);
 
   const studentRow = page
     .locator("tbody tr")
@@ -1181,15 +1183,11 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
-  await page.getByRole("menuitem", { name: "Ver detalhes" }).click();
+  await page.getByRole("menuitem", { name: "Gerenciar certificados" }).click();
 
   const studentSheet = page.getByRole("dialog");
   await expect(
-    studentSheet.getByRole("heading", { name: fixture.studentWithGrant.name })
-  ).toBeVisible();
-  await studentSheet.getByRole("tab", { name: "Certificados" }).click();
-  await expect(
-    studentSheet.getByRole("heading", { name: "Certificados" })
+    studentSheet.getByRole("heading", { name: "Gerenciar certificados" })
   ).toBeVisible();
   await studentSheet.getByText("Emitir certificado manual").click();
   await expect(
@@ -1233,7 +1231,7 @@ test("admin manages a student from the course context Sheet", async ({
       .locator("..")
       .getByText("Curso E2E", { exact: true })
   ).toBeVisible();
-  await expect(studentSheet.getByText("Acesso ao Curso")).toBeVisible();
+  await expect(studentSheet.getByText("Detalhes da matrícula")).toBeVisible();
   await expect(studentSheet.getByText("Acesso na plataforma")).toHaveCount(0);
 });
 
