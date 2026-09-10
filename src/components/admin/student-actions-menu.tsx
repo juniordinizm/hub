@@ -118,6 +118,7 @@ function StudentActionOverlays({
   dataUrl,
   enrollmentCapabilities,
   isCourseContext,
+  onDetailsCloseAutoFocus,
   onOpenChange,
   student,
 }: {
@@ -127,6 +128,7 @@ function StudentActionOverlays({
   dataUrl?: string;
   enrollmentCapabilities: StudentManagementCapabilities;
   isCourseContext: boolean;
+  onDetailsCloseAutoFocus: (event: Event) => void;
   onOpenChange: (open: boolean) => void;
   student: StudentActionMenuStudent;
 }): React.JSX.Element | null {
@@ -136,6 +138,7 @@ function StudentActionOverlays({
         capabilities={readOnlyStudentCapabilities}
         {...(courseId ? { courseId } : {})}
         {...(dataUrl ? { dataUrl } : {})}
+        onCloseAutoFocus={onDetailsCloseAutoFocus}
         onOpenChange={onOpenChange}
         open
         showActions={false}
@@ -212,6 +215,7 @@ export function StudentActionsMenu({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeOverlay, setActiveOverlay] =
     useState<StudentActionOverlay>(null);
+  const actionTriggerRef = useRef<HTMLButtonElement | null>(null);
   const hasAutoOpened = useRef(false);
   const isCourseContext = Boolean(courseId);
   const isPlatformBlocked = Boolean(student.platformBlockedAt);
@@ -241,6 +245,10 @@ export function StudentActionsMenu({
       }
     }
   };
+  const restoreDetailsFocus = (event: Event): void => {
+    event.preventDefault();
+    actionTriggerRef.current?.focus();
+  };
 
   return (
     <>
@@ -249,6 +257,7 @@ export function StudentActionsMenu({
           <Button
             aria-label={`Ações de ${student.name}`}
             className="size-11"
+            ref={actionTriggerRef}
             size="icon"
             type="button"
             variant="outline"
@@ -294,6 +303,7 @@ export function StudentActionsMenu({
         {...(dataUrl ? { dataUrl } : {})}
         enrollmentCapabilities={enrollmentCapabilities}
         isCourseContext={isCourseContext}
+        onDetailsCloseAutoFocus={restoreDetailsFocus}
         onOpenChange={handleOverlayChange}
         student={student}
       />

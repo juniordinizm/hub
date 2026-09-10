@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -190,6 +190,7 @@ export function StudentManagementSheet({
   capabilities,
   courseId,
   dataUrl,
+  onCloseAutoFocus,
   onOpenChange,
   open: controlledOpen,
   showActions = false,
@@ -199,6 +200,7 @@ export function StudentManagementSheet({
   capabilities: StudentManagementCapabilities;
   courseId?: string;
   dataUrl?: string;
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>["onCloseAutoFocus"];
   onOpenChange?: (open: boolean) => void;
   open?: boolean;
   showActions?: boolean;
@@ -293,6 +295,7 @@ export function StudentManagementSheet({
       <SheetContent
         className="w-full gap-0 p-0 data-[side=right]:sm:max-w-[880px]"
         data-student-management-sheet
+        onCloseAutoFocus={onCloseAutoFocus}
         side="right"
       >
         <SheetHeader className="border-b pr-14">
