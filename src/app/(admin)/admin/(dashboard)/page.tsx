@@ -1124,16 +1124,12 @@ function ContextMetric({
   value: string;
 }): React.JSX.Element {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/10 p-3">
-      <div className="min-w-0">
-        <dt className="truncate font-medium text-sm">{label}</dt>
-        <dd className="mt-1 truncate text-muted-foreground text-xs">
-          {helper}
-        </dd>
-      </div>
-      <dd className="shrink-0 text-right font-semibold text-lg tabular-nums">
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-lg border bg-muted/10 p-3">
+      <dt className="truncate font-medium text-sm">{label}</dt>
+      <dd className="row-span-2 shrink-0 text-right font-semibold text-lg tabular-nums">
         {value}
       </dd>
+      <dd className="truncate text-muted-foreground text-xs">{helper}</dd>
     </div>
   );
 }

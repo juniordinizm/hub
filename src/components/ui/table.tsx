@@ -4,18 +4,22 @@ import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+const TABLE_CONTAINER_ACCESSIBILITY_PROPS = { tabIndex: 0 } as const;
+
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
-    <div
-      className="relative w-full overflow-x-auto"
+    <section
+      aria-label="Tabela de dados"
+      className="relative w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       data-slot="table-container"
+      {...TABLE_CONTAINER_ACCESSIBILITY_PROPS}
     >
       <table
         className={cn("w-full min-w-full caption-bottom text-sm", className)}
         data-slot="table"
         {...props}
       />
-    </div>
+    </section>
   );
 }
 

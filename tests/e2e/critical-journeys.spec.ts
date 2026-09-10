@@ -870,6 +870,7 @@ test("refund requires password and explicit destructive confirmation @mobile", a
   await detailsButton.click();
   const orderDetails = page.getByRole("dialog");
   await expect(orderDetails).toBeVisible();
+  await orderDetails.getByText("Detalhes técnicos", { exact: true }).click();
   await expect(
     orderDetails.getByText(`chk_${attemptId}`, { exact: true })
   ).toBeVisible();
@@ -1174,7 +1175,9 @@ test("admin sees certificate lifecycle controls in the student Sheet", async ({
   const studentRow = page
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
-  const manageButton = studentRow.getByRole("button", { name: "Gerenciar" });
+  const manageButton = studentRow.getByRole("button", {
+    name: `Ações de ${fixture.studentWithGrant.name}`,
+  });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();
 
@@ -1214,7 +1217,7 @@ test("admin manages a student from the course context Sheet", async ({
     .locator("tbody tr")
     .filter({ hasText: fixture.studentWithGrant.email });
   const manageButton = enrollmentRow.getByRole("button", {
-    name: "Gerenciar",
+    name: `Ações de ${fixture.studentWithGrant.name}`,
   });
   await expect(manageButton).toHaveAttribute("data-state", "closed");
   await manageButton.click();

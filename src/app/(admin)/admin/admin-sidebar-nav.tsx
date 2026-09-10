@@ -32,6 +32,7 @@ const adminNavItems = [
 
 const supportNavItems = [
   ["Painel", "/admin", Analytics01Icon],
+  ["Cursos", "/admin/operacao/cursos", Book01Icon],
   ["Financeiro", "/admin/financeiro", Invoice01Icon],
 ] as const;
 
