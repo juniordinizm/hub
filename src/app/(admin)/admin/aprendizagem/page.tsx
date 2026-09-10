@@ -1,5 +1,6 @@
 import { Analytics01Icon, Download01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,58 @@ import {
   TableRow,
   TableRowHeader,
 } from "@/components/ui/table";
-import { getLessonAnalyticsMetrics } from "@/features/learning-analytics/server";
+import { getLessonAnalyticsMetricsPage } from "@/features/learning-analytics/server";
+import { route } from "@/lib/routes";
 
 export const dynamic = "force-dynamic";
 
-export default async function LearningAnalyticsPage(): Promise<React.JSX.Element> {
-  const metrics = await getLessonAnalyticsMetrics();
+const firstSearchParam = (
+  value: string | string[] | undefined
+): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+const getMetricResultSummary = ({
+  metricCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  metricCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhuma métrica";
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + metricCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} métrica${totalCount === 1 ? "" : "s"}`;
+};
+
+export default async function LearningAnalyticsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}): Promise<React.JSX.Element> {
+  const params = (await searchParams) ?? {};
+  const requestedPage = Number.parseInt(
+    firstSearchParam(params.page) ?? "1",
+    10
+  );
+  const data = await getLessonAnalyticsMetricsPage({
+    page: Number.isFinite(requestedPage) ? requestedPage : 1,
+  });
+  const metrics = data.metrics;
+  const resultSummary = getMetricResultSummary({
+    metricCount: metrics.length,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
+  });
+  const pageHref = (page: number): string =>
+    page > 1
+      ? route(`/admin/aprendizagem?page=${page}`)
+      : route("/admin/aprendizagem");
 
   return (
     <PageContainer>
@@ -41,6 +88,10 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
               <p className="mt-1 text-muted-foreground text-sm">
                 Elegíveis têm acesso ativo e não desativaram análises opcionais.
                 Conclusão continua sendo a fonte de verdade do domínio.
+              </p>
+              <p className="mt-2 text-muted-foreground text-xs">
+                Elegibilidade é atual; inícios e erros cobrem até 13 meses;
+                tempos de conclusão e avanço usam os últimos 90 dias.
               </p>
             </div>
             <Button asChild variant="outline">
@@ -143,6 +194,28 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
               )}
             </TableBody>
           </Table>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4">
+            <span aria-live="polite" className="text-muted-foreground text-sm">
+              {resultSummary}
+            </span>
+            {data.page > 1 || data.hasNextPage ? (
+              <nav
+                aria-label="Paginação do relatório de aprendizagem"
+                className="flex gap-2"
+              >
+                {data.page > 1 ? (
+                  <Button asChild variant="outline">
+                    <Link href={pageHref(data.page - 1)}>Anterior</Link>
+                  </Button>
+                ) : null}
+                {data.hasNextPage ? (
+                  <Button asChild variant="outline">
+                    <Link href={pageHref(data.page + 1)}>Próxima</Link>
+                  </Button>
+                ) : null}
+              </nav>
+            ) : null}
+          </div>
         </section>
       </div>
     </PageContainer>
@@ -150,9 +223,9 @@ export default async function LearningAnalyticsPage(): Promise<React.JSX.Element
 }
 
 function formatHours(value: number | null): string {
-  return value === null ? "—" : `${value.toFixed(1)} h`;
+  return value === null ? "Sem base" : `${value.toFixed(1)} h`;
 }
 
 function formatPercent(value: number | null): string {
-  return value === null ? "—" : `${Math.round(value)}%`;
+  return value === null ? "Sem base" : `${Math.round(value)}%`;
 }

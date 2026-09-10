@@ -608,6 +608,7 @@ function SidebarMenuLink({
       data-size={size}
       data-slot="sidebar-menu-button"
       {...props}
+      aria-current={isLinkActive ? "page" : undefined}
     />
   );
 

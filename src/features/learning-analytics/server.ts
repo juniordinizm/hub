@@ -112,11 +112,13 @@ export const recordLearningAnalyticsEvent = async ({
       from enrollments e
       left join learning_analytics_preferences preference on preference.user_id = e.user_id
       join lessons l on l.id = $5
+      join courses c on c.id = e.course_id and c.status = 'active'
       join course_publications cp on cp.id = l.course_publication_id
         and cp.course_id = e.course_id and cp.status = 'published'
       where e.user_id = $6
         and e.status = 'active'
-        and e.expires_at > now()
+        and e.starts_at <= now()
+        and e.expires_at >= now()
         and preference.disabled_at is null
       on conflict (idempotency_key) do nothing
     `,
@@ -146,24 +148,23 @@ export interface LessonAnalyticsMetric {
   started: number;
 }
 
-export const getLessonAnalyticsMetrics = async (): Promise<
-  LessonAnalyticsMetric[]
-> => {
-  await requirePermission("manageLearningAnalytics");
-  const result = await getPool().query<{
-    completed: string;
-    course_publication_id: string;
-    course_title: string;
-    eligible: string;
-    error_count: string;
-    lesson_id: string;
-    lesson_title: string;
-    median_checkpoint_percent: number | null;
-    median_hours_to_complete: number | null;
-    median_hours_to_next_lesson: number | null;
-    publication_number: number;
-    started: string;
-  }>(`
+export interface LessonAnalyticsMetricPage {
+  hasNextPage: boolean;
+  metrics: LessonAnalyticsMetric[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface LessonAnalyticsMetricQuery {
+  page?: number;
+  pageSize?: number;
+}
+
+const DEFAULT_LESSON_ANALYTICS_PAGE_SIZE = 20;
+const MAX_LESSON_ANALYTICS_PAGE_SIZE = 100;
+
+const LESSON_ANALYTICS_METRICS_QUERY = `
     with analytics_events as (
       select course_publication_id, lesson_id, event_type,
              count(*)::int as event_count,
@@ -186,10 +187,13 @@ export const getLessonAnalyticsMetrics = async (): Promise<
     ), eligible as (
       select cp.id as course_publication_id, count(*)::int as eligible
       from enrollments e
+      join courses c on c.id = e.course_id
       join course_publications cp on cp.course_id = e.course_id and cp.status = 'published'
       left join learning_analytics_preferences preference on preference.user_id = e.user_id
       where e.status = 'active'
-        and e.expires_at > now()
+        and e.starts_at <= now()
+        and e.expires_at >= now()
+        and c.status = 'active'
         and preference.disabled_at is null
       group by cp.id
     ), completed as (
@@ -268,7 +272,8 @@ export const getLessonAnalyticsMetrics = async (): Promise<
       coalesce(analytics.error_count, 0) as error_count,
       checkpoints.median_checkpoint_percent,
       completion_timing.median_hours_to_complete,
-      next_lesson_timing.median_hours_to_next_lesson
+      next_lesson_timing.median_hours_to_next_lesson,
+      count(*) over()::int as total_count
     from course_publications cp
     join courses c on c.id = cp.course_id
     join modules m on m.course_publication_id = cp.id and m.status = 'active'
@@ -279,29 +284,103 @@ export const getLessonAnalyticsMetrics = async (): Promise<
     left join checkpoints on checkpoints.course_publication_id = cp.id and checkpoints.lesson_id = l.id
     left join completion_timing on completion_timing.lesson_id = l.id
     left join next_lesson_timing on next_lesson_timing.lesson_id = l.id
-    order by cp.created_at desc, m.sort_order, l.sort_order
-  `);
-  return result.rows.map((row) => ({
-    completed: Number(row.completed),
-    coursePublicationId: row.course_publication_id,
-    courseTitle: row.course_title,
-    eligible: Number(row.eligible),
-    errorCount: Number(row.error_count),
-    lessonId: row.lesson_id,
-    lessonTitle: row.lesson_title,
-    medianCheckpointPercent:
-      row.median_checkpoint_percent === null
-        ? null
-        : Number(row.median_checkpoint_percent),
-    medianHoursToComplete:
-      row.median_hours_to_complete === null
-        ? null
-        : Number(row.median_hours_to_complete),
-    medianHoursToNextLesson:
-      row.median_hours_to_next_lesson === null
-        ? null
-        : Number(row.median_hours_to_next_lesson),
-    publicationNumber: row.publication_number,
-    started: Number(row.started),
-  }));
+    order by cp.created_at desc, m.sort_order, l.sort_order`;
+
+const readLessonAnalyticsMetrics = async ({
+  page,
+  pageSize,
+}: {
+  page: number | null;
+  pageSize: number;
+}): Promise<LessonAnalyticsMetricPage> => {
+  const paginationSql = page === null ? "" : "\n    limit $1 offset $2";
+  const paginationParameters =
+    page === null ? [] : [pageSize + 1, (page - 1) * pageSize];
+  const result = await getPool().query<{
+    completed: string;
+    course_publication_id: string;
+    course_title: string;
+    eligible: string;
+    error_count: string;
+    lesson_id: string;
+    lesson_title: string;
+    median_checkpoint_percent: number | null;
+    median_hours_to_complete: number | null;
+    median_hours_to_next_lesson: number | null;
+    publication_number: number;
+    started: string;
+    total_count: number;
+  }>(`${LESSON_ANALYTICS_METRICS_QUERY}${paginationSql}`, paginationParameters);
+  const metrics = result.rows
+    .slice(0, page === null ? undefined : pageSize)
+    .map((row) => ({
+      completed: Number(row.completed),
+      coursePublicationId: row.course_publication_id,
+      courseTitle: row.course_title,
+      eligible: Number(row.eligible),
+      errorCount: Number(row.error_count),
+      lessonId: row.lesson_id,
+      lessonTitle: row.lesson_title,
+      medianCheckpointPercent:
+        row.median_checkpoint_percent === null
+          ? null
+          : Number(row.median_checkpoint_percent),
+      medianHoursToComplete:
+        row.median_hours_to_complete === null
+          ? null
+          : Number(row.median_hours_to_complete),
+      medianHoursToNextLesson:
+        row.median_hours_to_next_lesson === null
+          ? null
+          : Number(row.median_hours_to_next_lesson),
+      publicationNumber: row.publication_number,
+      started: Number(row.started),
+    }));
+  let totalCount = result.rows[0]?.total_count ?? result.rows.length;
+  if (result.rows.length === 0 && page !== null && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(`
+      select count(*)::int as total_count
+      from course_publications cp
+      join modules m on m.course_publication_id = cp.id and m.status = 'active'
+      join lessons l
+        on l.course_publication_id = cp.id
+        and l.module_id = m.id
+        and l.status = 'active'
+    `);
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
+  return {
+    hasNextPage: page !== null && result.rows.length > pageSize,
+    metrics,
+    page: page ?? 1,
+    pageSize: page === null ? metrics.length : pageSize,
+    totalCount,
+  };
+};
+
+export const getLessonAnalyticsMetrics = async (): Promise<
+  LessonAnalyticsMetric[]
+> => {
+  await requirePermission("manageLearningAnalytics");
+  return (await readLessonAnalyticsMetrics({ page: null, pageSize: 0 }))
+    .metrics;
+};
+
+export const getLessonAnalyticsMetricsPage = async (
+  options: LessonAnalyticsMetricQuery = {}
+): Promise<LessonAnalyticsMetricPage> => {
+  await requirePermission("manageLearningAnalytics");
+  const requestedPage = Math.trunc(options.page ?? 1);
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(1000, Math.max(1, requestedPage))
+    : 1;
+  const requestedPageSize = Math.trunc(
+    options.pageSize ?? DEFAULT_LESSON_ANALYTICS_PAGE_SIZE
+  );
+  const pageSize = Number.isFinite(requestedPageSize)
+    ? Math.min(MAX_LESSON_ANALYTICS_PAGE_SIZE, Math.max(1, requestedPageSize))
+    : DEFAULT_LESSON_ANALYTICS_PAGE_SIZE;
+
+  return await readLessonAnalyticsMetrics({ page, pageSize });
 };

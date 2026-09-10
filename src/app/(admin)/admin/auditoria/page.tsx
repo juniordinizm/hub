@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AdminSearchPill } from "@/components/admin/admin-search-pill";
 import { RetryWebhookOperation } from "@/components/admin/retry-webhook-operation";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +17,10 @@ import {
   TableRow,
   TableRowHeader,
 } from "@/components/ui/table";
+import {
+  getAdminAuditActionLabel,
+  hasAdminAuditActionLabel,
+} from "@/features/admin/audit-presentation";
 import {
   getAdminAuditData,
   getAdminWebhookEvents,
@@ -38,10 +43,17 @@ interface AuditSearchParams {
 const firstSearchParameter = (value: string | string[] | undefined): string =>
   Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 
-const auditPageHref = (page: number, search: string): string => {
+const auditPageHref = (
+  page: number,
+  search: string,
+  outboxPage = 1
+): string => {
   const params = new URLSearchParams();
   if (page > 1) {
     params.set("webhookPage", String(page));
+  }
+  if (outboxPage > 1) {
+    params.set("outboxPage", String(outboxPage));
   }
   if (search) {
     params.set("webhookQ", search);
@@ -50,8 +62,52 @@ const auditPageHref = (page: number, search: string): string => {
   return query ? `/admin/auditoria?${query}` : "/admin/auditoria";
 };
 
-const outboxPageHref = (page: number): string =>
-  page > 1 ? `/admin/auditoria?outboxPage=${page}` : "/admin/auditoria";
+const outboxPageHref = (
+  page: number,
+  webhookPage = 1,
+  webhookSearch = ""
+): string => {
+  const params = new URLSearchParams();
+  if (webhookPage > 1) {
+    params.set("webhookPage", String(webhookPage));
+  }
+  if (webhookSearch) {
+    params.set("webhookQ", webhookSearch);
+  }
+  if (page > 1) {
+    params.set("outboxPage", String(page));
+  }
+  const query = params.toString();
+  return query ? `/admin/auditoria?${query}` : "/admin/auditoria";
+};
+
+const getAuditResultSummary = ({
+  emptyLabel,
+  itemCount,
+  page,
+  pageSize,
+  pluralLabel,
+  singularLabel,
+  totalCount,
+}: {
+  emptyLabel?: string;
+  itemCount: number;
+  page: number;
+  pageSize: number;
+  pluralLabel: string;
+  singularLabel: string;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return emptyLabel ?? `Nenhum ${pluralLabel}`;
+  }
+  if (itemCount === 0) {
+    return `Nenhum ${singularLabel} nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + itemCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} ${totalCount === 1 ? singularLabel : pluralLabel}`;
+};
 
 const OPERATIONAL_ALERT_PRESENTATION = {
   email_delivery_dead_letter: {
@@ -219,7 +275,7 @@ function formatAuditMessage(log: {
       return "Reordenou os banners";
 
     default:
-      return `Ação do sistema (${log.action}) efetuada em ${target}`;
+      return `${getAdminAuditActionLabel(log.action)} em ${target}`;
   }
 }
 
@@ -414,17 +470,32 @@ export default async function AuditoriaPage({
             </p>
           </div>
           <div className="border-b p-5">
-            <form className="flex max-w-xl gap-2" method="get">
-              <Input
-                aria-label="Buscar webhooks"
-                defaultValue={webhookSearch}
-                name="webhookQ"
-                placeholder="Evento, chave ou erro…"
-              />
-              <Button type="submit" variant="outline">
-                Buscar
-              </Button>
-            </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <form
+                className="flex min-w-0 flex-1 basis-full gap-2 sm:max-w-xl sm:basis-auto"
+                method="get"
+              >
+                {outboxPage > 1 ? (
+                  <input name="outboxPage" type="hidden" value={outboxPage} />
+                ) : null}
+                <Input
+                  aria-label="Buscar webhooks"
+                  autoComplete="off"
+                  defaultValue={webhookSearch}
+                  name="webhookQ"
+                  placeholder="Evento, chave ou erro…"
+                />
+                <Button type="submit" variant="outline">
+                  Buscar
+                </Button>
+              </form>
+              {webhookSearch ? (
+                <AdminSearchPill
+                  href={auditPageHref(1, "", outboxPage)}
+                  value={webhookSearch}
+                />
+              ) : null}
+            </div>
           </div>
           {webhookEvents.events.length ? (
             <div className="divide-y">
@@ -441,7 +512,10 @@ export default async function AuditoriaPage({
                           </p>
                           <Badge variant={status.variant}>{status.label}</Badge>
                         </div>
-                        <p className="mt-1 break-all font-mono text-muted-foreground text-xs">
+                        <p
+                          className="mt-1 break-all font-mono text-muted-foreground text-xs"
+                          translate="no"
+                        >
                           {event.eventKey}
                         </p>
                         {event.errorMessage ? (
@@ -477,35 +551,50 @@ export default async function AuditoriaPage({
               Nenhum webhook falho ou em retry encontrado.
             </p>
           )}
-          {webhookEvents.page > 1 || webhookEvents.hasNextPage ? (
-            <nav
-              aria-label="Paginação de webhooks"
-              className="flex items-center justify-between border-t p-5"
-            >
-              {webhookEvents.page > 1 ? (
-                <Link
-                  className="text-sm underline underline-offset-4"
-                  href={route(
-                    auditPageHref(webhookEvents.page - 1, webhookSearch)
-                  )}
-                >
-                  Anteriores
-                </Link>
-              ) : (
-                <span />
-              )}
-              {webhookEvents.hasNextPage ? (
-                <Link
-                  className="text-sm underline underline-offset-4"
-                  href={route(
-                    auditPageHref(webhookEvents.page + 1, webhookSearch)
-                  )}
-                >
-                  Próximos
-                </Link>
-              ) : null}
-            </nav>
-          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t p-5">
+            <span aria-live="polite" className="text-muted-foreground text-sm">
+              {getAuditResultSummary({
+                itemCount: webhookEvents.events.length,
+                page: webhookEvents.page,
+                pageSize: webhookEvents.pageSize,
+                pluralLabel: "webhooks",
+                singularLabel: "webhook",
+                totalCount: webhookEvents.totalCount,
+              })}
+            </span>
+            {webhookEvents.page > 1 || webhookEvents.hasNextPage ? (
+              <nav aria-label="Paginação de webhooks" className="flex gap-2">
+                {webhookEvents.page > 1 ? (
+                  <Link
+                    className="text-sm underline underline-offset-4"
+                    href={route(
+                      auditPageHref(
+                        webhookEvents.page - 1,
+                        webhookSearch,
+                        outboxPage
+                      )
+                    )}
+                  >
+                    Anteriores
+                  </Link>
+                ) : null}
+                {webhookEvents.hasNextPage ? (
+                  <Link
+                    className="text-sm underline underline-offset-4"
+                    href={route(
+                      auditPageHref(
+                        webhookEvents.page + 1,
+                        webhookSearch,
+                        outboxPage
+                      )
+                    )}
+                  >
+                    Próximos
+                  </Link>
+                ) : null}
+              </nav>
+            ) : null}
+          </div>
         </section>
 
         <section className="overflow-hidden rounded-lg border bg-card">
@@ -523,7 +612,10 @@ export default async function AuditoriaPage({
               {data.outboxDeadLetters.messages.map((message) => (
                 <article className="rounded-lg border p-4" key={message.id}>
                   <p className="font-medium text-sm">{message.topic}</p>
-                  <p className="mt-1 font-mono text-muted-foreground text-xs">
+                  <p
+                    className="mt-1 font-mono text-muted-foreground text-xs"
+                    translate="no"
+                  >
                     {message.id}
                   </p>
                   <dl className="mt-3 grid gap-1 text-sm">
@@ -533,7 +625,9 @@ export default async function AuditoriaPage({
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Falha</dt>
-                      <dd>{message.lastErrorCode ?? "não informada"}</dd>
+                      <dd translate="no">
+                        {message.lastErrorCode ?? "não informada"}
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">
@@ -559,32 +653,55 @@ export default async function AuditoriaPage({
               Nenhuma mensagem em dead letter.
             </p>
           )}
-          {data.outboxDeadLetters.page > 1 ||
-          data.outboxDeadLetters.hasNextPage ? (
-            <nav
-              aria-label="Paginação de dead letters"
-              className="flex items-center justify-between border-t p-5"
-            >
-              {data.outboxDeadLetters.page > 1 ? (
-                <Link
-                  className="text-sm underline underline-offset-4"
-                  href={route(outboxPageHref(data.outboxDeadLetters.page - 1))}
-                >
-                  Anteriores
-                </Link>
-              ) : (
-                <span />
-              )}
-              {data.outboxDeadLetters.hasNextPage ? (
-                <Link
-                  className="text-sm underline underline-offset-4"
-                  href={route(outboxPageHref(data.outboxDeadLetters.page + 1))}
-                >
-                  Próximas
-                </Link>
-              ) : null}
-            </nav>
-          ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t p-5">
+            <span aria-live="polite" className="text-muted-foreground text-sm">
+              {getAuditResultSummary({
+                itemCount: data.outboxDeadLetters.messages.length,
+                emptyLabel: "Nenhuma mensagem em dead letter",
+                page: data.outboxDeadLetters.page,
+                pageSize: data.outboxDeadLetters.pageSize,
+                pluralLabel: "mensagens em dead letter",
+                singularLabel: "mensagem em dead letter",
+                totalCount: data.outboxDeadLetters.totalCount,
+              })}
+            </span>
+            {data.outboxDeadLetters.page > 1 ||
+            data.outboxDeadLetters.hasNextPage ? (
+              <nav
+                aria-label="Paginação de dead letters"
+                className="flex gap-2"
+              >
+                {data.outboxDeadLetters.page > 1 ? (
+                  <Link
+                    className="text-sm underline underline-offset-4"
+                    href={route(
+                      outboxPageHref(
+                        data.outboxDeadLetters.page - 1,
+                        webhookPage,
+                        webhookSearch
+                      )
+                    )}
+                  >
+                    Anteriores
+                  </Link>
+                ) : null}
+                {data.outboxDeadLetters.hasNextPage ? (
+                  <Link
+                    className="text-sm underline underline-offset-4"
+                    href={route(
+                      outboxPageHref(
+                        data.outboxDeadLetters.page + 1,
+                        webhookPage,
+                        webhookSearch
+                      )
+                    )}
+                  >
+                    Próximas
+                  </Link>
+                ) : null}
+              </nav>
+            ) : null}
+          </div>
         </section>
 
         <div className="overflow-hidden rounded-lg border bg-card">
@@ -608,7 +725,15 @@ export default async function AuditoriaPage({
                     key={`${log.action}-${log.createdAt.toISOString()}`}
                   >
                     <TableRowHeader className="font-medium text-sm">
-                      {formatAuditMessage(log)}
+                      <span>{formatAuditMessage(log)}</span>
+                      {hasAdminAuditActionLabel(log.action) ? null : (
+                        <span
+                          className="mt-1 block font-mono text-muted-foreground text-xs"
+                          translate="no"
+                        >
+                          Código: {log.action}
+                        </span>
+                      )}
                     </TableRowHeader>
                     <TableCell className="text-muted-foreground">
                       {log.actorEmail ?? "sistema"}

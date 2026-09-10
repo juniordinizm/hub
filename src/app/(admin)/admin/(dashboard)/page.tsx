@@ -20,18 +20,27 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 
 import {
   type AdminOperationSignal,
   getAdminOperationSignal,
-  summarizeAdminCourseHealth,
 } from "@/features/admin/presentation";
 import {
   getAdminDashboardProjection,
   getAdminOverview,
 } from "@/features/admin/server";
-import { getOrderStatusPresentation } from "@/features/admin/status-presentation";
+import {
+  getCheckoutStatusPresentation,
+  getOrderStatusPresentation,
+} from "@/features/admin/status-presentation";
 import { getSupportCourseOperations } from "@/features/admin/support-server";
 import { requirePermission } from "@/lib/auth-permissions";
 import {
@@ -55,6 +64,32 @@ const getOperationSignalBadgeVariant = (
     return "warning";
   }
   return "success";
+};
+
+const getOperationSignalActionLabel = (actionHref: string): string => {
+  if (actionHref === "/admin/auditoria") {
+    return "Abrir Auditoria";
+  }
+  if (actionHref.startsWith("/admin/financeiro")) {
+    return "Ver pedidos";
+  }
+  return "Revisar catálogo";
+};
+
+const getCatalogAttentionDescription = ({
+  displayedCount,
+  totalCount,
+}: {
+  displayedCount: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum Curso precisa de ajuste agora.";
+  }
+  if (totalCount > displayedCount) {
+    return `Mostrando ${displayedCount} de ${totalCount} Cursos pendentes.`;
+  }
+  return "Abra diretamente a área que precisa de ajuste.";
 };
 
 const metrics = [
@@ -84,35 +119,37 @@ const metrics = [
   },
 ] as const;
 
-export default async function AdminPage(): Promise<React.JSX.Element> {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+} = {}): Promise<React.JSX.Element> {
   const session = await requirePermission("viewAdminPanel");
 
   if (session.role === "support") {
-    const courses = await getSupportCourseOperations();
-    return <SupportDashboard courses={courses} />;
+    const params = (await searchParams) ?? {};
+    const rawPage = Array.isArray(params.page) ? params.page[0] : params.page;
+    const requestedPage = Number.parseInt(rawPage ?? "1", 10);
+    const courseOperations = await getSupportCourseOperations({
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+    });
+    return <SupportDashboard data={courseOperations} />;
   }
 
   const [overview, data] = await Promise.all([
     getAdminOverview(),
     getAdminDashboardProjection(),
   ]);
-  const courseHealth = summarizeAdminCourseHealth(
-    data.courses.map((course) => ({
-      hasDescription: Boolean(course.description?.trim()),
-      hasThumbnail: Boolean(course.thumbnailUrl),
-      id: course.id,
-      moduleCount: course.moduleCount,
-      publishedLessonCount: course.publishedLessonCount,
-      status: course.status,
-      title: course.title,
-      totalLessonCount: course.totalLessonCount,
-    }))
-  );
+  const courseHealth = data.courseHealth;
   const operationSignal = getAdminOperationSignal({
-    coursesNeedingAttention: courseHealth.coursesNeedingAttention.length,
+    coursesNeedingAttention: courseHealth.coursesNeedingAttentionCount,
     failedWebhooks: overview.failedWebhooks,
     pendingOrders: overview.pendingOrders,
     retryableWebhooks: overview.retryableWebhooks,
+  });
+  const catalogAttentionDescription = getCatalogAttentionDescription({
+    displayedCount: courseHealth.coursesNeedingAttention.length,
+    totalCount: courseHealth.coursesNeedingAttentionCount,
   });
 
   return (
@@ -151,29 +188,16 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           title="Central do LMS"
         />
 
-        <section className="order-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {metrics.map((metric) => (
-            <AdminMetricCard
-              helper={metric.helper}
-              icon={metric.icon}
-              key={metric.key}
-              label={metric.label}
-              value={overview[metric.key].toString()}
-            />
-          ))}
-        </section>
-
-        <section className="order-1 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
           <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+                <div className="min-w-0">
                   <CardTitle as="h2" className="text-base">
                     Saúde da operação
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Sinal rápido do que pode bloquear vendas ou liberação de
-                    acesso.
+                    {operationSignal.helper}
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -187,7 +211,9 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                   {operationSignal.actionHref ? (
                     <Button asChild size="sm" variant="outline">
                       <Link href={route(operationSignal.actionHref)}>
-                        Abrir
+                        {getOperationSignalActionLabel(
+                          operationSignal.actionHref
+                        )}
                       </Link>
                     </Button>
                   ) : null}
@@ -197,7 +223,7 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
             <CardContent className="p-0">
               <div className="grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0">
                 <AdminSignalTile
-                  label="Receita paga"
+                  label="Receita bruta paga · histórico completo"
                   value={formatCurrencyInCents(overview.paidRevenueInCents)}
                 />
                 <AdminSignalTile
@@ -215,14 +241,26 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-medium text-sm">Prontidão do catálogo</p>
                   <span className="font-semibold text-sm">
-                    {courseHealth.averageReadinessPercent}%
+                    {courseHealth.averageReadinessPercent === null
+                      ? "Sem base"
+                      : `${courseHealth.averageReadinessPercent}%`}
                   </span>
                 </div>
-                <Progress
-                  aria-label={`Prontidão média do catálogo: ${courseHealth.averageReadinessPercent}%`}
-                  className="mt-3 h-2"
-                  value={courseHealth.averageReadinessPercent}
-                />
+                {courseHealth.averageReadinessPercent === null ? (
+                  <p className="mt-3 text-muted-foreground text-sm">
+                    Ainda não há Cursos para calcular a prontidão.
+                  </p>
+                ) : (
+                  <Progress
+                    aria-label={`Prontidão média do catálogo: ${courseHealth.averageReadinessPercent}%`}
+                    className="mt-3 h-2"
+                    value={courseHealth.averageReadinessPercent}
+                  />
+                )}
+                <p className="mt-2 text-muted-foreground text-xs">
+                  Base: descrição, capa, estrutura, conteúdo pronto e publicação
+                  vigente.
+                </p>
                 <div className="mt-3 flex gap-6 text-sm">
                   <InfoRow
                     label="Ativos:"
@@ -240,10 +278,10 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
           <Card>
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
-                Catálogo pendente
+                Prioridades do catálogo
               </CardTitle>
               <CardDescription className="mt-1">
-                Abra diretamente a área que precisa de ajuste.
+                {catalogAttentionDescription}
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-2">
@@ -252,29 +290,45 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                   <Link
                     className="rounded-lg border bg-muted/10 p-3 transition-colors hover:bg-muted/40"
                     href={route(
-                      `/admin/cursos/${course.id}?tab=${course.actionTab}`
+                      `/admin/cursos/${course.id}?tab=${course.hasDescription && course.hasThumbnail ? "content" : "settings"}`
                     )}
                     key={course.id}
                   >
                     <p className="font-medium text-sm">{course.title}</p>
                     <p className="mt-1 text-muted-foreground text-xs">
-                      Abrir{" "}
-                      {course.actionTab === "content"
-                        ? "conteúdo"
-                        : "configurações"}
+                      {course.hasDescription && course.hasThumbnail
+                        ? "Abrir conteúdo"
+                        : "Abrir configurações"}
                     </p>
                   </Link>
                 ))
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  Nenhum Curso pendente.
-                </p>
+                <Empty className="min-h-32 border-0 p-4">
+                  <EmptyHeader>
+                    <EmptyTitle as="h3">Catálogo em ordem</EmptyTitle>
+                    <EmptyDescription>
+                      Os Cursos atuais têm os dados mínimos para operação.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </CardContent>
           </Card>
         </section>
 
-        <section className="order-3 grid gap-4 xl:grid-cols-2">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (
+            <AdminMetricCard
+              helper={metric.helper}
+              icon={metric.icon}
+              key={metric.key}
+              label={metric.label}
+              value={overview[metric.key].toString()}
+            />
+          ))}
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
           <Card>
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
@@ -288,6 +342,13 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
               {data.recentOrders.length ? (
                 data.recentOrders.map((order) => {
                   const status = getOrderStatusPresentation(order.status);
+                  const checkoutStatus = getCheckoutStatusPresentation(
+                    order.checkoutStatus
+                  );
+                  const customerLabel =
+                    order.customerName ??
+                    order.customerEmail ??
+                    "Compradora não identificada";
 
                   return (
                     <Link
@@ -299,11 +360,16 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                     >
                       <div className="flex items-center justify-between gap-3">
                         <p className="truncate font-medium text-sm">
-                          {order.customerName ?? order.customerEmail ?? "Aluna"}
+                          {customerLabel}
                         </p>
-                        <Badge className="shrink-0" variant={status.variant}>
-                          {status.label}
-                        </Badge>
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <Badge variant={status.variant}>{status.label}</Badge>
+                          {order.status === "pending" ? (
+                            <span className="text-[11px] text-muted-foreground">
+                              Checkout: {checkoutStatus.label}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
                       <div className="mt-2 flex items-end justify-between gap-3">
                         <div className="min-w-0">
@@ -314,17 +380,37 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                             {formatDateTime(order.createdAt)}
                           </p>
                         </div>
-                        <p className="font-semibold text-sm">
-                          {formatCurrencyInCents(order.amountInCents)}
-                        </p>
+                        <div className="shrink-0 text-right">
+                          <p className="font-semibold text-sm">
+                            {formatCurrencyInCents(
+                              order.paidAmountInCents ?? order.amountInCents
+                            )}
+                          </p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {order.paidAmountInCents === null
+                              ? "Valor do pedido"
+                              : "Valor pago"}
+                          </p>
+                        </div>
                       </div>
                     </Link>
                   );
                 })
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  Nenhuma compra registrada ainda.
-                </p>
+                <Empty className="min-h-32 border-0 p-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        icon={ShoppingCart01Icon}
+                      />
+                    </EmptyMedia>
+                    <EmptyTitle as="h3">Nenhuma compra recente</EmptyTitle>
+                    <EmptyDescription>
+                      Ainda não há pedidos registrados no checkout.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </CardContent>
           </Card>
@@ -366,9 +452,20 @@ export default async function AdminPage(): Promise<React.JSX.Element> {
                   </Link>
                 ))
               ) : (
-                <p className="text-muted-foreground text-sm">
-                  Nenhum certificado emitido ainda.
-                </p>
+                <Empty className="min-h-32 border-0 p-4">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon
+                        aria-hidden="true"
+                        icon={Certificate01Icon}
+                      />
+                    </EmptyMedia>
+                    <EmptyTitle as="h3">Nenhum certificado emitido</EmptyTitle>
+                    <EmptyDescription>
+                      As emissões recentes aparecerão aqui.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </CardContent>
           </Card>

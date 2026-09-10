@@ -387,6 +387,14 @@ export const listOutboxDeadLetters = async ({
     `,
     [normalizedPageSize + 1, (normalizedPage - 1) * normalizedPageSize]
   );
+  let totalCount = result.rows[0]?.total_count ?? 0;
+  if (result.rows.length === 0 && normalizedPage > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      "select count(*)::int as total_count from outbox_messages where status = 'dead_letter'"
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
   return {
     hasNextPage: result.rows.length > normalizedPageSize,
     messages: result.rows.slice(0, normalizedPageSize).map((row) => ({
@@ -399,7 +407,7 @@ export const listOutboxDeadLetters = async ({
     })),
     page: normalizedPage,
     pageSize: normalizedPageSize,
-    totalCount: result.rows[0]?.total_count ?? 0,
+    totalCount,
   };
 };
 

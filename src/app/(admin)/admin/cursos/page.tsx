@@ -57,6 +57,28 @@ const getInitials = (title: string): string =>
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
 
+const getCourseResultSummary = ({
+  courseCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  courseCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum Curso";
+  }
+  if (courseCount === 0) {
+    return `Nenhum Curso nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + courseCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} Curso${totalCount === 1 ? "" : "s"}`;
+};
+
 interface AdminCoursesPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -73,6 +95,12 @@ export default async function AdminCoursesPage({
   const rawPage = Number.parseInt(firstSearchParam(params.page) ?? "1", 10);
   const data = await getAdminCourseCatalogData({
     page: Number.isFinite(rawPage) ? rawPage : 1,
+  });
+  const resultSummary = getCourseResultSummary({
+    courseCount: data.courses.length,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
   });
   const pageHref = (targetPage: number): string => {
     const query = new URLSearchParams();
@@ -194,12 +222,7 @@ export default async function AdminCoursesPage({
 
                     <div className="mt-auto pt-10">
                       <h3 className="line-clamp-2 font-bold text-lg">
-                        <Link
-                          className="before:absolute before:inset-0"
-                          href={route(`/admin/cursos/${course.id}`)}
-                        >
-                          {course.title}
-                        </Link>
+                        {course.title}
                       </h3>
                       <div className="mt-2 flex items-start gap-4">
                         <div className="flex-1">
@@ -210,8 +233,8 @@ export default async function AdminCoursesPage({
                           ) : null}
                         </div>
                         <div className="shrink-0 pt-0.5 text-right font-medium text-card-foreground/60 text-xs">
-                          {course.moduleCount ?? 0} módulos •{" "}
-                          {course.lessonCount ?? 0} aulas
+                          {course.moduleCount} módulos • {course.lessonCount}{" "}
+                          aulas
                         </div>
                       </div>
                     </div>
@@ -242,30 +265,24 @@ export default async function AdminCoursesPage({
           )}
         </section>
 
-        <div className="flex items-center justify-between border-t pt-4">
-          <span className="text-muted-foreground text-sm">
-            Página {data.page}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+          <span aria-live="polite" className="text-muted-foreground text-sm">
+            {resultSummary}
           </span>
-          <div className="flex gap-2">
-            {data.page > 1 ? (
-              <Button asChild variant="outline">
-                <Link href={pageHref(data.page - 1)}>Anterior</Link>
-              </Button>
-            ) : (
-              <Button disabled variant="outline">
-                Anterior
-              </Button>
-            )}
-            {data.hasNextPage ? (
-              <Button asChild variant="outline">
-                <Link href={pageHref(data.page + 1)}>Próxima</Link>
-              </Button>
-            ) : (
-              <Button disabled variant="outline">
-                Próxima
-              </Button>
-            )}
-          </div>
+          {data.page > 1 || data.hasNextPage ? (
+            <nav aria-label="Paginação de Cursos" className="flex gap-2">
+              {data.page > 1 ? (
+                <Button asChild variant="outline">
+                  <Link href={pageHref(data.page - 1)}>Anterior</Link>
+                </Button>
+              ) : null}
+              {data.hasNextPage ? (
+                <Button asChild variant="outline">
+                  <Link href={pageHref(data.page + 1)}>Próxima</Link>
+                </Button>
+              ) : null}
+            </nav>
+          ) : null}
         </div>
       </div>
     </PageContainer>

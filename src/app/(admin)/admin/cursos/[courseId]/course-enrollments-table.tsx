@@ -4,6 +4,7 @@ import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
+import { AdminSearchPill } from "@/components/admin/admin-search-pill";
 import { StudentManagementSheet } from "@/components/admin/student-management-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -164,32 +165,37 @@ export function CourseEnrollmentsTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <form
-        action={`/admin/cursos/${encodeURIComponent(courseId)}`}
-        className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-        method="get"
-      >
-        <label className="sr-only" htmlFor="course-enrollment-search">
-          Buscar matrículas
-        </label>
-        <input name="tab" type="hidden" value="students" />
-        <input name="enrollmentPage" type="hidden" value="1" />
-        <Input
-          aria-label="Buscar matrículas"
-          autoComplete="off"
-          className="max-w-sm"
-          defaultValue={search}
-          id="course-enrollment-search"
-          name="enrollmentQ"
-          placeholder="Buscar por nome ou e-mail…"
-        />
-        <div className="flex items-center gap-3 text-muted-foreground text-xs">
-          <span aria-live="polite">{resultSummary}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <form
+          action={`/admin/cursos/${encodeURIComponent(courseId)}`}
+          className="flex min-w-0 flex-1 basis-full gap-2 md:max-w-xl md:basis-auto"
+          method="get"
+        >
+          <label className="sr-only" htmlFor="course-enrollment-search">
+            Buscar matrículas
+          </label>
+          <input name="tab" type="hidden" value="students" />
+          <input name="enrollmentPage" type="hidden" value="1" />
+          <Input
+            aria-label="Buscar matrículas"
+            autoComplete="off"
+            className="min-w-0 flex-1"
+            defaultValue={search}
+            id="course-enrollment-search"
+            name="enrollmentQ"
+            placeholder="Buscar por nome ou e-mail…"
+          />
           <Button type="submit" variant="outline">
             Filtrar
           </Button>
-        </div>
-      </form>
+        </form>
+        {search ? (
+          <AdminSearchPill
+            href={`/admin/cursos/${encodeURIComponent(courseId)}?tab=students`}
+            value={search}
+          />
+        ) : null}
+      </div>
 
       <DataTable
         caption="Matrículas do curso"
@@ -207,25 +213,28 @@ export function CourseEnrollmentsTable({
         showSearch={false}
       />
 
-      {page > 1 || hasNextPage ? (
-        <nav
-          aria-label="Paginação de matrículas do curso"
-          className="flex items-center justify-between gap-3 border-t pt-3"
-        >
-          {page > 1 ? (
-            <Button asChild variant="outline">
-              <Link href={pageHref(page - 1)}>Anterior</Link>
-            </Button>
-          ) : (
-            <span />
-          )}
-          {hasNextPage ? (
-            <Button asChild variant="outline">
-              <Link href={pageHref(page + 1)}>Próxima</Link>
-            </Button>
-          ) : null}
-        </nav>
-      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+        <span aria-live="polite" className="text-muted-foreground text-sm">
+          {resultSummary}
+        </span>
+        {page > 1 || hasNextPage ? (
+          <nav
+            aria-label="Paginação de matrículas do curso"
+            className="flex gap-2"
+          >
+            {page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(page - 1)}>Anterior</Link>
+              </Button>
+            ) : null}
+            {hasNextPage ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(page + 1)}>Próxima</Link>
+              </Button>
+            ) : null}
+          </nav>
+        ) : null}
+      </div>
     </div>
   );
 }

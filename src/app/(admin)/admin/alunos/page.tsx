@@ -13,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { summarizeAdminStudentAccess } from "@/features/admin/presentation";
 import { getAdminStudentsData } from "@/features/admin/server";
 import { formatDateInput } from "@/lib/formatters";
 import { AdminMetricCard } from "../admin-metric-card";
@@ -45,8 +44,6 @@ export default async function AdminStudentsPage({
       : {}),
   });
   const enrollmentsByUserId = new Map<string, StudentEnrollmentRow[]>();
-  const studentAccessSummary = summarizeAdminStudentAccess(data.students);
-
   for (const enrollment of data.enrollments) {
     const current = enrollmentsByUserId.get(enrollment.userId) ?? [];
     current.push({
@@ -88,25 +85,25 @@ export default async function AdminStudentsPage({
             helper="Todos os perfis com papel de Aluna."
             icon={UserGroupIcon}
             label="Alunas cadastradas"
-            value={studentAccessSummary.totalStudents.toString()}
+            value={data.accessSummary.totalStudents.toString()}
           />
           <AdminMetricCard
             helper="Com pelo menos uma matrícula ativa."
             icon={UserCircleIcon}
             label="Com acesso ativo"
-            value={studentAccessSummary.activeStudents.toString()}
+            value={data.accessSummary.activeStudents.toString()}
           />
           <AdminMetricCard
-            helper="Sem curso liberado no momento."
+            helper="Sem matrícula efetiva no momento."
             icon={UserBlock01Icon}
-            label="Sem matrícula"
-            value={studentAccessSummary.notEnrolledStudents.toString()}
+            label="Sem acesso ativo"
+            value={data.accessSummary.withoutActiveAccessStudents.toString()}
           />
           <AdminMetricCard
             helper="Acessos ativos que vencem em até 30 dias."
             icon={Time02Icon}
             label="Expirando em breve"
-            value={studentAccessSummary.expiringSoonStudents.toString()}
+            value={data.accessSummary.expiringSoonStudents.toString()}
           />
         </section>
 

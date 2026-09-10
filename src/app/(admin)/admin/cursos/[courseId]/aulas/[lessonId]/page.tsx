@@ -6,7 +6,6 @@ import {
 } from "@/components/lesson-kind-controls";
 import { LessonRichTextEditor } from "@/components/lesson-rich-text-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { saveLessonFormAction } from "@/features/admin/actions";
 import { toUploadAsset } from "@/features/admin/jmvstream-assets";
 import { getAdminLessonEditorData } from "@/features/admin/server";
 import { getLessonComments } from "@/features/comments/server";
@@ -56,10 +55,47 @@ export default async function AdminLessonEditPage({
   const parsedContent = parseLessonContent(lesson.contentJson);
 
   return (
-    <div className="flex w-full min-w-0 max-w-full flex-col lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="flex w-full min-w-0 max-w-full flex-col lg:grid lg:h-[calc(100svh-4rem)] lg:grid-cols-[minmax(0,1fr)_380px] lg:[grid-template-areas:'main_sidebar']">
+      {/* Sidebar de materiais e ações */}
+      <aside className="min-h-0 min-w-0 bg-background lg:flex lg:flex-col lg:border-l lg:[grid-area:sidebar]">
+        {/* Header da Aula no Sidebar com Duração */}
+        <div className="shrink-0 space-y-5 border-b px-4 pt-4 pb-4 lg:px-5 lg:py-5">
+          <div className="min-w-0">
+            <p className="truncate font-medium text-muted-foreground text-sm">
+              {course.title}
+              {moduleData ? ` / ${moduleData.title}` : ""}
+            </p>
+            <h1 className="type-section-title mt-1">{lesson.title}</h1>
+          </div>
+
+          <LessonSidebarDuration
+            durationSeconds={lesson.durationSeconds}
+            textDurationSeconds={lesson.textDurationSeconds}
+            videoDurationSeconds={lesson.videoDurationSeconds}
+          />
+        </div>
+
+        {/* Formulário de Metadados (Título e Descrição) */}
+        <div className="custom-scrollbar px-4 py-6 lg:flex-1 lg:overflow-y-auto lg:px-5 lg:pb-20">
+          <LessonEditorSidebarFields
+            formId={LESSON_EDITOR_FORM_ID}
+            lesson={lesson}
+          />
+        </div>
+
+        {/* Rodapé Fixo de Ações */}
+        <div className="sticky top-0 z-10 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
+          <LessonSidebarActions
+            coursePublicationStatus={lesson.coursePublicationStatus}
+            formId={LESSON_EDITOR_FORM_ID}
+            initialStatus={lesson.status ?? "draft"}
+          />
+        </div>
+      </aside>
+
       {/* Coluna principal com Abas */}
-      <div className="custom-scrollbar min-w-0 bg-muted/20 max-lg:contents lg:flex lg:flex-col lg:overflow-y-auto">
-        <div className="order-4 mx-auto w-full max-w-5xl px-4 py-6 lg:order-none lg:px-8 lg:py-10">
+      <div className="min-h-0 min-w-0 bg-muted/20 lg:flex lg:flex-col lg:overflow-y-auto lg:[grid-area:main]">
+        <div className="mx-auto w-full max-w-5xl px-4 py-6 lg:px-8 lg:py-10">
           <Tabs className="w-full" defaultValue="video">
             <div className="mb-8 pb-1">
               <TabsList className="!h-auto grid w-full grid-cols-2 gap-1 p-1 sm:flex">
@@ -88,7 +124,7 @@ export default async function AdminLessonEditPage({
               </TabsList>
             </div>
 
-            <form action={saveLessonFormAction} id={LESSON_EDITOR_FORM_ID}>
+            <form id={LESSON_EDITOR_FORM_ID}>
               <TabsContent
                 className="m-0 border-none p-0 focus-visible:ring-0 data-[state=inactive]:hidden"
                 forceMount
@@ -147,43 +183,6 @@ export default async function AdminLessonEditPage({
           </Tabs>
         </div>
       </div>
-
-      {/* Sidebar de materiais e ações */}
-      <aside className="min-w-0 bg-background max-lg:contents lg:flex lg:flex-col lg:border-l">
-        {/* Header da Aula no Sidebar com Duração */}
-        <div className="order-1 shrink-0 space-y-5 px-4 pt-4 pb-4 lg:order-none lg:border-b lg:px-5 lg:py-5">
-          <div className="min-w-0">
-            <p className="truncate font-medium text-muted-foreground text-sm">
-              {course.title}
-              {moduleData ? ` / ${moduleData.title}` : ""}
-            </p>
-            <h1 className="type-section-title mt-1">{lesson.title}</h1>
-          </div>
-
-          <LessonSidebarDuration
-            durationSeconds={lesson.durationSeconds}
-            textDurationSeconds={lesson.textDurationSeconds}
-            videoDurationSeconds={lesson.videoDurationSeconds}
-          />
-        </div>
-
-        {/* Formulário de Metadados (Título e Descrição) */}
-        <div className="custom-scrollbar order-3 flex-1 px-4 py-6 lg:order-none lg:overflow-y-auto lg:py-6 lg:pb-20">
-          <LessonEditorSidebarFields
-            formId={LESSON_EDITOR_FORM_ID}
-            lesson={lesson}
-          />
-        </div>
-
-        {/* Rodapé Fixo de Ações */}
-        <div className="sticky top-0 z-10 order-2 shrink-0 border-b bg-background px-4 pt-2 pb-5 lg:static lg:mt-auto lg:border-t lg:border-b-0 lg:px-5 lg:py-5">
-          <LessonSidebarActions
-            coursePublicationStatus={lesson.coursePublicationStatus}
-            formId={LESSON_EDITOR_FORM_ID}
-            initialStatus={lesson.status ?? "draft"}
-          />
-        </div>
-      </aside>
     </div>
   );
 }

@@ -62,7 +62,15 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
           title="Configurações globais"
         />
 
-        <section className="grid gap-4">
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="xl:col-span-2">
+            <h2 className="font-semibold text-lg" id="settings-operations">
+              Integrações e dados operacionais
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Acompanhe integrações externas e os dados usados em certificados.
+            </p>
+          </div>
           <Card>
             <CardHeader className="border-b bg-muted/20 pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -77,7 +85,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
                 <Button asChild size="sm" variant="outline">
                   <Link
                     href={JMVSTREAM_PORTAL_URL}
-                    rel="noopener"
+                    rel="noopener noreferrer"
                     target="_blank"
                   >
                     Abrir portal JMVStream
@@ -186,7 +194,15 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               </AdminMutationForm>
             </CardContent>
           </Card>
-          <Card>
+          <div className="pt-4 xl:col-span-2">
+            <h2 className="font-semibold text-lg" id="settings-editorial">
+              Conteúdo editorial
+            </h2>
+            <p className="mt-1 text-muted-foreground text-sm">
+              Atualize os conteúdos compartilhados na área da aluna.
+            </p>
+          </div>
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
                 Banners do dashboard
@@ -200,7 +216,7 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
               <BannerGallery initialBanners={sortedBanners} />
             </CardContent>
           </Card>
-          <Card>
+          <Card className="xl:col-span-2">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <div>

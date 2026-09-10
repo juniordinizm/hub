@@ -10,6 +10,7 @@ vi.mock("@/db", () => ({ getPool: () => ({ query }) }));
 vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
+  getSupportCourse,
   getSupportCourseOperations,
   getSupportCourseStudentContext,
   getSupportCourseStudents,
@@ -26,42 +27,78 @@ beforeEach(() => {
 });
 
 describe("support read projections", () => {
+  it("fails closed before reading Support data without permission", async () => {
+    const denied = new Error("permission denied");
+    requirePermission.mockRejectedValueOnce(denied);
+
+    await expect(getSupportCourseOperations()).rejects.toBe(denied);
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it("lists operational course aggregates without loading authoring data", async () => {
-    query.mockResolvedValue({
-      rows: [
-        {
-          active_enrollment_count: 8,
-          id: courseId,
-          paid_order_count: 7,
-          paid_revenue_in_cents: 70_000,
-          refunded_order_count: 2,
-          refunded_revenue_in_cents: 20_000,
-          status: "active",
-          title: "Curso operacional",
-          total_enrollment_count: 10,
-        },
-      ],
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("sum(paid_order_count)")) {
+        return {
+          rows: [
+            {
+              paid_order_count: 7,
+              paid_revenue_in_cents: 70_000,
+              total_count: 1,
+              total_enrollment_count: 10,
+            },
+          ],
+        };
+      }
+      return {
+        rows: [
+          {
+            active_enrollment_count: 8,
+            id: courseId,
+            paid_order_count: 7,
+            paid_revenue_in_cents: 70_000,
+            refunded_order_count: 2,
+            refunded_revenue_in_cents: 20_000,
+            status: "active",
+            title: "Curso operacional",
+            total_enrollment_count: 10,
+          },
+        ],
+      };
     });
 
-    await expect(getSupportCourseOperations()).resolves.toEqual([
-      {
-        activeEnrollmentCount: 8,
-        id: courseId,
+    await expect(getSupportCourseOperations()).resolves.toEqual({
+      courses: [
+        {
+          activeEnrollmentCount: 8,
+          id: courseId,
+          paidOrderCount: 7,
+          paidRevenueInCents: 70_000,
+          refundedOrderCount: 2,
+          refundedRevenueInCents: 20_000,
+          status: "active",
+          title: "Curso operacional",
+          totalEnrollmentCount: 10,
+        },
+      ],
+      hasNextPage: false,
+      page: 1,
+      pageSize: 20,
+      totalCount: 1,
+      totals: {
         paidOrderCount: 7,
         paidRevenueInCents: 70_000,
-        refundedOrderCount: 2,
-        refundedRevenueInCents: 20_000,
-        status: "active",
-        title: "Curso operacional",
         totalEnrollmentCount: 10,
       },
-    ]);
+    });
 
     expect(requirePermission).toHaveBeenCalledWith("viewCourseOperations");
-    const sql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    const sql = String(query.mock.calls[1]?.[0]).toLowerCase();
     expect(sql).toContain("from courses c");
     expect(sql).toContain("from enrollments e");
     expect(sql).toContain("from orders o");
+    expect(sql).toContain("e.starts_at <= now()");
+    expect(sql).toContain("e.expires_at >= now()");
+    expect(sql).toContain("cp.status = 'published'");
     expect(sql).not.toContain("content_json");
     expect(sql).not.toContain("price_in_cents");
     expect(sql).not.toContain("from modules");
@@ -79,6 +116,7 @@ describe("support read projections", () => {
           name: "Student",
           platform_blocked: false,
           starts_at: new Date("2026-01-01T00:00:00Z"),
+          total_count: 1,
           user_id: userId,
         },
       ],
@@ -87,6 +125,7 @@ describe("support read projections", () => {
     await expect(getSupportCourseStudents(courseId)).resolves.toMatchObject({
       hasNextPage: false,
       page: 1,
+      totalCount: 1,
       students: [
         {
           email: "student@example.test",
@@ -116,11 +155,52 @@ describe("support read projections", () => {
       page: 2,
       search: "Ana",
       students: [],
+      totalCount: 0,
     });
 
     const [sql, parameters] = query.mock.calls[0] ?? [];
     expect(String(sql)).toContain("u.name ilike $3 or u.email ilike $3");
     expect(parameters).toEqual([courseId, "Ana", "%Ana%", 101, 100]);
+  });
+
+  it("keeps the Support student total when the requested page is empty", async () => {
+    query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ total_count: 120 }] });
+
+    await expect(
+      getSupportCourseStudents(courseId, { page: 3 })
+    ).resolves.toMatchObject({
+      page: 3,
+      students: [],
+      totalCount: 120,
+    });
+
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("loads only the selected course context for Support", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          active_enrollment_count: 8,
+          id: courseId,
+          title: "Curso operacional",
+          total_enrollment_count: 10,
+        },
+      ],
+    });
+
+    await expect(getSupportCourse(courseId)).resolves.toEqual({
+      activeEnrollmentCount: 8,
+      id: courseId,
+      title: "Curso operacional",
+      totalEnrollmentCount: 10,
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith("viewCourseOperations");
+    expect(query.mock.calls[0]?.[1]).toEqual([courseId]);
+    expect(String(query.mock.calls[0]?.[0])).toContain("e.starts_at <= now()");
   });
 
   it("returns no context without a matching course enrollment", async () => {

@@ -37,11 +37,28 @@ beforeEach(() => {
     students: 0,
   });
   dependencies.getAdminDashboardProjection.mockResolvedValue({
-    courses: [],
+    courseHealth: {
+      activeCourses: 0,
+      averageReadinessPercent: null,
+      coursesNeedingAttention: [],
+      coursesNeedingAttentionCount: 0,
+      draftCourses: 0,
+    },
     recentCertificates: [],
     recentOrders: [],
   });
-  dependencies.getSupportCourseOperations.mockResolvedValue([]);
+  dependencies.getSupportCourseOperations.mockResolvedValue({
+    courses: [],
+    hasNextPage: false,
+    page: 1,
+    pageSize: 20,
+    totalCount: 0,
+    totals: {
+      paidOrderCount: 0,
+      paidRevenueInCents: 0,
+      totalEnrollmentCount: 0,
+    },
+  });
 });
 
 describe("AdminPage", () => {
@@ -51,7 +68,9 @@ describe("AdminPage", () => {
     const markup = renderToStaticMarkup(await AdminPage());
 
     expect(markup).toContain("Operação de suporte");
-    expect(dependencies.getSupportCourseOperations).toHaveBeenCalledOnce();
+    expect(dependencies.getSupportCourseOperations).toHaveBeenCalledWith({
+      page: 1,
+    });
     expect(dependencies.getAdminOverview).not.toHaveBeenCalled();
     expect(dependencies.getAdminDashboardProjection).not.toHaveBeenCalled();
   });
@@ -70,7 +89,13 @@ describe("AdminPage", () => {
   it("keeps recent purchases and certificates in the admin home", async () => {
     dependencies.requirePermission.mockResolvedValue({ role: "admin" });
     dependencies.getAdminDashboardProjection.mockResolvedValue({
-      courses: [],
+      courseHealth: {
+        activeCourses: 0,
+        averageReadinessPercent: null,
+        coursesNeedingAttention: [],
+        coursesNeedingAttentionCount: 0,
+        draftCourses: 0,
+      },
       recentCertificates: [
         {
           code: "CERT-1",
@@ -82,11 +107,13 @@ describe("AdminPage", () => {
       recentOrders: [
         {
           amountInCents: 12_900,
+          checkoutStatus: "active",
           courseTitle: "Curso de exemplo",
           createdAt: new Date("2026-09-08T11:00:00.000Z"),
           customerEmail: "aluna@example.test",
           customerName: "Aluna exemplo",
           id: "order-1",
+          paidAmountInCents: 12_900,
           status: "paid",
         },
       ],

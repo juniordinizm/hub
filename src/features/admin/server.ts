@@ -30,7 +30,10 @@ import type {
   AdminOrderPaymentMethodFilter,
   AdminOrderStatusFilter,
 } from "./order-filters";
-import type { AdminFinancialHealthSummary } from "./presentation";
+import type {
+  AdminFinancialHealthSummary,
+  AdminStudentAccessSummary,
+} from "./presentation";
 
 export interface AdminOverview {
   activeEnrollments: number;
@@ -44,23 +47,34 @@ export interface AdminOverview {
 }
 
 export interface AdminDashboardCourseHealth {
-  description: string | null;
+  hasDescription: boolean;
+  hasPublishedPublication: boolean;
+  hasThumbnail: boolean;
   id: string;
   moduleCount: number;
   publishedLessonCount: number;
   status: string;
-  thumbnailUrl: string | null;
   title: string;
   totalLessonCount: number;
 }
 
+export interface AdminDashboardCourseHealthProjection {
+  activeCourses: number;
+  averageReadinessPercent: number | null;
+  coursesNeedingAttention: AdminDashboardCourseHealth[];
+  coursesNeedingAttentionCount: number;
+  draftCourses: number;
+}
+
 export interface AdminDashboardRecentOrder {
   amountInCents: number;
+  checkoutStatus: string;
   courseTitle: string;
   createdAt: Date;
   customerEmail: string | null;
   customerName: string | null;
   id: string;
+  paidAmountInCents: number | null;
   status: string;
 }
 
@@ -73,6 +87,8 @@ export interface AdminDashboardRecentCertificate {
 
 export const getAdminOverview = async (): Promise<AdminOverview> => {
   await requirePermission("viewAdminPanel");
+  await requirePermission("viewFinancials");
+  await requirePermission("viewGlobalAudit");
 
   const pool = getPool();
   const counts = await pool.query<{
@@ -88,7 +104,20 @@ export const getAdminOverview = async (): Promise<AdminOverview> => {
       select
         (select count(*)::int from courses) as courses,
         (select count(*)::int from profiles where role = 'student') as students,
-        (select count(*)::int from enrollments where status = 'active') as active_enrollments,
+        (
+          select count(*)::int
+          from enrollments e
+          join courses c on c.id = e.course_id
+          where e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        ) as active_enrollments,
         (select count(*)::int from orders where status = 'paid') as paid_orders,
         (select coalesce(sum(coalesce(paid_amount_in_cents, amount_in_cents)) filter (where status = 'paid'), 0)::bigint from orders) as paid_revenue_in_cents,
         (select count(*)::int from orders where status = 'pending' and checkout_status not in ('failed', 'cancelled', 'expired')) as pending_orders,
@@ -216,6 +245,21 @@ const MAX_ADMIN_COURSE_PAGE = 1000;
 export interface AdminCourseCatalogQuery {
   page?: number | undefined;
   pageSize?: number | undefined;
+}
+
+export interface AdminCourseCatalogCard {
+  accessDurationMonths: number;
+  catalogVisibility: "hidden" | "listed";
+  coverImage: unknown;
+  id: string;
+  lessonCount: number;
+  moduleCount: number;
+  priceInCents: number;
+  salesStatus: "closed" | "open";
+  status: string;
+  subtitle: string | null;
+  thumbnailUrl: string | null;
+  title: string;
 }
 
 const DEFAULT_ADMIN_COURSE_ENROLLMENT_PAGE_SIZE = 50;
@@ -501,77 +545,161 @@ export interface AdminStudentSheetData {
   student: AdminStudentDetail;
 }
 
-const readDashboardCourseHealth = async (): Promise<
-  AdminDashboardCourseHealth[]
-> => {
-  const { rows } = await getPool().query<{
-    description: string | null;
-    id: string;
-    module_count: number;
-    published_lesson_count: number;
-    status: string;
-    thumbnail_url: string | null;
-    title: string;
-    total_lesson_count: number;
-  }>(`
+const readDashboardCourseHealth =
+  async (): Promise<AdminDashboardCourseHealthProjection> => {
+    const { rows } = await getPool().query<{
+      active_courses: number;
+      attention_count: number;
+      average_readiness_percent: number | null;
+      draft_courses: number;
+      has_description: boolean;
+      has_published_publication: boolean;
+      has_thumbnail: boolean;
+      id: string;
+      module_count: number;
+      published_lesson_count: number;
+      readiness_percent: number;
+      status: string;
+      title: string;
+      total_lesson_count: number;
+    }>(`
+    with current_publications as (
+      select distinct on (cp.course_id)
+        cp.course_id,
+        cp.id
+      from course_publications cp
+      where cp.status in ('draft', 'published')
+      order by
+        cp.course_id,
+        case cp.status when 'draft' then 0 else 1 end,
+        cp.publication_number desc,
+        cp.id desc
+    ), publication_state as (
+      select
+        cp.course_id,
+        bool_or(cp.status = 'published') as has_published_publication
+      from course_publications cp
+      where cp.status in ('draft', 'published')
+      group by cp.course_id
+    ), course_health as (
+      select
+        c.id,
+        c.title,
+        c.status,
+        c.created_at,
+        (nullif(btrim(c.description), '') is not null) as has_description,
+        (c.thumbnail_url is not null) as has_thumbnail,
+        coalesce(publication_state.has_published_publication, false)
+          as has_published_publication,
+        count(distinct m.id) filter (where m.status = 'active')::int as module_count,
+        count(l.id) filter (
+          where l.status = 'active' and m.status = 'active'
+        )::int as total_lesson_count,
+        count(l.id) filter (
+          where l.status = 'active'
+            and l.is_published = true
+            and m.status = 'active'
+        )::int as published_lesson_count
+      from courses c
+      left join current_publications current_publication
+        on current_publication.course_id = c.id
+      left join publication_state
+        on publication_state.course_id = c.id
+      left join modules m
+        on m.course_publication_id = current_publication.id
+      left join lessons l
+        on l.course_publication_id = current_publication.id
+        and l.module_id = m.id
+      group by
+        c.id,
+        c.title,
+        c.status,
+        c.created_at,
+        c.description,
+        c.thumbnail_url,
+        publication_state.has_published_publication
+    ), scored_courses as (
+      select
+        course_health.*,
+        (
+          (
+            case when has_description then 1 else 0 end
+            + case when has_thumbnail then 1 else 0 end
+            + case when module_count > 0 then 1 else 0 end
+            + case
+                when total_lesson_count > 0 and published_lesson_count > 0 then 1
+                else 0
+              end
+            + case when has_published_publication then 1 else 0 end
+          ) * 25
+        )::int as readiness_percent
+      from course_health
+    )
     select
-      c.id,
-      c.title,
-      c.status,
-      c.description,
-      c.thumbnail_url,
-      (
-        select count(*)::int
-        from modules m
-        where m.course_id = c.id
-      ) as module_count,
-      (
-        select count(*)::int
-        from lessons l
-        join modules m on m.id = l.module_id
-        where m.course_id = c.id
-      ) as total_lesson_count,
-      (
-        select count(*)::int
-        from lessons l
-        join modules m on m.id = l.module_id
-        where m.course_id = c.id and l.is_published = true
-      ) as published_lesson_count
-    from courses c
-    order by c.created_at desc
+      id,
+      title,
+      status,
+      has_description,
+      has_published_publication,
+      has_thumbnail,
+      module_count,
+      total_lesson_count,
+      published_lesson_count,
+      readiness_percent,
+      count(*) filter (where readiness_percent < 100) over ()::int as attention_count,
+      count(*) filter (where status = 'active') over ()::int as active_courses,
+      count(*) filter (where status = 'draft') over ()::int as draft_courses,
+      round(avg(readiness_percent) over ())::int as average_readiness_percent
+    from scored_courses
+    order by readiness_percent asc, title asc, id asc
+    limit 4
   `);
 
-  return rows.map((row) => ({
-    description: row.description,
-    id: row.id,
-    moduleCount: row.module_count,
-    publishedLessonCount: row.published_lesson_count,
-    status: row.status,
-    thumbnailUrl: row.thumbnail_url,
-    title: row.title,
-    totalLessonCount: row.total_lesson_count,
-  }));
-};
+    const firstRow = rows[0];
+    return {
+      activeCourses: firstRow?.active_courses ?? 0,
+      averageReadinessPercent: firstRow?.average_readiness_percent ?? null,
+      coursesNeedingAttention: rows
+        .filter((row) => row.readiness_percent < 100)
+        .map((row) => ({
+          hasDescription: row.has_description,
+          hasPublishedPublication: row.has_published_publication,
+          hasThumbnail: row.has_thumbnail,
+          id: row.id,
+          moduleCount: row.module_count,
+          publishedLessonCount: row.published_lesson_count,
+          status: row.status,
+          title: row.title,
+          totalLessonCount: row.total_lesson_count,
+        })),
+      coursesNeedingAttentionCount: firstRow?.attention_count ?? 0,
+      draftCourses: firstRow?.draft_courses ?? 0,
+    };
+  };
 
 const readDashboardRecentOrders = async (): Promise<
   AdminDashboardRecentOrder[]
 > => {
   const { rows } = await getPool().query<{
     amount_in_cents: number;
+    checkout_status: string;
     course_title: string;
     created_at: Date;
     customer_email: string | null;
     customer_name: string | null;
     id: string;
+    paid_amount_in_cents: number | null;
     status: string;
   }>(`
     select
       o.id,
       o.amount_in_cents,
+      o.paid_amount_in_cents,
       o.created_at,
       o.customer_name,
       o.customer_email,
       o.status,
+      o.checkout_status,
       c.title as course_title
     from orders o
     join courses c on c.id = o.course_id
@@ -582,10 +710,12 @@ const readDashboardRecentOrders = async (): Promise<
   return rows.map((row) => ({
     amountInCents: row.amount_in_cents,
     courseTitle: row.course_title,
+    checkoutStatus: row.checkout_status,
     createdAt: row.created_at,
     customerEmail: row.customer_email,
     customerName: row.customer_name,
     id: row.id,
+    paidAmountInCents: row.paid_amount_in_cents,
     status: row.status,
   }));
 };
@@ -654,8 +784,6 @@ const readCourses = async (
     interest_notifications_sent: number;
     launch_date: string | null;
     launch_landing_url: string | null;
-    lesson_count: number;
-    module_count: number;
     payment_allow_credit_card: boolean;
     payment_allow_pix: boolean;
     payment_max_installment_count: number;
@@ -725,17 +853,6 @@ const readCourses = async (
             and om.status in ('pending', 'retrying', 'processing')
             and o.course_id = courses.id
         ) as pending_checkout_cancellations
-        ,(
-          select count(*)::int
-          from modules m
-          where m.course_id = courses.id
-        ) as module_count
-        ,(
-          select count(*)::int
-          from lessons l
-          join modules m on m.id = l.module_id
-          where m.course_id = courses.id
-        ) as lesson_count
       from courses
       ${whereClause}
       order by courses.created_at desc
@@ -753,7 +870,6 @@ const readCourses = async (
     id: row.id,
     interestCount: row.interest_count,
     interestNotificationsSent: row.interest_notifications_sent,
-    lessonCount: row.lesson_count ?? 0,
     launchDate: row.launch_date,
     launchLandingUrl: row.launch_landing_url,
     paymentAllowCreditCard: row.payment_allow_credit_card,
@@ -764,7 +880,6 @@ const readCourses = async (
       row.pending_certificate_reconciliation_count,
     pendingCheckoutCancellations: row.pending_checkout_cancellations,
     pendingInterestNotifications: row.pending_interest_notifications,
-    moduleCount: row.module_count ?? 0,
     salesStatus: row.sales_status,
     slug: row.slug,
     status: row.status,
@@ -775,6 +890,113 @@ const readCourses = async (
     workloadHours: row.workload_hours,
     workloadHoursOverride: row.workload_hours_override,
   }));
+};
+
+const readCourseCatalogCards = async ({
+  page,
+  pageSize,
+}: {
+  page: number;
+  pageSize: number;
+}): Promise<{
+  cards: AdminCourseCatalogCard[];
+  hasNextPage: boolean;
+  totalCount: number;
+}> => {
+  const { rows } = await getPool().query<{
+    access_duration_months: number;
+    catalog_visibility: "hidden" | "listed";
+    cover_image_json: unknown;
+    id: string;
+    lesson_count: number;
+    module_count: number;
+    price_in_cents: number;
+    sales_status: "closed" | "open";
+    status: string;
+    subtitle: string | null;
+    thumbnail_url: string | null;
+    title: string;
+    total_count: number;
+  }>(
+    `
+      with current_publications as (
+        select distinct on (cp.course_id)
+          cp.course_id,
+          cp.id
+        from course_publications cp
+        where cp.status in ('draft', 'published')
+        order by
+          cp.course_id,
+          case cp.status when 'draft' then 0 else 1 end,
+          cp.publication_number desc,
+          cp.id desc
+      )
+      select
+        c.id,
+        c.title,
+        c.subtitle,
+        c.status,
+        c.catalog_visibility,
+        c.sales_status,
+        c.price_in_cents,
+        c.access_duration_months,
+        c.thumbnail_url,
+        c.cover_image_json,
+        count(distinct m.id)::int as module_count,
+        count(l.id)::int as lesson_count,
+        count(*) over()::int as total_count
+      from courses c
+      left join current_publications current_publication
+        on current_publication.course_id = c.id
+      left join modules m
+        on m.course_publication_id = current_publication.id
+      left join lessons l
+        on l.course_publication_id = current_publication.id
+        and l.module_id = m.id
+      group by
+        c.id,
+        c.title,
+        c.subtitle,
+        c.status,
+        c.catalog_visibility,
+        c.sales_status,
+        c.price_in_cents,
+        c.access_duration_months,
+        c.thumbnail_url,
+        c.cover_image_json,
+        c.created_at
+      order by c.created_at desc, c.id desc
+      limit $1 offset $2
+    `,
+    [pageSize + 1, (page - 1) * pageSize]
+  );
+
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      "select count(*)::int as total_count from courses"
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
+  return {
+    cards: rows.slice(0, pageSize).map((row) => ({
+      accessDurationMonths: row.access_duration_months,
+      catalogVisibility: row.catalog_visibility,
+      coverImage: row.cover_image_json,
+      id: row.id,
+      lessonCount: row.lesson_count,
+      moduleCount: row.module_count,
+      priceInCents: row.price_in_cents,
+      salesStatus: row.sales_status,
+      status: row.status,
+      subtitle: row.subtitle,
+      thumbnailUrl: row.thumbnail_url,
+      title: row.title,
+    })),
+    hasNextPage: rows.length > pageSize,
+    totalCount,
+  };
 };
 
 const readModules = async (courseId?: string): Promise<AdminModule[]> => {
@@ -1167,6 +1389,20 @@ const readCourseEnrollmentsPage = async (
     `,
     [courseId, search, `%${search}%`, pageSize + 1, offset]
   );
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from enrollments e
+        join users u on u.id = e.user_id
+        where e.course_id = $1
+          and ($2 = '' or u.name ilike $3 or u.email ilike $3)
+      `,
+      [courseId, search, `%${search}%`]
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
 
   return {
     enrollments: rows.slice(0, pageSize).map(mapAdminEnrollment),
@@ -1174,7 +1410,7 @@ const readCourseEnrollmentsPage = async (
     page,
     pageSize,
     search,
-    totalCount: rows[0]?.total_count ?? 0,
+    totalCount,
   };
 };
 
@@ -2005,6 +2241,20 @@ const readStudentProfiles = async (
     `,
     [search, `%${search}%`, pageSize + 1, offset]
   );
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from profiles p
+        join users u on u.id = p.user_id
+        where p.role = 'student'
+          and ($1 = '' or u.name ilike $2 or u.email ilike $2)
+      `,
+      [search, `%${search}%`]
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
 
   return {
     hasNextPage: rows.length > pageSize,
@@ -2019,27 +2269,95 @@ const readStudentProfiles = async (
       userId: row.user_id,
     })),
     search,
-    totalCount: rows[0]?.total_count ?? rows.length,
+    totalCount,
   };
 };
 
+const readAdminStudentAccessSummary =
+  async (): Promise<AdminStudentAccessSummary> => {
+    const { rows } = await getPool().query<{
+      active_students: number;
+      expiring_soon_students: number;
+      total_students: number;
+      without_active_access_students: number;
+    }>(`
+    with student_summary as (
+      select
+        p.user_id,
+        p.platform_blocked_at,
+        count(e.id) filter (
+          where e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        )::int as active_enrollments,
+        max(e.expires_at) filter (
+          where e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        ) as latest_expiration
+      from profiles p
+      left join enrollments e on e.user_id = p.user_id
+      left join courses c on c.id = e.course_id
+      where p.role = 'student'
+      group by p.user_id, p.platform_blocked_at
+    )
+    select
+      count(*)::int as total_students,
+      count(*) filter (
+        where active_enrollments > 0 and platform_blocked_at is null
+      )::int as active_students,
+      count(*) filter (
+        where active_enrollments = 0 or platform_blocked_at is not null
+      )::int as without_active_access_students,
+        count(*) filter (
+          where active_enrollments > 0
+            and platform_blocked_at is null
+            and latest_expiration >= now()
+            and latest_expiration <= now() + interval '30 days'
+      )::int as expiring_soon_students
+    from student_summary
+  `);
+    const row = rows[0];
+
+    return {
+      activeStudents: row?.active_students ?? 0,
+      expiringSoonStudents: row?.expiring_soon_students ?? 0,
+      totalStudents: row?.total_students ?? 0,
+      withoutActiveAccessStudents: row?.without_active_access_students ?? 0,
+    };
+  };
+
 export const getAdminDashboardProjection = async (): Promise<{
-  courses: AdminDashboardCourseHealth[];
+  courseHealth: AdminDashboardCourseHealthProjection;
   recentCertificates: AdminDashboardRecentCertificate[];
   recentOrders: AdminDashboardRecentOrder[];
 }> => {
   await requirePermission("manageContent");
-  const [courses, recentOrders, recentCertificates] = await Promise.all([
+  await requirePermission("viewFinancials");
+  const [courseHealth, recentOrders, recentCertificates] = await Promise.all([
     readDashboardCourseHealth(),
     readDashboardRecentOrders(),
     readDashboardRecentCertificates(),
   ]);
-  return { courses, recentCertificates, recentOrders };
+  return { courseHealth, recentCertificates, recentOrders };
 };
 
 export const getAdminStudentsData = async (
   options: AdminStudentsQuery = {}
 ): Promise<{
+  accessSummary: AdminStudentAccessSummary;
   enrollments: AdminEnrollment[];
   hasNextPage: boolean;
   page: number;
@@ -2049,13 +2367,17 @@ export const getAdminStudentsData = async (
   totalCount: number;
 }> => {
   await requirePermission("manageEnrollmentAccess");
-  const profilePage = await readStudentProfiles(options);
+  const [profilePage, accessSummary] = await Promise.all([
+    readStudentProfiles(options),
+    readAdminStudentAccessSummary(),
+  ]);
   const enrollments = await readEnrollments(
     undefined,
     profilePage.profiles.map((profile) => profile.userId)
   );
 
   return {
+    accessSummary,
     enrollments,
     hasNextPage: profilePage.hasNextPage,
     page: profilePage.page,
@@ -2135,6 +2457,26 @@ export const getAdminWebhookEvents = async (
     [search, `%${search}%`, pageSize + 1, (page - 1) * pageSize]
   );
 
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && page > 1) {
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from webhook_events
+        where provider = 'asaas'
+          and status in ('failed', 'retryable')
+          and (
+            $1 = ''
+            or event_key ilike $2
+            or event_name ilike $2
+            or error_message ilike $2
+          )
+      `,
+      [search, `%${search}%`]
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
   return {
     events: rows.slice(0, pageSize).map((row) => ({
       attemptCount: row.attempt_count,
@@ -2150,7 +2492,7 @@ export const getAdminWebhookEvents = async (
     page,
     pageSize,
     search,
-    totalCount: rows[0]?.total_count ?? rows.length,
+    totalCount,
   };
 };
 
@@ -2164,12 +2506,11 @@ export const getAdminSettingsData = async (): Promise<{
 export const getAdminCourseCatalogData = async (
   options: AdminCourseCatalogQuery = {}
 ): Promise<{
+  courses: AdminCourseCatalogCard[];
   hasNextPage: boolean;
   page: number;
   pageSize: number;
-  courses: AdminCourse[];
-  lessons: AdminLesson[];
-  modules: AdminModule[];
+  totalCount: number;
 }> => {
   await requirePermission("manageContent");
   const requestedPage = Math.trunc(options.page ?? 1);
@@ -2182,14 +2523,16 @@ export const getAdminCourseCatalogData = async (
   const pageSize = Number.isFinite(requestedPageSize)
     ? Math.min(MAX_ADMIN_COURSE_PAGE_SIZE, Math.max(1, requestedPageSize))
     : DEFAULT_ADMIN_COURSE_PAGE_SIZE;
-  const courses = await readCourses(undefined, { page, pageSize });
-  return {
-    courses: courses.slice(0, pageSize),
-    hasNextPage: courses.length > pageSize,
-    lessons: [],
-    modules: [],
+  const { cards, hasNextPage, totalCount } = await readCourseCatalogCards({
     page,
     pageSize,
+  });
+  return {
+    courses: cards,
+    hasNextPage,
+    page,
+    pageSize,
+    totalCount,
   };
 };
 
@@ -2244,7 +2587,21 @@ export const getAdminCourseOverviewSummary = async (
   }>(
     `
       select
-        (select count(*)::int from enrollments where course_id = $1 and status = 'active') as active_enrollment_count,
+        (
+          select count(*)::int
+          from enrollments e
+          join courses c on c.id = e.course_id
+          where e.course_id = $1
+            and e.status = 'active'
+            and e.starts_at <= now()
+            and e.expires_at >= now()
+            and c.status = 'active'
+            and exists (
+              select 1
+              from course_publications cp
+              where cp.course_id = c.id and cp.status = 'published'
+            )
+        ) as active_enrollment_count,
         (select count(*)::int from orders where course_id = $1 and status = 'paid') as paid_order_count,
         (select count(*)::int from certificates where course_id = $1 and status = 'valid') as valid_certificate_count
     `,
@@ -2301,6 +2658,108 @@ export const getAdminCourseDetailData = async (
     lessons,
     modules,
   };
+};
+
+export type AdminCourseManagementTab =
+  | "certificate"
+  | "content"
+  | "overview"
+  | "settings"
+  | "students";
+
+export type AdminCourseTabData =
+  | {
+      course: AdminCourse;
+      lessons: AdminLesson[];
+      modules: AdminModule[];
+      overviewSummary: AdminCourseOverviewSummary;
+      publicationState: { hasDraft: boolean; hasPublished: boolean };
+      tab: "overview";
+    }
+  | {
+      course: AdminCourse;
+      lessons: AdminLesson[];
+      modules: AdminModule[];
+      publicationState: { hasDraft: boolean; hasPublished: boolean };
+      tab: "content";
+    }
+  | {
+      course: AdminCourse;
+      enrollmentsPage: {
+        enrollments: AdminEnrollment[];
+        hasNextPage: boolean;
+        page: number;
+        pageSize: number;
+        search: string;
+        totalCount: number;
+      };
+      tab: "students";
+    }
+  | {
+      course: AdminCourse;
+      publicationState: { hasDraft: boolean; hasPublished: boolean };
+      tab: "settings";
+    }
+  | { course: AdminCourse; tab: "certificate" };
+
+export const getAdminCourseTabData = async ({
+  courseId,
+  enrollmentQuery = {},
+  tab,
+}: {
+  courseId: string;
+  enrollmentQuery?: AdminCourseEnrollmentQuery;
+  tab: AdminCourseManagementTab;
+}): Promise<AdminCourseTabData | null> => {
+  await requirePermission("manageContent");
+
+  if (tab === "overview") {
+    const [courses, modules, lessons, overviewSummary, publicationState] =
+      await Promise.all([
+        readCourses(courseId),
+        readModules(courseId),
+        readLessons(courseId),
+        getAdminCourseOverviewSummary(courseId),
+        getAdminCoursePublicationState(courseId),
+      ]);
+    const course = courses[0];
+    return course
+      ? { course, lessons, modules, overviewSummary, publicationState, tab }
+      : null;
+  }
+
+  if (tab === "content") {
+    const [courses, modules, lessons, publicationState] = await Promise.all([
+      readCourses(courseId),
+      readModules(courseId),
+      readLessons(courseId),
+      getAdminCoursePublicationState(courseId),
+    ]);
+    const course = courses[0];
+    return course ? { course, lessons, modules, publicationState, tab } : null;
+  }
+
+  if (tab === "students") {
+    const [courses, enrollmentsPage] = await Promise.all([
+      readCourses(courseId),
+      readCourseEnrollmentsPage(courseId, enrollmentQuery),
+    ]);
+    const course = courses[0];
+    return course ? { course, enrollmentsPage, tab } : null;
+  }
+
+  if (tab === "settings") {
+    const [courses, publicationState] = await Promise.all([
+      readCourses(courseId),
+      getAdminCoursePublicationState(courseId),
+    ]);
+    const course = courses[0];
+    return course ? { course, publicationState, tab } : null;
+  }
+
+  const courses = await readCourses(courseId);
+  const course = courses[0];
+  return course ? { course, tab } : null;
 };
 
 export const getAdminCoursePublicationState = async (

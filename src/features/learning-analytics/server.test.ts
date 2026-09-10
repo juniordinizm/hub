@@ -13,6 +13,7 @@ vi.mock("@/lib/auth-permissions", () => ({
 
 import {
   getLessonAnalyticsMetrics,
+  getLessonAnalyticsMetricsPage,
   recordLearningAnalyticsEvent,
   setLearningAnalyticsPreference,
 } from "./server";
@@ -26,6 +27,8 @@ describe("learning analytics preference persistence", () => {
 
     const metricsQuery = String(query.mock.calls[0]?.[0]);
     expect(metricsQuery).toContain("cp.course_id = e.course_id");
+    expect(metricsQuery).toContain("e.starts_at <= now()");
+    expect(metricsQuery).toContain("c.status = 'active'");
     expect(metricsQuery).not.toContain("m.course_id");
     expect(metricsQuery).toContain(
       "current_lesson.curriculum_key = completed_lesson.curriculum_key"
@@ -37,6 +40,41 @@ describe("learning analytics preference persistence", () => {
     expect(dependencies.requirePermission).toHaveBeenCalledWith(
       "manageLearningAnalytics"
     );
+  });
+
+  it("pages aggregate lesson metrics without changing the export reader", async () => {
+    const query = vi.fn().mockResolvedValue({
+      rows: [
+        {
+          completed: "1",
+          course_publication_id: "publication-1",
+          course_title: "Curso",
+          eligible: "2",
+          error_count: "0",
+          lesson_id: "lesson-1",
+          lesson_title: "Aula",
+          median_checkpoint_percent: null,
+          median_hours_to_complete: null,
+          median_hours_to_next_lesson: null,
+          publication_number: 1,
+          started: "1",
+          total_count: 21,
+        },
+      ],
+    });
+    dependencies.getPool.mockReturnValue({ query });
+
+    await expect(
+      getLessonAnalyticsMetricsPage({ page: 2 })
+    ).resolves.toMatchObject({
+      hasNextPage: false,
+      page: 2,
+      pageSize: 20,
+      totalCount: 21,
+    });
+
+    expect(String(query.mock.calls[0]?.[0])).toContain("limit $1 offset $2");
+    expect(query.mock.calls[0]?.[1]).toEqual([21, 20]);
   });
 
   it("records a raw event only through the opt-out-aware enrollment query", async () => {
@@ -58,6 +96,9 @@ describe("learning analytics preference persistence", () => {
       expect.stringContaining("preference.disabled_at is null"),
       expect.any(Array)
     );
+    const eventSql = String(query.mock.calls[0]?.[0]);
+    expect(eventSql).toContain("e.starts_at <= now()");
+    expect(eventSql).toContain("c.status = 'active'");
   });
 
   it("removes only the opting-out student raw events before persisting the preference", async () => {

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { DatePickerField } from "@/components/date-picker-field";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +37,7 @@ import {
   getCourseAvailabilityOptions,
   resolveCourseAvailability,
 } from "@/features/courses/availability";
+import { useCourseTabDirty } from "./course-management-tabs";
 
 type AvailabilityCourse = Pick<
   AdminCourse,
@@ -71,10 +73,13 @@ export function CourseAvailabilityForm({
   const [showInCatalog, setShowInCatalog] = useState(
     course.catalogVisibility === "listed"
   );
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
   const availabilityOptions = getCourseAvailabilityOptions({
     hasCommercialHistory: course.hasCommercialHistory,
   });
+  useCourseTabDirty("settings", isDirty);
 
   if (initialPreset === "archived") {
     return (
@@ -85,12 +90,29 @@ export function CourseAvailabilityForm({
             O histórico foi preservado, mas conteúdo e acesso estão bloqueados.
           </p>
         </div>
+        {errorMessage ? (
+          <Alert role="alert" variant="destructive">
+            <AlertTitle>Não foi possível restaurar o Curso</AlertTitle>
+            <AlertDescription>{errorMessage}</AlertDescription>
+          </Alert>
+        ) : null}
         <Button
           loading={isPending}
           onClick={() => {
+            setErrorMessage(null);
             startTransition(async () => {
-              await restoreCourseAction(course.id);
-              toast.success("Curso restaurado com vendas pausadas.");
+              try {
+                await restoreCourseAction(course.id);
+                setIsDirty(false);
+                toast.success("Curso restaurado com vendas pausadas.");
+              } catch (error) {
+                const message =
+                  error instanceof Error
+                    ? error.message
+                    : "Não foi possível restaurar o Curso.";
+                setErrorMessage(message);
+                toast.error(message);
+              }
             });
           }}
           type="button"
@@ -105,33 +127,53 @@ export function CourseAvailabilityForm({
   return (
     <form
       className="flex flex-col gap-4"
+      onChange={() => setIsDirty(true)}
       onSubmit={(event) => {
         event.preventDefault();
+        setErrorMessage(null);
         const formData = new FormData(event.currentTarget);
         startTransition(async () => {
-          const result = await saveCourseAvailabilityAction(formData);
-          if (!result.ok) {
-            toast.error(result.message);
-            return;
+          try {
+            const result = await saveCourseAvailabilityAction(formData);
+            if (!result.ok) {
+              setErrorMessage(result.message);
+              toast.error(result.message);
+              return;
+            }
+            setIsDirty(false);
+            toast.success(
+              result.notificationsEnqueued > 0
+                ? `${result.notificationsEnqueued} avisos enfileirados.`
+                : "Disponibilidade atualizada."
+            );
+          } catch (error) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Não foi possível alterar a disponibilidade.";
+            setErrorMessage(message);
+            toast.error(message);
           }
-          toast.success(
-            result.notificationsEnqueued > 0
-              ? `${result.notificationsEnqueued} avisos enfileirados.`
-              : "Disponibilidade atualizada."
-          );
         });
       }}
     >
       <input name="courseId" type="hidden" value={course.id} />
+      {errorMessage ? (
+        <Alert role="alert" variant="destructive">
+          <AlertTitle>Não foi possível atualizar a disponibilidade</AlertTitle>
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
+      ) : null}
       <Field>
         <FieldLabel htmlFor="course-availability-preset">
           Disponibilidade
         </FieldLabel>
         <Select
           name="preset"
-          onValueChange={(value) =>
-            setPreset(value as CourseAvailabilityPreset)
-          }
+          onValueChange={(value) => {
+            setPreset(value as CourseAvailabilityPreset);
+            setIsDirty(true);
+          }}
           value={preset}
         >
           <SelectTrigger id="course-availability-preset">
@@ -203,7 +245,10 @@ export function CourseAvailabilityForm({
           <Switch
             checked={showInCatalog}
             id="course-show-in-catalog"
-            onCheckedChange={setShowInCatalog}
+            onCheckedChange={(checked) => {
+              setShowInCatalog(checked);
+              setIsDirty(true);
+            }}
           />
           <div>
             <FieldLabel htmlFor="course-show-in-catalog">
@@ -255,9 +300,19 @@ export function CourseAvailabilityForm({
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={() => {
+                  setErrorMessage(null);
                   startTransition(async () => {
-                    await archiveCourseAction(course.id);
-                    toast.success("Curso arquivado.");
+                    try {
+                      await archiveCourseAction(course.id);
+                      toast.success("Curso arquivado.");
+                    } catch (error) {
+                      const message =
+                        error instanceof Error
+                          ? error.message
+                          : "Não foi possível arquivar o Curso.";
+                      setErrorMessage(message);
+                      toast.error(message);
+                    }
                   });
                 }}
                 variant="destructive"

@@ -33,6 +33,13 @@ describe("admin read authorization contract", () => {
       )
     ).toContain('requirePermission("manageContent")');
     expect(
+      readFunction(
+        source,
+        "getAdminDashboardProjection",
+        "getAdminStudentsData"
+      )
+    ).toContain('requirePermission("viewFinancials")');
+    expect(
       readFunction(source, "getAdminAuditData", "getAdminSettingsData")
     ).toContain('requirePermission("viewGlobalAudit")');
     expect(

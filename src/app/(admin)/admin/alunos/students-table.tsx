@@ -4,7 +4,9 @@ import { ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
+import { AdminSearchPill } from "@/components/admin/admin-search-pill";
 import { StudentManagementSheet } from "@/components/admin/student-management-sheet";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
@@ -82,6 +84,9 @@ const columns: ColumnDef<StudentTableRow>[] = [
   {
     accessorKey: "email",
     header: "Email",
+    cell: ({ row }) => (
+      <span className="break-all text-sm">{row.original.email}</span>
+    ),
   },
   {
     accessorKey: "courseCount",
@@ -94,9 +99,9 @@ const columns: ColumnDef<StudentTableRow>[] = [
     header: "Plataforma",
     cell: ({ row }) =>
       row.original.platformBlockedAt ? (
-        <span className="font-medium text-destructive text-xs">Bloqueado</span>
+        <Badge variant="destructive">Bloqueado</Badge>
       ) : (
-        <span className="text-muted-foreground text-xs">Ativo</span>
+        <Badge variant="success">Ativo</Badge>
       ),
   },
   {
@@ -179,22 +184,27 @@ export function StudentsTable({
 
   return (
     <div>
-      <form
-        action="/admin/alunos"
-        className="mb-4 flex max-w-xl gap-2"
-        method="get"
-      >
-        <input name="page" type="hidden" value="1" />
-        <Input
-          aria-label="Buscar Alunas"
-          autoComplete="off"
-          className="min-w-0 flex-1"
-          defaultValue={search}
-          name="q"
-          placeholder="Buscar por nome ou e-mail…"
-        />
-        <Button type="submit">Buscar</Button>
-      </form>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <form
+          action="/admin/alunos"
+          className="flex min-w-0 flex-1 basis-full gap-2 sm:max-w-xl sm:basis-auto"
+          method="get"
+        >
+          <input name="page" type="hidden" value="1" />
+          <Input
+            aria-label="Buscar Alunas"
+            autoComplete="off"
+            className="min-w-0 flex-1"
+            defaultValue={search}
+            name="q"
+            placeholder="Buscar por nome ou e-mail…"
+          />
+          <Button type="submit">Buscar</Button>
+        </form>
+        {search ? (
+          <AdminSearchPill href="/admin/alunos" value={search} />
+        ) : null}
+      </div>
       <DataTable
         caption="Alunas cadastradas"
         columns={columns}
@@ -208,30 +218,24 @@ export function StudentsTable({
         showPagination={false}
         showSearch={false}
       />
-      <div className="mt-4 flex items-center justify-between border-t pt-4">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
         <span aria-live="polite" className="text-muted-foreground text-sm">
           {resultSummary}
         </span>
-        <div className="flex gap-2">
-          {page > 1 ? (
-            <Button asChild variant="outline">
-              <Link href={pageHref(page - 1)}>Anterior</Link>
-            </Button>
-          ) : (
-            <Button disabled variant="outline">
-              Anterior
-            </Button>
-          )}
-          {hasNextPage ? (
-            <Button asChild variant="outline">
-              <Link href={pageHref(page + 1)}>Próxima</Link>
-            </Button>
-          ) : (
-            <Button disabled variant="outline">
-              Próxima
-            </Button>
-          )}
-        </div>
+        {page > 1 || hasNextPage ? (
+          <nav aria-label="Paginação de Alunas" className="flex gap-2">
+            {page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(page - 1)}>Anterior</Link>
+              </Button>
+            ) : null}
+            {hasNextPage ? (
+              <Button asChild variant="outline">
+                <Link href={pageHref(page + 1)}>Próxima</Link>
+              </Button>
+            ) : null}
+          </nav>
+        ) : null}
       </div>
     </div>
   );

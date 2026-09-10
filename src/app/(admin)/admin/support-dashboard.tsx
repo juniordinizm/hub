@@ -3,6 +3,7 @@ import {
   Invoice01Icon,
   UserGroupIcon,
 } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AdminMetricCard } from "@/app/(admin)/admin/admin-metric-card";
 import { PageContainer } from "@/components/page-container";
@@ -16,29 +17,23 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { getCourseDeliveryStatusPresentation } from "@/features/admin/status-presentation";
-import type { SupportCourseOperation } from "@/features/admin/support-server";
+import type { SupportCourseOperationsPage } from "@/features/admin/support-server";
 import { formatCurrencyInCents } from "@/lib/formatters";
 import { route } from "@/lib/routes";
 
 export function SupportDashboard({
-  courses,
+  data,
 }: {
-  courses: SupportCourseOperation[];
+  data: SupportCourseOperationsPage;
 }): React.JSX.Element {
-  const totalEnrollments = courses.reduce(
-    (sum, course) => sum + course.totalEnrollmentCount,
-    0
-  );
-  const paidOrders = courses.reduce(
-    (sum, course) => sum + course.paidOrderCount,
-    0
-  );
-  const paidRevenueInCents = courses.reduce(
-    (sum, course) => sum + course.paidRevenueInCents,
-    0
-  );
-
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
@@ -57,25 +52,25 @@ export function SupportDashboard({
             helper="Cursos disponíveis para consulta operacional."
             icon={BookOpen01Icon}
             label="Cursos"
-            value={courses.length.toString()}
+            value={data.totalCount.toString()}
           />
           <AdminMetricCard
             helper="Soma das matrículas em todos os Cursos."
             icon={UserGroupIcon}
             label="Matrículas"
-            value={totalEnrollments.toString()}
+            value={data.totals.totalEnrollmentCount.toString()}
           />
           <AdminMetricCard
             helper="Pedidos atualmente confirmados como pagos."
             icon={Invoice01Icon}
             label="Pedidos pagos"
-            value={paidOrders.toString()}
+            value={data.totals.paidOrderCount.toString()}
           />
           <AdminMetricCard
             helper="Receita dos Pedidos atualmente pagos."
             icon={Invoice01Icon}
             label="Receita paga"
-            value={formatCurrencyInCents(paidRevenueInCents)}
+            value={formatCurrencyInCents(data.totals.paidRevenueInCents)}
           />
         </section>
 
@@ -87,8 +82,8 @@ export function SupportDashboard({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {courses.length ? (
-              courses.map((course) => (
+            {data.courses.length ? (
+              data.courses.map((course) => (
                 <article
                   className="border-b py-4 last:border-b-0"
                   key={course.id}
@@ -137,16 +132,79 @@ export function SupportDashboard({
                 </article>
               ))
             ) : (
-              <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
-                Nenhum Curso disponível para consulta.
-              </p>
+              <Empty className="border-0 py-8">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <HugeiconsIcon aria-hidden="true" icon={BookOpen01Icon} />
+                  </EmptyMedia>
+                  <EmptyTitle as="h3">
+                    {data.totalCount > 0
+                      ? "Nenhum Curso nesta página"
+                      : "Nenhum Curso disponível"}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    {data.totalCount > 0
+                      ? "Volte uma página para continuar a consulta."
+                      : "Não há Cursos disponíveis para consulta operacional."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
           </CardContent>
         </Card>
+        {data.page > 1 || data.hasNextPage ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <span aria-live="polite" className="text-muted-foreground text-sm">
+              {getCourseResultSummary({
+                courseCount: data.courses.length,
+                page: data.page,
+                pageSize: data.pageSize,
+                totalCount: data.totalCount,
+              })}
+            </span>
+            <nav aria-label="Paginação de Cursos" className="flex gap-2">
+              {data.page > 1 ? (
+                <Button asChild variant="outline">
+                  <Link href={getCoursePageHref(data.page - 1)}>Anterior</Link>
+                </Button>
+              ) : null}
+              {data.hasNextPage ? (
+                <Button asChild variant="outline">
+                  <Link href={getCoursePageHref(data.page + 1)}>Próxima</Link>
+                </Button>
+              ) : null}
+            </nav>
+          </div>
+        ) : null}
       </div>
     </PageContainer>
   );
 }
+
+const getCoursePageHref = (page: number): string =>
+  page > 1 ? `/admin?page=${page}` : "/admin";
+
+const getCourseResultSummary = ({
+  courseCount,
+  page,
+  pageSize,
+  totalCount,
+}: {
+  courseCount: number;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return "Nenhum Curso";
+  }
+  if (courseCount === 0) {
+    return `Nenhum Curso nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + courseCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} Curso${totalCount === 1 ? "" : "s"}`;
+};
 
 function CourseStatusBadge({ status }: { status: string }): React.JSX.Element {
   const presentation = getCourseDeliveryStatusPresentation(status);

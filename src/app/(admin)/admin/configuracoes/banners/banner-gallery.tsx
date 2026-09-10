@@ -312,6 +312,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
                 <div className="relative">
                   <input
                     accept={BANNER_ACCEPT}
+                    aria-label="Selecionar banner"
                     className="absolute inset-0 cursor-pointer opacity-0"
                     onChange={(event) => {
                       const files = event.currentTarget.files;

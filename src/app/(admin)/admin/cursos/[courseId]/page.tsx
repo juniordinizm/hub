@@ -18,9 +18,9 @@ import {
   summarizeAdminCourseContent,
 } from "@/features/admin/presentation";
 import {
-  getAdminCourseDetailData,
-  getAdminCourseOverviewSummary,
-  getAdminCoursePublicationState,
+  type AdminCourseManagementTab,
+  type AdminCourseTabData,
+  getAdminCourseTabData,
 } from "@/features/admin/server";
 import { getCourseAvailabilityStatusPresentation } from "@/features/admin/status-presentation";
 import {
@@ -48,6 +48,91 @@ const firstSearchParam = (
   value: string | string[] | undefined
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
 
+const COURSE_MANAGEMENT_TAB_VALUES: AdminCourseManagementTab[] = [
+  "overview",
+  "content",
+  "students",
+  "settings",
+  "certificate",
+];
+
+const getCourseManagementTab = (
+  value: string | undefined
+): AdminCourseManagementTab =>
+  value &&
+  COURSE_MANAGEMENT_TAB_VALUES.includes(value as AdminCourseManagementTab)
+    ? (value as AdminCourseManagementTab)
+    : "overview";
+
+const getCoursePageDerivedData = (data: AdminCourseTabData) => {
+  const { course } = data;
+  const contentData =
+    data.tab === "overview" || data.tab === "content" ? data : null;
+  if (contentData) {
+    contentData.modules.sort((a, b) => a.sortOrder - b.sortOrder);
+  }
+  const contentSummary = contentData
+    ? summarizeAdminCourseContent({
+        lessons: contentData.lessons,
+        modules: contentData.modules,
+      })
+    : null;
+  const contentSignal = contentSummary
+    ? getAdminCourseContentSignal(contentSummary)
+    : null;
+  const purchaseContext =
+    data.tab === "overview" || data.tab === "settings" ? data : null;
+  const serverEnv = purchaseContext ? getServerEnv() : null;
+  const purchaseLink =
+    purchaseContext && serverEnv
+      ? getCoursePurchaseLink({
+          appUrl: serverEnv.NEXT_PUBLIC_APP_URL,
+          checkoutMode: serverEnv.PAYMENTS_CHECKOUT_MODE,
+          course: {
+            hasPublishedPublication:
+              purchaseContext.publicationState.hasPublished,
+            priceInCents: course.priceInCents,
+            salesStatus: course.salesStatus,
+            slug: course.slug,
+            status: course.status,
+          },
+        })
+      : null;
+  const publicCourseUrl =
+    purchaseContext && serverEnv
+      ? new URL(
+          `/comprar/${encodeURIComponent(course.slug)}`,
+          serverEnv.NEXT_PUBLIC_APP_URL
+        ).toString()
+      : null;
+  const operationalState =
+    data.tab === "overview" && contentSummary && purchaseLink
+      ? getAdminCourseOperationalState({
+          hasDescription: Boolean(course.description?.trim()),
+          hasDraft: data.publicationState.hasDraft,
+          hasPublished: data.publicationState.hasPublished,
+          hasReadyLesson: contentSummary.readyLessons > 0,
+          hasThumbnail: Boolean(course.thumbnailUrl),
+          moduleCount: data.modules.length,
+          purchaseLink,
+          status: course.status,
+        })
+      : null;
+  const nextModuleSortOrder = contentData
+    ? Math.max(...contentData.modules.map((module) => module.sortOrder), 0) + 1
+    : 1;
+
+  return {
+    contentData,
+    contentSignal,
+    contentSummary,
+    nextModuleSortOrder,
+    operationalState,
+    publicCourseUrl,
+    purchaseLink,
+  };
+};
+
 export default async function AdminCourseDetailPage({
   params,
   searchParams,
@@ -57,6 +142,7 @@ export default async function AdminCourseDetailPage({
 }): Promise<React.JSX.Element> {
   const { courseId } = await params;
   const query = (await searchParams) ?? {};
+  const activeTab = getCourseManagementTab(firstSearchParam(query.tab));
   const requestedEnrollmentPage = Number.parseInt(
     firstSearchParam(query.enrollmentPage) ?? "1",
     10
@@ -65,28 +151,20 @@ export default async function AdminCourseDetailPage({
     ? requestedEnrollmentPage
     : 1;
   const enrollmentSearch = firstSearchParam(query.enrollmentQ)?.trim() ?? "";
-  const [
-    data,
-    overviewSummary,
-    certificateTemplates,
-    publicationState,
-    issuerConfigured,
-  ] = await Promise.all([
-    getAdminCourseDetailData(courseId, {
+  const data = await getAdminCourseTabData({
+    courseId,
+    enrollmentQuery: {
       page: enrollmentPage,
       search: enrollmentSearch,
-    }),
-    getAdminCourseOverviewSummary(courseId),
-    getCertificateTemplatesForCourse(courseId),
-    getAdminCoursePublicationState(courseId),
-    hasCertificateIssuerProfile(),
-  ]);
+    },
+    tab: activeTab,
+  });
 
   if (!data) {
     notFound();
   }
 
-  const { course, enrollments, lessons, modules } = data;
+  const { course } = data;
   const courseAvailability = resolveCourseAvailability({
     catalogVisibility: course.catalogVisibility,
     deliveryStatus: course.status as "active" | "archived" | "draft",
@@ -95,37 +173,22 @@ export default async function AdminCourseDetailPage({
   const courseStatusPresentation = getCourseAvailabilityStatusPresentation(
     courseAvailability.preset
   );
-  const serverEnv = getServerEnv();
-  const purchaseLink = getCoursePurchaseLink({
-    appUrl: serverEnv.NEXT_PUBLIC_APP_URL,
-    checkoutMode: serverEnv.PAYMENTS_CHECKOUT_MODE,
-    course: {
-      hasPublishedPublication: publicationState.hasPublished,
-      priceInCents: course.priceInCents,
-      salesStatus: course.salesStatus,
-      slug: course.slug,
-      status: course.status,
-    },
-  });
-  const publicCourseUrl = new URL(
-    `/comprar/${encodeURIComponent(course.slug)}`,
-    serverEnv.NEXT_PUBLIC_APP_URL
-  ).toString();
-  modules.sort((a, b) => a.sortOrder - b.sortOrder);
-  const contentSummary = summarizeAdminCourseContent({ lessons, modules });
-  const contentSignal = getAdminCourseContentSignal(contentSummary);
-  const operationalState = getAdminCourseOperationalState({
-    hasDescription: Boolean(course.description?.trim()),
-    hasDraft: publicationState.hasDraft,
-    hasPublished: publicationState.hasPublished,
-    hasReadyLesson: contentSummary.readyLessons > 0,
-    hasThumbnail: Boolean(course.thumbnailUrl),
-    moduleCount: modules.length,
+  const {
+    contentData,
+    contentSignal,
+    contentSummary,
+    nextModuleSortOrder,
+    operationalState,
+    publicCourseUrl,
     purchaseLink,
-    status: course.status,
-  });
-  const nextModuleSortOrder =
-    modules.length > 0 ? Math.max(...modules.map((m) => m.sortOrder)) + 1 : 1;
+  } = getCoursePageDerivedData(data);
+  const certificateData =
+    data.tab === "certificate"
+      ? await Promise.all([
+          getCertificateTemplatesForCourse(courseId),
+          hasCertificateIssuerProfile(),
+        ])
+      : null;
 
   return (
     <PageContainer>
@@ -158,96 +221,106 @@ export default async function AdminCourseDetailPage({
 
         <CourseManagementTabs
           certificate={
-            <CertificateTemplateEditor
-              certificateEnabled={course.certificateEnabled}
-              courseId={course.id}
-              courseWorkloadHours={course.workloadHours}
-              issuerConfigured={issuerConfigured}
-              pendingCertificateReconciliationCount={
-                course.pendingCertificateReconciliationCount
-              }
-              templates={certificateTemplates}
-            />
+            data.tab === "certificate" && certificateData ? (
+              <CertificateTemplateEditor
+                certificateEnabled={course.certificateEnabled}
+                courseId={course.id}
+                courseWorkloadHours={course.workloadHours}
+                issuerConfigured={certificateData[1]}
+                pendingCertificateReconciliationCount={
+                  course.pendingCertificateReconciliationCount
+                }
+                templates={certificateData[0]}
+              />
+            ) : null
           }
           content={
-            <CourseContentPanel
-              contentSignal={contentSignal}
-              course={course}
-              lessons={lessons}
-              modules={modules}
-              nextModuleSortOrder={nextModuleSortOrder}
-              publicationState={publicationState}
-            />
+            data.tab === "content" && contentData && contentSignal ? (
+              <CourseContentPanel
+                contentSignal={contentSignal}
+                course={course}
+                lessons={contentData.lessons}
+                modules={contentData.modules}
+                nextModuleSortOrder={nextModuleSortOrder}
+                publicationState={data.publicationState}
+              />
+            ) : null
           }
           overview={
-            <CourseOverview
-              contentSummary={contentSummary}
-              courseId={course.id}
-              durationSeconds={course.workloadHours * SECONDS_PER_HOUR}
-              moduleCount={modules.length}
-              operationalState={operationalState}
-              overviewSummary={overviewSummary}
-              publicationState={publicationState}
-            />
+            data.tab === "overview" && contentSummary && operationalState ? (
+              <CourseOverview
+                contentSummary={contentSummary}
+                courseId={course.id}
+                durationSeconds={course.workloadHours * SECONDS_PER_HOUR}
+                moduleCount={data.modules.length}
+                operationalState={operationalState}
+                overviewSummary={data.overviewSummary}
+                publicationState={data.publicationState}
+              />
+            ) : null
           }
           settings={
-            <div className="flex flex-col gap-6">
-              <Card>
-                <CardHeader className="border-b">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="max-w-2xl space-y-1">
-                      <CardTitle as="h2" className="text-xl">
-                        Configurações do curso
-                      </CardTitle>
-                      <CardDescription>
-                        Dados que aparecem para a aluna e conectam o Curso ao
-                        checkout externo.
-                      </CardDescription>
+            data.tab === "settings" && purchaseLink && publicCourseUrl ? (
+              <div className="flex flex-col gap-6">
+                <Card>
+                  <CardHeader className="border-b">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="max-w-2xl space-y-1">
+                        <CardTitle as="h2" className="text-xl">
+                          Configurações do curso
+                        </CardTitle>
+                        <CardDescription>
+                          Dados que aparecem para a aluna e conectam o Curso ao
+                          checkout externo.
+                        </CardDescription>
+                      </div>
+                      <CoursePurchaseLink
+                        link={purchaseLink}
+                        publicUrl={publicCourseUrl}
+                      />
                     </div>
-                    <CoursePurchaseLink
-                      link={purchaseLink}
-                      publicUrl={publicCourseUrl}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent className="py-2 sm:py-4">
-                  <CourseSettingsForm course={course} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="border-b py-4">
-                  <CardTitle as="h2" className="text-lg">
-                    Disponibilidade
-                  </CardTitle>
-                  <CardDescription>
-                    Controle vitrine e novas vendas. Matrículas existentes não
-                    são alteradas.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="py-4">
-                  <CourseAvailabilityForm course={course} />
-                </CardContent>
-              </Card>
-            </div>
+                  </CardHeader>
+                  <CardContent className="py-2 sm:py-4">
+                    <CourseSettingsForm course={course} />
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="border-b py-4">
+                    <CardTitle as="h2" className="text-lg">
+                      Disponibilidade
+                    </CardTitle>
+                    <CardDescription>
+                      Controle vitrine e novas vendas. Matrículas existentes não
+                      são alteradas.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="py-4">
+                    <CourseAvailabilityForm course={course} />
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null
           }
           students={
-            <section className="rounded-lg border bg-card">
-              <div className="border-b px-5 py-4">
-                <h2 className="font-semibold text-xl">Alunas deste Curso</h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  Últimas matrículas e situação de acesso.
-                </p>
-              </div>
-              <CourseEnrollmentsTable
-                courseId={course.id}
-                enrollments={enrollments}
-                hasNextPage={data.enrollmentsPage.hasNextPage}
-                page={data.enrollmentsPage.page}
-                pageSize={data.enrollmentsPage.pageSize}
-                search={data.enrollmentsPage.search}
-                totalCount={data.enrollmentsPage.totalCount}
-              />
-            </section>
+            data.tab === "students" ? (
+              <section className="rounded-lg border bg-card">
+                <div className="border-b px-5 py-4">
+                  <h2 className="font-semibold text-xl">Alunas deste Curso</h2>
+                  <p className="mt-1 text-muted-foreground text-sm">
+                    Últimas matrículas e situação de acesso.
+                  </p>
+                </div>
+                <CourseEnrollmentsTable
+                  courseId={course.id}
+                  enrollments={data.enrollmentsPage.enrollments}
+                  hasNextPage={data.enrollmentsPage.hasNextPage}
+                  page={data.enrollmentsPage.page}
+                  pageSize={data.enrollmentsPage.pageSize}
+                  search={data.enrollmentsPage.search}
+                  totalCount={data.enrollmentsPage.totalCount}
+                />
+              </section>
+            ) : null
           }
         />
       </div>

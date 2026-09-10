@@ -2,7 +2,6 @@
 
 import { ArrowLeftIcon, Logout01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -41,6 +40,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
+import { PLATFORM_NAME } from "@/lib/brand";
 import { getInitials } from "@/lib/get-initials";
 import { route } from "@/lib/routes";
 import type { AppRole } from "@/lib/session";
@@ -68,14 +68,9 @@ function SidebarHeaderContent() {
   return (
     <div className="flex w-full items-center justify-between gap-2 px-2">
       <div className="flex min-w-0 flex-1 items-center">
-        <Image
-          alt="PROTEA-R"
-          className="h-auto max-h-10 w-[90%] object-contain object-left"
-          height={100}
-          preload
-          src="/protear/logo-negativo.svg"
-          width={400}
-        />
+        <span className="truncate font-semibold text-sm tracking-tight">
+          {PLATFORM_NAME}
+        </span>
       </div>
       <SidebarTrigger className="shrink-0" />
     </div>
@@ -189,6 +184,7 @@ function PanelLayoutInner({
     "/admin/cursos",
     "/admin/alunos",
     "/admin/financeiro",
+    "/admin/aprendizagem",
     "/admin/faq",
     "/admin/configuracoes",
     "/admin/auditoria",
@@ -206,11 +202,11 @@ function PanelLayoutInner({
     }
 
     if (pathname.startsWith("/admin")) {
-      router.push(route("/admin/cursos"));
+      router.push(route(userRole === "support" ? "/admin" : "/admin/cursos"));
     } else {
       router.push(route("/app"));
     }
-  }, [pathname, router]);
+  }, [pathname, router, userRole]);
 
   const handleSignOut = async () => {
     setIsPending(true);
@@ -364,14 +360,9 @@ function PanelLayoutInner({
             </div>
 
             <div className="flex flex-1 items-center justify-center md:hidden">
-              <Image
-                alt="PROTEA-R"
-                className="h-8 w-auto max-w-full object-contain"
-                height={100}
-                preload
-                src="/protear/logo-negativo.svg"
-                width={400}
-              />
+              <span className="truncate font-semibold text-sm tracking-tight">
+                {PLATFORM_NAME}
+              </span>
             </div>
 
             {isPreviewActive && (

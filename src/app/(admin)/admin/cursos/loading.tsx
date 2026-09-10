@@ -17,11 +17,6 @@ export default function Loading(): React.JSX.Element {
           </div>
         </header>
 
-        <div className="flex max-w-xl gap-2">
-          <Skeleton className="h-9 min-w-0 flex-1" />
-          <Skeleton className="h-9 w-20" />
-        </div>
-
         <section className="flex flex-wrap gap-5">
           {Array.from({ length: 6 }).map((_, i) => (
             <div

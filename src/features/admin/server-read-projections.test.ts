@@ -20,6 +20,7 @@ import {
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
   getAdminCoursePublicationState,
+  getAdminCourseTabData,
   getAdminDashboardProjection,
   getAdminFinancialAnalysisData,
   getAdminFinancialOrdersData,
@@ -135,11 +136,16 @@ describe("admin read projections", () => {
     });
 
     expect(requirePermission).toHaveBeenCalledWith("viewAdminPanel");
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
+    expect(requirePermission).toHaveBeenCalledWith("viewGlobalAudit");
     expect(query).toHaveBeenCalledTimes(1);
     const aggregateSql = String(query.mock.calls[0]?.[0]).toLowerCase();
     expect(aggregateSql).toContain(
       "sum(coalesce(paid_amount_in_cents, amount_in_cents))"
     );
+    expect(aggregateSql).toContain("e.starts_at <= now()");
+    expect(aggregateSql).toContain("e.expires_at >= now()");
+    expect(aggregateSql).toContain("cp.status = 'published'");
     expect(aggregateSql).toContain("status = 'pending'");
     expect(aggregateSql).toContain("status = 'failed'");
     expect(aggregateSql).not.toContain("limit 8");
@@ -378,12 +384,20 @@ describe("admin read projections", () => {
   });
 
   it("keeps the course catalog projection bounded without loading lesson content", async () => {
-    query.mockResolvedValue({ rows: [courseRow] });
+    query.mockResolvedValue({
+      rows: [
+        {
+          ...courseRow,
+          lesson_count: 8,
+          module_count: 2,
+          total_count: 1,
+        },
+      ],
+    });
 
     await expect(getAdminCourseCatalogData()).resolves.toMatchObject({
       courses: [expect.objectContaining({ id: courseId })],
-      lessons: [],
-      modules: [],
+      totalCount: 1,
     });
 
     expect(query).toHaveBeenCalledTimes(1);
@@ -391,7 +405,122 @@ describe("admin read projections", () => {
     expect(sql).toContain("limit $1 offset $2");
     expect(sql).not.toContain("l.content_json");
     expect(sql).not.toContain("select l.*");
+    expect(sql).toContain("current_publications");
     expect(requirePermission).toHaveBeenCalledWith("manageContent");
+  });
+
+  it("loads only the read models needed by the selected course tab", async () => {
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("select m.id, m.course_id")) {
+        return { rows: [moduleRow] };
+      }
+      if (sql.includes("select l.id, l.module_id")) {
+        return { rows: [lessonRow] };
+      }
+      if (sql.includes("has_draft")) {
+        return { rows: [{ has_draft: true, has_published: true }] };
+      }
+      if (sql.includes("active_enrollment_count")) {
+        return {
+          rows: [
+            {
+              active_enrollment_count: 2,
+              paid_order_count: 3,
+              valid_certificate_count: 1,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from courses")) {
+        return { rows: [courseRow] };
+      }
+      return { rows: [] };
+    });
+
+    await expect(
+      getAdminCourseTabData({ courseId, tab: "overview" })
+    ).resolves.toMatchObject({
+      course: { id: courseId },
+      lessons: [{ id: lessonId }],
+      modules: [{ id: "module-1" }],
+      tab: "overview",
+    });
+
+    expect(query).toHaveBeenCalledTimes(5);
+    query.mockReset();
+    query.mockResolvedValue({ rows: [courseRow] });
+
+    await expect(
+      getAdminCourseTabData({ courseId, tab: "certificate" })
+    ).resolves.toMatchObject({
+      course: { id: courseId },
+      tab: "certificate",
+    });
+
+    expect(query).toHaveBeenCalledTimes(1);
+    const certificateSql = String(query.mock.calls[0]?.[0]).toLowerCase();
+    expect(certificateSql).not.toContain("content_json");
+    expect(certificateSql).not.toContain("from lessons");
+    expect(certificateSql).not.toContain("from modules");
+
+    query.mockReset();
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("count(*) over()")) {
+        return {
+          rows: [
+            {
+              course_id: courseId,
+              course_title: "Course one",
+              email: "student@example.test",
+              expires_at: new Date("2027-01-01T00:00:00.000Z"),
+              id: "enrollment-1",
+              last_access_at: null,
+              name: "Student",
+              original_expires_at: new Date("2027-01-01T00:00:00.000Z"),
+              revoked_reason: null,
+              starts_at: new Date("2026-01-01T00:00:00.000Z"),
+              status: "active",
+              total_count: 1,
+              user_id: "student-1",
+            },
+          ],
+        };
+      }
+      return { rows: [courseRow] };
+    });
+
+    await expect(
+      getAdminCourseTabData({ courseId, tab: "students" })
+    ).resolves.toMatchObject({
+      course: { id: courseId },
+      enrollmentsPage: { totalCount: 1 },
+      tab: "students",
+    });
+    expect(query).toHaveBeenCalledTimes(2);
+
+    query.mockReset();
+    query.mockImplementation((sql: string) =>
+      sql.includes("has_draft")
+        ? { rows: [{ has_draft: false, has_published: true }] }
+        : { rows: [courseRow] }
+    );
+
+    await expect(
+      getAdminCourseTabData({ courseId, tab: "settings" })
+    ).resolves.toMatchObject({
+      course: { id: courseId },
+      publicationState: { hasPublished: true },
+      tab: "settings",
+    });
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed before reading admin dashboard data without permission", async () => {
+    const denied = new Error("permission denied");
+    requirePermission.mockRejectedValueOnce(denied);
+
+    await expect(getAdminDashboardProjection()).rejects.toBe(denied);
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("pages actionable Asaas webhooks without exposing payload data", async () => {
@@ -433,9 +562,22 @@ describe("admin read projections", () => {
   });
 
   it("bounds the student projection and returns pagination metadata", async () => {
-    query.mockImplementation((sql: string) => ({
-      rows: sql.includes("from profiles")
-        ? [
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("total_students")) {
+        return {
+          rows: [
+            {
+              active_students: 1,
+              expiring_soon_students: 0,
+              total_students: 1,
+              without_active_access_students: 0,
+            },
+          ],
+        };
+      }
+      if (sql.includes("from profiles")) {
+        return {
+          rows: [
             {
               email: "student@example.test",
               last_access_at: null,
@@ -445,9 +587,11 @@ describe("admin read projections", () => {
               total_count: 3,
               user_id: "student-1",
             },
-          ]
-        : [],
-    }));
+          ],
+        };
+      }
+      return { rows: [] };
+    });
 
     await expect(
       getAdminStudentsData({ search: "student", page: 2 })
@@ -891,9 +1035,12 @@ describe("admin read projections", () => {
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
-    expect(sql).toContain(
-      "count(*)::int from enrollments where course_id = $1 and status = 'active'"
-    );
+    expect(sql).toContain("from enrollments e");
+    expect(sql).toContain("e.status = 'active'");
+    expect(sql).toContain("e.starts_at <= now()");
+    expect(sql).toContain("e.expires_at >= now()");
+    expect(sql).toContain("c.status = 'active'");
+    expect(sql).toContain("cp.status = 'published'");
     expect(sql).toContain(
       "count(*)::int from orders where course_id = $1 and status = 'paid'"
     );
@@ -1047,12 +1194,18 @@ describe("admin read projections", () => {
       return {
         rows: [
           {
-            description: "Course description",
+            active_courses: 1,
+            attention_count: 1,
+            average_readiness_percent: 75,
+            draft_courses: 0,
+            has_description: true,
+            has_published_publication: true,
+            has_thumbnail: true,
             id: courseId,
             module_count: 2,
             published_lesson_count: 3,
+            readiness_percent: 75,
             status: "active",
-            thumbnail_url: "https://example.test/thumb.jpg",
             title: "Course one",
             total_lesson_count: 4,
           },
@@ -1061,23 +1214,31 @@ describe("admin read projections", () => {
     });
 
     await expect(getAdminDashboardProjection()).resolves.toEqual({
-      courses: [
-        {
-          description: "Course description",
-          id: courseId,
-          moduleCount: 2,
-          publishedLessonCount: 3,
-          status: "active",
-          thumbnailUrl: "https://example.test/thumb.jpg",
-          title: "Course one",
-          totalLessonCount: 4,
-        },
-      ],
+      courseHealth: {
+        activeCourses: 1,
+        averageReadinessPercent: 75,
+        coursesNeedingAttention: [
+          {
+            hasDescription: true,
+            hasPublishedPublication: true,
+            hasThumbnail: true,
+            id: courseId,
+            moduleCount: 2,
+            publishedLessonCount: 3,
+            status: "active",
+            title: "Course one",
+            totalLessonCount: 4,
+          },
+        ],
+        coursesNeedingAttentionCount: 1,
+        draftCourses: 0,
+      },
       recentCertificates: [],
       recentOrders: [],
     });
 
     expect(requirePermission).toHaveBeenCalledWith("manageContent");
+    expect(requirePermission).toHaveBeenCalledWith("viewFinancials");
     expect(query).toHaveBeenCalledTimes(3);
     const dashboardSql = String(query.mock.calls[0]?.[0]).toLowerCase();
     expect(dashboardSql).not.toContain("content_json");
@@ -1085,6 +1246,7 @@ describe("admin read projections", () => {
     expect(dashboardSql).not.toContain("select m.*");
     expect(dashboardSql).not.toContain("from orders");
     expect(dashboardSql).not.toContain("revenue");
+    expect(dashboardSql).toContain("has_published_publication");
   });
 
   it("keeps the student list within the measured read budget without N+1 queries", async () => {
@@ -1114,16 +1276,29 @@ describe("admin read projections", () => {
         user_id: profile.user_id,
       }))
     );
-    query.mockImplementation((sql: string) => ({
-      rows: sql.includes("from profiles") ? profiles : enrollments,
-    }));
+    query.mockImplementation((sql: string) => {
+      if (sql.includes("total_students")) {
+        return {
+          rows: [
+            {
+              active_students: studentCount,
+              expiring_soon_students: 0,
+              total_students: studentCount,
+              without_active_access_students: 0,
+            },
+          ],
+        };
+      }
+      return { rows: sql.includes("from profiles") ? profiles : enrollments };
+    });
 
     const data = await getAdminStudentsData({ pageSize: studentCount });
     const payloadBytes = Buffer.byteLength(JSON.stringify(data));
 
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenCalledTimes(3);
     expect(data.enrollments).toHaveLength(studentCount * enrollmentsPerStudent);
     expect(data.students).toHaveLength(studentCount);
+    expect(data.accessSummary.totalStudents).toBe(studentCount);
     expect(payloadBytes).toBeLessThan(512 * 1024);
   });
 

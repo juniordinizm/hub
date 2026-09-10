@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import type { CoursePublicationActionResult } from "@/features/admin/actions";
@@ -33,6 +33,7 @@ export function CoursePublicationAction({
   action,
   courseId,
 }: CoursePublicationActionProps): React.JSX.Element {
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const submissionInFlight = useRef(false);
   const copy = ACTION_COPY[action];
@@ -49,24 +50,26 @@ export function CoursePublicationAction({
     }
 
     submissionInFlight.current = true;
+    setErrorMessage(null);
     const toastId = toast.loading(copy.pending);
 
     startTransition(async () => {
       try {
         const result = await submit();
         if (!result.ok) {
+          setErrorMessage(result.message);
           toast.error(result.message, { id: toastId });
           return;
         }
 
         toast.success(copy.success, { id: toastId });
       } catch (error) {
-        toast.error(
+        const message =
           error instanceof Error
             ? error.message
-            : "Não foi possível concluir a operação. Tente novamente.",
-          { id: toastId }
-        );
+            : "Não foi possível concluir a operação. Tente novamente.";
+        setErrorMessage(message);
+        toast.error(message, { id: toastId });
       } finally {
         submissionInFlight.current = false;
       }
@@ -74,10 +77,19 @@ export function CoursePublicationAction({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form className="flex flex-col items-start gap-2" onSubmit={handleSubmit}>
       <Button loading={isPending} size="sm" type="submit">
         {copy.idle}
       </Button>
+      {errorMessage ? (
+        <p
+          aria-live="assertive"
+          className="text-destructive text-xs"
+          role="alert"
+        >
+          {errorMessage}
+        </p>
+      ) : null}
     </form>
   );
 }

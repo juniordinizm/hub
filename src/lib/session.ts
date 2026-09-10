@@ -2,6 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { getDb } from "@/db";
 import { profiles, users } from "@/db/schema";
 import { getAuth } from "@/lib/auth";
@@ -20,7 +21,7 @@ export interface AppSession {
   };
 }
 
-export const getCurrentSession = async (): Promise<AppSession | null> => {
+export const getCurrentSession = cache(async (): Promise<AppSession | null> => {
   const session = await getAuth().api.getSession({
     headers: await headers(),
   });
@@ -50,7 +51,7 @@ export const getCurrentSession = async (): Promise<AppSession | null> => {
     },
     role: profile?.role ?? "student",
   };
-};
+});
 
 export const requireSession = async (): Promise<AppSession> => {
   const session = await getCurrentSession();

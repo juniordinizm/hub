@@ -126,7 +126,7 @@ export function FaqTable({
       accessorKey: "isPublished",
       header: "Status",
       cell: ({ row }) => (
-        <Badge variant={row.original.isPublished ? "default" : "outline"}>
+        <Badge variant={row.original.isPublished ? "success" : "outline"}>
           {row.original.isPublished ? "Publicado" : "Oculto"}
         </Badge>
       ),

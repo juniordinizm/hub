@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getAdminAuditActionLabel } from "@/features/admin/audit-presentation";
 import {
   getOrderStatusPresentation,
   getRefundRequestStatusPresentation,
@@ -135,11 +136,24 @@ export const SupportContextPanel = ({
               className="p-3"
               key={`${entry.action}-${entry.createdAt}-${entry.targetId ?? "none"}`}
             >
-              <p className="font-medium text-sm">{entry.action}</p>
+              <p className="font-medium text-sm">
+                {getAdminAuditActionLabel(entry.action)}
+              </p>
               <p className="mt-1 text-muted-foreground text-xs">
                 {entry.targetType}
-                {entry.targetId ? ` · ${entry.targetId}` : ""} ·{" "}
-                {formatDateTime(entry.createdAt)}
+                {entry.targetId ? (
+                  <>
+                    {" · "}
+                    <span translate="no">{entry.targetId}</span>
+                  </>
+                ) : null}{" "}
+                · {formatDateTime(entry.createdAt)}
+              </p>
+              <p
+                className="mt-1 font-mono text-[11px] text-muted-foreground"
+                translate="no"
+              >
+                Código: {entry.action}
               </p>
             </li>
           ))}

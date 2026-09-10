@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdminSearchPill } from "@/components/admin/admin-search-pill";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  getSupportCourseOperations,
+  getSupportCourse,
   getSupportCourseStudents,
 } from "@/features/admin/support-server";
 import { route } from "@/lib/routes";
@@ -23,6 +24,30 @@ export const dynamic = "force-dynamic";
 const firstSearchParam = (
   value: string | string[] | undefined
 ): string | undefined => (Array.isArray(value) ? value[0] : value);
+
+const getStudentResultSummary = ({
+  page,
+  pageSize,
+  search,
+  studentCount,
+  totalCount,
+}: {
+  page: number;
+  pageSize: number;
+  search: string;
+  studentCount: number;
+  totalCount: number;
+}): string => {
+  if (totalCount === 0) {
+    return search ? "Nenhuma Aluna corresponde à busca" : "Nenhuma matrícula";
+  }
+  if (studentCount === 0) {
+    return `Nenhuma Aluna nesta página · ${totalCount} no total`;
+  }
+  const firstResult = (page - 1) * pageSize + 1;
+  const lastResult = Math.min(firstResult + studentCount - 1, totalCount);
+  return `${firstResult}–${lastResult} de ${totalCount} aluna${totalCount === 1 ? "" : "s"}`;
+};
 
 export default async function SupportCourseStudentsPage({
   params,
@@ -39,11 +64,10 @@ export default async function SupportCourseStudentsPage({
   );
   const page = Number.isFinite(requestedPage) ? requestedPage : 1;
   const search = firstSearchParam(query.q)?.trim() ?? "";
-  const [courses, studentsPage] = await Promise.all([
-    getSupportCourseOperations(),
+  const [course, studentsPage] = await Promise.all([
+    getSupportCourse(courseId),
     getSupportCourseStudents(courseId, { page, search }),
   ]);
-  const course = courses.find((candidate) => candidate.id === courseId);
 
   if (!course) {
     notFound();
@@ -55,9 +79,7 @@ export default async function SupportCourseStudentsPage({
         <PageHeader
           actions={
             <Button asChild variant="outline">
-              <Link href={route("/admin/operacao/cursos")}>
-                Voltar aos cursos
-              </Link>
+              <Link href={route("/admin")}>Voltar ao painel</Link>
             </Button>
           }
           description="Consulte matrículas e abra o contexto operacional de cada aluna. Conteúdo e configurações do curso não estão disponíveis."
@@ -73,24 +95,31 @@ export default async function SupportCourseStudentsPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form
-              action={`/admin/operacao/cursos/${courseId}/alunas`}
-              className="mb-5 flex max-w-xl gap-2"
-              method="get"
-            >
-              <label className="sr-only" htmlFor="support-student-search">
-                Buscar alunas
-              </label>
-              <Input
-                aria-label="Buscar alunas"
-                className="min-w-0 flex-1"
-                defaultValue={studentsPage.search}
-                id="support-student-search"
-                name="q"
-                placeholder="Buscar por nome ou e-mail…"
-              />
-              <Button type="submit">Buscar</Button>
-            </form>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <form
+                action={`/admin/operacao/cursos/${courseId}/alunas`}
+                className="flex min-w-0 flex-1 basis-full gap-2 sm:max-w-xl sm:basis-auto"
+                method="get"
+              >
+                <label className="sr-only" htmlFor="support-student-search">
+                  Buscar alunas
+                </label>
+                <input name="page" type="hidden" value="1" />
+                <Input
+                  aria-label="Buscar alunas"
+                  autoComplete="off"
+                  className="min-w-0 flex-1"
+                  defaultValue={studentsPage.search}
+                  id="support-student-search"
+                  name="q"
+                  placeholder="Buscar por nome ou e-mail…"
+                />
+                <Button type="submit">Buscar</Button>
+              </form>
+              {studentsPage.search ? (
+                <AdminSearchPill href="?page=1" value={studentsPage.search} />
+              ) : null}
+            </div>
             <SupportCourseStudentsTable
               courseId={courseId}
               students={studentsPage.students}
@@ -98,37 +127,49 @@ export default async function SupportCourseStudentsPage({
           </CardContent>
         </Card>
 
-        {studentsPage.page > 1 || studentsPage.hasNextPage ? (
-          <nav
-            aria-label="Paginação de alunas"
-            className="flex justify-end gap-2"
-          >
-            {studentsPage.page > 1 ? (
-              <Button asChild variant="outline">
-                <Link
-                  href={`?${new URLSearchParams({
-                    ...(studentsPage.search ? { q: studentsPage.search } : {}),
-                    page: String(studentsPage.page - 1),
-                  })}`}
-                >
-                  Anterior
-                </Link>
-              </Button>
-            ) : null}
-            {studentsPage.hasNextPage ? (
-              <Button asChild variant="outline">
-                <Link
-                  href={`?${new URLSearchParams({
-                    ...(studentsPage.search ? { q: studentsPage.search } : {}),
-                    page: String(studentsPage.page + 1),
-                  })}`}
-                >
-                  Próxima
-                </Link>
-              </Button>
-            ) : null}
-          </nav>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+          <span aria-live="polite" className="text-muted-foreground text-sm">
+            {getStudentResultSummary({
+              page: studentsPage.page,
+              pageSize: studentsPage.pageSize,
+              search: studentsPage.search,
+              studentCount: studentsPage.students.length,
+              totalCount: studentsPage.totalCount,
+            })}
+          </span>
+          {studentsPage.page > 1 || studentsPage.hasNextPage ? (
+            <nav aria-label="Paginação de alunas" className="flex gap-2">
+              {studentsPage.page > 1 ? (
+                <Button asChild variant="outline">
+                  <Link
+                    href={`?${new URLSearchParams({
+                      ...(studentsPage.search
+                        ? { q: studentsPage.search }
+                        : {}),
+                      page: String(studentsPage.page - 1),
+                    })}`}
+                  >
+                    Anterior
+                  </Link>
+                </Button>
+              ) : null}
+              {studentsPage.hasNextPage ? (
+                <Button asChild variant="outline">
+                  <Link
+                    href={`?${new URLSearchParams({
+                      ...(studentsPage.search
+                        ? { q: studentsPage.search }
+                        : {}),
+                      page: String(studentsPage.page + 1),
+                    })}`}
+                  >
+                    Próxima
+                  </Link>
+                </Button>
+              ) : null}
+            </nav>
+          ) : null}
+        </div>
       </div>
     </PageContainer>
   );

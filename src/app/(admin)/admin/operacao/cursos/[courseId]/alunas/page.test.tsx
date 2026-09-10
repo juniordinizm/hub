@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
-  getSupportCourseOperations: vi.fn(),
+  getSupportCourse: vi.fn(),
   getSupportCourseStudents: vi.fn(),
 }));
 
@@ -21,19 +21,12 @@ import SupportCourseStudentsPage from "./page";
 
 describe("SupportCourseStudentsPage", () => {
   it("renders only students from the selected course", async () => {
-    dependencies.getSupportCourseOperations.mockResolvedValue([
-      {
-        activeEnrollmentCount: 1,
-        id: "course-1",
-        paidOrderCount: 1,
-        paidRevenueInCents: 10_000,
-        refundedOrderCount: 0,
-        refundedRevenueInCents: 0,
-        status: "active",
-        title: "Curso operacional",
-        totalEnrollmentCount: 1,
-      },
-    ]);
+    dependencies.getSupportCourse.mockResolvedValue({
+      activeEnrollmentCount: 1,
+      id: "course-1",
+      title: "Curso operacional",
+      totalEnrollmentCount: 1,
+    });
     dependencies.getSupportCourseStudents.mockResolvedValue({
       hasNextPage: false,
       page: 1,
@@ -51,6 +44,7 @@ describe("SupportCourseStudentsPage", () => {
           userId: "student-1",
         },
       ],
+      totalCount: 1,
     });
 
     const markup = renderToStaticMarkup(

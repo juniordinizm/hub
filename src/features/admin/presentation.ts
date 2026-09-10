@@ -35,6 +35,7 @@ interface AdminCourseOperationalStateInput {
 
 export interface AdminCourseHealthInput {
   hasDescription: boolean;
+  hasPublishedPublication: boolean;
   hasThumbnail: boolean;
   id: string;
   moduleCount: number;
@@ -46,7 +47,7 @@ export interface AdminCourseHealthInput {
 
 export interface AdminCourseHealthSummary {
   activeCourses: number;
-  averageReadinessPercent: number;
+  averageReadinessPercent: number | null;
   coursesNeedingAttention: Array<{
     actionTab: AdminCourseActionTab;
     id: string;
@@ -54,6 +55,7 @@ export interface AdminCourseHealthSummary {
     readinessPercent: number;
     title: string;
   }>;
+  coursesNeedingAttentionCount: number;
   draftCourses: number;
 }
 
@@ -81,8 +83,8 @@ export interface AdminStudentAccessInput {
 export interface AdminStudentAccessSummary {
   activeStudents: number;
   expiringSoonStudents: number;
-  notEnrolledStudents: number;
   totalStudents: number;
+  withoutActiveAccessStudents: number;
 }
 
 export interface AdminFinancialHealthSummary {
@@ -274,7 +276,7 @@ export const getAdminCourseOperationalState = ({
   };
 };
 
-const COURSE_HEALTH_CHECK_COUNT = 4;
+const COURSE_HEALTH_CHECK_COUNT = 5;
 const EXPIRING_ACCESS_DAYS = 30;
 const MAX_ATTENTION_COURSES = 4;
 const MILLISECONDS_PER_DAY = 86_400_000;
@@ -287,6 +289,7 @@ const getCourseReadiness = (
     course.hasThumbnail,
     course.moduleCount > 0,
     course.totalLessonCount > 0 && course.publishedLessonCount > 0,
+    course.hasPublishedPublication,
   ];
   const completedCount = checks.filter(Boolean).length;
 
@@ -311,6 +314,13 @@ export const summarizeAdminCourseHealth = (
     status: course.status,
     title: course.title,
   }));
+  const coursesNeedingAttention = courseReadiness
+    .filter((course) => course.missingCount > 0)
+    .sort(
+      (left, right) =>
+        left.readinessPercent - right.readinessPercent ||
+        left.title.localeCompare(right.title)
+    );
   const averageReadinessPercent = courseReadiness.length
     ? Math.round(
         courseReadiness.reduce(
@@ -318,19 +328,13 @@ export const summarizeAdminCourseHealth = (
           0
         ) / courseReadiness.length
       )
-    : 0;
+    : null;
 
   return {
     activeCourses: courses.filter((course) => course.status === "active")
       .length,
     averageReadinessPercent,
-    coursesNeedingAttention: courseReadiness
-      .filter((course) => course.missingCount > 0)
-      .sort(
-        (left, right) =>
-          left.readinessPercent - right.readinessPercent ||
-          left.title.localeCompare(right.title)
-      )
+    coursesNeedingAttention: coursesNeedingAttention
       .slice(0, MAX_ATTENTION_COURSES)
       .map(({ actionTab, id, missingCount, readinessPercent, title }) => ({
         actionTab,
@@ -339,6 +343,7 @@ export const summarizeAdminCourseHealth = (
         readinessPercent,
         title,
       })),
+    coursesNeedingAttentionCount: coursesNeedingAttention.length,
     draftCourses: courses.filter((course) => course.status === "draft").length,
   };
 };
@@ -374,7 +379,7 @@ export const getAdminOperationSignal = ({
 
   if (pendingOrders > 0) {
     return {
-      actionHref: "/admin/financeiro",
+      actionHref: "/admin/financeiro?tab=orders&status=pending&checkout=open",
       tone: "watch",
       label: "Pedidos pendentes",
       helper: `${pendingOrders} pedido${
@@ -424,12 +429,14 @@ export const summarizeAdminStudentAccess = (
     .length,
   expiringSoonStudents: students.filter(
     (student) =>
+      student.status === "active" &&
       student.activeEnrollments > 0 &&
       isExpiringSoon(student.latestExpiration, now)
   ).length,
-  notEnrolledStudents: students.filter((student) => student.courseCount === 0)
-    .length,
   totalStudents: students.length,
+  withoutActiveAccessStudents: students.filter(
+    (student) => student.status !== "active" || student.activeEnrollments === 0
+  ).length,
 });
 
 export const summarizeAdminCourseContent = ({

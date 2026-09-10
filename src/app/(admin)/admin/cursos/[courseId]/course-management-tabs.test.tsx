@@ -6,11 +6,21 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(window.location.search),
+const dependencies = vi.hoisted(() => ({
+  routerPush: vi.fn((url: string) => {
+    window.history.pushState(null, "", url);
+  }),
 }));
 
-import { CourseManagementTabs } from "./course-management-tabs";
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+  useRouter: () => ({ push: dependencies.routerPush }),
+}));
+
+import {
+  CourseManagementTabs,
+  useCourseTabDirty,
+} from "./course-management-tabs";
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -27,6 +37,30 @@ const StatefulCertificate = (): React.JSX.Element => {
     >
       Certificado {count}
     </button>
+  );
+};
+
+const DirtySettingsControls = (): React.JSX.Element => {
+  const [firstDirty, setFirstDirty] = useState(false);
+  const [secondDirty, setSecondDirty] = useState(false);
+  useCourseTabDirty("settings", firstDirty);
+  useCourseTabDirty("settings", secondDirty);
+
+  return (
+    <div>
+      <button
+        onClick={() => setFirstDirty((current) => !current)}
+        type="button"
+      >
+        Alternar primeiro
+      </button>
+      <button
+        onClick={() => setSecondDirty((current) => !current)}
+        type="button"
+      >
+        Alternar segundo
+      </button>
+    </div>
   );
 };
 
@@ -49,6 +83,20 @@ describe("CourseManagementTabs", () => {
     });
   };
 
+  const renderDirtyTabs = (): void => {
+    act(() => {
+      root.render(
+        <CourseManagementTabs
+          certificate={<p>Painel de certificado</p>}
+          content={<p>Painel de conteúdo</p>}
+          overview={<p>Painel de visão geral</p>}
+          settings={<DirtySettingsControls />}
+          students={<p>Painel de alunas</p>}
+        />
+      );
+    });
+  };
+
   const getTab = (name: string): HTMLButtonElement => {
     const tab = Array.from(
       container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
@@ -62,6 +110,11 @@ describe("CourseManagementTabs", () => {
   };
 
   const clickTab = (name: string): void => {
+    dispatchTabClick(name);
+    renderTabs();
+  };
+
+  const dispatchTabClick = (name: string): void => {
     act(() => {
       const tab = getTab(name);
       tab.dispatchEvent(
@@ -73,7 +126,6 @@ describe("CourseManagementTabs", () => {
       );
       tab.click();
     });
-    renderTabs();
   };
 
   beforeEach(() => {
@@ -98,6 +150,7 @@ describe("CourseManagementTabs", () => {
     document.body.innerHTML = "";
     Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     scrollIntoView.mockClear();
+    dependencies.routerPush.mockClear();
   });
 
   it("activates a valid tab from the URL", () => {
@@ -167,37 +220,118 @@ describe("CourseManagementTabs", () => {
     expect(getTab("Alunas").getAttribute("data-state")).toBe("active");
   });
 
-  it("keeps certificate state mounted and hides its inactive panel", () => {
+  it("mounts only the selected panel", () => {
     renderTabs();
 
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-certificate-state="true"]'
+      )
+    ).toBeNull();
+
+    clickTab("Certificado");
     const certificateButton = container.querySelector<HTMLButtonElement>(
       '[data-certificate-state="true"]'
     );
-    const certificatePanel = certificateButton?.closest<HTMLElement>(
-      '[data-slot="tabs-content"]'
-    );
 
     expect(certificateButton).not.toBeNull();
-    expect(certificatePanel?.getAttribute("data-state")).toBe("inactive");
-    expect(certificatePanel?.className).toContain(
-      "data-[state=inactive]:hidden"
-    );
-
-    clickTab("Certificado");
     act(() => certificateButton?.click());
     expect(certificateButton?.textContent).toBe("Certificado 1");
 
     clickTab("Conteúdo");
     expect(container.querySelector('[data-certificate-state="true"]')).toBe(
-      certificateButton
+      null
     );
-    expect(certificatePanel?.getAttribute("data-state")).toBe("inactive");
+  });
 
-    clickTab("Certificado");
-    expect(container.querySelector('[data-certificate-state="true"]')).toBe(
-      certificateButton
-    );
-    expect(certificateButton?.textContent).toBe("Certificado 1");
+  it("keeps the tab guard while another settings form remains dirty", () => {
+    renderDirtyTabs();
+    dispatchTabClick("Configurações");
+    renderDirtyTabs();
+
+    act(() => {
+      const first = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Alternar primeiro"
+      );
+      first?.click();
+    });
+    act(() => {
+      const second = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Alternar segundo"
+      );
+      second?.click();
+    });
+    act(() => {
+      const first = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Alternar primeiro"
+      );
+      first?.click();
+    });
+
+    dispatchTabClick("Conteúdo");
+
+    expect(document.body.textContent).toContain("Alterações não salvas");
+    expect(document.body.textContent).toContain("Continuar editando");
+  });
+
+  it("guards internal links and browser unload while settings are dirty", () => {
+    renderDirtyTabs();
+    dispatchTabClick("Configurações");
+    renderDirtyTabs();
+
+    act(() => {
+      const first = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Alternar primeiro"
+      );
+      first?.click();
+    });
+
+    const link = document.createElement("a");
+    link.href = "/admin/financeiro";
+    link.textContent = "Ir para o financeiro";
+    container.append(link);
+    const clickEvent = new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    });
+
+    act(() => {
+      link.dispatchEvent(clickEvent);
+    });
+
+    expect(clickEvent.defaultPrevented).toBe(true);
+    expect(document.body.textContent).toContain("Alterações não salvas");
+
+    const unloadEvent = new Event("beforeunload", {
+      cancelable: true,
+    });
+    act(() => {
+      window.dispatchEvent(unloadEvent);
+    });
+
+    expect(unloadEvent.defaultPrevented).toBe(true);
+  });
+
+  it("guards browser history navigation while settings are dirty", () => {
+    renderDirtyTabs();
+    dispatchTabClick("Configurações");
+    renderDirtyTabs();
+
+    act(() => {
+      const first = Array.from(container.querySelectorAll("button")).find(
+        (button) => button.textContent === "Alternar primeiro"
+      );
+      first?.click();
+    });
+
+    window.history.pushState(null, "", "/admin/cursos/course-1?source=history");
+    act(() => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(window.location.search).toBe("?source=dashboard&tab=settings");
+    expect(document.body.textContent).toContain("Alterações não salvas");
   });
 
   it("renders all five navigation options in one non-wrapping strip", () => {

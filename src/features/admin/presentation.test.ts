@@ -27,6 +27,7 @@ describe("admin presentation", () => {
     const summary = summarizeAdminCourseHealth([
       {
         hasDescription: true,
+        hasPublishedPublication: true,
         hasThumbnail: true,
         id: "course-ready",
         moduleCount: 2,
@@ -37,6 +38,7 @@ describe("admin presentation", () => {
       },
       {
         hasDescription: false,
+        hasPublishedPublication: true,
         hasThumbnail: true,
         id: "course-incomplete",
         moduleCount: 0,
@@ -49,17 +51,64 @@ describe("admin presentation", () => {
 
     expect(summary).toEqual({
       activeCourses: 1,
-      averageReadinessPercent: 63,
+      averageReadinessPercent: 70,
       coursesNeedingAttention: [
         {
           id: "course-incomplete",
           actionTab: "settings",
           missingCount: 3,
-          readinessPercent: 25,
+          readinessPercent: 40,
           title: "Curso incompleto",
         },
       ],
+      coursesNeedingAttentionCount: 1,
       draftCourses: 1,
+    });
+  });
+
+  it("keeps the full catalog backlog separate from the priority sample", () => {
+    const summary = summarizeAdminCourseHealth(
+      Array.from({ length: 5 }, (_, index) => ({
+        hasDescription: false,
+        hasPublishedPublication: true,
+        hasThumbnail: false,
+        id: `course-${index}`,
+        moduleCount: 0,
+        publishedLessonCount: 0,
+        status: "draft",
+        title: `Curso ${index}`,
+        totalLessonCount: 0,
+      }))
+    );
+
+    expect(summary.coursesNeedingAttention).toHaveLength(4);
+    expect(summary.coursesNeedingAttentionCount).toBe(5);
+  });
+
+  it("does not present an empty catalog as zero percent readiness", () => {
+    expect(summarizeAdminCourseHealth([]).averageReadinessPercent).toBeNull();
+  });
+
+  it("keeps an unpublished course in catalog priorities", () => {
+    const summary = summarizeAdminCourseHealth([
+      {
+        hasDescription: true,
+        hasPublishedPublication: false,
+        hasThumbnail: true,
+        id: "course-unpublished",
+        moduleCount: 1,
+        publishedLessonCount: 1,
+        status: "active",
+        title: "Curso sem publicação",
+        totalLessonCount: 1,
+      },
+    ]);
+
+    expect(summary.averageReadinessPercent).toBe(80);
+    expect(summary.coursesNeedingAttentionCount).toBe(1);
+    expect(summary.coursesNeedingAttention[0]).toMatchObject({
+      actionTab: "content",
+      readinessPercent: 80,
     });
   });
 
@@ -132,8 +181,8 @@ describe("admin presentation", () => {
     expect(summary).toEqual({
       activeStudents: 1,
       expiringSoonStudents: 1,
-      notEnrolledStudents: 1,
       totalStudents: 2,
+      withoutActiveAccessStudents: 1,
     });
   });
 

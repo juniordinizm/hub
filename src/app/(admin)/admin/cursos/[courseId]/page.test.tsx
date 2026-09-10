@@ -3,11 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const dependencies = vi.hoisted(() => ({
-  getAdminCourseDetailData: vi.fn(),
+  getAdminCourseTabData: vi.fn(),
   getAdminCourseContentSignal: vi.fn(),
   getAdminCourseOperationalState: vi.fn(),
-  getAdminCourseOverviewSummary: vi.fn(),
-  getAdminCoursePublicationState: vi.fn(),
   getCertificateTemplatesForCourse: vi.fn(),
   getServerEnv: vi.fn(),
   hasCertificateIssuerProfile: vi.fn(),
@@ -43,9 +41,7 @@ vi.mock("@/features/admin/presentation", () => ({
   }),
 }));
 vi.mock("@/features/admin/server", () => ({
-  getAdminCourseDetailData: dependencies.getAdminCourseDetailData,
-  getAdminCourseOverviewSummary: dependencies.getAdminCourseOverviewSummary,
-  getAdminCoursePublicationState: dependencies.getAdminCoursePublicationState,
+  getAdminCourseTabData: dependencies.getAdminCourseTabData,
 }));
 vi.mock("@/features/certificates/templates", () => ({
   getCertificateTemplatesForCourse:
@@ -112,18 +108,20 @@ vi.mock("./course-management-tabs", () => ({
     settings,
     students,
   }: {
-    certificate: ReactNode;
-    content: ReactNode;
-    overview: ReactNode;
-    settings: ReactNode;
-    students: ReactNode;
+    certificate?: ReactNode;
+    content?: ReactNode;
+    overview?: ReactNode;
+    settings?: ReactNode;
+    students?: ReactNode;
   }) => (
     <div data-course-management-tabs="true">
-      <div data-course-panel="overview">{overview}</div>
-      <div data-course-panel="content">{content}</div>
-      <div data-course-panel="students">{students}</div>
-      <div data-course-panel="settings">{settings}</div>
-      <div data-course-panel="certificate">{certificate}</div>
+      {overview ? <div data-course-panel="overview">{overview}</div> : null}
+      {content ? <div data-course-panel="content">{content}</div> : null}
+      {students ? <div data-course-panel="students">{students}</div> : null}
+      {settings ? <div data-course-panel="settings">{settings}</div> : null}
+      {certificate ? (
+        <div data-course-panel="certificate">{certificate}</div>
+      ) : null}
     </div>
   ),
 }));
@@ -213,31 +211,19 @@ const course = {
   workloadHoursOverride: null,
 };
 
-const emptyEnrollmentsPage = {
-  hasNextPage: false,
-  page: 1,
-  pageSize: 50,
-  search: "",
-  totalCount: 0,
-};
-
 beforeEach(() => {
   vi.resetAllMocks();
-  dependencies.getAdminCourseDetailData.mockResolvedValue({
+  dependencies.getAdminCourseTabData.mockResolvedValue({
+    tab: "overview",
     course,
-    enrollments: [],
-    enrollmentsPage: emptyEnrollmentsPage,
     lessons: [],
     modules: [],
-  });
-  dependencies.getAdminCourseOverviewSummary.mockResolvedValue({
-    activeEnrollmentCount: 57,
-    paidOrderCount: 83,
-    validCertificateCount: 41,
-  });
-  dependencies.getAdminCoursePublicationState.mockResolvedValue({
-    hasDraft: false,
-    hasPublished: true,
+    overviewSummary: {
+      activeEnrollmentCount: 57,
+      paidOrderCount: 83,
+      validCertificateCount: 41,
+    },
+    publicationState: { hasDraft: false, hasPublished: true },
   });
   dependencies.getAdminCourseContentSignal.mockReturnValue({
     helper: "A estrutura curricular está pronta para revisão.",
@@ -268,15 +254,16 @@ describe("AdminCourseDetailPage overview", () => {
       })
     );
 
-    expect(dependencies.getAdminCourseOverviewSummary).toHaveBeenCalledWith(
-      course.id
-    );
-    expect(dependencies.getAdminCourseOverviewSummary).toHaveBeenCalledTimes(1);
+    expect(dependencies.getAdminCourseTabData).toHaveBeenCalledWith({
+      courseId: course.id,
+      enrollmentQuery: { page: 1, search: "" },
+      tab: "overview",
+    });
     expect(markup).toContain('data-course-overview="true"');
     expect(markup).toContain('data-active-enrollments="57"');
     expect(markup).toContain('data-paid-orders="83"');
     expect(markup).toContain('data-valid-certificates="41"');
-    expect(markup).toContain('data-pending-certificate-reconciliation="7"');
+    expect(markup).not.toContain('data-pending-certificate-reconciliation="7"');
     expect(markup).toContain('data-module-count="0"');
     expect(markup).toContain('data-total-lessons="6"');
     expect(markup).toContain('data-duration-seconds="7200"');
@@ -294,10 +281,11 @@ describe("AdminCourseDetailPage overview", () => {
       }),
     });
 
-    expect(dependencies.getAdminCourseDetailData).toHaveBeenCalledWith(
-      course.id,
-      { page: 2, search: "student" }
-    );
+    expect(dependencies.getAdminCourseTabData).toHaveBeenCalledWith({
+      courseId: course.id,
+      enrollmentQuery: { page: 2, search: "student" },
+      tab: "students",
+    });
   });
 
   it("derives the operational state from the real course signals", async () => {
@@ -322,7 +310,7 @@ describe("AdminCourseDetailPage overview", () => {
     });
   });
 
-  it("keeps all five server-rendered panels inside the navigation shell", async () => {
+  it("renders only the active panel in the navigation shell", async () => {
     const markup = renderToStaticMarkup(
       await AdminCourseDetailPage({
         params: Promise.resolve({ courseId: course.id }),
@@ -330,12 +318,12 @@ describe("AdminCourseDetailPage overview", () => {
     );
 
     expect(markup).toContain('data-course-management-tabs="true"');
-    expect(markup.match(/data-course-panel=/g)).toHaveLength(5);
+    expect(markup.match(/data-course-panel=/g)).toHaveLength(1);
     expect(markup).toContain('data-course-panel="overview"');
-    expect(markup).toContain('data-course-panel="content"');
-    expect(markup).toContain('data-course-panel="students"');
-    expect(markup).toContain('data-course-panel="settings"');
-    expect(markup).toContain('data-course-panel="certificate"');
+    expect(markup).not.toContain('data-course-panel="content"');
+    expect(markup).not.toContain('data-course-panel="students"');
+    expect(markup).not.toContain('data-course-panel="settings"');
+    expect(markup).not.toContain('data-course-panel="certificate"');
   });
 });
 
@@ -360,12 +348,17 @@ describe("AdminCourseDetailPage header", () => {
       "Arquivado",
     ],
   ])("localizes Course availability as %s", async (overrides, label) => {
-    dependencies.getAdminCourseDetailData.mockResolvedValue({
+    dependencies.getAdminCourseTabData.mockResolvedValue({
+      tab: "overview",
       course: { ...course, ...overrides },
-      enrollments: [],
-      enrollmentsPage: emptyEnrollmentsPage,
       lessons: [],
       modules: [],
+      overviewSummary: {
+        activeEnrollmentCount: 0,
+        paidOrderCount: 0,
+        validCertificateCount: 0,
+      },
+      publicationState: { hasDraft: false, hasPublished: true },
     });
 
     const markup = renderToStaticMarkup(
@@ -398,24 +391,24 @@ describe("AdminCourseDetailPage header", () => {
 
 describe("AdminCourseDetailPage content", () => {
   it("orchestrates the dedicated content panel with derived publication data", async () => {
-    dependencies.getAdminCourseDetailData.mockResolvedValue({
+    dependencies.getAdminCourseTabData.mockResolvedValue({
+      tab: "content",
       course,
-      enrollments: [],
-      enrollmentsPage: emptyEnrollmentsPage,
       lessons: [{ id: "lesson-1" }],
       modules: [
         { id: "module-3", sortOrder: 3 },
         { id: "module-1", sortOrder: 1 },
       ],
-    });
-    dependencies.getAdminCoursePublicationState.mockResolvedValue({
-      hasDraft: true,
-      hasPublished: true,
+      publicationState: {
+        hasDraft: true,
+        hasPublished: true,
+      },
     });
 
     const markup = renderToStaticMarkup(
       await AdminCourseDetailPage({
         params: Promise.resolve({ courseId: course.id }),
+        searchParams: Promise.resolve({ tab: "content" }),
       })
     );
 
@@ -441,18 +434,23 @@ describe("AdminCourseDetailPage content", () => {
 
 describe("AdminCourseDetailPage purchase link", () => {
   it("derives the stable public link from the single publication projection", async () => {
+    dependencies.getAdminCourseTabData.mockResolvedValue({
+      course,
+      publicationState: { hasDraft: false, hasPublished: true },
+      tab: "settings",
+    });
     const markup = renderToStaticMarkup(
       await AdminCourseDetailPage({
         params: Promise.resolve({ courseId: course.id }),
+        searchParams: Promise.resolve({ tab: "settings" }),
       })
     );
 
-    expect(dependencies.getAdminCoursePublicationState).toHaveBeenCalledTimes(
-      1
-    );
-    expect(dependencies.getAdminCoursePublicationState).toHaveBeenCalledWith(
-      course.id
-    );
+    expect(dependencies.getAdminCourseTabData).toHaveBeenCalledWith({
+      courseId: course.id,
+      enrollmentQuery: { page: 1, search: "" },
+      tab: "settings",
+    });
     expect(markup).toContain(
       'data-purchase-link="https://hub.example/comprar/curso-publico"'
     );
@@ -462,20 +460,24 @@ describe("AdminCourseDetailPage purchase link", () => {
   });
 
   it("passes an unavailable state instead of a false link for an unpublished course", async () => {
-    dependencies.getAdminCoursePublicationState.mockResolvedValue({
-      hasDraft: true,
-      hasPublished: false,
+    dependencies.getAdminCourseTabData.mockResolvedValue({
+      course,
+      publicationState: { hasDraft: true, hasPublished: false },
+      tab: "settings",
     });
 
     const markup = renderToStaticMarkup(
       await AdminCourseDetailPage({
         params: Promise.resolve({ courseId: course.id }),
+        searchParams: Promise.resolve({ tab: "settings" }),
       })
     );
 
-    expect(dependencies.getAdminCoursePublicationState).toHaveBeenCalledTimes(
-      1
-    );
+    expect(dependencies.getAdminCourseTabData).toHaveBeenCalledWith({
+      courseId: course.id,
+      enrollmentQuery: { page: 1, search: "" },
+      tab: "settings",
+    });
     expect(markup).toContain(
       'data-purchase-link="unavailable:course_unpublished"'
     );
