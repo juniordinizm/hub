@@ -22,6 +22,7 @@ import {
 } from "@/features/outbox/server";
 import { requirePermission } from "@/lib/auth-permissions";
 import { canPerform } from "@/lib/auth-policy";
+import { isValidCnpj } from "@/lib/cnpj";
 import type { AdminAuditSource, AdminAuditTargetType } from "./audit-filters";
 import type { AdminAuditLog, AuditMetadata } from "./audit-types";
 import type { AdminFinancialPeriod } from "./financial-period";
@@ -592,7 +593,20 @@ export interface AdminSettings {
   issuerCnpj: string | null;
   issuerDisplayName: string | null;
   issuerLegalName: string | null;
+  issuerProfileComplete: boolean;
+  issuerProfileIssues: AdminIssuerProfileIssue[];
+  lastUpdatedAt: Date | null;
+  lastUpdatedBy: {
+    email: string | null;
+    name: string | null;
+  } | null;
 }
+
+export type AdminIssuerProfileIssue =
+  | "cnpj_invalid"
+  | "cnpj_missing"
+  | "display_name_missing"
+  | "legal_name_missing";
 
 export interface AdminLessonAsset {
   deleteStatus: string;
@@ -2471,26 +2485,82 @@ const readFaqs = async (): Promise<AdminFaq[]> => {
 
 const readSettings = async (): Promise<AdminSettings> => {
   const { rows } = await getPool().query<{
+    cnpj: string | null;
     certificate_signer_name: string | null;
     certificate_signer_role: string | null;
+    display_name: string | null;
+    legal_name: string | null;
+    last_changed_actor_email: string | null;
+    last_changed_actor_name: string | null;
+    last_changed_at: Date | null;
   }>(
-    "select certificate_signer_name, certificate_signer_role from app_settings where id = 'global' limit 1"
+    `
+      select
+        settings.certificate_signer_name,
+        settings.certificate_signer_role,
+        issuer.cnpj,
+        issuer.display_name,
+        issuer.legal_name,
+        last_change.created_at as last_changed_at,
+        last_change.actor_email as last_changed_actor_email,
+        last_change.actor_name as last_changed_actor_name
+      from (
+        select certificate_signer_name, certificate_signer_role
+        from app_settings
+        where id = 'global'
+        limit 1
+      ) settings
+      full outer join (
+        select cnpj, display_name, legal_name
+        from certificate_issuer_profiles
+        where id = 'global'
+        limit 1
+      ) issuer on true
+      left join (
+        select
+          audit.created_at,
+          actor.email as actor_email,
+          actor.name as actor_name
+        from audit_logs audit
+        left join users actor on actor.id = audit.actor_user_id
+        where audit.action = 'settings.updated'
+          and audit.target_type = 'settings'
+          and audit.target_id = 'global'
+        order by audit.created_at desc, audit.id desc
+        limit 1
+      ) last_change on true
+      limit 1
+    `
   );
-  const settings = rows[0];
-  const issuer = await getPool().query<{
-    cnpj: string;
-    display_name: string;
-    legal_name: string;
-  }>(
-    "select cnpj, display_name, legal_name from certificate_issuer_profiles where id = 'global' limit 1"
-  );
+  const row = rows[0];
+  const issuerProfileIssues: AdminIssuerProfileIssue[] = [];
+  if (!row?.legal_name) {
+    issuerProfileIssues.push("legal_name_missing");
+  }
+  if (!row?.cnpj) {
+    issuerProfileIssues.push("cnpj_missing");
+  } else if (!isValidCnpj(row.cnpj)) {
+    issuerProfileIssues.push("cnpj_invalid");
+  }
+  if (!row?.display_name) {
+    issuerProfileIssues.push("display_name_missing");
+  }
 
   return {
-    certificateSignerName: settings?.certificate_signer_name ?? null,
-    certificateSignerRole: settings?.certificate_signer_role ?? null,
-    issuerCnpj: issuer.rows[0]?.cnpj ?? null,
-    issuerDisplayName: issuer.rows[0]?.display_name ?? null,
-    issuerLegalName: issuer.rows[0]?.legal_name ?? null,
+    certificateSignerName: row?.certificate_signer_name ?? null,
+    certificateSignerRole: row?.certificate_signer_role ?? null,
+    issuerCnpj: row?.cnpj ?? null,
+    issuerDisplayName: row?.display_name ?? null,
+    issuerLegalName: row?.legal_name ?? null,
+    issuerProfileComplete: issuerProfileIssues.length === 0,
+    issuerProfileIssues,
+    lastUpdatedAt: row?.last_changed_at ?? null,
+    lastUpdatedBy: row?.last_changed_at
+      ? {
+          email: row.last_changed_actor_email ?? null,
+          name: row.last_changed_actor_name ?? null,
+        }
+      : null,
   };
 };
 

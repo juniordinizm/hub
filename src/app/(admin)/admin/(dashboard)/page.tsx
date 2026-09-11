@@ -243,7 +243,7 @@ const getDashboardIssues = ({
     tone: "attention",
   });
   add(attention, {
-    actionLabel: "Ver configurações",
+    actionLabel: "Abrir Operação",
     count:
       operations.integrations.failedJmvUploadCount +
       operations.integrations.failedJmvDeleteCount,
@@ -251,7 +251,7 @@ const getDashboardIssues = ({
       ["Uploads falhos", operations.integrations.failedJmvUploadCount],
       ["Exclusões falhas", operations.integrations.failedJmvDeleteCount],
     ]),
-    href: "/admin/configuracoes",
+    href: "/admin/operacao#jmvstream",
     label: "Falhas de vídeo",
     tone: "attention",
   });
@@ -336,7 +336,7 @@ const getDashboardIssues = ({
     tone: "watch",
   });
   add(watch, {
-    actionLabel: "Ver configurações",
+    actionLabel: "Abrir Operação",
     count:
       operations.integrations.processingJmvUploadCount +
       operations.integrations.pendingJmvDeleteCount,
@@ -347,7 +347,7 @@ const getDashboardIssues = ({
       ],
       ["Exclusões aguardando", operations.integrations.pendingJmvDeleteCount],
     ]),
-    href: "/admin/configuracoes",
+    href: "/admin/operacao#jmvstream",
     label: "Vídeos em processamento",
     tone: "watch",
   });

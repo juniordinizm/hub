@@ -29,6 +29,7 @@ import {
   getAdminInstallmentPayments,
   getAdminLessonEditorData,
   getAdminOverview,
+  getAdminSettingsData,
   getAdminStatementImportHistory,
   getAdminStatementImportProgress,
   getAdminStudentDetail,
@@ -109,6 +110,72 @@ beforeEach(() => {
 });
 
 describe("admin read projections", () => {
+  it("reads global settings and issuer completeness from one projection", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          certificate_signer_name: "Responsável",
+          certificate_signer_role: "Diretora",
+          cnpj: "04.252.011/0001-10",
+          display_name: "Empresa",
+          legal_name: "Empresa LTDA",
+          last_changed_actor_email: null,
+          last_changed_actor_name: null,
+          last_changed_at: null,
+        },
+      ],
+    });
+
+    await expect(getAdminSettingsData()).resolves.toEqual({
+      settings: {
+        certificateSignerName: "Responsável",
+        certificateSignerRole: "Diretora",
+        issuerCnpj: "04.252.011/0001-10",
+        issuerDisplayName: "Empresa",
+        issuerLegalName: "Empresa LTDA",
+        issuerProfileComplete: true,
+        issuerProfileIssues: [],
+        lastUpdatedAt: null,
+        lastUpdatedBy: null,
+      },
+    });
+    expect(requirePermission).toHaveBeenCalledWith("manageSettings");
+    expect(query).toHaveBeenCalledOnce();
+    expect(String(query.mock.calls[0]?.[0]).toLowerCase()).toContain(
+      "full outer join"
+    );
+  });
+
+  it("explains issuer profile issues and exposes the latest settings change", async () => {
+    const lastChangedAt = new Date("2026-09-11T16:32:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          certificate_signer_name: null,
+          certificate_signer_role: null,
+          cnpj: "04.252.011/0001-11",
+          display_name: null,
+          legal_name: "Empresa LTDA",
+          last_changed_actor_email: "admin@example.test",
+          last_changed_actor_name: "Admin",
+          last_changed_at: lastChangedAt,
+        },
+      ],
+    });
+
+    await expect(getAdminSettingsData()).resolves.toMatchObject({
+      settings: {
+        issuerProfileComplete: false,
+        issuerProfileIssues: ["cnpj_invalid", "display_name_missing"],
+        lastUpdatedAt: lastChangedAt,
+        lastUpdatedBy: {
+          email: "admin@example.test",
+          name: "Admin",
+        },
+      },
+    });
+  });
+
   it("keeps overview aggregates global", async () => {
     query.mockResolvedValue({
       rows: [

@@ -1,6 +1,8 @@
 const ADMIN_AUDIT_ACTION_LABELS: Record<string, string> = {
   "banner.deleted": "Banner excluído",
+  "banner.created": "Banner criado",
   "banner.saved": "Banner atualizado",
+  "banner.updated": "Banner atualizado",
   "banners.reordered": "Banners reordenados",
   "asaas.payment_reconciled": "Pagamento reconciliado no Asaas",
   "asaas.statement_imported": "Extrato Asaas importado",

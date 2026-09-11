@@ -1,9 +1,12 @@
 import { formatCurrencyInCents } from "@/lib/formatters";
-import type { AuditMetadata } from "./audit-types";
 
 export const AUDIT_FIELD_LABELS: Record<string, string> = {
   accessDurationMonths: "Duração de acesso",
+  answer: "Resposta",
+  buttonText: "Texto do botão",
   catalogVisibility: "Visibilidade no catálogo",
+  certificateSignerName: "Nome da assinatura",
+  certificateSignerRole: "Cargo da assinatura",
   content: "Conteúdo",
   cover: "Capa",
   courseId: "Curso",
@@ -11,6 +14,12 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   durationSeconds: "Duração total",
   isPublished: "Publicado",
   isRequired: "Obrigatória",
+  isActive: "Ativo",
+  image: "Imagem",
+  imageReplaced: "Imagem substituída",
+  issuerCnpj: "CNPJ emissor",
+  issuerDisplayName: "Marca exibida",
+  issuerLegalName: "Razão social emissora",
   launchDate: "Data de lançamento",
   launchLandingUrl: "Página de lançamento",
   moduleId: "Módulo",
@@ -35,6 +44,8 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
   videoProvider: "Provedor do vídeo",
   workloadHoursSnapshot: "Carga horária da versão",
   workloadHoursOverride: "Carga horária",
+  linkUrl: "Link de destino",
+  question: "Pergunta",
 };
 
 const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
@@ -90,22 +101,3 @@ export const formatAuditValue = (field: string, value: unknown): string => {
   }
   return String(value);
 };
-
-const formatAuditSummaryValue = (field: string, value: unknown): string => {
-  const formatted = formatAuditValue(field, value);
-  return formatted.length > 72 ? `${formatted.slice(0, 72)}…` : formatted;
-};
-
-export const getAuditChangeCount = (metadata: AuditMetadata): number =>
-  Object.keys(metadata.changes ?? {}).length;
-
-export const getAuditChangeSummary = (
-  metadata: AuditMetadata,
-  limit = 3
-): string[] =>
-  Object.entries(metadata.changes ?? {})
-    .slice(0, limit)
-    .map(
-      ([field, change]) =>
-        `${AUDIT_FIELD_LABELS[field] ?? field}: ${formatAuditSummaryValue(field, change.before)} → ${formatAuditSummaryValue(field, change.after)}`
-    );

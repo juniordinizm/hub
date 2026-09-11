@@ -31,6 +31,11 @@ import {
 } from "@/components/ui/table";
 import { getAdminOperationsData } from "@/features/admin/server";
 import { getWebhookStatusPresentation } from "@/features/admin/status-presentation";
+import { JMVSTREAM_PORTAL_URL } from "@/features/jmvstream/portal";
+import {
+  getJmvstreamHealthSummary,
+  type JmvstreamHealthSummary,
+} from "@/features/jmvstream/server";
 import type {
   OperationalAlert,
   OperationalBacklogSnapshot,
@@ -271,6 +276,24 @@ const getWebhookEmptyDescription = ({
   return "Não há webhook falho ou em retry para os filtros atuais.";
 };
 
+const getSafeJmvstreamHealthSummary =
+  async (): Promise<JmvstreamHealthSummary> => {
+    try {
+      return await getJmvstreamHealthSummary();
+    } catch {
+      return {
+        auth: "error",
+        failedDeletes: 0,
+        failedUploads: 0,
+        folderCount: 0,
+        message: "Não foi possível consultar a JMVStream agora.",
+        orphanFolders: 0,
+        pendingDeletes: 0,
+        processingUploads: 0,
+      };
+    }
+  };
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: this page composes independent operational sections and their empty, pagination, and permission states
 export default async function AdminOperationsPage({
   searchParams,
@@ -281,11 +304,14 @@ export default async function AdminOperationsPage({
   const webhookSearch = firstSearchParameter(params.webhookQ).trim();
   const webhookPage = parsePage(firstSearchParameter(params.webhookPage));
   const outboxPage = parsePage(firstSearchParameter(params.outboxPage));
-  const data = await getAdminOperationsData({
-    outboxPage,
-    webhookPage,
-    webhookSearch,
-  });
+  const [data, jmvstreamHealth] = await Promise.all([
+    getAdminOperationsData({
+      outboxPage,
+      webhookPage,
+      webhookSearch,
+    }),
+    getSafeJmvstreamHealthSummary(),
+  ]);
   const backlog = data.operationalBacklog;
   const now = new Date();
 
@@ -387,6 +413,84 @@ export default async function AdminOperationsPage({
             )}
           </CardContent>
         </Card>
+
+        <section aria-labelledby="jmvstream-health-title" id="jmvstream">
+          <Card className="min-w-0">
+            <CardHeader className="border-b pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle
+                      as="h2"
+                      className="text-base"
+                      id="jmvstream-health-title"
+                    >
+                      Saúde da JMVStream
+                    </CardTitle>
+                    <Badge
+                      variant={
+                        jmvstreamHealth.auth === "ok"
+                          ? "success"
+                          : "destructive"
+                      }
+                    >
+                      {jmvstreamHealth.auth === "ok"
+                        ? "Conectada"
+                        : "Revisar conexão"}
+                    </Badge>
+                    <FinanceHelp
+                      description="Acompanhe a conexão e as pendências locais da integração de vídeo."
+                      details={[
+                        "Uploads ativos e exclusões pendentes ainda estão em processamento local.",
+                        "Falhas e pastas órfãs precisam ser conferidas antes de uma nova tentativa.",
+                        "O portal JMVStream mostra o estado externo da integração.",
+                      ]}
+                      title="Como ler a saúde da JMVStream"
+                    />
+                  </div>
+                  <CardDescription className="mt-1">
+                    {jmvstreamHealth.message}
+                  </CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={JMVSTREAM_PORTAL_URL}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Abrir portal JMVStream
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+              <JmvstreamHealthMetric
+                label="Uploads ativos"
+                value={jmvstreamHealth.processingUploads}
+              />
+              <JmvstreamHealthMetric
+                label="Uploads com falha"
+                value={jmvstreamHealth.failedUploads}
+              />
+              <JmvstreamHealthMetric
+                label="Exclusões pendentes"
+                value={jmvstreamHealth.pendingDeletes}
+              />
+              <JmvstreamHealthMetric
+                label="Exclusões com falha"
+                value={jmvstreamHealth.failedDeletes}
+              />
+              <JmvstreamHealthMetric
+                label="Pastas sincronizadas"
+                value={jmvstreamHealth.folderCount}
+              />
+              <JmvstreamHealthMetric
+                label="Pastas órfãs"
+                value={jmvstreamHealth.orphanFolders}
+              />
+            </CardContent>
+          </Card>
+        </section>
 
         <Card className="min-w-0" id="webhooks">
           <CardHeader className="pb-4">
@@ -861,9 +965,9 @@ export default async function AdminOperationsPage({
                 </p>
                 <Link
                   className="mt-1 text-sm underline underline-offset-4"
-                  href={route("/admin/configuracoes")}
+                  href={route("/admin/cursos")}
                 >
-                  Abrir configurações
+                  Abrir cursos
                 </Link>
               </CardContent>
             </Card>
@@ -871,5 +975,22 @@ export default async function AdminOperationsPage({
         </section>
       </div>
     </PageContainer>
+  );
+}
+
+function JmvstreamHealthMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}): React.JSX.Element {
+  return (
+    <div className="grid gap-1 rounded-lg border bg-muted/10 p-3">
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <span className="font-semibold text-lg tabular-nums">
+        {value.toLocaleString("pt-BR")}
+      </span>
+    </div>
   );
 }

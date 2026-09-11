@@ -20,6 +20,15 @@ para emissões futuras. O perfil emissor global, com razão social, marca e CNPJ
 Curso. Não há HTML livre, campos arbitrários ou inferência automática de
 posicionamento.
 
+O perfil emissor global é administrado em **Admin > Configurações**. Razão social
+e CNPJ são uma unidade: estado parcial é rejeitado antes da transação. O salvamento
+de `app_settings` e `certificate_issuer_profiles` é atômico e registra
+`settings.updated` com os valores anterior e novo; o CNPJ é mascarado na auditoria.
+O CNPJ pode ser informado com ou sem máscara, mas precisa conter 14 dígitos,
+passar pelos dígitos verificadores e é normalizado para o formato brasileiro
+antes de ser salvo. A tela informa quais dados impedem o perfil de ficar pronto.
+O diagnóstico da JMVStream pertence a **Admin > Operação**.
+
 Na composição do template, a arte de fundo A4, o nome do Aluno, o código de
 validação e o QR de validação são obrigatórios e devem permanecer visíveis no
 layout. O título do Curso e o nome do emissor continuam disponíveis e são

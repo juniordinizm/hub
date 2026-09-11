@@ -19,7 +19,7 @@ restringem `vercel-production` a `main` e `vercel-staging` a
 `staging`. O responsável confirmou R2, restore descartável, cabeçalhos da caixa
 Production e rotação de secrets Resend; DMARC permanece em observação.
 
-**Admin > Operação** mostra contagens, idade de backlog e filas locais de recuperação. Nunca expõe payload, token, e-mail ou URL assinada. **Admin > Auditoria** fica reservado ao histórico administrativo, aos eventos de Matrícula e aos eventos financeiros relevantes.
+**Admin > Operação** mostra contagens, idade de backlog, saúde da JMVStream e filas locais de recuperação. Nunca expõe payload, token, e-mail ou URL assinada. **Admin > Auditoria** fica reservado ao histórico administrativo, aos eventos de Matrícula e aos eventos financeiros relevantes. **Admin > Configurações** mantém somente identidade global de Certificados e conteúdo editorial.
 
 ### Auditoria no dia a dia
 

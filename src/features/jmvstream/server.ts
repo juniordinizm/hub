@@ -100,8 +100,8 @@ export const getJmvstreamHealthSummary =
         folderCount: countJmvstreamFolders(folders),
         message:
           orphanFolders > 0
-            ? `JMVStream autenticada; ${orphanFolders} pasta(s) locais nao existem mais na JMVStream e serao recriadas no proximo uso.`
-            : "JMVStream autenticada e galerias acessiveis.",
+            ? `JMVStream conectada; ${orphanFolders} pasta(s) locais não existem mais na JMVStream e serão recriadas no próximo uso.`
+            : "JMVStream conectada e galerias acessíveis.",
         orphanFolders,
         pendingDeletes,
         processingUploads,
@@ -115,7 +115,7 @@ export const getJmvstreamHealthSummary =
         message:
           error instanceof Error
             ? error.message
-            : "Nao foi possivel validar a JMVStream.",
+            : "Não foi possível validar a JMVStream.",
         orphanFolders: 0,
         pendingDeletes,
         processingUploads,

@@ -51,7 +51,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Certificados => `src/features/certificates`, tabelas `course_completions`, `certificate_issuer_profiles`, `certificate_templates`, `certificates`, `outbox_messages` e `public_certificate_rate_limits`.
 - Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
-- Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
+- Configurações => `src/app/(admin)/admin/configuracoes`, com perfil emissor global,
+  assinatura padrão, banners e FAQ editorial;
+- Operação => `src/features/admin/server.ts`, `src/features/operations/server.ts`,
+  `src/features/jmvstream/server.ts`, `audit_logs`, `app_settings`, `faq_items` e
+  `dashboard_banners`; saúde de provider e filas ficam nesta superfície, não em
+  Configurações.
 
 ## Banco
 
@@ -163,6 +168,12 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
   das artes substituídas;
 - upload JMVStream mantém sessão/estado persistido para retry e limpeza.
+- Configurações globais atualiza `app_settings` e `certificate_issuer_profiles`
+  na mesma transação; o perfil emissor exige razão social e CNPJ juntos e a
+  alteração registra antes/depois seguro em `settings.updated`.
+- mutações editoriais distinguem criação, atualização, exclusão e reordenação de
+  FAQs e banners; os valores legíveis e a ordem anterior/nova entram na auditoria
+  sem registrar chaves privadas de storage.
 
 ## Rotinas
 

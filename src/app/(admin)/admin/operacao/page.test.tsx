@@ -5,10 +5,17 @@ vi.mock("server-only", () => ({}));
 
 const dependencies = vi.hoisted(() => ({
   getAdminOperationsData: vi.fn(),
+  getJmvstreamHealthSummary: vi.fn(),
 }));
 
 vi.mock("@/features/admin/server", () => ({
   getAdminOperationsData: dependencies.getAdminOperationsData,
+}));
+vi.mock("@/features/jmvstream/server", () => ({
+  getJmvstreamHealthSummary: dependencies.getJmvstreamHealthSummary,
+}));
+vi.mock("@/features/jmvstream/portal", () => ({
+  JMVSTREAM_PORTAL_URL: "https://hub.jmvtechnology.com",
 }));
 vi.mock("@/features/operations/server", () => ({}));
 vi.mock("./outbox-dead-letter-dialog", () => ({
@@ -55,6 +62,16 @@ const emptyBacklog = {
 
 describe("AdminOperationsPage", () => {
   it("keeps operational queues and recovery actions together", async () => {
+    dependencies.getJmvstreamHealthSummary.mockResolvedValue({
+      auth: "ok",
+      failedDeletes: 2,
+      failedUploads: 1,
+      folderCount: 8,
+      message: "JMVStream autenticada e galerias acessíveis.",
+      orphanFolders: 1,
+      pendingDeletes: 3,
+      processingUploads: 4,
+    });
     dependencies.getAdminOperationsData.mockResolvedValue({
       canRetryOutbox: true,
       canRetryWebhook: true,
@@ -103,6 +120,11 @@ describe("AdminOperationsPage", () => {
     expect(markup).toContain("Mensagens em dead letter");
     expect(markup).toContain("Detalhes");
     expect(markup).toContain("Nenhum webhook para recuperar");
+    expect(markup).toContain("Saúde da JMVStream");
+    expect(markup).toContain("Conectada");
+    expect(markup).toContain("Uploads com falha");
+    expect(markup).toContain("Abrir portal JMVStream");
+    expect(markup).toContain("Abrir cursos");
     expect(markup).toContain("Abrir Financeiro");
     expect(markup).not.toContain("Alterações administrativas recentes");
   });

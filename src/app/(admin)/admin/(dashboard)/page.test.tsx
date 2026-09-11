@@ -165,6 +165,7 @@ describe("AdminPage", () => {
     expect(markup).not.toContain("Tudo emitido");
     expect(markup).not.toContain("Ver todos os pedidos");
     expect(markup).not.toContain("Ações rápidas");
+    expect(markup).not.toContain('href="/admin/configuracoes"');
     expect(dependencies.getAdminOverview).toHaveBeenCalledOnce();
     expect(dependencies.getAdminDashboardProjection).toHaveBeenCalledOnce();
   });
@@ -303,6 +304,10 @@ describe("AdminPage", () => {
         },
         integrations: {
           ...emptyOperations.integrations,
+          failedJmvDeleteCount: 1,
+          failedJmvUploadCount: 2,
+          pendingJmvDeleteCount: 3,
+          processingJmvUploadCount: 4,
           backlog: {
             ...emptyOperations.integrations.backlog,
             webhooks: {
@@ -344,6 +349,8 @@ describe("AdminPage", () => {
     expect(markup).toContain("Acessos vencendo em 30 dias");
     expect(markup).toContain("Solicitações de suporte");
     expect(markup).toContain("Entregue");
+    expect(markup).toContain('href="/admin/operacao#jmvstream"');
+    expect(markup).not.toContain('href="/admin/configuracoes"');
     expect(markup).toContain('href="/admin/cursos/course-1?tab=content"');
   });
 });

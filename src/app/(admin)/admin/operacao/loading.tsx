@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const OPERATIONS_SECTION_SKELETON_KEYS = [
   "alerts",
+  "jmvstream",
   "webhooks",
   "outbox",
   "signals",
