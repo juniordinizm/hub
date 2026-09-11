@@ -341,7 +341,7 @@ export function BannerGallery({ initialBanners }: BannerGalleryProps) {
               )
             }
             count={banners.length}
-            title="Banners Ativos"
+            title="Banners cadastrados"
           />
 
           {banners.length > 0 || uploadingFiles.length > 0 ? (

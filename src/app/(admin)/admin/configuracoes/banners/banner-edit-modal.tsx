@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -51,7 +52,10 @@ export function BannerEditModal({
     <Dialog onOpenChange={(isOpen) => !isOpen && onClose()} open={open}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Editar Banner</DialogTitle>
+          <DialogTitle>Editar banner</DialogTitle>
+          <DialogDescription>
+            Defina o destino, o texto da ação e a visibilidade deste banner.
+          </DialogDescription>
         </DialogHeader>
 
         <AutoCloseDialogForm action={handleSubmit}>

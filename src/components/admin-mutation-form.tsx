@@ -56,11 +56,27 @@ export interface AdminMutationFormProps {
   children: ReactNode;
   className?: string;
   closeOnSuccess?: boolean;
+  getFieldErrors?: ((error: unknown) => Record<string, string>) | undefined;
   id?: string;
   onSuccess?: (() => void | Promise<void>) | undefined;
 }
 
 const AdminMutationPendingContext = createContext(false);
+
+export interface AdminMutationFormState {
+  error: string | null;
+  fieldErrors: Record<string, string>;
+  isPending: boolean;
+}
+
+const AdminMutationFormStateContext = createContext<AdminMutationFormState>({
+  error: null,
+  fieldErrors: {},
+  isPending: false,
+});
+
+export const useAdminMutationFormState = (): AdminMutationFormState =>
+  useContext(AdminMutationFormStateContext);
 
 export function AdminMutationSubmitButton(
   props: ButtonProps
@@ -75,11 +91,13 @@ export function AdminMutationForm({
   children,
   className,
   closeOnSuccess = false,
+  getFieldErrors,
   id,
   onSuccess,
 }: AdminMutationFormProps): React.JSX.Element {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isPending, setIsPending] = useState(false);
   const discardDialog = useDiscardDialog();
 
@@ -90,6 +108,7 @@ export function AdminMutationForm({
     const formData = new FormData(event.currentTarget);
     appendSubmitterValue(formData, getSubmitter(event.nativeEvent));
     setError(null);
+    setFieldErrors({});
     setIsPending(true);
 
     const toastId = toast.loading("Salvando…");
@@ -98,6 +117,7 @@ export function AdminMutationForm({
       await action(formData);
       await onSuccess?.();
       discardDialog?.setDirty(false);
+      setFieldErrors({});
       toast.success("Salvo com sucesso!", { id: toastId });
       if (closeOnSuccess) {
         closeRef.current?.click();
@@ -110,31 +130,36 @@ export function AdminMutationForm({
       const message = getErrorMessage(err);
       toast.error(message, { id: toastId });
       setError(message);
+      setFieldErrors(getFieldErrors?.(err) ?? {});
     } finally {
       setIsPending(false);
     }
   };
 
   return (
-    <form
-      aria-busy={isPending}
-      className={cn(className)}
-      id={id}
-      onSubmit={handleSubmit}
+    <AdminMutationFormStateContext.Provider
+      value={{ error, fieldErrors, isPending }}
     >
-      <AdminMutationPendingContext.Provider value={isPending}>
-        <fieldset className="contents" disabled={isPending}>
-          {error ? (
-            <div
-              className="border-destructive/20 border-b bg-destructive/10 px-6 py-3 text-destructive text-sm"
-              role="alert"
-            >
-              {error}
-            </div>
-          ) : null}
-          {children}
-        </fieldset>
-      </AdminMutationPendingContext.Provider>
+      <form
+        aria-busy={isPending}
+        className={cn(className)}
+        id={id}
+        onSubmit={handleSubmit}
+      >
+        <AdminMutationPendingContext.Provider value={isPending}>
+          <fieldset className="contents" disabled={isPending}>
+            {error && Object.keys(fieldErrors).length === 0 ? (
+              <div
+                className="border-destructive/20 border-b bg-destructive/10 px-6 py-3 text-destructive text-sm"
+                role="alert"
+              >
+                {error}
+              </div>
+            ) : null}
+            {children}
+          </fieldset>
+        </AdminMutationPendingContext.Provider>
+      </form>
       {closeOnSuccess ? (
         <DialogClose asChild>
           <button className="sr-only" ref={closeRef} type="button">
@@ -142,6 +167,6 @@ export function AdminMutationForm({
           </button>
         </DialogClose>
       ) : null}
-    </form>
+    </AdminMutationFormStateContext.Provider>
   );
 }

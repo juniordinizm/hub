@@ -44,6 +44,12 @@ por dez minutos; uma tentativa já persistida não consome novamente o limite. A
 `0044` a `0051` foram promovidas a Production em 2026-07-31; o journal de
 Production acompanhou todas as promoções seguintes até `0064`.
 
+Toda alteração de oferta ou identidade do Curso gera `course.created` ou
+`course.updated` em `audit_logs`. O metadata estruturado preserva, sem dados de Aluno,
+o antes/depois de preço, Pix, cartão, parcelamento, duração de acesso, título, descrição,
+carga horária e estado da capa. Alterações de disponibilidade e de conteúdo seguem a
+mesma trilha com seus próprios eventos e ator.
+
 Quando a criação retorna `processing`, a página pública consulta a mesma tentativa por
 UUID opaco e slug, sem criar outro Checkout automaticamente. O navegador compartilha esse
 UUID sem PII entre abas por até 60 minutos, aplica polling limitado em 1, 2, 4, 8 e 16
@@ -210,7 +216,8 @@ Suporte, mas a autorização do servidor permanece a barreira efetiva.
 checkout encerrado sem pagamento. Estados `failed`, `cancelled` e `expired` do
 Checkout não entram no valor em aberto, embora continuem na contagem de pedidos
 registrados. Webhooks falhos, em retry e em processamento são apresentados como
-estados distintos; a lista completa e o reprocessamento permanecem na Auditoria.
+estados distintos; a lista completa e o reprocessamento ficam em Admin > Operação,
+enquanto o histórico administrativo permanece em Admin > Auditoria.
 Análises por período usam a data de pagamento, ou a criação quando ela não existe,
 limitadas ao intervalo selecionado até o momento da consulta,
 e identificam o líquido como estimativa derivada dos snapshots do Pedido. O valor

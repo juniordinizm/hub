@@ -16,6 +16,7 @@ vi.mock("@/features/jmvstream/server", () => ({
 vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
+  getAdminAuditData,
   getAdminCourseCatalogData,
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
@@ -28,6 +29,7 @@ import {
   getAdminInstallmentPayments,
   getAdminLessonEditorData,
   getAdminOverview,
+  getAdminSettingsData,
   getAdminStatementImportHistory,
   getAdminStatementImportProgress,
   getAdminStudentDetail,
@@ -108,6 +110,72 @@ beforeEach(() => {
 });
 
 describe("admin read projections", () => {
+  it("reads global settings and issuer completeness from one projection", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          certificate_signer_name: "Responsável",
+          certificate_signer_role: "Diretora",
+          cnpj: "04.252.011/0001-10",
+          display_name: "Empresa",
+          legal_name: "Empresa LTDA",
+          last_changed_actor_email: null,
+          last_changed_actor_name: null,
+          last_changed_at: null,
+        },
+      ],
+    });
+
+    await expect(getAdminSettingsData()).resolves.toEqual({
+      settings: {
+        certificateSignerName: "Responsável",
+        certificateSignerRole: "Diretora",
+        issuerCnpj: "04.252.011/0001-10",
+        issuerDisplayName: "Empresa",
+        issuerLegalName: "Empresa LTDA",
+        issuerProfileComplete: true,
+        issuerProfileIssues: [],
+        lastUpdatedAt: null,
+        lastUpdatedBy: null,
+      },
+    });
+    expect(requirePermission).toHaveBeenCalledWith("manageSettings");
+    expect(query).toHaveBeenCalledOnce();
+    expect(String(query.mock.calls[0]?.[0]).toLowerCase()).toContain(
+      "full outer join"
+    );
+  });
+
+  it("explains issuer profile issues and exposes the latest settings change", async () => {
+    const lastChangedAt = new Date("2026-09-11T16:32:00.000Z");
+    query.mockResolvedValue({
+      rows: [
+        {
+          certificate_signer_name: null,
+          certificate_signer_role: null,
+          cnpj: "04.252.011/0001-11",
+          display_name: null,
+          legal_name: "Empresa LTDA",
+          last_changed_actor_email: "admin@example.test",
+          last_changed_actor_name: "Admin",
+          last_changed_at: lastChangedAt,
+        },
+      ],
+    });
+
+    await expect(getAdminSettingsData()).resolves.toMatchObject({
+      settings: {
+        issuerProfileComplete: false,
+        issuerProfileIssues: ["cnpj_invalid", "display_name_missing"],
+        lastUpdatedAt: lastChangedAt,
+        lastUpdatedBy: {
+          email: "admin@example.test",
+          name: "Admin",
+        },
+      },
+    });
+  });
+
   it("keeps overview aggregates global", async () => {
     query.mockResolvedValue({
       rows: [
@@ -559,6 +627,62 @@ describe("admin read projections", () => {
     expect(requirePermission).toHaveBeenCalledWith("viewGlobalAudit");
     expect(query.mock.calls[0]?.[1]).toEqual(["PAYMENT", "%PAYMENT%", 21, 20]);
     expect(String(query.mock.calls[0]?.[0])).not.toContain("payload");
+  });
+
+  it("pages audit events without exposing actor or student emails", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          action: "course.updated",
+          actor_email: "admin@example.test",
+          actor_name: "Administradora",
+          actor_role: "admin",
+          created_at: new Date("2026-09-08T12:00:00.000Z"),
+          event_id: "audit-21",
+          source: "administrative",
+          target_id: "course-1",
+          target_name: "Curso de exemplo",
+          target_type: "course",
+          total_count: 26,
+        },
+      ],
+    });
+
+    await expect(
+      getAdminAuditData({
+        from: "2026-09-01",
+        page: 2,
+        search: "course",
+        source: "administrative",
+        targetType: "course",
+        to: "2026-09-08",
+      })
+    ).resolves.toMatchObject({
+      auditLogs: [
+        expect.objectContaining({
+          actorEmail: "admin@example.test",
+          actorName: "Administradora",
+          action: "course.updated",
+          source: "administrative",
+        }),
+      ],
+      page: 2,
+      totalCount: 26,
+    });
+
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      "administrative",
+      "course",
+      "%course%",
+      "2026-09-01",
+      "2026-09-08",
+      26,
+      25,
+    ]);
+    expect(String(query.mock.calls[0]?.[0])).toContain(
+      "u.email as actor_email"
+    );
+    expect(String(query.mock.calls[0]?.[0])).not.toContain("student.email");
   });
 
   it("bounds the student projection and returns pagination metadata", async () => {

@@ -1,32 +1,32 @@
-import { FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HistoryIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
-import {
-  AdminMutationForm,
-  AdminMutationSubmitButton,
-} from "@/components/admin-mutation-form";
+import { FinanceHelp } from "@/components/admin/finance-help";
 import { PageContainer } from "@/components/page-container";
 import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { saveSettingsAction } from "@/features/admin/actions";
 import {
   getAdminBannersData,
   getAdminFaqData,
   getAdminSettingsData,
 } from "@/features/admin/server";
-import { JMVSTREAM_PORTAL_URL } from "@/features/jmvstream/portal";
-import { getJmvstreamHealthSummary } from "@/features/jmvstream/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { formatDateTime } from "@/lib/formatters";
+import { route } from "@/lib/routes";
 import { BannerGallery } from "./banners/banner-gallery";
+import {
+  CertificateSettingsForm,
+  type CertificateSettingsFormValues,
+} from "./certificate-settings-form";
 import { FaqCreateDialog } from "./faq/faq-dialogs";
 import { FaqTable } from "./faq/faq-table";
 
@@ -35,9 +35,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
   await requirePermission("manageSettings");
 
-  const [data, jmvstreamHealth, bannersData, faqData] = await Promise.all([
+  const [data, bannersData, faqData] = await Promise.all([
     getAdminSettingsData(),
-    getJmvstreamHealthSummary(),
     getAdminBannersData(),
     getAdminFaqData(),
   ]);
@@ -53,179 +52,151 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
     sortedFaqs.length > 0
       ? Math.max(...sortedFaqs.map((f) => f.sortOrder)) + 1
       : 1;
+  const issuerProfileReady = data.settings.issuerProfileComplete;
+  const issuerProfileIssueLabels = {
+    cnpj_invalid: "CNPJ inválido",
+    cnpj_missing: "CNPJ",
+    display_name_missing: "marca exibida",
+    legal_name_missing: "razão social",
+  } as const;
+  const issuerProfileIssues = data.settings.issuerProfileIssues.map(
+    (issue) => issuerProfileIssueLabels[issue]
+  );
+  const lastUpdatedBy =
+    data.settings.lastUpdatedBy?.name ??
+    data.settings.lastUpdatedBy?.email ??
+    "Sistema";
+  const certificateSettings: CertificateSettingsFormValues = {
+    certificateSignerName: data.settings.certificateSignerName,
+    certificateSignerRole: data.settings.certificateSignerRole,
+    issuerCnpj: data.settings.issuerCnpj,
+    issuerDisplayName: data.settings.issuerDisplayName,
+    issuerLegalName: data.settings.issuerLegalName,
+  };
 
   return (
     <PageContainer>
       <div className="flex flex-col gap-8">
         <PageHeader
-          description="Ajustes operacionais compartilhados por todo o Hub."
+          description="Gerencie a identidade dos Certificados e o conteúdo compartilhado no Hub."
           title="Configurações globais"
         />
 
-        <section className="grid gap-4 xl:grid-cols-2">
-          <div className="xl:col-span-2">
-            <h2 className="font-semibold text-lg" id="settings-operations">
-              Integrações e dados operacionais
+        <section aria-labelledby="settings-certificates" className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="type-section-title" id="settings-certificates">
+              Emissão de certificados
             </h2>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Acompanhe integrações externas e os dados usados em certificados.
-            </p>
+            <FinanceHelp
+              description="Configure a identidade global usada para novas emissões. Um Curso pode definir uma assinatura própria, e Certificados já emitidos permanecem imutáveis."
+              details={[
+                "Razão social e CNPJ formam o perfil emissor e precisam ser preenchidos juntos.",
+                "A marca exibida aparece no documento quando o template não define outro valor.",
+                "A assinatura padrão é usada apenas quando o Curso não possui uma assinatura própria.",
+              ]}
+              title="Como funciona a emissão"
+            />
           </div>
+
           <Card>
-            <CardHeader className="border-b bg-muted/20 pb-4">
+            <CardHeader className="pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <CardTitle as="h2" className="text-base">
-                    JMVStream
+                    Perfil e assinatura
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    {jmvstreamHealth.message}
+                    Dados globais usados como base nos Certificados da
+                    plataforma.
                   </CardDescription>
+                  {issuerProfileReady ? null : (
+                    <p className="mt-2 text-sm text-warning">
+                      Pendências: {issuerProfileIssues.join(", ")}.
+                    </p>
+                  )}
                 </div>
-                <Button asChild size="sm" variant="outline">
-                  <Link
-                    href={JMVSTREAM_PORTAL_URL}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    Abrir portal JMVStream
-                  </Link>
-                </Button>
+                <Badge variant={issuerProfileReady ? "success" : "warning"}>
+                  {issuerProfileReady ? "Perfil pronto" : "Perfil incompleto"}
+                </Badge>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-4">
-                <HealthTile
-                  label="Uploads ativos"
-                  value={jmvstreamHealth.processingUploads}
-                />
-                <HealthTile
-                  label="Uploads com falha"
-                  value={jmvstreamHealth.failedUploads}
-                />
-                <HealthTile
-                  label="Exclusões pendentes"
-                  value={jmvstreamHealth.pendingDeletes}
-                />
-                <HealthTile
-                  label="Exclusões com falha"
-                  value={jmvstreamHealth.failedDeletes}
-                />
-              </div>
-              {jmvstreamHealth.auth === "error" ? (
-                <p className="border-t p-4 text-destructive text-sm">
-                  A conexão com a JMVStream precisa de revisão. Os estados
-                  locais continuam disponíveis para diagnóstico.
-                </p>
-              ) : null}
+            <CardContent>
+              <CertificateSettingsForm settings={certificateSettings} />
             </CardContent>
+            <CardFooter className="flex-col items-start gap-3 border-t text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-2">
+                <HugeiconsIcon
+                  aria-hidden="true"
+                  className="mt-0.5 shrink-0"
+                  icon={HistoryIcon}
+                  size={16}
+                  strokeWidth={2}
+                />
+                <p className="type-meta min-w-0">
+                  {data.settings.lastUpdatedAt ? (
+                    <>
+                      Última alteração em{" "}
+                      <time
+                        dateTime={data.settings.lastUpdatedAt.toISOString()}
+                      >
+                        {formatDateTime(data.settings.lastUpdatedAt)}
+                      </time>{" "}
+                      por{" "}
+                      <span className="text-foreground">{lastUpdatedBy}</span>
+                    </>
+                  ) : (
+                    "Ainda não há alterações registradas na Auditoria."
+                  )}
+                </p>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link href={route("/admin/auditoria?target=settings")}>
+                  Ver histórico
+                </Link>
+              </Button>
+            </CardFooter>
           </Card>
+        </section>
+
+        <section aria-labelledby="settings-editorial" className="grid gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="type-section-title" id="settings-editorial">
+              Conteúdo editorial
+            </h2>
+            <FinanceHelp
+              description="Gerencie conteúdos compartilhados na área do Aluno. As alterações ficam disponíveis depois que forem salvas."
+              details={[
+                "Banners aparecem no Dashboard e podem ser reordenados por arraste ou teclado.",
+                "Perguntas frequentes aparecem na área do Aluno e podem ser publicadas ou ocultadas.",
+              ]}
+              title="Como gerenciar conteúdo editorial"
+            />
+          </div>
+
           <Card>
             <CardHeader className="pb-4">
               <CardTitle as="h2" className="text-base">
-                Dados operacionais
+                Banners do Dashboard
               </CardTitle>
               <CardDescription className="mt-1">
-                Assinatura usada nos certificados emitidos pela plataforma.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AdminMutationForm action={saveSettingsAction}>
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="issuer-legal-name">
-                      Razão social emissora
-                    </FieldLabel>
-                    <Input
-                      defaultValue={data.settings.issuerLegalName ?? ""}
-                      id="issuer-legal-name"
-                      name="issuerLegalName"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="issuer-display-name">
-                      Marca exibida
-                    </FieldLabel>
-                    <Input
-                      defaultValue={data.settings.issuerDisplayName ?? ""}
-                      id="issuer-display-name"
-                      name="issuerDisplayName"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="issuer-cnpj">CNPJ emissor</FieldLabel>
-                    <Input
-                      defaultValue={data.settings.issuerCnpj ?? ""}
-                      id="issuer-cnpj"
-                      name="issuerCnpj"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="certificate-signer-name">
-                      Nome da assinatura
-                    </FieldLabel>
-                    <Input
-                      defaultValue={data.settings.certificateSignerName ?? ""}
-                      id="certificate-signer-name"
-                      name="certificateSignerName"
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="certificate-signer-role">
-                      Cargo da assinatura
-                    </FieldLabel>
-                    <Input
-                      defaultValue={data.settings.certificateSignerRole ?? ""}
-                      id="certificate-signer-role"
-                      name="certificateSignerRole"
-                    />
-                  </Field>
-                  <AdminMutationSubmitButton type="submit">
-                    <HugeiconsIcon
-                      aria-hidden="true"
-                      data-icon="inline-start"
-                      icon={FloppyDiskIcon}
-                      size={18}
-                      strokeWidth={2}
-                    />
-                    Salvar configurações
-                  </AdminMutationSubmitButton>
-                </FieldGroup>
-              </AdminMutationForm>
-            </CardContent>
-          </Card>
-          <div className="pt-4 xl:col-span-2">
-            <h2 className="font-semibold text-lg" id="settings-editorial">
-              Conteúdo editorial
-            </h2>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Atualize os conteúdos compartilhados na área do aluno.
-            </p>
-          </div>
-          <Card className="xl:col-span-2">
-            <CardHeader className="pb-4">
-              <CardTitle as="h2" className="text-base">
-                Banners do dashboard
-              </CardTitle>
-              <CardDescription className="mt-1">
-                Configure os banners rotativos exibidos na página inicial da
-                área do aluno. Arraste para reordenar. (Máx. 5 imagens)
+                Até cinco banners cadastrados para a página inicial da área do
+                Aluno.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <BannerGallery initialBanners={sortedBanners} />
             </CardContent>
           </Card>
-          <Card className="xl:col-span-2">
+
+          <Card>
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle as="h2" className="text-base">
                     Perguntas frequentes
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Conteúdo exibido na área do aluno para reduzir dúvidas
-                    operacionais.
+                    Respostas publicadas na área do Aluno.
                   </CardDescription>
                 </div>
                 <FaqCreateDialog nextSortOrder={nextSortOrder} />
@@ -238,22 +209,5 @@ export default async function AdminSettingsPage(): Promise<React.JSX.Element> {
         </section>
       </div>
     </PageContainer>
-  );
-}
-
-function HealthTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}): React.JSX.Element {
-  return (
-    <div className="flex flex-col justify-center p-5">
-      <p className="font-medium text-muted-foreground text-xs">{label}</p>
-      <p className="mt-1.5 font-bold text-2xl tabular-nums tracking-tight">
-        {value}
-      </p>
-    </div>
   );
 }

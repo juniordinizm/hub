@@ -168,7 +168,7 @@ exatamente uma vez além da janela.
 
 ## Dead letter e incidente
 
-Somente Admin pode usar `retryOutbox`. A página **Admin > Auditoria** lista até 50 dead letters sem expor payload. O reprocessamento exige motivo, não permite editar payload e grava `outbox.requeued` em `audit_logs` na mesma transação.
+Somente Admin pode usar `retryOutbox`. A página **Admin > Operação** lista dead letters sem expor payload. O reprocessamento exige motivo, não permite editar payload e grava `outbox.requeued` em `audit_logs` na mesma transação.
 
 Depois de 24 horas, o Resend não consegue mais deduplicar a mesma chave. Antes de reprocessar uma mensagem antiga, a administradora deve confirmar o estado do agregado e aceitar explicitamente o risco de e-mail duplicado. Não reprocessar automaticamente um resultado ambíguo.
 

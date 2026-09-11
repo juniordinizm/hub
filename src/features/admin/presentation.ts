@@ -358,7 +358,7 @@ export const getAdminOperationSignal = ({
   const webhookAttentionCount = failedWebhooks + retryableWebhooks;
   if (failedWebhooks > 0) {
     return {
-      actionHref: "/admin/auditoria",
+      actionHref: "/admin/operacao",
       tone: "attention",
       label: "Revisar integração",
       helper: `${failedWebhooks} falho${
@@ -369,7 +369,7 @@ export const getAdminOperationSignal = ({
 
   if (webhookAttentionCount > 0) {
     return {
-      actionHref: "/admin/auditoria",
+      actionHref: "/admin/operacao",
       tone: "watch",
       label: "Integração em retry",
       helper: `${retryableWebhooks} webhook${

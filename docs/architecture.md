@@ -51,7 +51,12 @@ Importações usam alias `@/`. Não há camada de repositórios genérica; Drizz
 - Certificados => `src/features/certificates`, tabelas `course_completions`, `certificate_issuer_profiles`, `certificate_templates`, `certificates`, `outbox_messages` e `public_certificate_rate_limits`.
 - Dados técnicos de analytics => `src/features/learning-analytics`, tabelas `learning_analytics_events` e `learning_analytics_daily_metrics`.
 - Mídia => `src/features/jmvstream`, `src/features/storage`, tabelas `jmvstream_folders`, `jmvstream_video_assets` e JSON de conteúdo.
-- Operação => `src/features/admin/server.ts`, `audit_logs`, `app_settings`, `faq_items`, `dashboard_banners`.
+- Configurações => `src/app/(admin)/admin/configuracoes`, com perfil emissor global,
+  assinatura padrão, banners e FAQ editorial;
+- Operação => `src/features/admin/server.ts`, `src/features/operations/server.ts`,
+  `src/features/jmvstream/server.ts`, `audit_logs`, `app_settings`, `faq_items` e
+  `dashboard_banners`; saúde de provider e filas ficam nesta superfície, não em
+  Configurações.
 
 ## Banco
 
@@ -134,7 +139,7 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 
 `src/proxy.ts` propaga `x-correlation-id` para request e response. `logOperationalEvent`, em `src/lib/observability.ts`, emite eventos JSON sem atributos sensíveis. `src/instrumentation.ts` registra exceções de request e as encaminha ao Sentry quando `SENTRY_DSN` existe; requests, breadcrumbs, transações e spans perdem query strings e códigos públicos de Certificado antes do envio. `error.tsx` e `global-error.tsx` fazem o equivalente para fallbacks de interface com um identificador de suporte.
 
-`GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Auditoria** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
+`GET /api/health` é liveness. `GET /api/health/ready` faz readiness protegida contra Postgres, com timeout curto e verificação do journal; ele não consulta providers externos. `getOperationalBacklogSnapshot`, em `src/features/operations/server.ts`, alimenta **Admin > Operação** com contagens/idade de outbox, webhook e vídeo, sem PII. SLI/SLO, dona e ensaio de recuperação estão em [Observabilidade e recuperação](operations/observability-and-recovery.md).
 
 ## Concorrência, idempotência e auditoria
 
@@ -144,6 +149,13 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - Pedidos e Concessões preservam IDs de origem;
 - `payment_reviews.webhook_event_id` é único quando preenchido, e conflitos de correlação
   sem Pedido seguro ficam em `audit_logs` com motivo sem PII;
+- `writeAuditLog`, em `src/features/admin/audit-log.ts`, é o escritor comum das ações
+  administrativas. Alterações de Curso e conteúdo registram em `metadata.changes` os
+  valores anterior e novo, incluindo preço, oferta, duração, capa, Módulos, Aulas,
+  ordenação e publicação, sempre na mesma transação da mutação;
+- `getAdminAuditData` consolida `audit_logs`, eventos de Matrícula e eventos financeiros
+  append-only. A projeção preserva ator, origem, alvo e horário, deduplica o par de
+  eventos de Matrícula criado pelo mesmo comando e não expõe payloads ou e-mails;
 - eventos de Matrícula e `audit_logs` registram ações administrativas e operacionais;
 - `outbox_messages` registra efeitos de e-mail críticos com chave idempotente, lease e
   dead letter; `auth.account-activation` persiste apenas IDs locais e cria token no
@@ -156,6 +168,12 @@ do provedor anterior; o runtime opera somente com o contrato Asaas.
 - `certificate_template_asset_cleanup` registra limpeza atrasada e recuperável
   das artes substituídas;
 - upload JMVStream mantém sessão/estado persistido para retry e limpeza.
+- Configurações globais atualiza `app_settings` e `certificate_issuer_profiles`
+  na mesma transação; o perfil emissor exige razão social e CNPJ juntos e a
+  alteração registra antes/depois seguro em `settings.updated`.
+- mutações editoriais distinguem criação, atualização, exclusão e reordenação de
+  FAQs e banners; os valores legíveis e a ordem anterior/nova entram na auditoria
+  sem registrar chaves privadas de storage.
 
 ## Rotinas
 

@@ -4,78 +4,60 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function Loading(): React.JSX.Element {
   return (
     <PageContainer>
-      <div className="flex max-w-4xl flex-col gap-8">
+      <div aria-busy="true" className="flex flex-col gap-8" role="status">
+        <span className="sr-only">Carregando configurações globais…</span>
         <header className="border-b pb-6">
-          <div className="space-y-3">
-            <Skeleton className="h-9 w-64" />
-            <Skeleton className="h-5 w-full max-w-100" />
-          </div>
+          <Skeleton className="h-9 w-72" />
+          <Skeleton className="mt-3 h-5 w-full max-w-[560px]" />
         </header>
 
         <section className="grid gap-4">
-          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-37.5" />
-              <Skeleton className="h-4 w-25" />
+          <Skeleton className="h-6 w-56" />
+          <div className="rounded-xl border bg-card p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="grid gap-2">
+                <Skeleton className="h-5 w-48" />
+                <Skeleton className="h-4 w-full max-w-[520px]" />
+              </div>
+              <Skeleton className="h-5 w-28" />
             </div>
-            <div className="p-6 pt-0">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:divide-x md:border-t md:pt-4">
-                <div className="space-y-2 md:pl-4">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-                <div className="space-y-2 md:pl-4">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-                <div className="space-y-2 md:pl-4">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-8 w-12" />
-                </div>
-                <div className="space-y-2 md:pl-4">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-8 w-12" />
+            <div className="mt-6 grid gap-6">
+              <div className="grid gap-3">
+                <Skeleton className="h-5 w-40" />
+                <div className="grid gap-5 md:grid-cols-2">
+                  {[
+                    "issuer-legal-name",
+                    "issuer-cnpj",
+                    "issuer-display-name",
+                  ].map((key) => (
+                    <div className="grid gap-2" key={key}>
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                  ))}
                 </div>
               </div>
+              <Skeleton className="h-px w-full" />
+              <div className="grid gap-3">
+                <Skeleton className="h-5 w-40" />
+                <div className="grid gap-5 md:grid-cols-2">
+                  {["signer-name", "signer-role"].map((key) => (
+                    <div className="grid gap-2" key={key}>
+                      <Skeleton className="h-4 w-36" />
+                      <Skeleton className="h-9 w-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Skeleton className="h-9 w-44" />
             </div>
           </div>
+        </section>
 
-          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-50" />
-              <Skeleton className="h-4 w-87.5" />
-            </div>
-            <div className="space-y-4 p-6 pt-0">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-37.5" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-37.5" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-              <Skeleton className="mt-4 h-10 w-full" />
-            </div>
-          </div>
-
-          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-62.5" />
-              <Skeleton className="h-4 w-87.5" />
-            </div>
-            <div className="space-y-4 p-6 pt-0">
-              <Skeleton className="h-50 w-full" />
-            </div>
-          </div>
-          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
-            <div className="flex flex-col space-y-1.5 p-6 pb-4">
-              <Skeleton className="h-6 w-56" />
-              <Skeleton className="h-4 w-full max-w-[28rem]" />
-            </div>
-            <div className="space-y-4 p-6 pt-0">
-              <Skeleton className="h-48 w-full" />
-            </div>
-          </div>
+        <section className="grid gap-4">
+          <Skeleton className="h-6 w-44" />
+          <Skeleton className="h-[300px] w-full rounded-xl" />
+          <Skeleton className="h-[280px] w-full rounded-xl" />
         </section>
       </div>
     </PageContainer>

@@ -47,6 +47,7 @@ export function RetryWebhookOperation({
         <Input
           autoComplete="off"
           id={`retry-webhook-reason-${webhookEventId}`}
+          maxLength={500}
           onChange={(event) => setReason(event.target.value)}
           required
           value={reason}
@@ -64,9 +65,9 @@ export function RetryWebhookOperation({
       </Button>
       {error ? (
         <p
-          aria-live="polite"
+          aria-live="assertive"
           className="mt-2 text-destructive text-sm"
-          role="status"
+          role="alert"
         >
           {error}
         </p>

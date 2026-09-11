@@ -19,7 +19,21 @@ restringem `vercel-production` a `main` e `vercel-staging` a
 `staging`. O responsável confirmou R2, restore descartável, cabeçalhos da caixa
 Production e rotação de secrets Resend; DMARC permanece em observação.
 
-**Admin > Auditoria** mostra apenas contagens e idade de backlog. Nunca expõe payload, token, e-mail ou URL assinada.
+**Admin > Operação** mostra contagens, idade de backlog, saúde da JMVStream e filas locais de recuperação. Nunca expõe payload, token, e-mail ou URL assinada. **Admin > Auditoria** fica reservado ao histórico administrativo, aos eventos de Matrícula e aos eventos financeiros relevantes. **Admin > Configurações** mantém somente identidade global de Certificados e conteúdo editorial.
+
+### Auditoria no dia a dia
+
+Use **Admin > Auditoria** para responder rapidamente quatro perguntas: quem fez, o que
+foi feito, onde aconteceu e quando. A origem separa alteração administrativa, Matrícula
+e acesso, e Financeiro. Para alterações de Curso, abra **Detalhes**: o painel lista cada
+campo alterado com o valor anterior e o novo valor, inclusive preço, métodos de pagamento,
+duração, disponibilidade, Módulos, Aulas, ordenação e publicação. O histórico usa a data
+do evento e mantém a referência técnica do alvo sem mostrar payload bruto ou identidade
+de Aluno.
+
+Use **Admin > Operação** para o estado atual das filas e para recuperar webhook ou Outbox.
+Uma ação de recuperação exige motivo e aparece depois no histórico de Auditoria; as duas
+páginas têm responsabilidades diferentes e não devem ser usadas como substitutas.
 
 ## Sinais, dona e resposta
 
@@ -246,8 +260,7 @@ abre conexão, não executa migration e não restaura banco.
    ID exato e compare o estado já persistido. Se a chamada anterior teve resultado incerto,
    consulte primeiro; nunca repita criação de Checkout ou reembolso para “testar”.
 8. Faça replay pelo painel do Asaas quando a entrega ainda estiver retida. Quando o evento já
-   estiver na inbox local como `failed`, use a ação de retry na aba de operações
-   financeiras do **Admin > Financeiro**, informe o motivo e
+   estiver na inbox local como `failed`, use a ação de retry em **Admin > Operação**, informe o motivo e
    reenfileire uma vez. O comando só aceita payload não sanitizado e ainda dentro de 30 dias,
    zera tentativas e deixa trilha `asaas_webhook.requeued`.
 9. Após o replay, acompanhe `ready`, `retryable`, idade e Revisões até convergirem. Não edite

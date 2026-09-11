@@ -188,6 +188,7 @@ function PanelLayoutInner({
     "/admin/aprendizagem",
     "/admin/faq",
     "/admin/configuracoes",
+    "/admin/operacao",
     "/admin/auditoria",
   ].includes(pathname);
 

@@ -1,8 +1,13 @@
 import "server-only";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import {
+  type AuditLogQueryClient,
+  writeAuditLog,
+} from "@/features/admin/audit-log";
+import type { AuditChange, AuditMetadata } from "@/features/admin/audit-types";
 import {
   findContentReleaseRegressions,
   type PublishedLessonRelease,
@@ -97,6 +102,128 @@ interface CourseFormValues {
   title: string;
   workloadHoursOverride: number | null;
 }
+
+const getAuditChanges = (
+  changes: Record<string, AuditChange>
+): Record<string, AuditChange> =>
+  Object.fromEntries(
+    Object.entries(changes).filter(
+      ([, change]) =>
+        JSON.stringify(change.before) !== JSON.stringify(change.after)
+    )
+  );
+
+const truncateAuditText = (value: string | null): string | null =>
+  value && value.length > 500 ? `${value.slice(0, 500)}…` : value;
+
+interface LessonAuditSnapshot {
+  content: boolean;
+  contentFingerprint: string | null;
+  description: string | null;
+  durationSeconds: number;
+  isPublished: boolean;
+  isRequired: boolean;
+  moduleId: string;
+  sortOrder: number;
+  status: string;
+  textDurationSeconds: number;
+  textWordCount: number;
+  title: string;
+  videoDurationSeconds: number;
+  videoEmbedUrl: string | null;
+  videoExternalId: string | null;
+  videoProvider: string | null;
+}
+
+interface LessonAuditDatabaseRow {
+  content_json: unknown;
+  description: string | null;
+  duration_seconds: number;
+  id: string;
+  is_published: boolean;
+  is_required: boolean;
+  module_id: string;
+  sort_order: number;
+  status: string;
+  text_duration_seconds: number;
+  text_word_count: number;
+  title: string;
+  video_duration_seconds: number;
+  video_embed_url: string | null;
+  video_external_id: string | null;
+  video_provider: string | null;
+}
+
+const getLessonAuditChanges = (
+  before: LessonAuditSnapshot | null,
+  after: LessonAuditSnapshot
+): Record<string, AuditChange> =>
+  getAuditChanges({
+    content: {
+      after:
+        before && before.contentFingerprint !== after.contentFingerprint
+          ? "versão atual"
+          : after.content,
+      before:
+        before && before.contentFingerprint !== after.contentFingerprint
+          ? "versão anterior"
+          : (before?.content ?? null),
+    },
+    description: {
+      after: truncateAuditText(after.description),
+      before: truncateAuditText(before?.description ?? null),
+    },
+    durationSeconds: {
+      after: after.durationSeconds,
+      before: before?.durationSeconds ?? null,
+    },
+    isPublished: {
+      after: after.isPublished,
+      before: before?.isPublished ?? null,
+    },
+    isRequired: {
+      after: after.isRequired,
+      before: before?.isRequired ?? null,
+    },
+    moduleId: { after: after.moduleId, before: before?.moduleId ?? null },
+    sortOrder: { after: after.sortOrder, before: before?.sortOrder ?? null },
+    status: { after: after.status, before: before?.status ?? null },
+    textDurationSeconds: {
+      after: after.textDurationSeconds,
+      before: before?.textDurationSeconds ?? null,
+    },
+    textWordCount: {
+      after: after.textWordCount,
+      before: before?.textWordCount ?? null,
+    },
+    title: { after: after.title, before: before?.title ?? null },
+    videoDurationSeconds: {
+      after: after.videoDurationSeconds,
+      before: before?.videoDurationSeconds ?? null,
+    },
+    videoEmbedUrl: {
+      after: after.videoEmbedUrl,
+      before: before?.videoEmbedUrl ?? null,
+    },
+    videoExternalId: {
+      after: after.videoExternalId,
+      before: before?.videoExternalId ?? null,
+    },
+    videoProvider: {
+      after: after.videoProvider,
+      before: before?.videoProvider ?? null,
+    },
+  });
+
+const getContentFingerprint = (content: unknown): string | null => {
+  if (content === null || content === undefined) {
+    return null;
+  }
+  return createHash("sha256")
+    .update(JSON.stringify(content))
+    .digest("hex")
+    .slice(0, 16);
+};
 
 const readString = (formData: FormData, key: string): string =>
   String(formData.get(key) ?? "").trim();
@@ -270,21 +397,26 @@ const readCourseFormValues = (formData: FormData): CourseFormValues => {
 const audit = async ({
   action,
   actorUserId,
+  client,
+  metadata,
   targetId,
   targetType,
 }: {
   action: string;
   actorUserId: string;
+  client?: AuditLogQueryClient;
+  metadata?: AuditMetadata;
   targetId?: string | undefined;
   targetType: string;
 }): Promise<void> => {
-  await getPool().query(
-    `
-      insert into audit_logs (actor_user_id, action, target_type, target_id)
-      values ($1, $2, $3, $4)
-    `,
-    [actorUserId, action, targetType, targetId ?? null]
-  );
+  await writeAuditLog({
+    action,
+    actorUserId,
+    client,
+    metadata,
+    targetId,
+    targetType,
+  });
 };
 
 const withCourseContentReleaseLock = async <T>(
@@ -465,9 +597,14 @@ const runCoursePublicationTransaction = async ({
   try {
     await client.query("begin");
     await lockCourseContentRelease(client, courseId);
-    const { rows } = await client.query<{ id: string }>(
+    const { rows } = await client.query<{
+      id: string;
+      publication_number: number;
+      title_snapshot: string;
+      workload_hours_snapshot: number;
+    }>(
       `
-        select id
+        select id, publication_number, title_snapshot, workload_hours_snapshot
         from course_publications
         where course_id = $1 and status = 'draft'
         order by publication_number desc
@@ -477,6 +614,7 @@ const runCoursePublicationTransaction = async ({
       [courseId]
     );
     const coursePublicationId = rows[0]?.id;
+    const publicationNumber = rows[0]?.publication_number;
 
     if (!coursePublicationId) {
       await client.query("rollback");
@@ -502,8 +640,9 @@ const runCoursePublicationTransaction = async ({
       access_duration_months: number;
       cover_image_json: unknown;
       sales_status: "closed" | "open";
+      title: string;
     }>(
-      "select cover_image_json, access_duration_months, sales_status from courses where id = $1 for update",
+      "select cover_image_json, access_duration_months, sales_status, title from courses where id = $1 for update",
       [courseId]
     );
 
@@ -690,13 +829,32 @@ const runCoursePublicationTransaction = async ({
       `,
       [coursePublicationId, courseId]
     );
-    await client.query(
-      `
-        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-        values ($1, 'course_publication.published', 'course_publication', $2, $3::jsonb)
-      `,
-      [actorUserId, coursePublicationId, JSON.stringify({ courseId })]
-    );
+    await audit({
+      action: "course_publication.published",
+      actorUserId,
+      client,
+      metadata: {
+        changes: getAuditChanges({
+          publicationNumber: {
+            after: publicationNumber ?? null,
+            before: publicationNumber ?? null,
+          },
+          status: { after: "published", before: "draft" },
+          titleSnapshot: {
+            after: rows[0]?.title_snapshot ?? null,
+            before: rows[0]?.title_snapshot ?? null,
+          },
+          workloadHoursSnapshot: {
+            after: rows[0]?.workload_hours_snapshot ?? null,
+            before: rows[0]?.workload_hours_snapshot ?? null,
+          },
+        }),
+        courseId,
+        targetLabelAfter: currentCourse?.title ?? null,
+      },
+      targetId: coursePublicationId,
+      targetType: "course_publication",
+    });
     await client.query("commit");
     return publication;
   } catch (error) {
@@ -780,12 +938,15 @@ export const createCoursePublicationDraft = async ({
       );
     }
 
-    const nextPublication = await client.query<{ id: string }>(
+    const nextPublication = await client.query<{
+      id: string;
+      publication_number: number;
+    }>(
       `
         insert into course_publications (
           course_id, publication_number, status, title_snapshot, workload_hours_snapshot
         ) values ($1, $2, 'draft', $3, $4)
-        returning id
+         returning id, publication_number
       `,
       [
         courseId,
@@ -909,17 +1070,34 @@ export const createCoursePublicationDraft = async ({
         ]
       );
     }
-    await client.query(
-      `
-        insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-        values ($1, 'course_publication.draft_created', 'course_publication', $2, $3::jsonb)
-      `,
-      [
-        actorUserId,
-        coursePublicationId,
-        JSON.stringify({ sourcePublicationId: source.id }),
-      ]
-    );
+    await audit({
+      action: "course_publication.draft_created",
+      actorUserId,
+      client,
+      metadata: {
+        changes: {
+          publicationNumber: {
+            after: nextPublication.rows[0]?.publication_number ?? null,
+            before: source.publication_number,
+          },
+          status: { after: "draft", before: "published" },
+          titleSnapshot: {
+            after: source.title_snapshot,
+            before: null,
+          },
+          workloadHoursSnapshot: {
+            after: source.workload_hours_snapshot,
+            before: null,
+          },
+        },
+        lessonCount: lessonsToCopy.rows.length,
+        moduleCount: modulesToCopy.rows.length,
+        sourcePublicationId: source.id,
+        targetLabelAfter: source.title_snapshot,
+      },
+      targetId: coursePublicationId,
+      targetType: "course_publication",
+    });
     await client.query("commit");
     return { coursePublicationId };
   } catch (error) {
@@ -1344,13 +1522,30 @@ const runCourseUpdateTransaction = async ({
     const publicationState = await client.query<{
       access_duration_months: number;
       cover_image_json: unknown;
+      description: string | null;
       max_release_delay_days: number;
+      payment_allow_credit_card: boolean;
+      payment_allow_pix: boolean;
+      payment_max_installment_count: number;
+      price_in_cents: number;
       sales_status: "closed" | "open";
       should_publish: boolean;
+      subtitle: string | null;
+      title: string;
+      workload_hours_override: number | null;
     }>(
       `
         select (c.status = 'active' or c.catalog_visibility = 'listed') as should_publish,
+               c.title,
+               c.subtitle,
+               c.description,
+               c.workload_hours_override,
+               c.price_in_cents,
+               c.payment_allow_pix,
+               c.payment_allow_credit_card,
+               c.payment_max_installment_count,
                c.access_duration_months,
+               c.cover_image_json,
                c.sales_status,
                coalesce((
                  select max(m.release_delay_days)
@@ -1438,13 +1633,59 @@ const runCourseUpdateTransaction = async ({
         courseId,
       ]
     );
-    await client.query(
-      `
-        insert into audit_logs (actor_user_id, action, target_type, target_id)
-        values ($1, $2, $3, $4)
-      `,
-      [actorUserId, "course.updated", "course", courseId]
-    );
+    const changes = getAuditChanges({
+      accessDurationMonths: {
+        after: values.accessDurationMonths,
+        before: currentCourse.access_duration_months,
+      },
+      description: {
+        after: truncateAuditText(values.description),
+        before: truncateAuditText(currentCourse.description),
+      },
+      paymentAllowCreditCard: {
+        after: values.paymentAllowCreditCard,
+        before: currentCourse.payment_allow_credit_card,
+      },
+      paymentAllowPix: {
+        after: values.paymentAllowPix,
+        before: currentCourse.payment_allow_pix,
+      },
+      paymentMaxInstallmentCount: {
+        after: values.paymentMaxInstallmentCount,
+        before: currentCourse.payment_max_installment_count,
+      },
+      priceInCents: {
+        after: values.priceInCents,
+        before: currentCourse.price_in_cents,
+      },
+      subtitle: {
+        after: truncateAuditText(values.subtitle),
+        before: truncateAuditText(currentCourse.subtitle),
+      },
+      title: { after: values.title, before: currentCourse.title },
+      workloadHoursOverride: {
+        after: values.workloadHoursOverride,
+        before: currentCourse.workload_hours_override,
+      },
+      cover: {
+        after: nextCoverImage ? "configurada" : "não configurada",
+        before: currentCoverImage ? "configurada" : "não configurada",
+      },
+    });
+    if (Object.keys(changes).length > 0) {
+      await audit({
+        action: "course.updated",
+        actorUserId,
+        client,
+        metadata: {
+          changes,
+          targetLabelAfter: values.title,
+          targetLabelBefore: currentCourse.title,
+        },
+        targetId: courseId,
+        targetType: "course",
+      });
+    }
     await client.query("commit");
     return {
       coverImage: currentCoverImage,
@@ -1540,65 +1781,116 @@ const createNewCourse = async ({
     uploadedCoverImage = coverFile ? coverImage : null;
     const insertedThumbnailUrl = getCourseCoverUrl({ courseId, coverImage });
     const slug = await resolveUniqueCourseSlug(values.title);
-    const inserted = await getPool().query<{ id: string }>(
-      `
-        insert into courses (
-          id,
+    const client = await getPool().connect();
+    try {
+      await client.query("begin");
+      const inserted = await client.query<{ id: string }>(
+        `
+          insert into courses (
+            id,
+            slug,
+            title,
+            subtitle,
+            description,
+            workload_hours,
+            workload_hours_override,
+            price_in_cents,
+            payment_allow_pix,
+            payment_allow_credit_card,
+            payment_max_installment_count,
+            thumbnail_url,
+            cover_image_json,
+            access_duration_months,
+            status
+          )
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
+          returning id
+        `,
+        [
+          courseId,
           slug,
-           title,
-           subtitle,
-           description,
-           workload_hours,
-           workload_hours_override,
-           price_in_cents,
-          payment_allow_pix,
-          payment_allow_credit_card,
-          payment_max_installment_count,
-          thumbnail_url,
-          cover_image_json,
-          access_duration_months,
-          status
-        )
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb, $14, $15)
-        returning id
-      `,
-      [
-        courseId,
-        slug,
-        values.title,
-        values.subtitle,
-        values.description,
-        values.workloadHoursOverride ?? 0,
-        values.workloadHoursOverride,
-        values.priceInCents,
-        values.paymentAllowPix,
-        values.paymentAllowCreditCard,
-        values.paymentMaxInstallmentCount,
-        insertedThumbnailUrl,
-        coverImage ? JSON.stringify(coverImage) : null,
-        values.accessDurationMonths,
-        CREATED_CONTENT_STATUS,
-      ]
-    );
-    await getPool().query(
-      `
-        insert into course_publications (
-          course_id,
-          publication_number,
-          status,
-          title_snapshot,
-          workload_hours_snapshot
-        )
-         values ($1, 1, 'draft', $2, $3)
-      `,
-      [inserted.rows[0]?.id, values.title, values.workloadHoursOverride ?? 0]
-    );
-    await audit({
-      action: "course.created",
-      actorUserId,
-      targetId: inserted.rows[0]?.id,
-      targetType: "course",
-    });
+          values.title,
+          values.subtitle,
+          values.description,
+          values.workloadHoursOverride ?? 0,
+          values.workloadHoursOverride,
+          values.priceInCents,
+          values.paymentAllowPix,
+          values.paymentAllowCreditCard,
+          values.paymentMaxInstallmentCount,
+          insertedThumbnailUrl,
+          coverImage ? JSON.stringify(coverImage) : null,
+          values.accessDurationMonths,
+          CREATED_CONTENT_STATUS,
+        ]
+      );
+      const createdCourseId = inserted.rows[0]?.id;
+      if (!createdCourseId) {
+        throw new Error("Não foi possível criar o Curso.");
+      }
+      await client.query(
+        `
+          insert into course_publications (
+            course_id,
+            publication_number,
+            status,
+            title_snapshot,
+            workload_hours_snapshot
+          )
+          values ($1, 1, 'draft', $2, $3)
+        `,
+        [createdCourseId, values.title, values.workloadHoursOverride ?? 0]
+      );
+      await audit({
+        action: "course.created",
+        actorUserId,
+        client,
+        metadata: {
+          changes: getAuditChanges({
+            accessDurationMonths: {
+              after: values.accessDurationMonths,
+              before: null,
+            },
+            description: {
+              after: truncateAuditText(values.description),
+              before: null,
+            },
+            paymentAllowCreditCard: {
+              after: values.paymentAllowCreditCard,
+              before: null,
+            },
+            paymentAllowPix: { after: values.paymentAllowPix, before: null },
+            paymentMaxInstallmentCount: {
+              after: values.paymentMaxInstallmentCount,
+              before: null,
+            },
+            priceInCents: { after: values.priceInCents, before: null },
+            subtitle: {
+              after: truncateAuditText(values.subtitle),
+              before: null,
+            },
+            title: { after: values.title, before: null },
+            workloadHoursOverride: {
+              after: values.workloadHoursOverride,
+              before: null,
+            },
+            cover: {
+              after: coverImage ? "configurada" : "não configurada",
+              before: null,
+            },
+          }),
+          targetLabelAfter: values.title,
+        },
+        targetId: createdCourseId,
+        targetType: "course",
+      });
+      await client.query("commit");
+    } catch (error) {
+      await client.query("rollback");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     await cleanupUploadedCourseCover(uploadedCoverImage);
     throw error;
@@ -1693,9 +1985,18 @@ export const saveModule = async ({
     await withCourseContentReleaseLock(
       [courseId, previousCourseId ?? ""],
       async (client) => {
-        const current = await client.query<{ id: string }>(
+        const current = await client.query<{
+          course_id: string;
+          description: string | null;
+          id: string;
+          release_delay_days: number;
+          sort_order: number;
+          status: string;
+          title: string;
+        }>(
           `
-            select m.id
+            select m.id, m.course_id, m.title, m.description, m.sort_order,
+                   m.status, m.release_delay_days
             from modules m
             join course_publications cp on cp.id = m.course_publication_id
             where m.id = $1 and cp.status = 'draft'
@@ -1732,14 +2033,39 @@ export const saveModule = async ({
             moduleId,
           ]
         );
+        const changes = getAuditChanges({
+          courseId: { after: courseId, before: current.rows[0].course_id },
+          description: {
+            after: truncateAuditText(description),
+            before: truncateAuditText(current.rows[0].description),
+          },
+          releaseDelayDays: {
+            after: releaseDelayDays,
+            before: current.rows[0].release_delay_days,
+          },
+          sortOrder: {
+            after: sortOrder,
+            before: current.rows[0].sort_order,
+          },
+          status: { after: status, before: current.rows[0].status },
+          title: { after: title, before: current.rows[0].title },
+        });
+        if (Object.keys(changes).length > 0) {
+          await audit({
+            action: "module.updated",
+            actorUserId,
+            client,
+            metadata: {
+              changes,
+              targetLabelAfter: title,
+              targetLabelBefore: current.rows[0].title,
+            },
+            targetId: moduleId,
+            targetType: "module",
+          });
+        }
       }
     );
-    await audit({
-      action: "module.updated",
-      actorUserId,
-      targetId: moduleId,
-      targetType: "module",
-    });
     await recalculateCourseWorkloadHours(courseId);
     if (previousCourseId && previousCourseId !== courseId) {
       await recalculateCourseWorkloadHours(previousCourseId);
@@ -1747,11 +2073,9 @@ export const saveModule = async ({
     return;
   }
 
-  const inserted = await withCourseContentReleaseLock(
-    [courseId],
-    async (client) => {
-      const draft = await client.query<{ id: string }>(
-        `
+  await withCourseContentReleaseLock([courseId], async (client) => {
+    const draft = await client.query<{ id: string }>(
+      `
           select id
           from course_publications
           where course_id = $1 and status = 'draft'
@@ -1759,17 +2083,37 @@ export const saveModule = async ({
           limit 1
           for update
         `,
-        [courseId]
+      [courseId]
+    );
+    const coursePublicationId = draft.rows[0]?.id;
+    if (!coursePublicationId) {
+      throw new Error(
+        "Prepare alteracoes antes de alterar conteudo publicado."
       );
-      const coursePublicationId = draft.rows[0]?.id;
-      if (!coursePublicationId) {
-        throw new Error(
-          "Prepare alteracoes antes de alterar conteudo publicado."
-        );
-      }
+    }
 
-      return await client.query<{ id: string }>(
-        `
+    const existingModule = await client.query<{
+      description: string | null;
+      id: string;
+      release_delay_days: number;
+      sort_order: number;
+      status: string;
+      title: string;
+    }>(
+      `
+        select m.id, m.title, m.description, m.sort_order,
+               m.status, m.release_delay_days
+        from modules m
+        where m.course_publication_id = $1 and m.sort_order = $2
+        limit 1
+        for update
+      `,
+      [coursePublicationId, sortOrder]
+    );
+    const previousModule = existingModule.rows[0];
+
+    const insertedModule = await client.query<{ id: string }>(
+      `
           insert into modules (course_id, course_publication_id, title, description, sort_order, status, release_delay_days)
           values ($1, $2, $3, $4, $5, $6, $7)
           on conflict (course_publication_id, sort_order) do update set
@@ -1780,23 +2124,50 @@ export const saveModule = async ({
             updated_at = now()
           returning id
         `,
-        [
-          courseId,
-          coursePublicationId,
-          title,
-          description,
-          sortOrder,
-          status,
-          releaseDelayDays,
-        ]
-      );
-    }
-  );
-  await audit({
-    action: "module.upserted",
-    actorUserId,
-    targetId: inserted.rows[0]?.id,
-    targetType: "module",
+      [
+        courseId,
+        coursePublicationId,
+        title,
+        description,
+        sortOrder,
+        status,
+        releaseDelayDays,
+      ]
+    );
+    const changes = getAuditChanges({
+      description: {
+        after: truncateAuditText(description),
+        before: truncateAuditText(previousModule?.description ?? null),
+      },
+      releaseDelayDays: {
+        after: releaseDelayDays,
+        before: previousModule?.release_delay_days ?? null,
+      },
+      sortOrder: {
+        after: sortOrder,
+        before: previousModule?.sort_order ?? null,
+      },
+      status: { after: status, before: previousModule?.status ?? null },
+      title: { after: title, before: previousModule?.title ?? null },
+    });
+    await audit({
+      action: previousModule ? "module.updated" : "module.created",
+      actorUserId,
+      client,
+      metadata: {
+        changes: {
+          ...changes,
+          ...(previousModule
+            ? {}
+            : { courseId: { after: courseId, before: null } }),
+        },
+        targetLabelAfter: title,
+        ...(previousModule ? { targetLabelBefore: previousModule.title } : {}),
+      },
+      targetId: insertedModule.rows[0]?.id,
+      targetType: "module",
+    });
+    return insertedModule;
   });
   await recalculateCourseWorkloadHours(courseId);
 };
@@ -1817,7 +2188,7 @@ export const createLessonDraft = async ({
     throw new LessonAuthoringError("Modulo invalido.");
   }
 
-  const inserted = await withCourseContentReleaseLock(
+  const lessonId = await withCourseContentReleaseLock(
     [courseId],
     async (client) => {
       const currentModule = await client.query<{ id: string }>(
@@ -1837,7 +2208,7 @@ export const createLessonDraft = async ({
         );
       }
 
-      return await client.query<{ id: string }>(
+      const inserted = await client.query<{ id: string }>(
         `
           insert into lessons (
             module_id,
@@ -1865,20 +2236,42 @@ export const createLessonDraft = async ({
           CREATED_CONTENT_STATUS,
         ]
       );
+      const lessonId = inserted.rows[0]?.id;
+      if (!lessonId) {
+        throw new Error("Nao foi possivel criar a aula.");
+      }
+      const lessonAfter: LessonAuditSnapshot = {
+        content: false,
+        contentFingerprint: null,
+        description: draft.description,
+        durationSeconds: 0,
+        isPublished: false,
+        isRequired: true,
+        moduleId: draft.moduleId,
+        sortOrder: draft.sortOrder,
+        status: CREATED_CONTENT_STATUS,
+        textDurationSeconds: 0,
+        textWordCount: 0,
+        title: draft.title,
+        videoDurationSeconds: 0,
+        videoEmbedUrl: null,
+        videoExternalId: null,
+        videoProvider: null,
+      };
+      await audit({
+        action: "lesson.created",
+        actorUserId,
+        client,
+        metadata: {
+          changes: getLessonAuditChanges(null, lessonAfter),
+          targetLabelAfter: draft.title,
+        },
+        targetId: lessonId,
+        targetType: "lesson",
+      });
+      return lessonId;
     }
   );
-  const lessonId = inserted.rows[0]?.id;
-
-  if (!lessonId) {
-    throw new Error("Nao foi possivel criar a aula.");
-  }
-
-  await audit({
-    action: "lesson.created",
-    actorUserId,
-    targetId: lessonId,
-    targetType: "lesson",
-  });
   await recalculateCourseWorkloadHours(courseId);
 
   return { courseId, lessonId };
@@ -1947,11 +2340,12 @@ export const saveLesson = async ({
   if (!module) {
     throw new LessonAuthoringError("Modulo invalido.");
   }
+  const description = readString(formData, "description") || null;
   const values = [
     moduleId,
     module.coursePublicationId,
     title,
-    readString(formData, "description") || null,
+    description,
     videoProvider,
     videoExternalId,
     videoEmbedUrl,
@@ -1973,10 +2367,15 @@ export const saveLesson = async ({
   const persistedLessonId = await withCourseContentReleaseLock(
     [moduleCourseId, previousCourseId ?? ""],
     async (client) => {
+      let currentLesson: { rows: LessonAuditDatabaseRow[] } | null = null;
       if (existingLessonId) {
-        const currentLesson = await client.query<{ id: string }>(
+        currentLesson = await client.query<LessonAuditDatabaseRow>(
           `
-            select l.id
+            select l.id, l.module_id, l.title, l.description,
+                   l.video_provider, l.video_external_id, l.video_embed_url,
+                   l.content_json, l.duration_seconds, l.video_duration_seconds,
+                   l.text_duration_seconds, l.text_word_count, l.sort_order,
+                   l.status, l.is_published, l.is_required
             from lessons l
             join course_publications cp on cp.id = l.course_publication_id
             where l.id = $1 and cp.status = 'draft'
@@ -2035,6 +2434,63 @@ export const saveLesson = async ({
           `,
           [...values, existingLessonId]
         );
+        const current = currentLesson?.rows[0];
+        if (!current) {
+          throw new LessonAuthoringError(
+            "Não foi possível carregar a Aula antes de salvar."
+          );
+        }
+        const lessonAfter: LessonAuditSnapshot = {
+          content: Boolean(contentJson),
+          contentFingerprint: getContentFingerprint(contentJson),
+          description,
+          durationSeconds: durationBreakdown.totalDurationSeconds,
+          isPublished,
+          isRequired,
+          moduleId,
+          sortOrder,
+          status,
+          textDurationSeconds: durationBreakdown.textDurationSeconds,
+          textWordCount: durationBreakdown.textWordCount,
+          title,
+          videoDurationSeconds: durationBreakdown.videoDurationSeconds,
+          videoEmbedUrl,
+          videoExternalId,
+          videoProvider,
+        };
+        const lessonBefore: LessonAuditSnapshot = {
+          content: Boolean(current.content_json),
+          contentFingerprint: getContentFingerprint(current.content_json),
+          description: current.description,
+          durationSeconds: current.duration_seconds,
+          isPublished: current.is_published,
+          isRequired: current.is_required,
+          moduleId: current.module_id,
+          sortOrder: current.sort_order,
+          status: current.status,
+          textDurationSeconds: current.text_duration_seconds,
+          textWordCount: current.text_word_count,
+          title: current.title,
+          videoDurationSeconds: current.video_duration_seconds,
+          videoEmbedUrl: current.video_embed_url,
+          videoExternalId: current.video_external_id,
+          videoProvider: current.video_provider,
+        };
+        const changes = getLessonAuditChanges(lessonBefore, lessonAfter);
+        if (Object.keys(changes).length > 0) {
+          await audit({
+            action: "lesson.updated",
+            actorUserId,
+            client,
+            metadata: {
+              changes,
+              targetLabelAfter: title,
+              targetLabelBefore: current.title,
+            },
+            targetId: existingLessonId,
+            targetType: "lesson",
+          });
+        }
         return existingLessonId;
       }
 
@@ -2068,18 +2524,41 @@ export const saveLesson = async ({
       if (!insertedLessonId) {
         throw new Error("Nao foi possivel salvar a aula.");
       }
+      const lessonAfter: LessonAuditSnapshot = {
+        content: Boolean(contentJson),
+        contentFingerprint: getContentFingerprint(contentJson),
+        description,
+        durationSeconds: durationBreakdown.totalDurationSeconds,
+        isPublished,
+        isRequired,
+        moduleId,
+        sortOrder,
+        status,
+        textDurationSeconds: durationBreakdown.textDurationSeconds,
+        textWordCount: durationBreakdown.textWordCount,
+        title,
+        videoDurationSeconds: durationBreakdown.videoDurationSeconds,
+        videoEmbedUrl,
+        videoExternalId,
+        videoProvider,
+      };
+      await audit({
+        action: "lesson.created",
+        actorUserId,
+        client,
+        metadata: {
+          changes: getLessonAuditChanges(null, lessonAfter),
+          targetLabelAfter: title,
+        },
+        targetId: insertedLessonId,
+        targetType: "lesson",
+      });
       return insertedLessonId;
     }
   );
   savedLessonId = persistedLessonId;
 
   if (existingLessonId) {
-    await audit({
-      action: "lesson.updated",
-      actorUserId,
-      targetId: existingLessonId,
-      targetType: "lesson",
-    });
     if (moduleCourseId) {
       await recalculateCourseWorkloadHours(moduleCourseId);
     }
@@ -2093,16 +2572,8 @@ export const saveLesson = async ({
       shouldDeleteJmvstreamAsset,
       shouldKeepJmvstreamAsset,
     });
-  } else {
-    await audit({
-      action: "lesson.created",
-      actorUserId,
-      targetId: savedLessonId,
-      targetType: "lesson",
-    });
-    if (moduleCourseId) {
-      await recalculateCourseWorkloadHours(moduleCourseId);
-    }
+  } else if (moduleCourseId) {
+    await recalculateCourseWorkloadHours(moduleCourseId);
   }
 
   await consumeUploadedLessonResources({
@@ -2141,9 +2612,30 @@ export const removeLessonVideo = async ({
     ? { failed: 0 }
     : await deleteJmvstreamAssetsForLesson(lessonId);
   await withCourseContentReleaseLock([courseId], async (client) => {
-    const currentLesson = await client.query<{ id: string }>(
+    const currentLesson = await client.query<{
+      content_json: unknown;
+      description: string | null;
+      duration_seconds: number;
+      id: string;
+      is_published: boolean;
+      is_required: boolean;
+      module_id: string;
+      sort_order: number;
+      status: string;
+      text_duration_seconds: number;
+      text_word_count: number;
+      title: string;
+      video_duration_seconds: number;
+      video_embed_url: string | null;
+      video_external_id: string | null;
+      video_provider: string | null;
+    }>(
       `
-        select l.id
+        select l.id, l.module_id, l.title, l.description,
+               l.video_provider, l.video_external_id, l.video_embed_url,
+               l.content_json, l.duration_seconds, l.video_duration_seconds,
+               l.text_duration_seconds, l.text_word_count, l.sort_order,
+               l.status, l.is_published, l.is_required
         from lessons l
         join course_publications cp on cp.id = l.course_publication_id
         where l.id = $1 and cp.status = 'draft'
@@ -2157,6 +2649,7 @@ export const removeLessonVideo = async ({
         "Prepare alteracoes antes de editar conteudo publicado."
       );
     }
+    const current = currentLesson.rows[0];
     await client.query(
       `
         update lessons
@@ -2171,12 +2664,47 @@ export const removeLessonVideo = async ({
       `,
       [lessonId]
     );
-  });
-  await audit({
-    action: "lesson.video_removed",
-    actorUserId,
-    targetId: lessonId,
-    targetType: "lesson",
+    const lessonBefore: LessonAuditSnapshot = {
+      content: Boolean(current.content_json),
+      contentFingerprint: getContentFingerprint(current.content_json),
+      description: current.description,
+      durationSeconds: current.duration_seconds,
+      isPublished: current.is_published,
+      isRequired: current.is_required,
+      moduleId: current.module_id,
+      sortOrder: current.sort_order,
+      status: current.status,
+      textDurationSeconds: current.text_duration_seconds,
+      textWordCount: current.text_word_count,
+      title: current.title,
+      videoDurationSeconds: current.video_duration_seconds,
+      videoEmbedUrl: current.video_embed_url,
+      videoExternalId: current.video_external_id,
+      videoProvider: current.video_provider,
+    };
+    const lessonAfter: LessonAuditSnapshot = {
+      ...lessonBefore,
+      durationSeconds: current.text_duration_seconds,
+      videoDurationSeconds: 0,
+      videoEmbedUrl: null,
+      videoExternalId: null,
+      videoProvider: null,
+    };
+    const changes = getLessonAuditChanges(lessonBefore, lessonAfter);
+    if (Object.keys(changes).length > 0) {
+      await audit({
+        action: "lesson.video_removed",
+        actorUserId,
+        client,
+        metadata: {
+          changes,
+          targetLabelAfter: current.title,
+          targetLabelBefore: current.title,
+        },
+        targetId: lessonId,
+        targetType: "lesson",
+      });
+    }
   });
   await recalculateCourseWorkloadHours(courseId);
 
