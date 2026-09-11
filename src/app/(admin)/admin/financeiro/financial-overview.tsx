@@ -467,7 +467,7 @@ function FinancialIntegrationStatus({
             : "A atualização de pagamento ou acesso pode estar atrasada."}
           {canViewGlobalAudit ? (
             <Button asChild className="mt-3" size="sm" variant="outline">
-              <Link href={route("/admin/auditoria")}>Abrir Auditoria</Link>
+              <Link href={route("/admin/operacao")}>Abrir Operação</Link>
             </Button>
           ) : (
             <span className="mt-3 block text-destructive/80 text-xs">
@@ -489,7 +489,7 @@ function FinancialIntegrationStatus({
             : `${retryableWebhooks} webhooks estão aguardando novas tentativas automáticas.`}
           {canViewGlobalAudit ? (
             <Button asChild className="mt-3" size="sm" variant="outline">
-              <Link href={route("/admin/auditoria")}>Abrir Auditoria</Link>
+              <Link href={route("/admin/operacao")}>Abrir Operação</Link>
             </Button>
           ) : (
             <span className="mt-3 block text-muted-foreground text-xs">

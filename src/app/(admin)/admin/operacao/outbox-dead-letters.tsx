@@ -34,7 +34,7 @@ export function OutboxDeadLetterReprocess({
   };
 
   return (
-    <form action={reprocess} className="grid gap-2">
+    <form action={reprocess} className="grid min-w-52 gap-2">
       <input name="messageId" type="hidden" value={messageId} />
       <FieldGroup>
         <Field>
@@ -44,17 +44,22 @@ export function OutboxDeadLetterReprocess({
           <Input
             autoComplete="off"
             id={`outbox-reason-${messageId}`}
+            maxLength={500}
             name="reason"
             required
           />
         </Field>
       </FieldGroup>
       <p className="text-muted-foreground text-xs">
-        Reprocessar depois de 24 horas pode duplicar um e-mail cujo resultado
-        anterior ficou ambíguo.
+        Após 24 horas, confirme o risco de duplicar um e-mail com resultado
+        ambíguo.
       </p>
       {error ? (
-        <p aria-live="polite" className="text-destructive text-xs" role="alert">
+        <p
+          aria-live="assertive"
+          className="text-destructive text-xs"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}

@@ -16,6 +16,7 @@ vi.mock("@/features/jmvstream/server", () => ({
 vi.mock("@/lib/auth-permissions", () => ({ requirePermission }));
 
 import {
+  getAdminAuditData,
   getAdminCourseCatalogData,
   getAdminCourseDetailData,
   getAdminCourseOverviewSummary,
@@ -559,6 +560,62 @@ describe("admin read projections", () => {
     expect(requirePermission).toHaveBeenCalledWith("viewGlobalAudit");
     expect(query.mock.calls[0]?.[1]).toEqual(["PAYMENT", "%PAYMENT%", 21, 20]);
     expect(String(query.mock.calls[0]?.[0])).not.toContain("payload");
+  });
+
+  it("pages audit events without exposing actor or student emails", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          action: "course.updated",
+          actor_email: "admin@example.test",
+          actor_name: "Administradora",
+          actor_role: "admin",
+          created_at: new Date("2026-09-08T12:00:00.000Z"),
+          event_id: "audit-21",
+          source: "administrative",
+          target_id: "course-1",
+          target_name: "Curso de exemplo",
+          target_type: "course",
+          total_count: 26,
+        },
+      ],
+    });
+
+    await expect(
+      getAdminAuditData({
+        from: "2026-09-01",
+        page: 2,
+        search: "course",
+        source: "administrative",
+        targetType: "course",
+        to: "2026-09-08",
+      })
+    ).resolves.toMatchObject({
+      auditLogs: [
+        expect.objectContaining({
+          actorEmail: "admin@example.test",
+          actorName: "Administradora",
+          action: "course.updated",
+          source: "administrative",
+        }),
+      ],
+      page: 2,
+      totalCount: 26,
+    });
+
+    expect(query.mock.calls[0]?.[1]).toEqual([
+      "administrative",
+      "course",
+      "%course%",
+      "2026-09-01",
+      "2026-09-08",
+      26,
+      25,
+    ]);
+    expect(String(query.mock.calls[0]?.[0])).toContain(
+      "u.email as actor_email"
+    );
+    expect(String(query.mock.calls[0]?.[0])).not.toContain("student.email");
   });
 
   it("bounds the student projection and returns pagination metadata", async () => {

@@ -224,18 +224,18 @@ const getDashboardIssues = ({
     tone: "attention",
   });
   add(attention, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: failedIntegrationCount,
     description: formatCountBreakdown([
       ["Webhooks falhos", backlog.webhooks.failed],
       ["Mensagens em dead letter", backlog.outbox.deadLetters],
     ]),
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "Falhas de integração",
     tone: "attention",
   });
   add(attention, {
-    actionLabel: "Ver certificados",
+    actionLabel: "Abrir catálogo",
     count: operations.certificates.pendingCount,
     description: "Há conclusões elegíveis sem certificado emitido no Hub.",
     href: "/admin/cursos",
@@ -256,20 +256,20 @@ const getDashboardIssues = ({
     tone: "attention",
   });
   add(attention, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: backlog.emailDelivery.deadLetters,
     description:
       "Eventos de entrega de e-mail não atualizaram o estado local e exigem investigação.",
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "Eventos de e-mail em dead letter",
     tone: "attention",
   });
   add(attention, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: support.failedCount,
     description:
       "Solicitações de suporte não foram entregues ao fluxo de e-mail.",
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "E-mails de suporte com falha",
     tone: "attention",
   });
@@ -283,11 +283,11 @@ const getDashboardIssues = ({
     tone: "watch",
   });
   add(watch, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: backlog.webhooks.retryable,
     description:
       "A próxima tentativa automática ainda pode regularizar estes eventos.",
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "Webhooks em retry",
     tone: "watch",
   });
@@ -352,20 +352,20 @@ const getDashboardIssues = ({
     tone: "watch",
   });
   add(watch, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: backlog.emailDelivery.retrying,
     description:
       "Eventos de entrega aguardam nova tentativa ou correlação do provedor.",
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "Eventos de e-mail em retry",
     tone: "watch",
   });
   add(watch, {
-    actionLabel: "Abrir Auditoria",
+    actionLabel: "Abrir Operação",
     count: support.pendingCount,
     description:
       "Solicitações foram registradas, mas o e-mail ainda não foi entregue.",
-    href: "/admin/auditoria",
+    href: "/admin/operacao",
     label: "Solicitações aguardando e-mail",
     tone: "watch",
   });

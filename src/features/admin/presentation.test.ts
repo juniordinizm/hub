@@ -121,7 +121,7 @@ describe("admin presentation", () => {
         retryableWebhooks: 0,
       })
     ).toEqual({
-      actionHref: "/admin/auditoria",
+      actionHref: "/admin/operacao",
       tone: "attention",
       label: "Revisar integração",
       helper: "1 falho e 0 em retry podem afetar a liberação de acesso.",
@@ -152,7 +152,7 @@ describe("admin presentation", () => {
         retryableWebhooks: 2,
       })
     ).toEqual({
-      actionHref: "/admin/auditoria",
+      actionHref: "/admin/operacao",
       tone: "watch",
       label: "Integração em retry",
       helper: "2 webhooks aguardam uma nova tentativa automática.",

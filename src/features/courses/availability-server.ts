@@ -1,6 +1,8 @@
 import "server-only";
 import type { PoolClient } from "pg";
 import { getPool } from "@/db";
+import { writeAuditLog } from "@/features/admin/audit-log";
+import type { AuditChange } from "@/features/admin/audit-types";
 import {
   createCheckoutCancellationMessage,
   createCourseSalesOpenedMessage,
@@ -24,6 +26,8 @@ interface LockedCourseAvailabilityRow {
   has_commercial_history: boolean;
   has_published_publication: boolean;
   id: string;
+  launch_date: string | null;
+  launch_landing_url: string | null;
   max_release_delay_days: number;
   payment_allow_credit_card: boolean;
   payment_allow_pix: boolean;
@@ -31,6 +35,7 @@ interface LockedCourseAvailabilityRow {
   sales_status: CourseSalesStatus;
   slug: string;
   status: CourseDeliveryStatus;
+  title: string;
 }
 
 interface AvailabilityTarget {
@@ -50,6 +55,16 @@ interface AvailabilityCommandResult {
 
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+const getChangedAvailabilityFields = (
+  changes: Record<string, AuditChange>
+): Record<string, AuditChange> =>
+  Object.fromEntries(
+    Object.entries(changes).filter(
+      ([, change]) =>
+        JSON.stringify(change.before) !== JSON.stringify(change.after)
+    )
+  );
+
 const readLockedCourse = async (
   client: PoolClient,
   courseId: string
@@ -58,9 +73,12 @@ const readLockedCourse = async (
     `
       select c.id,
              c.slug,
+             c.title,
              c.status,
              c.catalog_visibility,
              c.sales_status,
+             c.launch_date,
+             c.launch_landing_url,
              c.access_duration_months,
              c.price_in_cents,
              c.payment_allow_pix,
@@ -257,31 +275,36 @@ const persistTarget = async ({
       target.launchLandingUrl,
     ]
   );
-  await client.query(
-    `
-      insert into audit_logs (actor_user_id, action, target_type, target_id, metadata)
-      values (
-        $1,
-        'course.availability_changed',
-        'course',
-        $2,
-        jsonb_build_object(
-          'fromStatus', $3::text,
-          'fromCatalogVisibility', $4::text,
-          'fromSalesStatus', $5::text,
-          'toPreset', $6::text
-        )
-      )
-    `,
-    [
-      actorUserId,
-      course.id,
-      course.status,
-      course.catalog_visibility,
-      course.sales_status,
-      target.preset,
-    ]
-  );
+  const changes = getChangedAvailabilityFields({
+    catalogVisibility: {
+      after: target.catalogVisibility,
+      before: course.catalog_visibility,
+    },
+    launchDate: { after: target.launchDate, before: course.launch_date },
+    launchLandingUrl: {
+      after: target.launchLandingUrl,
+      before: course.launch_landing_url,
+    },
+    salesStatus: { after: target.salesStatus, before: course.sales_status },
+    status: { after: target.deliveryStatus, before: course.status },
+  });
+  if (Object.keys(changes).length === 0) {
+    return;
+  }
+
+  await writeAuditLog({
+    action: "course.availability_changed",
+    actorUserId,
+    client,
+    metadata: {
+      changes,
+      toPreset: target.preset,
+      targetLabelAfter: course.title,
+      targetLabelBefore: course.title,
+    },
+    targetId: course.id,
+    targetType: "course",
+  });
 };
 
 const enqueueCheckoutCancellations = async ({

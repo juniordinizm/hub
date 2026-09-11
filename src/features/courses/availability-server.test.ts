@@ -37,7 +37,7 @@ const ACTIVE_COURSE = {
 };
 
 const createClient = (course = ACTIVE_COURSE) => {
-  const query = vi.fn((sql: string) => {
+  const query = vi.fn((sql: string, _values?: unknown[]) => {
     const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
     if (normalized.startsWith("select c.id")) {
       return { rows: [course] };
@@ -96,15 +96,21 @@ describe("Course availability commands", () => {
         topic: "payments.checkout-cancel",
       }),
     });
-    const auditSql = String(
-      client.query.mock.calls.find(([sql]) =>
-        String(sql).includes("jsonb_build_object")
-      )?.[0]
+    const auditCall = client.query.mock.calls.find(([sql]) =>
+      String(sql).includes("insert into audit_logs")
     );
-    expect(auditSql).toContain("'fromStatus', $3::text");
-    expect(auditSql).toContain("'fromCatalogVisibility', $4::text");
-    expect(auditSql).toContain("'fromSalesStatus', $5::text");
-    expect(auditSql).toContain("'toPreset', $6::text");
+    expect(auditCall?.[1]).toEqual([
+      "admin-1",
+      "course.availability_changed",
+      "course",
+      "course-1",
+      expect.any(String),
+    ]);
+    const metadata = JSON.parse(String(auditCall?.[1]?.[4]));
+    expect(metadata.changes).toMatchObject({
+      salesStatus: { after: "closed", before: "open" },
+    });
+    expect(metadata.toPreset).toBe("sales_paused");
   });
 
   it("opens sales and enqueues every current interest once", async () => {

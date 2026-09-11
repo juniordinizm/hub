@@ -32,6 +32,7 @@ describe("AdminSidebarNav", () => {
       "/admin/cursos",
       "/admin/alunos",
       "/admin/financeiro",
+      "/admin/operacao",
       "/admin/auditoria",
       "/admin/configuracoes",
     ]) {

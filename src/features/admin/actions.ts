@@ -5,6 +5,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getPool } from "@/db";
 import {
+  type AuditLogQueryClient,
+  writeAuditLog,
+} from "@/features/admin/audit-log";
+import type { AuditMetadata } from "@/features/admin/audit-types";
+import {
   createCoursePublicationDraft,
   createLessonDraft,
   publishCoursePublication,
@@ -106,21 +111,26 @@ const revalidateAdmin = (): void => {
 const audit = async ({
   action,
   actorUserId,
+  client,
+  metadata,
   targetId,
   targetType,
 }: {
   action: string;
   actorUserId: string;
+  client?: AuditLogQueryClient;
+  metadata?: AuditMetadata;
   targetId?: string | undefined;
   targetType: string;
 }) => {
-  await getPool().query(
-    `
-      insert into audit_logs (actor_user_id, action, target_type, target_id)
-      values ($1, $2, $3, $4)
-    `,
-    [actorUserId, action, targetType, targetId ?? null]
-  );
+  await writeAuditLog({
+    action,
+    actorUserId,
+    client,
+    metadata,
+    targetId,
+    targetType,
+  });
 };
 
 export interface LessonReorderGroup {
@@ -978,12 +988,17 @@ export const reorderModulesAction = async (
         try {
           await client.query("BEGIN");
           await lockCourseContentRelease(client, courseId);
-          const expectedModules = await client.query<{ id: string }>(
+          const expectedModules = await client.query<{
+            id: string;
+            sort_order: number;
+            title: string;
+          }>(
             `
-              select m.id
+              select m.id, m.title, m.sort_order
               from modules m
               inner join course_publications cp on cp.id = m.course_publication_id
               where m.course_id = $1 and cp.status = 'draft'
+              order by m.sort_order
               for update
             `,
             [courseId]
@@ -1012,13 +1027,29 @@ export const reorderModulesAction = async (
             );
           }
 
-          await client.query(
-            `
-              insert into audit_logs (actor_user_id, action, target_type, target_id)
-              values ($1, $2, $3, $4)
-            `,
-            [session.user.id, "modules.reordered", "course", courseId]
+          const moduleTitleById = new Map(
+            expectedModules.rows.map((module) => [module.id, module.title])
           );
+          await audit({
+            action: "modules.reordered",
+            actorUserId: session.user.id,
+            client,
+            metadata: {
+              changes: {
+                order: {
+                  after: orderedModuleIds.map(
+                    (moduleId) => moduleTitleById.get(moduleId) ?? moduleId
+                  ),
+                  before: [...expectedModules.rows]
+                    .sort((left, right) => left.sort_order - right.sort_order)
+                    .map((module) => module.title),
+                },
+              },
+              targetLabelAfter: "Conteúdo do Curso",
+            },
+            targetId: courseId,
+            targetType: "course",
+          });
           await client.query("COMMIT");
           revalidateAdmin();
         } catch (error) {
@@ -1070,9 +1101,10 @@ export const reorderLessonsAction = async (
           const modules = await client.query<{
             course_publication_id: string;
             id: string;
+            title: string;
           }>(
             `
-              select m.id, m.course_publication_id
+              select m.id, m.course_publication_id, m.title
               from modules m
               inner join course_publications cp on cp.id = m.course_publication_id
               where m.course_id = $1 and m.id = any($2::uuid[]) and cp.status = 'draft'
@@ -1095,8 +1127,20 @@ export const reorderLessonsAction = async (
             throw new Error("Invalid lesson publication.");
           }
 
-          const expectedLessons = await client.query<{ id: string }>(
-            "select id from lessons where module_id = any($1::uuid[]) for update",
+          const expectedLessons = await client.query<{
+            id: string;
+            module_title: string;
+            sort_order: number;
+            title: string;
+          }>(
+            `
+              select l.id, l.title, l.sort_order, m.title as module_title
+              from lessons l
+              join modules m on m.id = l.module_id
+              where l.module_id = any($1::uuid[])
+              order by m.sort_order, l.sort_order
+              for update of l
+            `,
             [moduleIds]
           );
 
@@ -1127,13 +1171,36 @@ export const reorderLessonsAction = async (
             }
           }
 
-          await client.query(
-            `
-              insert into audit_logs (actor_user_id, action, target_type, target_id)
-              values ($1, $2, $3, $4)
-            `,
-            [session.user.id, "lessons.reordered", "course", courseId]
+          const lessonTitleById = new Map(
+            expectedLessons.rows.map((lesson) => [lesson.id, lesson.title])
           );
+          const moduleTitleById = new Map(
+            modules.rows.map((module) => [module.id, module.title])
+          );
+          const formatLessonOrder = (moduleId: string, lessonId: string) =>
+            `${moduleTitleById.get(moduleId) ?? "Módulo"} · ${lessonTitleById.get(lessonId) ?? lessonId}`;
+          await audit({
+            action: "lessons.reordered",
+            actorUserId: session.user.id,
+            client,
+            metadata: {
+              changes: {
+                order: {
+                  after: reorderGroups.flatMap((group) =>
+                    group.lessonIds.map((lessonId) =>
+                      formatLessonOrder(group.moduleId, lessonId)
+                    )
+                  ),
+                  before: expectedLessons.rows.map(
+                    (lesson) => `${lesson.module_title} · ${lesson.title}`
+                  ),
+                },
+              },
+              targetLabelAfter: "Conteúdo do Curso",
+            },
+            targetId: courseId,
+            targetType: "course",
+          });
           await client.query("COMMIT");
           revalidateAdmin();
         } catch (error) {

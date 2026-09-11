@@ -21,6 +21,9 @@ import {
   type OutboxDeadLetterPage,
 } from "@/features/outbox/server";
 import { requirePermission } from "@/lib/auth-permissions";
+import { canPerform } from "@/lib/auth-policy";
+import type { AdminAuditSource, AdminAuditTargetType } from "./audit-filters";
+import type { AdminAuditLog, AuditMetadata } from "./audit-types";
 import type { AdminFinancialPeriod } from "./financial-period";
 import {
   getAdminFinancialPeriodLabel,
@@ -221,13 +224,22 @@ export interface CourseRevenueSummary {
   totalRevenueInCents: number;
 }
 
-export interface AdminAuditLog {
-  action: string;
-  actorEmail: string | null;
-  createdAt: Date;
-  targetId: string | null;
-  targetName: string | null;
-  targetType: string;
+export interface AdminAuditQuery {
+  from?: string;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  source?: AdminAuditSource;
+  targetType?: AdminAuditTargetType;
+  to?: string;
+}
+
+export interface AdminAuditLogPage {
+  auditLogs: AdminAuditLog[];
+  hasNextPage: boolean;
+  page: number;
+  pageSize: number;
+  totalCount: number;
 }
 
 export interface AdminStatementImportHistory {
@@ -2482,56 +2494,393 @@ const readSettings = async (): Promise<AdminSettings> => {
   };
 };
 
-const readAuditLogs = async (): Promise<AdminAuditLog[]> => {
+const DEFAULT_ADMIN_AUDIT_PAGE_SIZE = 25;
+const MAX_ADMIN_AUDIT_PAGE_SIZE = 100;
+const MAX_ADMIN_AUDIT_PAGE = 1000;
+
+const normalizeAuditMetadata = (value: unknown): AuditMetadata => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return value as AuditMetadata;
+};
+
+const getAuditRecordSource = (
+  source: string
+): Exclude<AdminAuditSource, "all"> => {
+  if (source === "enrollment") {
+    return "enrollment";
+  }
+  if (source === "financial") {
+    return "financial";
+  }
+  return "administrative";
+};
+
+const readAuditLogs = async ({
+  from,
+  page = 1,
+  pageSize = DEFAULT_ADMIN_AUDIT_PAGE_SIZE,
+  search = "",
+  source = "all",
+  targetType = "all",
+  to,
+}: AdminAuditQuery = {}): Promise<AdminAuditLogPage> => {
+  const normalizedPage = Number.isFinite(page)
+    ? Math.min(MAX_ADMIN_AUDIT_PAGE, Math.max(1, Math.trunc(page)))
+    : 1;
+  const normalizedPageSize = Number.isFinite(pageSize)
+    ? Math.min(MAX_ADMIN_AUDIT_PAGE_SIZE, Math.max(1, Math.trunc(pageSize)))
+    : DEFAULT_ADMIN_AUDIT_PAGE_SIZE;
+  const normalizedSearch = search.trim();
+  const values: unknown[] = [];
+  const filters = ["1 = 1"];
+  const addValue = (value: unknown): string => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+
+  if (source !== "all") {
+    filters.push(`source = ${addValue(source)}`);
+  }
+  if (targetType !== "all") {
+    filters.push(`target_type = ${addValue(targetType)}`);
+  }
+  if (normalizedSearch) {
+    const searchParameter = addValue(`%${normalizedSearch}%`);
+    filters.push(
+      `(action ilike ${searchParameter}
+        or coalesce(actor_email, '') ilike ${searchParameter}
+        or coalesce(actor_name, '') ilike ${searchParameter}
+        or coalesce(target_name, '') ilike ${searchParameter}
+        or coalesce(target_id, '') ilike ${searchParameter}
+        or coalesce(metadata::text, '') ilike ${searchParameter})`
+    );
+  }
+  if (from) {
+    filters.push(`created_at >= ${addValue(from)}::date`);
+  }
+  if (to) {
+    filters.push(`created_at < (${addValue(to)}::date + interval '1 day')`);
+  }
+
+  const limitParameter = addValue(normalizedPageSize + 1);
+  const offsetParameter = addValue((normalizedPage - 1) * normalizedPageSize);
   const { rows } = await getPool().query<{
     action: string;
     actor_email: string | null;
+    actor_name: string | null;
+    actor_role: string | null;
     created_at: Date;
+    event_id: string;
+    metadata: unknown;
+    source: string;
     target_id: string | null;
     target_name: string | null;
     target_type: string;
-  }>(`
-    select *
-    from (
-      select a.action, a.target_type, a.target_id, a.created_at, u.email as actor_email,
-             coalesce(
-               (select title from courses where id::text = a.target_id),
-               (select title from modules where id::text = a.target_id),
-               (select title from lessons where id::text = a.target_id),
-               (select name from users where id::text = a.target_id),
-               (select question from faq_items where id::text = a.target_id),
-               (select u2.email from enrollments e2 join users u2 on u2.id = e2.user_id where e2.id::text = a.target_id limit 1)
-             ) as target_name
-      from audit_logs a
-      left join users u on u.id = a.actor_user_id
-
-      union all
-
+    total_count: number;
+  }>(
+    `
       select
-        concat('enrollment.', ee.event_type) as action,
-        'enrollment' as target_type,
-        ee.enrollment_id::text as target_id,
-        ee.created_at,
-        actor.email as actor_email,
-        nullif(concat_ws(' - ', student.email, c.title), '') as target_name
-      from enrollment_events ee
-      left join users actor on actor.id = ee.actor_user_id
-      left join users student on student.id = ee.user_id
-      left join courses c on c.id = ee.course_id
-      where ee.event_type in ('payment_paid', 'payment_refunded', 'payment_disputed')
-    ) audit_feed
-    order by created_at desc
-    limit 30
-  `);
+        event_id,
+        source,
+        action,
+        actor_email,
+        actor_name,
+        actor_role,
+        target_type,
+        target_id,
+        target_name,
+        metadata,
+        created_at,
+        count(*) over()::int as total_count
+      from (
+        select
+          a.id::text as event_id,
+          case
+            when a.action like 'enrollment.%' then 'enrollment'
+            when a.action like any (array[
+              'asaas.%',
+              'asaas_webhook.%',
+              'financial.%',
+              'payment_review.%',
+              'refund.%'
+            ]) then 'financial'
+            else 'administrative'
+          end as source,
+          a.action,
+          u.email as actor_email,
+          u.name as actor_name,
+          p.role as actor_role,
+          a.target_type,
+          a.target_id,
+          case a.target_type
+            when 'banner' then (select button_text from dashboard_banners where id::text = a.target_id)
+            when 'course' then (select title from courses where id::text = a.target_id)
+            when 'course_publication' then (
+              select concat('Versão ', cp.publication_number, ' · ', c.title)
+              from course_publications cp
+              join courses c on c.id = cp.course_id
+              where cp.id::text = a.target_id
+              limit 1
+            )
+            when 'certificate_template' then (select title from courses where id::text = a.target_id)
+            when 'faq' then (select question from faq_items where id::text = a.target_id)
+            when 'lesson' then (select title from lessons where id::text = a.target_id)
+            when 'module' then (select title from modules where id::text = a.target_id)
+            when 'student' then (select name from users where id::text = a.target_id)
+            when 'enrollment' then (
+              select concat('Matrícula · ', c.title)
+              from enrollments e
+              join courses c on c.id = e.course_id
+              where e.id::text = a.target_id
+              limit 1
+            )
+            else null
+          end as target_name,
+          a.metadata,
+          a.created_at
+        from audit_logs a
+        left join users u on u.id = a.actor_user_id
+        left join profiles p on p.user_id = a.actor_user_id
 
-  return rows.map((row) => ({
-    action: row.action,
-    actorEmail: row.actor_email,
-    createdAt: row.created_at,
-    targetId: row.target_id,
-    targetName: row.target_name,
-    targetType: row.target_type,
-  }));
+        union all
+
+        select
+          ee.id::text as event_id,
+          'enrollment' as source,
+          concat('enrollment.', ee.event_type) as action,
+          actor.email as actor_email,
+          actor.name as actor_name,
+          actor_profile.role as actor_role,
+          'enrollment' as target_type,
+          ee.enrollment_id::text as target_id,
+          nullif(concat_ws(' · ', 'Matrícula', c.title), '') as target_name,
+          ee.metadata,
+          ee.created_at
+        from enrollment_events ee
+        left join users actor on actor.id = ee.actor_user_id
+        left join profiles actor_profile on actor_profile.user_id = ee.actor_user_id
+        left join courses c on c.id = ee.course_id
+        where ee.event_type in (
+          'access_manual_block_removed',
+          'access_manually_blocked',
+          'content_full_access_granted',
+          'content_release_scheduled',
+          'expiration_adjustment_reversed',
+          'expiration_extended',
+          'expiration_set',
+          'manual_access_granted',
+          'payment_disputed',
+          'payment_paid',
+          'payment_refunded'
+        )
+        and not exists (
+          select 1
+          from audit_logs duplicate_audit
+          where duplicate_audit.action = concat('enrollment.', ee.event_type)
+            and duplicate_audit.target_type = 'enrollment'
+            and duplicate_audit.target_id = ee.enrollment_id::text
+            and duplicate_audit.created_at between ee.created_at - interval '1 second'
+              and ee.created_at + interval '1 second'
+        )
+
+        union all
+
+        select
+          fe.id::text as event_id,
+          'financial' as source,
+          concat('financial.', fe.event_type) as action,
+          actor.email as actor_email,
+          actor.name as actor_name,
+          actor_profile.role as actor_role,
+          case
+            when fe.order_id is not null then 'order'
+            when fe.payment_review_id is not null then 'payment_review'
+            when fe.refund_request_id is not null then 'refund_request'
+            else 'financial_event'
+          end as target_type,
+          coalesce(
+            fe.order_id::text,
+            fe.payment_review_id::text,
+            fe.refund_request_id::text,
+            fe.id::text
+          ) as target_id,
+          case
+            when fe.order_id is not null then concat('Pedido · ', c.title)
+            else concat('Evento financeiro · ', fe.event_type)
+          end as target_name,
+          fe.metadata,
+          fe.occurred_at
+        from financial_events fe
+        left join users actor on actor.id = fe.actor_user_id
+        left join profiles actor_profile on actor_profile.user_id = fe.actor_user_id
+        left join orders o on o.id = fe.order_id
+        left join courses c on c.id = o.course_id
+      ) audit_feed
+      where ${filters.join(" and ")}
+      order by created_at desc, event_id desc
+      limit ${limitParameter} offset ${offsetParameter}
+    `,
+    values
+  );
+
+  let totalCount = rows[0]?.total_count ?? 0;
+  if (rows.length === 0 && normalizedPage > 1) {
+    const countValues = values.slice(0, values.length - 2);
+    const countResult = await getPool().query<{ total_count: number }>(
+      `
+        select count(*)::int as total_count
+        from (
+          select
+            a.id::text as event_id,
+            case
+              when a.action like 'enrollment.%' then 'enrollment'
+              when a.action like any (array[
+                'asaas.%',
+                'asaas_webhook.%',
+                'financial.%',
+                'payment_review.%',
+                'refund.%'
+              ]) then 'financial'
+              else 'administrative'
+            end as source,
+            a.action,
+            u.email as actor_email,
+            u.name as actor_name,
+            p.role as actor_role,
+            a.target_type,
+            a.target_id,
+            case a.target_type
+              when 'banner' then (select button_text from dashboard_banners where id::text = a.target_id)
+              when 'course' then (select title from courses where id::text = a.target_id)
+              when 'course_publication' then (
+                select concat('Versão ', cp.publication_number, ' · ', c.title)
+                from course_publications cp
+                join courses c on c.id = cp.course_id
+                where cp.id::text = a.target_id
+                limit 1
+              )
+              when 'certificate_template' then (select title from courses where id::text = a.target_id)
+              when 'faq' then (select question from faq_items where id::text = a.target_id)
+              when 'lesson' then (select title from lessons where id::text = a.target_id)
+              when 'module' then (select title from modules where id::text = a.target_id)
+              when 'student' then (select name from users where id::text = a.target_id)
+              when 'enrollment' then (
+                select concat('Matrícula · ', c.title)
+                from enrollments e
+                join courses c on c.id = e.course_id
+                where e.id::text = a.target_id
+                limit 1
+              )
+              else null
+            end as target_name,
+            a.metadata,
+            a.created_at
+          from audit_logs a
+          left join users u on u.id = a.actor_user_id
+          left join profiles p on p.user_id = a.actor_user_id
+
+          union all
+
+          select
+            ee.id::text as event_id,
+            'enrollment' as source,
+            concat('enrollment.', ee.event_type) as action,
+            actor.email as actor_email,
+            actor.name as actor_name,
+            actor_profile.role as actor_role,
+            'enrollment' as target_type,
+            ee.enrollment_id::text as target_id,
+            nullif(concat_ws(' · ', 'Matrícula', c.title), '') as target_name,
+            ee.metadata,
+            ee.created_at
+          from enrollment_events ee
+          left join users actor on actor.id = ee.actor_user_id
+          left join profiles actor_profile on actor_profile.user_id = ee.actor_user_id
+          left join courses c on c.id = ee.course_id
+          where ee.event_type in (
+            'access_manual_block_removed',
+            'access_manually_blocked',
+            'content_full_access_granted',
+            'content_release_scheduled',
+            'expiration_adjustment_reversed',
+            'expiration_extended',
+            'expiration_set',
+            'manual_access_granted',
+            'payment_disputed',
+            'payment_paid',
+            'payment_refunded'
+          )
+          and not exists (
+            select 1
+            from audit_logs duplicate_audit
+            where duplicate_audit.action = concat('enrollment.', ee.event_type)
+              and duplicate_audit.target_type = 'enrollment'
+              and duplicate_audit.target_id = ee.enrollment_id::text
+              and duplicate_audit.created_at between ee.created_at - interval '1 second'
+                and ee.created_at + interval '1 second'
+          )
+
+          union all
+
+          select
+            fe.id::text as event_id,
+            'financial' as source,
+            concat('financial.', fe.event_type) as action,
+            actor.email as actor_email,
+            actor.name as actor_name,
+            actor_profile.role as actor_role,
+            case
+              when fe.order_id is not null then 'order'
+              when fe.payment_review_id is not null then 'payment_review'
+              when fe.refund_request_id is not null then 'refund_request'
+              else 'financial_event'
+            end as target_type,
+            coalesce(
+              fe.order_id::text,
+              fe.payment_review_id::text,
+              fe.refund_request_id::text,
+              fe.id::text
+            ) as target_id,
+            case
+              when fe.order_id is not null then concat('Pedido · ', c.title)
+              else concat('Evento financeiro · ', fe.event_type)
+            end as target_name,
+            fe.metadata,
+            fe.occurred_at
+          from financial_events fe
+          left join users actor on actor.id = fe.actor_user_id
+          left join profiles actor_profile on actor_profile.user_id = fe.actor_user_id
+          left join orders o on o.id = fe.order_id
+          left join courses c on c.id = o.course_id
+        ) audit_feed
+        where ${filters.join(" and ")}
+      `,
+      countValues
+    );
+    totalCount = countResult.rows[0]?.total_count ?? 0;
+  }
+
+  return {
+    auditLogs: rows.slice(0, normalizedPageSize).map((row) => ({
+      action: row.action,
+      actorEmail: row.actor_email,
+      actorName: row.actor_name,
+      actorRole: row.actor_role,
+      createdAt: row.created_at,
+      id: row.event_id,
+      metadata: normalizeAuditMetadata(row.metadata),
+      source: getAuditRecordSource(row.source),
+      targetId: row.target_id,
+      targetName: row.target_name,
+      targetType: row.target_type,
+    })),
+    hasNextPage: rows.length > normalizedPageSize,
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+    totalCount,
+  };
 };
 
 export const getAdminStatementImportHistory = async (): Promise<
@@ -2896,29 +3245,16 @@ export const getAdminStudentsData = async (
   };
 };
 
-export const getAdminAuditData = async ({
-  outboxPage = 1,
-}: {
-  outboxPage?: number;
-} = {}): Promise<{
-  auditLogs: AdminAuditLog[];
-  operationalBacklog: OperationalBacklogSnapshot;
-  outboxDeadLetters: OutboxDeadLetterPage;
-}> => {
+export const getAdminAuditData = async (
+  options: AdminAuditQuery = {}
+): Promise<AdminAuditLogPage> => {
   await requirePermission("viewGlobalAudit");
-  const [auditLogs, outboxDeadLetters, operationalBacklog] = await Promise.all([
-    readAuditLogs(),
-    listOutboxDeadLetters({ page: outboxPage }),
-    getOperationalBacklogSnapshot(),
-  ]);
-  return { auditLogs, operationalBacklog, outboxDeadLetters };
+  return await readAuditLogs(options);
 };
 
-export const getAdminWebhookEvents = async (
+const readAdminWebhookEvents = async (
   options: AdminWebhookEventQuery = {}
 ): Promise<AdminWebhookEventPage> => {
-  await requirePermission("viewGlobalAudit");
-
   const requestedPage = Math.trunc(options.page ?? 1);
   const page = Number.isFinite(requestedPage)
     ? Math.min(MAX_ADMIN_REVIEW_PAGE, Math.max(1, requestedPage))
@@ -3001,6 +3337,45 @@ export const getAdminWebhookEvents = async (
     pageSize,
     search,
     totalCount,
+  };
+};
+
+export const getAdminWebhookEvents = async (
+  options: AdminWebhookEventQuery = {}
+): Promise<AdminWebhookEventPage> => {
+  await requirePermission("viewGlobalAudit");
+  return await readAdminWebhookEvents(options);
+};
+
+export const getAdminOperationsData = async ({
+  outboxPage = 1,
+  webhookPage = 1,
+  webhookSearch = "",
+}: {
+  outboxPage?: number;
+  webhookPage?: number;
+  webhookSearch?: string;
+} = {}): Promise<{
+  canRetryOutbox: boolean;
+  canRetryWebhook: boolean;
+  operationalBacklog: OperationalBacklogSnapshot;
+  outboxDeadLetters: OutboxDeadLetterPage;
+  webhookEvents: AdminWebhookEventPage;
+}> => {
+  const session = await requirePermission("viewGlobalAudit");
+  const [operationalBacklog, outboxDeadLetters, webhookEvents] =
+    await Promise.all([
+      getOperationalBacklogSnapshot(),
+      listOutboxDeadLetters({ page: outboxPage }),
+      readAdminWebhookEvents({ page: webhookPage, search: webhookSearch }),
+    ]);
+
+  return {
+    canRetryOutbox: canPerform(session.role, "retryOutbox"),
+    canRetryWebhook: canPerform(session.role, "retryWebhook"),
+    operationalBacklog,
+    outboxDeadLetters,
+    webhookEvents,
   };
 };
 

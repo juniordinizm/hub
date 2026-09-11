@@ -549,8 +549,22 @@ describe("admin authoring", () => {
     ]);
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
-      ["admin-1", "course.created", "course", result.courseId]
+      [
+        "admin-1",
+        "course.created",
+        "course",
+        result.courseId,
+        expect.any(String),
+      ]
     );
+    const auditCall = query.mock.calls.find(([sql]) =>
+      String(sql).includes("insert into audit_logs")
+    );
+    const auditMetadata = JSON.parse(String(auditCall?.[1]?.[4]));
+    expect(auditMetadata.changes).toMatchObject({
+      priceInCents: { after: 12_990, before: null },
+      title: { after: "Curso novo", before: null },
+    });
     expect(ensureJmvstreamCourseFolder).toHaveBeenCalledWith(result.courseId);
 
     const courseInsertIndex = query.mock.calls.findIndex(([sql]) =>
@@ -884,7 +898,7 @@ describe("admin authoring", () => {
     ).toContain("release_delay_days");
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
-      ["admin-1", "module.updated", "module", "module-1"]
+      ["admin-1", "module.updated", "module", "module-1", expect.any(String)]
     );
     expect(recalculateCourseWorkloadHours.mock.calls).toEqual([
       ["course-new"],
@@ -1103,7 +1117,7 @@ describe("admin authoring", () => {
     );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
-      ["admin-1", "lesson.created", "lesson", "lesson-1"]
+      ["admin-1", "lesson.created", "lesson", "lesson-1", expect.any(String)]
     );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
   });
@@ -1158,7 +1172,13 @@ describe("admin authoring", () => {
     ).resolves.toEqual({ courseId: "course-1", lessonId: "lesson-created" });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
-      ["admin-1", "lesson.created", "lesson", "lesson-created"]
+      [
+        "admin-1",
+        "lesson.created",
+        "lesson",
+        "lesson-created",
+        expect.any(String),
+      ]
     );
   });
 
@@ -1617,7 +1637,13 @@ describe("admin authoring", () => {
     );
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("insert into audit_logs"),
-      ["admin-1", "lesson.video_removed", "lesson", "lesson-1"]
+      [
+        "admin-1",
+        "lesson.video_removed",
+        "lesson",
+        "lesson-1",
+        expect.any(String),
+      ]
     );
     expect(recalculateCourseWorkloadHours).toHaveBeenCalledWith("course-1");
     expect(result).toEqual({ courseId: "course-1", deletePending: true });
