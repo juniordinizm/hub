@@ -1401,7 +1401,7 @@ function RecentCertificatesTable({
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="ghost">
                     <Link href={route(`/certificados/${certificate.code}`)}>
-                      Validar
+                      Ver apenas
                       <HugeiconsIcon
                         aria-hidden="true"
                         data-icon="inline-end"
