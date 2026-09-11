@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: e0a55d04884851c21bd55fe605afd05cc52c5a4e
 ---
 
 # Fluxo de release do Hub
@@ -76,6 +76,12 @@ Não cria branches Neon, não usa dados Production e não executa em todo push.
 O merge em `staging` tem uma operação pequena e separada que aplica migrations
 no banco persistente de Staging. Essa operação não faz deployment Vercel e não
 repete a CI.
+
+Antes de abrir o Pull Request, tente a revisão opcional do [runbook do
+CodeRabbit](code-review-with-coderabbit.md), usando `staging` como base para o
+fluxo normal e `main` somente para hotfix. Verifique a CLI e a autenticação; se
+o CodeRabbit não estiver disponível, registre o motivo do skip e continue. A
+revisão é assistiva e nunca substitui o check `CI`.
 
 ## Release normal
 

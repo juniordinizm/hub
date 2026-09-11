@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: e0a55d04884851c21bd55fe605afd05cc52c5a4e
 ---
 
 # Desenvolvimento compartilhado
@@ -476,9 +476,8 @@ Nunca aponte webhook Production para um computador.
 ### 1. Atualizar e criar uma branch Git
 
 ```powershell
-git switch main
-git pull origin main
-git switch -c feat/nome-curto-da-mudanca
+git fetch origin staging
+git switch -c feat/nome-curto-da-mudanca origin/staging
 ```
 
 Exemplos:
@@ -487,7 +486,7 @@ Exemplos:
 - `fix/upload-certificado`;
 - `docs/guia-checkout`.
 
-Não programe diretamente na `main`.
+Não programe diretamente em `main` ou `staging`.
 
 ### 2. Desenvolver e testar
 
@@ -514,6 +513,11 @@ bun run verify
 primeiro gate vermelho e mostram qual comando falhou. O build recebe somente
 as variáveis sintéticas mínimas de aplicação exigidas pela compilação e não
 exige copiar `.env.local` para um worktree limpo.
+
+Depois da verificação local, tente a [revisão assistida com
+CodeRabbit](code-review-with-coderabbit.md), usando `staging` como base. A etapa
+é opcional: verifique CLI e autenticação, registre o motivo se estiver
+indisponível e continue para o commit sem transformar a revisão em gate da CI.
 
 Não rode E2E contra a branch compartilhada Development. E2E limpa e recria
 fixtures; a CI fornece branches descartáveis próprias.
@@ -544,11 +548,12 @@ No GitHub:
 1. abra o Pull Request para `staging`;
 2. explique o problema e a solução;
 3. informe quais testes foram executados;
-4. aguarde todos os jobs da CI;
-5. não faça merge com job vermelho;
-6. abra o Preview criado pela CI;
-7. verifique a interface relacionada à mudança;
-8. peça revisão quando a mudança envolver autenticação, pagamento, migration,
+4. registre o resultado da revisão CodeRabbit ou o motivo do skip;
+5. aguarde todos os jobs da CI;
+6. não faça merge com job vermelho;
+7. abra o Preview criado pela CI;
+8. verifique a interface relacionada à mudança;
+9. peça revisão quando a mudança envolver autenticação, pagamento, migration,
    storage ou autorização.
 
 Esse primeiro Pull Request só promove a alteração até `staging`. Depois do

@@ -1,7 +1,7 @@
 ---
 status: canonical
 owner: engineering
-last_verified_commit: b6e6d63
+last_verified_commit: e0a55d04884851c21bd55fe605afd05cc52c5a4e
 ---
 
 # Documentação do Hub
@@ -41,6 +41,7 @@ Esse percurso permite localizar propósito, regra, racional, código, teste e op
 ### Operação
 
 - [Ambiente e desenvolvimento local](operations/environment-and-local-development.md)
+- [Revisão assistida com CodeRabbit](operations/code-review-with-coderabbit.md)
 - [Desenvolvimento compartilhado](operations/shared-development-and-release-guide.md)
 - [Fluxo canônico de release](operations/release-flow.md)
 - [Tutorial: da alteração até Production](operations/production-release-guide.md)

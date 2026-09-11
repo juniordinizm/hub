@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: d3943758755a49f09e4e3118044a17a91b2e6794
+last_verified_commit: e0a55d04884851c21bd55fe605afd05cc52c5a4e
 ---
 
 # Guia de Production
@@ -14,7 +14,8 @@ deploy aqui.
 ## Resumo operacional
 
 1. PR normal: `feature/*` ou `fix/*` baseado em `staging`, com destino
-   `staging`.
+   `staging`; tente a revisão opcional do [runbook CodeRabbit](code-review-with-coderabbit.md)
+   e registre o skip se a ferramenta não estiver disponível.
 2. Homologação: aguarde o deployment automático em
    `https://preview.neurocapacitar.com.br`.
 3. Release: execute `Deploy Vercel production` em modo `release-staging`.
