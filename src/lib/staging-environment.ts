@@ -1,7 +1,8 @@
+import { getNonProductionSentryProblems } from "./sentry-environment";
+
 const STAGING_ORIGIN = "https://preview.neurocapacitar.com.br";
 const ASAAS_SANDBOX_ORIGIN = "https://api-sandbox.asaas.com";
 const PRODUCTION_NEON_COMPUTE = "ep-hidden-tooth-ac843qc2";
-const PRODUCTION_SENTRY_PROJECT_ID = "4511951566798848";
 const APPROVED_JMVSTREAM_PLAN_ID = "OD-20912";
 const DEVELOPMENT_PRIVATE_BUCKET = "hub-development-private";
 const DEVELOPMENT_PUBLIC_BUCKET = "hub-development-public";
@@ -9,7 +10,6 @@ const STAGING_OBJECT_PREFIX = "staging";
 const APPROVED_RESEND_DOMAIN = "neurocapacitar.com.br";
 const MINIMUM_SECRET_LENGTH = 32;
 const POOLED_HOST_MARKER = "-pooler.";
-const LEADING_SLASHES = /^\/+/;
 const DISPLAY_NAME_EMAIL = /<([^<>]+)>$/;
 const PLACEHOLDER_VALUE = /^<[^<>]+>$/;
 
@@ -203,37 +203,6 @@ const getSharedProviderProblems = (environment: Environment): string[] => {
   return problems;
 };
 
-const readSentryProjectId = (
-  environment: Environment,
-  key: "NEXT_PUBLIC_SENTRY_DSN" | "SENTRY_DSN"
-): string | null => {
-  const url = readUrl(environment, key);
-  return url?.pathname.replace(LEADING_SLASHES, "") || null;
-};
-
-const getSentryProblems = (environment: Environment): string[] => {
-  const problems: string[] = [];
-  const expectedProjectId = environment.STAGING_SENTRY_PROJECT_ID?.trim();
-  if (!expectedProjectId) {
-    problems.push("STAGING_SENTRY_PROJECT_ID is required");
-  }
-
-  for (const key of ["NEXT_PUBLIC_SENTRY_DSN", "SENTRY_DSN"] as const) {
-    const projectId = readSentryProjectId(environment, key);
-    if (!projectId) {
-      problems.push(`${key} must be a valid Sentry DSN`);
-      continue;
-    }
-    if (projectId === PRODUCTION_SENTRY_PROJECT_ID) {
-      problems.push(`${key} must not target the Production project`);
-    }
-    if (expectedProjectId && projectId !== expectedProjectId) {
-      problems.push(`${key} must target STAGING_SENTRY_PROJECT_ID`);
-    }
-  }
-  return problems;
-};
-
 const getExplicitSwitchProblems = (environment: Environment): string[] => {
   const problems: string[] = [];
   if (environment.APPLICATION_MAINTENANCE_MODE?.trim() !== "off") {
@@ -317,7 +286,7 @@ export const getStagingEnvironmentProblems = (
     ...getAsaasProblems(environment),
     ...getR2Problems(environment),
     ...getSharedProviderProblems(environment),
-    ...getSentryProblems(environment),
+    ...getNonProductionSentryProblems(environment, "Staging"),
     ...getExplicitSwitchProblems(environment),
     ...getFirstPartySecretProblems(environment),
     ...getForbiddenVariableProblems(environment),

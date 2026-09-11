@@ -41,7 +41,7 @@ describe("POST /api/health/sentry", () => {
       NEXT_PUBLIC_SENTRY_RELEASE: release,
       SENTRY_DSN: "https://public@example.ingest.sentry.io/4511808556564480",
       SENTRY_READINESS_SECRET: secret,
-      VERCEL_TARGET_ENV: "staging",
+      VERCEL_ENV: "production",
     });
     dependencies.emitSentryReadinessEvent.mockResolvedValue({
       correlationId: "0198d6f4-c2a5-7000-8000-000000000001",
@@ -50,7 +50,13 @@ describe("POST /api/health/sentry", () => {
   });
 
   it.each([
-    [{ VERCEL_TARGET_ENV: "staging" }],
+    [
+      {
+        SENTRY_READINESS_SECRET: secret,
+        VERCEL_ENV: "preview",
+        VERCEL_TARGET_ENV: "staging",
+      },
+    ],
     [{ SENTRY_READINESS_SECRET: secret, VERCEL_ENV: "preview" }],
   ])("returns 404 when the emission surface is unavailable", async (env) => {
     dependencies.getServerEnv.mockReturnValue(env);
@@ -87,7 +93,7 @@ describe("POST /api/health/sentry", () => {
     });
     expect(dependencies.emitSentryReadinessEvent).toHaveBeenCalledWith({
       correlationId: expect.any(String),
-      environment: "staging",
+      environment: "production",
       release,
     });
   });

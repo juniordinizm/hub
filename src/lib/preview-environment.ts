@@ -1,3 +1,5 @@
+import { getNonProductionSentryProblems } from "./sentry-environment";
+
 const REQUIRED_PREVIEW_VARIABLES = [
   "AUTH_PUBLIC_SIGNUP_ENABLED",
   "BETTER_AUTH_SECRET",
@@ -125,7 +127,8 @@ export const getPreviewEnvironmentProblems = (
   problems.push(
     ...getSecretProblems(environment),
     ...getDatabaseProblems(environment),
-    ...getApplicationOriginProblems(environment)
+    ...getApplicationOriginProblems(environment),
+    ...getNonProductionSentryProblems(environment, "Preview")
   );
 
   return [...new Set(problems)];

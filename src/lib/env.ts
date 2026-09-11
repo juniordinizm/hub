@@ -4,6 +4,7 @@ import { DEFAULT_EMAIL_SENDER } from "@/lib/brand";
 import { getPreviewEnvironmentProblems } from "@/lib/preview-environment";
 import { getProductionEnvironmentProblems } from "@/lib/production-environment";
 import { resolveRuntimeEnvironment } from "@/lib/runtime-environment";
+import { getNonProductionSentryProblems } from "@/lib/sentry-environment";
 import { getStagingEnvironmentProblems } from "@/lib/staging-environment";
 
 const optionalNonEmptyString = z.preprocess((value) => {
@@ -98,7 +99,6 @@ const serverEnvSchema = z.object({
   STAGING_JMVSTREAM_USES_PRODUCTION: optionalNonEmptyString,
   STAGING_R2_USES_DEVELOPMENT: optionalNonEmptyString,
   STAGING_RESEND_USES_PRODUCTION: optionalNonEmptyString,
-  STAGING_SENTRY_PROJECT_ID: optionalNonEmptyString,
   VERCEL: optionalNonEmptyString,
   VERCEL_BRANCH_URL: optionalNonEmptyString,
   VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
@@ -159,6 +159,7 @@ const validateCanonicalProductionUrls = (
 const getIsolatedE2eProductionProblems = (
   rawEnvironment: RawEnvironment
 ): string[] => [
+  ...getNonProductionSentryProblems(rawEnvironment, "E2E"),
   ...(rawEnvironment.DATABASE_URL_DIRECT?.trim()
     ? ["DATABASE_URL_DIRECT must not be set in the web runtime"]
     : []),
@@ -290,7 +291,6 @@ export const getServerEnv = () => {
       process.env.STAGING_JMVSTREAM_USES_PRODUCTION,
     STAGING_R2_USES_DEVELOPMENT: process.env.STAGING_R2_USES_DEVELOPMENT,
     STAGING_RESEND_USES_PRODUCTION: process.env.STAGING_RESEND_USES_PRODUCTION,
-    STAGING_SENTRY_PROJECT_ID: process.env.STAGING_SENTRY_PROJECT_ID,
     VERCEL: process.env.VERCEL,
     VERCEL_BRANCH_URL: process.env.VERCEL_BRANCH_URL,
     VERCEL_ENV: process.env.VERCEL_ENV,

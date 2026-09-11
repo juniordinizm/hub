@@ -33,10 +33,7 @@ export const POST = async (request: Request): Promise<Response> => {
     VERCEL_TARGET_ENV: env.VERCEL_TARGET_ENV,
   });
 
-  if (
-    !env.SENTRY_READINESS_SECRET ||
-    (environment !== "production" && environment !== "staging")
-  ) {
+  if (!env.SENTRY_READINESS_SECRET || environment !== "production") {
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 

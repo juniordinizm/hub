@@ -29,7 +29,7 @@ const event = {
   },
   request: null,
   tags: [
-    { key: "environment", value: "staging" },
+    { key: "environment", value: "production" },
     { key: "readiness_probe", value: "sentry" },
     { key: "release", value: release },
   ],
@@ -38,7 +38,7 @@ const event = {
 const workflows = [
   {
     enabled: true,
-    environment: "staging",
+    environment: "production",
     id: "workflow-1",
     lastTriggered: "2026-08-24T13:00:05.000Z",
     name: "Hub Production readiness",
@@ -60,7 +60,7 @@ describe("Sentry readiness evidence", () => {
         event,
         expected: {
           alertName: "Hub Production readiness",
-          environment: "staging",
+          environment: "production",
           eventId,
           projectId: "4511808556564480",
           release,
@@ -86,7 +86,7 @@ describe("Sentry readiness evidence", () => {
         },
         expected: {
           alertName: "Hub Production readiness",
-          environment: "staging",
+          environment: "production",
           eventId,
           projectId: "4511808556564480",
           release,
@@ -108,7 +108,7 @@ describe("Sentry readiness evidence", () => {
       },
       expected: {
         alertName: "Hub Production readiness",
-        environment: "staging",
+        environment: "production",
         eventId,
         projectId: "4511808556564480",
         release,
@@ -150,7 +150,7 @@ describe("Sentry readiness evidence", () => {
         },
         expected: {
           alertName: "Hub Production readiness",
-          environment: "staging",
+          environment: "production",
           eventId,
           projectId: "4511808556564480",
           release,
@@ -172,7 +172,7 @@ describe("Sentry readiness evidence", () => {
       },
       expected: {
         alertName: "Hub Production readiness",
-        environment: "staging",
+        environment: "production",
         eventId,
         projectId: "4511808556564480",
         release,
@@ -202,7 +202,7 @@ describe("Sentry readiness evidence", () => {
       },
       expected: {
         alertName: "Hub Production readiness",
-        environment: "staging",
+        environment: "production",
         eventId,
         projectId: "4511808556564480",
         release,
@@ -229,7 +229,7 @@ describe("Sentry readiness evidence", () => {
         eventId,
         fetchImpl: fetchImpl as typeof fetch,
         organization: "neurocapacitar",
-        project: "hub-development",
+        project: "hub-web",
       })
     ).rejects.toThrow(`Sentry read failed with HTTP ${status}.`);
   });

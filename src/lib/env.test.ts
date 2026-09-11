@@ -161,8 +161,6 @@ describe("server environment", () => {
       JMVSTREAM_AUTH_RESOURCE: "fixture-resource",
       JMVSTREAM_PLAN_ID: "OD-20912",
       NEXT_PUBLIC_APP_URL: "https://preview.neurocapacitar.com.br",
-      NEXT_PUBLIC_SENTRY_DSN:
-        "https://public@example.ingest.sentry.io/4511999999999999",
       NODE_ENV: "production",
       PAYMENTS_CHECKOUT_MODE: "public",
       R2_ACCESS_KEY_ID: "development-r2-key",
@@ -177,14 +175,12 @@ describe("server environment", () => {
       RESEND_WEBHOOK_SECRET:
         "resend-webhook-secret-at-least-thirty-two-characters",
       SCHEDULED_JOBS_ENABLED: "true",
-      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
       STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
       STAGING_EMAIL_RECIPIENT_ALLOWLIST:
         "staging-recipient@example.com,staging-ops@example.com",
       STAGING_JMVSTREAM_USES_PRODUCTION: "true",
       STAGING_R2_USES_DEVELOPMENT: "true",
       STAGING_RESEND_USES_PRODUCTION: "true",
-      STAGING_SENTRY_PROJECT_ID: "4511999999999999",
       SUPPORT_EMAIL: "suporte@neurocapacitar.com.br",
       VERCEL_ENV: "preview",
       VERCEL_TARGET_ENV: "staging",
@@ -237,6 +233,22 @@ describe("server environment", () => {
     };
 
     expect(getServerEnv().E2E_TEST_MODE).toBe(true);
+  });
+
+  it("rejects Sentry configuration in the isolated E2E runtime", () => {
+    process.env = {
+      BETTER_AUTH_SECRET: "e2e-only-secret-not-for-production",
+      BETTER_AUTH_URL: "http://127.0.0.1:3100",
+      CERTIFICATE_PUBLIC_BASE_URL: "http://127.0.0.1:3100",
+      CI: "true",
+      DATABASE_URL: "postgresql://e2e.example/db",
+      E2E_TEST_MODE: "true",
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100",
+      NODE_ENV: "production",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/1",
+    };
+
+    expect(() => getServerEnv()).toThrow("SENTRY_DSN must not be set in E2E");
   });
 
   it.each([
