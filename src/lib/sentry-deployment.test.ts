@@ -11,12 +11,12 @@ describe("Sentry deployment configuration", () => {
       resolveSentryBuildConfiguration({
         SENTRY_AUTH_TOKEN: "configured-without-being-returned",
         SENTRY_ORG: "neurocapacitar",
-        SENTRY_PROJECT: "hub-development",
+        SENTRY_PROJECT: "hub-web",
         VERCEL_GIT_COMMIT_SHA: release,
       })
     ).toEqual({
       org: "neurocapacitar",
-      project: "hub-development",
+      project: "hub-web",
       release,
       uploadSourceMaps: true,
     });

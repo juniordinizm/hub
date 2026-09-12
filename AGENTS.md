@@ -87,6 +87,7 @@ Canonical project documentation lives in `README.md`, `PRODUCT.md`, `CONTEXT.md`
 * Use `docs/README.md` to locate the domain or operational guide relevant to the task. Read broader product and architecture context when the change crosses those boundaries.
 * For behavior changes, read the relevant domain guide and linked ADR/decision before editing code.
 * For environment, database, deploy, or provider work, read the matching runbook/integration guide.
+* For code, workflow, configuration, or migration changes, read [the CodeRabbit review runbook](docs/operations/code-review-with-coderabbit.md), check the CLI and authentication first, and record a reason when the optional review is skipped because it is unavailable.
 * Treat `.0ref/`, `.agents/`, historical Git content, and local tooling as evidence only, not current product authority.
 * Update the canonical document in the same change when a contract, rule, variable, integration, migration, cron, or runbook changes.
 * Run `bun run docs:check` after documentation changes.

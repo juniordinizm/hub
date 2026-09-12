@@ -1,13 +1,13 @@
+import { getNonProductionSentryProblems } from "./sentry-environment";
+
 const PRODUCTION_NEON_COMPUTE = "ep-hidden-tooth-ac843qc2";
 const PRODUCTION_JMVSTREAM_PLAN_ID = "OD-20912";
-const PRODUCTION_SENTRY_PROJECT_ID = "4511951566798848";
 const DEVELOPMENT_PRIVATE_BUCKET = "hub-development-private";
 const DEVELOPMENT_PUBLIC_BUCKET = "hub-development-public";
 const APPROVED_RESEND_DOMAIN = "neurocapacitar.com.br";
 const ASAAS_DEVELOPMENT_ORIGIN = "https://api-sandbox.asaas.com";
 const MINIMUM_SECRET_LENGTH = 32;
 const POOLED_HOST_MARKER = "-pooler.";
-const LEADING_SLASHES = /^\/+/;
 const DISPLAY_NAME_EMAIL = /<([^<>]+)>$/;
 const PLACEHOLDER_VALUE = /^<[^<>]+>$/;
 
@@ -208,37 +208,6 @@ const getJmvstreamProblems = (environment: Environment): string[] => {
   return problems;
 };
 
-const readSentryProjectId = (
-  environment: Environment,
-  key: "NEXT_PUBLIC_SENTRY_DSN" | "SENTRY_DSN"
-): string | null => {
-  const url = readUrl(environment, key);
-  return url?.pathname.replace(LEADING_SLASHES, "") || null;
-};
-
-const getSentryProblems = (environment: Environment): string[] => {
-  const problems: string[] = [];
-  const expectedProjectId = environment.DEVELOPMENT_SENTRY_PROJECT_ID?.trim();
-  if (!expectedProjectId) {
-    problems.push("DEVELOPMENT_SENTRY_PROJECT_ID is required");
-  }
-
-  for (const key of ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"] as const) {
-    const projectId = readSentryProjectId(environment, key);
-    if (!projectId) {
-      problems.push(`${key} must be a valid Sentry DSN`);
-      continue;
-    }
-    if (projectId === PRODUCTION_SENTRY_PROJECT_ID) {
-      problems.push(`${key} must not target the Production project`);
-    }
-    if (expectedProjectId && projectId !== expectedProjectId) {
-      problems.push(`${key} must target DEVELOPMENT_SENTRY_PROJECT_ID`);
-    }
-  }
-  return problems;
-};
-
 const getFirstPartySecretProblems = (environment: Environment): string[] =>
   (
     [
@@ -317,7 +286,7 @@ export const getDevelopmentEnvironmentProblems = (
     ...getResendProblems(environment),
     ...getAsaasProblems(environment),
     ...getJmvstreamProblems(environment),
-    ...getSentryProblems(environment),
+    ...getNonProductionSentryProblems(environment, "Development"),
     ...getFirstPartySecretProblems(environment),
   ];
 

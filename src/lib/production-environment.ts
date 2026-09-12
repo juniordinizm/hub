@@ -9,6 +9,7 @@ const REQUIRED_PRODUCTION_VARIABLES = [
   "HEALTHCHECK_SECRET",
   "JMVSTREAM_PLAN_ID",
   "NEXT_PUBLIC_APP_URL",
+  "NEXT_PUBLIC_SENTRY_DSN",
   "PAYMENTS_CHECKOUT_MODE",
   "R2_ACCESS_KEY_ID",
   "R2_ACCOUNT_ID",
@@ -19,6 +20,8 @@ const REQUIRED_PRODUCTION_VARIABLES = [
   "RESEND_API_KEY",
   "RESEND_FROM_EMAIL",
   "RESEND_WEBHOOK_SECRET",
+  "SENTRY_DSN",
+  "SENTRY_READINESS_SECRET",
   "SCHEDULED_JOBS_ENABLED",
   "SUPPORT_EMAIL",
 ] as const;
@@ -42,8 +45,11 @@ const FIRST_PARTY_SECRET_VARIABLES = [
   "CRON_SECRET",
   "HEALTHCHECK_SECRET",
   "RESEND_WEBHOOK_SECRET",
+  "SENTRY_READINESS_SECRET",
   "ASAAS_WEBHOOK_TOKEN",
 ] as const;
+
+const SENTRY_DSN_VARIABLES = ["SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN"] as const;
 
 const ASAAS_PRODUCTION_VARIABLES = [
   "ASAAS_API_BASE_URL",
@@ -55,6 +61,7 @@ const ASAAS_PRODUCTION_VARIABLES = [
 
 const MINIMUM_SECRET_LENGTH = 32;
 const ASAAS_PRODUCTION_ORIGIN = "https://api.asaas.com";
+const LEADING_SLASHES = /^\/+/;
 const PAYMENTS_CHECKOUT_MODES = new Set([
   "authenticated",
   "disabled",
@@ -97,6 +104,36 @@ const getUrlProblems = (
     } else if (url && url.protocol !== "https:") {
       problems.push(`${key} must use https`);
     }
+  }
+
+  return problems;
+};
+
+const getSentryProblems = (
+  environment: Readonly<Record<string, string | undefined>>
+): string[] => {
+  const projectIds = new Set<string>();
+  const problems: string[] = [];
+
+  for (const key of SENTRY_DSN_VARIABLES) {
+    if (!hasValue(environment, key)) {
+      continue;
+    }
+
+    const url = getParsedUrl(environment, key);
+    const projectId = url?.pathname.replace(LEADING_SLASHES, "");
+    if (!(url?.protocol === "https:" && projectId)) {
+      problems.push(`${key} must be a valid Sentry DSN`);
+      continue;
+    }
+
+    projectIds.add(projectId);
+  }
+
+  if (projectIds.size > 1) {
+    problems.push(
+      "SENTRY_DSN and NEXT_PUBLIC_SENTRY_DSN must target the same Sentry project"
+    );
   }
 
   return problems;
@@ -201,6 +238,7 @@ export const getProductionEnvironmentProblems = (
   problems.push(...getAsaasWebhookSwitchProblems(environment));
 
   problems.push(...getUrlProblems(environment));
+  problems.push(...getSentryProblems(environment));
 
   const asaasBaseUrl = getParsedUrl(environment, "ASAAS_API_BASE_URL");
   if (

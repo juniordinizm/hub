@@ -18,15 +18,12 @@ const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
   DEVELOPMENT_DATABASE_HOST: "ep-shared-development.sa-east-1.aws.neon.tech",
   DEVELOPMENT_EMAIL_RECIPIENT_ALLOWLIST: "dev@example.com",
   DEVELOPMENT_JMVSTREAM_PLAN_ID: "OD-30000",
-  DEVELOPMENT_SENTRY_PROJECT_ID: "4511999999999999",
   E2E_TEST_MODE: "false",
   HEALTHCHECK_SECRET:
     "development-health-secret-at-least-thirty-two-characters",
   JMVSTREAM_AUTH_RESOURCE: "6a05c62e-5e71-47b8-9ac7-9c787ec626db",
   JMVSTREAM_PLAN_ID: "OD-30000",
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
-  NEXT_PUBLIC_SENTRY_DSN:
-    "https://public@example.ingest.sentry.io/4511999999999999",
   R2_ACCESS_KEY_ID: "development-r2-key",
   R2_ACCOUNT_ID: "development-r2-account",
   R2_BUCKET_NAME: "hub-development-private",
@@ -36,7 +33,6 @@ const COMPLETE_DEVELOPMENT_ENVIRONMENT: Record<string, string> = {
   RESEND_API_KEY: "re_development",
   RESEND_FROM_EMAIL: "Neuro Capacitar Dev <notificacoes@neurocapacitar.com.br>",
   SCHEDULED_JOBS_ENABLED: "true",
-  SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
   SUPPORT_EMAIL: "dev@example.com",
 };
 
@@ -45,6 +41,23 @@ describe("Development environment contract", () => {
     expect(
       getDevelopmentEnvironmentProblems(COMPLETE_DEVELOPMENT_ENVIRONMENT)
     ).toEqual([]);
+  });
+
+  it("rejects Production-only Sentry configuration", () => {
+    const problems = getDevelopmentEnvironmentProblems({
+      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
+      NEXT_PUBLIC_SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+      SENTRY_AUTH_TOKEN: "configured-production-build-token",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/1",
+    });
+
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        "NEXT_PUBLIC_SENTRY_DSN must not be set in Development",
+        "SENTRY_AUTH_TOKEN must not be set in Development",
+        "SENTRY_DSN must not be set in Development",
+      ])
+    );
   });
 
   it.each([
@@ -136,23 +149,6 @@ describe("Development environment contract", () => {
     });
 
     expect(problems).toEqual([]);
-  });
-
-  it("rejects Production Sentry identifiers", () => {
-    const problems = getDevelopmentEnvironmentProblems({
-      ...COMPLETE_DEVELOPMENT_ENVIRONMENT,
-      DEVELOPMENT_SENTRY_PROJECT_ID: "4511951566798848",
-      NEXT_PUBLIC_SENTRY_DSN:
-        "https://public@example.ingest.sentry.io/4511951566798848",
-      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511951566798848",
-    });
-
-    expect(problems).toEqual(
-      expect.arrayContaining([
-        "SENTRY_DSN must not target the Production project",
-        "NEXT_PUBLIC_SENTRY_DSN must not target the Production project",
-      ])
-    );
   });
 
   it("requires explicit email and job configuration", () => {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import { formatDate } from "@/lib/formatters";
+import { observeSentryOperation } from "@/lib/sentry-operation";
 import { getCertificateFontFile } from "./font-assets";
 import { createCertificatePdfDocument } from "./pdf-document";
 import type { CertificateRenderSnapshot } from "./render-snapshot";
@@ -44,17 +45,19 @@ const getVerticalTextOffset = ({
   return Math.max(0, (height - measuredHeight) / 2);
 };
 
-export const renderCertificatePdf = async ({
-  background,
-  publicBaseUrl,
-  signature,
-  snapshot,
-}: {
+interface RenderCertificatePdfInput {
   background: Buffer;
   publicBaseUrl: string;
   signature: Buffer | null;
   snapshot: CertificateRenderSnapshot;
-}): Promise<{ pdf: Buffer; sha256: string }> => {
+}
+
+const renderCertificatePdfInternal = async ({
+  background,
+  publicBaseUrl,
+  signature,
+  snapshot,
+}: RenderCertificatePdfInput): Promise<{ pdf: Buffer; sha256: string }> => {
   const validationUrl = new URL(
     getCertificateValidationPath(snapshot.certificate.code),
     publicBaseUrl
@@ -151,3 +154,11 @@ export const renderCertificatePdf = async ({
     sha256: createHash("sha256").update(pdf).digest("hex"),
   };
 };
+
+export const renderCertificatePdf = (
+  input: RenderCertificatePdfInput
+): Promise<{ pdf: Buffer; sha256: string }> =>
+  observeSentryOperation({
+    execute: () => renderCertificatePdfInternal(input),
+    operation: "certificate.render",
+  });

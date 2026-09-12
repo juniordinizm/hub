@@ -2,14 +2,18 @@ import { describe, expect, it } from "vitest";
 import { getSentryOptions } from "./sentry-options";
 
 describe("Sentry options", () => {
-  it("classifies Staging events explicitly", () => {
+  it("keeps non-Production capture disabled even with a DSN", () => {
     expect(
       getSentryOptions(
         "https://public@example.ingest.sentry.io/1",
         "staging",
         "a".repeat(40)
       )
-    ).toMatchObject({ environment: "staging", release: "a".repeat(40) });
+    ).toMatchObject({
+      enabled: false,
+      environment: "staging",
+      release: "a".repeat(40),
+    });
   });
 
   it("disables automatic request and user data collection", () => {
@@ -29,14 +33,51 @@ describe("Sentry options", () => {
     });
   });
 
-  it("rejects an enabled Staging SDK without a full deployment SHA", () => {
+  it("sanitizes metric attributes before sending", () => {
+    const options = getSentryOptions(
+      "https://public@example.ingest.sentry.io/1"
+    );
+    const metric = options.beforeSendMetric?.({
+      attributes: {
+        email: "student@example.test",
+        operation: "checkout.create",
+        request_url: "https://hub.example.test/app?email=student@example.test",
+        safe_count: 2,
+      },
+      name: "hub.operation.count",
+      type: "counter",
+      value: 1,
+    });
+
+    expect(metric).toMatchObject({
+      attributes: {
+        operation: "checkout.create",
+        safe_count: 2,
+      },
+    });
+    expect(metric?.attributes).not.toHaveProperty("email");
+    expect(metric?.attributes).not.toHaveProperty("request_url");
+    expect(JSON.stringify(metric)).not.toContain("student@example.test");
+  });
+
+  it("rejects a Production SDK without a full deployment SHA", () => {
     expect(() =>
       getSentryOptions(
         "https://public@example.ingest.sentry.io/1",
-        "staging",
+        "production",
         "abc1234"
       )
     ).toThrow("Sentry release must be the full deployment Git SHA.");
+  });
+
+  it("enables Production capture with a full deployment SHA", () => {
+    expect(
+      getSentryOptions(
+        "https://public@example.ingest.sentry.io/1",
+        "production",
+        "a".repeat(40)
+      )
+    ).toMatchObject({ enabled: true, environment: "production" });
   });
 
   it("mantém a captura desativada sem DSN", () => {

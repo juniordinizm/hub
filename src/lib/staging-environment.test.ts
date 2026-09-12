@@ -20,8 +20,6 @@ const COMPLETE_STAGING_ENVIRONMENT: Record<string, string> = {
   JMVSTREAM_AUTH_RESOURCE: "6a05c62e-5e71-47b8-9ac7-9c787ec626db",
   JMVSTREAM_PLAN_ID: "OD-20912",
   NEXT_PUBLIC_APP_URL: "https://preview.neurocapacitar.com.br",
-  NEXT_PUBLIC_SENTRY_DSN:
-    "https://public@example.ingest.sentry.io/4511999999999999",
   PAYMENTS_CHECKOUT_MODE: "public",
   R2_ACCESS_KEY_ID: "development-r2-key",
   R2_ACCOUNT_ID: "90058d5ae5098fe32c8c0e21209f3c86",
@@ -34,14 +32,12 @@ const COMPLETE_STAGING_ENVIRONMENT: Record<string, string> = {
   RESEND_FROM_EMAIL: "Neuro Capacitar <notificacoes@neurocapacitar.com.br>",
   RESEND_WEBHOOK_SECRET: "resend-webhook-secret-at-least-32-characters",
   SCHEDULED_JOBS_ENABLED: "true",
-  SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511999999999999",
   STAGING_DATABASE_HOST: "ep-staging.sa-east-1.aws.neon.tech",
   STAGING_EMAIL_RECIPIENT_ALLOWLIST:
     "staging-recipient@example.com,staging-ops@example.com",
   STAGING_JMVSTREAM_USES_PRODUCTION: "true",
   STAGING_R2_USES_DEVELOPMENT: "true",
   STAGING_RESEND_USES_PRODUCTION: "true",
-  STAGING_SENTRY_PROJECT_ID: "4511999999999999",
   SUPPORT_EMAIL: "suporte@neurocapacitar.com.br",
   VERCEL_ENV: "preview",
   VERCEL_TARGET_ENV: "staging",
@@ -51,6 +47,21 @@ describe("Staging environment contract", () => {
   it("accepts the complete approved Staging runtime", () => {
     expect(getStagingEnvironmentProblems(COMPLETE_STAGING_ENVIRONMENT)).toEqual(
       []
+    );
+  });
+
+  it("rejects Production-only Sentry configuration", () => {
+    const problems = getStagingEnvironmentProblems({
+      ...COMPLETE_STAGING_ENVIRONMENT,
+      NEXT_PUBLIC_SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
+      SENTRY_DSN: "https://secret@example.ingest.sentry.io/1",
+    });
+
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        "NEXT_PUBLIC_SENTRY_DSN must not be set in Staging",
+        "SENTRY_DSN must not be set in Staging",
+      ])
     );
   });
 
@@ -198,23 +209,6 @@ describe("Staging environment contract", () => {
     expect(problems).toEqual(["STAGING_EMAIL_RECIPIENT_ALLOWLIST is required"]);
     expect(problems.join(" ")).not.toContain(
       COMPLETE_STAGING_ENVIRONMENT.STAGING_EMAIL_RECIPIENT_ALLOWLIST
-    );
-  });
-
-  it("requires the shared Development Sentry project, not Production", () => {
-    const problems = getStagingEnvironmentProblems({
-      ...COMPLETE_STAGING_ENVIRONMENT,
-      NEXT_PUBLIC_SENTRY_DSN:
-        "https://public@example.ingest.sentry.io/4511951566798848",
-      SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511951566798848",
-      STAGING_SENTRY_PROJECT_ID: "4511951566798848",
-    });
-
-    expect(problems).toEqual(
-      expect.arrayContaining([
-        "NEXT_PUBLIC_SENTRY_DSN must not target the Production project",
-        "SENTRY_DSN must not target the Production project",
-      ])
     );
   });
 

@@ -34,7 +34,7 @@ describe("Sentry readiness event", () => {
 
     await emitSentryReadinessEvent({
       captureException,
-      environment: "staging",
+      environment: "production",
       flush,
       release: "a".repeat(40),
     });
@@ -52,7 +52,7 @@ describe("Sentry readiness event", () => {
 
     await emitSentryReadinessEvent({
       captureException,
-      environment: "staging",
+      environment: "production",
       flush,
       release: "a".repeat(40),
     });
@@ -68,7 +68,7 @@ describe("Sentry readiness event", () => {
       emitSentryReadinessEvent({
         captureException,
         correlationId: "0198d6f4-c2a5-7000-8000-000000000001",
-        environment: "staging",
+        environment: "production",
         flush,
         release: "a".repeat(40),
       })
@@ -85,7 +85,7 @@ describe("Sentry readiness event", () => {
     });
     expect(context).toEqual({
       tags: {
-        environment: "staging",
+        environment: "production",
         readiness_probe: "sentry",
         release: "a".repeat(40),
       },

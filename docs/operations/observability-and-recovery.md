@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: edad1eb0506ea4ca4afeecdf85ac03cf5c65a9ac
 ---
 
 # Observabilidade e recuperação
@@ -20,6 +20,79 @@ restringem `vercel-production` a `main` e `vercel-staging` a
 Production e rotação de secrets Resend; DMARC permanece em observação.
 
 **Admin > Operação** mostra contagens, idade de backlog, saúde da JMVStream e filas locais de recuperação. Nunca expõe payload, token, e-mail ou URL assinada. **Admin > Auditoria** fica reservado ao histórico administrativo, aos eventos de Matrícula e aos eventos financeiros relevantes. **Admin > Configurações** mantém somente identidade global de Certificados e conteúdo editorial.
+
+### Política atual do Sentry
+
+O Sentry é Production-only. O SDK não deve ser inicializado nem receber eventos
+em Development, Staging, Preview ou E2E. Alertas, source maps e readiness
+pertencem exclusivamente ao projeto canônico de Production e devem filtrar
+explicitamente `environment=production`. Desenvolvimento e homologação usam
+testes, logs locais, CI e health checks; não dependem de alertas Sentry.
+
+### Instrumentação Production de baixo volume
+
+As operações críticas que passam por `observeOperation`, em
+`src/lib/observe-operation.ts`, e a renderização de Certificados, por
+`observeSentryOperation`, criam um span filho somente quando existe uma
+transação Production ativa. O nome do span é a operação canônica e os únicos
+atributos customizados são `hub.operation` e, quando aplicável,
+`hub.provider`. O resultado recebe `hub.outcome`; correlação, IDs de Conta,
+Aluno, Pedido, Curso, Aula e Certificado não entram no span.
+
+O mesmo ponto emite duas Application Metrics, somente em Production:
+
+- `hub.operation.count`: contador com `operation`, `outcome` e `provider`;
+- `hub.operation.duration`: distribuição em milissegundos com os mesmos
+  atributos.
+
+O hook `beforeSendMetric` aplica a mesma fronteira de privacidade e remove
+atributos sensíveis ou de URL antes do envio. Use nomes de operação e provider
+de baixa cardinalidade; nunca adicione e-mail, código público, URL assinada,
+ID de registro ou payload como atributo.
+
+O único cron monitorado pelo Sentry é `hub-outbox-production`, no cron
+`cron.outbox`, com agenda `*/15 * * * *`, margem de cinco minutos, limite de
+execução de cinco minutos, falha após duas execuções consecutivas e recuperação
+na próxima execução. O monitor só emite check-in no runtime Production; falta
+de autorização, jobs desabilitados, ausência de invocação ou falha de execução
+devem resultar em check-in perdido ou erro, não em sucesso sintético.
+
+O plano gratuito comporta um dashboard Production com widgets de erros por
+release, `hub.operation.count` por operação/outcome, p95 de
+`hub.operation.duration` para `checkout.create` e falhas de webhook/outbox.
+O único uptime monitor recomendado é a URL pública
+`https://app.neurocapacitar.com.br/api/health`, esperando HTTP 2xx; ela mede
+liveness, não substitui a readiness protegida. Alertas de métrica devem ser
+criados somente depois de uma linha de base e com limiares que evitem duplicar
+os alertas de Issue. Session Replay, profiling contínuo, Seer e ingestão
+massiva de logs ficam fora do desenho gratuito e de privacidade atual.
+
+### Topologia externa confirmada
+
+O projeto canônico atual é `hub-web`. O histórico documentado como
+`hub-development` usava o mesmo projeto que hoje aparece com o slug
+`hub-web`; portanto, essa mudança de nome não representa um segundo serviço.
+`hub-production` é um segundo projeto Sentry, criado quando a guarda de
+Production foi temporariamente apontada para uma separação própria. O
+repositório é uma única aplicação Next.js e releases dos mesmos SHAs aparecem
+nos dois projetos, sem evidência de que sejam serviços distintos.
+
+A decisão vigente é manter `hub-web` como destino único, preservar
+`hub-production` durante uma janela de observação e só depois arquivá-lo se não
+houver DSN, release ou evento legítimo dependente dele. Não apagar o projeto
+nem seus Issues como parte de uma limpeza automática.
+
+Em `hub-web` existem três Issue Alerts ativos: um readiness sintético e duas
+rotas de alta prioridade. As duas últimas têm cobertura sobreposta; uma envia
+e-mail na primeira ocorrência e a outra cobre Issues novas e existentes,
+enviando e-mail e abrindo a integração com o Linear. O readiness deve
+permanecer separado. Em `hub-production` permanece uma regra legada de
+primeiro evento; ela agora está filtrada para environment=production, mas
+continua redundante enquanto o projeto não for arquivado.
+
+Não há cron monitor, uptime monitor, alerta de métrica ou dashboard customizado
+configurado. Os dashboards predefinidos vazios do Sentry não são um painel
+operacional do Hub.
 
 ### Auditoria no dia a dia
 
@@ -57,7 +130,15 @@ Alerta sem dona e ação reproduzível deve ser removido, não apenas silenciado
 
 O sanitizador remove atributos cujo nome revele autorização, cookie, nome, e-mail, senha, segredo, assinatura, payload, token ou URL assinada. Referências circulares são substituídas por `[circular]` antes da serialização; esse marcador evita recursão sem publicar o objeto original. Não inclua dados sensíveis nos valores de outros campos.
 
-`src/instrumentation.ts`, ao lado de `src/app`, registra exceções de request e preserva o mesmo identificador como a tag segura `correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`, `beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações e substituem códigos públicos de Certificado por `[certificate-code]` em requests, breadcrumbs, transações e spans. Campos não relacionados permanecem disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um identificador para a exceção do navegador. Sem DSN, o Sentry fica desativado deliberadamente; isso não comprova que uma equipe recebeu alerta.
+`src/instrumentation.ts`, ao lado de `src/app`, registra exceções de request
+somente no runtime Production e preserva o mesmo identificador como a tag segura
+`correlation_id` no Sentry. Os hooks `beforeSend`, `beforeBreadcrumb`,
+`beforeSendTransaction` e `beforeSendSpan` removem query strings de localizações
+e substituem códigos públicos de Certificado por `[certificate-code]` em
+requests, breadcrumbs, transações e spans. Campos não relacionados permanecem
+disponíveis para diagnóstico. `error.tsx` e `global-error.tsx` geram e exibem um
+identificador para a exceção do navegador. Sem DSN Production, o runtime deve
+falhar no preflight em vez de aparentar estar monitorado.
 
 Os pools `application` e `readiness`, em `src/db/index.ts`, registram listener
 `error` no `pg.Pool`. Uma conexão ociosa encerrada pelo provider não pode virar
@@ -124,8 +205,8 @@ institucional continuam pendentes. Até essas evidências existirem, Sentry
 permanece gate crítico aberto e bloqueia `GO`. A manutenção diária também expira
 `support_requests` após 90 dias.
 
-O probe controlado usa `POST /api/health/sentry`, disponível somente em Staging
-ou Production quando `SENTRY_READINESS_SECRET` existe. Ele exige bearer próprio
+O probe controlado usa `POST /api/health/sentry`, disponível somente em
+Production quando `SENTRY_READINESS_SECRET` existe. Ele exige bearer próprio
 e corpo literal `{"confirmation":"EMIT_SENTRY_READINESS_EVENT"}`, cria somente
 uma exceção constante em `src/lib/sentry-readiness.ts`, anexa `environment`, SHA
 completo e `readiness_probe=sentry`, aguarda o flush e retorna apenas `eventId` e
@@ -136,7 +217,7 @@ Depois da emissão, execute o checker somente leitura com o `eventId`, ambiente 
 SHA retornados pelo deployment, sem copiar tokens para a linha de comando:
 
 ```powershell
-bun run ops:check:sentry-readiness -- --event-id=<32-hex> --environment=staging --release=<40-hex>
+bun run ops:check:sentry-readiness -- --event-id=<32-hex> --environment=production --release=<40-hex>
 ```
 
 O processo lê `SENTRY_READINESS_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
@@ -144,7 +225,7 @@ O processo lê `SENTRY_READINESS_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`,
 aguarda no máximo um minuto, exige evento no projeto/ambiente/release corretos,
 ausência de PII/query no payload de telemetria, frame resolvido para
 `src/lib/sentry-readiness.ts` e workflow ativo cujo campo `environment` seja
-exatamente `production` (ou `staging`, na prova correspondente) e cujo
+exatamente `production` e cujo
 `lastTriggered` alcance o evento. Metadados administrativos que a API do Sentry
 anexa à resposta, como `release.lastCommit`, e coleções vazias normalizadas,
 como `cookies=[]`, não são payload da aplicação e não reprovam a privacidade;

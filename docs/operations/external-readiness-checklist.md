@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: edad1eb0506ea4ca4afeecdf85ac03cf5c65a9ac
 ---
 
 # Checklist das pendências externas

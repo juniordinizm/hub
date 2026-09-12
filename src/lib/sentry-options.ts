@@ -1,6 +1,7 @@
 import type {
   Breadcrumb,
   ErrorEvent,
+  Metric,
   SpanJSON,
   TransactionEvent,
 } from "@sentry/core";
@@ -21,6 +22,8 @@ const SENSITIVE_ATTRIBUTE_KEY =
 const REDACTED_EMAIL = "[email]";
 const REDACTED_TOKEN = "Bearer [token]";
 const CIRCULAR_REFERENCE = "[circular]";
+const SENSITIVE_METRIC_ATTRIBUTE_KEY =
+  /authorization|cookie|email|name|password|payload|secret|signature|signed.?url|token|url|user.?name|^user$/iu;
 
 const normalizeTelemetryText = (value: string): string => {
   const withoutCertificateQuery = value.replace(
@@ -120,20 +123,42 @@ const sanitizeSentrySpan = (span: SpanJSON): SpanJSON => {
   return { ...sanitized, data: sanitizeSpanData(sanitized.data) };
 };
 
+const sanitizeSentryMetric = (metric: Metric): Metric => {
+  const attributes = Object.fromEntries(
+    Object.entries(metric.attributes ?? {})
+      .filter(([key]) => !SENSITIVE_METRIC_ATTRIBUTE_KEY.test(key))
+      .map(([key, value]) => [
+        key,
+        typeof value === "string" ? normalizeTelemetryText(value) : value,
+      ])
+      .filter(
+        ([, value]) =>
+          typeof value === "string" ||
+          typeof value === "number" ||
+          typeof value === "boolean"
+      )
+  );
+
+  return {
+    ...metric,
+    attributes,
+  };
+};
+
 export const getSentryOptions = (
   dsn: string | undefined,
   environment?: string,
   release?: string
 ) => {
-  const protectedEnvironment =
-    environment === "production" || environment === "staging";
-  if (dsn && protectedEnvironment && !isFullSentryRelease(release)) {
+  const isProductionEnvironment = environment === "production";
+  if (dsn && isProductionEnvironment && !isFullSentryRelease(release)) {
     throw new Error("Sentry release must be the full deployment Git SHA.");
   }
 
   return {
     beforeSend: sanitizeSentryEvent,
     beforeBreadcrumb: sanitizeSentryBreadcrumb,
+    beforeSendMetric: sanitizeSentryMetric,
     beforeSendSpan: sanitizeSentrySpan,
     beforeSendTransaction: sanitizeSentryTransaction,
     dataCollection: {
@@ -149,7 +174,7 @@ export const getSentryOptions = (
       userInfo: false,
     },
     dsn,
-    enabled: Boolean(dsn),
+    enabled: Boolean(dsn && isProductionEnvironment),
     ...(environment ? { environment } : {}),
     ...(release ? { release } : {}),
     sendDefaultPii: false,

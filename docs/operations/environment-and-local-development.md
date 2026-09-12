@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: a3b0e20ed663e455ecdc5367310592b3d073d6f6
+last_verified_commit: edad1eb0506ea4ca4afeecdf85ac03cf5c65a9ac
 ---
 
 # Ambiente e desenvolvimento local
@@ -12,8 +12,8 @@ Use `.env.local`, nunca versione segredos. Parta de `.env.example`. Banco e prov
 
 O `.env.local` da estação principal foi corrigido e passa pelo preflight
 fail-closed de Development. Ele usa a branch Neon `development`, os buckets
-`hub-development-private` e `hub-development-public`, Asaas Sandbox e o projeto
-Sentry de Development. Resend reutiliza o domínio verificado
+`hub-development-private` e `hub-development-public` e Asaas Sandbox. O Sentry
+é Production-only e não é inicializado nessa estação. Resend reutiliza o domínio verificado
 com allowlist obrigatória. JMVStream reutiliza conscientemente o plano
 Production e, por isso, continua sendo a única integração sem isolamento
 técnico completo.
@@ -44,7 +44,7 @@ O projeto possui cinco perfis:
 
 Staging é identificado por `VERCEL_TARGET_ENV=staging`, mesmo quando
 `VERCEL_ENV=preview`. Ele usa banco Neon próprio, Asaas Sandbox e projeto
-Sentry de Development. Compartilha os buckets R2 de Development sob o namespace
+Sentry não é inicializado em Staging. Compartilha os buckets R2 de Development sob o namespace
 físico `staging/`, o plano JMVStream de Production e a estrutura Resend já
 aprovada, mas o preflight exige `STAGING_EMAIL_RECIPIENT_ALLOWLIST`; sem essa
 variável, o runtime é bloqueado. Essas exceções exigem confirmações explícitas
@@ -125,16 +125,14 @@ históricos foram removidos. Smokes e testes manuais usam exclusivamente
 | `RECOVERY_DRILL_ENVIRONMENT` | `development`, `staging` ou `production` do ensaio | `ops:recovery:evidence` | não |
 | `RECOVERY_DRILL_MIGRATION_JOURNAL` | topo do journal conferido manualmente | `ops:recovery:evidence` | não |
 | `RECOVERY_DRILL_READINESS`, `RECOVERY_DRILL_MIGRATION`, `RECOVERY_DRILL_ALERTS` | resultado `passed`/`failed` confirmado pelo operador | `ops:recovery:evidence` | não |
-| `SENTRY_DSN` | exceções/traces servidor | configs Sentry | identificador protegido |
-| `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador | `instrumentation-client.ts` | público controlado |
-| `NEXT_PUBLIC_SENTRY_RELEASE` | SHA Git completo injetado pelo build | SDK cliente | público controlado |
-| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_ID` | organização, slug e ID do projeto único | `withSentryConfig`, checker | não |
-| `STAGING_SENTRY_PROJECT_ID` | confirmação do projeto Development compartilhado | preflight Staging | identificador protegido |
-| `DEVELOPMENT_SENTRY_PROJECT_ID` | preflight Development | confirmação do projeto Sentry | identificador protegido |
-| `SENTRY_AUTH_TOKEN` | source maps no build | `withSentryConfig` | sim |
-| `SENTRY_READINESS_SECRET` | autoriza emissão sintética controlada | `POST /api/health/sentry` em Staging/Production | sim |
-| `SENTRY_READINESS_AUTH_TOKEN` | inspeção somente leitura do evento | checker local/CI, ausente do runtime web | sim |
-| `SENTRY_READINESS_ALERT_NAME` | nome exato do workflow ativo esperado | checker Sentry | não |
+| `SENTRY_DSN` | exceções/traces server-side em Production | configs Sentry | identificador protegido |
+| `NEXT_PUBLIC_SENTRY_DSN` | exceções navegador em Production | `instrumentation-client.ts` | público controlado |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | SHA Git completo injetado pelo build Production | SDK cliente | público controlado |
+| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_PROJECT_ID` | organização, slug e ID do projeto canônico Production | `withSentryConfig`, checker | não |
+| `SENTRY_AUTH_TOKEN` | source maps do build Production | `withSentryConfig` | sim |
+| `SENTRY_READINESS_SECRET` | autoriza emissão sintética controlada somente em Production | `POST /api/health/sentry` | sim |
+| `SENTRY_READINESS_AUTH_TOKEN` | inspeção somente leitura do evento Production | checker local/CI, ausente do runtime web | sim |
+| `SENTRY_READINESS_ALERT_NAME` | nome exato do alerta Production esperado | checker Sentry | não |
 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | secret de build estável entre releases sobrepostas | `next build` | sim |
 | `DEPLOYMENT_VERSION` | build; SHA imutável do Git | `next.config.ts` | não |
 | `JMVSTREAM_API_BASE_URL` | vídeo | cliente JMVStream | não |
@@ -212,9 +210,9 @@ confirme um bucket de produção.
 
 ### Separação por fase
 
-- build público: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`,
+- build público Production: `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_SENTRY_DSN`,
   `NEXT_PUBLIC_SENTRY_RELEASE`, `R2_PUBLIC_BASE_URL` e `DEPLOYMENT_VERSION`;
-- build secreto: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e, opcionalmente,
+- build secreto Production: `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` e
   `SENTRY_AUTH_TOKEN`, armazenados no ambiente Vercel correspondente. Quando o
   token existe, `SENTRY_ORG`, `SENTRY_PROJECT` e o SHA Git completo são
   obrigatórios; o token não é disponibilizado ao runtime;
@@ -284,8 +282,8 @@ Não há variável de “aprovação jurídica” ou “retenção de privacidad
 7. Execute `bun run dev`.
 
 `bun run dev` agora executa um preflight fail-closed. O comando recusa o compute
-Neon, buckets, remetente, plano JMVStream e projeto Sentry conhecidos de
-Production. Para popular a branch Neon compartilhada, use somente
+Neon, buckets, remetente, plano JMVStream e qualquer configuração Sentry local.
+Para popular a branch Neon compartilhada, use somente
 `bun run db:seed:development`; o comando local legado `db:seed` continua
 restrito a hosts loopback.
 

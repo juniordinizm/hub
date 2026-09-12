@@ -1,4 +1,5 @@
 import { logOperationalEvent, type OperationalEvent } from "./observability";
+import { observeSentryOperation } from "./sentry-operation";
 
 export const observeOperation = async <Result>({
   aggregateId,
@@ -29,21 +30,29 @@ export const observeOperation = async <Result>({
   };
 
   try {
-    const result = await execute();
+    const result = await observeSentryOperation({
+      execute,
+      now,
+      operation,
+      ...(provider ? { provider } : {}),
+      startedAt,
+    });
+    const durationMs = Math.max(0, now() - startedAt);
     logOperationalEvent(
       {
         ...eventBase,
-        durationMs: now() - startedAt,
+        durationMs,
         outcome: "success",
       },
       write
     );
     return result;
   } catch (error) {
+    const durationMs = Math.max(0, now() - startedAt);
     logOperationalEvent(
       {
         ...eventBase,
-        durationMs: now() - startedAt,
+        durationMs,
         errorCode: failureErrorCode,
         outcome: "failure",
       },

@@ -49,7 +49,6 @@ console.log(
     `Private bucket: ${process.env.R2_BUCKET_NAME}`,
     `Public bucket: ${process.env.R2_PUBLIC_BUCKET_NAME}`,
     `JMVStream plan: ${process.env.JMVSTREAM_PLAN_ID}`,
-    `Sentry project: ${process.env.DEVELOPMENT_SENTRY_PROJECT_ID}`,
   ].join("\n")
 );
 

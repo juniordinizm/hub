@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: operations
-last_verified_commit: 34f35e12a4cbe9b6e3b14bfda176bf7ec5501d2b
+last_verified_commit: edad1eb0506ea4ca4afeecdf85ac03cf5c65a9ac
 ---
 
 # Primeiro deploy Vercel-first
@@ -150,8 +150,8 @@ Não cadastre `CRON_SECRET` nem credenciais de providers.
 ### Build
 
 - `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`: estável entre releases sobrepostas;
-- `SENTRY_AUTH_TOKEN`, se source maps forem publicados;
-- `NEXT_PUBLIC_SENTRY_DSN`;
+- `SENTRY_AUTH_TOKEN`, para source maps do build Production;
+- `NEXT_PUBLIC_SENTRY_DSN`, somente em Production;
 - `R2_PUBLIC_BASE_URL`.
 
 As três URLs canônicas devem usar HTTPS e a mesma origem em Production. Não

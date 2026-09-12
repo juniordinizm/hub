@@ -1,7 +1,7 @@
 ---
 status: runbook
 owner: engineering
-last_verified_commit: 10c9cb8dd187482144850015841fb4485eacbd5f
+last_verified_commit: edad1eb0506ea4ca4afeecdf85ac03cf5c65a9ac
 ---
 
 # Desenvolvimento compartilhado
@@ -53,8 +53,8 @@ classificada deve ser preservado até que seu destino seja decidido.
 
 Em 2026-07-27, a estação principal passou pelo preflight de Development com o
 compute Neon `ep-silent-leaf-aclmy5uk`, os dois buckets
-`hub-development-*`, o plano JMVStream compartilhado aprovado e o projeto
-Sentry Development. A configuração está liberada para desenvolvimento.
+`hub-development-*` e o plano JMVStream compartilhado aprovado. O Sentry é
+Production-only; a configuração está liberada para desenvolvimento sem DSN Sentry.
 
 Em uma estação nova, conclua todos os itens da seção
 [Preparação única](#preparação-única) antes de executar a aplicação.
@@ -70,7 +70,7 @@ Estado confirmado em 2026-07-27:
 - Resend Development reutiliza o domínio verificado
   `neurocapacitar.com.br`, protegido por allowlist de destinatários;
 - JMVStream reutiliza conscientemente o plano Production `OD-20912`;
-- Asaas usa Sandbox e Sentry usa projeto Development separado.
+- Asaas usa Sandbox; o Sentry não é inicializado em Development.
 
 ## Topologia aprovada
 
@@ -104,7 +104,7 @@ Development deve permitir:
 - entrega real de e-mails pelo Resend;
 - checkout e webhook de teste do Asaas Sandbox;
 - upload e processamento real de vídeo na JMVStream;
-- captura de erros reais em um projeto Sentry de Development.
+- logs locais e health checks para diagnóstico sem enviar eventos ao Sentry.
 
 “Real” significa executar a integração externa. JMVStream é a única exceção:
 reutiliza o plano Production por decisão explícita e exige cuidados adicionais
@@ -270,28 +270,18 @@ Regras obrigatórias:
 4. confira o hash e a Aula local antes de qualquer deleção;
 5. trate a credencial local como segredo Production.
 
-### 6. Criar o projeto Sentry Development
+### 6. Manter Sentry somente em Production
 
-Use a mesma organização Sentry, mas um projeto diferente:
+Development não configura `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`,
+`SENTRY_AUTH_TOKEN` ou variáveis de readiness Sentry. O runtime não inicializa o
+SDK nesse ambiente; erros locais são tratados pelo terminal, pelos testes e
+pelos logs locais. A fonte de verdade do projeto canônico Production é o
+Environment `vercel-production`, não este `.env.local`.
 
-1. Crie o projeto `hub-development`.
-2. Selecione Next.js.
-3. Copie o DSN do novo projeto.
-4. Configure alertas de Development sem acionar plantões Production.
-5. Não configure `SENTRY_AUTH_TOKEN` localmente; ele é necessário para upload
-   de source maps de build, não para capturar um erro em `next dev`.
-
-Valores:
-
-- `SENTRY_DSN`;
-- `NEXT_PUBLIC_SENTRY_DSN`, usando o DSN público do mesmo projeto.
-
-Gere uma exceção controlada e confirme:
-
-- projeto `hub-development`;
-- ambiente `development`;
-- ausência de e-mail, nome, senha, token, query string e payload;
-- `correlation_id` presente quando a falha passar pelo boundary do projeto.
+Se uma estação ainda possuir DSNs ou variáveis Sentry antigas, remova-as do
+arquivo local sem copiar seus valores para outro arquivo. Não execute um build
+Production local com credenciais Production apenas para testar Sentry; use o
+workflow manual de readiness quando houver autorização.
 
 ### 7. Gerar segredos próprios
 
@@ -393,10 +383,6 @@ R2_SECRET_ACCESS_KEY=<development>
 R2_PUBLIC_BUCKET_NAME=hub-development-public
 R2_PUBLIC_BASE_URL=<public-development-url>
 
-SENTRY_DSN=<hub-development>
-NEXT_PUBLIC_SENTRY_DSN=<hub-development>
-DEVELOPMENT_SENTRY_PROJECT_ID=<id-numerico-hub-development>
-
 CRON_SECRET=<development>
 SCHEDULED_JOBS_ENABLED=true
 HEALTHCHECK_SECRET=<development>
@@ -427,7 +413,8 @@ Antes de iniciar:
 3. confira `R2_PUBLIC_BUCKET_NAME=hub-development-public`;
 4. confira que o remetente contém `Dev`;
 5. confira que a base URL e a chave Asaas pertencem ao Sandbox;
-6. confira que o projeto Sentry é `hub-development`;
+6. confira que não existem DSNs ou variáveis de readiness Sentry no ambiente
+   local;
 7. confira `DEVELOPMENT_JMVSTREAM_USES_PRODUCTION=true` e trate a credencial
    JMVStream como Production;
 8. confira `E2E_TEST_MODE=false`.
@@ -476,9 +463,8 @@ Nunca aponte webhook Production para um computador.
 ### 1. Atualizar e criar uma branch Git
 
 ```powershell
-git switch main
-git pull origin main
-git switch -c feat/nome-curto-da-mudanca
+git fetch origin staging
+git switch -c feat/nome-curto-da-mudanca origin/staging
 ```
 
 Exemplos:
@@ -487,7 +473,7 @@ Exemplos:
 - `fix/upload-certificado`;
 - `docs/guia-checkout`.
 
-Não programe diretamente na `main`.
+Não programe diretamente em `main` ou `staging`.
 
 ### 2. Desenvolver e testar
 
@@ -514,6 +500,11 @@ bun run verify
 primeiro gate vermelho e mostram qual comando falhou. O build recebe somente
 as variáveis sintéticas mínimas de aplicação exigidas pela compilação e não
 exige copiar `.env.local` para um worktree limpo.
+
+Depois da verificação local, tente a [revisão assistida com
+CodeRabbit](code-review-with-coderabbit.md), usando `staging` como base. A etapa
+é opcional: verifique CLI e autenticação, registre o motivo se estiver
+indisponível e continue para o commit sem transformar a revisão em gate da CI.
 
 Não rode E2E contra a branch compartilhada Development. E2E limpa e recria
 fixtures; a CI fornece branches descartáveis próprias.
@@ -544,11 +535,12 @@ No GitHub:
 1. abra o Pull Request para `staging`;
 2. explique o problema e a solução;
 3. informe quais testes foram executados;
-4. aguarde todos os jobs da CI;
-5. não faça merge com job vermelho;
-6. abra o Preview criado pela CI;
-7. verifique a interface relacionada à mudança;
-8. peça revisão quando a mudança envolver autenticação, pagamento, migration,
+4. registre o resultado da revisão CodeRabbit ou o motivo do skip;
+5. aguarde todos os jobs da CI;
+6. não faça merge com job vermelho;
+7. abra o Preview criado pela CI;
+8. verifique a interface relacionada à mudança;
+9. peça revisão quando a mudança envolver autenticação, pagamento, migration,
    storage ou autorização.
 
 Esse primeiro Pull Request só promove a alteração até `staging`. Depois do
@@ -614,7 +606,7 @@ Pare sem tentar contornar quando:
 - JMVStream alterou ou removeu um ativo preexistente;
 - e-mail Development foi enviado a cliente;
 - R2 Development escreveu no bucket Production;
-- Sentry Development registrou PII ou segredo;
+- Sentry Production registrou PII ou segredo;
 - o deployment não passou na readiness.
 
 Informe:

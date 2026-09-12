@@ -24,8 +24,13 @@ const COMPLETE_PRODUCTION_ENVIRONMENT: Record<string, string> = {
   RESEND_API_KEY: "resend-key",
   RESEND_FROM_EMAIL: "NeuroCapacitar <noreply@example.com>",
   RESEND_WEBHOOK_SECRET: "resend-webhook-secret-at-least-32-characters",
+  SENTRY_DSN: "https://secret@example.ingest.sentry.io/4511808556564480",
+  SENTRY_READINESS_SECRET:
+    "sentry-readiness-secret-at-least-thirty-two-characters",
   SCHEDULED_JOBS_ENABLED: "false",
   SUPPORT_EMAIL: "support@example.com",
+  NEXT_PUBLIC_SENTRY_DSN:
+    "https://public@example.ingest.sentry.io/4511808556564480",
 };
 
 const ACTIVE_ASAAS_CAPABILITY = {
@@ -127,6 +132,37 @@ describe("production environment contract", () => {
     );
     expect(problems).not.toContain("DATABASE_URL_DIRECT");
     expect(problems).not.toContain("SENTRY_AUTH_TOKEN");
+  });
+
+  it("requires Production Sentry runtime configuration", () => {
+    const environment = Object.fromEntries(
+      Object.entries(COMPLETE_PRODUCTION_ENVIRONMENT).filter(
+        ([key]) =>
+          key !== "SENTRY_DSN" &&
+          key !== "NEXT_PUBLIC_SENTRY_DSN" &&
+          key !== "SENTRY_READINESS_SECRET"
+      )
+    );
+
+    expect(getProductionEnvironmentProblems(environment)).toEqual(
+      expect.arrayContaining([
+        "SENTRY_DSN",
+        "NEXT_PUBLIC_SENTRY_DSN",
+        "SENTRY_READINESS_SECRET",
+      ])
+    );
+  });
+
+  it("requires both Production DSNs to target the same project", () => {
+    const problems = getProductionEnvironmentProblems({
+      ...COMPLETE_PRODUCTION_ENVIRONMENT,
+      NEXT_PUBLIC_SENTRY_DSN:
+        "https://public@example.ingest.sentry.io/4511951566798848",
+    });
+
+    expect(problems).toContain(
+      "SENTRY_DSN and NEXT_PUBLIC_SENTRY_DSN must target the same Sentry project"
+    );
   });
 
   it("allows the disabled pre-cutover deploy without Asaas credentials", () => {

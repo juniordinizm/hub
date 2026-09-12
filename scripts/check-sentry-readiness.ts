@@ -40,8 +40,8 @@ const run = async (): Promise<void> => {
   );
   const eventId = required(argument("--event-id"), "--event-id");
   const environment = required(argument("--environment"), "--environment");
-  if (environment !== "production" && environment !== "staging") {
-    throw new Error("--environment must be production or staging.");
+  if (environment !== "production") {
+    throw new Error("--environment must be production.");
   }
   const release = required(argument("--release"), "--release");
   let lastErrors = ["Sentry evidence was not available before timeout"];

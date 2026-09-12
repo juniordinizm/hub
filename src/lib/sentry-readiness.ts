@@ -6,7 +6,7 @@ import {
 } from "@sentry/nextjs";
 import { isFullSentryRelease } from "./sentry-deployment";
 
-type ProtectedSentryEnvironment = "production" | "staging";
+type ProtectedSentryEnvironment = "production";
 
 interface EmitSentryReadinessEventInput {
   captureException?: (
